@@ -1,0 +1,34 @@
+#
+# ./build/containers/xtcp2/Containerfile
+#
+ARG XTCPPATH
+ARG PWD
+ARG COMMIT
+ARG DATE
+ARG GO_VERSION=1.23
+ARG VERSION
+
+#https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#examples-with-docker
+FROM golang:${GO_VERSION} as build
+
+ARG XTCPPATH
+ARG PWD
+ARG COMMIT
+ARG DATE
+ARG VERSION
+
+RUN echo XTCPPATH:${XTCPPATH} PWD:${PWD} COMMIT:${COMMIT} DATE:${DATE} VERSION:${VERSION}
+
+WORKDIR /go/src
+COPY . .
+
+RUN CGO_ENABLED=0 go build \
+    -ldflags "-X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${VERSION}" \
+    -o /go/bin/xtcp2 \
+    ./cmd/xtcp2/xtcp2.go
+
+# https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#what-images-are-available
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /go/bin/xtcp2 /
+EXPOSE 9009
+ENTRYPOINT ["/xtcp2"]

@@ -1,0 +1,301 @@
+name: xtcp
+networks:
+  net:
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      # https://docs.docker.com/network/drivers/bridge/#options
+      com.docker.network.bridge.name: br-xtcp
+# https://docs.docker.com/compose/networking/#use-a-pre-existing-network
+    ipam:
+      config:
+        - subnet: 10.20.0.0/24
+          gateway: 10.20.0.1
+        # # IPv6 docker compose doesn't really work: https://github.com/docker/compose/issues/4958
+        # # https://www.unique-local-ipv6.com/#
+        # - subnet: fddc:1218:ef3::/64
+        #   gateway: fddc:1218:ef3::1
+
+volumes:
+  redpanda-0: {}
+  nsq_data: {}
+  valkey_data: {}
+
+services:
+  #----------------------------------------------------------
+  # redpanda-0
+  # RPK_BROKERS=127.0.0.1:19092 RPK_ADMIN_HOSTS=127.0.0.1:19644 ./rpk cluster config get kafka_enable_authorization
+  # https://www.redpanda.com/blog/advertised-kafka-address-explanation
+  redpanda-0:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Address the broker advertises to clients that connect to the Kafka API
+      # Use the internal addresses to connect to the Redpanda brokers'
+      # from inside the same Docker network.
+      # Use the external addresses to connect to the Redpanda brokers'
+      # from outside the Docker network.
+      - --advertise-kafka-addr=internal://redpanda-0:9092,external://localhost:19092
+      #- --advertise-kafka-addr=internal://redpanda-0:9092,external://127.0.0.1:19092
+      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
+      # Address the broker advertises to clients that connect to the HTTP Proxy
+      - --advertise-pandaproxy-addr=internal://redpanda-0:8082,external://localhost:18082
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      # Redpanda brokers use the RPC API to communicate with each other internally
+      - --rpc-addr=redpanda-0:33145
+      - --advertise-rpc-addr=redpanda-0:33145
+      # Mode dev-container uses well-known configuration properties for development in containers
+      - --mode=dev-container
+      # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system
+      - --smp=1
+      - --default-log-level=info
+    environment:
+      REDPANDA_VERSION: 24.1.16
+    # https://hub.docker.com/r/redpandadata/redpanda/tags
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.16
+    container_name: redpanda-0
+    volumes:
+      - redpanda-0:/var/lib/redpanda/data
+    networks:
+      - net
+    ports:
+      - 9092:9092
+      - 18081:18081
+      - 18082:18082
+      - 19092:19092
+      - 19644:9644
+  #----------------------------------------------------------
+  # redpanda console
+  console:
+    container_name: redpanda-console
+    # https://hub.docker.com/r/redpandadata/console/tags
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    networks:
+      - net
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONSOLE_VERSION: 2.7.2
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda-0:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda-0:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda-0:9644"]
+    ports:
+      - 8080:8080
+    depends_on:
+      - redpanda-0
+  #----------------------------------------------------------
+  # clickhouse
+  # docker exec -it clickhouse-server clickhouse-client
+  # docker exec -it xtcp-clickhouse-1 clickhouse-client
+  # https://www.propeldata.com/blog/clickhouse-docker
+  clickhouse:
+    # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
+    #image: clickhouse/clickhouse-server:24.6.2.17-alpine
+    image: xtcp_clickhouse
+    #
+    #environment:
+      # https://clickhouse.com/docs/en/operations/access-rights
+      # CLICKHOUSE_DB: default
+      # CLICKHOUSE_USER: default
+      # CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: default
+      # CLICKHOUSE_PASSWORD: default
+    # security_opt:
+    #   - "label=type:clickhouse.process"
+    ulimits:
+      #nproc: 65535
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 262144
+        hard: 262144
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+      - IPC_LOCK
+      - SYS_PTRACE
+    ports:
+      # http
+      - 8123:8123
+      # native
+      - 9001:9000
+    volumes:
+      # ch_server-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+      # ch_server-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+      # https://clickhouse.com/docs/en/operations/configuration-files
+      - ${XTCPPATH}/build/containers/clickhouse/db/:/var/lib/clickhouse/:z
+      - ${XTCPPATH}/build/containers/clickhouse/bitnami_db/:/bitnami/clickhouse/:z
+      #- ch_data:/var/lib/clickhouse/
+      # - type: bind
+      #   source: ${PWD}/db/
+      #   target: /var/lib/clickhouse/
+      #   readOnly: false
+      #- /home/das/Downloads/xtcp/build/containers/clickhouse/db/:/var/lib/clickhouse/:rw
+      #- /home/das/Downloads/xtcp/build/containers/clickhouse/logs/:/var/log/clickhouse-server/:rw
+      # To perform additional initialization in an image derived from this one,
+      # add one or more *.sql, *.sql.gz, or *.sh scripts under /docker-entrypoint-initdb.d.
+      # After the entrypoint calls initdb, it will run any *.sql files, run any executable
+      # *.sh scripts, and source any non-executable *.sh scripts found in that directory to
+      # do further initialization before starting the service. Also, you can provide environment
+      # variables CLICKHOUSE_USER & CLICKHOUSE_PASSWORD that will be used for clickhouse-client
+      # during initialization.
+      - ${XTCPPATH}/build/containers/clickhouse/initdb.d/:/docker-entrypoint-initdb.d/:z
+    networks:
+      - net
+    depends_on:
+      - redpanda-0
+      # - kafka
+      - nsqd
+  #----------------------------------------------------------
+  # xtcps
+  xtcp2:
+    #hostname: t-xtcp2-container
+    image: xtcp2
+    entrypoint: /xtcp2
+    command: --dest kafka:localhost:19092
+    environment:
+      GOMEMLIMIT: 98MiB
+      # https://tip.golang.org/doc/gc-guide#GOGC
+      # GOGC: 100
+      GOGC: 50
+      # GOMAXPROCS: 4
+    ports:
+      # prometheus
+      - 9009:9009
+    privileged: true
+    network_mode: host
+    pid: host
+    ipc: host
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 100M
+        reservations:
+          cpus: "0.25"
+          memory: 32M
+    #networks:
+    #  - net
+    #  - host
+    depends_on:
+      - redpanda-0
+  # xtcp2:
+  #   hostname: t-xtcp2-container
+  #   image: xtcp2
+  #   command: /xtcp2 --dest kafka:localhost:19092
+  #   ports:
+  #     # prometheus
+  #     - 9009:9009
+  #   networks:
+  #     - net
+  #   depends_on:
+  #     - redpanda-0
+  #----------------------------------------------------------
+  # zookeeper
+  # zookeeper:
+  # # https://hub.docker.com/r/confluentinc/cp-zookeeper/tags
+  #   image: confluentinc/cp-zookeeper:7.4.6
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   ports:
+  #     - 22181:2181
+  #   networks:
+  #     - net
+  #----------------------------------------------------------
+  # kafka
+  # kafka:
+  #   # https://hub.docker.com/r/confluentinc/cp-kafka/tags
+  #   image: confluentinc/cp-kafka:7.4.6
+  #   depends_on:
+  #     - zookeeper
+  #   ports:
+  #     - 29092:29092
+  #   networks:
+  #     - net
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     # https://www.confluent.io/blog/kafka-listeners-explained/
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+  #     #KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #----------------------------------------------------------
+  # nsq
+  # https://nsq.io/deployment/docker.html#using-docker-compose
+  nsqlookupd:
+    image: nsqio/nsq
+    command: /nsqlookupd
+    ports:
+      - 4160
+      - 4161
+    networks:
+      - net
+  nsqd:
+    image: nsqio/nsq
+    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --data-path=/data
+    volumes:
+    - nsq_data:/data:rw
+    depends_on:
+      - nsqlookupd
+    ports:
+      - 4150
+      - 4151
+    networks:
+      - net
+  nsqadmin:
+    image: nsqio/nsq
+    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+    depends_on:
+      - nsqlookupd
+    ports:
+      - 4171
+    networks:
+      - net
+  #----------------------------------------------------------
+  # nats
+  # https://hub.docker.com/_/nats/tags
+  nats:
+    image: nats:alpine3.20
+    ports:
+      - 8222:8222
+    networks:
+      - net
+  #----------------------------------------------------------
+  # valkey
+  # https://hub.docker.com/r/valkey/valkey/tags
+  valkey:
+    image: valkey/valkey:8.0.0-rc2-alpine3.20
+    volumes:
+    - /valkey_data:/data
+    ports:
+      - 6379:6379
+    networks:
+      - net
+  # #----------------------------------------------------------
+  # Actually, I haven't written the code for rabbit yet
+  # # rabbitMQ
+  # # https://www.rabbitmq.com/docs/download
+  # # https://hub.docker.com/_/rabbitmq/tags
+  # rabbitmq:
+  #   image: rabbitmq:management-alpine
+  #   environment:
+  #     - RABBITMQ_DEFAULT_USER=xtcp
+  #     - RABBITMQ_DEFAULT_PASS=xtcpxtcp
+  #   ports:
+  #     - 5672:5672
+  #     - 15672:15672

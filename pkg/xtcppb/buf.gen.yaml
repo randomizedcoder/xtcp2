@@ -1,0 +1,25 @@
+version: v1
+managed:
+  enabled: true
+plugins:
+  # Golangs
+  - plugin: buf.build/protocolbuffers/go
+    out: ./
+    #out: gen/go
+    opt: paths=source_relative
+  # https://github.com/bufbuild/protoc-gen-validate/blob/main/docs.md
+  - plugin: buf.build/bufbuild/validate-go
+    out: ./
+    #out: gen/go
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/go
+    out: ./
+    #out: gen/go
+    #out: gen/grpc
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+  - plugin: buf.build/grpc/python
+    out: python
+  - plugin: buf.build/protocolbuffers/python
+    out: python

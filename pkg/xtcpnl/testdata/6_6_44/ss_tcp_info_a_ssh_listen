@@ -1,0 +1,5 @@
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                                                                                                                                                                            
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*           ino:3636 sk:1001 cgroup:/system.slice/sshd.service <-> tos:0 class_id:0 cgroup:/system.slice/sshd.service
+	 skmem:(r0,rb1000000,t0,tb1000000,f0,w0,o0,bl0,d0) cubic cwnd:10
+LISTEN 0      128             [::]:22           [::]:*           ino:3645 sk:1002 cgroup:/system.slice/sshd.service v6only:1 <-> tos:0 tclass:0 class_id:0 cgroup:/system.slice/sshd.service
+	 skmem:(r0,rb1000000,t0,tb1000000,f0,w0,o0,bl0,d0) cubic cwnd:10

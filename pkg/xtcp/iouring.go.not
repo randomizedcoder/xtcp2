@@ -1,0 +1,17 @@
+// package xtcp
+
+// import iouring "github.com/iceber/iouring-go"
+
+// const (
+// 	IOURingEntriesCst       = 128
+// 	IOURingResultsChSizeCst = 20
+// )
+
+// func (x *XTCP) InitIOURing() {
+// 	var errI error
+// 	x.iour, errI = iouring.New(IOURingEntriesCst)
+// 	if errI != nil {
+// 		panic(errI)
+// 	}
+// 	x.resulter = make(chan iouring.Result, IOURingResultsChSizeCst)
+// }

@@ -1,0 +1,47 @@
+    DROP TABLE xtcp.xtcp_records_kafka;
+    CREATE TABLE IF NOT EXISTS xtcp.xtcp_records_kafka
+    (
+        epoch_time Nested
+        (
+            sec                                                     DateTime,
+            nsec                                                    Int64,
+        ),
+        hostname                                                    String,
+        tag                                                         String,
+    ) ENGINE = Kafka
+      SETTINGS
+        kafka_broker_list = 'redpanda-0:9092',
+        kafka_topic_list = 'xtcp',
+        kafka_format = 'ProtobufSingle',
+        kafka_schema = 'xtcppb.proto:xtcp_record',
+        kafka_group_name = 'xtcp';
+
+
+SELECT
+    *
+FROM
+    xtcp.xtcp_records_kafka
+SETTINGS
+    stream_like_engine_allow_direct_select = 1;
+
+DROP TABLE test.kafka
+CREATE TABLE test.kafka (key UInt64, value UInt64)
+    ENGINE = Kafka
+    SETTINGS kafka_broker_list = '1.1.1.1:9092',
+             kafka_topic_list = 'xtcp',
+             kafka_group_name = 'anothergroup',
+             kafka_format = 'JSONEachRow';
+
+CREATE TABLE readings_queue (
+    readings_id Int32,
+    time DateTime,
+    temperature Decimal(5,2)
+)
+ENGINE = Kafka
+SETTINGS kafka_broker_list = 'redpanda-0:9092',
+         kafka_topic_list = 'readings',
+         kafka_group_name = 'readings_consumer_group1',
+         kafka_format = 'CSV',
+         kafka_max_block_size = 1048576;
+
+ATTACH TABLE xtcp.readings_queue

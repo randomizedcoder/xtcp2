@@ -1,0 +1,42 @@
+#
+# /build/containers/clickhouse/Containerfile
+#
+
+#-f ./build/containers/$*/Dockerfile --tag
+
+# https://github.com/ClickHouse/ClickHouse/blob/master/docker/server/Dockerfile
+# https://github.com/ClickHouse/ClickHouse/blob/master/docker/server/entrypoint.sh
+
+ARG XTCPPATH
+ARG PWD
+ARG VERSION
+
+# https://hub.docker.com/r/clickhouse/clickhouse-server/tags
+FROM clickhouse/clickhouse-server:24.8.4.13-alpine
+
+ARG XTCPPATH
+ARG PWD
+ARG VERSION
+
+RUN echo XTCPPATH:${XTCPPATH} VERSION:${VERSION}
+
+# # https://hub.docker.com/r/bitnami/clickhouse/tags
+# FROM bitnami/clickhouse:24.6.2-debian-12-r0
+
+#RUN apt install strace
+#RUN apk add shadow
+RUN apk add busybox-extras
+
+COPY --chmod=544 \
+	${XTCPPATH}/build/containers/clickhouse/docker_related_config.xml \
+	/etc/clickhouse-server/config.d/docker_related_config.xml
+
+COPY --chmod=544 \
+	${XTCPPATH}/pkg/xtcppb/flatxtcppb.proto \
+	/var/lib/clickhouse/format_schemas/flatxtcppb.proto
+
+COPY --chmod=544 \
+	${XTCPPATH}/VERSION \
+	/VERSION
+
+# end

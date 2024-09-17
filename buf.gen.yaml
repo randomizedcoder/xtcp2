@@ -1,0 +1,48 @@
+version: v2
+# managed:
+#   enabled: true
+#   go_package_prefix:
+#     default: github.com/randomizedcoder/xtcp2
+plugins:
+  # https://buf.build/plugins
+  #--------------------------
+  # protocolbuffers/go
+  # https://buf.build/protocolbuffers/go
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+    opt:
+      - paths=source_relative
+  # #--------------------------
+  # # protovalidate
+  # # https://github.com/bufbuild/protovalidate
+  # # https://github.com/bufbuild/protovalidate/blob/main/docs/standard-constraints.md#well-known-constraints
+  - remote: buf.build/bufbuild/validate-go
+    out: gen/go
+    opt:
+      - paths=source_relative
+  #--------------------------
+  # protocolbuffers/go
+  # https://buf.build/grpc/go
+  - remote: buf.build/grpc/go
+    out: gen/grpc
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+  #--------------------------
+  # REST to GRPC
+  # https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/adding_annotations/#using-buf
+  # https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/creating_main.go/
+  # https://github.com/grpc-ecosystem/grpc-gateway#usage
+  # https://buf.build/grpc-ecosystem/gateway
+  #- plugin: buf.build/grpc-ecosystem/gateway
+  - remote: buf.build/grpc-ecosystem/gateway
+    out: gen/go
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
+  #--------------------------
+  # OpenAPIv2 ( swagger )
+  # https://buf.build/grpc-ecosystem/openapiv2
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.20.0
+    out: ../gen/openapiv2
+# end

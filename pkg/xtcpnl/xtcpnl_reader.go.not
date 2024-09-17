@@ -1,0 +1,146 @@
+package xtcpnl
+
+// heavily modeled on https://github.com/0intro/pcap/blob/main/reader.go
+
+import (
+	"bytes"
+	"encoding/binary"
+	"io"
+)
+
+const (
+	HeaderSize   = 0  // Header size
+	NlMsghdrSize = 16 // Record header size
+)
+
+// A Reader provides sequential access to the netlink messages
+// The Next method advances to the next record in the archive (including the first),
+// and then it can be treated as an io.Reader to access the data.
+type Reader struct {
+	Header
+	r         io.Reader
+	err       error
+	curr      numBytesReader // reader for current file record
+	byteOrder binary.ByteOrder
+}
+
+// A numBytesReader is an io.Reader with a numBytes method, returning the number
+// of bytes remaining in the underlying encoded data.
+type numBytesReader interface {
+	io.Reader
+	numBytes() uint32
+}
+
+// A nlMsghdrReader is a numBytesReader for reading record data
+type nlMsghdrReader struct {
+	r  io.Reader // underlying reader
+	nb uint32    // number of unread bytes for current record
+}
+
+// NewReader creates a new Reader reading from r.
+func NewReader(r io.Reader) (*Reader, error) {
+	pr := &Reader{r: r}
+	pr.byteOrder = binary.LittleEndian
+	hdr := pr.readHeader()
+	if hdr == nil {
+		return nil, pr.err
+	}
+	pr.Header = *hdr
+	return pr, nil
+}
+
+// Next advances to the next record
+//
+// io.EOF is returned at the end of the input
+func (pr *Reader) Next() (*NlMsghdr, error) {
+	if pr.err == nil {
+		pr.skipUnread()
+	}
+	if pr.err != nil {
+		return nil, pr.err
+	}
+	hdr := pr.readNlMsghdr()
+	if hdr == nil {
+		return nil, pr.err
+	}
+	return hdr, pr.err
+}
+
+// skipUnread skips any unread bytes in the existing record
+func (pr *Reader) skipUnread() {
+	nr := int64(pr.numBytes())
+	pr.curr = nil
+	if sr, ok := pr.r.(io.Seeker); ok {
+		if _, err := sr.Seek(nr, io.SeekCurrent); err == nil {
+			return
+		}
+	}
+	_, pr.err = io.CopyN(io.Discard, pr.r, nr)
+}
+
+func (pr *Reader) readHeader() *Header {
+	var header [HeaderSize]byte
+	if _, err := io.ReadFull(pr.r, header[:]); err != nil {
+		return nil
+	}
+	r := bytes.NewReader(header[:])
+	hdr := &Header{}
+	if pr.err = binary.Read(r, pr.byteOrder, hdr); pr.err != nil {
+		return nil
+	}
+	return hdr
+}
+
+func (pr *Reader) readNlMsghdr() *NlMsghdr {
+	hdr := &NlMsghdr{}
+	if pr.err = binary.Read(pr.r, pr.byteOrder, hdr); pr.err != nil {
+		return nil
+	}
+	pr.curr = &nlMsghdrReader{r: pr.r, nb: hdr.Len}
+	return hdr
+}
+
+// numBytes returns the number of bytes left to read in the current file's record
+// in the pcap file, or 0 if there is no current file.
+func (pr *Reader) numBytes() uint32 {
+	if pr.curr == nil {
+		// No current file, so no bytes
+		return 0
+	}
+	return pr.curr.numBytes()
+}
+
+// Read reads from the current record in the pcap file.
+// It returns 0, io.EOF when it reaches the end of that record,
+// until Next is called to advance to the next record.
+func (pr *Reader) Read(b []byte) (n int, err error) {
+	if pr.curr == nil {
+		return 0, io.EOF
+	}
+	n, err = pr.curr.Read(b)
+	if err != nil && err != io.EOF {
+		pr.err = err
+	}
+	return
+}
+
+func (rr *nlMsghdrReader) numBytes() uint32 {
+	return rr.nb
+}
+
+func (rr *nlMsghdrReader) Read(b []byte) (n int, err error) {
+	if rr.nb == 0 {
+		// file consumed
+		return 0, io.EOF
+	}
+	if uint32(len(b)) > rr.nb {
+		b = b[0:rr.nb]
+	}
+	n, err = rr.r.Read(b)
+	rr.nb -= uint32(n)
+
+	if err == io.EOF && rr.nb > 0 {
+		err = io.ErrUnexpectedEOF
+	}
+	return
+}

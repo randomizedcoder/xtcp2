@@ -1,0 +1,1 @@
+init_xtcp_clickhouse.bash

@@ -1,0 +1,15 @@
+version: v2
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/grpc-ecosystem/openapiv2
+  # https://github.com/bufbuild/protovalidate
+  #- buf.build/bufbuild/protovalidate
+  - buf.build/grpc-ecosystem/gateway
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+modules:
+  - path: pkg/xtcppb

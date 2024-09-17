@@ -1,0 +1,107 @@
+#
+# ./build/containers/clickhouse/docker-compose.yml
+#
+# volumes:
+#   ch_data:
+
+services:
+  ch_server:
+    # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
+    image: clickhouse/clickhouse-server:24.6.2.17-alpine
+    #image: xtcp_clickhouse
+    #
+    #environment:
+      # https://clickhouse.com/docs/en/operations/access-rights
+      # CLICKHOUSE_DB: default
+      # CLICKHOUSE_USER: default
+      # CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: default
+      # CLICKHOUSE_PASSWORD: default
+    # security_opt:
+    #   - "label=type:clickhouse.process"
+    ulimits:
+      #nproc: 65535
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 262144
+        hard: 262144
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+      - IPC_LOCK
+    ports:
+      # http
+      - 8123:8123
+      # native
+      - 9001:9000
+    volumes:
+      # ch_server-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+      # ch_server-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+      # https://clickhouse.com/docs/en/operations/configuration-files
+      - ./db/:/var/lib/clickhouse/:z
+      #- ch_data:/var/lib/clickhouse/
+      # - type: bind
+      #   source: ${PWD}/db/
+      #   target: /var/lib/clickhouse/
+      #   readOnly: false
+      #- /home/das/Downloads/xtcp/build/containers/clickhouse/db/:/var/lib/clickhouse/:rw
+      #- /home/das/Downloads/xtcp/build/containers/clickhouse/logs/:/var/log/clickhouse-server/:rw
+      # To perform additional initialization in an image derived from this one,
+      # add one or more *.sql, *.sql.gz, or *.sh scripts under /docker-entrypoint-initdb.d.
+      # After the entrypoint calls initdb, it will run any *.sql files, run any executable
+      # *.sh scripts, and source any non-executable *.sh scripts found in that directory to
+      # do further initialization before starting the service. Also, you can provide environment
+      # variables CLICKHOUSE_USER & CLICKHOUSE_PASSWORD that will be used for clickhouse-client
+      # during initialization.
+      - ./initdb.d/:/docker-entrypoint-initdb.d/:z
+      #
+      # - type: bind
+      #   source:  ${PWD}/xtcppb.proto
+      #   target: /var/lib/clickhouse/format_schemas/xtcppb.proto
+      #   readOnly: false
+        #read_only: true
+        #create_host_path: false
+      #- /home/das/Downloads/xtcp/build/containers/clickhouse/xtcppb.proto:/var/lib/clickhouse/format_schemas/xtcppb.proto:O
+      #- ./xtcppb.proto:/var/lib/clickhouse/format_schemas/xtcppb.proto:z
+      # https://protobuf.dev/reference/protobuf/google.protobuf/#timestamp
+      # https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto
+      # https://raw.githubusercontent.com/protocolbuffers/protobuf/main/src/google/protobuf/timestamp.proto
+
+
+# 42f2e688036e :) DESC file('nonexist', 'Protobuf') SETTINGS format_schema='xtcppb.proto:xtcp_record';
+
+# DESCRIBE TABLE file('nonexist', 'Protobuf')
+# SETTINGS format_schema = 'xtcppb.proto:xtcp_record'
+
+# Query id: eb38c2a9-6a52-4ffc-a6a6-06ae1890acf1
+
+
+# Elapsed: 0.003 sec.
+
+# Received exception from server (version 24.3.5):
+# Code: 434. DB::Exception: Received from localhost:9000. DB::Exception: Cannot parse 'xtcppb.proto' file, found an error at line -1, column 0, File not found.: The table structure cannot be extracted from a Protobuf format file. You can specify the structure manually. (CANNOT_PARSE_PROTOBUF_SCHEMA)
+
+# docker exec -it ch_server clickhouse-client
+
+# 74d839c2736f:~# ulimit -a
+# real-time non-blocking time  (microseconds, -R) unlimited
+# core file size              (blocks, -c) unlimited
+# data seg size               (kbytes, -d) unlimited
+# scheduling priority                 (-e) 0
+# file size                   (blocks, -f) unlimited
+# pending signals                     (-i) 77684
+# max locked memory           (kbytes, -l) 8192
+# max memory size             (kbytes, -m) unlimited
+# open files                          (-n) 262144
+# pipe size                (512 bytes, -p) 8
+# POSIX message queues         (bytes, -q) 819200
+# real-time priority                  (-r) 0
+# stack size                  (kbytes, -s) 8192
+# cpu time                   (seconds, -t) unlimited
+# max user processes                  (-u) unlimited
+# virtual memory              (kbytes, -v) unlimited
+# file locks                          (-x) unlimited
+
+
+# end
