@@ -27,20 +27,31 @@ build_and_deploy: builddocker deploy
 # https://docs.docker.com/engine/reference/commandline/docker/
 # https://docs.docker.com/compose/reference/
 deploy:
+	@echo "================================"
+	@echo "Make deploy"
 	echo XTCPPATH=${XTCPPATH}
 	XTCPPATH=${XTCPPATH} \
 	docker compose \
 		--file build/containers/redpanda/docker-compose.yml \
 		up -d --remove-orphans
 
+down:
+	@echo "================================"
+	@echo "Make down"
+	XTCPPATH=${XTCPPATH} \
+	docker compose \
+	--file build/containers/redpanda/docker-compose.yml \
+	down
+
 #--env-file docker-compose-enviroment-variables \
 
 builddocker: builddocker_xtcp builddocker_clickhouse
 
 builddocker_xtcp:
+	@echo "================================"
+	@echo "Make builddocker_xtcp"
 	docker build \
 		--build-arg XTCPPATH=${XTCPPATH} \
-		--build-arg PWD=${PWD} \
 		--build-arg COMMIT=${COMMIT} \
 		--build-arg DATE=${DATE} \
 		--build-arg VERSION=${VERSION} \
@@ -49,9 +60,10 @@ builddocker_xtcp:
 		${XTCPPATH}
 
 builddocker_clickhouse:
+	@echo "================================"
+	@echo "Make builddocker_clickhouse"
 	docker build \
 		--build-arg XTCPPATH=${XTCPPATH} \
-		--build-arg PWD=${PWD} \
 		--build-arg VERSION=${VERSION} \
 		--file build/containers/clickhouse/Containerfile \
 		--tag xtcp_clickhouse:${VERSION} --tag xtcp_clickhouse:latest \
@@ -82,5 +94,22 @@ test:
 
 bench:
 	go test -bench=. ./pkg/xtcpnl/
+
+followxtcp:
+	docker logs xtcp-xtcp2-1 --follow
+
+ch:
+	docker exec -it xtcp-clickhouse-1 bash
+
+ch_prom:
+	curl --silent http://localhost:9363/metrics | grep -v "#" | grep -i kafka
+
+clear_docker_volumes:
+	docker volume rm redpanda-quickstart-one-broker_redpanda-0 || true
+	docker volume rm redpanda_redpanda-0 || true
+	docker volume rm xtcp_nsq_data || true
+	docker volume rm xtcp_redpanda-0 || true
+
+	docker volume ls
 
 # end

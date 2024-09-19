@@ -14,6 +14,6 @@ buildd:
 		--build-arg PWD=${PWD} \
 		--build-arg COMMIT=${COMMIT} \
 		--build-arg DATE=${DATE} \
-		--build-arg DATE=${VERSION} \
+		--build-arg VERSION=${VERSION} \
 		--tag xtcp2 \
 		${XTCPPATH}

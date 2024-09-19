@@ -18,6 +18,7 @@ networks:
 
 volumes:
   redpanda-0: {}
+  clickhouse_db: {}
   nsq_data: {}
   valkey_data: {}
 
@@ -89,6 +90,7 @@ services:
             enabled: true
             urls: ["http://redpanda-0:9644"]
     ports:
+      # Browse to: http://localhost:8080/topics/xtcp?p=-1&s=50&o=-2#messages
       - 8080:8080
     depends_on:
       - redpanda-0
@@ -128,12 +130,19 @@ services:
       - 8123:8123
       # native
       - 9001:9000
+      # mysql
+      - 9004:9004
+      # postgres
+      - 9005:9005
+      # prometheus
+      - 9363:9363
     volumes:
       # ch_server-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
       # ch_server-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
       # https://clickhouse.com/docs/en/operations/configuration-files
-      - ${XTCPPATH}/build/containers/clickhouse/db/:/var/lib/clickhouse/:z
-      - ${XTCPPATH}/build/containers/clickhouse/bitnami_db/:/bitnami/clickhouse/:z
+      - clickhouse_db:/var/lib/clickhouse/
+      # - ${XTCPPATH}/build/containers/clickhouse/db/:/var/lib/clickhouse/:z
+      # - ${XTCPPATH}/build/containers/clickhouse/bitnami_db/:/bitnami/clickhouse/:z
       #- ch_data:/var/lib/clickhouse/
       # - type: bind
       #   source: ${PWD}/db/
@@ -279,7 +288,7 @@ services:
   # valkey
   # https://hub.docker.com/r/valkey/valkey/tags
   valkey:
-    image: valkey/valkey:8.0.0-rc2-alpine3.20
+    image: valkey/valkey:8-alpine3.20
     volumes:
     - /valkey_data:/data
     ports:
