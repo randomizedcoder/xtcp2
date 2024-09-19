@@ -13,6 +13,8 @@
     <kafka>
         <debug>all</debug>
         <!-- none, gzip, snappy, lz4, zstd -->
+         <!-- none, gzip, snappy, lz4, zstd -->
         <!-- <compression_type>zstd</compression_type> -->
+        <compression_type>zstd</compression_type>
     </kafka>
 </clickhouse>

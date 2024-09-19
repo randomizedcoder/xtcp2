@@ -8,14 +8,12 @@
 # https://github.com/ClickHouse/ClickHouse/blob/master/docker/server/entrypoint.sh
 
 ARG XTCPPATH
-ARG PWD
 ARG VERSION
 
 # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
 FROM clickhouse/clickhouse-server:24.8.4.13-alpine
 
 ARG XTCPPATH
-ARG PWD
 ARG VERSION
 
 RUN echo XTCPPATH:${XTCPPATH} VERSION:${VERSION}
@@ -28,15 +26,30 @@ RUN echo XTCPPATH:${XTCPPATH} VERSION:${VERSION}
 RUN apk add busybox-extras
 
 COPY --chmod=544 \
-	${XTCPPATH}/build/containers/clickhouse/docker_related_config.xml \
+	./build/containers/clickhouse/config.xml \
+	/etc/clickhouse-server/config.xml
+
+COPY --chmod=544 \
+	./build/containers/clickhouse/docker_related_config.xml \
 	/etc/clickhouse-server/config.d/docker_related_config.xml
 
 COPY --chmod=544 \
-	${XTCPPATH}/pkg/xtcppb/flatxtcppb.proto \
+	./pkg/xtcppb/flatxtcppb.proto \
 	/var/lib/clickhouse/format_schemas/flatxtcppb.proto
 
 COPY --chmod=544 \
-	${XTCPPATH}/VERSION \
+	./VERSION \
 	/VERSION
+
+# http
+EXPOSE 8123
+# native
+EXPOSE 9000
+# mysql
+EXPOSE 9004
+# postgres
+EXPOSE 9005
+# prometheus
+EXPOSE 9363
 
 # end
