@@ -80,6 +80,7 @@ update_dependancies:
 	go get -u github.com/pkg/profile@latest
 	go get -u github.com/prometheus/client_golang@latest
 
+	go get -u github.com/nats-io/nats.go@latest
 	go get -u github.com/nsqio/go-nsq@latest
 	go get -u github.com/twmb/franz-go@latest
 	go get -u github.com/twmb/franz-go/plugin/kprom@latest
@@ -87,7 +88,7 @@ update_dependancies:
 
 	go mod verify
 	go mod tidy
-	go mod vendor
+#go mod vendor
 
 test:
 	go test -v ./pkg/xtcpnl/

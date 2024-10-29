@@ -4,7 +4,7 @@
 ARG XTCPPATH
 ARG COMMIT
 ARG DATE
-ARG GO_VERSION=1.23
+ARG GO_VERSION=1.23.2
 ARG VERSION
 
 #https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#examples-with-docker
