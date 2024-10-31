@@ -6,6 +6,7 @@
 # short commit hash
 COMMIT := $(shell git describe --always)
 DATE := $(shell date -u +"%Y-%m-%d-%H:%M")
+VERSION := $(shell cat ../../VERSION)
 BINARY := xtcp2
 
 all: clean build
@@ -18,7 +19,7 @@ clean:
 
 build:
 	go build -ldflags \
-		"-X main.commit=${COMMIT} -X main.date=${DATE} -X main.date=${VERSION}" \
+		"-X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${VERSION}" \
 		-o ./${BINARY} \
 		./${BINARY}.go
 
@@ -59,4 +60,8 @@ analyzeWeb:
 
 exited:
 	docker container ls -f status=exited -a
+
+checkenvvar:
+	MAXLOOPS=10 DEST=BOO ./${BINARY} -conf
+
 #

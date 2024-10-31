@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -54,6 +55,8 @@ const (
 	topicCst = "xtcp"
 
 	// startSleepCst = 10 * time.Second
+	base10    = 10
+	sixtyFour = 64
 )
 
 var (
@@ -118,6 +121,8 @@ func main() {
 
 	v := flag.Bool("v", false, "show version")
 
+	conf := flag.Bool("conf", false, "show config")
+
 	d := flag.Int("d", debugLevelCst, "debug level")
 
 	flag.Parse()
@@ -130,7 +135,7 @@ func main() {
 
 	debugLevel = *d
 
-	if debugLevel > 10 {
+	if debugLevel > 100 {
 		fmt.Println("*nltimeout(ms):", *nltimeout)
 		fmt.Println("*pollingFrequency:", *pollingFrequency)
 		fmt.Println("*maxLoops:", *maxLoops)
@@ -167,6 +172,21 @@ func main() {
 		PromListen:       promListen,
 		PromPath:         promPath,
 		DebugLevel:       d,
+	}
+
+	if debugLevel > 100 {
+		printConfig(&c)
+	}
+
+	environmentOverrideConfig(&c, debugLevel)
+
+	if debugLevel > 100 {
+		printConfig(&c)
+	}
+
+	if *conf {
+		printConfig(&c)
+		os.Exit(0)
 	}
 
 	if runtime.NumCPU() > *goMaxProcs {
@@ -270,4 +290,169 @@ func initPromHandler(promPath string, promListen string) {
 			log.Fatal("prometheus error", err)
 		}
 	}()
+}
+
+// environmentOverrideConfig mutates the config if environment variables exist
+// this is to allow the environment variables to override the arguments
+// (probably poor form to be mutatating)
+func environmentOverrideConfig(c *config.Config, debugLevel int) {
+
+	var key string
+
+	key = "NLTIMEOUT"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
+			*(c.NLTimeout) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.NLTimeout:%d", key, *(c.NLTimeout))
+			}
+		}
+	}
+
+	key = "POLLINGFREQUENCY"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := time.ParseDuration(value); err == nil {
+			*(c.PollingFrequency) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.PollingFrequency:%s", key, (*c.PollingFrequency).String())
+			}
+		}
+	}
+
+	key = "MAXLOOPS"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.MaxLoops) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.MaxLoops:%d", key, (*c.MaxLoops))
+			}
+		}
+	}
+
+	key = "NETLINKERS"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.Netlinkers) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.Netlinkers:%d", key, (*c.Netlinkers))
+			}
+		}
+	}
+
+	key = "NLMSQSEQ"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.NlmsgSeq) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.NlmsgSeq:%d", key, (*c.NlmsgSeq))
+			}
+		}
+	}
+
+	key = "PACKETSIZE"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.PacketSize) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.PacketSize:%d", key, (*c.PacketSize))
+			}
+		}
+	}
+
+	key = "PACKETSIZEMPLY"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.PacketSizeMply) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.PacketSizeMply:%d", key, (*c.PacketSizeMply))
+			}
+		}
+	}
+
+	key = "WRITEFILES"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.WriteFiles) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.WriteFiles:%d", key, (*c.WriteFiles))
+			}
+		}
+	}
+
+	key = "CAPTUREPATH"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.CapturePath) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.CapturePath:%s", key, (*c.CapturePath))
+		}
+	}
+
+	key = "MODULUS"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*(c.Modulus) = i
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.Modulus:%d", key, (*c.Modulus))
+			}
+		}
+	}
+
+	key = "MARSHAL"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.Marshal) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.Marshal:%s", key, (*c.Marshal))
+		}
+	}
+
+	key = "DEST"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.Dest) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.Dest:%s", key, (*c.Dest))
+		}
+	}
+
+	key = "TOPIC"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.Topic) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.Topic:%s", key, (*c.Topic))
+		}
+	}
+
+	key = "PROMLISTEN"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.PromListen) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.PromListen:%s", key, (*c.PromListen))
+		}
+	}
+
+	key = "PROMPATH"
+	if value, exists := os.LookupEnv(key); exists {
+		*(c.PromPath) = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.PromListen:%s", key, (*c.PromPath))
+		}
+	}
+}
+
+func printConfig(c *config.Config) {
+	fmt.Println("c.NLTimeout(ms):", *c.NLTimeout)
+	fmt.Println("c.PollingFrequency:", *c.PollingFrequency)
+	fmt.Println("c.MaxLoops:", *c.MaxLoops)
+	fmt.Println("c.Netlinkers:", *c.Netlinkers)
+	fmt.Println("c.NlmsgSeq:", *c.NlmsgSeq)
+	fmt.Println("c.PacketSize:", *c.PacketSize)
+	fmt.Println("c.PacketSizeMply:", *c.PacketSizeMply)
+	fmt.Println("c.WriteFiles:", *c.WriteFiles)
+	fmt.Println("c.CapturePath:", *c.CapturePath)
+	fmt.Println("c.Modulus:", *c.Modulus)
+	fmt.Println("c.Marshal:", *c.Marshal)
+	fmt.Println("c.Dest:", *c.Dest)
+	fmt.Println("c.Topic:", *c.Topic)
+	fmt.Println("c.PromListen:", *c.PromListen)
+	fmt.Println("c.PromPath:", *c.PromPath)
+	fmt.Println("c.DebugLevel:", *c.DebugLevel)
 }
