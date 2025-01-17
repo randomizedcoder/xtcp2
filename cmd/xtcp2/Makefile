@@ -6,6 +6,10 @@
 # short commit hash
 COMMIT := $(shell git describe --always)
 DATE := $(shell date -u +"%Y-%m-%d-%H:%M")
+VERSION_FILE := $(shell cat ../../VERSION)
+LOCAL_MAJOR_VERSION := $(word 1,$(subst ., ,$(VERSION_FILE)))
+LOCAL_MINOR_VERSION := $(word 2,$(subst ., ,$(VERSION_FILE)))
+LOCAL_PATCH_VERSION := $(word 3,$(subst ., ,$(VERSION_FILE)))
 BINARY := xtcp2
 
 all: clean build
@@ -18,7 +22,7 @@ clean:
 
 build:
 	go build -ldflags \
-		"-X main.commit=${COMMIT} -X main.date=${DATE} -X main.date=${VERSION}" \
+		"-X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${LOCAL_MAJOR_VERSION}.${LOCAL_MINOR_VERSION}.${LOCAL_PATCH_VERSION}" \
 		-o ./${BINARY} \
 		./${BINARY}.go
 
@@ -59,4 +63,17 @@ analyzeWeb:
 
 exited:
 	docker container ls -f status=exited -a
+
+deserializers:
+	DEST=null ./xtcp2 --deserializers info,cong,tos,bbr
+
+desEnv:
+	#DEST=null DESERIALIZERS=info,cong,tos,bbr ./xtcp2 --deserializers info
+	DEST=null DESERIALIZERS=meminfo,cong ./xtcp2 --deserializers info
+
+run:
+	sudo GOGC=50 DEST=null DESERIALIZERS=meminfo,cong ./xtcp2
+
+x:
+	sudo DEST=null DESERIALIZERS=meminfo,cong POLL_FREQUENCY=300s ./xtcp2
 #

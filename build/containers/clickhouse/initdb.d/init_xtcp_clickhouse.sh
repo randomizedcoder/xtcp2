@@ -48,6 +48,11 @@ clickhouse client -n <<-EOSQL
     SELECT now();
 
     --------------------------------------------------------------------------------------------------
+    -- https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts
+    -- https://medium.com/@kn2414e/utilizing-go-and-clickhouse-for-large-scale-data-ingestion-and-application-146822f7020c
+    ALTER USER root SETTINGS async_insert = 1;
+
+    --------------------------------------------------------------------------------------------------
 
     -- Reload protobufs
     -- https://clickhouse.com/docs/en/interfaces/formats#drop-protobuf-cache
@@ -69,9 +74,16 @@ clickhouse client -n <<-EOSQL
 
         -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
         hostname                                                    LowCardinality(String),
+
+        netns                                                       String CODEC(ZSTD),
+        nsid                                                        UInt32 CODEC(LZ4),
+
+        label                                                       String CODEC(ZSTD),
         tag                                                         LowCardinality(String),
-        record_count                                                UInt64 CODEC(DoubleDelta, LZ4),
-        netlinker_id                                                UInt32 CODEC(LZ4),
+
+        record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
+        socket_fd                                                   UInt64 CODEC(LZ4),
+        netlinker_id                                                UInt64 CODEC(LZ4),
 
         inet_diag_msg_family                                        UInt32 CODEC(LZ4),
         inet_diag_msg_state                                         UInt32 CODEC(LZ4),
@@ -212,8 +224,9 @@ clickhouse client -n <<-EOSQL
     )
     ENGINE = MergeTree
     -- ENGINE = ReplicatedMergeTree
-    --PARTITION BY toYYYYMMDD(sec)
-    ORDER BY (sec, nsec, hostname, netlinker_id, record_count)
+    -- Note that for xtcp repo, the docker is MergeTree, while k8s is ReplicatedMergeTree
+    -- PARTITION BY toYYYYMMDD(sec)
+    ORDER BY (sec, nsec, hostname, record_counter, netlinker_id, socket_fd)
     TTL toDateTime(sec) + INTERVAL 2 MONTH DELETE;
 
     --------------------------------------------------------------------------------------------------
@@ -231,9 +244,16 @@ clickhouse client -n <<-EOSQL
 
         -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
         hostname                                                    LowCardinality(String),
+
+        netns                                                       String CODEC(ZSTD),
+        nsid                                                        UInt32 CODEC(LZ4),
+
+        label                                                       String CODEC(ZSTD),
         tag                                                         LowCardinality(String),
-        record_count                                                UInt64 CODEC(DoubleDelta, LZ4),
-        netlinker_id                                                UInt32 CODEC(LZ4),
+
+        record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
+        socket_fd                                                   UInt64 CODEC(LZ4),
+        netlinker_id                                                UInt64 CODEC(LZ4),
 
         inet_diag_msg_family                                        UInt32 CODEC(LZ4),
         inet_diag_msg_state                                         UInt32 CODEC(LZ4),
@@ -376,9 +396,11 @@ clickhouse client -n <<-EOSQL
     SETTINGS
         kafka_broker_list = 'redpanda-0:9092',
         kafka_topic_list = 'xtcp',
-        kafka_format = 'ProtobufSingle',
-        kafka_schema = 'flatxtcppb.proto:flat_xtcp_record',
+        kafka_format = 'ProtobufList',
+        kafka_schema = 'flatxtcppb.proto:FlatXtcpRecord',
         kafka_group_name = 'xtcp';
+    -- https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+    -- kafka_format = 'ProtobufSingle',
 
     --------------------------------------------------------------------------------------------------
 
@@ -464,6 +486,8 @@ fi
 #     [nats_max_rows_per_message = 1,]
 #     [nats_handle_error_mode = 'default']
 
-echo success > /docker-entrypoint-initdb.d/success
+s=$(date +date%Y_%m_%d_%H_%M_%S)
+echo "${s}" > /docker-entrypoint-initdb.d/success
+echo "success:${s}"
 
 #end

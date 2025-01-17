@@ -14,8 +14,8 @@ import (
 // TestMaxLoopsOrForEver performs basic tests on misc.MaxLoopsOrForEver
 func TestMaxLoopsOrForEver(t *testing.T) {
 	var tests = []struct {
-		pollingLoops int
-		maxLoops     int
+		pollingLoops uint64
+		maxLoops     uint64
 		expected     bool
 	}{
 		{10, 0, true}, // test 0

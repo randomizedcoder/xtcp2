@@ -1,17 +1,21 @@
 package xtcp
 
 import (
+	"sync"
+
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
 )
 
-func (x *XTCP) InitZeroizers() {
+func (x *XTCP) InitZeroizers(wg *sync.WaitGroup) {
 
-	x.xtcpRecordZeroizer = make(map[xtcppb.FlatXtcpRecordCongestionAlgorithm]func(xtcpRecord *xtcppb.FlatXtcpRecord))
+	defer wg.Done()
+
+	x.xtcpRecordZeroizer = make(map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord))
 
 	//x.xtcpRecordZeroizer[FlatXtcpRecord_CONGESTION_ALGORITHM_UNSPECIFIED]
 
-	x.xtcpRecordZeroizer[xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_BBR1] = func(xtcpRecord *xtcppb.FlatXtcpRecord) {
+	x.xtcpRecordZeroizer[xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1] = func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 		xtcpnl.ZeroizeBBRInfoXTCP(xtcpRecord)
 	}
 
@@ -19,15 +23,15 @@ func (x *XTCP) InitZeroizers() {
 	// 	xtcpnl.ZeroizeBBR2InfoXTCP(xtcpRecord)
 	// }
 
-	x.xtcpRecordZeroizer[xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_DCTCP] = func(xtcpRecord *xtcppb.FlatXtcpRecord) {
+	x.xtcpRecordZeroizer[xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP] = func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 		xtcpnl.ZeroizeDCTCPInfoXTCP(xtcpRecord)
 	}
 
-	x.xtcpRecordZeroizer[xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_VEGAS] = func(xtcpRecord *xtcppb.FlatXtcpRecord) {
+	x.xtcpRecordZeroizer[xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS] = func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 		xtcpnl.ZeroizeVegasInfoXTCP(xtcpRecord)
 	}
 
-	// x.xtcpRecordZeroizer[xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_PRAGUE] = func(xtcpRecord *xtcppb.FlatXtcpRecord) {
+	// x.xtcpRecordZeroizer[xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_PRAGUE] = func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 	// 	xtcpnl.ZeroizePragueInfoXTCP(xtcpRecord)
 	// }
 }

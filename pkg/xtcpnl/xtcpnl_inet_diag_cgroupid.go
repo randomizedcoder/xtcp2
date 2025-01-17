@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -93,7 +93,7 @@ func DeserializeCGroupIDReflection(data []byte, c *CGroupID) (n int, err error) 
 	return CGroupIDSizeCst, err
 }
 
-func DeserializeCGroupIDXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < CGroupIDSizeCst {
 		return ErrCGroupIDSmall

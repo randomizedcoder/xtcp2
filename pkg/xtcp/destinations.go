@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
@@ -30,51 +31,89 @@ const (
 	valkeyTimeoutCst      = 1 * time.Second
 )
 
-func (x *XTCP) InitDestinations(ctx context.Context) {
+var (
+	validDestinations = map[string]bool{
+		"null":   true,
+		"kafka":  true,
+		"nsq":    true,
+		"udp":    true,
+		"nats":   true,
+		"valkey": true,
+	}
+)
 
-	x.Destations.Store("kafka", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+func validDests() (dests string) {
+	for key := range validDestinations {
+		dests = dests + key + ","
+	}
+	return strings.TrimSuffix(dests, ",")
+}
+
+// InitDestinations parses the destination config, to determine
+// which of the destination modules to use
+// This function is using sync.Maps as the way to map to the actual
+// function to be used
+// This will in future allow the destination to be changed dyanmically
+// at runtime (TODO implement this)
+func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	dest, _, _ := strings.Cut(x.config.Dest, ":")
+	if _, ok := validDestinations[dest]; !ok {
+		log.Fatalf("InitDestinations XTCP Dest invalid:%s, must be one of:%s", dest, validDests())
+	}
+
+	x.Destinations.Store("null", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destNull(ctx, xtcpRecordBinary)
+	})
+	x.Destinations.Store("kafka", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destKafka(ctx, xtcpRecordBinary)
 	})
-	x.Destations.Store("nsq", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+	x.Destinations.Store("nsq", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destNSQ(ctx, xtcpRecordBinary)
 	})
-	x.Destations.Store("udp", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+	x.Destinations.Store("udp", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destUDP(ctx, xtcpRecordBinary)
 	})
-	x.Destations.Store("nats", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+	x.Destinations.Store("nats", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destNATS(ctx, xtcpRecordBinary)
 	})
-	x.Destations.Store("valkey", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+	x.Destinations.Store("valkey", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destValKey(ctx, xtcpRecordBinary)
 	})
 
-	dest, _, _ := strings.Cut(*x.config.Dest, ":")
-
-	if f, ok := x.Destations.Load(dest); ok {
-		x.Destation = f.(func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error))
-	} else {
-		log.Fatalf("InitDestinations XTCP Dest must be one of proto, protojson, or prototext:%s", dest)
+	f, ok := x.Destinations.Load(dest)
+	if !ok {
+		log.Fatalf("InitDestinations XTCP Dest load invalid:%s, must be one of:%s", dest, validDests())
 	}
+	x.Destination = f.(func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error))
 
-	x.InitDestations.Store("kafka", func(ctx context.Context) {
+	// no null initilizer
+	x.InitDestinations.Store("kafka", func(ctx context.Context) {
 		x.InitDestKafka(ctx)
 	})
-	x.InitDestations.Store("nsq", func(ctx context.Context) {
+	x.InitDestinations.Store("nsq", func(ctx context.Context) {
 		x.InitDestNSQ(ctx)
 	})
-	x.InitDestations.Store("udp", func(ctx context.Context) {
+	x.InitDestinations.Store("udp", func(ctx context.Context) {
 		x.InitDestUDP(ctx)
 	})
-	x.InitDestations.Store("nats", func(ctx context.Context) {
+	x.InitDestinations.Store("nats", func(ctx context.Context) {
 		x.InitDestNATS(ctx)
 	})
-	x.InitDestations.Store("valkey", func(ctx context.Context) {
+	x.InitDestinations.Store("valkey", func(ctx context.Context) {
 		x.InitDestValKey(ctx)
 	})
 
-	if f, ok := x.InitDestations.Load(dest); ok {
+	if f, ok := x.InitDestinations.Load(dest); ok {
 		f.(func(ctx context.Context))(ctx)
 	}
+
+	// please note that at this point we _could_ remove any destinations from the map
+	// that we aren't using
+
+	x.DestinationReady <- struct{}{}
 
 }
 
@@ -87,17 +126,17 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 	// initialize the kafka client
 	// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#ProducerOpt
 
-	broker := strings.Replace(*x.config.Dest, "kafka:", "", 1)
+	broker := strings.Replace(x.config.Dest, "kafka:", "", 1)
 
 	if x.debugLevel > 10 {
-		log.Printf("config.Topic:%s\n", *x.config.Topic)
-		log.Println("config.Dest:", *x.config.Dest)
+		log.Printf("config.Topic:%s\n", x.config.Topic)
+		log.Println("config.Dest:", x.config.Dest)
 		log.Println("broker:", broker)
 	}
 
 	opts := []kgo.Opt{
 		// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#DefaultProduceTopic
-		kgo.DefaultProduceTopic(*x.config.Topic),
+		kgo.DefaultProduceTopic(x.config.Topic),
 		kgo.ClientID("xtcp2"),
 
 		// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#SeedBrokers
@@ -161,11 +200,11 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 
 func (x *XTCP) InitDestNSQ(ctx context.Context) {
 
-	nsqServer := strings.Replace(*x.config.Dest, "nsq:", "", 1)
+	nsqServer := strings.Replace(x.config.Dest, "nsq:", "", 1)
 
 	if x.debugLevel > 10 {
-		log.Printf("config.Topic:%s\n", *x.config.Topic)
-		log.Println("config.Dest:", *x.config.Dest)
+		log.Printf("config.Topic:%s\n", x.config.Topic)
+		log.Println("config.Dest:", x.config.Dest)
 		log.Println("nsqServer:", nsqServer)
 	}
 
@@ -182,11 +221,11 @@ func (x *XTCP) InitDestNSQ(ctx context.Context) {
 // InitDestUDP creates a UDP socket to send protobufs over
 func (x *XTCP) InitDestUDP(ctx context.Context) {
 
-	dest := strings.Replace(*x.config.Dest, "udp:", "", 1)
+	dest := strings.Replace(x.config.Dest, "udp:", "", 1)
 
 	if x.debugLevel > 10 {
-		log.Printf("config.Topic:%s\n", *x.config.Topic)
-		log.Println("config.Dest:", *x.config.Dest)
+		log.Printf("config.Topic:%s\n", x.config.Topic)
+		log.Println("config.Dest:", x.config.Dest)
 		log.Println("dest:", dest)
 	}
 
@@ -202,15 +241,14 @@ func (x *XTCP) InitDestUDP(ctx context.Context) {
 // https://github.com/nats-io/nats.go?tab=readme-ov-file#basic-usage
 func (x *XTCP) InitDestNATS(ctx context.Context) {
 
-	dest := strings.Replace(*x.config.Dest, "nats:", "", 1)
+	dest := strings.Replace(x.config.Dest, "nats:", "", 1)
 
 	if x.debugLevel > 10 {
-		log.Printf("config.Topic:%s\n", *x.config.Topic)
-		log.Println("config.Dest:", *x.config.Dest)
+		log.Printf("config.Topic:%s\n", x.config.Topic)
+		log.Println("config.Dest:", x.config.Dest)
 		log.Println("dest:", dest)
 	}
 
-	var err error
 	// https://github.com/nats-io/nats.go?tab=readme-ov-file#advanced-usage
 	// https://pkg.go.dev/github.com/nats-io/nats.go@v1.37.0#Connect
 	//x.natsClient, err = nats.Connect(nats.DefaultURL)
@@ -220,11 +258,12 @@ func (x *XTCP) InitDestNATS(ctx context.Context) {
 		AllowReconnect:       true,
 		MaxReconnect:         natsReconnectsCst,
 		ReconnectWait:        2 * time.Second,        // default
-		ReconnectJitter:      100 * time.Millisecond, //default
+		ReconnectJitter:      100 * time.Millisecond, // default
 		RetryOnFailedConnect: true,
 		Timeout:              natsTimeoutCst,
 	}
 
+	var err error
 	x.natsClient, err = opts.Connect()
 	if err != nil {
 		log.Fatalf("InitDestNATS err:%v", err)
@@ -236,11 +275,11 @@ func (x *XTCP) InitDestNATS(ctx context.Context) {
 // https://github.com/redis/go-redis?tab=readme-ov-file#quickstart
 func (x *XTCP) InitDestValKey(ctx context.Context) {
 
-	dest := strings.Replace(*x.config.Dest, "valkey:", "", 1)
+	dest := strings.Replace(x.config.Dest, "valkey:", "", 1)
 
 	if x.debugLevel > 10 {
-		log.Printf("config.Topic:%s\n", *x.config.Topic)
-		log.Println("config.Dest:", *x.config.Dest)
+		log.Printf("config.Topic:%s\n", x.config.Topic)
+		log.Println("config.Dest:", x.config.Dest)
 		log.Println("dest:", dest)
 	}
 
@@ -300,23 +339,37 @@ func (x *XTCP) pingKafka(ctx context.Context) (err error) {
 	return err
 }
 
+// destNull sends the protobuf to nowhere!
+func (x *XTCP) destNull(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+
+	x.pC.WithLabelValues("destNull", "start", "count").Inc()
+
+	return len(*xtcpRecordBinary), nil
+}
+
 // destKafka sends the protobuf to kafka
 func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 
 	kgoRecord := x.kgoRecordPool.Get().(*kgo.Record)
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
-	kgoRecord.Topic = *x.config.Topic
+	kgoRecord.Topic = x.config.Topic
 	kgoRecord.Value = *xtcpRecordBinary
 
-	// I don't understand why setting a context with a timeout doesn't work,
-	// but it definitely doesn't.  It always says the context is canceled. ?!
-	//ctxP, cancelP := context.WithTimeout(ctx, kafkaClientProduceTimeoutCst)
-	// defer cancelP()
+	var ctxP context.Context
+	var cancelP context.CancelFunc
+
+	if x.config.KafkaProduceTimeout.AsDuration() != 0 {
+		// I don't understand why setting a context with a timeout doesn't work,
+		// but it definitely doesn't.  It always says the context is canceled. ?!
+		ctxP, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
+		defer cancelP()
+	}
+	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
 
 	kafkaStartTime := time.Now()
 
-	x.kClient.Produce(context.Background(),
+	x.kClient.Produce(ctxP,
 		kgoRecord,
 		func(kgoRecord *kgo.Record, err error) {
 			dur := time.Since(kafkaStartTime)
@@ -362,10 +415,10 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 
 // destNSQ sends the protobuf to a NSQ
 // https://nsq.io/
-func (x *XTCP) destNSQ(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+func (x *XTCP) destNSQ(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 
 	nsqStartTime := time.Now()
-	err = x.nsqProducer.Publish(*x.config.Topic, *xtcpRecordBinary)
+	err = x.nsqProducer.Publish(x.config.Topic, *xtcpRecordBinary)
 	dur := time.Since(nsqStartTime)
 	if err != nil {
 		x.pH.WithLabelValues("destNSQ", "Publish", "error").Observe(dur.Seconds())
@@ -384,7 +437,7 @@ func (x *XTCP) destNSQ(ctx context.Context, xtcpRecordBinary *[]byte) (n int, er
 }
 
 // destUDP sends the protobuf to the Edgio UDP destination
-func (x *XTCP) destUDP(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+func (x *XTCP) destUDP(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 
 	udpBytesWritten, err := x.udpConn.Write(*xtcpRecordBinary)
 	if err != nil {
@@ -403,10 +456,10 @@ func (x *XTCP) destUDP(ctx context.Context, xtcpRecordBinary *[]byte) (n int, er
 
 // destNATS sends the protobuf to the NATS destination
 // https://nats.io/
-func (x *XTCP) destNATS(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+func (x *XTCP) destNATS(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 
 	natsStartTime := time.Now()
-	err = x.natsClient.Publish(*x.config.Topic, *xtcpRecordBinary)
+	err = x.natsClient.Publish(x.config.Topic, *xtcpRecordBinary)
 	dur := time.Since(natsStartTime)
 	if err != nil {
 		x.pH.WithLabelValues("destNATS", "Publish", "error").Observe(dur.Seconds())
@@ -434,7 +487,7 @@ func (x *XTCP) destValKey(ctx context.Context, xtcpRecordBinary *[]byte) (n int,
 	ctxP, cancelP := context.WithTimeout(ctx, valkeyTimeoutCst)
 	defer cancelP()
 
-	err = x.valKeyClient.Publish(ctxP, *x.config.Topic, *xtcpRecordBinary).Err()
+	err = x.valKeyClient.Publish(ctxP, x.config.Topic, *xtcpRecordBinary).Err()
 	dur := time.Since(valkeyStartTime)
 	if err != nil {
 		x.pH.WithLabelValues("destValKey", "Publish", "error").Observe(dur.Seconds())

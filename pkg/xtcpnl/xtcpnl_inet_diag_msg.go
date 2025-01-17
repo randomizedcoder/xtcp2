@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h
@@ -198,12 +198,12 @@ func DeserializeInetDiagSockIDReflection(data []byte, sockid *InetDiagSockID) (n
 
 // XTCP
 
-func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	defer wg.Done()
 	return DeserializeInetDiagMsgXTCP(data, x)
 }
 
-func DeserializeInetDiagMsgXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < InetDiagMsgSizeCst {
 		return ErrInetDiagMsgSmall
@@ -239,7 +239,7 @@ func DeserializeInetDiagMsgXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err erro
 	return nil
 }
 
-func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < InetDiagSockIDSizeCst {
 		return ErrInetDiagSockIDSmall

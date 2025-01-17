@@ -49,7 +49,7 @@ func GetHostname() string {
 
 // MaxLoopsOrForEver returns true if maxloops == 0, or pollingLoops < maxloops
 // This function just allows us to embed if logic into the main pollingLoops for statement
-func MaxLoopsOrForEver(pollingLoops int, maxLoops int) bool {
+func MaxLoopsOrForEver(pollingLoops uint64, maxLoops uint64) bool {
 	if maxLoops != 0 {
 		if pollingLoops > maxLoops {
 			return false

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -78,7 +78,7 @@ func DeserializeTrafficClassReflection(data []byte, tc *TrafficClass) (n int, er
 	return TrafficClassSizeCst, err
 }
 
-func DeserializeTrafficClassXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeTrafficClassXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < TrafficClassMinSizeCst {
 		return ErrTrafficClassSmall

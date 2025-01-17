@@ -7,20 +7,30 @@ ARG DATE
 ARG GO_VERSION=1.23
 ARG VERSION
 
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETPLATFORM
+
 #https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#examples-with-docker
-FROM golang:${GO_VERSION} as build
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS build
 
 ARG XTCPPATH
 ARG COMMIT
 ARG DATE
 ARG VERSION
 
-RUN echo XTCPPATH:${XTCPPATH} COMMIT:${COMMIT} DATE:${DATE} VERSION:${VERSION}
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETPLATFORM
+
+RUN echo XTCPPATH:${XTCPPATH} COMMIT:${COMMIT} DATE:${DATE} VERSION:${VERSION} \
+    BUILDPLATFORM:${BUILDPLATFORM} TARGETPLATFORM:${TARGETPLATFORM}
 
 WORKDIR /go/src
 COPY . .
 
-RUN CGO_ENABLED=0 go build \
+#RUN CGO_ENABLED=0 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags "-X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${VERSION}" \
     -o /go/bin/xtcp2 \
     ./cmd/xtcp2/xtcp2.go
@@ -28,6 +38,8 @@ RUN CGO_ENABLED=0 go build \
 # https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#what-images-are-available
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /go/bin/xtcp2 /
+
 # Prometheus
 EXPOSE 9009
+
 ENTRYPOINT ["/xtcp2"]

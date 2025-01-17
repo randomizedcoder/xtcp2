@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // wireshark filter
@@ -812,7 +812,7 @@ func DeserializeTCPInfo4_19_219Reflection(data []byte, t *TCPInfo4_19_219) (n in
 	return MemInfoReadCst, err
 }
 
-func DeserializeTCPInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < TCPInfoMinSizeCst {
 		return ErrTCPInfoSmall

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -77,7 +77,7 @@ func DeserializeShutdownReflection(data []byte, s *Shutdown) (n int, err error) 
 	return n, err
 }
 
-func DeserializeShutdownXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < ShutdownMinSizeCst {
 		return ErrShutdownSmall

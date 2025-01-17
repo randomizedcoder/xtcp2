@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -98,7 +98,7 @@ func DeserializeBBRInfoReflection(data []byte, b *BBRInfo) (n int, err error) {
 	return BBRInfoReadCst, err
 }
 
-func DeserializeBBRInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < MemInfoSizeCst {
 		return ErrMemInfoSmall
@@ -113,7 +113,7 @@ func DeserializeBBRInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
 	return nil
 }
 
-func ZeroizeBBRInfoXTCP(x *xtcppb.FlatXtcpRecord) {
+func ZeroizeBBRInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
 	x.BbrInfoBwLo = 0
 	x.BbrInfoBwHi = 0
 	x.BbrInfoMinRtt = 0

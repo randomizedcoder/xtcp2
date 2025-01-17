@@ -5,61 +5,84 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/randomizedcoder/xtcp2/pkg/config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	redis "github.com/redis/go-redis/v9"
-	"golang.org/x/sys/unix"
 
 	nsq "github.com/nsqio/go-nsq"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
-	quantileError    = 0.05
-	summaryVecMaxAge = 5 * time.Minute
+	linuxNetNSDirCst  = "/run/netns/"
+	dockerNetNsDirCst = "/run/docker/netns/"
 
 	netlinkerDoneChSizeCst = 100
 
-	startPollTimeKeyCst = "s"
-	hostnameKeyCst      = "h"
+	quantileError    = 0.05
+	summaryVecMaxAge = 5 * time.Minute
 )
 
 type XTCP struct {
-	config config.Config
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	config *xtcp_config.XtcpConfig
+
+	// ns[netNSitem]
+	netNsDirs   *sync.Map
+	nsMap       *sync.Map
+	fdToNsMap   *sync.Map
+	storeCount  atomic.Uint64
+	deleteCount atomic.Uint64
+	generation  atomic.Uint64
 
 	packetBufferPool sync.Pool
+	xtcpEnvelopePool sync.Pool
 	xtcpRecordPool   sync.Pool
 	nlhPool          sync.Pool
 	rtaPool          sync.Pool
 	kgoRecordPool    sync.Pool
 
+	currentEnvelope       *xtcp_flat_record.Envelope
+	pollStartTime         time.Time
+	envelopeMu            sync.Mutex
+	changePollFrequencyCh chan time.Duration
+	pollRequestCh         chan struct{}
+
 	// Netlink socket variables
-	socketFD      int
-	socketAddress *unix.SockaddrNetlink
+	// socketFD      int
+	// socketAddress *unix.SockaddrNetlink
 	// iour          *iouring.IOURing
 	// resulter      chan iouring.Result
 
 	nlRequest *[]byte
 
-	netlinkerDoneCh chan time.Time
-	allDoneCh       *chan struct{}
+	//netlinkerDoneCh chan time.Time
+	netlinkerDoneCh chan netlinkerDone
 	pollTime        sync.Map
-	hostname        sync.Map
 
-	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcppb.FlatXtcpRecord) (err error)
+	pollTimeoutTimer *time.Timer
+
+	hostname string
+
+	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
-	xtcpRecordZeroizer map[xtcppb.FlatXtcpRecordCongestionAlgorithm]func(xtcpRecord *xtcppb.FlatXtcpRecord)
+	xtcpRecordZeroizer map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord)
 
-	Marshalers     sync.Map
-	Marshaler      func(xtcpRecord *xtcppb.FlatXtcpRecord) (buf *[]byte)
-	Destations     sync.Map
-	Destation      func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error)
-	InitDestations sync.Map
+	Marshalers       sync.Map
+	Marshaler        func(e *xtcp_flat_record.Envelope) (buf *[]byte)
+	Destinations     sync.Map
+	Destination      func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error)
+	InitDestinations sync.Map
+	// Signals poller can start
+	DestinationReady chan struct{}
 
 	kClient      *kgo.Client
 	nsqProducer  *nsq.Producer
@@ -67,62 +90,140 @@ type XTCP struct {
 	natsClient   *nats.Conn
 	valKeyClient *redis.Client
 
+	flatRecordService *xtcpFlatRecordService
+	configService     *xtcpConfigService
+
 	pC *prometheus.CounterVec
 	pH *prometheus.SummaryVec
+	pG prometheus.Gauge
 
-	debugLevel int
+	debugLevel uint32
 }
 
-func NewXTCP(ctx context.Context, c config.Config, allDoneCh *chan struct{}) (*XTCP, error) {
+// network namespace item
+// these are the items we track about each network name space
+type netNSitem struct {
+	name     *string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       *sync.WaitGroup
+	socketFD int
+}
+
+type netlinkerDone struct {
+	fd int
+	t  time.Time
+}
+
+func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config.XtcpConfig) *XTCP {
 
 	x := new(XTCP)
 
-	x.config = c
-	x.debugLevel = *x.config.DebugLevel
-	x.Init(ctx, allDoneCh)
+	x.ctx = ctx
+	x.cancel = cancel
 
-	return x, nil
+	x.config = config
+	x.debugLevel = x.config.DebugLevel
+
+	x.Init(ctx)
+
+	return x
 }
 
-func (x *XTCP) Run(ctx context.Context) {
+func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel uint32) *XTCP {
 
-	var wg sync.WaitGroup
+	x := new(XTCP)
 
-	for i := 0; i < *x.config.Netlinkers; i++ {
-		wg.Add(1)
-		go x.Netlinker(ctx, &wg, i)
+	x.ctx = ctx
+	x.cancel = cancel
+
+	x.config = &xtcp_config.XtcpConfig{
+		NlTimeoutMilliseconds: 5000,
+		Dest:                  "null",
+		MarshalTo:             "proto",
+		Topic:                 "not-a-topic",
+		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
+			Enabled: make(map[string]bool),
+		},
 	}
+	x.debugLevel = debugLevel
+
+	x.Init(ctx)
+
+	return x
+}
+
+// RunWithPoller is the main run function for xTCP
+// it starts everything required, including the netlink socket poller
+func (x *XTCP) RunWithPoller(ctx context.Context, wg *sync.WaitGroup) {
+	x.Run(ctx, wg, true)
+}
+
+// RunNoPoller is only for testing, do not run this for real
+// This will only monitor the name spaces, and was used for
+// testing the kernel/user-land correctly stay in sync, there's
+// no leaks, etc.  See also /cmd/nsTest/nsTest.go
+// Basically, it just doesn't start the poller
+func (x *XTCP) RunNoPoller(ctx context.Context, wg *sync.WaitGroup) {
+	x.Run(ctx, wg, false)
+}
+
+func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
+
+	defer wg.Done()
+
+	x.pC.WithLabelValues("Run", "start", "counter").Inc()
+
+	go x.startGRPCflatRecordService(ctx)
+
+	x.openDefaultNetLinkSocket(ctx)
 
 	wg.Add(1)
-	go x.Poller(ctx, &wg)
+	go x.nsMapCountReporter(ctx, wg)
 
-	if x.debugLevel > 10 {
-		log.Println("XTCP.Run() go routines started")
+	// /var/run/netns is a symlink to /run/netns
+	// netnsDir = "/var/run/netns"
+	// [das@hp1:~]$ ls -la /var/ | grep run
+	// lrwxrwxrwx  1 root root   11 Sep 17 15:57 lock -> ../run/lock
+	// lrwxrwxrwx  1 root root    6 Sep 17 15:57 run -> ../run
+	// https://www.redhat.com/en/blog/net-namespaces
+	x.netNsDirs.Range(func(key, value interface{}) bool {
+		wg.Add(1)
+		go x.watchNsNamespace(ctx, wg, key.(string))
+		return true
+	})
+
+	wg.Add(1)
+	go x.mapReconciler(ctx, wg)
+
+	if runPoller {
+		wg.Add(1)
+		go x.Poller(ctx, wg)
+
+		if x.debugLevel > 10 {
+			log.Println("XTCP.Run() wg.Wait()")
+		}
 	}
 
+	if x.debugLevel > 10 {
+		log.Println("XTCP.Run() wg.Wait()")
+	}
 	wg.Wait()
-	*x.allDoneCh <- struct{}{}
+
+	x.cancel()
 
 	if x.debugLevel > 10 {
-		log.Println("XTCP.Run() allDoneCh")
+		log.Println("XTCP.Run() x.cancel()")
 	}
 
-	switch *x.config.Dest {
-	case "kafka":
-		x.kClient.Close()
-	case "nsq":
-		x.nsqProducer.Stop()
-	case "udp":
-		x.udpConn.Close()
-	}
+	x.closeDestination()
 
 	if x.debugLevel > 10 {
-		log.Println("XTCP.Run() done")
+		log.Println("XTCP.Run() complete")
 	}
-
 }
 
-func (x *XTCP) CheckDoneNonBlocking(ctx context.Context) (netlinkerDone bool) {
+func (x *XTCP) checkDoneNonBlocking(ctx context.Context) (netlinkerDone bool) {
 	select {
 	case <-ctx.Done():
 		netlinkerDone = true
@@ -130,4 +231,15 @@ func (x *XTCP) CheckDoneNonBlocking(ctx context.Context) (netlinkerDone bool) {
 		// non blocking...
 	}
 	return
+}
+
+func (x *XTCP) closeDestination() {
+	switch x.config.Dest {
+	case "kafka":
+		x.kClient.Close()
+	case "nsq":
+		x.nsqProducer.Stop()
+	case "udp":
+		x.udpConn.Close()
+	}
 }

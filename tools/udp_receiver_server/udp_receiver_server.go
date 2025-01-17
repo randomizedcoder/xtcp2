@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -60,14 +60,14 @@ func main() {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcppb.FlatXtcpRecord)
+			return new(xtcp_flat_record.XtcpFlatRecord)
 		},
 	}
 
 	packetBuffer := packetBufferPool.Get().(*[]byte)
 	defer packetBufferPool.Put(packetBuffer)
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcppb.FlatXtcpRecord)
+	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	for i := 0; ; i++ {

@@ -1,0 +1,615 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "xtcp_flat_record/v1/xtcp_flat_record.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "XTCPFlatRecordService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {
+    "XtcpFlatRecordCongestionAlgorithm": {
+      "type": "string",
+      "enum": [
+        "CONGESTION_ALGORITHM_UNSPECIFIED",
+        "CONGESTION_ALGORITHM_CUBIC",
+        "CONGESTION_ALGORITHM_DCTCP",
+        "CONGESTION_ALGORITHM_VEGAS",
+        "CONGESTION_ALGORITHM_PRAGUE",
+        "CONGESTION_ALGORITHM_BBR1",
+        "CONGESTION_ALGORITHM_BBR2",
+        "CONGESTION_ALGORITHM_BBR3"
+      ],
+      "default": "CONGESTION_ALGORITHM_UNSPECIFIED"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1FlatRecordsResponse": {
+      "type": "object",
+      "properties": {
+        "xtcpFlatRecord": {
+          "$ref": "#/definitions/v1XtcpFlatRecord"
+        }
+      }
+    },
+    "v1XtcpFlatRecord": {
+      "type": "object",
+      "properties": {
+        "sec": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "nsec": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "netns": {
+          "type": "string",
+          "title": "network namespace"
+        },
+        "nsid": {
+          "type": "integer",
+          "format": "int64",
+          "title": "network namespace id"
+        },
+        "label": {
+          "type": "string",
+          "title": "free form strings"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "recordCounter": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "socketFd": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "netlinkerId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "inetDiagMsgFamily": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "inetDiagMsgState": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "inetDiagMsgTimer": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "inetDiagMsgRetrans": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "inetDiagMsgSocketSourcePort": {
+          "type": "integer",
+          "format": "int64",
+          "title": "__be16"
+        },
+        "inetDiagMsgSocketDestinationPort": {
+          "type": "integer",
+          "format": "int64",
+          "title": "__be16"
+        },
+        "inetDiagMsgSocketSource": {
+          "type": "string",
+          "format": "byte"
+        },
+        "inetDiagMsgSocketDestination": {
+          "type": "string",
+          "format": "byte"
+        },
+        "inetDiagMsgSocketInterface": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inetDiagMsgSocketCookie": {
+          "type": "string",
+          "format": "uint64",
+          "title": "[2]uint32"
+        },
+        "inetDiagMsgSocketDestAsn": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "inetDiagMsgSocketNextHopAsn": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "inetDiagMsgExpires": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inetDiagMsgRqueue": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inetDiagMsgWqueue": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inetDiagMsgUid": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inetDiagMsgInode": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "memInfoRmem": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "memInfoWmem": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "memInfoFmem": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "memInfoTmem": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoState": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoCaState": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoRetransmits": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoProbes": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoBackoff": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoOptions": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoSendScale": {
+          "type": "integer",
+          "format": "int64",
+          "description": "uint4",
+          "title": "__u8\t_snd_wscale : 4, _rcv_wscale : 4;\n\t__u8\t_delivery_rate_app_limited:1, _fastopen_client_fail:2;"
+        },
+        "tcpInfoRcvScale": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint4"
+        },
+        "tcpInfoDeliveryRateAppLimited": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoFastOpenClientFailed": {
+          "type": "integer",
+          "format": "int64",
+          "title": "uint8"
+        },
+        "tcpInfoRto": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoAto": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoSndMss": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRcvMss": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoUnacked": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoSacked": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoLost": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRetrans": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoFackets": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoLastDataSent": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Times"
+        },
+        "tcpInfoLastAckSent": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoLastDataRecv": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoLastAckRecv": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoPmtu": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Metrics"
+        },
+        "tcpInfoRcvSsthresh": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRttVar": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoSndSsthresh": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoSndCwnd": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoAdvMss": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoReordering": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRcvRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoRcvSpace": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoTotalRetrans": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoPacingRate": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "tcpInfoMaxPacingRate": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "tcpInfoBytesAcked": {
+          "type": "string",
+          "format": "uint64",
+          "title": "RFC4898 tcpEStatsAppHCThruOctetsAcked"
+        },
+        "tcpInfoBytesReceived": {
+          "type": "string",
+          "format": "uint64",
+          "title": "RFC4898 tcpEStatsAppHCThruOctetsReceived"
+        },
+        "tcpInfoSegsOut": {
+          "type": "integer",
+          "format": "int64",
+          "title": "RFC4898 tcpEStatsPerfSegsOut"
+        },
+        "tcpInfoSegsIn": {
+          "type": "integer",
+          "format": "int64",
+          "title": "RFC4898 tcpEStatsPerfSegsIn"
+        },
+        "tcpInfoNotSentBytes": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoMinRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoDataSegsIn": {
+          "type": "integer",
+          "format": "int64",
+          "title": "RFC4898 tcpEStatsDataSegsIn"
+        },
+        "tcpInfoDataSegsOut": {
+          "type": "integer",
+          "format": "int64",
+          "title": "RFC4898 tcpEStatsDataSegsOut"
+        },
+        "tcpInfoDeliveryRate": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "tcpInfoBusyTime": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Time (usec) busy sending data"
+        },
+        "tcpInfoRwndLimited": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Time (usec) limited by receive window"
+        },
+        "tcpInfoSndbufLimited": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Time (usec) limited by send buffer"
+        },
+        "tcpInfoDelivered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoDeliveredCe": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "tcpInfoBytesSent": {
+          "type": "string",
+          "format": "uint64",
+          "description": "RFC4898 tcpEStatsPerfHCDataOctetsOut",
+          "title": "https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB"
+        },
+        "tcpInfoBytesRetrans": {
+          "type": "string",
+          "format": "uint64",
+          "title": "RFC4898 tcpEStatsPerfOctetsRetrans"
+        },
+        "tcpInfoDsackDups": {
+          "type": "integer",
+          "format": "int64",
+          "title": "RFC4898 tcpEStatsStackDSACKDups"
+        },
+        "tcpInfoReordSeen": {
+          "type": "integer",
+          "format": "int64",
+          "title": "reordering events seen"
+        },
+        "tcpInfoRcvOoopack": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Out-of-order packets received"
+        },
+        "tcpInfoSndWnd": {
+          "type": "integer",
+          "format": "int64",
+          "title": "peer's advertised receive window after scaling (bytes)"
+        },
+        "tcpInfoRcvWnd": {
+          "type": "integer",
+          "format": "int64",
+          "title": "local advertised receive window after scaling (bytes)"
+        },
+        "tcpInfoRehash": {
+          "type": "integer",
+          "format": "int64",
+          "title": "PLB or timeout triggered rehash attempts"
+        },
+        "tcpInfoTotalRto": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts"
+        },
+        "tcpInfoTotalRtoRecoveries": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Total number of RTO recoveries, including any unfinished recovery"
+        },
+        "tcpInfoTotalRtoTime": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Total time spent in RTO recoveries in milliseconds, including any unfinished recovery"
+        },
+        "congestionAlgorithmString": {
+          "type": "string",
+          "description": "Please note it's recommended to use the enum for efficency, but keeping the string\njust in case we need to quickly put a different algorithm in without updating the enum.\nObviously it's optional, so it low cost.\n\nINET_DIAG_CONG 4"
+        },
+        "congestionAlgorithmEnum": {
+          "$ref": "#/definitions/XtcpFlatRecordCongestionAlgorithm",
+          "title": "INET_DIAG_CONG 4"
+        },
+        "typeOfService": {
+          "type": "integer",
+          "format": "int64",
+          "title": "INET_DIAG_TOS 5 uint8"
+        },
+        "trafficClass": {
+          "type": "integer",
+          "format": "int64",
+          "title": "INET_DIAG_TCLASS 6 uint8"
+        },
+        "skMemInfoRmemAlloc": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoRcvBuf": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoWmemAlloc": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoSndBuf": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoFwdAlloc": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoWmemQueued": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoOptmem": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoBacklog": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "skMemInfoDrops": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "shutdownState": {
+          "type": "integer",
+          "format": "int64",
+          "title": "UNIX_DIAG_SHUTDOWN 8uint8"
+        },
+        "vegasInfoEnabled": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "vegasInfoRttCnt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "vegasInfoRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "vegasInfoMinRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dctcpInfoEnabled": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dctcpInfoCeState": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dctcpInfoAlpha": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dctcpInfoAbEcn": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dctcpInfoAbTot": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "bbrInfoBwLo": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "bbrInfoBwHi": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "bbrInfoMinRtt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "bbrInfoPacingGain": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "bbrInfoCwndGain": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "classId": {
+          "type": "integer",
+          "format": "int64",
+          "title": "INET_DIAG_CLASS_ID 17 uint32"
+        },
+        "sockOpt": {
+          "type": "integer",
+          "format": "int64",
+          "title": "INET_DIAG_SOCKOPT"
+        },
+        "cGroup": {
+          "type": "string",
+          "format": "uint64",
+          "title": "INET_DIAG_BC_CGROUP_COND"
+        }
+      },
+      "title": "flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information"
+    }
+  }
+}

@@ -87,7 +87,7 @@ update_dependancies:
 
 	go mod verify
 	go mod tidy
-	go mod vendor
+	#go mod vendor
 
 test:
 	go test -v ./pkg/xtcpnl/
@@ -111,5 +111,8 @@ clear_docker_volumes:
 	docker volume rm xtcp_redpanda-0 || true
 
 	docker volume ls
+
+protos:
+	./generate_protos.bash
 
 # end
