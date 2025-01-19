@@ -34,7 +34,7 @@ spec:
         #args: ["--dest", "kafka:redpanda-0.redpanda.redpanda.svc.cluster.local:9093" ]
         env:
         - name: GOMEMLIMIT
-          value: "120MiB"
+          value: "148MiB"
         - name: GOGC
           value: "50"
         # https://pkg.go.dev/runtime
@@ -43,15 +43,16 @@ spec:
           #value: kafka:redpanda-0:9092
         resources:
           limits:
-            memory: 128Mi
-            cpu: 400m
+            memory: 150Mi
+            cpu: 1000m
           requests:
-            cpu: 100m
+            cpu: 200m
             memory: 64Mi
         securityContext:
           capabilities:
             # https://www.man7.org/linux/man-pages/man7/capabilities.7.html
-            add: ["CAP_NET_ADMIN", "CAP_SYS_CHROOT" ]
+            add: ["CAP_NET_ADMIN", "CAP_SYS_ADMIN", "CAP_SYS_CHROOT" ]
+        hostNetwork: true
         # volumeMounts:
         # - name: varlog
         #   mountPath: /var/log

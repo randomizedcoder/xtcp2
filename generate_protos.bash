@@ -23,6 +23,7 @@ g=$(id -g)
 
 # https://github.com/grpc-ecosystem/grpc-gateway
 go install \
+    google.golang.org/grpc/cmd/protoc-gen-go-grpc \
     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway \
     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2 \
     google.golang.org/protobuf/cmd/protoc-gen-go \
@@ -34,14 +35,17 @@ docker run --user "${u}:${g}" \
     --volume "${p}:/workspace" --workdir /workspace \
     --env BUF_CACHE_DIR='/workspace' \
     bufbuild/buf lint
+
 docker run --user "${u}:${g}" \
     --volume "${p}:/workspace" --workdir /workspace \
     --env BUF_CACHE_DIR='/workspace' \
     bufbuild/buf dep update
+
 docker run --user "${u}:${g}" \
     --volume "${p}:/workspace" --workdir /workspace \
     --env BUF_CACHE_DIR='/workspace' \
     bufbuild/buf build
+
 docker run --user "${u}:${g}" \
     --volume "${p}:/workspace" --workdir /workspace \
     --env BUF_CACHE_DIR='/workspace' \

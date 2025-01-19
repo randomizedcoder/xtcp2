@@ -830,6 +830,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   static XtcpFlatRecord getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<XtcpFlatRecord>(create);
   static XtcpFlatRecord? _defaultInstance;
 
+  /// message xtcp_flat_record {
   @$pb.TagNumber(1)
   $fixnum.Int64 get sec => $_getI64(0);
   @$pb.TagNumber(1)
@@ -867,6 +868,8 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   void clearNetns() => clearField(4);
 
+  /// network namespace id
+  /// TODO xtcp does not currently get the id
   @$pb.TagNumber(5)
   $core.int get nsid => $_getIZ(4);
   @$pb.TagNumber(5)
@@ -876,7 +879,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   void clearNsid() => clearField(5);
 
-  /// free form strings
+  /// free form string
   @$pb.TagNumber(6)
   $core.String get label => $_getSZ(5);
   @$pb.TagNumber(6)
@@ -886,6 +889,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   @$pb.TagNumber(6)
   void clearLabel() => clearField(6);
 
+  /// free form string
   @$pb.TagNumber(7)
   $core.String get tag => $_getSZ(6);
   @$pb.TagNumber(7)

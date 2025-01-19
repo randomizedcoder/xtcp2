@@ -1,14 +1,15 @@
 package xtcp
 
 import (
+	"bytes"
 	"log"
 	"sync"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	msgpack "github.com/vmihailenco/msgpack/v5"
+	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 )
 
 func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
@@ -41,14 +42,35 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 // protoMarshal marshals to protobuf and does error handling
 // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
 func (x *XTCP) protoMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	b, err := proto.Marshal(e)
+
+	var myBuf []byte
+	buffer := bytes.NewBuffer(myBuf)
+
+	// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
+	n, err := protodelim.MarshalTo(buffer, e)
 	if err != nil {
-		x.pC.WithLabelValues("protoMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 1000 {
-			log.Println("proto.Marshal(x) err: ", err)
+		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Println("protodelim.MarshalTo() err: ", err)
 		}
 	}
+
+	if x.debugLevel > 10 {
+		log.Printf("protodelim.MarshalTo() n:%d", n)
+	}
+
+	// b, err := proto.Marshal(e)
+	// if err != nil {
+	// 	x.pC.WithLabelValues("protoMarshal", "Marshal", "error").Inc()
+	// 	if x.debugLevel > 1000 {
+	// 		log.Println("proto.Marshal(x) err: ", err)
+	// 	}
+	// }
+	// buf = &b
+
+	b := buffer.Bytes()
 	buf = &b
+
 	return buf
 }
 

@@ -63,7 +63,8 @@
       "type": "object",
       "properties": {
         "xtcpFlatRecord": {
-          "$ref": "#/definitions/v1XtcpFlatRecord"
+          "$ref": "#/definitions/v1XtcpFlatRecord",
+          "title": "xtcp_flat_record xtcp_flat_record                 = 1;"
         }
       }
     },
@@ -72,7 +73,8 @@
       "properties": {
         "sec": {
           "type": "string",
-          "format": "uint64"
+          "format": "uint64",
+          "title": "message xtcp_flat_record {"
         },
         "nsec": {
           "type": "string",
@@ -88,14 +90,15 @@
         "nsid": {
           "type": "integer",
           "format": "int64",
-          "title": "network namespace id"
+          "title": "network namespace id\nTODO xtcp does not currently get the id"
         },
         "label": {
           "type": "string",
-          "title": "free form strings"
+          "title": "free form string"
         },
         "tag": {
-          "type": "string"
+          "type": "string",
+          "title": "free form string"
         },
         "recordCounter": {
           "type": "string",

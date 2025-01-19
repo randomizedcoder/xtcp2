@@ -18,7 +18,8 @@ rm -rf /docker-entrypoint-initdb.d/date_utc
 rm -rf /docker-entrypoint-initdb.d/whoami
 rm -rf /docker-entrypoint-initdb.d/success
 rm -rf /docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka*
-rm -rf /docker-entrypoint-initdb.d/xtcp.xtcp_records*
+rm -rf /docker-entrypoint-initdb.d/xtcp.flat_xtcp_records*
+rm -rf /docker-entrypoint-initdb.d/xtcp.*
 
 d=$(date +date%Y_%m_%d_%H_%M_%S)
 du=$(date --utc +date%Y_%m_%d_%H_%M_%S)
@@ -50,7 +51,8 @@ clickhouse client -n <<-EOSQL
     --------------------------------------------------------------------------------------------------
     -- https://clickhouse.com/docs/en/cloud/bestpractices/asynchronous-inserts
     -- https://medium.com/@kn2414e/utilizing-go-and-clickhouse-for-large-scale-data-ingestion-and-application-146822f7020c
-    ALTER USER root SETTINGS async_insert = 1;
+    -- FIX ME!!  Work out how to set this!!
+    -- ALTER USER root SETTINGS async_insert = 1;
 
     --------------------------------------------------------------------------------------------------
 
@@ -65,8 +67,8 @@ clickhouse client -n <<-EOSQL
 
     --------------------------------------------------------------------------------------------------
 
-    DROP TABLE IF EXISTS xtcp.xtcp_records;
-    CREATE TABLE IF NOT EXISTS xtcp.xtcp_records
+    DROP TABLE IF EXISTS xtcp.flat_xtcp_records;
+    CREATE TABLE IF NOT EXISTS xtcp.flat_xtcp_records
     (
         -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
         sec                                                         DateTime64(3,'UTC') CODEC(DoubleDelta, LZ4),
@@ -78,7 +80,7 @@ clickhouse client -n <<-EOSQL
         netns                                                       String CODEC(ZSTD),
         nsid                                                        UInt32 CODEC(LZ4),
 
-        label                                                       String CODEC(ZSTD),
+        label                                                       LowCardinality(String),
         tag                                                         LowCardinality(String),
 
         record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
@@ -236,6 +238,7 @@ clickhouse client -n <<-EOSQL
     -- Not using Nullable, because it uses more space and apparently "almost always negatively affects performance"
     -- https://clickhouse.com/docs/en/sql-reference/data-types/nullable
 
+    -- DROP TABLE xtcp.flat_xtcp_records_kafka;
     CREATE TABLE IF NOT EXISTS xtcp.flat_xtcp_records_kafka
     (
         -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
@@ -248,7 +251,7 @@ clickhouse client -n <<-EOSQL
         netns                                                       String CODEC(ZSTD),
         nsid                                                        UInt32 CODEC(LZ4),
 
-        label                                                       String CODEC(ZSTD),
+        label                                                       LowCardinality(String),
         tag                                                         LowCardinality(String),
 
         record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
@@ -397,31 +400,38 @@ clickhouse client -n <<-EOSQL
         kafka_broker_list = 'redpanda-0:9092',
         kafka_topic_list = 'xtcp',
         kafka_format = 'ProtobufList',
-        kafka_schema = 'flatxtcppb.proto:FlatXtcpRecord',
+        -- kafka_format = 'Protobuf',
+        kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
+        -- kafka_schema = 'xtcp_flat_record:xtcp_flat_record',
+        -- kafka_schema = 'xtcp_flat_record.proto:Envelope',
+        -- kafka_num_consumers = 1;
+        -- kafka_thread_per_consumer = 0;
         kafka_group_name = 'xtcp';
     -- https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+    -- https://github.com/ClickHouse/ClickHouse/pull/35152
     -- kafka_format = 'ProtobufSingle',
+    -- https://github.com/ClickHouse/ClickHouse/blob/master/src/Storages/Kafka/KafkaSettings.cpp
 
     --------------------------------------------------------------------------------------------------
 
     -- https://clickhouse.com/docs/en/integrations/kafka/kafka-table-engine#6-create-the-materialized-view
-    DROP VIEW IF EXISTS xtcp.xtcp_records_mv;
+    DROP VIEW IF EXISTS xtcp.flat_xtcp_records_mv;
 
-    CREATE MATERIALIZED VIEW IF NOT EXISTS xtcp.xtcp_records_mv TO xtcp.xtcp_records
+    CREATE MATERIALIZED VIEW IF NOT EXISTS xtcp.flat_xtcp_records_mv TO xtcp.flat_xtcp_records
     AS SELECT * FROM xtcp.flat_xtcp_records_kafka;
 
-    -- DETACH TABLE xtcp.xtcp_records_kafka;
-    -- ATTACH TABLE xtcp.xtcp_records_kafka;
+    -- DETACH TABLE xtcp.flat_xtcp_records_kafka;
+    -- ATTACH TABLE xtcp.flat_xtcp_records_kafka;
 
     -- SELECT * FROM xtcp.flat_xtcp_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
     -- DESCRIBE TABLE xtcp.flat_xtcp_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
 
     -- https://clickhouse.com/docs/en/sql-reference/statements/describe-table
     DESCRIBE TABLE xtcp.flat_xtcp_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka';
-    DESCRIBE TABLE xtcp.xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_records';
+    DESCRIBE TABLE xtcp.flat_xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records';
 
     DESCRIBE TABLE xtcp.flat_xtcp_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka.csv' FORMAT CSV;
-    DESCRIBE TABLE xtcp.xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_records.csv' FORMAT CSV;
+    DESCRIBE TABLE xtcp.flat_xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records.csv' FORMAT CSV;
 
 EOSQL
 
@@ -435,7 +445,7 @@ if [ ! -f /usr/bin/sha512sum ]; then
 fi
 
 file1='/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka';
-file2='/docker-entrypoint-initdb.d/xtcp.xtcp_records';
+file2='/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records';
 
 sha512sum1=$(sha512sum $file1 | cut -d ' ' -f 1);
 sha512sum2=$(sha512sum $file2 | cut -d ' ' -f 1);

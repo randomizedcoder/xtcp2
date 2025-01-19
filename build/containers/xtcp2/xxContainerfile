@@ -45,7 +45,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /go/bin/xtcp2 /
 
-# Prometheus
-EXPOSE 9009
+# Prometheus 9009 GRPC 8888
+EXPOSE 9009 8888
 
 ENTRYPOINT ["/xtcp2"]

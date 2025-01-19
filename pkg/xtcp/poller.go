@@ -151,7 +151,8 @@ breakPoint:
 			x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
 
 			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d pullDuration:%0.4fs bytes:%d", pollingLoops, pollDuration.Seconds(), n)
+				log.Printf("Poller pollingLoops:%d pullDuration:%0.4fs %dms bytes:%d",
+					pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds(), n)
 			}
 
 		}

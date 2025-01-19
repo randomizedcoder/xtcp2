@@ -7,7 +7,8 @@
 services:
   ch_server:
     # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
-    image: clickhouse/clickhouse-server:24.6.2.17-alpine
+    #image: clickhouse/clickhouse-server:24.6.2.17-alpine
+    image: clickhouse/clickhouse-server:24.8.12-alpine
     #image: xtcp_clickhouse
     #
     #environment:
@@ -27,6 +28,7 @@ services:
         soft: 262144
         hard: 262144
     cap_add:
+      # https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities
       - NET_ADMIN
       - SYS_NICE
       - IPC_LOCK

@@ -5,7 +5,7 @@ metadata:
   namespace: clickhouse
 data:
   # https://github.com/Altinity/clickhouse-operator/blob/master/docs/chi-examples/02-templates-05-bootstrap-schema.yaml
-  flatxtcppb.proto: |
+  xtcp_flat_record.proto: |
     //
     // xTCP - eXport TCP Inet Diagnostic messages
     //

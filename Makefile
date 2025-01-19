@@ -45,28 +45,41 @@ down:
 
 #--env-file docker-compose-enviroment-variables \
 
-builddocker: builddocker_xtcp builddocker_clickhouse
+builddocker: builddocker_xtcp builddocker_clickhouse_debug
 
 builddocker_xtcp:
 	@echo "================================"
-	@echo "Make builddocker_xtcp"
+	@echo "Make builddocker_xtcp randomizedcoder/xtcp2:${VERSION}"
 	docker build \
 		--build-arg XTCPPATH=${XTCPPATH} \
 		--build-arg COMMIT=${COMMIT} \
 		--build-arg DATE=${DATE} \
 		--build-arg VERSION=${VERSION} \
 		--file build/containers/xtcp2/Containerfile \
-		--tag "xtcp:${VERSION}" --tag xtcp:latest \
+		--tag randomizedcoder/xtcp2:${VERSION} --tag randomizedcoder/xtcp2:latest \
 		${XTCPPATH}
 
 builddocker_clickhouse:
 	@echo "================================"
-	@echo "Make builddocker_clickhouse"
+	@echo "Make builddocker_clickhouse randomizedcoder/xtcp_clickhouse:${VERSION}"
 	docker build \
 		--build-arg XTCPPATH=${XTCPPATH} \
 		--build-arg VERSION=${VERSION} \
 		--file build/containers/clickhouse/Containerfile \
-		--tag xtcp_clickhouse:${VERSION} --tag xtcp_clickhouse:latest \
+		--tag randomizedcoder/xtcp_clickhouse:${VERSION} --tag randomizedcoder/xtcp_clickhouse:latest \
+		.
+
+builddocker_clickhouse_debug:
+	@echo "================================"
+	@echo "Make builddocker_clickhouse randomizedcoder/xtcp_clickhouse:${VERSION}"
+	cp ./proto/xtcp_flat_record/v1/xtcp_flat_record.proto ./build/containers/clickhouse/format_schemas/
+	docker build \
+		--progress=plain \
+		--no-cache \
+		--build-arg XTCPPATH=${XTCPPATH} \
+		--build-arg VERSION=${VERSION} \
+		--file build/containers/clickhouse/Containerfile \
+		--tag randomizedcoder/xtcp_clickhouse:${VERSION} --tag randomizedcoder/xtcp_clickhouse:latest \
 		.
 
 update_dependancies:
@@ -114,5 +127,9 @@ clear_docker_volumes:
 
 protos:
 	./generate_protos.bash
+
+nuke_clickhouse:
+	rm -rf ./build/containers/clickhouse/db/*
+	docker volume rm xtcp_clickhouse_db
 
 # end

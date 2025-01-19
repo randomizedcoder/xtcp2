@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	debugLevelCst = 11
+	debugLevelCst = 111
 
 	signalChannelSizeCst = 10
 	cancelSleepTimeCst   = 5 * time.Second
@@ -64,6 +64,8 @@ const (
 	tagCst   = ""
 
 	grpcPortCst = 8888
+
+	netlinkerDoneChSizeCst = 100
 
 	// startSleepCst = 10 * time.Second
 
@@ -157,6 +159,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	environmentOverrideDebugLevel(d, *d)
+
 	debugLevel = *d
 
 	if debugLevel > 10 {
@@ -186,25 +190,26 @@ func main() {
 	c := &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: *nltimeout,
 		// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
-		PollFrequency:        durationpb.New(*pollFrequency),
-		PollTimeout:          durationpb.New(*pollTimeout),
-		MaxLoops:             *maxLoops,
-		Netlinkers:           uint32(*netlinkers),
-		NlmsgSeq:             uint32(*nlmsgSeq),
-		PacketSize:           *packetSize,
-		PacketSizeMply:       uint32(*packetSizeMply),
-		WriteFiles:           uint32(*writeFiles),
-		CapturePath:          *capturePath,
-		Modulus:              *modulus,
-		MarshalTo:            *marshal,
-		Dest:                 *dest,
-		Topic:                *topic,
-		KafkaProduceTimeout:  durationpb.New(*produceTimeout),
-		DebugLevel:           uint32(*d),
-		Label:                *label,
-		Tag:                  *tag,
-		GrpcPort:             uint32(*grpcPort),
-		EnabledDeserializers: des,
+		PollFrequency:          durationpb.New(*pollFrequency),
+		PollTimeout:            durationpb.New(*pollTimeout),
+		MaxLoops:               *maxLoops,
+		Netlinkers:             uint32(*netlinkers),
+		NetlinkersDoneChanSize: netlinkerDoneChSizeCst,
+		NlmsgSeq:               uint32(*nlmsgSeq),
+		PacketSize:             *packetSize,
+		PacketSizeMply:         uint32(*packetSizeMply),
+		WriteFiles:             uint32(*writeFiles),
+		CapturePath:            *capturePath,
+		Modulus:                *modulus,
+		MarshalTo:              *marshal,
+		Dest:                   *dest,
+		Topic:                  *topic,
+		KafkaProduceTimeout:    durationpb.New(*produceTimeout),
+		DebugLevel:             uint32(*d),
+		Label:                  *label,
+		Tag:                    *tag,
+		GrpcPort:               uint32(*grpcPort),
+		EnabledDeserializers:   des,
 	}
 
 	if debugLevel > 100 {
@@ -362,6 +367,19 @@ func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 	}
 }
 
+// environmentOverrideDebugLevel MUTATES d if env var is set
+func environmentOverrideDebugLevel(d *uint, debugLevel uint) {
+	key := "DEBUG_LEVEL"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			*d = uint(i)
+			if debugLevel > 10 {
+				log.Printf("key:%s, d:%d", key, d)
+			}
+		}
+	}
+}
+
 // environmentOverrideGoMaxProcs MUTATES goMaxProcs if env var is set
 func environmentOverrideGoMaxProcs(goMaxProcs *uint, debugLevel uint) {
 	key := "GOMAXPROCS"
@@ -425,6 +443,16 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 			c.Netlinkers = uint32(i)
 			if debugLevel > 10 {
 				log.Printf("key:%s, c.Netlinkers:%d", key, c.Netlinkers)
+			}
+		}
+	}
+
+	key = "NETLINKERS_DONE_CHAN_SIZE"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			c.NetlinkersDoneChanSize = uint32(i)
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.NetlinkersDoneChanSize:%d", key, c.NetlinkersDoneChanSize)
 			}
 		}
 	}

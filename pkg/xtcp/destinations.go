@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -178,9 +177,10 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 		// https://github.com/twmb/franz-go/blob/master/examples/bench/main.go#L104
 		kgo.ProducerBatchMaxBytes(1000000),
 
-		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelDebug, func() string {
-			return time.Now().Format("[2006-01-02 15:04:05.999] ")
-		})),
+		// Debugging in the kgo client
+		// kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelDebug, func() string {
+		// 	return time.Now().Format("[2006-01-02 15:04:05.999] ")
+		// })),
 	}
 	var err error
 	x.kClient, err = kgo.NewClient(opts...)
@@ -358,7 +358,6 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 
 	var ctxP context.Context
 	var cancelP context.CancelFunc
-
 	if x.config.KafkaProduceTimeout.AsDuration() != 0 {
 		// I don't understand why setting a context with a timeout doesn't work,
 		// but it definitely doesn't.  It always says the context is canceled. ?!
@@ -372,8 +371,8 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 	x.kClient.Produce(ctxP,
 		kgoRecord,
 		func(kgoRecord *kgo.Record, err error) {
-			dur := time.Since(kafkaStartTime)
 			x.kgoRecordPool.Put(kgoRecord)
+			dur := time.Since(kafkaStartTime)
 			//cancelP()
 			if err != nil {
 				x.pH.WithLabelValues("destKafka", "Produce", "error").Observe(dur.Seconds())
@@ -384,12 +383,12 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 				return
 			}
 
-			if x.debugLevel > 10 {
-				log.Printf("destKafka %0.6fs", dur.Seconds())
-			}
-
-			x.pH.WithLabelValues("destKafka", "Produce", "count").Observe(time.Since(kafkaStartTime).Seconds())
+			x.pH.WithLabelValues("destKafka", "Produce", "count").Observe(dur.Seconds())
 			x.pC.WithLabelValues("destKafka", "Produce", "count").Inc()
+
+			if x.debugLevel > 10 {
+				log.Printf("destKafka %0.6fs %dms", dur.Seconds(), dur.Milliseconds())
+			}
 		},
 	)
 

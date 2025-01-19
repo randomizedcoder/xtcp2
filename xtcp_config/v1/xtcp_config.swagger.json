@@ -226,7 +226,12 @@
         "netlinkers": {
           "type": "integer",
           "format": "int64",
-          "title": "Netlinker goroutines per netlink socket ( recommend 1,2,4 range )"
+          "title": "Netlinker goroutines per netlink socket ( recommend 1,2,4 range )\nNetlinkers read the tcp-diag response messages from the netlink socket\nIf you have a large number of"
+        },
+        "netlinkersDoneChanSize": {
+          "type": "integer",
+          "format": "int64",
+          "title": "netlinkerDoneCh channel size\nThis channel is used between the netlinkers and the poller\nCheck the prom counter to see if the channel is too small\nd.pC.WithLabelValues(\"Deserialize\", \"netlinkerDoneCh\", \"error\").Inc()"
         },
         "nlmsgSeq": {
           "type": "integer",

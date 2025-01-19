@@ -2,7 +2,6 @@ package xtcp
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -23,12 +21,20 @@ func (x *XTCP) Init(ctx context.Context) {
 
 	startTime := time.Now()
 
+	if x.debugLevel > 10 {
+		log.Println("Init starting")
+	}
+
 	if err := x.checkCapabilities(); err != nil {
 		log.Print(err) // TODO log.Fatal
 	}
 
 	// initChanenls first, so that signaling channels are ready
 	x.initChannels()
+
+	if x.debugLevel > 10 {
+		log.Printf("InitMarshallers starting, after:%0.3f", time.Since(startTime).Seconds())
+	}
 
 	wg := new(sync.WaitGroup)
 
@@ -71,7 +77,7 @@ func (x *XTCP) Init(ctx context.Context) {
 func (x *XTCP) initChannels() {
 
 	x.DestinationReady = make(chan struct{}, destinationReadyChSize)
-	x.netlinkerDoneCh = make(chan netlinkerDone, netlinkerDoneChSizeCst)
+	x.netlinkerDoneCh = make(chan netlinkerDone, int(x.config.NetlinkersDoneChanSize))
 	x.changePollFrequencyCh = make(chan time.Duration, changePollFrequencyChSize)
 	x.pollRequestCh = make(chan struct{}, pollRequestChSize)
 
@@ -152,37 +158,4 @@ func (x *XTCP) CreateNetLinkRequest(wg *sync.WaitGroup) (nlRequest *[]byte) {
 	xtcpnl.SerializeNetlinkDiagRequest(nlh, req, nlRequest)
 
 	return nlRequest
-}
-
-// checkCapabilities checks for CAP_NET_ADMIN and CAP_SYS_CHROOT
-// https://www.man7.org/linux/man-pages/man7/capabilities.7.html
-// https://pkg.go.dev/golang.org/x/sys/unix#pkg-constants
-func (x *XTCP) checkCapabilities() error {
-
-	var hdr unix.CapUserHeader
-	hdr.Version = unix.LINUX_CAPABILITY_VERSION_3
-	hdr.Pid = int32(os.Getpid())
-
-	var data unix.CapUserData
-	if err := unix.Capget(&hdr, &data); err != nil {
-		return fmt.Errorf("failed to get capabilities: %w", err)
-	}
-
-	hasChroot := (data.Effective & (1 << unix.CAP_SYS_CHROOT)) != 0
-
-	hasNetAdmin := (data.Effective & (1 << unix.CAP_NET_ADMIN)) != 0
-
-	if x.debugLevel > 10 {
-		log.Printf("CAP_SYS_CHROOT: %v\n", hasChroot)
-		log.Printf("CAP_NET_ADMIN: %v\n", hasNetAdmin)
-	}
-
-	if hasChroot && hasNetAdmin {
-		if x.debugLevel > 10 {
-			log.Println("The program has both CAP_NET_ADMIN and CAP_SYS_CHROOT.")
-		}
-		return nil
-	}
-
-	return fmt.Errorf("xtcp needs CAP_NET_ADMIN and CAP_SYS_CHROOT")
 }

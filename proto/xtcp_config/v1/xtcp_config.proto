@@ -170,12 +170,26 @@ message XtcpConfig {
 	}];
 
 	// Netlinker goroutines per netlink socket ( recommend 1,2,4 range )
+	// Netlinkers read the tcp-diag response messages from the netlink socket
+	// If you have a large number of
 	uint32 netlinkers                                = 50 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).uint32 = {
-			gte: 0,
+			gte: 1,
 			lte: 100
 	}];
+
+		// netlinkerDoneCh channel size
+		// This channel is used between the netlinkers and the poller
+		// Check the prom counter to see if the channel is too small
+		// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+		uint32 netlinkers_done_chan_size               = 51 [
+			(buf.validate.field).required = true,
+			(buf.validate.field).uint32 = {
+				gte: 1,
+				lte: 1000
+		}];
+
 	// nlmsg_seq sequence number (start). This gets incremented.
 	uint32 nlmsg_seq                                 = 60 [
 		(buf.validate.field).required = true,

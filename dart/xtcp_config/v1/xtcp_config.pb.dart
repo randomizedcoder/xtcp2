@@ -338,6 +338,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $2.Duration? pollTimeout,
     $fixnum.Int64? maxLoops,
     $core.int? netlinkers,
+    $core.int? netlinkersDoneChanSize,
     $core.int? nlmsgSeq,
     $fixnum.Int64? packetSize,
     $core.int? packetSizeMply,
@@ -369,6 +370,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     }
     if (netlinkers != null) {
       $result.netlinkers = netlinkers;
+    }
+    if (netlinkersDoneChanSize != null) {
+      $result.netlinkersDoneChanSize = netlinkersDoneChanSize;
     }
     if (nlmsgSeq != null) {
       $result.nlmsgSeq = nlmsgSeq;
@@ -427,6 +431,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOM<$2.Duration>(30, _omitFieldNames ? '' : 'pollTimeout', subBuilder: $2.Duration.create)
     ..a<$fixnum.Int64>(40, _omitFieldNames ? '' : 'maxLoops', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$core.int>(50, _omitFieldNames ? '' : 'netlinkers', $pb.PbFieldType.OU3)
+    ..a<$core.int>(51, _omitFieldNames ? '' : 'netlinkersDoneChanSize', $pb.PbFieldType.OU3)
     ..a<$core.int>(60, _omitFieldNames ? '' : 'nlmsgSeq', $pb.PbFieldType.OU3)
     ..a<$fixnum.Int64>(70, _omitFieldNames ? '' : 'packetSize', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$core.int>(80, _omitFieldNames ? '' : 'packetSizeMply', $pb.PbFieldType.OU3)
@@ -516,6 +521,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
   void clearMaxLoops() => clearField(40);
 
   /// Netlinker goroutines per netlink socket ( recommend 1,2,4 range )
+  /// Netlinkers read the tcp-diag response messages from the netlink socket
+  /// If you have a large number of
   @$pb.TagNumber(50)
   $core.int get netlinkers => $_getIZ(4);
   @$pb.TagNumber(50)
@@ -525,34 +532,47 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(50)
   void clearNetlinkers() => clearField(50);
 
+  /// netlinkerDoneCh channel size
+  /// This channel is used between the netlinkers and the poller
+  /// Check the prom counter to see if the channel is too small
+  /// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+  @$pb.TagNumber(51)
+  $core.int get netlinkersDoneChanSize => $_getIZ(5);
+  @$pb.TagNumber(51)
+  set netlinkersDoneChanSize($core.int v) { $_setUnsignedInt32(5, v); }
+  @$pb.TagNumber(51)
+  $core.bool hasNetlinkersDoneChanSize() => $_has(5);
+  @$pb.TagNumber(51)
+  void clearNetlinkersDoneChanSize() => clearField(51);
+
   /// nlmsg_seq sequence number (start). This gets incremented.
   @$pb.TagNumber(60)
-  $core.int get nlmsgSeq => $_getIZ(5);
+  $core.int get nlmsgSeq => $_getIZ(6);
   @$pb.TagNumber(60)
-  set nlmsgSeq($core.int v) { $_setUnsignedInt32(5, v); }
+  set nlmsgSeq($core.int v) { $_setUnsignedInt32(6, v); }
   @$pb.TagNumber(60)
-  $core.bool hasNlmsgSeq() => $_has(5);
+  $core.bool hasNlmsgSeq() => $_has(6);
   @$pb.TagNumber(60)
   void clearNlmsgSeq() => clearField(60);
 
   /// netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
   /// recommend using 0
   @$pb.TagNumber(70)
-  $fixnum.Int64 get packetSize => $_getI64(6);
+  $fixnum.Int64 get packetSize => $_getI64(7);
   @$pb.TagNumber(70)
-  set packetSize($fixnum.Int64 v) { $_setInt64(6, v); }
+  set packetSize($fixnum.Int64 v) { $_setInt64(7, v); }
   @$pb.TagNumber(70)
-  $core.bool hasPacketSize() => $_has(6);
+  $core.bool hasPacketSize() => $_has(7);
   @$pb.TagNumber(70)
   void clearPacketSize() => clearField(70);
 
   /// netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply
   @$pb.TagNumber(80)
-  $core.int get packetSizeMply => $_getIZ(7);
+  $core.int get packetSizeMply => $_getIZ(8);
   @$pb.TagNumber(80)
-  set packetSizeMply($core.int v) { $_setUnsignedInt32(7, v); }
+  set packetSizeMply($core.int v) { $_setUnsignedInt32(8, v); }
   @$pb.TagNumber(80)
-  $core.bool hasPacketSizeMply() => $_has(7);
+  $core.bool hasPacketSizeMply() => $_has(8);
   @$pb.TagNumber(80)
   void clearPacketSizeMply() => clearField(80);
 
@@ -560,61 +580,61 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// xtcp will capture this many Netlink response packets when it starts
   /// This is PER netlinker
   @$pb.TagNumber(90)
-  $core.int get writeFiles => $_getIZ(8);
+  $core.int get writeFiles => $_getIZ(9);
   @$pb.TagNumber(90)
-  set writeFiles($core.int v) { $_setUnsignedInt32(8, v); }
+  set writeFiles($core.int v) { $_setUnsignedInt32(9, v); }
   @$pb.TagNumber(90)
-  $core.bool hasWriteFiles() => $_has(8);
+  $core.bool hasWriteFiles() => $_has(9);
   @$pb.TagNumber(90)
   void clearWriteFiles() => clearField(90);
 
   /// Write files path
   @$pb.TagNumber(100)
-  $core.String get capturePath => $_getSZ(9);
+  $core.String get capturePath => $_getSZ(10);
   @$pb.TagNumber(100)
-  set capturePath($core.String v) { $_setString(9, v); }
+  set capturePath($core.String v) { $_setString(10, v); }
   @$pb.TagNumber(100)
-  $core.bool hasCapturePath() => $_has(9);
+  $core.bool hasCapturePath() => $_has(10);
   @$pb.TagNumber(100)
   void clearCapturePath() => clearField(100);
 
   /// modulus. Report every X socket diag messages to output
   @$pb.TagNumber(110)
-  $fixnum.Int64 get modulus => $_getI64(10);
+  $fixnum.Int64 get modulus => $_getI64(11);
   @$pb.TagNumber(110)
-  set modulus($fixnum.Int64 v) { $_setInt64(10, v); }
+  set modulus($fixnum.Int64 v) { $_setInt64(11, v); }
   @$pb.TagNumber(110)
-  $core.bool hasModulus() => $_has(10);
+  $core.bool hasModulus() => $_has(11);
   @$pb.TagNumber(110)
   void clearModulus() => clearField(110);
 
   /// Marshalling of the exported data (proto,json,prototext)
   @$pb.TagNumber(120)
-  $core.String get marshalTo => $_getSZ(11);
+  $core.String get marshalTo => $_getSZ(12);
   @$pb.TagNumber(120)
-  set marshalTo($core.String v) { $_setString(11, v); }
+  set marshalTo($core.String v) { $_setString(12, v); }
   @$pb.TagNumber(120)
-  $core.bool hasMarshalTo() => $_has(11);
+  $core.bool hasMarshalTo() => $_has(12);
   @$pb.TagNumber(120)
   void clearMarshalTo() => clearField(120);
 
   /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
   @$pb.TagNumber(130)
-  $core.String get dest => $_getSZ(12);
+  $core.String get dest => $_getSZ(13);
   @$pb.TagNumber(130)
-  set dest($core.String v) { $_setString(12, v); }
+  set dest($core.String v) { $_setString(13, v); }
   @$pb.TagNumber(130)
-  $core.bool hasDest() => $_has(12);
+  $core.bool hasDest() => $_has(13);
   @$pb.TagNumber(130)
   void clearDest() => clearField(130);
 
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(13);
+  $core.String get topic => $_getSZ(14);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(13, v); }
+  set topic($core.String v) { $_setString(14, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(13);
+  $core.bool hasTopic() => $_has(14);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
@@ -622,66 +642,66 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(14);
+  $2.Duration get kafkaProduceTimeout => $_getN(15);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(14);
+  $core.bool hasKafkaProduceTimeout() => $_has(15);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(14);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(15);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(15);
+  $core.int get debugLevel => $_getIZ(16);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(15, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(16, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(15);
+  $core.bool hasDebugLevel() => $_has(16);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(16);
+  $core.String get label => $_getSZ(17);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(16, v); }
+  set label($core.String v) { $_setString(17, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(16);
+  $core.bool hasLabel() => $_has(17);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(17);
+  $core.String get tag => $_getSZ(18);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(17, v); }
+  set tag($core.String v) { $_setString(18, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(17);
+  $core.bool hasTag() => $_has(18);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(18);
+  $core.int get grpcPort => $_getIZ(19);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(18, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(19, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(18);
+  $core.bool hasGrpcPort() => $_has(19);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(19);
+  EnabledDeserializers get enabledDeserializers => $_getN(20);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(19);
+  $core.bool hasEnabledDeserializers() => $_has(20);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(19);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(20);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

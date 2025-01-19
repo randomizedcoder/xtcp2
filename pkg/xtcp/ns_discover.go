@@ -23,25 +23,25 @@ func (x *XTCP) discoverAllNamespaces() (nsMap *sync.Map) {
 		return true
 	})
 
-	if x.debugLevel > 10 {
-		for _, n := range nsMaps {
-			n.Range(func(key, value interface{}) bool {
-				log.Printf("DEBUG k:%v", key.(string))
-				return true
-			})
-		}
-	}
+	// if x.debugLevel > 1000 {
+	// 	for _, n := range nsMaps {
+	// 		n.Range(func(key, value interface{}) bool {
+	// 			log.Printf("DEBUG k:%v", key.(string))
+	// 			return true
+	// 		})
+	// 	}
+	// }
 
 	if len(nsMaps) == 1 {
 		nsMap = nsMaps[0]
 		return
 	}
 
-	if x.debugLevel > 10 {
-		log.Printf("discoverALLNamespaces len(nsMaps):%d > 1", len(nsMaps))
-	}
+	// if x.debugLevel > 1000 {
+	// 	log.Printf("discoverALLNamespaces len(nsMaps):%d > 1", len(nsMaps))
+	// }
 
-	for i := 1; i <= len(nsMaps); i++ {
+	for i := 1; i < len(nsMaps); i++ {
 		if x.debugLevel > 10 {
 			log.Printf("discoverALLNamespaces merge i:%d", i)
 		}
@@ -53,14 +53,14 @@ func (x *XTCP) discoverAllNamespaces() (nsMap *sync.Map) {
 	}
 	nsMap = nsMaps[0]
 
-	if x.debugLevel > 10 {
-		var i int
-		x.netNsDirs.Range(func(key, value interface{}) bool {
-			log.Printf("discoverALLNamespaces i:%d key:%s", i, key.(string))
-			i++
-			return true
-		})
-	}
+	// if x.debugLevel > 1000 {
+	// 	var i int
+	// 	x.netNsDirs.Range(func(key, value interface{}) bool {
+	// 		log.Printf("discoverALLNamespaces i:%d key:%s", i, key.(string))
+	// 		i++
+	// 		return true
+	// 	})
+	// }
 
 	return nsMap
 }

@@ -24,6 +24,14 @@ FROM
 SETTINGS
     stream_like_engine_allow_direct_select = 1;
 
+SELECT
+    *
+FROM
+    flat_xtcp_records_kafka
+SETTINGS
+    stream_like_engine_allow_direct_select = 1;
+
+
 DROP TABLE test.kafka
 CREATE TABLE test.kafka (key UInt64, value UInt64)
     ENGINE = Kafka

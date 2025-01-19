@@ -30,66 +30,105 @@ option go_package = "./pkg/xtcp_flat_record";
 // https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
 // https://github.com/bufbuild/protovalidate/tree/main/examples
 // https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
-// import "buf/validate/validate.proto";
+import "buf/validate/validate.proto";
 
 service XTCPFlatRecordService {
 
 	// If xtcp is polling, this will return the stream
-	rpc FlatRecords ( FlatRecordsRequest ) returns ( stream FlatRecordsResponse );
+  rpc FlatRecords (FlatRecordsRequest) returns (stream FlatRecordsResponse);
 
 	// If xtcp is not polling, this allows the client to send a poll request
-	rpc PollFlatRecords ( stream PollFlatRecordsRequest ) returns ( stream FlatRecordsResponse );
+	rpc PollFlatRecords (stream PollFlatRecordsRequest) returns (stream FlatRecordsResponse);
 }
 
 message FlatRecordsRequest {
-	// empty
+  // empty
 }
 
 message FlatRecordsResponse {
-	XtcpFlatRecord xtcp_flat_record                 = 1;
-	//xtcp_flat_record xtcp_flat_record                 = 1;
+  XtcpFlatRecord xtcp_flat_record                 = 1;
 }
 
 message PollFlatRecordsRequest {
-	// empty
+  // empty
 }
 
 // message PollFlatRecordsResponse {
-//   XtcpFlatRecord xtcp_flat_record                  = 1;
+//   XtcpFlatRecord xtcp_flat_record              = 1;
 // }
 
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 message Envelope {
 	repeated XtcpFlatRecord row                     = 1;
-	//repeated xtcp_flat_record row                     = 1;
 };
 
 // flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
 message XtcpFlatRecord {
-//message xtcp_flat_record {
-	uint64 sec                                      = 1;
-	uint64 nsec                                     = 2;
+	uint64 sec                                      = 1 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			// lte: 100000
+	}];
+	uint64 nsec                                     = 2 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			// lte: 100000
+	}];
 
-	string hostname                                 = 3;
+	string hostname                                 = 3 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 100,
+	}];
 
 	// network namespace
-	string netns                                    = 4;
+	string netns                                    = 4 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 100,
+	}];
 
 	// network namespace id
 	// TODO xtcp does not currently get the id
-	uint32 nsid                                     = 5;
+	uint32 nsid                                     = 5 [ (buf.validate.field).required = false ];
 
 	// free form string
-	string label                                    = 6;
+	string label                                    = 6 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
 
 	// free form string
-	string tag                                      = 7;
+	string tag                                      = 7 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
 
-	uint64 record_counter                           = 8;
+	uint64 record_counter                           = 8 [
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			// lte: 1000
+	}];
 
-	uint64 socket_fd                                = 9;
+	uint64 socket_fd                                = 9 [
+		(buf.validate.field).uint64 = {
+			gte: 3,
+			// lte: 1000
+	}];
 
-	uint64 netlinker_id                             = 10;
+	uint64 netlinker_id                             = 10 [
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			lte: 100
+	}];
 
 	// inet_diag_msg inet_diag_msg                  = 100;
 
@@ -130,8 +169,8 @@ message XtcpFlatRecord {
 	uint32 tcp_info_probes                          = 304; // uint8
 	uint32 tcp_info_backoff                         = 305; // uint8
 	uint32 tcp_info_options                         = 306; // uint8
-//	__u8	_snd_wscale : 4, _rcv_wscale : 4;
-//	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
+// 	__u8	_snd_wscale : 4, _rcv_wscale : 4;
+// 	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
 	uint32 tcp_info_send_scale                      = 307; // uint4
 	uint32 tcp_info_rcv_scale                       = 308; // uint4
 	uint32 tcp_info_delivery_rate_app_limited       = 309; // uint8
