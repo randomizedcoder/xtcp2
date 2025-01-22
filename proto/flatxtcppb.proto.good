@@ -19,15 +19,15 @@
 syntax = "proto3";  // the only thing below that is not proto3 is "optional". e.g. to convert to proto3 delete the word optional
 // sadly the travis server hasn't been upgrade yet, so we can't do proto3
 
-package flatxtcppb.v1;
+package xtcp_flat_record.v1;
 
 // https://developers.google.com/protocol-buffers/docs/reference/go-generated
 // option go_package = "github.com/randomizedcoder/xtcp2/pkg/xtcppb";
 // option go_package = "github.com/randomizedcoder/xtcp";
-option go_package = "./pkg/flatxtcppb";
+option go_package = "./pkg/xtcp_flat_record";
 
-// flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
-message FlatXtcpRecord {
+// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
+message XtcpFlatRecord {
     int64 sec                                       = 1;
     int64 nsec                                      = 2; // nanoseconds
 

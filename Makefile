@@ -29,6 +29,7 @@ build_and_deploy: builddocker deploy
 deploy:
 	@echo "================================"
 	@echo "Make deploy"
+	cp ./proto/xtcp_flat_record/v1/xtcp_flat_record.proto ./build/containers/clickhouse/format_schemas/
 	echo XTCPPATH=${XTCPPATH}
 	XTCPPATH=${XTCPPATH} \
 	docker compose \

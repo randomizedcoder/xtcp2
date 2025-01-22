@@ -27,7 +27,7 @@ data: {
 		# rm -rf /docker-entrypoint-initdb.d/date_utc || true
 		# rm -rf /docker-entrypoint-initdb.d/whoami || true
 		# rm -rf /docker-entrypoint-initdb.d/success || true
-		# rm -rf /docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka* || true
+		# rm -rf /docker-entrypoint-initdb.d/xtcp.xtcp_flat_records_kafka* || true
 		# rm -rf /docker-entrypoint-initdb.d/xtcp.xtcp_records* || true
 
 		d=$(date +date%Y_%m_%d_%H_%M_%S)
@@ -228,7 +228,7 @@ data: {
 		-- Not using Nullable, because it uses more space and apparently "almost always negatively affects performance"
 		-- https://clickhouse.com/docs/en/sql-reference/data-types/nullable
 
-		CREATE TABLE IF NOT EXISTS xtcp.flat_xtcp_records_kafka
+		CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
 		(
 		    -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
 		    sec                                                         DateTime64(3,'UTC') CODEC(DoubleDelta, LZ4),
@@ -389,7 +389,7 @@ data: {
 		    kafka_broker_list = 'redpanda-0.redpanda.redpanda.svc.cluster.local:9093',
 		    kafka_topic_list = 'xtcp',
 		    kafka_format = 'ProtobufSingle',
-		    kafka_schema = 'flatxtcppb.proto:FlatXtcpRecord',
+		    kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
 		    kafka_group_name = 'xtcp';
 
 		--------------------------------------------------------------------------------------------------
@@ -397,21 +397,21 @@ data: {
 		-- https://clickhouse.com/docs/en/integrations/kafka/kafka-table-engine#6-create-the-materialized-view
 		DROP VIEW IF EXISTS xtcp.xtcp_records_mv;
 
-		CREATE MATERIALIZED VIEW IF NOT EXISTS xtcp.xtcp_records_mv TO xtcp.xtcp_records
-		AS SELECT * FROM xtcp.flat_xtcp_records_kafka;
+		CREATE MATERIALIZED VIEW IF NOT EXISTS xtcp.xtcp_records_mv TO xtcp.xtcp_flat_records
+		AS SELECT * FROM xtcp.xtcp_flat_records_kafka;
 
-		-- DETACH TABLE xtcp.xtcp_records_kafka;
-		-- ATTACH TABLE xtcp.xtcp_records_kafka;
+		-- DETACH TABLE xtcp.xtcp_flat_records_kafka;
+		-- ATTACH TABLE xtcp.xtcp_flat_records_kafka;
 
-		-- SELECT * FROM xtcp.flat_xtcp_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
-		-- DESCRIBE TABLE xtcp.flat_xtcp_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
+		-- SELECT * FROM xtcp.xtcp_flat_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
+		-- DESCRIBE TABLE xtcp.xtcp_flat_records_kafka SETTINGS stream_like_engine_allow_direct_select = 1;
 
 		-- https://clickhouse.com/docs/en/sql-reference/statements/describe-table
-		-- DESCRIBE TABLE xtcp.flat_xtcp_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka';
-		-- DESCRIBE TABLE xtcp.xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_records';
+		-- DESCRIBE TABLE xtcp.xtcp_flat_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_flat_records_kafka';
+		-- DESCRIBE TABLE xtcp.xtcp_flat_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_flat_records';
 
-		-- DESCRIBE TABLE xtcp.flat_xtcp_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.flat_xtcp_records_kafka.csv' FORMAT CSV;
-		-- DESCRIBE TABLE xtcp.xtcp_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_records.csv' FORMAT CSV;
+		-- DESCRIBE TABLE xtcp.xtcp_flat_records_kafka INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_flat_records_kafka.csv' FORMAT CSV;
+		-- DESCRIBE TABLE xtcp.xtcp_flat_records INTO OUTFILE '/docker-entrypoint-initdb.d/xtcp.xtcp_flat_records.csv' FORMAT CSV;
 		EOSQL
 
 		s=$(date +date%Y_%m_%d_%H_%M_%S)

@@ -179,7 +179,7 @@ class Envelope extends $pb.GeneratedMessage {
   $core.List<XtcpFlatRecord> get row => $_getList(0);
 }
 
-/// flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
+/// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 class XtcpFlatRecord extends $pb.GeneratedMessage {
   factory XtcpFlatRecord({
     $fixnum.Int64? sec,

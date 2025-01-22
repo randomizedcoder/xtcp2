@@ -164,7 +164,7 @@ func TestDeserialize(t *testing.T) {
 }
 
 var (
-	resultFlatXtcpRecord *xtcp_flat_record.XtcpFlatRecord
+	resultXtcpFlatRecord *xtcp_flat_record.XtcpFlatRecord
 )
 
 // go test -bench=BenchmarkDeserializeSpawn
@@ -278,6 +278,6 @@ func DeserializeBoth(b *testing.B, s int) {
 		}
 	}
 
-	resultFlatXtcpRecord = xtcpRecord
+	resultXtcpFlatRecord = xtcpRecord
 
 }

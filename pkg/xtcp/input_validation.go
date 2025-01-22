@@ -7,12 +7,8 @@ import (
 
 func (x *XTCP) InputValidation() {
 
-	// if *x.config.Modulus < 0 {
-	// 	log.Fatalf("InputValidation XTCP ReportModulus must not be < 0:%d", *x.config.Modulus)
-	// }
-
-	if _, ok := x.Marshalers.Load(x.config.MarshalTo); !ok {
-		log.Fatalf("InputValidation XTCP Marshal must be one of proto, protojson, or prototext:%s", x.config.MarshalTo)
+	if _, ok := x.Marshallers.Load(x.config.MarshalTo); !ok {
+		log.Fatalf("InputValidation XTCP Marshal must be one of:%s MarshalTo:%s", validMarshallers(), x.config.MarshalTo)
 	}
 
 	if x.config.Dest != "null" {
@@ -28,7 +24,7 @@ func (x *XTCP) InputValidation() {
 		}
 
 		if _, ok := x.Destinations.Load(dest); !ok {
-			log.Fatalf("InputValidation XTCP Dest must start with one of:%s dest:%s :%s", validDests(), dest, x.config.Dest)
+			log.Fatalf("InputValidation XTCP Dest must start with one of:%s dest:%s :%s", validDestinations(), dest, x.config.Dest)
 		}
 	}
 

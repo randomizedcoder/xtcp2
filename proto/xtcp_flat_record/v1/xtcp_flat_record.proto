@@ -58,13 +58,7 @@ message PollFlatRecordsRequest {
 //   XtcpFlatRecord xtcp_flat_record                  = 1;
 // }
 
-// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
-message Envelope {
-	repeated XtcpFlatRecord row                     = 1;
-	//repeated xtcp_flat_record row                     = 1;
-};
-
-// flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
+// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 message XtcpFlatRecord {
 //message xtcp_flat_record {
 	uint64 sec                                      = 1;
@@ -267,4 +261,11 @@ message XtcpFlatRecord {
 	uint32 class_id                                 = 1101; // INET_DIAG_CLASS_ID 17 uint32
 	uint32 sock_opt                                 = 1102; // INET_DIAG_SOCKOPT
 	uint64 c_group                                  = 1203; // INET_DIAG_BC_CGROUP_COND
+};
+
+// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+message Envelope {
+
+	repeated XtcpFlatRecord row                     = 1;
+	//repeated xtcp_flat_record row                     = 1;
 };

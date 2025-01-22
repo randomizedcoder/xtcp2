@@ -44,19 +44,6 @@ const PollFlatRecordsRequest$json = {
 final $typed_data.Uint8List pollFlatRecordsRequestDescriptor = $convert.base64Decode(
     'ChZQb2xsRmxhdFJlY29yZHNSZXF1ZXN0');
 
-@$core.Deprecated('Use envelopeDescriptor instead')
-const Envelope$json = {
-  '1': 'Envelope',
-  '2': [
-    {'1': 'row', '3': 1, '4': 3, '5': 11, '6': '.xtcp_flat_record.v1.XtcpFlatRecord', '10': 'row'},
-  ],
-};
-
-/// Descriptor for `Envelope`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
-    'CghFbnZlbG9wZRI1CgNyb3cYASADKAsyIy54dGNwX2ZsYXRfcmVjb3JkLnYxLlh0Y3BGbGF0Um'
-    'Vjb3JkUgNyb3c=');
-
 @$core.Deprecated('Use xtcpFlatRecordDescriptor instead')
 const XtcpFlatRecord$json = {
   '1': 'XtcpFlatRecord',
@@ -315,4 +302,17 @@ final $typed_data.Uint8List xtcpFlatRecordDescriptor = $convert.base64Decode(
     'RJT05fQUxHT1JJVEhNX1BSQUdVRRAEEh0KGUNPTkdFU1RJT05fQUxHT1JJVEhNX0JCUjEQBRId'
     'ChlDT05HRVNUSU9OX0FMR09SSVRITV9CQlIyEAYSHQoZQ09OR0VTVElPTl9BTEdPUklUSE1fQk'
     'JSMxAH');
+
+@$core.Deprecated('Use envelopeDescriptor instead')
+const Envelope$json = {
+  '1': 'Envelope',
+  '2': [
+    {'1': 'row', '3': 1, '4': 3, '5': 11, '6': '.xtcp_flat_record.v1.XtcpFlatRecord', '10': 'row'},
+  ],
+};
+
+/// Descriptor for `Envelope`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
+    'CghFbnZlbG9wZRI1CgNyb3cYASADKAsyIy54dGNwX2ZsYXRfcmVjb3JkLnYxLlh0Y3BGbGF0Um'
+    'Vjb3JkUgNyb3c=');
 

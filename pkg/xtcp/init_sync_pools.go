@@ -9,6 +9,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+const (
+	destBytesMaxSizeCst = 10000
+)
+
 func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -60,6 +64,12 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 	x.kgoRecordPool = sync.Pool{
 		New: func() interface{} {
 			return new(kgo.Record)
+		},
+	}
+
+	x.destBytesPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 0, destBytesMaxSizeCst)
 		},
 	}
 }

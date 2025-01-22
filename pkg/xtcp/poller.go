@@ -132,13 +132,15 @@ breakPoint:
 			var sTime time.Time
 
 			x.envelopeMu.Lock()
-			m := x.Marshaler(x.currentEnvelope)
+
+			b := x.Marshaller(x.currentEnvelope)
 			l := len(x.currentEnvelope.Row)
 			x.currentEnvelope.Reset()
 			sTime = x.pollStartTime
+
 			x.envelopeMu.Unlock()
 
-			n, err := x.Destination(ctx, m)
+			n, err := x.Destination(ctx, b)
 			if err != nil {
 				x.pC.WithLabelValues("Deserialize", "Destination", "error").Inc()
 				continue

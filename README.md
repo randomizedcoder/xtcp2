@@ -53,7 +53,7 @@ SHOW TABLES
 Query id: d35852fb-1cd5-48aa-af5f-540a95a97178
 
    ┌─name────────────────────┐
-1. │ flat_xtcp_records_kafka │
+1. │ xtcp_flat_records_kafka │
 2. │ xtcp_records            │
 3. │ xtcp_records_mv         │
    └─────────────────────────┘
@@ -94,9 +94,21 @@ Analyzing image...
 Building cache...
 ```
 
+### Random bookmarks
+
 
 https://vincent.bernat.ch/en/blog/2023-dynamic-protobuf-golang
 
 https://github.com/planetscale/vtprotobuf
 
 https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim
+
+
+Clickhouse - ProtobufList
+https://www.mux.com/blog/latency-and-throughput-tradeoffs-of-clickhouse-kafka-table-engine
+
+Clickhouse Kafka Engine
+https://altinity.com/blog/kafka-engine-the-story-continues
+
+Example docker-compose.yml with health check
+https://github.com/filimonov/ch-kafka-consume-perftest/blob/master/docker-compose.yml

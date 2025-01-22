@@ -44,8 +44,8 @@ const (
 
 	modulusCst = 1 // 2000
 
-	// proto, protojson, prototext,
-	marshalCst = "proto"
+	// protoSingle, protoDelim, protoJson, protoText, msgpack
+	marshalCst = "protoDelim"
 
 	// Redpanda
 	// destCst = "kafka:localhost:19092"
@@ -115,7 +115,7 @@ func main() {
 	capturePath := flag.String("capturePath", capturePathCst, "Write files path")
 
 	modulus := flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
-	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (proto,json,prototext)")
+	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (protoSingle, protoDelim, protoJson, protoText, msgpack)")
 	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
 	produceTimeout := flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")

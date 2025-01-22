@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	validDestinations = map[string]bool{
+	validDestinationsMap = map[string]bool{
 		"null":   true,
 		"kafka":  true,
 		"nsq":    true,
@@ -41,8 +41,8 @@ var (
 	}
 )
 
-func validDests() (dests string) {
-	for key := range validDestinations {
+func validDestinations() (dests string) {
+	for key := range validDestinationsMap {
 		dests = dests + key + ","
 	}
 	return strings.TrimSuffix(dests, ",")
@@ -59,8 +59,8 @@ func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	dest, _, _ := strings.Cut(x.config.Dest, ":")
-	if _, ok := validDestinations[dest]; !ok {
-		log.Fatalf("InitDestinations XTCP Dest invalid:%s, must be one of:%s", dest, validDests())
+	if _, ok := validDestinationsMap[dest]; !ok {
+		log.Fatalf("InitDestinations XTCP Dest invalid:%s, must be one of:%s", dest, validDestinations())
 	}
 
 	x.Destinations.Store("null", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
@@ -84,7 +84,7 @@ func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
 
 	f, ok := x.Destinations.Load(dest)
 	if !ok {
-		log.Fatalf("InitDestinations XTCP Dest load invalid:%s, must be one of:%s", dest, validDests())
+		log.Fatalf("InitDestinations XTCP Dest load invalid:%s, must be one of:%s", dest, validDestinations())
 	}
 	x.Destination = f.(func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error))
 

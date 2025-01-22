@@ -27,7 +27,7 @@ SETTINGS
 SELECT
     *
 FROM
-    flat_xtcp_records_kafka
+    xtcp_flat_records_kafka
 SETTINGS
     stream_like_engine_allow_direct_select = 1;
 

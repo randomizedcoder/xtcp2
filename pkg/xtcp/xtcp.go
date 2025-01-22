@@ -22,8 +22,6 @@ const (
 	linuxNetNSDirCst  = "/run/netns/"
 	dockerNetNsDirCst = "/run/docker/netns/"
 
-	netlinkerDoneChSizeCst = 100
-
 	quantileError    = 0.05
 	summaryVecMaxAge = 5 * time.Minute
 )
@@ -48,6 +46,7 @@ type XTCP struct {
 	nlhPool          sync.Pool
 	rtaPool          sync.Pool
 	kgoRecordPool    sync.Pool
+	destBytesPool    sync.Pool
 
 	currentEnvelope       *xtcp_flat_record.Envelope
 	pollStartTime         time.Time
@@ -76,8 +75,8 @@ type XTCP struct {
 
 	xtcpRecordZeroizer map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord)
 
-	Marshalers       sync.Map
-	Marshaler        func(e *xtcp_flat_record.Envelope) (buf *[]byte)
+	Marshallers      sync.Map
+	Marshaller       func(e *xtcp_flat_record.Envelope) (buf *[]byte)
 	Destinations     sync.Map
 	Destination      func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error)
 	InitDestinations sync.Map

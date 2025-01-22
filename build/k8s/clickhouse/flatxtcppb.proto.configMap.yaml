@@ -34,8 +34,8 @@ data:
     // option go_package = "github.com/randomizedcoder/xtcp";
     option go_package = "./pkg/flatxtcppb";
 
-    // flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
-    message FlatXtcpRecord {
+    // xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
+    message XtcpFlatRecord {
         int64 sec                                       = 1;
         int64 nsec                                      = 2; // nanoseconds
 

@@ -5,7 +5,7 @@ metadata:
   namespace: clickhouse
 data:
   # https://github.com/Altinity/clickhouse-operator/blob/master/docs/chi-examples/02-templates-05-bootstrap-schema.yaml
-  flatxtcppb.proto: |
+  xtcp_flat_record.proto: |
     //
     // xTCP - eXport TCP Inet Diagnostic messages
     //
@@ -27,15 +27,15 @@ data:
     syntax = "proto3";  // the only thing below that is not proto3 is "optional". e.g. to convert to proto3 delete the word optional
     // sadly the travis server hasn't been upgrade yet, so we can't do proto3
 
-    package flatxtcppb.v1;
+    package xtcp_flat_record.v1;
 
     // https://developers.google.com/protocol-buffers/docs/reference/go-generated
     // option go_package = "github.com/randomizedcoder/xtcp2/pkg/xtcppb";
     // option go_package = "github.com/randomizedcoder/xtcp";
     option go_package = "./pkg/flatxtcppb";
 
-    // flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information
-    message FlatXtcpRecord {
+    // xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
+    message XtcpFlatRecord {
         int64 sec                                       = 1;
         int64 nsec                                      = 2; // nanoseconds
 

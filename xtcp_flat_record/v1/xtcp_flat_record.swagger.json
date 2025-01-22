@@ -612,7 +612,7 @@
           "title": "INET_DIAG_BC_CGROUP_COND"
         }
       },
-      "title": "flat_xtcp_record is the record type exported by xtcp with ALL the inet_diag information"
+      "title": "xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information"
     }
   }
 }
