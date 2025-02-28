@@ -1,0 +1,31 @@
+//
+// clickhouse_protolist - this proto is for testing how the clickhouse protolist works
+//
+
+// Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
+
+// Little reminder on compiling
+// https://developers.google.com/protocol-buffers/docs/gotutorial
+// go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+// protoc --go_out=paths=source_relative:. xtcppb.proto
+
+// https://protobuf.dev/programming-guides/encoding/#structure
+
+syntax = "proto3";
+
+package clickhouse_protolist.v1;
+
+// https://developers.google.com/protocol-buffers/docs/reference/go-generated
+option go_package = "./pkg/clickhouse_protolist";
+
+message Record {
+	uint32 my_uint32      = 1;
+};
+
+// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+message Envelope {
+	repeated Record Rows  = 1;
+};
+
+
+// end - will this fix the ATTEMPT_TO_READ_AFTER_EOF

@@ -699,6 +699,23 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -742,7 +759,7 @@ return false;
 		}
 	}
 	
-// no validation rules for max_loops// no validation rules for netlinkers// no validation rules for netlinkers_done_chan_size// no validation rules for nlmsg_seq// no validation rules for packet_size// no validation rules for packet_size_mply// no validation rules for write_files// no validation rules for capture_path// no validation rules for modulus// no validation rules for marshal_to// no validation rules for dest// no validation rules for topic
+// no validation rules for max_loops// no validation rules for netlinkers// no validation rules for netlinkers_done_chan_size// no validation rules for nlmsg_seq// no validation rules for packet_size// no validation rules for packet_size_mply// no validation rules for write_files// no validation rules for capture_path// no validation rules for modulus// no validation rules for marshal_to// no validation rules for dest// no validation rules for dest_write_files// no validation rules for topic
 	
 	
 	

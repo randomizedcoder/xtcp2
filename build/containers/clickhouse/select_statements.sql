@@ -30,3 +30,13 @@ ORDER BY
     sec DESC,
     nsec DESC
 LIMIT 20;
+
+clickhouse-client --stream_like_engine_allow_direct_select=1;
+DETACH TABLE xtcp.xtcp_flat_records_mv;
+
+SELECT
+    *
+FROM
+    xtcp.xtcp_flat_records_kafka
+SETTINGS
+    stream_like_engine_allow_direct_select = 1;

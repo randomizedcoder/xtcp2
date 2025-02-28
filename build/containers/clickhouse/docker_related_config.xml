@@ -9,12 +9,18 @@
         <console>1</console>
     </logger>
     -->
-    <!-- https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md -->
+    <!-- https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
+        https://github.com/ClickHouse/ClickHouse/blob/master/tests/integration/test_storage_kafka/configs/kafka.xml -->
     <kafka>
+        <!-- generic, broker, topic, metadata, feature, queue, msg, protocol, cgrp, security,
+         fetch, interceptor, plugin, consumer, admin, eos, mock, assignor, conf, telemetry, all -->
         <debug>all</debug>
+        <!-- <debug>cgrp,consumer,topic,protocol</debug> -->
+        <!-- default 3000 -->
+        <statistics_interval_ms>3000</statistics_interval_ms>
         <!-- none, gzip, snappy, lz4, zstd -->
          <!-- none, gzip, snappy, lz4, zstd -->
         <!-- <compression_type>zstd</compression_type> -->
-        <compression_type>zstd</compression_type>
+        <!-- <compression_type>zstd</compression_type> -->
     </kafka>
 </clickhouse>

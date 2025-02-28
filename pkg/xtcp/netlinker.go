@@ -73,7 +73,7 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string
 		if wf > 0 {
 			now := time.Now()
 			err := os.WriteFile(
-				x.config.CapturePath+now.Format(time.RFC3339Nano),
+				x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
 				(*packetBuffer)[0:n],
 				writeFilesPermissionsCst)
 			if err != nil {

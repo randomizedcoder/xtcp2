@@ -264,11 +264,16 @@
         },
         "marshalTo": {
           "type": "string",
-          "title": "Marshalling of the exported data (proto,json,prototext)"
+          "title": "Marshalling of the exported data (protobufList,json,prototext)"
         },
         "dest": {
           "type": "string",
           "title": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:"
+        },
+        "destWriteFiles": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )\nxtcp will capture this many examples of the marshalled data\nThis is PER poller"
         },
         "topic": {
           "type": "string",

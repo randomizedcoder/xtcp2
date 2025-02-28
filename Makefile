@@ -3,6 +3,10 @@
 #
 
 # Execute "make build_and_deploy"
+#
+# Or "make build_clickhouse_and_deploy" for clickhouse only
+
+# Browse to Redpanda console: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#consumers
 
 # This make file will build all the nessisary containers for a local deployment of
 # - xtcp ( extracts socket data )
@@ -22,19 +26,37 @@ DATE := $(shell date -u +"%Y-%m-%d-%H:%M")
 
 .PHONY: build
 
-build_and_deploy: builddocker deploy
+build_and_deploy: builddocker check_protos deploy help
+
+build_clickhouse_and_deploy: builddocker_clickhouse_debug check_protos deploy help
+
+help:
+	@echo "Commands to try next:"
+	@echo "------"
+	@echo "docker logs --follow xtcp-xtcp2-1"
+	@echo "docker logs --follow xtcp-clickhouse-1"
+	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client"
+	@echo "-------"
+	@echo "assuming the xtcp distroless:debug is available"
+	@echo "docker exec -ti xtcp-xtcp2-1 sh"
+	@echo "------"
+	@echo "docker exec -ti xtcp-clickhouse-1 tail -n 30 -f /var/log/clickhouse-server/clickhouse-server.err.log"
+	@echo "docker exec -ti xtcp-clickhouse-1 tail -n 30 -f /var/log/clickhouse-server/clickhouse-server.log"
+	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client"
+	@echo "------"
+	@echo "Browse: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages"
 
 # https://docs.docker.com/engine/reference/commandline/docker/
 # https://docs.docker.com/compose/reference/
 deploy:
 	@echo "================================"
 	@echo "Make deploy"
-	cp ./proto/xtcp_flat_record/v1/xtcp_flat_record.proto ./build/containers/clickhouse/format_schemas/
 	echo XTCPPATH=${XTCPPATH}
 	XTCPPATH=${XTCPPATH} \
 	docker compose \
 		--file build/containers/redpanda/docker-compose.yml \
 		up -d --remove-orphans
+
 
 down:
 	@echo "================================"
@@ -73,7 +95,6 @@ builddocker_clickhouse:
 builddocker_clickhouse_debug:
 	@echo "================================"
 	@echo "Make builddocker_clickhouse randomizedcoder/xtcp_clickhouse:${VERSION}"
-	cp ./proto/xtcp_flat_record/v1/xtcp_flat_record.proto ./build/containers/clickhouse/format_schemas/
 	docker build \
 		--progress=plain \
 		--no-cache \
@@ -82,6 +103,9 @@ builddocker_clickhouse_debug:
 		--file build/containers/clickhouse/Containerfile \
 		--tag randomizedcoder/xtcp_clickhouse:${VERSION} --tag randomizedcoder/xtcp_clickhouse:latest \
 		.
+
+check_protos:
+	./check_protos.bash
 
 update_dependancies:
 

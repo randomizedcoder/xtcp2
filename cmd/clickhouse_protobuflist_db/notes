@@ -1,0 +1,304 @@
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert1.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+
+9389291ff655 :) SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert1.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert1.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+Query id: 1ebfdb77-1587-4653-bba7-e5ac8ac157aa
+
+
+1 row in set. Elapsed: 0.001 sec.
+
+TRUNCATE TABLE clickhouse_protolist.clickhouse_protolist;
+
+INSERT INTO clickhouse_protolist.clickhouse_protolist VALUES (4294967295);
+
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert4294967295.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+
+INSERT INTO clickhouse_protolist.clickhouse_protolist VALUES (1);
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert4294967295and1.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+
+INSERT INTO clickhouse_protolist.clickhouse_protolist VALUES (10);
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert4294967295and1and10.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+INTO OUTFILE 'clickhouse_protolist.proto.insert1and4294967295.protolist.bin2025_01_20_1220'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+
+INSERT INTO clickhouse_protolist.clickhouse_protolist VALUES (10);
+
+
+9389291ff655 :) SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+
+Query id: e2bf4c10-4b8f-486e-9944-da420144d477
+
+   ┌─my_uint32─┐
+1. │         1 │
+   └───────────┘
+   ┌─my_uint32─┐
+2. │        10 │
+   └───────────┘
+   ┌──my_uint32─┐
+3. │ 4294967295 │ -- 4.29 billion
+   └────────────┘
+
+3 rows in set. Elapsed: 0.004 sec.
+
+9389291ff655 :) SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+INTO OUTFILE 'clickhouse_protolist.proto.insert1and10and4294967295.protolist.bin2025_01_20_1435'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+ORDER BY my_uint32 ASC
+INTO OUTFILE 'clickhouse_protolist.proto.insert1and10and4294967295.protolist.bin2025_01_20_1435'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+Query id: c861bc1e-e047-4abb-82b4-1408dac81031
+
+
+3 rows in set. Elapsed: 0.002 sec.
+
+
+
+
+SELECT *
+FROM clickhouse_protolist.clickhouse_protolist
+INTO OUTFILE 'clickhouse_protolist.proto.insert1.protolist.bin2025_01_20_0740'
+FORMAT ProtobufList
+SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/clickhouse_protolist.proto:clickhouse_protolist.v1.Record'
+
+
+clickhouse-client --query "INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord' FORMAT ProtobufList" < dest.2025-02-25T19:15:58.724809627Z
+SYSTEM DROP FORMAT SCHEMA CACHE FOR Protobuf;
+
+DESCRIBE TABLE xtcp.xtcp_flat_records
+
+Query id: 12ca0306-deaa-46e9-ac63-93949fb88c41
+
+     ┌─name──────────────────────────────────┬─type───────────────────┬─default_type─┬─default_expression─┬─comment─┬─codec_expression─┬─ttl_expression─┐
+  1. │ sec                                   │ DateTime64(3, 'UTC')   │              │                    │         │ DoubleDelta, LZ4 │                │
+  2. │ nsec                                  │ Int64                  │              │                    │         │                  │                │
+  3. │ hostname                              │ LowCardinality(String) │              │                    │         │                  │                │
+  4. │ netns                                 │ String                 │              │                    │         │ ZSTD(1)          │                │
+
+
+  INSERT INTO xtcp.xtcp_flat_records (sec, nsec, hostname, netns) VALUES
+('2025-02-25 12:00:00.123', 123456789, 'host1.example.com', 'netns1'),
+('2025-02-25 12:01:00.456', 987654321, 'host2.example.com', 'netns2'),
+('2025-02-25 12:02:00.789', 112233445, 'host3.example.com', 'netns3'),
+('2025-02-25 12:03:00.321', 556677889, 'host4.example.com', 'netns4'),
+('2025-02-25 12:04:00.654', 998877665, 'host5.example.com', 'netns5');
+
+338ceef85a40 :)
+338ceef85a40 :)   INSERT INTO xtcp.xtcp_flat_records (sec, nsec, hostname, netns) VALUES
+('2025-02-25 12:00:00.123', 123456789, 'host1.example.com', 'netns1'),
+('2025-02-25 12:01:00.456', 987654321, 'host2.example.com', 'netns2'),
+('2025-02-25 12:02:00.789', 112233445, 'host3.example.com', 'netns3'),
+('2025-02-25 12:03:00.321', 556677889, 'host4.example.com', 'netns4'),
+('2025-02-25 12:04:00.654', 998877665, 'host5.example.com', 'netns5');
+
+INSERT INTO xtcp.xtcp_flat_records (sec, nsec, hostname, netns) FORMAT Values
+
+Query id: 21241eac-37de-45b9-a49e-2d4edef7aca8
+
+Ok.
+
+5 rows in set. Elapsed: 0.009 sec.
+
+338ceef85a40 :) SELECT * FROM xtcp.xtcp_flat_records;
+
+SELECT *
+FROM xtcp.xtcp_flat_records
+
+Query id: 55ac6754-2428-4307-9ce1-ca3607c22462
+
+   ┌─────────────────────sec─┬──────nsec─┬─hostname──────────┬─netns──┬─nsid─┬─label─┬─tag─┬─record_counter─┬─socket_fd─┬─netlinker_id─┬─inet_diag_msg_family─┬─inet_diag_msg_state─┬─inet_diag_msg_timer─┬─inet_diag_msg_retrans─┬─inet_diag_msg_socket_source_port─┬─inet_diag_msg_socket_destination_port─┬─inet_diag_msg_socket_source─┬─inet_diag_msg_socket_source_ipv4─┬─inet_diag_msg_socket_source_ipv6─┬─inet_diag_msg_socket_destination─┬─inet_diag_msg_socket_destination_ipv4─┬─inet_diag_msg_socket_destination_ipv6─┬─inet_diag_msg_socket_interface─┬─inet_diag_msg_socket_cookie─┬─inet_diag_msg_socket_dest_asn─┬─inet_diag_msg_socket_next_hop_asn─┬─inet_diag_msg_socket_source_asn─┬─inet_diag_msg_expires─┬─inet_diag_msg_rqueue─┬─inet_diag_msg_wqueue─┬─inet_diag_msg_uid─┬─inet_diag_msg_inode─┬─mem_info_rmem─┬─mem_info_wmem─┬─mem_info_fmem─┬─mem_info_tmem─┬─tcp_info_state─┬─tcp_info_ca_state─┬─tcp_info_retransmits─┬─tcp_info_probes─┬─tcp_info_backoff─┬─tcp_info_options─┬─tcp_info_send_scale─┬─tcp_info_rcv_scale─┬─tcp_info_delivery_rate_app_limited─┬─tcp_info_fast_open_client_failed─┬─tcp_info_rto─┬─tcp_info_ato─┬─tcp_info_snd_mss─┬─tcp_info_rcv_mss─┬─tcp_info_unacked─┬─tcp_info_sacked─┬─tcp_info_lost─┬─tcp_info_retrans─┬─tcp_info_fackets─┬─tcp_info_last_data_sent─┬─tcp_info_last_ack_sent─┬─tcp_info_last_data_recv─┬─tcp_info_last_ack_recv─┬─tcp_info_pmtu─┬─tcp_info_rcv_ssthresh─┬─tcp_info_rtt─┬─tcp_info_rtt_var─┬─tcp_info_snd_ssthresh─┬─tcp_info_snd_cwnd─┬─tcp_info_adv_mss─┬─tcp_info_reordering─┬─tcp_info_rcv_rtt─┬─tcp_info_rcv_space─┬─tcp_info_total_retrans─┬─tcp_info_pacing_rate─┬─tcp_info_max_pacing_rate─┬─tcp_info_bytes_acked─┬─tcp_info_bytes_received─┬─tcp_info_segs_out─┬─tcp_info_segs_in─┬─tcp_info_not_sent_bytes─┬─tcp_info_min_rtt─┬─tcp_info_data_segs_in─┬─tcp_info_data_segs_out─┬─tcp_info_delivery_rate─┬─tcp_info_busy_time─┬─tcp_info_rwnd_limited─┬─tcp_info_sndbuf_limited─┬─tcp_info_delivered─┬─tcp_info_delivered_ce─┬─tcp_info_bytes_sent─┬─tcp_info_bytes_retrans─┬─tcp_info_dsack_dups─┬─tcp_info_reord_seen─┬─tcp_info_rcv_ooopack─┬─tcp_info_snd_wnd─┬─congestion_algorithm_string─┬─congestion_algorithm_enum─┬─type_of_service─┬─traffic_class─┬─sk_mem_info_rmem_alloc─┬─sk_mem_info_rcv_buf─┬─sk_mem_info_wmem_alloc─┬─sk_mem_info_snd_buf─┬─sk_mem_info_fwd_alloc─┬─sk_mem_info_wmem_queued─┬─sk_mem_info_optmem─┬─sk_mem_info_backlog─┬─sk_mem_info_drops─┬─shutdown_state─┬─vegas_info_enabled─┬─vegas_info_rtt_cnt─┬─vegas_info_rtt─┬─vegas_info_min_rtt─┬─dctcp_info_enabled─┬─dctcp_info_ce_state─┬─dctcp_info_alpha─┬─dctcp_info_ab_ecn─┬─dctcp_info_ab_tot─┬─bbr_info_bw_lo─┬─bbr_info_bw_hi─┬─bbr_info_min_rtt─┬─bbr_info_pacing_gain─┬─bbr_info_cwnd_gain─┬─class_id─┬─sock_opt─┬─c_group─┐
+1. │ 2025-02-25 12:00:00.123 │ 123456789 │ host1.example.com │ netns1 │    0 │       │     │              0 │         0 │            0 │                    0 │                   0 │                   0 │                     0 │                                0 │
+
+SELECT sec, nsec, hostname, netns FROM xtcp.xtcp_flat_records;
+
+338ceef85a40 :) SELECT sec, nsec, hostname, netns FROM xtcp.xtcp_flat_records;
+
+SELECT
+    sec,
+    nsec,
+    hostname,
+    netns
+FROM xtcp.xtcp_flat_records
+
+Query id: b083b6d2-6775-4de9-ba6d-b2cf1b1e3a2f
+
+   ┌─────────────────────sec─┬──────nsec─┬─hostname──────────┬─netns──┐
+1. │ 2025-02-25 12:00:00.123 │ 123456789 │ host1.example.com │ netns1 │
+2. │ 2025-02-25 12:01:00.456 │ 987654321 │ host2.example.com │ netns2 │
+3. │ 2025-02-25 12:02:00.789 │ 112233445 │ host3.example.com │ netns3 │
+4. │ 2025-02-25 12:03:00.321 │ 556677889 │ host4.example.com │ netns4 │
+5. │ 2025-02-25 12:04:00.654 │ 998877665 │ host5.example.com │ netns5 │
+   └─────────────────────────┴───────────┴───────────────────┴────────┘
+
+5 rows in set. Elapsed: 0.001 sec.
+
+$CLICKHOUSE_CLIENT --query "SELECT * FROM persons_02240 ORDER BY name FORMAT ProtobufList SETTINGS format_schema = '$SCHEMADIR/02240_protobuflist2_format_persons:AltPerson'" > $BINARY_FILE_PATH
+
+clickhouse-client --query "SELECT * FROM xtcp.xtcp_flat_records FORMAT ProtobufList SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord'" > my_export.bin
+
+
+root@338ceef85a40:/# clickhouse-client --query "SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT Protobuf" > my_export.bin
+Error on processing query: Code: 436. DB::Exception: Code: 436. DB::Exception: Could not convert value '' from type String to type enum while writing field 'congestion_algorithm_enum' extracted from column 'congestion_algorithm_enum'. (PROTOBUF_BAD_CAST) (version 24.12.4.49 (official build)). (PROTOBUF_BAD_CAST) (version 24.12.4.49 (official build))
+(query: SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT Protobuf)
+
+
+Smoking gun.  It works with "protobuf", but not "protobufList"
+----------------------------
+root@338ceef85a40:/# clickhouse-client --query "SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT Protobuf" > my_export.bin
+Error on processing query: Code: 436. DB::Exception: Code: 436. DB::Exception: Could not convert value '' from type String to type enum while writing field 'congestion_algorithm_enum' extracted from column 'congestion_algorithm_enum'. (PROTOBUF_BAD_CAST) (version 24.12.4.49 (official build)). (PROTOBUF_BAD_CAST) (version 24.12.4.49 (official build))
+(query: SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT Protobuf)
+root@338ceef85a40:/#
+root@338ceef85a40:/#
+root@338ceef85a40:/#
+root@338ceef85a40:/#
+root@338ceef85a40:/# clickhouse-client --query "SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT ProtobufList" > my_export.bin
+Error on processing query: Code: 36. DB::Exception: Code: 36. DB::Exception: Could not find a message named 'XtcpFlatRecord' in the schema file 'xtcp_flat_record.proto'. (BAD_ARGUMENTS) (version 24.12.4.49 (official build)). (BAD_ARGUMENTS) (version 24.12.4.49 (official build))
+(query: SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto:XtcpFlatRecord' FORMAT ProtobufList)
+----------------------------
+
+
+TRUNCATE TABLE xtcp.xtcp_flat_records;
+
+
+  INSERT INTO xtcp.xtcp_flat_records (sec, nsec, hostname, netns) VALUES
+('2025-02-25 12:00:00.123', 123456789, 'host1.example.com', 'netns1'),
+('2025-02-25 12:01:00.456', 987654321, 'host2.example.com', 'netns2'),
+('2025-02-25 12:02:00.789', 112233445, 'host3.example.com', 'netns3'),
+('2025-02-25 12:03:00.321', 556677889, 'host4.example.com', 'netns4'),
+('2025-02-25 12:04:00.654', 998877665, 'host5.example.com', 'netns5');
+
+clickhouse-client --query "SELECT * FROM xtcp.xtcp_flat_records SETTINGS format_schema = '/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:XtcpFlatRecord' FORMAT ProtobufList" > my_export.bin
+
+clickhouse-client --query "TRUNCATE TABLE xtcp.xtcp_flat_records"
+clickhouse-client --query "INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:xtcp_flat_record.v1.XtcpFlatRecord' FORMAT ProtobufList" < my_export.bin
+
+root@cbc1aac462d4:/# clickhouse-client --query "INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:xtcp_flat_record.v1.XtcpFlatRecord' FORMAT ProtobufList" < my_export.bin
+Error on processing query: Code: 36. DB::Exception: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file 'xtcp_flat_record_repeated.proto': data for INSERT was parsed from stdin. (BAD_ARGUMENTS) (version 24.12.4.49 (official build))
+(query: INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:xtcp_flat_record.v1.XtcpFlatRecord' FORMAT ProtobufList)
+root@cbc1aac462d4:/# clickhouse-client --query "INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:XtcpFlatRecord' FORMAT ProtobufList" < my_export.bin
+
+
+clickhouse-client --query "INSERT INTO xtcp.xtcp_flat_records SETTINGS format_schema='/var/lib/clickhouse/format_schemas/xtcp_flat_record_repeated.proto:XtcpFlatRecord' FORMAT ProtobufList" < my_export.bin
+
+SELECT sec, nsec, hostname, netns FROM xtcp.xtcp_flat_records;
+
+SELECT * FROM xtcp.xtcp_flat_records;
+
+
+---------
+cbc1aac462d4 :) SELECT
+    name,
+    value
+FROM system.settings
+WHERE name LIKE '%memory%';
+
+
+SELECT
+    name,
+    value
+FROM system.settings
+WHERE name LIKE '%memory%'
+
+Query id: 376e827e-c655-4c4f-bba1-4a3d11effc32
+
+    ┌─name───────────────────────────────────────────────┬─value──────┐
+ 1. │ distributed_aggregation_memory_efficient           │ 1          │
+ 2. │ aggregation_memory_efficient_merge_threads         │ 0          │
+ 3. │ enable_memory_bound_merging_of_aggregation_results │ 1          │
+ 4. │ memory_tracker_fault_probability                   │ 0          │
+ 5. │ remerge_sort_lowered_memory_bytes_ratio            │ 2          │
+ 6. │ max_memory_usage                                   │ 0          │
+ 7. │ memory_overcommit_ratio_denominator                │ 1073741824 │
+ 8. │ max_memory_usage_for_user                          │ 0          │
+ 9. │ memory_overcommit_ratio_denominator_for_user       │ 1073741824 │
+10. │ max_untracked_memory                               │ 4194304    │
+11. │ memory_profiler_step                               │ 4194304    │
+12. │ memory_profiler_sample_probability                 │ 0          │
+13. │ memory_profiler_sample_min_allocation_size         │ 0          │
+14. │ memory_profiler_sample_max_allocation_size         │ 0          │
+15. │ memory_usage_overcommit_max_wait_microseconds      │ 5000000    │
+16. │ filesystem_prefetch_max_memory_usage               │ 1073741824 │
+17. │ max_memory_usage_for_all_queries                   │ 0          │
+    └────────────────────────────────────────────────────┴────────────┘
+
+17 rows in set. Elapsed: 0.003 sec. Processed 1.17 thousand rows, 420.06 KB (431.43 thousand rows/s., 154.37 MB/s.)
+Peak memory usage: 0.00 B.
+
+cbc1aac462d4 :) SELECT
+    name,
+    value
+FROM system.settings
+WHERE name LIKE '%kafka%';
+
+SELECT
+    name,
+    value
+FROM system.settings
+WHERE name LIKE '%kafka%'
+
+Query id: c31c3e33-2d5c-4110-bbde-0f15505b4a83
+
+   ┌─name───────────────────────────────────────────────┬─value───┐
+1. │ kafka_max_wait_ms                                  │ 5000    │
+2. │ kafka_disable_num_consumers_limit                  │ 0       │
+3. │ allow_experimental_kafka_offsets_storage_in_keeper │ 0       │
+4. │ handle_kafka_error_mode                            │ default │
+   └────────────────────────────────────────────────────┴─────────┘
+
+4 rows in set. Elapsed: 0.003 sec. Processed 1.17 thousand rows, 420.06 KB (405.44 thousand rows/s., 145.07 MB/s.)
+Peak memory usage: 0.00 B.

@@ -10,17 +10,17 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
 	//protoSingle, protoDelim, protoJson, protoText, msgpack
 	validMarshallersMap = map[string]bool{
-		"protoSingle": true,
-		"protoDelim":  true,
-		"protoJson":   true,
-		"protoText":   true,
-		"msgpack":     true,
+		// "protobuf":       true, // https://clickhouse.com/docs/en/interfaces/formats/Protobuf
+		// "protobufSingle": true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufSingle
+		"protobufList": true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
+		"protoJson":    true,
+		"protoText":    true,
+		"msgpack":      true,
 	}
 )
 
@@ -35,16 +35,20 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	if _, ok := validDestinationsMap[x.config.MarshalTo]; !ok {
+	if _, ok := validMarshallersMap[x.config.MarshalTo]; !ok {
 		log.Fatalf("InitMarshallers XTCP MarshalTo invalid:%s, must be one of:%s", x.config.MarshalTo, validMarshallers())
 	}
 
-	x.Marshallers.Store("protoSingle", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-		return x.protoSingleMarshal(e)
-	})
+	// x.Marshallers.Store("protobuf", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// 	return x.protobufMarshal(e)
+	// })
 
-	x.Marshallers.Store("protoDelim", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-		return x.protoDelimitedMarshal(e)
+	// x.Marshallers.Store("protobufSingle", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// 	return x.protobufSingleMarshal(e)
+	// })
+
+	x.Marshallers.Store("protobufList", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		return x.protobufListMarshal(e)
 	})
 
 	x.Marshallers.Store("protoJson", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
@@ -66,22 +70,51 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	}
 }
 
-// protoSingleMarshal marshals to protobuf and does error handling
-// https://clickhouse.com/docs/en/interfaces/formats#protobufsingle
-// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-func (x *XTCP) protoSingleMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+// // protobufMarshal marshals to protobuf and does error handling
+// // this is the length delimited protobuf
+// // https://clickhouse.com/docs/en/interfaces/formats#protobuf
+// // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
+// func (x *XTCP) protobufMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte) {
 
-	b, err := proto.Marshal(e)
-	if err != nil {
-		x.pC.WithLabelValues("protoMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 1000 {
-			log.Println("proto.Marshal(x) err: ", err)
-		}
-	}
-	buf = &b
+// 	buf := x.destBytesPool.Get().([]byte)
 
-	return buf
-}
+// 	writer := &ByteSliceWriter{Buf: &buf}
+
+// 	// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
+// 	n, err := protodelim.MarshalTo(writer, e)
+// 	if err != nil {
+// 		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+// 		if x.debugLevel > 10 {
+// 			log.Println("protodelim.MarshalTo() err: ", err)
+// 		}
+// 	}
+
+// 	if x.debugLevel > 10 {
+// 		log.Printf("protodelim.MarshalTo() n:%d", n)
+// 	}
+
+// 	bufPtr = writer.Buf
+
+// 	return bufPtr
+// }
+
+// // protobufSingleMarshal marshals to protobuf and does error handling
+// // this does NOT have the length varint in front
+// // https://clickhouse.com/docs/en/interfaces/formats#protobufsingle
+// // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
+// func (x *XTCP) protobufSingleMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+
+// 	b, err := proto.Marshal(e)
+// 	if err != nil {
+// 		x.pC.WithLabelValues("protoMarshal", "Marshal", "error").Inc()
+// 		if x.debugLevel > 1000 {
+// 			log.Println("proto.Marshal(x) err: ", err)
+// 		}
+// 	}
+// 	buf = &b
+
+// 	return buf
+// }
 
 type ByteSliceWriter struct {
 	Buf *[]byte
@@ -92,10 +125,7 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-// protoDelimitedMarshal marshals to protobuf and does error handling
-// https://clickhouse.com/docs/en/interfaces/formats#protobuf
-// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-func (x *XTCP) protoDelimitedMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte) {
+func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte) {
 
 	buf := x.destBytesPool.Get().([]byte)
 

@@ -862,6 +862,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPacketSizeMplyFieldNumber = 80,
     kModulusFieldNumber = 110,
     kWriteFilesFieldNumber = 90,
+    kDestWriteFilesFieldNumber = 135,
     kDebugLevelFieldNumber = 160,
     kGrpcPortFieldNumber = 190,
   };
@@ -1111,6 +1112,16 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_write_files(::uint32_t value);
 
   public:
+  // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
+  void clear_dest_write_files() ;
+  ::uint32_t dest_write_files() const;
+  void set_dest_write_files(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_dest_write_files() const;
+  void _internal_set_dest_write_files(::uint32_t value);
+
+  public:
   // uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
   void clear_debug_level() ;
   ::uint32_t debug_level() const;
@@ -1136,7 +1147,7 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 21, 4,
+      5, 22, 4,
       89, 27>
       _table_;
 
@@ -1175,6 +1186,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t packet_size_mply_;
     ::uint64_t modulus_;
     ::uint32_t write_files_;
+    ::uint32_t dest_write_files_;
     ::uint32_t debug_level_;
     ::uint32_t grpc_port_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -3095,6 +3107,28 @@ inline void XtcpConfig::set_allocated_dest(std::string* value) {
     _impl_.dest_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.dest)
+}
+
+// uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
+inline void XtcpConfig::clear_dest_write_files() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.dest_write_files_ = 0u;
+}
+inline ::uint32_t XtcpConfig::dest_write_files() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.dest_write_files)
+  return _internal_dest_write_files();
+}
+inline void XtcpConfig::set_dest_write_files(::uint32_t value) {
+  _internal_set_dest_write_files(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest_write_files)
+}
+inline ::uint32_t XtcpConfig::_internal_dest_write_files() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.dest_write_files_;
+}
+inline void XtcpConfig::_internal_set_dest_write_files(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.dest_write_files_ = value;
 }
 
 // string topic = 140 [json_name = "topic", (.buf.validate.field) = {

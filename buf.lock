@@ -2,8 +2,8 @@
 version: v2
 deps:
   - name: buf.build/bufbuild/protovalidate
-    commit: a3320276596649bcad929ac829d451f4
-    digest: b5:285a6d3a423b195a21f45aacc97ee222ac09cfb01a42f0d546aa51d92177b0b9d00eb9ae93e72dabbbefdc77f35a4c7a11f15d913cc08da764fcb6071f85d148
+    commit: d39267d9df8f4053bbac6b956a23169f
+    digest: b5:c2542c2e9935dd9a7f12ef79f76aa5b53cf1c8312d720da54e03953f27ad952e2b439cbced06e3b4069e466bd9b64019cf9f687243ad51aa5dc2b5f364fac71e
   - name: buf.build/googleapis/googleapis
-    commit: e93e34f48be043dab55be31b4b47f458
-    digest: b5:cebe5dfac5f7d67c55296f37ad9d368dba8d9862777e69d5d99eb1d72dc95fa68cd6323b483ca42cf70e66060002c1bc36e1f5f754b217a5c771c108eb243dbf
+    commit: 546238c53f7340c6a2a6099fb863bc1b
+    digest: b5:e017bbf31a3f912e2b969c03c3aa711f466cfe104f510865d1a8ede1be490240aabd4cca5865459a0f15222747284395f98afc094b0fd086e8917a5a7bdd9db0

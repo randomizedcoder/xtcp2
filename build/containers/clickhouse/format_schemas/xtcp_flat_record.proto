@@ -47,7 +47,6 @@ message FlatRecordsRequest {
 
 message FlatRecordsResponse {
 	XtcpFlatRecord xtcp_flat_record                 = 1;
-	//xtcp_flat_record xtcp_flat_record                 = 1;
 }
 
 message PollFlatRecordsRequest {
@@ -60,30 +59,31 @@ message PollFlatRecordsRequest {
 
 // xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 message XtcpFlatRecord {
-//message xtcp_flat_record {
-	uint64 sec                                      = 1;
-	uint64 nsec                                     = 2;
+	double timestamp_ns                             = 10;
 
-	string hostname                                 = 3;
+	// uint64 sec                                      = 11;
+	// uint64 nsec                                     = 12;
+
+	string hostname                                 = 20;
 
 	// network namespace
-	string netns                                    = 4;
+	string netns                                    = 30;
 
 	// network namespace id
 	// TODO xtcp does not currently get the id
-	uint32 nsid                                     = 5;
+	uint32 nsid                                     = 40;
 
 	// free form string
-	string label                                    = 6;
+	string label                                    = 50;
 
 	// free form string
-	string tag                                      = 7;
+	string tag                                      = 60;
 
-	uint64 record_counter                           = 8;
+	uint64 record_counter                           = 70;
 
-	uint64 socket_fd                                = 9;
+	uint64 socket_fd                                = 80;
 
-	uint64 netlinker_id                             = 10;
+	uint64 netlinker_id                             = 90;
 
 	// inet_diag_msg inet_diag_msg                  = 100;
 
@@ -265,7 +265,7 @@ message XtcpFlatRecord {
 
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 message Envelope {
-
-	repeated XtcpFlatRecord row                     = 1;
-	//repeated xtcp_flat_record row                     = 1;
+	repeated XtcpFlatRecord row                     = 10;
 };
+
+// end

@@ -1,3 +1,8 @@
+#
+# Main docker-compose for xtcp2
+#
+# Redpanda admin console browse to: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages
+#
 name: xtcp
 networks:
   net:
@@ -121,6 +126,13 @@ services:
       # https://kb.altinity.com/altinity-kb-setup-and-maintenance/altinity-kb-clickhouse-in-docker/
     # security_opt:
     #   - "label=type:clickhouse.process"
+    # sysctls:
+    #   # 2025.02.12 04:12:53.948733 [ 1 ] {} <Warning> Context: Delay accounting is not enabled,
+    #   # OSIOWaitMicroseconds will not be gathered. # You can enable it using
+    #   # `echo 1 > /proc/sys/kernel/task_delayacct` or by using sysctl.
+    #   - kernel.task_delayacct = 1
+    #   # - net.ipv4.tcp_rmem = 4096 1000000 16000000
+    #   # - net.ipv4.tcp_wmem = 4096 1000000 16000000
     ulimits:
       #nproc: 65535
       memlock:
@@ -137,20 +149,20 @@ services:
       - SYS_PTRACE
     ports:
       # http
-      - 8123:8123
+      - 18123:8123
       # native
-      - 9001:9000
+      - 19001:9000
       # mysql
-      - 9004:9004
+      - 19004:9004
       # postgres
-      - 9005:9005
+      - 19005:9005
       # prometheus
-      - 9363:9363
+      - 19363:9363
     volumes:
       # ch_server-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
       # ch_server-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
       # https://clickhouse.com/docs/en/operations/configuration-files
-      - clickhouse_db:/var/lib/clickhouse/
+      - clickhouse_db:/var/lib/clickhouse/:z
       # - ${XTCPPATH}/build/containers/clickhouse/db/:/var/lib/clickhouse/:z
       # - ${XTCPPATH}/build/containers/clickhouse/bitnami_db/:/bitnami/clickhouse/:z
       #- ch_data:/var/lib/clickhouse/
@@ -174,7 +186,7 @@ services:
     depends_on:
       - redpanda-0
       # - kafka
-      - nsqd
+      # - nsqd
   #----------------------------------------------------------
   # xtcps
   xtcp2:
@@ -189,9 +201,9 @@ services:
       # GOGC: 100
       GOGC: 50
       GOMAXPROCS: 4
-    # ports:
-    #   # prometheus
-    #   - 9009:9009
+    ports:
+      # prometheus
+      - 9088:9088
     #   # grpc
     #   - 8888:8888
     privileged: true
@@ -268,57 +280,57 @@ services:
   # nsq
   # https://nsq.io/deployment/docker.html#using-docker-compose
   #https://hub.docker.com/r/nsqio/nsq/tags
-  nsqlookupd:
-    image: nsqio/nsq:v1.3.0
-    command: /nsqlookupd
-    ports:
-      - 4160
-      - 4161
-    networks:
-      - net
-  nsqd:
-    image: nsqio/nsq:v1.3.0
-    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --data-path=/data
-    volumes:
-    - nsq_data:/data:rw
-    depends_on:
-      - nsqlookupd
-    ports:
-      - 4150
-      - 4151
-    networks:
-      - net
-  nsqadmin:
-    image: nsqio/nsq:v1.3.0
-    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
-    depends_on:
-      - nsqlookupd
-    ports:
-      - 4171
-    networks:
-      - net
-  #----------------------------------------------------------
-  # nats
-  # https://hub.docker.com/_/nats/tags
-  nats:
-    #image: nats:alpine3.20
-    image: nats:2.10
-    ports:
-      - 8222:8222
-    networks:
-      - net
-  #----------------------------------------------------------
-  # valkey
-  # https://hub.docker.com/r/valkey/valkey/tags
-  valkey:
-    #image: valkey/valkey:8-alpine3.20
-    image: valkey/valkey:8-alpine3.21
-    volumes:
-    - /valkey_data:/data
-    ports:
-      - 6379:6379
-    networks:
-      - net
+  # nsqlookupd:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqlookupd
+  #   ports:
+  #     - 4160
+  #     - 4161
+  #   networks:
+  #     - net
+  # nsqd:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --data-path=/data
+  #   volumes:
+  #   - nsq_data:/data:rw
+  #   depends_on:
+  #     - nsqlookupd
+  #   ports:
+  #     - 4150
+  #     - 4151
+  #   networks:
+  #     - net
+  # nsqadmin:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+  #   depends_on:
+  #     - nsqlookupd
+  #   ports:
+  #     - 4171
+  #   networks:
+  #     - net
+  # #----------------------------------------------------------
+  # # nats
+  # # https://hub.docker.com/_/nats/tags
+  # nats:
+  #   #image: nats:alpine3.20
+  #   image: nats:2.10
+  #   ports:
+  #     - 8222:8222
+  #   networks:
+  #     - net
+  # #----------------------------------------------------------
+  # # valkey
+  # # https://hub.docker.com/r/valkey/valkey/tags
+  # valkey:
+  #   #image: valkey/valkey:8-alpine3.20
+  #   image: valkey/valkey:8-alpine3.21
+  #   volumes:
+  #   - /valkey_data:/data
+  #   ports:
+  #     - 6379:6379
+  #   networks:
+  #     - net
   # #----------------------------------------------------------
   # Actually, I haven't written the code for rabbit yet
   # # rabbitMQ

@@ -241,7 +241,7 @@ message XtcpConfig {
 			lte: 1000000
 	}];
 
-	// Marshalling of the exported data (proto,json,prototext)
+	// Marshalling of the exported data (protobufList,json,prototext)
 	string marshal_to                                = 120 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).string = {
@@ -256,6 +256,17 @@ message XtcpConfig {
 			min_len: 4,
 			max_len: 40,
 	}];
+
+	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
+	// xtcp will capture this many examples of the marshalled data
+	// This is PER poller
+	uint32 dest_write_files                               = 135 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
 
 	// Kafka or NSQ topic
 	string topic                                     = 140 [

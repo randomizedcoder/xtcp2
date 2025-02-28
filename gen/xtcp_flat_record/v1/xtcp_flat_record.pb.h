@@ -295,20 +295,19 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
 
   // accessors -------------------------------------------------------
   enum : int {
-    kHostnameFieldNumber = 3,
-    kNetnsFieldNumber = 4,
-    kLabelFieldNumber = 6,
-    kTagFieldNumber = 7,
+    kHostnameFieldNumber = 20,
+    kNetnsFieldNumber = 30,
+    kLabelFieldNumber = 50,
+    kTagFieldNumber = 60,
     kInetDiagMsgSocketSourceFieldNumber = 107,
     kInetDiagMsgSocketDestinationFieldNumber = 108,
     kCongestionAlgorithmStringFieldNumber = 400,
-    kSecFieldNumber = 1,
-    kNsecFieldNumber = 2,
-    kRecordCounterFieldNumber = 8,
-    kSocketFdFieldNumber = 9,
-    kNetlinkerIdFieldNumber = 10,
-    kNsidFieldNumber = 5,
+    kTimestampNsFieldNumber = 10,
+    kRecordCounterFieldNumber = 70,
+    kNsidFieldNumber = 40,
     kInetDiagMsgFamilyFieldNumber = 101,
+    kSocketFdFieldNumber = 80,
+    kNetlinkerIdFieldNumber = 90,
     kInetDiagMsgStateFieldNumber = 102,
     kInetDiagMsgTimerFieldNumber = 103,
     kInetDiagMsgRetransFieldNumber = 104,
@@ -419,7 +418,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
     kCGroupFieldNumber = 1203,
     kSockOptFieldNumber = 1102,
   };
-  // string hostname = 3 [json_name = "hostname"];
+  // string hostname = 20 [json_name = "hostname"];
   void clear_hostname() ;
   const std::string& hostname() const;
   template <typename Arg_ = const std::string&, typename... Args_>
@@ -435,7 +434,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   std::string* _internal_mutable_hostname();
 
   public:
-  // string netns = 4 [json_name = "netns"];
+  // string netns = 30 [json_name = "netns"];
   void clear_netns() ;
   const std::string& netns() const;
   template <typename Arg_ = const std::string&, typename... Args_>
@@ -451,7 +450,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   std::string* _internal_mutable_netns();
 
   public:
-  // string label = 6 [json_name = "label"];
+  // string label = 50 [json_name = "label"];
   void clear_label() ;
   const std::string& label() const;
   template <typename Arg_ = const std::string&, typename... Args_>
@@ -467,7 +466,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   std::string* _internal_mutable_label();
 
   public:
-  // string tag = 7 [json_name = "tag"];
+  // string tag = 60 [json_name = "tag"];
   void clear_tag() ;
   const std::string& tag() const;
   template <typename Arg_ = const std::string&, typename... Args_>
@@ -531,27 +530,17 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   std::string* _internal_mutable_congestion_algorithm_string();
 
   public:
-  // uint64 sec = 1 [json_name = "sec"];
-  void clear_sec() ;
-  ::uint64_t sec() const;
-  void set_sec(::uint64_t value);
+  // double timestamp_ns = 10 [json_name = "timestampNs"];
+  void clear_timestamp_ns() ;
+  double timestamp_ns() const;
+  void set_timestamp_ns(double value);
 
   private:
-  ::uint64_t _internal_sec() const;
-  void _internal_set_sec(::uint64_t value);
+  double _internal_timestamp_ns() const;
+  void _internal_set_timestamp_ns(double value);
 
   public:
-  // uint64 nsec = 2 [json_name = "nsec"];
-  void clear_nsec() ;
-  ::uint64_t nsec() const;
-  void set_nsec(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_nsec() const;
-  void _internal_set_nsec(::uint64_t value);
-
-  public:
-  // uint64 record_counter = 8 [json_name = "recordCounter"];
+  // uint64 record_counter = 70 [json_name = "recordCounter"];
   void clear_record_counter() ;
   ::uint64_t record_counter() const;
   void set_record_counter(::uint64_t value);
@@ -561,27 +550,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   void _internal_set_record_counter(::uint64_t value);
 
   public:
-  // uint64 socket_fd = 9 [json_name = "socketFd"];
-  void clear_socket_fd() ;
-  ::uint64_t socket_fd() const;
-  void set_socket_fd(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_socket_fd() const;
-  void _internal_set_socket_fd(::uint64_t value);
-
-  public:
-  // uint64 netlinker_id = 10 [json_name = "netlinkerId"];
-  void clear_netlinker_id() ;
-  ::uint64_t netlinker_id() const;
-  void set_netlinker_id(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_netlinker_id() const;
-  void _internal_set_netlinker_id(::uint64_t value);
-
-  public:
-  // uint32 nsid = 5 [json_name = "nsid"];
+  // uint32 nsid = 40 [json_name = "nsid"];
   void clear_nsid() ;
   ::uint32_t nsid() const;
   void set_nsid(::uint32_t value);
@@ -599,6 +568,26 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   private:
   ::uint32_t _internal_inet_diag_msg_family() const;
   void _internal_set_inet_diag_msg_family(::uint32_t value);
+
+  public:
+  // uint64 socket_fd = 80 [json_name = "socketFd"];
+  void clear_socket_fd() ;
+  ::uint64_t socket_fd() const;
+  void set_socket_fd(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_socket_fd() const;
+  void _internal_set_socket_fd(::uint64_t value);
+
+  public:
+  // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
+  void clear_netlinker_id() ;
+  ::uint64_t netlinker_id() const;
+  void set_netlinker_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_netlinker_id() const;
+  void _internal_set_netlinker_id(::uint64_t value);
 
   public:
   // uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
@@ -1696,8 +1685,8 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 123, 0,
-      211, 76>
+      5, 122, 0,
+      211, 77>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1721,13 +1710,12 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_source_;
     ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_destination_;
     ::google::protobuf::internal::ArenaStringPtr congestion_algorithm_string_;
-    ::uint64_t sec_;
-    ::uint64_t nsec_;
+    double timestamp_ns_;
     ::uint64_t record_counter_;
-    ::uint64_t socket_fd_;
-    ::uint64_t netlinker_id_;
     ::uint32_t nsid_;
     ::uint32_t inet_diag_msg_family_;
+    ::uint64_t socket_fd_;
+    ::uint64_t netlinker_id_;
     ::uint32_t inet_diag_msg_state_;
     ::uint32_t inet_diag_msg_timer_;
     ::uint32_t inet_diag_msg_retrans_;
@@ -2477,9 +2465,9 @@ class Envelope final : public ::google::protobuf::Message
 
   // accessors -------------------------------------------------------
   enum : int {
-    kRowFieldNumber = 1,
+    kRowFieldNumber = 10,
   };
-  // repeated .xtcp_flat_record.v1.XtcpFlatRecord row = 1 [json_name = "row"];
+  // repeated .xtcp_flat_record.v1.XtcpFlatRecord row = 10 [json_name = "row"];
   int row_size() const;
   private:
   int _internal_row_size() const;
@@ -2651,51 +2639,29 @@ inline void FlatRecordsResponse::set_allocated_xtcp_flat_record(::xtcp_flat_reco
 
 // XtcpFlatRecord
 
-// uint64 sec = 1 [json_name = "sec"];
-inline void XtcpFlatRecord::clear_sec() {
+// double timestamp_ns = 10 [json_name = "timestampNs"];
+inline void XtcpFlatRecord::clear_timestamp_ns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.sec_ = ::uint64_t{0u};
+  _impl_.timestamp_ns_ = 0;
 }
-inline ::uint64_t XtcpFlatRecord::sec() const {
-  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sec)
-  return _internal_sec();
+inline double XtcpFlatRecord::timestamp_ns() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
+  return _internal_timestamp_ns();
 }
-inline void XtcpFlatRecord::set_sec(::uint64_t value) {
-  _internal_set_sec(value);
-  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sec)
+inline void XtcpFlatRecord::set_timestamp_ns(double value) {
+  _internal_set_timestamp_ns(value);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
 }
-inline ::uint64_t XtcpFlatRecord::_internal_sec() const {
+inline double XtcpFlatRecord::_internal_timestamp_ns() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.sec_;
+  return _impl_.timestamp_ns_;
 }
-inline void XtcpFlatRecord::_internal_set_sec(::uint64_t value) {
+inline void XtcpFlatRecord::_internal_set_timestamp_ns(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.sec_ = value;
+  _impl_.timestamp_ns_ = value;
 }
 
-// uint64 nsec = 2 [json_name = "nsec"];
-inline void XtcpFlatRecord::clear_nsec() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nsec_ = ::uint64_t{0u};
-}
-inline ::uint64_t XtcpFlatRecord::nsec() const {
-  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.nsec)
-  return _internal_nsec();
-}
-inline void XtcpFlatRecord::set_nsec(::uint64_t value) {
-  _internal_set_nsec(value);
-  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.nsec)
-}
-inline ::uint64_t XtcpFlatRecord::_internal_nsec() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.nsec_;
-}
-inline void XtcpFlatRecord::_internal_set_nsec(::uint64_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nsec_ = value;
-}
-
-// string hostname = 3 [json_name = "hostname"];
+// string hostname = 20 [json_name = "hostname"];
 inline void XtcpFlatRecord::clear_hostname() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.hostname_.ClearToEmpty();
@@ -2743,7 +2709,7 @@ inline void XtcpFlatRecord::set_allocated_hostname(std::string* value) {
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.hostname)
 }
 
-// string netns = 4 [json_name = "netns"];
+// string netns = 30 [json_name = "netns"];
 inline void XtcpFlatRecord::clear_netns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netns_.ClearToEmpty();
@@ -2791,7 +2757,7 @@ inline void XtcpFlatRecord::set_allocated_netns(std::string* value) {
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.netns)
 }
 
-// uint32 nsid = 5 [json_name = "nsid"];
+// uint32 nsid = 40 [json_name = "nsid"];
 inline void XtcpFlatRecord::clear_nsid() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.nsid_ = 0u;
@@ -2813,7 +2779,7 @@ inline void XtcpFlatRecord::_internal_set_nsid(::uint32_t value) {
   _impl_.nsid_ = value;
 }
 
-// string label = 6 [json_name = "label"];
+// string label = 50 [json_name = "label"];
 inline void XtcpFlatRecord::clear_label() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.label_.ClearToEmpty();
@@ -2861,7 +2827,7 @@ inline void XtcpFlatRecord::set_allocated_label(std::string* value) {
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.label)
 }
 
-// string tag = 7 [json_name = "tag"];
+// string tag = 60 [json_name = "tag"];
 inline void XtcpFlatRecord::clear_tag() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tag_.ClearToEmpty();
@@ -2909,7 +2875,7 @@ inline void XtcpFlatRecord::set_allocated_tag(std::string* value) {
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.tag)
 }
 
-// uint64 record_counter = 8 [json_name = "recordCounter"];
+// uint64 record_counter = 70 [json_name = "recordCounter"];
 inline void XtcpFlatRecord::clear_record_counter() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.record_counter_ = ::uint64_t{0u};
@@ -2931,7 +2897,7 @@ inline void XtcpFlatRecord::_internal_set_record_counter(::uint64_t value) {
   _impl_.record_counter_ = value;
 }
 
-// uint64 socket_fd = 9 [json_name = "socketFd"];
+// uint64 socket_fd = 80 [json_name = "socketFd"];
 inline void XtcpFlatRecord::clear_socket_fd() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.socket_fd_ = ::uint64_t{0u};
@@ -2953,7 +2919,7 @@ inline void XtcpFlatRecord::_internal_set_socket_fd(::uint64_t value) {
   _impl_.socket_fd_ = value;
 }
 
-// uint64 netlinker_id = 10 [json_name = "netlinkerId"];
+// uint64 netlinker_id = 90 [json_name = "netlinkerId"];
 inline void XtcpFlatRecord::clear_netlinker_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netlinker_id_ = ::uint64_t{0u};
@@ -5543,7 +5509,7 @@ inline void XtcpFlatRecord::_internal_set_c_group(::uint64_t value) {
 
 // Envelope
 
-// repeated .xtcp_flat_record.v1.XtcpFlatRecord row = 1 [json_name = "row"];
+// repeated .xtcp_flat_record.v1.XtcpFlatRecord row = 10 [json_name = "row"];
 inline int Envelope::_internal_row_size() const {
   return _internal_row().size();
 }

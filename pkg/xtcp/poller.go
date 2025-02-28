@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"log"
+	"os"
 	"sync"
 	"syscall"
 	"time"
@@ -30,6 +31,8 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	x.pollTimeoutTimer = time.NewTimer(x.config.PollTimeout.AsDuration())
 
 	count := x.pollAllNetlinkSockets(0)
+
+	wf := x.config.DestWriteFiles
 
 	lastPollTime := time.Now()
 
@@ -139,6 +142,19 @@ breakPoint:
 			sTime = x.pollStartTime
 
 			x.envelopeMu.Unlock()
+
+			if wf > 0 {
+				now := time.Now()
+				err := os.WriteFile(
+					x.config.CapturePath+"dest."+now.Format(time.RFC3339Nano),
+					*b,
+					writeFilesPermissionsCst)
+				if err != nil {
+					log.Fatal(err)
+				}
+				wf--
+				log.Printf("Poller pollingLoops:%dwrote dest, wf:%d", pollingLoops, wf)
+			}
 
 			n, err := x.Destination(ctx, b)
 			if err != nil {

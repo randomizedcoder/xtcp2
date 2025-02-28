@@ -63,22 +63,16 @@
       "type": "object",
       "properties": {
         "xtcpFlatRecord": {
-          "$ref": "#/definitions/v1XtcpFlatRecord",
-          "title": "xtcp_flat_record xtcp_flat_record                 = 1;"
+          "$ref": "#/definitions/v1XtcpFlatRecord"
         }
       }
     },
     "v1XtcpFlatRecord": {
       "type": "object",
       "properties": {
-        "sec": {
-          "type": "string",
-          "format": "uint64",
-          "title": "message xtcp_flat_record {"
-        },
-        "nsec": {
-          "type": "string",
-          "format": "uint64"
+        "timestampNs": {
+          "type": "number",
+          "format": "double"
         },
         "hostname": {
           "type": "string"

@@ -45,7 +45,7 @@ class SetPollFrequencyResponse(_message.Message):
     def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
 
 class XtcpConfig(_message.Message):
-    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "dest", "topic", "kafka_produce_timeout", "debug_level", "label", "tag", "grpc_port", "enabled_deserializers")
+    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "dest", "dest_write_files", "topic", "kafka_produce_timeout", "debug_level", "label", "tag", "grpc_port", "enabled_deserializers")
     NL_TIMEOUT_MILLISECONDS_FIELD_NUMBER: _ClassVar[int]
     POLL_FREQUENCY_FIELD_NUMBER: _ClassVar[int]
     POLL_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -60,6 +60,7 @@ class XtcpConfig(_message.Message):
     MODULUS_FIELD_NUMBER: _ClassVar[int]
     MARSHAL_TO_FIELD_NUMBER: _ClassVar[int]
     DEST_FIELD_NUMBER: _ClassVar[int]
+    DEST_WRITE_FILES_FIELD_NUMBER: _ClassVar[int]
     TOPIC_FIELD_NUMBER: _ClassVar[int]
     KAFKA_PRODUCE_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     DEBUG_LEVEL_FIELD_NUMBER: _ClassVar[int]
@@ -81,6 +82,7 @@ class XtcpConfig(_message.Message):
     modulus: int
     marshal_to: str
     dest: str
+    dest_write_files: int
     topic: str
     kafka_produce_timeout: _duration_pb2.Duration
     debug_level: int
@@ -88,7 +90,7 @@ class XtcpConfig(_message.Message):
     tag: str
     grpc_port: int
     enabled_deserializers: EnabledDeserializers
-    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., dest: _Optional[str] = ..., topic: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ...) -> None: ...
+    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., dest: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., topic: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ...) -> None: ...
 
 class EnabledDeserializers(_message.Message):
     __slots__ = ("enabled",)

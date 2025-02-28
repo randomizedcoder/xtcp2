@@ -32,20 +32,21 @@ const (
 	signalChannelSizeCst = 10
 	cancelSleepTimeCst   = 5 * time.Second
 
-	promListenCst           = ":9009" // [::1]:9009
+	promListenCst           = ":9088" // [::1]:9088
 	promPathCst             = "/metrics"
 	promMaxRequestsInFlight = 10
 	promEnableOpenMetrics   = true
 
-	WriteFilesCst = 0
+	WriteFilesCst     = 0
+	DestWriteFilesCst = 10
 
 	capturePathCst = "./"
 	// capturePathCst = "../../pkg/xtcpnl/testdata/netlink_packets_capture/"
 
 	modulusCst = 1 // 2000
 
-	// protoSingle, protoDelim, protoJson, protoText, msgpack
-	marshalCst = "protoDelim"
+	// protobufList, protoSingle, protoDelim, protoJson, protoText, msgpack
+	marshalCst = "protobufList"
 
 	// Redpanda
 	// destCst = "kafka:localhost:19092"
@@ -115,8 +116,9 @@ func main() {
 	capturePath := flag.String("capturePath", capturePathCst, "Write files path")
 
 	modulus := flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
-	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (protoSingle, protoDelim, protoJson, protoText, msgpack)")
+	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (protobufList, protoJson, protoText, msgpack)")
 	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
+	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshalled data to destWriteFiles number of files ( for debugging only )")
 	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
 	produceTimeout := flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
 	label := flag.String("label", labelCst, "label applied to the protobuf")
@@ -177,6 +179,7 @@ func main() {
 		fmt.Println("*modulus:", *modulus)
 		fmt.Println("*marshal:", *marshal)
 		fmt.Println("*dest:", *dest)
+		fmt.Println("*destWriteFiles:", *destWriteFiles)
 		fmt.Println("*topic:", *topic)
 		fmt.Println("*produceTimeout:", *produceTimeout)
 		fmt.Println("*promListen:", *promListen)
@@ -203,6 +206,7 @@ func main() {
 		Modulus:                *modulus,
 		MarshalTo:              *marshal,
 		Dest:                   *dest,
+		DestWriteFiles:         uint32(*destWriteFiles),
 		Topic:                  *topic,
 		KafkaProduceTimeout:    durationpb.New(*produceTimeout),
 		DebugLevel:             uint32(*d),
@@ -349,6 +353,8 @@ func initPromHandler(promPath string, promListen string) {
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
 // variables exist.  This allows over riding the cli flags
+//
+//lint:ignore SA4009 this is nasty, but it's going to be ok
 func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 	key := "PROM_LISTEN"
 	if value, exists := os.LookupEnv(key); exists {
@@ -528,6 +534,16 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.Dest = value
 		if debugLevel > 10 {
 			log.Printf("key:%s, c.Dest:%s", key, c.Dest)
+		}
+	}
+
+	key = "DESTWRITEFILES"
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			c.DestWriteFiles = uint32(i)
+			if debugLevel > 10 {
+				log.Printf("key:%s, c.DestWriteFiles:%d", key, c.DestWriteFiles)
+			}
 		}
 	}
 

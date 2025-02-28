@@ -45,7 +45,8 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		d.pC.WithLabelValues("Deserialize", "pollTime", "error").Inc()
 	}
 
-	sec, nsec := uint64(startPollTime.UnixNano()/1e9), uint64(startPollTime.UnixNano()%1e9)
+	timestampNs := float64(startPollTime.UnixNano()) / 1e9
+	// sec, nsec := uint64(startPollTime.UnixNano()/1e9), uint64(startPollTime.UnixNano()%1e9)
 
 	offset := 0
 	length := 0
@@ -70,7 +71,8 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
 
 		(*xtcpRecord).Hostname = x.hostname
-		(*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
+		(*xtcpRecord).TimestampNs = timestampNs
+		// (*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
 
 		(*xtcpRecord).Netns = *d.ns
 		(*xtcpRecord).RecordCounter = n
@@ -136,6 +138,8 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		// single record send to GRPC client
 		x.flatRecordServiceSend(xtcpRecord)
+
+		//xr := xtcp_flat_record.Envelope_XtcpFlatRecord(xtcpRecord)
 
 		x.envelopeMu.Lock()
 		x.currentEnvelope.Row = append(x.currentEnvelope.Row, xtcpRecord)
