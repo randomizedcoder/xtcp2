@@ -83,11 +83,11 @@ func main() {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0

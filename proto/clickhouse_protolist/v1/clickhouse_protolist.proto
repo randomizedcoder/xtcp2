@@ -24,7 +24,10 @@ message Record {
 
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 message Envelope {
-	repeated Record Rows  = 1;
+	message Record {
+		uint32 my_uint32      = 1; // repeated because clickhouse is funny
+	};
+	repeated Record rows  = 1;
 };
 
 

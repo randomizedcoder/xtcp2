@@ -78,7 +78,7 @@ func DeserializeTrafficClassReflection(data []byte, tc *TrafficClass) (n int, er
 	return TrafficClassSizeCst, err
 }
 
-func DeserializeTrafficClassXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeTrafficClassXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < TrafficClassMinSizeCst {
 		return ErrTrafficClassSmall

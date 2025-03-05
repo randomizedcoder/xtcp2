@@ -68,7 +68,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		}
 
 		nlPacketStartTime := time.Now()
-		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 		(*xtcpRecord).Hostname = x.hostname
 		(*xtcpRecord).TimestampNs = timestampNs
@@ -170,7 +170,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 // ZeroXTCPCongRecord will zero out the congestion algorithm specific fields
 // We need to do this because these won't get over written each time
-func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
+func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	if zeroer, ok := x.xtcpRecordZeroizer[xtcpRecord.CongestionAlgorithmEnum]; ok {
 		zeroer(xtcpRecord)
 	}
@@ -178,7 +178,7 @@ func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 
 type DeserializeAttributesArgs struct {
 	NLPacket   *[]byte
-	xtcpRecord *xtcp_flat_record.XtcpFlatRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 	rtaPool    *sync.Pool
 	pC         *prometheus.CounterVec
 	pH         *prometheus.SummaryVec
@@ -225,7 +225,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 type DeserializeAttributeArgs struct {
 	Type       int
 	buf        []byte
-	xtcpRecord *xtcp_flat_record.XtcpFlatRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 	pC         *prometheus.CounterVec
 	pH         *prometheus.SummaryVec
 }

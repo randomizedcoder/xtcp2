@@ -24,6 +24,8 @@ extern bool Validate(const ::clickhouse_protolist::v1::Record& m, pgv::Validatio
 
 extern bool Validate(const ::clickhouse_protolist::v1::Envelope& m, pgv::ValidationMsg* err);
 
+extern bool Validate(const ::clickhouse_protolist::v1::Envelope_Record& m, pgv::ValidationMsg* err);
+
 
 } // namespace
 } // namespace
@@ -32,4 +34,5 @@ extern bool Validate(const ::clickhouse_protolist::v1::Envelope& m, pgv::Validat
 #define X_CLICKHOUSE_PROTOLIST_V1_CLICKHOUSE_PROTOLIST(X) \
 X(::clickhouse_protolist::v1::Record) \
 X(::clickhouse_protolist::v1::Envelope) \
+X(::clickhouse_protolist::v1::Envelope_Record) \
 

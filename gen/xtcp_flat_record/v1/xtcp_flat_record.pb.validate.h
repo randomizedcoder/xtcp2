@@ -26,9 +26,11 @@ extern bool Validate(const ::xtcp_flat_record::v1::FlatRecordsResponse& m, pgv::
 
 extern bool Validate(const ::xtcp_flat_record::v1::PollFlatRecordsRequest& m, pgv::ValidationMsg* err);
 
-extern bool Validate(const ::xtcp_flat_record::v1::XtcpFlatRecord& m, pgv::ValidationMsg* err);
+extern bool Validate(const ::xtcp_flat_record::v1::PollFlatRecordsResponse& m, pgv::ValidationMsg* err);
 
 extern bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& m, pgv::ValidationMsg* err);
 
 
 } // namespace
@@ -39,6 +41,7 @@ extern bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationM
 X(::xtcp_flat_record::v1::FlatRecordsRequest) \
 X(::xtcp_flat_record::v1::FlatRecordsResponse) \
 X(::xtcp_flat_record::v1::PollFlatRecordsRequest) \
-X(::xtcp_flat_record::v1::XtcpFlatRecord) \
+X(::xtcp_flat_record::v1::PollFlatRecordsResponse) \
 X(::xtcp_flat_record::v1::Envelope) \
+X(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord) \
 

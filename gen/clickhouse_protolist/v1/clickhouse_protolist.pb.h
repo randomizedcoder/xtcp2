@@ -56,6 +56,9 @@ namespace v1 {
 class Envelope;
 struct EnvelopeDefaultTypeInternal;
 extern EnvelopeDefaultTypeInternal _Envelope_default_instance_;
+class Envelope_Record;
+struct Envelope_RecordDefaultTypeInternal;
+extern Envelope_RecordDefaultTypeInternal _Envelope_Record_default_instance_;
 class Record;
 struct RecordDefaultTypeInternal;
 extern RecordDefaultTypeInternal _Record_default_instance_;
@@ -264,6 +267,196 @@ class Record final : public ::google::protobuf::Message
 };
 // -------------------------------------------------------------------
 
+class Envelope_Record final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:clickhouse_protolist.v1.Envelope.Record) */ {
+ public:
+  inline Envelope_Record() : Envelope_Record(nullptr) {}
+  ~Envelope_Record() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(Envelope_Record* msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(Envelope_Record));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR Envelope_Record(
+      ::google::protobuf::internal::ConstantInitialized);
+
+  inline Envelope_Record(const Envelope_Record& from) : Envelope_Record(nullptr, from) {}
+  inline Envelope_Record(Envelope_Record&& from) noexcept
+      : Envelope_Record(nullptr, std::move(from)) {}
+  inline Envelope_Record& operator=(const Envelope_Record& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline Envelope_Record& operator=(Envelope_Record&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const Envelope_Record& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const Envelope_Record* internal_default_instance() {
+    return reinterpret_cast<const Envelope_Record*>(
+        &_Envelope_Record_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 1;
+  friend void swap(Envelope_Record& a, Envelope_Record& b) { a.Swap(&b); }
+  inline void Swap(Envelope_Record* other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(Envelope_Record* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  Envelope_Record* New(::google::protobuf::Arena* arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<Envelope_Record>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const Envelope_Record& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const Envelope_Record& from) { Envelope_Record::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(
+      ::google::protobuf::MessageLite& to_msg,
+      const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* _InternalSerialize(
+      const MessageLite& msg, ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target,
+      ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(Envelope_Record* other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(
+      ::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "clickhouse_protolist.v1.Envelope.Record"; }
+
+ protected:
+  explicit Envelope_Record(::google::protobuf::Arena* arena);
+  Envelope_Record(::google::protobuf::Arena* arena, const Envelope_Record& from);
+  Envelope_Record(::google::protobuf::Arena* arena, Envelope_Record&& from) noexcept
+      : Envelope_Record(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* GetClassData() const PROTOBUF_FINAL;
+  static void* PlacementNew_(const void*, void* mem,
+                             ::google::protobuf::Arena* arena);
+  static constexpr auto InternalNewImpl_();
+  static const ::google::protobuf::internal::ClassDataFull _class_data_;
+
+ public:
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kMyUint32FieldNumber = 1,
+  };
+  // uint32 my_uint32 = 1 [json_name = "myUint32"];
+  void clear_my_uint32() ;
+  ::uint32_t my_uint32() const;
+  void set_my_uint32(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_my_uint32() const;
+  void _internal_set_my_uint32(::uint32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:clickhouse_protolist.v1.Envelope.Record)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<
+      0, 1, 0,
+      0, 2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(
+        ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena);
+    inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                          ::google::protobuf::Arena* arena, const Impl_& from,
+                          const Envelope_Record& from_msg);
+    ::uint32_t my_uint32_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto;
+};
+// -------------------------------------------------------------------
+
 class Envelope final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:clickhouse_protolist.v1.Envelope) */ {
  public:
@@ -323,7 +516,7 @@ class Envelope final : public ::google::protobuf::Message
     return reinterpret_cast<const Envelope*>(
         &_Envelope_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 1;
+  static constexpr int kIndexInFileMessages = 2;
   friend void swap(Envelope& a, Envelope& b) { a.Swap(&b); }
   inline void Swap(Envelope* other) {
     if (other == this) return;
@@ -407,28 +600,29 @@ class Envelope final : public ::google::protobuf::Message
  public:
   ::google::protobuf::Metadata GetMetadata() const;
   // nested types ----------------------------------------------------
+  using Record = Envelope_Record;
 
   // accessors -------------------------------------------------------
   enum : int {
     kRowsFieldNumber = 1,
   };
-  // repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+  // repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
   int rows_size() const;
   private:
   int _internal_rows_size() const;
 
   public:
   void clear_rows() ;
-  ::clickhouse_protolist::v1::Record* mutable_rows(int index);
-  ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>* mutable_rows();
+  ::clickhouse_protolist::v1::Envelope_Record* mutable_rows(int index);
+  ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>* mutable_rows();
 
   private:
-  const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>& _internal_rows() const;
-  ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>* _internal_mutable_rows();
+  const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>& _internal_rows() const;
+  ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>* _internal_mutable_rows();
   public:
-  const ::clickhouse_protolist::v1::Record& rows(int index) const;
-  ::clickhouse_protolist::v1::Record* add_rows();
-  const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>& rows() const;
+  const ::clickhouse_protolist::v1::Envelope_Record& rows(int index) const;
+  ::clickhouse_protolist::v1::Envelope_Record* add_rows();
+  const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>& rows() const;
   // @@protoc_insertion_point(class_scope:clickhouse_protolist.v1.Envelope)
  private:
   class _Internal;
@@ -452,7 +646,7 @@ class Envelope final : public ::google::protobuf::Message
     inline explicit Impl_(::google::protobuf::internal::InternalVisibility visibility,
                           ::google::protobuf::Arena* arena, const Impl_& from,
                           const Envelope& from_msg);
-    ::google::protobuf::RepeatedPtrField< ::clickhouse_protolist::v1::Record > rows_;
+    ::google::protobuf::RepeatedPtrField< ::clickhouse_protolist::v1::Envelope_Record > rows_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -500,9 +694,35 @@ inline void Record::_internal_set_my_uint32(::uint32_t value) {
 
 // -------------------------------------------------------------------
 
+// Envelope_Record
+
+// uint32 my_uint32 = 1 [json_name = "myUint32"];
+inline void Envelope_Record::clear_my_uint32() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.my_uint32_ = 0u;
+}
+inline ::uint32_t Envelope_Record::my_uint32() const {
+  // @@protoc_insertion_point(field_get:clickhouse_protolist.v1.Envelope.Record.my_uint32)
+  return _internal_my_uint32();
+}
+inline void Envelope_Record::set_my_uint32(::uint32_t value) {
+  _internal_set_my_uint32(value);
+  // @@protoc_insertion_point(field_set:clickhouse_protolist.v1.Envelope.Record.my_uint32)
+}
+inline ::uint32_t Envelope_Record::_internal_my_uint32() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.my_uint32_;
+}
+inline void Envelope_Record::_internal_set_my_uint32(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.my_uint32_ = value;
+}
+
+// -------------------------------------------------------------------
+
 // Envelope
 
-// repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+// repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
 inline int Envelope::_internal_rows_size() const {
   return _internal_rows().size();
 }
@@ -513,39 +733,39 @@ inline void Envelope::clear_rows() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.rows_.Clear();
 }
-inline ::clickhouse_protolist::v1::Record* Envelope::mutable_rows(int index)
+inline ::clickhouse_protolist::v1::Envelope_Record* Envelope::mutable_rows(int index)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable:clickhouse_protolist.v1.Envelope.Rows)
+  // @@protoc_insertion_point(field_mutable:clickhouse_protolist.v1.Envelope.rows)
   return _internal_mutable_rows()->Mutable(index);
 }
-inline ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>* Envelope::mutable_rows()
+inline ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>* Envelope::mutable_rows()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:clickhouse_protolist.v1.Envelope.Rows)
+  // @@protoc_insertion_point(field_mutable_list:clickhouse_protolist.v1.Envelope.rows)
   ::google::protobuf::internal::TSanWrite(&_impl_);
   return _internal_mutable_rows();
 }
-inline const ::clickhouse_protolist::v1::Record& Envelope::rows(int index) const
+inline const ::clickhouse_protolist::v1::Envelope_Record& Envelope::rows(int index) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:clickhouse_protolist.v1.Envelope.Rows)
+  // @@protoc_insertion_point(field_get:clickhouse_protolist.v1.Envelope.rows)
   return _internal_rows().Get(index);
 }
-inline ::clickhouse_protolist::v1::Record* Envelope::add_rows() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+inline ::clickhouse_protolist::v1::Envelope_Record* Envelope::add_rows() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  ::clickhouse_protolist::v1::Record* _add = _internal_mutable_rows()->Add();
-  // @@protoc_insertion_point(field_add:clickhouse_protolist.v1.Envelope.Rows)
+  ::clickhouse_protolist::v1::Envelope_Record* _add = _internal_mutable_rows()->Add();
+  // @@protoc_insertion_point(field_add:clickhouse_protolist.v1.Envelope.rows)
   return _add;
 }
-inline const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>& Envelope::rows() const
+inline const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>& Envelope::rows() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:clickhouse_protolist.v1.Envelope.Rows)
+  // @@protoc_insertion_point(field_list:clickhouse_protolist.v1.Envelope.rows)
   return _internal_rows();
 }
-inline const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>&
+inline const ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>&
 Envelope::_internal_rows() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return _impl_.rows_;
 }
-inline ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Record>*
+inline ::google::protobuf::RepeatedPtrField<::clickhouse_protolist::v1::Envelope_Record>*
 Envelope::_internal_mutable_rows() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.rows_;

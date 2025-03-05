@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func encodeLengthDelimitedProtobufList(r *clickhouse_protolist.Record) (result []byte, err error) {
+func encodeLengthDelimitedProtobufList(r *clickhouse_protolist.Envelope_Record) (result []byte, err error) {
 
 	// for _, record := range e.Rows {
 	// 	recordBytes, err := proto.Marshal(record)
@@ -74,7 +74,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	r := &clickhouse_protolist.Record{}
+	r := &clickhouse_protolist.Envelope_Record{}
 	r.MyUint32 = uint32(*value)
 
 	encodedData, err := encodeLengthDelimitedProtobufList(r)

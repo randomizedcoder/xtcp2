@@ -93,7 +93,7 @@ func DeserializeVegasInfoReflection(data []byte, vi *VegasInfo) (n int, err erro
 	return VegasInfoReadCst, err
 }
 
-func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < VegasInfoSizeCst {
 		return ErrVegasInfoSmall
@@ -107,7 +107,7 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 	return nil
 }
 
-func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
+func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.VegasInfoEnabled = 0
 	x.VegasInfoRttCnt = 0
 	x.VegasInfoRtt = 0

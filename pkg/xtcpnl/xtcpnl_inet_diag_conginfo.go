@@ -82,7 +82,7 @@ func DeserializeCongInfo(data []byte, ci *CongInfo) (n int, err error) {
 // 	return CongInfoReadCst, err
 // }
 
-func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < CongInfoSizeCst {
 		return ErrCongInfoSmall
@@ -90,15 +90,15 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 
 	switch string(data[0:4]) {
 	case "cub":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
 	case "bbr2":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "bbr":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "dct":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
 	case "veg":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
 	}
 
 	return nil

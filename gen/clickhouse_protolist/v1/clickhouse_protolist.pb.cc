@@ -52,6 +52,31 @@ struct RecordDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 RecordDefaultTypeInternal _Record_default_instance_;
 
+inline constexpr Envelope_Record::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : my_uint32_{0u},
+        _cached_size_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR Envelope_Record::Envelope_Record(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct Envelope_RecordDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR Envelope_RecordDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~Envelope_RecordDefaultTypeInternal() {}
+  union {
+    Envelope_Record _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 Envelope_RecordDefaultTypeInternal _Envelope_Record_default_instance_;
+
 inline constexpr Envelope::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : rows_{},
@@ -95,6 +120,15 @@ const ::uint32_t
         ~0u,  // no sizeof(Split)
         PROTOBUF_FIELD_OFFSET(::clickhouse_protolist::v1::Record, _impl_.my_uint32_),
         ~0u,  // no _has_bits_
+        PROTOBUF_FIELD_OFFSET(::clickhouse_protolist::v1::Envelope_Record, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::clickhouse_protolist::v1::Envelope_Record, _impl_.my_uint32_),
+        ~0u,  // no _has_bits_
         PROTOBUF_FIELD_OFFSET(::clickhouse_protolist::v1::Envelope, _internal_metadata_),
         ~0u,  // no _extensions_
         ~0u,  // no _oneof_case_
@@ -108,36 +142,40 @@ const ::uint32_t
 static const ::_pbi::MigrationSchema
     schemas[] ABSL_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
         {0, -1, -1, sizeof(::clickhouse_protolist::v1::Record)},
-        {9, -1, -1, sizeof(::clickhouse_protolist::v1::Envelope)},
+        {9, -1, -1, sizeof(::clickhouse_protolist::v1::Envelope_Record)},
+        {18, -1, -1, sizeof(::clickhouse_protolist::v1::Envelope)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::clickhouse_protolist::v1::_Record_default_instance_._instance,
+    &::clickhouse_protolist::v1::_Envelope_Record_default_instance_._instance,
     &::clickhouse_protolist::v1::_Envelope_default_instance_._instance,
 };
 const char descriptor_table_protodef_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n2clickhouse_protolist/v1/clickhouse_pro"
     "tolist.proto\022\027clickhouse_protolist.v1\"%\n"
-    "\006Record\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32\"\?\n\010"
-    "Envelope\0223\n\004Rows\030\001 \003(\0132\037.clickhouse_prot"
-    "olist.v1.RecordR\004RowsB\314\001\n\033com.clickhouse"
-    "_protolist.v1B\030ClickhouseProtolistProtoP"
-    "\001Z\032./pkg/clickhouse_protolist\242\002\003CXX\252\002\026Cl"
-    "ickhouseProtolist.V1\312\002\026ClickhouseProtoli"
-    "st\\V1\342\002\"ClickhouseProtolist\\V1\\GPBMetada"
-    "ta\352\002\027ClickhouseProtolist::V1b\006proto3"
+    "\006Record\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32\"o\n\010"
+    "Envelope\022<\n\004rows\030\001 \003(\0132(.clickhouse_prot"
+    "olist.v1.Envelope.RecordR\004rows\032%\n\006Record"
+    "\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32B\314\001\n\033com.cl"
+    "ickhouse_protolist.v1B\030ClickhouseProtoli"
+    "stProtoP\001Z\032./pkg/clickhouse_protolist\242\002\003"
+    "CXX\252\002\026ClickhouseProtolist.V1\312\002\026Clickhous"
+    "eProtolist\\V1\342\002\"ClickhouseProtolist\\V1\\G"
+    "PBMetadata\352\002\027ClickhouseProtolist::V1b\006pr"
+    "oto3"
 };
 static ::absl::once_flag descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto = {
     false,
     false,
-    396,
+    444,
     descriptor_table_protodef_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto,
     "clickhouse_protolist/v1/clickhouse_protolist.proto",
     &descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto_once,
     nullptr,
     0,
-    2,
+    3,
     schemas,
     file_default_instances,
     TableStruct_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto::offsets,
@@ -355,6 +393,213 @@ void Record::InternalSwap(Record* PROTOBUF_RESTRICT other) {
 }
 // ===================================================================
 
+class Envelope_Record::_Internal {
+ public:
+};
+
+Envelope_Record::Envelope_Record(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:clickhouse_protolist.v1.Envelope.Record)
+}
+Envelope_Record::Envelope_Record(
+    ::google::protobuf::Arena* arena, const Envelope_Record& from)
+    : Envelope_Record(arena) {
+  MergeFrom(from);
+}
+inline PROTOBUF_NDEBUG_INLINE Envelope_Record::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* arena)
+      : _cached_size_{0} {}
+
+inline void Envelope_Record::SharedCtor(::_pb::Arena* arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  _impl_.my_uint32_ = {};
+}
+Envelope_Record::~Envelope_Record() {
+  // @@protoc_insertion_point(destructor:clickhouse_protolist.v1.Envelope.Record)
+  SharedDtor(*this);
+}
+inline void Envelope_Record::SharedDtor(MessageLite& self) {
+  Envelope_Record& this_ = static_cast<Envelope_Record&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.~Impl_();
+}
+
+inline void* Envelope_Record::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) Envelope_Record(arena);
+}
+constexpr auto Envelope_Record::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(Envelope_Record),
+                                            alignof(Envelope_Record));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull Envelope_Record::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_Envelope_Record_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &Envelope_Record::MergeImpl,
+        ::google::protobuf::Message::GetNewImpl<Envelope_Record>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &Envelope_Record::SharedDtor,
+        ::google::protobuf::Message::GetClearImpl<Envelope_Record>(), &Envelope_Record::ByteSizeLong,
+            &Envelope_Record::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(Envelope_Record, _impl_._cached_size_),
+        false,
+    },
+    &Envelope_Record::kDescriptorMethods,
+    &descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* Envelope_Record::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 1, 0, 0, 2> Envelope_Record::_table_ = {
+  {
+    0,  // no _has_bits_
+    0, // no _extensions_
+    1, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967294,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    1,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::clickhouse_protolist::v1::Envelope_Record>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // uint32 my_uint32 = 1 [json_name = "myUint32"];
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Envelope_Record, _impl_.my_uint32_), 63>(),
+     {8, 63, 0, PROTOBUF_FIELD_OFFSET(Envelope_Record, _impl_.my_uint32_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // uint32 my_uint32 = 1 [json_name = "myUint32"];
+    {PROTOBUF_FIELD_OFFSET(Envelope_Record, _impl_.my_uint32_), 0, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+  }},
+  // no aux_entries
+  {{
+  }},
+};
+
+PROTOBUF_NOINLINE void Envelope_Record::Clear() {
+// @@protoc_insertion_point(message_clear_start:clickhouse_protolist.v1.Envelope.Record)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.my_uint32_ = 0u;
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::uint8_t* Envelope_Record::_InternalSerialize(
+            const MessageLite& base, ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) {
+          const Envelope_Record& this_ = static_cast<const Envelope_Record&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::uint8_t* Envelope_Record::_InternalSerialize(
+            ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+          const Envelope_Record& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(serialize_to_array_start:clickhouse_protolist.v1.Envelope.Record)
+          ::uint32_t cached_has_bits = 0;
+          (void)cached_has_bits;
+
+          // uint32 my_uint32 = 1 [json_name = "myUint32"];
+          if (this_._internal_my_uint32() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                1, this_._internal_my_uint32(), target);
+          }
+
+          if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+            target =
+                ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+                    this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+          }
+          // @@protoc_insertion_point(serialize_to_array_end:clickhouse_protolist.v1.Envelope.Record)
+          return target;
+        }
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::size_t Envelope_Record::ByteSizeLong(const MessageLite& base) {
+          const Envelope_Record& this_ = static_cast<const Envelope_Record&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::size_t Envelope_Record::ByteSizeLong() const {
+          const Envelope_Record& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(message_byte_size_start:clickhouse_protolist.v1.Envelope.Record)
+          ::size_t total_size = 0;
+
+          ::uint32_t cached_has_bits = 0;
+          // Prevent compiler warnings about cached_has_bits being unused
+          (void)cached_has_bits;
+
+           {
+            // uint32 my_uint32 = 1 [json_name = "myUint32"];
+            if (this_._internal_my_uint32() != 0) {
+              total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+                  this_._internal_my_uint32());
+            }
+          }
+          return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                                     &this_._impl_._cached_size_);
+        }
+
+void Envelope_Record::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<Envelope_Record*>(&to_msg);
+  auto& from = static_cast<const Envelope_Record&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:clickhouse_protolist.v1.Envelope.Record)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from._internal_my_uint32() != 0) {
+    _this->_impl_.my_uint32_ = from._impl_.my_uint32_;
+  }
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void Envelope_Record::CopyFrom(const Envelope_Record& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:clickhouse_protolist.v1.Envelope.Record)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void Envelope_Record::InternalSwap(Envelope_Record* PROTOBUF_RESTRICT other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+        swap(_impl_.my_uint32_, other->_impl_.my_uint32_);
+}
+
+::google::protobuf::Metadata Envelope_Record::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
 class Envelope::_Internal {
  public:
 };
@@ -476,17 +721,17 @@ const ::_pbi::TcParseTable<0, 1, 1, 0, 2> Envelope::_table_ = {
     ::_pbi::TcParser::GetTable<::clickhouse_protolist::v1::Envelope>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    // repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+    // repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
     {::_pbi::TcParser::FastMtR1,
      {10, 63, 0, PROTOBUF_FIELD_OFFSET(Envelope, _impl_.rows_)}},
   }}, {{
     65535, 65535
   }}, {{
-    // repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+    // repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
     {PROTOBUF_FIELD_OFFSET(Envelope, _impl_.rows_), 0, 0,
     (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
   }}, {{
-    {::_pbi::TcParser::GetTable<::clickhouse_protolist::v1::Record>()},
+    {::_pbi::TcParser::GetTable<::clickhouse_protolist::v1::Envelope_Record>()},
   }}, {{
   }},
 };
@@ -517,7 +762,7 @@ PROTOBUF_NOINLINE void Envelope::Clear() {
           ::uint32_t cached_has_bits = 0;
           (void)cached_has_bits;
 
-          // repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+          // repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
           for (unsigned i = 0, n = static_cast<unsigned>(
                                    this_._internal_rows_size());
                i < n; i++) {
@@ -553,7 +798,7 @@ PROTOBUF_NOINLINE void Envelope::Clear() {
 
           ::_pbi::Prefetch5LinesFrom7Lines(&this_);
            {
-            // repeated .clickhouse_protolist.v1.Record Rows = 1 [json_name = "Rows"];
+            // repeated .clickhouse_protolist.v1.Envelope.Record rows = 1 [json_name = "rows"];
             {
               total_size += 1UL * this_._internal_rows_size();
               for (const auto& msg : this_._internal_rows()) {

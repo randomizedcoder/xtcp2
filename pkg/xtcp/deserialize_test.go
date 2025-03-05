@@ -25,7 +25,7 @@ type DeserializeTest struct {
 	description string
 	filename    string
 	//c           config.Config
-	xtcpRecord *xtcp_flat_record.XtcpFlatRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 }
 
 // TestDeserialize
@@ -38,7 +38,7 @@ func TestDeserialize(t *testing.T) {
 		{
 			description: "laptop_raw_data_capture",
 			filename:    "../xtcpnl/testdata/netlink_packets_capture/2024-08-29T12:10:36.560332872-07:00",
-			xtcpRecord: &xtcp_flat_record.XtcpFlatRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -46,7 +46,7 @@ func TestDeserialize(t *testing.T) {
 			description: "10_tcp_sockets_reply",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet2.pcap",
 			//c:           c,
-			xtcpRecord: &xtcp_flat_record.XtcpFlatRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -54,7 +54,7 @@ func TestDeserialize(t *testing.T) {
 			description: "netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			//c:           c,
-			xtcpRecord: &xtcp_flat_record.XtcpFlatRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -90,7 +90,7 @@ func TestDeserialize(t *testing.T) {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
@@ -135,7 +135,7 @@ func TestDeserialize(t *testing.T) {
 		//t.Logf("i:%d, binary.Size(buf):%d", i, binary.Size(buf))
 		//t.Logf("i:%d,  buf hex:%s", i, hex.EncodeToString(buf))
 
-		xtcpRecord := new(xtcp_flat_record.XtcpFlatRecord)
+		xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 		nsName := "fixme"
 
@@ -164,7 +164,7 @@ func TestDeserialize(t *testing.T) {
 }
 
 var (
-	resultXtcpFlatRecord *xtcp_flat_record.XtcpFlatRecord
+	resultXtcpFlatRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 )
 
 // go test -bench=BenchmarkDeserializeSpawn
@@ -181,7 +181,7 @@ func DeserializeBoth(b *testing.B, s int) {
 		{
 			description: "netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet_from_10k.pcap",
-			xtcpRecord: &xtcp_flat_record.XtcpFlatRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -218,7 +218,7 @@ func DeserializeBoth(b *testing.B, s int) {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
@@ -252,7 +252,7 @@ func DeserializeBoth(b *testing.B, s int) {
 		buf = bs
 	}
 
-	xtcpRecord := new(xtcp_flat_record.XtcpFlatRecord)
+	xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 	nsName := "fixme"
 

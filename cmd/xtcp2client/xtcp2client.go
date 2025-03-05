@@ -189,7 +189,7 @@ func pollStreamRecv(
 	wg *sync.WaitGroup,
 	json bool,
 	//recvCh chan *xtcp_flat_record.FlatRecordsResponse,
-	stream *grpc.BidiStreamingClient[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse],
+	stream *grpc.BidiStreamingClient[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.PollFlatRecordsResponse],
 	debugLevel uint) {
 
 	defer wg.Done()
@@ -200,7 +200,7 @@ func pollStreamRecv(
 
 breakPoint:
 	for i := 0; ; i++ {
-		flatRecordsResponse, err := (*stream).Recv()
+		pollFlatRecordsResponse, err := (*stream).Recv()
 		if debugLevel > 10 {
 			log.Printf("pollStreamRecv i:%d .Recv()", i)
 		}
@@ -225,7 +225,7 @@ breakPoint:
 			continue
 		}
 		//log.Printf("rec:%v", rec)
-		printFlatRecordsResponse(flatRecordsResponse, 1, json, debugLevel)
+		printPollFlatRecordsResponse(pollFlatRecordsResponse, 1, json, debugLevel)
 
 		//recvCh <- rec
 
@@ -401,6 +401,29 @@ func printFlatRecordsResponse(flatRecordsResponse *xtcp_flat_record.FlatRecordsR
 		}
 
 		log.Printf("id:%d, %s", id, flatRecordsResponse.GetXtcpFlatRecord())
+	}
+}
+
+func printPollFlatRecordsResponse(pollFlatRecordsResponse *xtcp_flat_record.PollFlatRecordsResponse, id int, json bool, debugLevel uint) {
+
+	if debugLevel > 10 {
+		b, err := proto.Marshal(pollFlatRecordsResponse.GetXtcpFlatRecord())
+		if err != nil {
+			if debugLevel > 10 {
+				log.Println("FlatRecords proto.Marshal(x) err: ", err)
+			}
+		}
+		log.Printf("id:%d, FlatRecords len(b):%d", id, len(b))
+	}
+
+	if debugLevel > 10 {
+		if json {
+			jsonStr := protojson.Format(pollFlatRecordsResponse.GetXtcpFlatRecord())
+			log.Printf("id:%d, %s", id, jsonStr)
+			return
+		}
+
+		log.Printf("id:%d, %s", id, pollFlatRecordsResponse.GetXtcpFlatRecord())
 	}
 }
 

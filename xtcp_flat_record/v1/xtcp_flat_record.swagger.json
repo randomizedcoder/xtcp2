@@ -17,57 +17,7 @@
   ],
   "paths": {},
   "definitions": {
-    "XtcpFlatRecordCongestionAlgorithm": {
-      "type": "string",
-      "enum": [
-        "CONGESTION_ALGORITHM_UNSPECIFIED",
-        "CONGESTION_ALGORITHM_CUBIC",
-        "CONGESTION_ALGORITHM_DCTCP",
-        "CONGESTION_ALGORITHM_VEGAS",
-        "CONGESTION_ALGORITHM_PRAGUE",
-        "CONGESTION_ALGORITHM_BBR1",
-        "CONGESTION_ALGORITHM_BBR2",
-        "CONGESTION_ALGORITHM_BBR3"
-      ],
-      "default": "CONGESTION_ALGORITHM_UNSPECIFIED"
-    },
-    "protobufAny": {
-      "type": "object",
-      "properties": {
-        "@type": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": {}
-    },
-    "rpcStatus": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/protobufAny"
-          }
-        }
-      }
-    },
-    "v1FlatRecordsResponse": {
-      "type": "object",
-      "properties": {
-        "xtcpFlatRecord": {
-          "$ref": "#/definitions/v1XtcpFlatRecord"
-        }
-      }
-    },
-    "v1XtcpFlatRecord": {
+    "EnvelopeXtcpFlatRecord": {
       "type": "object",
       "properties": {
         "timestampNs": {
@@ -605,8 +555,65 @@
           "format": "uint64",
           "title": "INET_DIAG_BC_CGROUP_COND"
         }
+      }
+    },
+    "XtcpFlatRecordCongestionAlgorithm": {
+      "type": "string",
+      "enum": [
+        "CONGESTION_ALGORITHM_UNSPECIFIED",
+        "CONGESTION_ALGORITHM_CUBIC",
+        "CONGESTION_ALGORITHM_DCTCP",
+        "CONGESTION_ALGORITHM_VEGAS",
+        "CONGESTION_ALGORITHM_PRAGUE",
+        "CONGESTION_ALGORITHM_BBR1",
+        "CONGESTION_ALGORITHM_BBR2",
+        "CONGESTION_ALGORITHM_BBR3"
+      ],
+      "default": "CONGESTION_ALGORITHM_UNSPECIFIED"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
       },
-      "title": "xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information"
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1FlatRecordsResponse": {
+      "type": "object",
+      "properties": {
+        "xtcpFlatRecord": {
+          "$ref": "#/definitions/EnvelopeXtcpFlatRecord"
+        }
+      }
+    },
+    "v1PollFlatRecordsResponse": {
+      "type": "object",
+      "properties": {
+        "xtcpFlatRecord": {
+          "$ref": "#/definitions/EnvelopeXtcpFlatRecord"
+        }
+      }
     }
   }
 }

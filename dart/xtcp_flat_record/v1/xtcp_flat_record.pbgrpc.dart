@@ -25,10 +25,10 @@ class XTCPFlatRecordServiceClient extends $grpc.Client {
       '/xtcp_flat_record.v1.XTCPFlatRecordService/FlatRecords',
       ($1.FlatRecordsRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $1.FlatRecordsResponse.fromBuffer(value));
-  static final _$pollFlatRecords = $grpc.ClientMethod<$1.PollFlatRecordsRequest, $1.FlatRecordsResponse>(
+  static final _$pollFlatRecords = $grpc.ClientMethod<$1.PollFlatRecordsRequest, $1.PollFlatRecordsResponse>(
       '/xtcp_flat_record.v1.XTCPFlatRecordService/PollFlatRecords',
       ($1.PollFlatRecordsRequest value) => value.writeToBuffer(),
-      ($core.List<$core.int> value) => $1.FlatRecordsResponse.fromBuffer(value));
+      ($core.List<$core.int> value) => $1.PollFlatRecordsResponse.fromBuffer(value));
 
   XTCPFlatRecordServiceClient($grpc.ClientChannel channel,
       {$grpc.CallOptions? options,
@@ -40,7 +40,7 @@ class XTCPFlatRecordServiceClient extends $grpc.Client {
     return $createStreamingCall(_$flatRecords, $async.Stream.fromIterable([request]), options: options);
   }
 
-  $grpc.ResponseStream<$1.FlatRecordsResponse> pollFlatRecords($async.Stream<$1.PollFlatRecordsRequest> request, {$grpc.CallOptions? options}) {
+  $grpc.ResponseStream<$1.PollFlatRecordsResponse> pollFlatRecords($async.Stream<$1.PollFlatRecordsRequest> request, {$grpc.CallOptions? options}) {
     return $createStreamingCall(_$pollFlatRecords, request, options: options);
   }
 }
@@ -57,13 +57,13 @@ abstract class XTCPFlatRecordServiceBase extends $grpc.Service {
         true,
         ($core.List<$core.int> value) => $1.FlatRecordsRequest.fromBuffer(value),
         ($1.FlatRecordsResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$1.PollFlatRecordsRequest, $1.FlatRecordsResponse>(
+    $addMethod($grpc.ServiceMethod<$1.PollFlatRecordsRequest, $1.PollFlatRecordsResponse>(
         'PollFlatRecords',
         pollFlatRecords,
         true,
         true,
         ($core.List<$core.int> value) => $1.PollFlatRecordsRequest.fromBuffer(value),
-        ($1.FlatRecordsResponse value) => value.writeToBuffer()));
+        ($1.PollFlatRecordsResponse value) => value.writeToBuffer()));
   }
 
   $async.Stream<$1.FlatRecordsResponse> flatRecords_Pre($grpc.ServiceCall call, $async.Future<$1.FlatRecordsRequest> request) async* {
@@ -71,5 +71,5 @@ abstract class XTCPFlatRecordServiceBase extends $grpc.Service {
   }
 
   $async.Stream<$1.FlatRecordsResponse> flatRecords($grpc.ServiceCall call, $1.FlatRecordsRequest request);
-  $async.Stream<$1.FlatRecordsResponse> pollFlatRecords($grpc.ServiceCall call, $async.Stream<$1.PollFlatRecordsRequest> request);
+  $async.Stream<$1.PollFlatRecordsResponse> pollFlatRecords($grpc.ServiceCall call, $async.Stream<$1.PollFlatRecordsRequest> request);
 }

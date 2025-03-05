@@ -118,7 +118,7 @@ func (s *xtcpFlatRecordService) FlatRecords(
 }
 
 func (s *xtcpFlatRecordService) PollFlatRecords(
-	stream grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse]) error {
+	stream grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.PollFlatRecordsResponse]) error {
 
 	startTime := time.Now()
 	defer func() {
@@ -197,7 +197,7 @@ func (s *xtcpFlatRecordService) pfrMapCount() (count uint64) {
 
 // flatRecordServiceSend is called with a protobuf record, and does the grpc .Send()
 // for each connected GRPC client
-func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
+func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 
 	startTime := time.Now()
 	defer func() {

@@ -98,7 +98,7 @@ func DeserializeDCTCPInfoReflection(data []byte, d *DCTCPInfo) (n int, err error
 	return DCTCPInfoReadCst, err
 }
 
-func DeserializeDCTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeDCTCPInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < DCTCPInfoSizeCst {
 		return ErrDCTCPInfoSmall
@@ -113,7 +113,7 @@ func DeserializeDCTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 	return nil
 }
 
-func ZeroizeDCTCPInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
+func ZeroizeDCTCPInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.DctcpInfoEnabled = 0
 	x.DctcpInfoCeState = 0
 	x.DctcpInfoAlpha = 0

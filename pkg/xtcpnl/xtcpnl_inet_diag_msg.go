@@ -198,12 +198,12 @@ func DeserializeInetDiagSockIDReflection(data []byte, sockid *InetDiagSockID) (n
 
 // XTCP
 
-func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 	defer wg.Done()
 	return DeserializeInetDiagMsgXTCP(data, x)
 }
 
-func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < InetDiagMsgSizeCst {
 		return ErrInetDiagMsgSmall
@@ -239,7 +239,7 @@ func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord)
 	return nil
 }
 
-func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < InetDiagSockIDSizeCst {
 		return ErrInetDiagSockIDSmall

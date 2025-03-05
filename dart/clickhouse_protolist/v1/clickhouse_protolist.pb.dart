@@ -63,10 +63,60 @@ class Record extends $pb.GeneratedMessage {
   void clearMyUint32() => clearField(1);
 }
 
+class Envelope_Record extends $pb.GeneratedMessage {
+  factory Envelope_Record({
+    $core.int? myUint32,
+  }) {
+    final $result = create();
+    if (myUint32 != null) {
+      $result.myUint32 = myUint32;
+    }
+    return $result;
+  }
+  Envelope_Record._() : super();
+  factory Envelope_Record.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory Envelope_Record.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Envelope.Record', package: const $pb.PackageName(_omitMessageNames ? '' : 'clickhouse_protolist.v1'), createEmptyInstance: create)
+    ..a<$core.int>(1, _omitFieldNames ? '' : 'myUint32', $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  Envelope_Record clone() => Envelope_Record()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  Envelope_Record copyWith(void Function(Envelope_Record) updates) => super.copyWith((message) => updates(message as Envelope_Record)) as Envelope_Record;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static Envelope_Record create() => Envelope_Record._();
+  Envelope_Record createEmptyInstance() => create();
+  static $pb.PbList<Envelope_Record> createRepeated() => $pb.PbList<Envelope_Record>();
+  @$core.pragma('dart2js:noInline')
+  static Envelope_Record getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Envelope_Record>(create);
+  static Envelope_Record? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get myUint32 => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set myUint32($core.int v) { $_setUnsignedInt32(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasMyUint32() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMyUint32() => clearField(1);
+}
+
 /// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 class Envelope extends $pb.GeneratedMessage {
   factory Envelope({
-    $core.Iterable<Record>? rows,
+    $core.Iterable<Envelope_Record>? rows,
   }) {
     final $result = create();
     if (rows != null) {
@@ -79,7 +129,7 @@ class Envelope extends $pb.GeneratedMessage {
   factory Envelope.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Envelope', package: const $pb.PackageName(_omitMessageNames ? '' : 'clickhouse_protolist.v1'), createEmptyInstance: create)
-    ..pc<Record>(1, _omitFieldNames ? '' : 'Rows', $pb.PbFieldType.PM, protoName: 'Rows', subBuilder: Record.create)
+    ..pc<Envelope_Record>(1, _omitFieldNames ? '' : 'rows', $pb.PbFieldType.PM, subBuilder: Envelope_Record.create)
     ..hasRequiredFields = false
   ;
 
@@ -105,7 +155,7 @@ class Envelope extends $pb.GeneratedMessage {
   static Envelope? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<Record> get rows => $_getList(0);
+  $core.List<Envelope_Record> get rows => $_getList(0);
 }
 
 

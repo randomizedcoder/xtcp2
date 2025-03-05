@@ -152,6 +152,7 @@ clear_docker_volumes:
 
 protos:
 	./generate_protos.bash
+	./check_protos.bash
 
 nuke_clickhouse:
 	rm -rf ./build/containers/clickhouse/db/*

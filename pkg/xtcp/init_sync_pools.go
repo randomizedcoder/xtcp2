@@ -45,7 +45,7 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 
 	x.xtcpRecordPool = sync.Pool{
 		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 

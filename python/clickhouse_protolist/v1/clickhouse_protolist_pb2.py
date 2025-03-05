@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n2clickhouse_protolist/v1/clickhouse_protolist.proto\x12\x17\x63lickhouse_protolist.v1\"%\n\x06Record\x12\x1b\n\tmy_uint32\x18\x01 \x01(\rR\x08myUint32\"?\n\x08\x45nvelope\x12\x33\n\x04Rows\x18\x01 \x03(\x0b\x32\x1f.clickhouse_protolist.v1.RecordR\x04RowsB\xcc\x01\n\x1b\x63om.clickhouse_protolist.v1B\x18\x43lickhouseProtolistProtoP\x01Z\x1a./pkg/clickhouse_protolist\xa2\x02\x03\x43XX\xaa\x02\x16\x43lickhouseProtolist.V1\xca\x02\x16\x43lickhouseProtolist\\V1\xe2\x02\"ClickhouseProtolist\\V1\\GPBMetadata\xea\x02\x17\x43lickhouseProtolist::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n2clickhouse_protolist/v1/clickhouse_protolist.proto\x12\x17\x63lickhouse_protolist.v1\"%\n\x06Record\x12\x1b\n\tmy_uint32\x18\x01 \x01(\rR\x08myUint32\"o\n\x08\x45nvelope\x12<\n\x04rows\x18\x01 \x03(\x0b\x32(.clickhouse_protolist.v1.Envelope.RecordR\x04rows\x1a%\n\x06Record\x12\x1b\n\tmy_uint32\x18\x01 \x01(\rR\x08myUint32B\xcc\x01\n\x1b\x63om.clickhouse_protolist.v1B\x18\x43lickhouseProtolistProtoP\x01Z\x1a./pkg/clickhouse_protolist\xa2\x02\x03\x43XX\xaa\x02\x16\x43lickhouseProtolist.V1\xca\x02\x16\x43lickhouseProtolist\\V1\xe2\x02\"ClickhouseProtolist\\V1\\GPBMetadata\xea\x02\x17\x43lickhouseProtolist::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,5 +35,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_RECORD']._serialized_start=79
   _globals['_RECORD']._serialized_end=116
   _globals['_ENVELOPE']._serialized_start=118
-  _globals['_ENVELOPE']._serialized_end=181
+  _globals['_ENVELOPE']._serialized_end=229
+  _globals['_ENVELOPE_RECORD']._serialized_start=79
+  _globals['_ENVELOPE_RECORD']._serialized_end=116
 # @@protoc_insertion_point(module_scope)

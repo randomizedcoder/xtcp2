@@ -110,7 +110,7 @@ func DeserializeSkMemInfoReflection(data []byte, sm *SkMemInfo) (n int, err erro
 	return n, err
 }
 
-func DeserializeSkMemInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeSkMemInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < SkMemInfoMinSizeCst {
 		return ErrSkMemInfoSmall

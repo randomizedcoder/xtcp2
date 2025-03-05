@@ -78,7 +78,7 @@ func DeserializeClassIDReflection(data []byte, c *ClassID) (n int, err error) {
 	return n, err
 }
 
-func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < ClassIDSizeCst {
 		return ErrClassIDSmall

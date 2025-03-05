@@ -49,7 +49,7 @@ type XTCPFlatRecordServiceClient interface {
 	// If xtcp is polling, this will return the stream
 	FlatRecords(ctx context.Context, in *FlatRecordsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlatRecordsResponse], error)
 	// If xtcp is not polling, this allows the client to send a poll request
-	PollFlatRecords(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, FlatRecordsResponse], error)
+	PollFlatRecords(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, PollFlatRecordsResponse], error)
 }
 
 type xTCPFlatRecordServiceClient struct {
@@ -79,18 +79,18 @@ func (c *xTCPFlatRecordServiceClient) FlatRecords(ctx context.Context, in *FlatR
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type XTCPFlatRecordService_FlatRecordsClient = grpc.ServerStreamingClient[FlatRecordsResponse]
 
-func (c *xTCPFlatRecordServiceClient) PollFlatRecords(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, FlatRecordsResponse], error) {
+func (c *xTCPFlatRecordServiceClient) PollFlatRecords(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, PollFlatRecordsResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &XTCPFlatRecordService_ServiceDesc.Streams[1], XTCPFlatRecordService_PollFlatRecords_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[PollFlatRecordsRequest, FlatRecordsResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[PollFlatRecordsRequest, PollFlatRecordsResponse]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type XTCPFlatRecordService_PollFlatRecordsClient = grpc.BidiStreamingClient[PollFlatRecordsRequest, FlatRecordsResponse]
+type XTCPFlatRecordService_PollFlatRecordsClient = grpc.BidiStreamingClient[PollFlatRecordsRequest, PollFlatRecordsResponse]
 
 // XTCPFlatRecordServiceServer is the server API for XTCPFlatRecordService service.
 // All implementations must embed UnimplementedXTCPFlatRecordServiceServer
@@ -99,7 +99,7 @@ type XTCPFlatRecordServiceServer interface {
 	// If xtcp is polling, this will return the stream
 	FlatRecords(*FlatRecordsRequest, grpc.ServerStreamingServer[FlatRecordsResponse]) error
 	// If xtcp is not polling, this allows the client to send a poll request
-	PollFlatRecords(grpc.BidiStreamingServer[PollFlatRecordsRequest, FlatRecordsResponse]) error
+	PollFlatRecords(grpc.BidiStreamingServer[PollFlatRecordsRequest, PollFlatRecordsResponse]) error
 	mustEmbedUnimplementedXTCPFlatRecordServiceServer()
 }
 
@@ -113,7 +113,7 @@ type UnimplementedXTCPFlatRecordServiceServer struct{}
 func (UnimplementedXTCPFlatRecordServiceServer) FlatRecords(*FlatRecordsRequest, grpc.ServerStreamingServer[FlatRecordsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method FlatRecords not implemented")
 }
-func (UnimplementedXTCPFlatRecordServiceServer) PollFlatRecords(grpc.BidiStreamingServer[PollFlatRecordsRequest, FlatRecordsResponse]) error {
+func (UnimplementedXTCPFlatRecordServiceServer) PollFlatRecords(grpc.BidiStreamingServer[PollFlatRecordsRequest, PollFlatRecordsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method PollFlatRecords not implemented")
 }
 func (UnimplementedXTCPFlatRecordServiceServer) mustEmbedUnimplementedXTCPFlatRecordServiceServer() {}
@@ -149,11 +149,11 @@ func _XTCPFlatRecordService_FlatRecords_Handler(srv interface{}, stream grpc.Ser
 type XTCPFlatRecordService_FlatRecordsServer = grpc.ServerStreamingServer[FlatRecordsResponse]
 
 func _XTCPFlatRecordService_PollFlatRecords_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(XTCPFlatRecordServiceServer).PollFlatRecords(&grpc.GenericServerStream[PollFlatRecordsRequest, FlatRecordsResponse]{ServerStream: stream})
+	return srv.(XTCPFlatRecordServiceServer).PollFlatRecords(&grpc.GenericServerStream[PollFlatRecordsRequest, PollFlatRecordsResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type XTCPFlatRecordService_PollFlatRecordsServer = grpc.BidiStreamingServer[PollFlatRecordsRequest, FlatRecordsResponse]
+type XTCPFlatRecordService_PollFlatRecordsServer = grpc.BidiStreamingServer[PollFlatRecordsRequest, PollFlatRecordsResponse]
 
 // XTCPFlatRecordService_ServiceDesc is the grpc.ServiceDesc for XTCPFlatRecordService service.
 // It's only intended for direct use with grpc.RegisterService,

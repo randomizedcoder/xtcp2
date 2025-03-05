@@ -73,14 +73,14 @@ class XTCPFlatRecordService final {
       return std::unique_ptr< ::grpc::ClientAsyncReaderInterface< ::xtcp_flat_record::v1::FlatRecordsResponse>>(PrepareAsyncFlatRecordsRaw(context, request, cq));
     }
     // If xtcp is not polling, this allows the client to send a poll request
-    std::unique_ptr< ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> PollFlatRecords(::grpc::ClientContext* context) {
-      return std::unique_ptr< ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(PollFlatRecordsRaw(context));
+    std::unique_ptr< ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> PollFlatRecords(::grpc::ClientContext* context) {
+      return std::unique_ptr< ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(PollFlatRecordsRaw(context));
     }
-    std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> AsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
-      return std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(AsyncPollFlatRecordsRaw(context, cq, tag));
+    std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> AsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
+      return std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(AsyncPollFlatRecordsRaw(context, cq, tag));
     }
-    std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> PrepareAsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(PrepareAsyncPollFlatRecordsRaw(context, cq));
+    std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> PrepareAsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(PrepareAsyncPollFlatRecordsRaw(context, cq));
     }
     class async_interface {
      public:
@@ -88,7 +88,7 @@ class XTCPFlatRecordService final {
       // If xtcp is polling, this will return the stream
       virtual void FlatRecords(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest* request, ::grpc::ClientReadReactor< ::xtcp_flat_record::v1::FlatRecordsResponse>* reactor) = 0;
       // If xtcp is not polling, this allows the client to send a poll request
-      virtual void PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::FlatRecordsResponse>* reactor) = 0;
+      virtual void PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::PollFlatRecordsResponse>* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -97,9 +97,9 @@ class XTCPFlatRecordService final {
     virtual ::grpc::ClientReaderInterface< ::xtcp_flat_record::v1::FlatRecordsResponse>* FlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request) = 0;
     virtual ::grpc::ClientAsyncReaderInterface< ::xtcp_flat_record::v1::FlatRecordsResponse>* AsyncFlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request, ::grpc::CompletionQueue* cq, void* tag) = 0;
     virtual ::grpc::ClientAsyncReaderInterface< ::xtcp_flat_record::v1::FlatRecordsResponse>* PrepareAsyncFlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* PollFlatRecordsRaw(::grpc::ClientContext* context) = 0;
-    virtual ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) = 0;
-    virtual ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* PollFlatRecordsRaw(::grpc::ClientContext* context) = 0;
+    virtual ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) = 0;
+    virtual ::grpc::ClientAsyncReaderWriterInterface< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -113,20 +113,20 @@ class XTCPFlatRecordService final {
     std::unique_ptr< ::grpc::ClientAsyncReader< ::xtcp_flat_record::v1::FlatRecordsResponse>> PrepareAsyncFlatRecords(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncReader< ::xtcp_flat_record::v1::FlatRecordsResponse>>(PrepareAsyncFlatRecordsRaw(context, request, cq));
     }
-    std::unique_ptr< ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> PollFlatRecords(::grpc::ClientContext* context) {
-      return std::unique_ptr< ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(PollFlatRecordsRaw(context));
+    std::unique_ptr< ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> PollFlatRecords(::grpc::ClientContext* context) {
+      return std::unique_ptr< ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(PollFlatRecordsRaw(context));
     }
-    std::unique_ptr<  ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> AsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
-      return std::unique_ptr< ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(AsyncPollFlatRecordsRaw(context, cq, tag));
+    std::unique_ptr<  ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> AsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
+      return std::unique_ptr< ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(AsyncPollFlatRecordsRaw(context, cq, tag));
     }
-    std::unique_ptr<  ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>> PrepareAsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>>(PrepareAsyncPollFlatRecordsRaw(context, cq));
+    std::unique_ptr<  ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>> PrepareAsyncPollFlatRecords(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>>(PrepareAsyncPollFlatRecordsRaw(context, cq));
     }
     class async final :
       public StubInterface::async_interface {
      public:
       void FlatRecords(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest* request, ::grpc::ClientReadReactor< ::xtcp_flat_record::v1::FlatRecordsResponse>* reactor) override;
-      void PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::FlatRecordsResponse>* reactor) override;
+      void PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::PollFlatRecordsResponse>* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -141,9 +141,9 @@ class XTCPFlatRecordService final {
     ::grpc::ClientReader< ::xtcp_flat_record::v1::FlatRecordsResponse>* FlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request) override;
     ::grpc::ClientAsyncReader< ::xtcp_flat_record::v1::FlatRecordsResponse>* AsyncFlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request, ::grpc::CompletionQueue* cq, void* tag) override;
     ::grpc::ClientAsyncReader< ::xtcp_flat_record::v1::FlatRecordsResponse>* PrepareAsyncFlatRecordsRaw(::grpc::ClientContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* PollFlatRecordsRaw(::grpc::ClientContext* context) override;
-    ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) override;
-    ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* PollFlatRecordsRaw(::grpc::ClientContext* context) override;
+    ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) override;
+    ::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_FlatRecords_;
     const ::grpc::internal::RpcMethod rpcmethod_PollFlatRecords_;
   };
@@ -156,7 +156,7 @@ class XTCPFlatRecordService final {
     // If xtcp is polling, this will return the stream
     virtual ::grpc::Status FlatRecords(::grpc::ServerContext* context, const ::xtcp_flat_record::v1::FlatRecordsRequest* request, ::grpc::ServerWriter< ::xtcp_flat_record::v1::FlatRecordsResponse>* writer);
     // If xtcp is not polling, this allows the client to send a poll request
-    virtual ::grpc::Status PollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream);
+    virtual ::grpc::Status PollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream);
   };
   template <class BaseClass>
   class WithAsyncMethod_FlatRecords : public BaseClass {
@@ -190,11 +190,11 @@ class XTCPFlatRecordService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
+    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
-    void RequestPollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerAsyncReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+    void RequestPollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncBidiStreaming(1, context, stream, new_call_cq, notification_cq, tag);
     }
   };
@@ -228,7 +228,7 @@ class XTCPFlatRecordService final {
    public:
     WithCallbackMethod_PollFlatRecords() {
       ::grpc::Service::MarkMethodCallback(1,
-          new ::grpc::internal::CallbackBidiHandler< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>(
+          new ::grpc::internal::CallbackBidiHandler< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>(
             [this](
                    ::grpc::CallbackServerContext* context) { return this->PollFlatRecords(context); }));
     }
@@ -236,11 +236,11 @@ class XTCPFlatRecordService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
+    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
-    virtual ::grpc::ServerBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* PollFlatRecords(
+    virtual ::grpc::ServerBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* PollFlatRecords(
       ::grpc::CallbackServerContext* /*context*/)
       { return nullptr; }
   };
@@ -275,7 +275,7 @@ class XTCPFlatRecordService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
+    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -312,7 +312,7 @@ class XTCPFlatRecordService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
+    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -357,7 +357,7 @@ class XTCPFlatRecordService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
+    ::grpc::Status PollFlatRecords(::grpc::ServerContext* /*context*/, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* /*stream*/)  override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }

@@ -78,7 +78,7 @@ func DeserializeTypeOfServiceReflection(data []byte, tos *TypeOfService) (n int,
 	return TypeOfServiceSizeCst, err
 }
 
-func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < TypeOfServiceSizeCst {
 		return ErrTypeOfServiceSmall

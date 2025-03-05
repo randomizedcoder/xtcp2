@@ -60,14 +60,14 @@ func main() {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
 	packetBuffer := packetBufferPool.Get().(*[]byte)
 	defer packetBufferPool.Put(packetBuffer)
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	for i := 0; ; i++ {

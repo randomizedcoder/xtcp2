@@ -812,7 +812,7 @@ func DeserializeTCPInfo4_19_219Reflection(data []byte, t *TCPInfo4_19_219) (n in
 	return MemInfoReadCst, err
 }
 
-func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < TCPInfoMinSizeCst {
 		return ErrTCPInfoSmall

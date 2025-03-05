@@ -54,20 +54,20 @@ void XTCPFlatRecordService::Stub::async::FlatRecords(::grpc::ClientContext* cont
   return ::grpc::internal::ClientAsyncReaderFactory< ::xtcp_flat_record::v1::FlatRecordsResponse>::Create(channel_.get(), cq, rpcmethod_FlatRecords_, context, request, false, nullptr);
 }
 
-::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* XTCPFlatRecordService::Stub::PollFlatRecordsRaw(::grpc::ClientContext* context) {
-  return ::grpc::internal::ClientReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>::Create(channel_.get(), rpcmethod_PollFlatRecords_, context);
+::grpc::ClientReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* XTCPFlatRecordService::Stub::PollFlatRecordsRaw(::grpc::ClientContext* context) {
+  return ::grpc::internal::ClientReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>::Create(channel_.get(), rpcmethod_PollFlatRecords_, context);
 }
 
-void XTCPFlatRecordService::Stub::async::PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::FlatRecordsResponse>* reactor) {
-  ::grpc::internal::ClientCallbackReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::FlatRecordsResponse>::Create(stub_->channel_.get(), stub_->rpcmethod_PollFlatRecords_, context, reactor);
+void XTCPFlatRecordService::Stub::async::PollFlatRecords(::grpc::ClientContext* context, ::grpc::ClientBidiReactor< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::PollFlatRecordsResponse>* reactor) {
+  ::grpc::internal::ClientCallbackReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest,::xtcp_flat_record::v1::PollFlatRecordsResponse>::Create(stub_->channel_.get(), stub_->rpcmethod_PollFlatRecords_, context, reactor);
 }
 
-::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* XTCPFlatRecordService::Stub::AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
-  return ::grpc::internal::ClientAsyncReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>::Create(channel_.get(), cq, rpcmethod_PollFlatRecords_, context, true, tag);
+::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* XTCPFlatRecordService::Stub::AsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq, void* tag) {
+  return ::grpc::internal::ClientAsyncReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>::Create(channel_.get(), cq, rpcmethod_PollFlatRecords_, context, true, tag);
 }
 
-::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>* XTCPFlatRecordService::Stub::PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
-  return ::grpc::internal::ClientAsyncReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>::Create(channel_.get(), cq, rpcmethod_PollFlatRecords_, context, false, nullptr);
+::grpc::ClientAsyncReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>* XTCPFlatRecordService::Stub::PrepareAsyncPollFlatRecordsRaw(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncReaderWriterFactory< ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>::Create(channel_.get(), cq, rpcmethod_PollFlatRecords_, context, false, nullptr);
 }
 
 XTCPFlatRecordService::Service::Service() {
@@ -84,10 +84,10 @@ XTCPFlatRecordService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       XTCPFlatRecordService_method_names[1],
       ::grpc::internal::RpcMethod::BIDI_STREAMING,
-      new ::grpc::internal::BidiStreamingHandler< XTCPFlatRecordService::Service, ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::FlatRecordsResponse>(
+      new ::grpc::internal::BidiStreamingHandler< XTCPFlatRecordService::Service, ::xtcp_flat_record::v1::PollFlatRecordsRequest, ::xtcp_flat_record::v1::PollFlatRecordsResponse>(
           [](XTCPFlatRecordService::Service* service,
              ::grpc::ServerContext* ctx,
-             ::grpc::ServerReaderWriter<::xtcp_flat_record::v1::FlatRecordsResponse,
+             ::grpc::ServerReaderWriter<::xtcp_flat_record::v1::PollFlatRecordsResponse,
              ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream) {
                return service->PollFlatRecords(ctx, stream);
              }, this)));
@@ -103,7 +103,7 @@ XTCPFlatRecordService::Service::~Service() {
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
-::grpc::Status XTCPFlatRecordService::Service::PollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::FlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream) {
+::grpc::Status XTCPFlatRecordService::Service::PollFlatRecords(::grpc::ServerContext* context, ::grpc::ServerReaderWriter< ::xtcp_flat_record::v1::PollFlatRecordsResponse, ::xtcp_flat_record::v1::PollFlatRecordsRequest>* stream) {
   (void) context;
   (void) stream;
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");

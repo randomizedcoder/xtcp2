@@ -21,6 +21,7 @@ const re2::RE2 _uuidPattern("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 
 pgv::Validator<::clickhouse_protolist::v1::Record> validator___clickhouse_protolist__v1__Record(static_cast<bool(*)(const ::clickhouse_protolist::v1::Record&, pgv::ValidationMsg*)>(::clickhouse_protolist::v1::Validate));
 pgv::Validator<::clickhouse_protolist::v1::Envelope> validator___clickhouse_protolist__v1__Envelope(static_cast<bool(*)(const ::clickhouse_protolist::v1::Envelope&, pgv::ValidationMsg*)>(::clickhouse_protolist::v1::Validate));
+pgv::Validator<::clickhouse_protolist::v1::Envelope_Record> validator___clickhouse_protolist__v1__Envelope_Record(static_cast<bool(*)(const ::clickhouse_protolist::v1::Envelope_Record&, pgv::ValidationMsg*)>(::clickhouse_protolist::v1::Validate));
 
 
 } // namespace validate
@@ -94,8 +95,8 @@ bool Validate(const ::clickhouse_protolist::v1::Envelope& m, pgv::ValidationMsg*
 	
 
 	
-		for (int i = 0; i < m.Rows().size(); i++) {
-			const auto& item = m.Rows().Get(i);
+		for (int i = 0; i < m.rows().size(); i++) {
+			const auto& item = m.rows().Get(i);
 			(void)item;
 
 			
@@ -126,6 +127,36 @@ return false;
 	
 	
 
+		
+	return true;
+}
+
+// Validate checks the field values on
+// ::clickhouse_protolist::v1::Envelope_Record with the rules defined in the
+// proto definition for this message. If any rules are violated, the return
+// value is false and an error message is written to the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::clickhouse_protolist::v1::Envelope_Record& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;// no validation rules for my_uint32
 		
 	return true;
 }

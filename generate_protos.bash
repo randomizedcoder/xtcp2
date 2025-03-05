@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "running generate_protos.bash";
+
 p=$(pwd) || true
 
 u=$(id -u)

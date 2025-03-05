@@ -122,7 +122,7 @@ func prepareBinary(c config) (binaryData []byte) {
 		envelope := &clickhouse_protolist.Envelope{}
 		for _, v := range c.values {
 			envelope.Rows = append(envelope.Rows,
-				&clickhouse_protolist.Record{
+				&clickhouse_protolist.Envelope_Record{
 					MyUint32: uint32(v),
 				},
 			)

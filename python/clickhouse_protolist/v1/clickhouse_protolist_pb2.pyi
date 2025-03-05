@@ -12,7 +12,12 @@ class Record(_message.Message):
     def __init__(self, my_uint32: _Optional[int] = ...) -> None: ...
 
 class Envelope(_message.Message):
-    __slots__ = ("Rows",)
+    __slots__ = ("rows",)
+    class Record(_message.Message):
+        __slots__ = ("my_uint32",)
+        MY_UINT32_FIELD_NUMBER: _ClassVar[int]
+        my_uint32: int
+        def __init__(self, my_uint32: _Optional[int] = ...) -> None: ...
     ROWS_FIELD_NUMBER: _ClassVar[int]
-    Rows: _containers.RepeatedCompositeFieldContainer[Record]
-    def __init__(self, Rows: _Optional[_Iterable[_Union[Record, _Mapping]]] = ...) -> None: ...
+    rows: _containers.RepeatedCompositeFieldContainer[Envelope.Record]
+    def __init__(self, rows: _Optional[_Iterable[_Union[Envelope.Record, _Mapping]]] = ...) -> None: ...

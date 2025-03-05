@@ -5,6 +5,8 @@
     <profiles>
         <!-- Default settings. -->
         <default>
+            <!-- https://github.com/ClickHouse/ClickHouse/blob/master/tests/integration/test_storage_kafka/configs/users.xml -->
+            <stream_like_engine_allow_direct_select>1</stream_like_engine_allow_direct_select>
         </default>
 
         <!-- Profile that allows only read queries. -->

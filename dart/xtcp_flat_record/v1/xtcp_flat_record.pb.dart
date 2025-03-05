@@ -52,7 +52,7 @@ class FlatRecordsRequest extends $pb.GeneratedMessage {
 
 class FlatRecordsResponse extends $pb.GeneratedMessage {
   factory FlatRecordsResponse({
-    XtcpFlatRecord? xtcpFlatRecord,
+    Envelope_XtcpFlatRecord? xtcpFlatRecord,
   }) {
     final $result = create();
     if (xtcpFlatRecord != null) {
@@ -65,7 +65,7 @@ class FlatRecordsResponse extends $pb.GeneratedMessage {
   factory FlatRecordsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FlatRecordsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'), createEmptyInstance: create)
-    ..aOM<XtcpFlatRecord>(1, _omitFieldNames ? '' : 'xtcpFlatRecord', subBuilder: XtcpFlatRecord.create)
+    ..aOM<Envelope_XtcpFlatRecord>(1, _omitFieldNames ? '' : 'xtcpFlatRecord', subBuilder: Envelope_XtcpFlatRecord.create)
     ..hasRequiredFields = false
   ;
 
@@ -91,15 +91,15 @@ class FlatRecordsResponse extends $pb.GeneratedMessage {
   static FlatRecordsResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  XtcpFlatRecord get xtcpFlatRecord => $_getN(0);
+  Envelope_XtcpFlatRecord get xtcpFlatRecord => $_getN(0);
   @$pb.TagNumber(1)
-  set xtcpFlatRecord(XtcpFlatRecord v) { setField(1, v); }
+  set xtcpFlatRecord(Envelope_XtcpFlatRecord v) { setField(1, v); }
   @$pb.TagNumber(1)
   $core.bool hasXtcpFlatRecord() => $_has(0);
   @$pb.TagNumber(1)
   void clearXtcpFlatRecord() => clearField(1);
   @$pb.TagNumber(1)
-  XtcpFlatRecord ensureXtcpFlatRecord() => $_ensure(0);
+  Envelope_XtcpFlatRecord ensureXtcpFlatRecord() => $_ensure(0);
 }
 
 class PollFlatRecordsRequest extends $pb.GeneratedMessage {
@@ -134,9 +134,60 @@ class PollFlatRecordsRequest extends $pb.GeneratedMessage {
   static PollFlatRecordsRequest? _defaultInstance;
 }
 
-/// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
-class XtcpFlatRecord extends $pb.GeneratedMessage {
-  factory XtcpFlatRecord({
+class PollFlatRecordsResponse extends $pb.GeneratedMessage {
+  factory PollFlatRecordsResponse({
+    Envelope_XtcpFlatRecord? xtcpFlatRecord,
+  }) {
+    final $result = create();
+    if (xtcpFlatRecord != null) {
+      $result.xtcpFlatRecord = xtcpFlatRecord;
+    }
+    return $result;
+  }
+  PollFlatRecordsResponse._() : super();
+  factory PollFlatRecordsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory PollFlatRecordsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PollFlatRecordsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'), createEmptyInstance: create)
+    ..aOM<Envelope_XtcpFlatRecord>(1, _omitFieldNames ? '' : 'xtcpFlatRecord', subBuilder: Envelope_XtcpFlatRecord.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  PollFlatRecordsResponse clone() => PollFlatRecordsResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  PollFlatRecordsResponse copyWith(void Function(PollFlatRecordsResponse) updates) => super.copyWith((message) => updates(message as PollFlatRecordsResponse)) as PollFlatRecordsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PollFlatRecordsResponse create() => PollFlatRecordsResponse._();
+  PollFlatRecordsResponse createEmptyInstance() => create();
+  static $pb.PbList<PollFlatRecordsResponse> createRepeated() => $pb.PbList<PollFlatRecordsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static PollFlatRecordsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PollFlatRecordsResponse>(create);
+  static PollFlatRecordsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  Envelope_XtcpFlatRecord get xtcpFlatRecord => $_getN(0);
+  @$pb.TagNumber(1)
+  set xtcpFlatRecord(Envelope_XtcpFlatRecord v) { setField(1, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasXtcpFlatRecord() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearXtcpFlatRecord() => clearField(1);
+  @$pb.TagNumber(1)
+  Envelope_XtcpFlatRecord ensureXtcpFlatRecord() => $_ensure(0);
+}
+
+class Envelope_XtcpFlatRecord extends $pb.GeneratedMessage {
+  factory Envelope_XtcpFlatRecord({
     $core.double? timestampNs,
     $core.String? hostname,
     $core.String? netns,
@@ -229,7 +280,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
     $core.int? tcpInfoTotalRtoRecoveries,
     $core.int? tcpInfoTotalRtoTime,
     $core.String? congestionAlgorithmString,
-    XtcpFlatRecord_CongestionAlgorithm? congestionAlgorithmEnum,
+    Envelope_XtcpFlatRecord_CongestionAlgorithm? congestionAlgorithmEnum,
     $core.int? typeOfService,
     $core.int? trafficClass,
     $core.int? skMemInfoRmemAlloc,
@@ -629,11 +680,11 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
     }
     return $result;
   }
-  XtcpFlatRecord._() : super();
-  factory XtcpFlatRecord.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory XtcpFlatRecord.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+  Envelope_XtcpFlatRecord._() : super();
+  factory Envelope_XtcpFlatRecord.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory Envelope_XtcpFlatRecord.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'XtcpFlatRecord', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'), createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Envelope.XtcpFlatRecord', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'), createEmptyInstance: create)
     ..a<$core.double>(10, _omitFieldNames ? '' : 'timestampNs', $pb.PbFieldType.OD)
     ..aOS(20, _omitFieldNames ? '' : 'hostname')
     ..aOS(30, _omitFieldNames ? '' : 'netns')
@@ -726,7 +777,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
     ..a<$core.int>(364, _omitFieldNames ? '' : 'tcpInfoTotalRtoRecoveries', $pb.PbFieldType.OU3)
     ..a<$core.int>(365, _omitFieldNames ? '' : 'tcpInfoTotalRtoTime', $pb.PbFieldType.OU3)
     ..aOS(400, _omitFieldNames ? '' : 'congestionAlgorithmString')
-    ..e<XtcpFlatRecord_CongestionAlgorithm>(401, _omitFieldNames ? '' : 'congestionAlgorithmEnum', $pb.PbFieldType.OE, defaultOrMaker: XtcpFlatRecord_CongestionAlgorithm.CONGESTION_ALGORITHM_UNSPECIFIED, valueOf: XtcpFlatRecord_CongestionAlgorithm.valueOf, enumValues: XtcpFlatRecord_CongestionAlgorithm.values)
+    ..e<Envelope_XtcpFlatRecord_CongestionAlgorithm>(401, _omitFieldNames ? '' : 'congestionAlgorithmEnum', $pb.PbFieldType.OE, defaultOrMaker: Envelope_XtcpFlatRecord_CongestionAlgorithm.CONGESTION_ALGORITHM_UNSPECIFIED, valueOf: Envelope_XtcpFlatRecord_CongestionAlgorithm.valueOf, enumValues: Envelope_XtcpFlatRecord_CongestionAlgorithm.values)
     ..a<$core.int>(501, _omitFieldNames ? '' : 'typeOfService', $pb.PbFieldType.OU3)
     ..a<$core.int>(502, _omitFieldNames ? '' : 'trafficClass', $pb.PbFieldType.OU3)
     ..a<$core.int>(601, _omitFieldNames ? '' : 'skMemInfoRmemAlloc', $pb.PbFieldType.OU3)
@@ -763,22 +814,22 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   'Using this can add significant overhead to your binary. '
   'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
   'Will be removed in next major version')
-  XtcpFlatRecord clone() => XtcpFlatRecord()..mergeFromMessage(this);
+  Envelope_XtcpFlatRecord clone() => Envelope_XtcpFlatRecord()..mergeFromMessage(this);
   @$core.Deprecated(
   'Using this can add significant overhead to your binary. '
   'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
   'Will be removed in next major version')
-  XtcpFlatRecord copyWith(void Function(XtcpFlatRecord) updates) => super.copyWith((message) => updates(message as XtcpFlatRecord)) as XtcpFlatRecord;
+  Envelope_XtcpFlatRecord copyWith(void Function(Envelope_XtcpFlatRecord) updates) => super.copyWith((message) => updates(message as Envelope_XtcpFlatRecord)) as Envelope_XtcpFlatRecord;
 
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static XtcpFlatRecord create() => XtcpFlatRecord._();
-  XtcpFlatRecord createEmptyInstance() => create();
-  static $pb.PbList<XtcpFlatRecord> createRepeated() => $pb.PbList<XtcpFlatRecord>();
+  static Envelope_XtcpFlatRecord create() => Envelope_XtcpFlatRecord._();
+  Envelope_XtcpFlatRecord createEmptyInstance() => create();
+  static $pb.PbList<Envelope_XtcpFlatRecord> createRepeated() => $pb.PbList<Envelope_XtcpFlatRecord>();
   @$core.pragma('dart2js:noInline')
-  static XtcpFlatRecord getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<XtcpFlatRecord>(create);
-  static XtcpFlatRecord? _defaultInstance;
+  static Envelope_XtcpFlatRecord getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Envelope_XtcpFlatRecord>(create);
+  static Envelope_XtcpFlatRecord? _defaultInstance;
 
   @$pb.TagNumber(10)
   $core.double get timestampNs => $_getN(0);
@@ -1622,9 +1673,9 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   void clearCongestionAlgorithmString() => clearField(400);
 
   @$pb.TagNumber(401)
-  XtcpFlatRecord_CongestionAlgorithm get congestionAlgorithmEnum => $_getN(92);
+  Envelope_XtcpFlatRecord_CongestionAlgorithm get congestionAlgorithmEnum => $_getN(92);
   @$pb.TagNumber(401)
-  set congestionAlgorithmEnum(XtcpFlatRecord_CongestionAlgorithm v) { setField(401, v); }
+  set congestionAlgorithmEnum(Envelope_XtcpFlatRecord_CongestionAlgorithm v) { setField(401, v); }
   @$pb.TagNumber(401)
   $core.bool hasCongestionAlgorithmEnum() => $_has(92);
   @$pb.TagNumber(401)
@@ -1892,10 +1943,11 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   void clearCGroup() => clearField(1203);
 }
 
+/// Envelope is the protobufList wrapper to allow for batch inserts into Clickhouse
 /// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 class Envelope extends $pb.GeneratedMessage {
   factory Envelope({
-    $core.Iterable<XtcpFlatRecord>? row,
+    $core.Iterable<Envelope_XtcpFlatRecord>? row,
   }) {
     final $result = create();
     if (row != null) {
@@ -1908,7 +1960,7 @@ class Envelope extends $pb.GeneratedMessage {
   factory Envelope.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Envelope', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'), createEmptyInstance: create)
-    ..pc<XtcpFlatRecord>(10, _omitFieldNames ? '' : 'row', $pb.PbFieldType.PM, subBuilder: XtcpFlatRecord.create)
+    ..pc<Envelope_XtcpFlatRecord>(10, _omitFieldNames ? '' : 'row', $pb.PbFieldType.PM, subBuilder: Envelope_XtcpFlatRecord.create)
     ..hasRequiredFields = false
   ;
 
@@ -1934,7 +1986,7 @@ class Envelope extends $pb.GeneratedMessage {
   static Envelope? _defaultInstance;
 
   @$pb.TagNumber(10)
-  $core.List<XtcpFlatRecord> get row => $_getList(0);
+  $core.List<Envelope_XtcpFlatRecord> get row => $_getList(0);
 }
 
 

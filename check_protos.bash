@@ -3,6 +3,8 @@
 # check_protos.bash
 #
 
+echo "running check_protos.bash";
+
 compare_files() {
   local file1="$1";
   local file2="$2";

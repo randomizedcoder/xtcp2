@@ -28,7 +28,7 @@ class XTCPFlatRecordServiceStub(object):
         self.PollFlatRecords = channel.stream_stream(
                 '/xtcp_flat_record.v1.XTCPFlatRecordService/PollFlatRecords',
                 request_serializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsRequest.SerializeToString,
-                response_deserializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.FlatRecordsResponse.FromString,
+                response_deserializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsResponse.FromString,
                 _registered_method=True)
 
 
@@ -66,7 +66,7 @@ def add_XTCPFlatRecordServiceServicer_to_server(servicer, server):
             'PollFlatRecords': grpc.stream_stream_rpc_method_handler(
                     servicer.PollFlatRecords,
                     request_deserializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsRequest.FromString,
-                    response_serializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.FlatRecordsResponse.SerializeToString,
+                    response_serializer=xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -128,7 +128,7 @@ class XTCPFlatRecordService(object):
             target,
             '/xtcp_flat_record.v1.XTCPFlatRecordService/PollFlatRecords',
             xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsRequest.SerializeToString,
-            xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.FlatRecordsResponse.FromString,
+            xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2.PollFlatRecordsResponse.FromString,
             options,
             channel_credentials,
             insecure,

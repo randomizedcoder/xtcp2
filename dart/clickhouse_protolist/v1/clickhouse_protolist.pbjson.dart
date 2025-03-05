@@ -29,12 +29,21 @@ final $typed_data.Uint8List recordDescriptor = $convert.base64Decode(
 const Envelope$json = {
   '1': 'Envelope',
   '2': [
-    {'1': 'Rows', '3': 1, '4': 3, '5': 11, '6': '.clickhouse_protolist.v1.Record', '10': 'Rows'},
+    {'1': 'rows', '3': 1, '4': 3, '5': 11, '6': '.clickhouse_protolist.v1.Envelope.Record', '10': 'rows'},
+  ],
+  '3': [Envelope_Record$json],
+};
+
+@$core.Deprecated('Use envelopeDescriptor instead')
+const Envelope_Record$json = {
+  '1': 'Record',
+  '2': [
+    {'1': 'my_uint32', '3': 1, '4': 1, '5': 13, '10': 'myUint32'},
   ],
 };
 
 /// Descriptor for `Envelope`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
-    'CghFbnZlbG9wZRIzCgRSb3dzGAEgAygLMh8uY2xpY2tob3VzZV9wcm90b2xpc3QudjEuUmVjb3'
-    'JkUgRSb3dz');
+    'CghFbnZlbG9wZRI8CgRyb3dzGAEgAygLMiguY2xpY2tob3VzZV9wcm90b2xpc3QudjEuRW52ZW'
+    'xvcGUuUmVjb3JkUgRyb3dzGiUKBlJlY29yZBIbCglteV91aW50MzIYASABKA1SCG15VWludDMy');
 

@@ -70,10 +70,10 @@ type XTCP struct {
 
 	hostname string
 
-	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
+	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
-	xtcpRecordZeroizer map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord)
+	xtcpRecordZeroizer map[xtcp_flat_record.Envelope_XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 	Marshallers      sync.Map
 	Marshaller       func(e *xtcp_flat_record.Envelope) (buf *[]byte)
