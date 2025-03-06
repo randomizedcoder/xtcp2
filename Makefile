@@ -43,6 +43,8 @@ help:
 	@echo "docker exec -ti xtcp-clickhouse-1 tail -n 30 -f /var/log/clickhouse-server/clickhouse-server.err.log"
 	@echo "docker exec -ti xtcp-clickhouse-1 tail -n 30 -f /var/log/clickhouse-server/clickhouse-server.log"
 	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client"
+	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT count(*) FROM xtcp.xtcp_flat_records;\""
+	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT * FROM system.kafka_consumers FORMAT Vertical;\""
 	@echo "------"
 	@echo "Browse: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages"
 
@@ -54,7 +56,7 @@ deploy:
 	echo XTCPPATH=${XTCPPATH}
 	XTCPPATH=${XTCPPATH} \
 	docker compose \
-		--file build/containers/redpanda/docker-compose.yml \
+		--file build/containers/docker-compose.yml \
 		up -d --remove-orphans
 
 
@@ -63,7 +65,7 @@ down:
 	@echo "Make down"
 	XTCPPATH=${XTCPPATH} \
 	docker compose \
-	--file build/containers/redpanda/docker-compose.yml \
+	--file build/containers/docker-compose.yml \
 	down
 
 #--env-file docker-compose-enviroment-variables \

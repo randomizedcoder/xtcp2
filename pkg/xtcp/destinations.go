@@ -355,6 +355,7 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 
 	kgoRecord.Topic = x.config.Topic
 	kgoRecord.Value = *xtcpRecordBinary
+	len := len(*xtcpRecordBinary)
 
 	var ctxP context.Context
 	var cancelP context.CancelFunc
@@ -368,7 +369,8 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 
 	kafkaStartTime := time.Now()
 
-	x.kClient.Produce(ctxP,
+	x.kClient.Produce(
+		ctxP,
 		kgoRecord,
 		func(kgoRecord *kgo.Record, err error) {
 			x.kgoRecordPool.Put(kgoRecord)
@@ -387,7 +389,7 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 			x.pC.WithLabelValues("destKafka", "Produce", "count").Inc()
 
 			if x.debugLevel > 10 {
-				log.Printf("destKafka %0.6fs %dms", dur.Seconds(), dur.Milliseconds())
+				log.Printf("destKafka len:%d %0.6fs %dms", len, dur.Seconds(), dur.Milliseconds())
 			}
 		},
 	)

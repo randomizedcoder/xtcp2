@@ -21,9 +21,10 @@
 
             [1]: https://github.com/pocoproject/poco/blob/poco-1.9.4-release/Foundation/include/Poco/Logger.h#L105-L114
         -->
-        <!-- <level>warning</level> -->
-        <!-- <level>debug</level> -->
-        <level>trace</level>
+        <!-- <level>notice</level> -->
+        <!-- <level>information</level> -->
+        <level>debug</level>
+        <!-- <level>trace</level> -->
         <log>/var/log/clickhouse-server/clickhouse-server.log</log>
         <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
         <!-- Rotation policy
@@ -373,6 +374,7 @@
     <tables_loader_foreground_pool_size>0</tables_loader_foreground_pool_size>
     <tables_loader_background_pool_size>0</tables_loader_background_pool_size>
     -->
+    <background_pool_size>32</background_pool_size>
 
     <!-- Enables asynchronous loading of databases and tables to speedup server startup.
          Queries to not yet loaded entity will be blocked until load is finished.
@@ -383,7 +385,7 @@
       -->
     <!-- <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio> -->
     <!-- dave tweak -->
-    <max_server_memory_usage_to_ram_ratio>0.3</max_server_memory_usage_to_ram_ratio>
+    <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
 
     <!-- Simple server-wide memory profiler. Collect a stack trace at every peak allocation step (in bytes).
          Data will be stored in system.trace_log table with query_id = empty string.

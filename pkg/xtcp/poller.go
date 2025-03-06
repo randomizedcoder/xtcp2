@@ -134,14 +134,17 @@ breakPoint:
 
 			var sTime time.Time
 
-			x.envelopeMu.Lock()
+			lockTime := time.Now()
+			x.envelopeMu.Lock() // <----------------------- LOCK!
 
 			b := x.Marshaller(x.currentEnvelope)
 			l := len(x.currentEnvelope.Row)
 			x.currentEnvelope.Reset()
 			sTime = x.pollStartTime
 
-			x.envelopeMu.Unlock()
+			x.envelopeMu.Unlock() // <--------------------- UNLOCK!
+
+			x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(time.Since(lockTime).Seconds())
 
 			if wf > 0 {
 				now := time.Now()
@@ -153,23 +156,36 @@ breakPoint:
 					log.Fatal(err)
 				}
 				wf--
-				log.Printf("Poller pollingLoops:%dwrote dest, wf:%d", pollingLoops, wf)
+				if x.debugLevel > 10 {
+					log.Printf("Poller pollingLoops:%dwrote dest, wf:%d", pollingLoops, wf)
+				}
 			}
 
-			n, err := x.Destination(ctx, b)
-			if err != nil {
-				x.pC.WithLabelValues("Deserialize", "Destination", "error").Inc()
-				continue
+			var n int
+			if len(*b) > 1 {
+
+				var err error
+				n, err = x.Destination(ctx, b)
+				if err != nil {
+					x.pC.WithLabelValues("Poller", "Destination", "error").Inc()
+					continue
+				}
+				x.pC.WithLabelValues("Poller", "Destination", "count").Inc()
+				x.pC.WithLabelValues("Poller", "Destination", "countN").Add(float64(l))
+				x.pC.WithLabelValues("Poller", "Destination", "bytes").Add(float64(n))
+
+			} else {
+				x.pC.WithLabelValues("Poller", "DestinationShort", "error").Inc()
+				if x.debugLevel > 10 {
+					log.Printf("Poller pollingLoops:%d len(*b):%d is too short", pollingLoops, len(*b))
+				}
 			}
-			x.pC.WithLabelValues("Deserialize", "Destination", "count").Inc()
-			x.pC.WithLabelValues("Deserialize", "Destination", "countN").Add(float64(l))
-			x.pC.WithLabelValues("Deserialize", "Destination", "bytes").Add(float64(n))
 
 			pollDuration := time.Since(sTime)
 			x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
 
 			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d pullDuration:%0.4fs %dms bytes:%d",
+				log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms bytes:%d",
 					pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds(), n)
 			}
 

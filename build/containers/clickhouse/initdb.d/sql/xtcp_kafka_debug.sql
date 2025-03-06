@@ -5,6 +5,8 @@
 SELECT * FROM system.kafka_consumers FORMAT Vertical;
 SELECT now();
 
+-- SELECT * FROM system.stack_trace LIMIT 10;
+
 -- 155ecab95bba :) SELECT * FROM system.kafka_consumers FORMAT Vertical;
 
 -- SELECT *

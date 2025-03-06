@@ -141,7 +141,7 @@ func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte
 	}
 
 	if x.debugLevel > 10 {
-		log.Printf("protodelim.MarshalTo() n:%d", n)
+		log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
 	}
 
 	bufPtr = writer.Buf

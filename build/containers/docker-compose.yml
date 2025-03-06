@@ -142,11 +142,12 @@ services:
         soft: 262144
         hard: 262144
     cap_add:
+      # https://www.man7.org/linux/man-pages/man7/capabilities.7.html
       # https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities
-      - NET_ADMIN
-      - SYS_NICE
-      - IPC_LOCK
-      - SYS_PTRACE
+      - CAP_NET_ADMIN
+      - CAP_SYS_NICE
+      - CAP_IPC_LOCK
+      - CAP_SYS_PTRACE
     ports:
       # http
       - 18123:8123
@@ -197,6 +198,7 @@ services:
     environment:
       DEBUG_LEVEL: "111"
       POLL_FREQUENCY: "5s"
+      POLL_TIMEOUT: "4s"
       #
       GOMEMLIMIT: 148MiB
       # https://tip.golang.org/doc/gc-guide#GOGC
@@ -208,16 +210,17 @@ services:
       - 9088:9088
     #   # grpc
     #   - 8888:8888
-    privileged: true
+    #privileged: true
     network_mode: host
     pid: host
     ipc: host
     cap_add:
+    # https://www.man7.org/linux/man-pages/man7/capabilities.7.html
     # https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities
     # https://github.com/moby/moby/blob/ad9d70b0e6833b746eecccc08a17459ba8bb31c4/oci/caps/utils.go#L83
-    - NET_ADMIN
-    - SYS_ADMIN
-    - SYS_CHROOT
+    - CAP_NET_ADMIN
+    - CAP_SYS_ADMIN
+    - CAP_SYS_CHROOT
     restart: unless-stopped
     deploy:
       resources:
