@@ -167,15 +167,16 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 		kgo.DisableIdempotentWrite(),
 
 		// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#BrokerMaxWriteBytes
-		// maxBrokerWriteBytes: 100 << 20, // Kafka socket.request.max.bytes default is 100<<20 = 104857600
+		// maxBrokerWriteBytes: 100 << 20,
+		// Kafka socket.request.max.bytes default is 100<<20 = 104857600 = 100 MB
 		// https://github.com/twmb/franz-go/blob/v1.17.1/pkg/kgo/config.go#L483C3-L483C87
 		// https://www.wolframalpha.com/input?i=1+%3C%3C+10
-		kgo.BrokerMaxWriteBytes(100 << 18),
+		kgo.BrokerMaxWriteBytes(100 << 18), // 26214400 = 26 MB
 
 		// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#ProducerBatchMaxBytes
 		// Copied from the benchmark
 		// https://github.com/twmb/franz-go/blob/master/examples/bench/main.go#L104
-		kgo.ProducerBatchMaxBytes(1000000),
+		kgo.ProducerBatchMaxBytes(1000000), // 1 MB
 
 		// Debugging in the kgo client
 		// kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelDebug, func() string {

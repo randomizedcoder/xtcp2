@@ -6,6 +6,7 @@ SELECT * FROM system.kafka_consumers FORMAT Vertical;
 SELECT now();
 
 -- SELECT * FROM system.stack_trace LIMIT 10;
+-- docker exec -ti xtcp-clickhouse-1 clickhouse-client --query "SELECT * FROM system.stack_trace ORDER BY 'thread_id' DESC LIMIT 10;"
 
 -- 155ecab95bba :) SELECT * FROM system.kafka_consumers FORMAT Vertical;
 
