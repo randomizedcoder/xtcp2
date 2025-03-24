@@ -137,6 +137,11 @@ breakPoint:
 			lockTime := time.Now()
 			x.envelopeMu.Lock() // <----------------------- LOCK!
 
+			if x.debugLevel > 10 {
+				log.Printf("Poller pollingLoops:%d calling x.destKafkaProto(ctx, x.currentEnvelope)", pollingLoops)
+			}
+			x.destKafkaProto(ctx, x.currentEnvelope)
+
 			b := x.Marshaller(x.currentEnvelope)
 			l := len(x.currentEnvelope.Row)
 

@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -14,6 +15,62 @@ func (x *XTCP) destNull(_ context.Context, xtcpRecordBinary *[]byte) (n int, err
 	x.pC.WithLabelValues("destNull", "start", "count").Inc()
 
 	return len(*xtcpRecordBinary), nil
+}
+
+// destKafkaProto sends the protobuf in protobuf format to kafka
+// this is to test the serdes method of franz-go
+func (x *XTCP) destKafkaProto(ctx context.Context, e *xtcp_flat_record.Envelope) (n int, err error) {
+
+	kgoRecord := x.kgoRecordPool.Get().(*kgo.Record)
+	// defer x.kgoRecordPool.Put(kgoRecord)
+
+	kgoRecord.Topic = "serdeTest"
+	kgoRecord.Value = x.kSerde.MustEncode(e)
+	//kgoRecord.Value = x.kSerde.MustEncode(*xtcpRecordBinary)
+	len := len(kgoRecord.Value)
+
+	var (
+		ctxP    context.Context
+		cancelP context.CancelFunc
+	)
+	if x.config.KafkaProduceTimeout.AsDuration() != 0 {
+		// I don't understand why setting a context with a timeout doesn't work,
+		// but it definitely doesn't.  It always says the context is canceled. ?!
+		ctxP, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
+		defer cancelP()
+	}
+	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
+
+	kafkaStartTime := time.Now()
+
+	x.kClient.Produce(
+		ctxP,
+		kgoRecord,
+		func(kgoRecord *kgo.Record, err error) {
+			dur := time.Since(kafkaStartTime)
+
+			x.kgoRecordPool.Put(kgoRecord)
+
+			//cancelP()
+			if err != nil {
+				x.pH.WithLabelValues("destKafkaProto", "Produce", "error").Observe(dur.Seconds())
+				x.pC.WithLabelValues("destKafkaProto", "Produce", "error").Inc()
+				if x.debugLevel > 10 {
+					log.Printf("destKafkaProto %0.6fs Produce err:%v", dur.Seconds(), err)
+				}
+				return
+			}
+
+			x.pH.WithLabelValues("destKafkaProto", "Produce", "count").Observe(dur.Seconds())
+			x.pC.WithLabelValues("destKafkaProto", "Produce", "count").Inc()
+
+			if x.debugLevel > 10 {
+				log.Printf("destKafkaProto len:%d %0.6fs %dms", len, dur.Seconds(), dur.Milliseconds())
+			}
+		},
+	)
+
+	return 1, err
 }
 
 // destKafka sends the protobuf to kafka
@@ -28,8 +85,7 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 
 	kgoRecord.Topic = x.config.Topic
 	kgoRecord.Value = *xtcpRecordBinary
-	//kgoRecord.Value = x.kSerde.MustEncode(*xtcpRecordBinary)
-	len := len(*xtcpRecordBinary)
+	len := len(kgoRecord.Value)
 
 	var (
 		ctxP    context.Context
