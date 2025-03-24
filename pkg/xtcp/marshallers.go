@@ -127,8 +127,6 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-const delimCst = false
-
 func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
 	buf = x.destBytesPool.Get().(*[]byte)
@@ -150,7 +148,7 @@ func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 		log.Printf("protobufListMarshal header bytes: % X", (*buf)[:KafkaHeaderSizeCst])
 	}
 
-	if delimCst {
+	if x.config.ProtobufListLengthDelimit {
 
 		// writer will append from end of buf
 		writer := &ByteSliceWriter{Buf: buf}

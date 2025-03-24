@@ -266,6 +266,10 @@
           "type": "string",
           "title": "Marshalling of the exported data (protobufList,json,prototext)"
         },
+        "protobufListLengthDelimit": {
+          "type": "boolean",
+          "title": "protobufListMarshal can optionally not length delimit"
+        },
         "dest": {
           "type": "string",
           "title": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:"
