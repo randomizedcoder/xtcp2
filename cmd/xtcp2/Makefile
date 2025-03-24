@@ -76,4 +76,8 @@ run:
 
 x:
 	sudo DEST=null DESERIALIZERS=meminfo,cong POLL_FREQUENCY=300s ./xtcp2
+
+checkenvvar:
+	MAXLOOPS=10 DEST=BOO ./${BINARY} -conf
+
 #
