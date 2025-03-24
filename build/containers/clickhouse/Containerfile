@@ -16,7 +16,8 @@ ARG VERSION
 # FROM clickhouse/clickhouse-server:24.8.12-alpine
 # FROM clickhouse/clickhouse-server:24.8.12
 # FROM clickhouse/clickhouse-server:24.12.4
-FROM clickhouse/clickhouse-server:25.1.5.31
+# FROM clickhouse/clickhouse-server:25.1.5.31
+FROM clickhouse/clickhouse-server:25.3.1
 
 ARG XTCPPATH
 ARG VERSION

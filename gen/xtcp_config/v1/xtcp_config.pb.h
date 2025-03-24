@@ -847,6 +847,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kMarshalToFieldNumber = 120,
     kDestFieldNumber = 130,
     kTopicFieldNumber = 140,
+    kXtcpProtoFileFieldNumber = 143,
+    kKafkaSchemaUrlFieldNumber = 145,
     kLabelFieldNumber = 170,
     kTagFieldNumber = 180,
     kPollFrequencyFieldNumber = 20,
@@ -928,6 +930,38 @@ class XtcpConfig final : public ::google::protobuf::Message
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_topic(
       const std::string& value);
   std::string* _internal_mutable_topic();
+
+  public:
+  // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+  void clear_xtcp_proto_file() ;
+  const std::string& xtcp_proto_file() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_xtcp_proto_file(Arg_&& arg, Args_... args);
+  std::string* mutable_xtcp_proto_file();
+  PROTOBUF_NODISCARD std::string* release_xtcp_proto_file();
+  void set_allocated_xtcp_proto_file(std::string* value);
+
+  private:
+  const std::string& _internal_xtcp_proto_file() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_xtcp_proto_file(
+      const std::string& value);
+  std::string* _internal_mutable_xtcp_proto_file();
+
+  public:
+  // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+  void clear_kafka_schema_url() ;
+  const std::string& kafka_schema_url() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_kafka_schema_url(Arg_&& arg, Args_... args);
+  std::string* mutable_kafka_schema_url();
+  PROTOBUF_NODISCARD std::string* release_kafka_schema_url();
+  void set_allocated_kafka_schema_url(std::string* value);
+
+  private:
+  const std::string& _internal_kafka_schema_url() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_kafka_schema_url(
+      const std::string& value);
+  std::string* _internal_mutable_kafka_schema_url();
 
   public:
   // string label = 170 [json_name = "label", (.buf.validate.field) = {
@@ -1147,8 +1181,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 22, 4,
-      89, 27>
+      5, 24, 4,
+      128, 27>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1171,6 +1205,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr marshal_to_;
     ::google::protobuf::internal::ArenaStringPtr dest_;
     ::google::protobuf::internal::ArenaStringPtr topic_;
+    ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
+    ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
     ::google::protobuf::Duration* poll_frequency_;
@@ -3177,6 +3213,102 @@ inline void XtcpConfig::set_allocated_topic(std::string* value) {
     _impl_.topic_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.topic)
+}
+
+// string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+inline void XtcpConfig::clear_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::xtcp_proto_file() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  return _internal_xtcp_proto_file();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_xtcp_proto_file(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+}
+inline std::string* XtcpConfig::mutable_xtcp_proto_file() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_xtcp_proto_file();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_xtcp_proto_file() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.xtcp_proto_file_.Get();
+}
+inline void XtcpConfig::_internal_set_xtcp_proto_file(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.xtcp_proto_file_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  return _impl_.xtcp_proto_file_.Release();
+}
+inline void XtcpConfig::set_allocated_xtcp_proto_file(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.xtcp_proto_file_.IsDefault()) {
+    _impl_.xtcp_proto_file_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+}
+
+// string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::kafka_schema_url() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  return _internal_kafka_schema_url();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_schema_url(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+}
+inline std::string* XtcpConfig::mutable_kafka_schema_url() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_kafka_schema_url();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_kafka_schema_url() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.kafka_schema_url_.Get();
+}
+inline void XtcpConfig::_internal_set_kafka_schema_url(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.kafka_schema_url_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  return _impl_.kafka_schema_url_.Release();
+}
+inline void XtcpConfig::set_allocated_kafka_schema_url(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_schema_url_.IsDefault()) {
+    _impl_.kafka_schema_url_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_schema_url)
 }
 
 // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {

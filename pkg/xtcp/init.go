@@ -25,6 +25,8 @@ func (x *XTCP) Init(ctx context.Context) {
 		log.Println("Init starting")
 	}
 
+	x.schemaID = 5 // TODO change this!!
+
 	if err := x.checkCapabilities(); err != nil {
 		log.Print(err) // TODO log.Fatal
 	}

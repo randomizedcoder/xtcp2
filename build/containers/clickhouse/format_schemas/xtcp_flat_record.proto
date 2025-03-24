@@ -32,31 +32,6 @@ option go_package = "./pkg/xtcp_flat_record";
 // https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
 // import "buf/validate/validate.proto";
 
-service XTCPFlatRecordService {
-
-	// If xtcp is polling, this will return the stream
-	rpc FlatRecords ( FlatRecordsRequest ) returns ( stream FlatRecordsResponse );
-
-	// If xtcp is not polling, this allows the client to send a poll request
-	rpc PollFlatRecords ( stream PollFlatRecordsRequest ) returns ( stream PollFlatRecordsResponse );
-}
-
-message FlatRecordsRequest {
-	// empty
-}
-
-message FlatRecordsResponse {
-	Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
-}
-
-message PollFlatRecordsRequest {
-	// empty
-}
-
-message PollFlatRecordsResponse {
-	Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
-}
-
 // xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 
 // Envelope is the protobufList wrapper to allow for batch inserts into Clickhouse
@@ -270,5 +245,30 @@ message Envelope {
 
 	repeated XtcpFlatRecord row                     = 10;
 };
+
+service XTCPFlatRecordService {
+
+	// If xtcp is polling, this will return the stream
+	rpc FlatRecords ( FlatRecordsRequest ) returns ( stream FlatRecordsResponse );
+
+	// If xtcp is not polling, this allows the client to send a poll request
+	rpc PollFlatRecords ( stream PollFlatRecordsRequest ) returns ( stream PollFlatRecordsResponse );
+}
+
+message FlatRecordsRequest {
+	// empty
+}
+
+message FlatRecordsResponse {
+	Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
+}
+
+message PollFlatRecordsRequest {
+	// empty
+}
+
+message PollFlatRecordsResponse {
+	Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
+}
 
 // end

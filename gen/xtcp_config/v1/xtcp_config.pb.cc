@@ -129,6 +129,12 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         topic_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        xtcp_proto_file_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        kafka_schema_url_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         label_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
@@ -364,6 +370,8 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_write_files_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.topic_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.xtcp_proto_file_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.kafka_schema_url_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.kafka_produce_timeout_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.debug_level_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.label_),
@@ -373,6 +381,8 @@ const ::uint32_t
         ~0u,
         0,
         1,
+        ~0u,
+        ~0u,
         ~0u,
         ~0u,
         ~0u,
@@ -423,9 +433,9 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 90, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {112, 122, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {124, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, 92, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {116, 126, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {128, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -458,7 +468,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\312\n\n\nXtcpConfi"
+    "nfig.v1.XtcpConfigR\006config\"\272\013\n\nXtcpConfi"
     "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
     "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
     "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
@@ -480,36 +490,39 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "\004\030(\310\001\001R\tmarshalTo\022!\n\004dest\030\202\001 \001(\tB\014\272H\tr\004\020"
     "\004\030(\310\001\001R\004dest\0228\n\020dest_write_files\030\207\001 \001(\rB"
     "\r\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022#\n\005topic\030"
-    "\214\001 \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005topic\022`\n\025kafka_pro"
-    "duce_timeout\030\226\001 \001(\0132\031.google.protobuf.Du"
-    "rationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTi"
-    "meout\022/\n\013debug_level\030\240\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310"
-    "\001\001R\ndebugLevel\022!\n\005label\030\252\001 \001(\tB\n\272H\007r\002\030(\310"
-    "\001\000R\005label\022\035\n\003tag\030\264\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag"
-    "\022,\n\tgrpc_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010gr"
-    "pcPort\022b\n\025enabled_deserializers\030\310\001 \001(\0132$"
-    ".xtcp_config.v1.EnabledDeserializersB\006\272H"
-    "\003\310\001\000R\024enabledDeserializers:s\272Hp\032n\n\017XtcpC"
-    "onfig.poll\0222Poll timeout must be less th"
-    "an poll poll_frequency\032\'this.poll_freque"
-    "ncy > this.poll_timeout\"\237\001\n\024EnabledDeser"
-    "ializers\022K\n\007enabled\030\001 \003(\01321.xtcp_config."
-    "v1.EnabledDeserializers.EnabledEntryR\007en"
-    "abled\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022"
-    "\024\n\005value\030\002 \001(\010R\005value:\0028\0012\341\002\n\rConfigServ"
-    "ice\022]\n\003Get\022\032.xtcp_config.v1.GetRequest\032\033"
-    ".xtcp_config.v1.GetResponse\"\035\202\323\344\223\002\027\032\022/Co"
-    "nfigService/Get:\001*\022]\n\003Set\022\032.xtcp_config."
-    "v1.SetRequest\032\033.xtcp_config.v1.SetRespon"
-    "se\"\035\202\323\344\223\002\027\032\022/ConfigService/Set:\001*\022\221\001\n\020Se"
-    "tPollFrequency\022\'.xtcp_config.v1.SetPollF"
-    "requencyRequest\032(.xtcp_config.v1.SetPoll"
-    "FrequencyResponse\"*\202\323\344\223\002$\032\037/ConfigServic"
-    "e/SetPollFrequency:\001*B\215\001\n\022com.xtcp_confi"
-    "g.v1B\017XtcpConfigProtoP\001Z\021./pkg/xtcp_conf"
-    "ig\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V1"
-    "\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002\016XtcpConfi"
-    "g::V1b\006proto3"
+    "\214\001 \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005topic\0225\n\017xtcp_prot"
+    "o_file\030\217\001 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\rxtcpProtoFi"
+    "le\0227\n\020kafka_schema_url\030\221\001 \001(\tB\014\272H\tr\004\020\001\030<"
+    "\310\001\000R\016kafkaSchemaUrl\022`\n\025kafka_produce_tim"
+    "eout\030\226\001 \001(\0132\031.google.protobuf.DurationB\020"
+    "\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTimeout\022/\n"
+    "\013debug_level\030\240\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebu"
+    "gLevel\022!\n\005label\030\252\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\005labe"
+    "l\022\035\n\003tag\030\264\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag\022,\n\tgrpc"
+    "_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPort\022b"
+    "\n\025enabled_deserializers\030\310\001 \001(\0132$.xtcp_co"
+    "nfig.v1.EnabledDeserializersB\006\272H\003\310\001\000R\024en"
+    "abledDeserializers:s\272Hp\032n\n\017XtcpConfig.po"
+    "ll\0222Poll timeout must be less than poll "
+    "poll_frequency\032\'this.poll_frequency > th"
+    "is.poll_timeout\"\237\001\n\024EnabledDeserializers"
+    "\022K\n\007enabled\030\001 \003(\01321.xtcp_config.v1.Enabl"
+    "edDeserializers.EnabledEntryR\007enabled\032:\n"
+    "\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value"
+    "\030\002 \001(\010R\005value:\0028\0012\341\002\n\rConfigService\022]\n\003G"
+    "et\022\032.xtcp_config.v1.GetRequest\032\033.xtcp_co"
+    "nfig.v1.GetResponse\"\035\202\323\344\223\002\027\032\022/ConfigServ"
+    "ice/Get:\001*\022]\n\003Set\022\032.xtcp_config.v1.SetRe"
+    "quest\032\033.xtcp_config.v1.SetResponse\"\035\202\323\344\223"
+    "\002\027\032\022/ConfigService/Set:\001*\022\221\001\n\020SetPollFre"
+    "quency\022\'.xtcp_config.v1.SetPollFrequency"
+    "Request\032(.xtcp_config.v1.SetPollFrequenc"
+    "yResponse\"*\202\323\344\223\002$\032\037/ConfigService/SetPol"
+    "lFrequency:\001*B\215\001\n\022com.xtcp_config.v1B\017Xt"
+    "cpConfigProtoP\001Z\021./pkg/xtcp_config\242\002\003XXX"
+    "\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V1\342\002\031XtcpC"
+    "onfig\\V1\\GPBMetadata\352\002\016XtcpConfig::V1b\006p"
+    "roto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -521,7 +534,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    2773,
+    2885,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -1995,6 +2008,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         marshal_to_(arena, from.marshal_to_),
         dest_(arena, from.dest_),
         topic_(arena, from.topic_),
+        xtcp_proto_file_(arena, from.xtcp_proto_file_),
+        kafka_schema_url_(arena, from.kafka_schema_url_),
         label_(arena, from.label_),
         tag_(arena, from.tag_) {}
 
@@ -2042,6 +2057,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         marshal_to_(arena),
         dest_(arena),
         topic_(arena),
+        xtcp_proto_file_(arena),
+        kafka_schema_url_(arena),
         label_(arena),
         tag_(arena) {}
 
@@ -2066,6 +2083,8 @@ inline void XtcpConfig::SharedDtor(MessageLite& self) {
   this_._impl_.marshal_to_.Destroy();
   this_._impl_.dest_.Destroy();
   this_._impl_.topic_.Destroy();
+  this_._impl_.xtcp_proto_file_.Destroy();
+  this_._impl_.kafka_schema_url_.Destroy();
   this_._impl_.label_.Destroy();
   this_._impl_.tag_.Destroy();
   delete this_._impl_.poll_frequency_;
@@ -2111,7 +2130,7 @@ const ::google::protobuf::internal::ClassData* XtcpConfig::GetClassData() const 
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
+const ::_pbi::TcParseTable<5, 24, 4, 128, 27> XtcpConfig::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_._has_bits_),
     0, // no _extensions_
@@ -2119,7 +2138,7 @@ const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
     offsetof(decltype(_table_), field_lookup_table),
     3757571583,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    22,  // num_field_entries
+    24,  // num_field_entries
     4,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     _class_data_.base(),
@@ -2150,7 +2169,9 @@ const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
     // uint32 packet_size_mply = 80 [json_name = "packetSizeMply", (.buf.validate.field) = {
     {::_pbi::TcParser::FastV32S2,
      {1408, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.packet_size_mply_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastUS2,
+     {2442, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.kafka_schema_url_)}},
     // uint32 netlinkers = 50 [json_name = "netlinkers", (.buf.validate.field) = {
     {::_pbi::TcParser::FastV32S2,
      {912, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.netlinkers_)}},
@@ -2182,11 +2203,13 @@ const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
     // .google.protobuf.Duration poll_timeout = 30 [json_name = "pollTimeout", (.buf.validate.field) = {
     {::_pbi::TcParser::FastMtS2,
      {498, 1, 1, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.poll_timeout_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastUS2,
+     {2298, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.xtcp_proto_file_)}},
   }}, {{
     40, 0, 11,
     62462, 3, 49135, 6, 65279, 8, 61435, 9, 65471, 11, 31742, 12,
-    49135, 15, 65279, 17, 61435, 18, 65471, 20, 65534, 21,
+    48495, 15, 65279, 19, 61435, 20, 65471, 22, 65534, 23,
     65535, 65535
   }}, {{
     // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2237,6 +2260,12 @@ const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
     // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.topic_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.xtcp_proto_file_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.kafka_schema_url_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.kafka_produce_timeout_), _Internal::kHasBitsOffset + 2, 2,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
@@ -2261,12 +2290,14 @@ const ::_pbi::TcParseTable<5, 22, 4, 89, 27> XtcpConfig::_table_ = {
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::xtcp_config::v1::EnabledDeserializers>()},
   }}, {{
-    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\4\0\5\0\0\5\3\0\0\0"
+    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\4\0\5\17\20\0\0\5\3\0\0\0\0\0\0\0\0\0"
     "xtcp_config.v1.XtcpConfig"
     "capture_path"
     "marshal_to"
     "dest"
     "topic"
+    "xtcp_proto_file"
+    "kafka_schema_url"
     "label"
     "tag"
   }},
@@ -2283,6 +2314,8 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   _impl_.marshal_to_.ClearToEmpty();
   _impl_.dest_.ClearToEmpty();
   _impl_.topic_.ClearToEmpty();
+  _impl_.xtcp_proto_file_.ClearToEmpty();
+  _impl_.kafka_schema_url_.ClearToEmpty();
   _impl_.label_.ClearToEmpty();
   _impl_.tag_.ClearToEmpty();
   cached_has_bits = _impl_._has_bits_[0];
@@ -2443,6 +2476,22 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             target = stream->WriteStringMaybeAliased(140, _s, target);
           }
 
+          // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+          if (!this_._internal_xtcp_proto_file().empty()) {
+            const std::string& _s = this_._internal_xtcp_proto_file();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.xtcp_proto_file");
+            target = stream->WriteStringMaybeAliased(143, _s, target);
+          }
+
+          // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+          if (!this_._internal_kafka_schema_url().empty()) {
+            const std::string& _s = this_._internal_kafka_schema_url();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.kafka_schema_url");
+            target = stream->WriteStringMaybeAliased(145, _s, target);
+          }
+
           // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
           if (cached_has_bits & 0x00000004u) {
             target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
@@ -2531,6 +2580,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             if (!this_._internal_topic().empty()) {
               total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                               this_._internal_topic());
+            }
+            // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+            if (!this_._internal_xtcp_proto_file().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_xtcp_proto_file());
+            }
+            // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+            if (!this_._internal_kafka_schema_url().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_kafka_schema_url());
             }
             // string label = 170 [json_name = "label", (.buf.validate.field) = {
             if (!this_._internal_label().empty()) {
@@ -2653,6 +2712,12 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (!from._internal_topic().empty()) {
     _this->_internal_set_topic(from._internal_topic());
   }
+  if (!from._internal_xtcp_proto_file().empty()) {
+    _this->_internal_set_xtcp_proto_file(from._internal_xtcp_proto_file());
+  }
+  if (!from._internal_kafka_schema_url().empty()) {
+    _this->_internal_set_kafka_schema_url(from._internal_kafka_schema_url());
+  }
   if (!from._internal_label().empty()) {
     _this->_internal_set_label(from._internal_label());
   }
@@ -2756,6 +2821,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.marshal_to_, &other->_impl_.marshal_to_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.dest_, &other->_impl_.dest_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.topic_, &other->_impl_.topic_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.xtcp_proto_file_, &other->_impl_.xtcp_proto_file_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.kafka_schema_url_, &other->_impl_.kafka_schema_url_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.label_, &other->_impl_.label_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.tag_, &other->_impl_.tag_, arena);
   ::google::protobuf::internal::memswap<

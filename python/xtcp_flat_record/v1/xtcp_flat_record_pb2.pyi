@@ -6,26 +6,6 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class FlatRecordsRequest(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class FlatRecordsResponse(_message.Message):
-    __slots__ = ("xtcp_flat_record",)
-    XTCP_FLAT_RECORD_FIELD_NUMBER: _ClassVar[int]
-    xtcp_flat_record: Envelope.XtcpFlatRecord
-    def __init__(self, xtcp_flat_record: _Optional[_Union[Envelope.XtcpFlatRecord, _Mapping]] = ...) -> None: ...
-
-class PollFlatRecordsRequest(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class PollFlatRecordsResponse(_message.Message):
-    __slots__ = ("xtcp_flat_record",)
-    XTCP_FLAT_RECORD_FIELD_NUMBER: _ClassVar[int]
-    xtcp_flat_record: Envelope.XtcpFlatRecord
-    def __init__(self, xtcp_flat_record: _Optional[_Union[Envelope.XtcpFlatRecord, _Mapping]] = ...) -> None: ...
-
 class Envelope(_message.Message):
     __slots__ = ("row",)
     class XtcpFlatRecord(_message.Message):
@@ -296,3 +276,23 @@ class Envelope(_message.Message):
     ROW_FIELD_NUMBER: _ClassVar[int]
     row: _containers.RepeatedCompositeFieldContainer[Envelope.XtcpFlatRecord]
     def __init__(self, row: _Optional[_Iterable[_Union[Envelope.XtcpFlatRecord, _Mapping]]] = ...) -> None: ...
+
+class FlatRecordsRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class FlatRecordsResponse(_message.Message):
+    __slots__ = ("xtcp_flat_record",)
+    XTCP_FLAT_RECORD_FIELD_NUMBER: _ClassVar[int]
+    xtcp_flat_record: Envelope.XtcpFlatRecord
+    def __init__(self, xtcp_flat_record: _Optional[_Union[Envelope.XtcpFlatRecord, _Mapping]] = ...) -> None: ...
+
+class PollFlatRecordsRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class PollFlatRecordsResponse(_message.Message):
+    __slots__ = ("xtcp_flat_record",)
+    XTCP_FLAT_RECORD_FIELD_NUMBER: _ClassVar[int]
+    xtcp_flat_record: Envelope.XtcpFlatRecord
+    def __init__(self, xtcp_flat_record: _Optional[_Union[Envelope.XtcpFlatRecord, _Mapping]] = ...) -> None: ...

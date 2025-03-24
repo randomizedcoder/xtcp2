@@ -49,7 +49,6 @@ const (
 	marshalCst = "protobufList"
 
 	// Redpanda
-	// destCst = "kafka:localhost:19092"
 	destCst = "kafka:redpanda-0:9092"
 	// destCst = "udp:127.0.0.1:13000"
 	// destCst = "nsq:nsqd:4150"
@@ -58,6 +57,10 @@ const (
 	// destCst = "null"
 
 	topicCst = "xtcp"
+
+	// relative to the container
+	xtcpProtoFileCst  = "/xtcp_flat_record.proto"
+	kafkaSchemaUrlCst = "http://localhost:18081"
 
 	kafkaProduceTimeoutCst = 0 * time.Second
 
@@ -120,13 +123,17 @@ func main() {
 	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshalled data to destWriteFiles number of files ( for debugging only )")
 	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
+	xtcpProtoFile := flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")
+	kafkaSchemaUrl := flag.String("kafkaSchemaUrl", kafkaSchemaUrlCst, "kafka schema registry URL")
 	produceTimeout := flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
 	label := flag.String("label", labelCst, "label applied to the protobuf")
 	tag := flag.String("tag", tagCst, "label applied to the protobuf")
 
 	grpcPort := flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 
-	deserializers := flag.String("deserializers", "info,cong", "Comma seperated list of deserializers")
+	deserializers := flag.String("deserializers", "", "Comma seperated list of deserializers")
+	// deserializers := flag.String("deserializers", "info", "Comma seperated list of deserializers")
+	// deserializers := flag.String("deserializers", "info,cong", "Comma seperated list of deserializers")
 	// meminfo := flag.Bool("meminfo", false, "meminfo")
 	// info := flag.Bool("info", false, "info")
 	// vegas := flag.Bool("vegas", false, "vegas")
@@ -181,6 +188,8 @@ func main() {
 		fmt.Println("*dest:", *dest)
 		fmt.Println("*destWriteFiles:", *destWriteFiles)
 		fmt.Println("*topic:", *topic)
+		fmt.Println("*xtcpProtoFile:", *xtcpProtoFile)
+		fmt.Println("*kafkaSchemaUrl:", *kafkaSchemaUrl)
 		fmt.Println("*produceTimeout:", *produceTimeout)
 		fmt.Println("*promListen:", *promListen)
 		fmt.Println("*promPath:", *promPath)
@@ -208,6 +217,8 @@ func main() {
 		Dest:                   *dest,
 		DestWriteFiles:         uint32(*destWriteFiles),
 		Topic:                  *topic,
+		XtcpProtoFile:          *xtcpProtoFile,
+		KafkaSchemaUrl:         *kafkaSchemaUrl,
 		KafkaProduceTimeout:    durationpb.New(*produceTimeout),
 		DebugLevel:             uint32(*d),
 		Label:                  *label,
@@ -537,7 +548,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		}
 	}
 
-	key = "DESTWRITEFILES"
+	key = "DEST_WRITE_FILES"
 	if value, exists := os.LookupEnv(key); exists {
 		if i, err := strconv.Atoi(value); err == nil {
 			c.DestWriteFiles = uint32(i)
@@ -552,6 +563,22 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.Topic = value
 		if debugLevel > 10 {
 			log.Printf("key:%s, c.Topic:%s", key, c.Topic)
+		}
+	}
+
+	key = "XTCP_PROTO_FILE"
+	if value, exists := os.LookupEnv(key); exists {
+		c.XtcpProtoFile = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.XtcpProtoFile:%s", key, c.XtcpProtoFile)
+		}
+	}
+
+	key = "KAFKA_SCHEMA_URL"
+	if value, exists := os.LookupEnv(key); exists {
+		c.KafkaSchemaUrl = value
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.KafkaSchemaUrl:%s", key, c.KafkaSchemaUrl)
 		}
 	}
 
@@ -607,13 +634,16 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.Modulus:", c.Modulus)
 	fmt.Println("c.MarshalTo:", c.MarshalTo)
 	fmt.Println("c.Dest:", c.Dest)
+	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)
-	fmt.Println("c.KafkaProduceTimeout:", c.KafkaProduceTimeout.AsDuration())
+	fmt.Println("c.XtcpProtoFile:", c.XtcpProtoFile)
+	fmt.Println("c.KafkaSchemaUrl:", c.KafkaSchemaUrl)
 	fmt.Println("c.KafkaProduceTimeout:", c.KafkaProduceTimeout.AsDuration())
 	fmt.Println("c.DebugLevel:", c.DebugLevel)
 	fmt.Println("c.Label:", c.Label)
 	fmt.Println("c.Tag:", c.Tag)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
+	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
 }
 
 func getDeserializers(str string) *xtcp_config.EnabledDeserializers {

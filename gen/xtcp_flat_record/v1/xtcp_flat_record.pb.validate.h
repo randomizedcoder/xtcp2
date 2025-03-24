@@ -20,6 +20,8 @@ namespace v1 {
 using std::string;
 
 
+extern bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationMsg* err);
+
 extern bool Validate(const ::xtcp_flat_record::v1::FlatRecordsRequest& m, pgv::ValidationMsg* err);
 
 extern bool Validate(const ::xtcp_flat_record::v1::FlatRecordsResponse& m, pgv::ValidationMsg* err);
@@ -27,8 +29,6 @@ extern bool Validate(const ::xtcp_flat_record::v1::FlatRecordsResponse& m, pgv::
 extern bool Validate(const ::xtcp_flat_record::v1::PollFlatRecordsRequest& m, pgv::ValidationMsg* err);
 
 extern bool Validate(const ::xtcp_flat_record::v1::PollFlatRecordsResponse& m, pgv::ValidationMsg* err);
-
-extern bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationMsg* err);
 
 extern bool Validate(const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& m, pgv::ValidationMsg* err);
 
@@ -38,10 +38,10 @@ extern bool Validate(const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& m, p
 
 
 #define X_XTCP_FLAT_RECORD_V1_XTCP_FLAT_RECORD(X) \
+X(::xtcp_flat_record::v1::Envelope) \
 X(::xtcp_flat_record::v1::FlatRecordsRequest) \
 X(::xtcp_flat_record::v1::FlatRecordsResponse) \
 X(::xtcp_flat_record::v1::PollFlatRecordsRequest) \
 X(::xtcp_flat_record::v1::PollFlatRecordsResponse) \
-X(::xtcp_flat_record::v1::Envelope) \
 X(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord) \
 

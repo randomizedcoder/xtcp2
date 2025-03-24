@@ -1,6 +1,7 @@
 package xtcp
 
 import (
+	"encoding/binary"
 	"log"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -125,28 +127,67 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte) {
+const delimCst = false
 
-	buf := x.destBytesPool.Get().([]byte)
+func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
-	writer := &ByteSliceWriter{Buf: &buf}
+	buf = x.destBytesPool.Get().(*[]byte)
 
-	// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
-	n, err := protodelim.MarshalTo(writer, e)
-	if err != nil {
-		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-		if x.debugLevel > 10 {
-			log.Println("protodelim.MarshalTo() err: ", err)
-		}
-	}
+	// Add the Confluent header for protobuf, which is not length 5
+	// https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
+	*buf = (*buf)[:KafkaHeaderSizeCst]
+	(*buf)[0] = 0x00                                           // Magic byte
+	binary.BigEndian.PutUint32((*buf)[1:], uint32(x.schemaID)) // Sc
+	(*buf)[5] = 0x00                                           // the first message
+	// most of the time the actual message type will be just the first message
+	// type (which is the array [0]), which would normally be encoded as 1,0 (1
+	// for length), this special case is optimized to just 0. So in the most common
+	//  case of the first message type being used, a single 0 is encoded as
+	// the message-indexes.
 
 	if x.debugLevel > 10 {
-		log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
+		log.Printf("protobufListMarshal protodelim.MarshalTo() x.schemaID:%d x.schemaID:%x", x.schemaID, x.schemaID)
+		log.Printf("protobufListMarshal header bytes: % X", (*buf)[:KafkaHeaderSizeCst])
 	}
 
-	bufPtr = writer.Buf
+	if delimCst {
 
-	return bufPtr
+		// writer will append from end of buf
+		writer := &ByteSliceWriter{Buf: buf}
+
+		// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
+		n, err := protodelim.MarshalTo(writer, e)
+		if err != nil {
+			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+			if x.debugLevel > 10 {
+				log.Println("protodelim.MarshalTo() err: ", err)
+			}
+		}
+
+		if x.debugLevel > 10 {
+			log.Printf("protobufListMarshal: After MarshalTo, n: %d, len(*buf): %d, *buf: % X", n, len(*buf), (*buf)[:KafkaHeaderSizeCst])
+			//log.Printf("protobufListMarshal: After MarshalTo, len(writer.Buf): %d, writer.Buf: % X", len(*writer.Buf), *writer.Buf)
+			log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
+		}
+
+	} else {
+
+		// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
+		b, err := proto.Marshal(e)
+		if err != nil {
+			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+			if x.debugLevel > 10 {
+				log.Println("protodelim.MarshalTo() err: ", err)
+			}
+		}
+
+		*buf = append(*buf, b...)
+
+	}
+
+	// bufPtr = writer.Buf
+
+	return buf
 }
 
 // protoJsonMarshal marshals to json and does error handling

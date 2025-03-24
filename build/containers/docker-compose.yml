@@ -58,10 +58,11 @@ services:
       - --default-log-level=info
     environment:
       # REDPANDA_VERSION: 24.1.16
-      REDPANDA_VERSION: 24.3.3
+      REDPANDA_VERSION: 24.3.8
     # https://hub.docker.com/r/redpandadata/redpanda/tags
     # image: docker.redpanda.com/redpandadata/redpanda:v24.1.16
-    image: docker.redpanda.com/redpandadata/redpanda:v24.3.3
+    #image: docker.redpanda.com/redpandadata/redpanda:v24.3.3
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.8
     container_name: redpanda-0
     volumes:
       - redpanda-0:/var/lib/redpanda/data
@@ -79,14 +80,16 @@ services:
     container_name: redpanda-console
     # https://hub.docker.com/r/redpandadata/console/tags
     #image: docker.redpanda.com/redpandadata/console:v2.7.2
-    image: docker.redpanda.com/redpandadata/console:v2.8.2
+    #image: docker.redpanda.com/redpandadata/console:v2.8.2
+    image: docker.redpanda.com/redpandadata/console:v2.8.4
     networks:
       - net
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
       #CONSOLE_VERSION: 2.7.2
-      CONSOLE_VERSION: 2.8.2
+      #CONSOLE_VERSION: 2.8.2
+      CONSOLE_VERSION: 2.8.4
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: |
         kafka:
@@ -194,10 +197,10 @@ services:
     #hostname: t-xtcp2-container
     image: randomizedcoder/xtcp2
     entrypoint: /xtcp2
-    command: --dest kafka:localhost:19092
+    #command: --dest kafka:localhost:19092
     environment:
       DEBUG_LEVEL: "111"
-      POLL_FREQUENCY: "5s"
+      POLL_FREQUENCY: "10s"
       POLL_TIMEOUT: "4s"
       #
       GOMEMLIMIT: 148MiB

@@ -61,9 +61,9 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string
 
 		if x.debugLevel > 100 {
 			if ns, ok := x.fdToNsMap.Load(fd); ok {
-				log.Printf("Netlinker %d Recvfrom packets:%d, fd:%d ns:%s", id, packets, fd, ns.(string))
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, ns.(string))
 			} else {
-				log.Printf("Netlinker %d Recvfrom packets:%d, fd:%d", id, packets, fd)
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d Unknown FD!!", id, packets, n, fd)
 			}
 		}
 
@@ -74,7 +74,7 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string
 			now := time.Now()
 			err := os.WriteFile(
 				x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
-				(*packetBuffer)[0:n],
+				*(packetBuffer),
 				writeFilesPermissionsCst)
 			if err != nil {
 				log.Fatal(err)

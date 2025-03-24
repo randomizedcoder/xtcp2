@@ -16,6 +16,7 @@ import (
 
 	nsq "github.com/nsqio/go-nsq"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sr"
 )
 
 const (
@@ -24,6 +25,10 @@ const (
 
 	quantileError    = 0.05
 	summaryVecMaxAge = 5 * time.Minute
+
+	// For protobuf the size is at least 6, not 5
+	// https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
+	KafkaHeaderSizeCst = 6
 )
 
 type XTCP struct {
@@ -84,6 +89,9 @@ type XTCP struct {
 	DestinationReady chan struct{}
 
 	kClient      *kgo.Client
+	kRegClient   *sr.Client
+	kSerde       sr.Serde
+	schemaID     int
 	nsqProducer  *nsq.Producer
 	udpConn      net.Conn
 	natsClient   *nats.Conn

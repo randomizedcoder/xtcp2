@@ -139,26 +139,56 @@ breakPoint:
 
 			b := x.Marshaller(x.currentEnvelope)
 			l := len(x.currentEnvelope.Row)
+
+			if x.debugLevel > 10000 {
+				log.Printf("Poller XXXX pollingLoops:%d", pollingLoops)
+				if x.debugLevel > 10 {
+					log.Printf("Poller XXXX pollingLoops:%d append len(x.currentEnvelope.Row):%d", pollingLoops, l)
+				}
+				for i, r := range x.currentEnvelope.Row {
+					log.Printf("Poller XXXX pollingLoops:%d i:%d r:%v", pollingLoops, i, *r)
+				}
+			}
+
+			for _, r := range x.currentEnvelope.Row {
+				x.ZeroXTCPCongRecord(r)
+				r.Reset()
+				x.xtcpRecordPool.Put(r)
+			}
+
 			x.currentEnvelope.Reset()
 			sTime = x.pollStartTime
 
 			x.envelopeMu.Unlock() // <--------------------- UNLOCK!
 
-			x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(time.Since(lockTime).Seconds())
+			lt := time.Since(lockTime).Seconds()
+			x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(lt)
+			if x.debugLevel > 10 {
+				log.Printf("Poller pollingLoops:%d time.Since(lockTime).Seconds():%0.4f", pollingLoops, lt)
+			}
+
+			if x.debugLevel > 10 {
+				log.Printf("Poller pollingLoops:%d  header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
+			}
 
 			if wf > 0 {
 				now := time.Now()
 				err := os.WriteFile(
 					x.config.CapturePath+"dest."+now.Format(time.RFC3339Nano),
-					*b,
+					*(b),
 					writeFilesPermissionsCst)
 				if err != nil {
 					log.Fatal(err)
 				}
 				wf--
 				if x.debugLevel > 10 {
-					log.Printf("Poller pollingLoops:%dwrote dest, wf:%d", pollingLoops, wf)
+					log.Printf("Poller pollingLoops:%d wrote dest, wf:%d", pollingLoops, wf)
+					log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
 				}
+			}
+
+			if x.debugLevel > 10 {
+				log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
 			}
 
 			var n int
@@ -173,6 +203,9 @@ breakPoint:
 				x.pC.WithLabelValues("Poller", "Destination", "count").Inc()
 				x.pC.WithLabelValues("Poller", "Destination", "countN").Add(float64(l))
 				x.pC.WithLabelValues("Poller", "Destination", "bytes").Add(float64(n))
+				if x.debugLevel > 10 {
+					log.Printf("Poller pollingLoops:%d countN:%d bytes:%d", pollingLoops, l, n)
+				}
 
 			} else {
 				x.pC.WithLabelValues("Poller", "DestinationShort", "error").Inc()

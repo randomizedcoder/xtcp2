@@ -48,12 +48,6 @@
 namespace xtcp_flat_record {
 namespace v1 {
 
-// https://github.com/bufbuild/protovalidate
-// https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
-// https://github.com/bufbuild/protovalidate/tree/main/examples
-// https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
-// import "buf/validate/validate.proto";
-//
 class XTCPFlatRecordService final {
  public:
   static constexpr char const* service_full_name() {

@@ -4,7 +4,7 @@
 ARG XTCPPATH
 ARG COMMIT
 ARG DATE
-ARG GO_VERSION=1.23
+ARG GO_VERSION=1.24
 ARG VERSION
 
 ARG TARGETOS
@@ -48,7 +48,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 #FROM gcr.io/distroless/static-debian12
 FROM gcr.io/distroless/static-debian12:debug
 # docker exec -ti xtcp-xtcp2-1 sh
-COPY --from=build /go/bin/xtcp2 /
+COPY --from=build --chmod=544 /go/bin/xtcp2 /
+
+# copy the proto, so xtcp can register the proto with the kafka schema registry
+COPY --from=build --chmod=444 /go/src/proto/xtcp_flat_record/v1/xtcp_flat_record.proto /
+# COPY --from=build --chmod=444 /go/src/proto/clickhouse_protolist/v1/clickhouse_protolist.proto /
 
 # Prometheus
 EXPOSE 9088

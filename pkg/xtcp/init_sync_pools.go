@@ -31,45 +31,46 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 	}
 
 	x.packetBufferPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			b := make([]byte, packetBufferSize)
 			return &b
 		},
 	}
 
 	x.xtcpEnvelopePool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(xtcp_flat_record.Envelope)
 		},
 	}
 
 	x.xtcpRecordPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
 	x.nlhPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(xtcpnl.NlMsgHdr)
 		},
 	}
 
 	x.rtaPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(xtcpnl.RTAttr)
 		},
 	}
 
 	x.kgoRecordPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(kgo.Record)
 		},
 	}
 
 	x.destBytesPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 0, destBytesMaxSizeCst)
+		New: func() any {
+			b := make([]byte, 0, destBytesMaxSizeCst)
+			return &b
 		},
 	}
 }

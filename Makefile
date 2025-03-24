@@ -45,7 +45,7 @@ help:
 	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client"
 	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT count(*) FROM xtcp.xtcp_flat_records;\""
 	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT * FROM system.kafka_consumers FORMAT Vertical;\""
-	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT * FROM system.stack_trace ORDER BY 'thread_id' DESC LIMIT 10;\"""
+	@echo "docker exec -ti xtcp-clickhouse-1 clickhouse-client --query \"SELECT * FROM system.stack_trace ORDER BY 'thread_id' DESC LIMIT 10;\""
 	@echo "------"
 	@echo "Browse: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages"
 

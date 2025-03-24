@@ -19,11 +19,11 @@ using std::string;
 // define the regex for a UUID once up-front
 const re2::RE2 _uuidPattern("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+pgv::Validator<::xtcp_flat_record::v1::Envelope> validator___xtcp_flat_record__v1__Envelope(static_cast<bool(*)(const ::xtcp_flat_record::v1::Envelope&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 pgv::Validator<::xtcp_flat_record::v1::FlatRecordsRequest> validator___xtcp_flat_record__v1__FlatRecordsRequest(static_cast<bool(*)(const ::xtcp_flat_record::v1::FlatRecordsRequest&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 pgv::Validator<::xtcp_flat_record::v1::FlatRecordsResponse> validator___xtcp_flat_record__v1__FlatRecordsResponse(static_cast<bool(*)(const ::xtcp_flat_record::v1::FlatRecordsResponse&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 pgv::Validator<::xtcp_flat_record::v1::PollFlatRecordsRequest> validator___xtcp_flat_record__v1__PollFlatRecordsRequest(static_cast<bool(*)(const ::xtcp_flat_record::v1::PollFlatRecordsRequest&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 pgv::Validator<::xtcp_flat_record::v1::PollFlatRecordsResponse> validator___xtcp_flat_record__v1__PollFlatRecordsResponse(static_cast<bool(*)(const ::xtcp_flat_record::v1::PollFlatRecordsResponse&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
-pgv::Validator<::xtcp_flat_record::v1::Envelope> validator___xtcp_flat_record__v1__Envelope(static_cast<bool(*)(const ::xtcp_flat_record::v1::Envelope&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 pgv::Validator<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord> validator___xtcp_flat_record__v1__Envelope_XtcpFlatRecord(static_cast<bool(*)(const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord&, pgv::ValidationMsg*)>(::xtcp_flat_record::v1::Validate));
 
 
@@ -34,6 +34,75 @@ pgv::Validator<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord> validator___xtcp
 namespace xtcp_flat_record {
 namespace v1 {
 
+
+// Validate checks the field values on ::xtcp_flat_record::v1::Envelope with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the return value is false and an error message is written to
+// the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;
+	
+	
+	
+
+	
+
+	
+		for (int i = 0; i < m.row().size(); i++) {
+			const auto& item = m.row().Get(i);
+			(void)item;
+
+			
+
+			
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (true && !pgv::BaseValidator::AbstractCheckMessage(item, &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "EnvelopeValidationError" << "." << "Row";
+msg << "[" << i << "]";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+
+		}
+	
+	
+
+		
+	return true;
+}
 
 // Validate checks the field values on
 // ::xtcp_flat_record::v1::FlatRecordsRequest with the rules defined in the
@@ -155,75 +224,6 @@ return false;
 }
 		}
 	}
-	
-
-		
-	return true;
-}
-
-// Validate checks the field values on ::xtcp_flat_record::v1::Envelope with
-// the rules defined in the proto definition for this message. If any rules
-// are violated, the return value is false and an error message is written to
-// the input string argument.
-
-	
-
-	
-
-	
-
-	
-
-        
-
-	
-
-	
-
-	
-
-
-
-bool Validate(const ::xtcp_flat_record::v1::Envelope& m, pgv::ValidationMsg* err) {
-	(void)m;
-	(void)err;
-	
-	
-	
-
-	
-
-	
-		for (int i = 0; i < m.row().size(); i++) {
-			const auto& item = m.row().Get(i);
-			(void)item;
-
-			
-
-			
-	
-	
-	
-
-	
-	{
-		pgv::ValidationMsg inner_err;
-		if (true && !pgv::BaseValidator::AbstractCheckMessage(item, &inner_err)) {
-			{
-std::ostringstream msg("invalid ");
-msg << "EnvelopeValidationError" << "." << "Row";
-msg << "[" << i << "]";
-msg << ": " << "embedded message failed validation";
-msg << " | caused by " << inner_err;
-*err = msg.str();
-return false;
-}
-		}
-	}
-	
-
-		}
-	
 	
 
 		

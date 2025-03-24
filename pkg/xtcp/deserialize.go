@@ -52,6 +52,10 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 	length := 0
 	end := len(*d.NLPacket)
 
+	if x.debugLevel > 10 {
+		log.Printf("Deserialize n:%d, offset:%d, end:%d", n, offset, end)
+	}
+
 	for n = 0; offset < end; n++ {
 
 		d.pC.WithLabelValues("Deserialize", "n", "count").Inc()
@@ -89,6 +93,10 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			return n, ErrParseDeserializeNlMsgHdr
 		}
 		offset += length
+
+		if x.debugLevel > 10 {
+			log.Printf("Deserialize DeserializeNlMsgHdr nlh.Len:%d", nlh.Len)
+		}
 
 		if nlh.Type == xtcpnl.NlMsgHdrTypeDoneCst {
 
@@ -145,7 +153,11 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		x.currentEnvelope.Row = append(x.currentEnvelope.Row, xtcpRecord)
 		x.envelopeMu.Unlock()
 
-		if x.debugLevel > 100 {
+		if x.debugLevel > 10000 {
+			log.Printf("Deserialize XXXX %d append len(x.currentEnvelope.Row):%d", d.id, len(x.currentEnvelope.Row))
+		}
+
+		if x.debugLevel > 1000 {
 			log.Printf("Deserialize %d n:%d xtcpRecord:%v", d.id, n, xtcpRecord)
 		}
 
@@ -157,10 +169,12 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		// We could use reset, but because we expect to overwrite all the values except "cong"
 		// we can simply clear the "cong" specific attributes
-		x.ZeroXTCPCongRecord(xtcpRecord)
-		xtcpRecord.Reset()
+		// x.ZeroXTCPCongRecord(xtcpRecord)
+		// xtcpRecord.Reset()
+		// xr.Reset()
 
-		d.xtcpRecordPool.Put(xtcpRecord)
+		// d.xtcpRecordPool.Put(xtcpRecord)
+		// d.xtcpRecordPool.Put(xr)
 
 		d.pH.WithLabelValues("Deserialize", "nlPacketComplete", "count").Observe(time.Since(nlPacketStartTime).Seconds())
 

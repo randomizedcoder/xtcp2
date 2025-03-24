@@ -260,7 +260,7 @@ message XtcpConfig {
 	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
 	// xtcp will capture this many examples of the marshalled data
 	// This is PER poller
-	uint32 dest_write_files                               = 135 [
+	uint32 dest_write_files                          = 135 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			gte: 0,
@@ -276,10 +276,26 @@ message XtcpConfig {
 			max_len: 40,
 	}];
 
+	// XtcpProtoFile
+	string xtcp_proto_file                           = 143 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 80,
+	}];
+
+	// Kafka schema registry url
+	string kafka_schema_url                          = 145 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 60,
+	}];
+
 	// Kafka Produce context timeout.  Use 0 for no context timeout
 	// Recommend a small timeout, like 1-2 seconds
 	// kgo seems to have a bug, because the timeout is always expired
-	google.protobuf.Duration kafka_produce_timeout  = 150 [
+	google.protobuf.Duration kafka_produce_timeout   = 150 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).duration = {
 			gte: {
@@ -291,7 +307,7 @@ message XtcpConfig {
 	}];
 
 	// DebugLevel
-	uint32 debug_level                              = 160 [
+	uint32 debug_level                               = 160 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).uint32 = {
 			gte: 0,
@@ -299,7 +315,7 @@ message XtcpConfig {
 	}];
 
 	// Label applied to the protobuf
-	string label                                     = 170 [
+	string label                                      = 170 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).string = {
 			// min_len: 1,

@@ -13,51 +13,6 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-@$core.Deprecated('Use flatRecordsRequestDescriptor instead')
-const FlatRecordsRequest$json = {
-  '1': 'FlatRecordsRequest',
-};
-
-/// Descriptor for `FlatRecordsRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List flatRecordsRequestDescriptor = $convert.base64Decode(
-    'ChJGbGF0UmVjb3Jkc1JlcXVlc3Q=');
-
-@$core.Deprecated('Use flatRecordsResponseDescriptor instead')
-const FlatRecordsResponse$json = {
-  '1': 'FlatRecordsResponse',
-  '2': [
-    {'1': 'xtcp_flat_record', '3': 1, '4': 1, '5': 11, '6': '.xtcp_flat_record.v1.Envelope.XtcpFlatRecord', '10': 'xtcpFlatRecord'},
-  ],
-};
-
-/// Descriptor for `FlatRecordsResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List flatRecordsResponseDescriptor = $convert.base64Decode(
-    'ChNGbGF0UmVjb3Jkc1Jlc3BvbnNlElYKEHh0Y3BfZmxhdF9yZWNvcmQYASABKAsyLC54dGNwX2'
-    'ZsYXRfcmVjb3JkLnYxLkVudmVsb3BlLlh0Y3BGbGF0UmVjb3JkUg54dGNwRmxhdFJlY29yZA==');
-
-@$core.Deprecated('Use pollFlatRecordsRequestDescriptor instead')
-const PollFlatRecordsRequest$json = {
-  '1': 'PollFlatRecordsRequest',
-};
-
-/// Descriptor for `PollFlatRecordsRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List pollFlatRecordsRequestDescriptor = $convert.base64Decode(
-    'ChZQb2xsRmxhdFJlY29yZHNSZXF1ZXN0');
-
-@$core.Deprecated('Use pollFlatRecordsResponseDescriptor instead')
-const PollFlatRecordsResponse$json = {
-  '1': 'PollFlatRecordsResponse',
-  '2': [
-    {'1': 'xtcp_flat_record', '3': 1, '4': 1, '5': 11, '6': '.xtcp_flat_record.v1.Envelope.XtcpFlatRecord', '10': 'xtcpFlatRecord'},
-  ],
-};
-
-/// Descriptor for `PollFlatRecordsResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List pollFlatRecordsResponseDescriptor = $convert.base64Decode(
-    'ChdQb2xsRmxhdFJlY29yZHNSZXNwb25zZRJWChB4dGNwX2ZsYXRfcmVjb3JkGAEgASgLMiwueH'
-    'RjcF9mbGF0X3JlY29yZC52MS5FbnZlbG9wZS5YdGNwRmxhdFJlY29yZFIOeHRjcEZsYXRSZWNv'
-    'cmQ=');
-
 @$core.Deprecated('Use envelopeDescriptor instead')
 const Envelope$json = {
   '1': 'Envelope',
@@ -325,4 +280,49 @@ final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
     'QUxHT1JJVEhNX1ZFR0FTEAMSHwobQ09OR0VTVElPTl9BTEdPUklUSE1fUFJBR1VFEAQSHQoZQ0'
     '9OR0VTVElPTl9BTEdPUklUSE1fQkJSMRAFEh0KGUNPTkdFU1RJT05fQUxHT1JJVEhNX0JCUjIQ'
     'BhIdChlDT05HRVNUSU9OX0FMR09SSVRITV9CQlIzEAc=');
+
+@$core.Deprecated('Use flatRecordsRequestDescriptor instead')
+const FlatRecordsRequest$json = {
+  '1': 'FlatRecordsRequest',
+};
+
+/// Descriptor for `FlatRecordsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List flatRecordsRequestDescriptor = $convert.base64Decode(
+    'ChJGbGF0UmVjb3Jkc1JlcXVlc3Q=');
+
+@$core.Deprecated('Use flatRecordsResponseDescriptor instead')
+const FlatRecordsResponse$json = {
+  '1': 'FlatRecordsResponse',
+  '2': [
+    {'1': 'xtcp_flat_record', '3': 1, '4': 1, '5': 11, '6': '.xtcp_flat_record.v1.Envelope.XtcpFlatRecord', '10': 'xtcpFlatRecord'},
+  ],
+};
+
+/// Descriptor for `FlatRecordsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List flatRecordsResponseDescriptor = $convert.base64Decode(
+    'ChNGbGF0UmVjb3Jkc1Jlc3BvbnNlElYKEHh0Y3BfZmxhdF9yZWNvcmQYASABKAsyLC54dGNwX2'
+    'ZsYXRfcmVjb3JkLnYxLkVudmVsb3BlLlh0Y3BGbGF0UmVjb3JkUg54dGNwRmxhdFJlY29yZA==');
+
+@$core.Deprecated('Use pollFlatRecordsRequestDescriptor instead')
+const PollFlatRecordsRequest$json = {
+  '1': 'PollFlatRecordsRequest',
+};
+
+/// Descriptor for `PollFlatRecordsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List pollFlatRecordsRequestDescriptor = $convert.base64Decode(
+    'ChZQb2xsRmxhdFJlY29yZHNSZXF1ZXN0');
+
+@$core.Deprecated('Use pollFlatRecordsResponseDescriptor instead')
+const PollFlatRecordsResponse$json = {
+  '1': 'PollFlatRecordsResponse',
+  '2': [
+    {'1': 'xtcp_flat_record', '3': 1, '4': 1, '5': 11, '6': '.xtcp_flat_record.v1.Envelope.XtcpFlatRecord', '10': 'xtcpFlatRecord'},
+  ],
+};
+
+/// Descriptor for `PollFlatRecordsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List pollFlatRecordsResponseDescriptor = $convert.base64Decode(
+    'ChdQb2xsRmxhdFJlY29yZHNSZXNwb25zZRJWChB4dGNwX2ZsYXRfcmVjb3JkGAEgASgLMiwueH'
+    'RjcF9mbGF0X3JlY29yZC52MS5FbnZlbG9wZS5YdGNwRmxhdFJlY29yZFIOeHRjcEZsYXRSZWNv'
+    'cmQ=');
 

@@ -185,7 +185,7 @@ class PollFlatRecordsRequest final : public ::google::protobuf::internal::ZeroFi
     return reinterpret_cast<const PollFlatRecordsRequest*>(
         &_PollFlatRecordsRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 2;
+  static constexpr int kIndexInFileMessages = 4;
   friend void swap(PollFlatRecordsRequest& a, PollFlatRecordsRequest& b) { a.Swap(&b); }
   inline void Swap(PollFlatRecordsRequest* other) {
     if (other == this) return;
@@ -330,7 +330,7 @@ class FlatRecordsRequest final : public ::google::protobuf::internal::ZeroFields
     return reinterpret_cast<const FlatRecordsRequest*>(
         &_FlatRecordsRequest_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 0;
+  static constexpr int kIndexInFileMessages = 2;
   friend void swap(FlatRecordsRequest& a, FlatRecordsRequest& b) { a.Swap(&b); }
   inline void Swap(FlatRecordsRequest* other) {
     if (other == this) return;
@@ -476,7 +476,7 @@ class Envelope_XtcpFlatRecord final : public ::google::protobuf::Message
     return reinterpret_cast<const Envelope_XtcpFlatRecord*>(
         &_Envelope_XtcpFlatRecord_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 4;
+  static constexpr int kIndexInFileMessages = 0;
   friend void swap(Envelope_XtcpFlatRecord& a, Envelope_XtcpFlatRecord& b) { a.Swap(&b); }
   inline void Swap(Envelope_XtcpFlatRecord* other) {
     if (other == this) return;
@@ -2185,7 +2185,7 @@ class PollFlatRecordsResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const PollFlatRecordsResponse*>(
         &_PollFlatRecordsResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 3;
+  static constexpr int kIndexInFileMessages = 5;
   friend void swap(PollFlatRecordsResponse& a, PollFlatRecordsResponse& b) { a.Swap(&b); }
   inline void Swap(PollFlatRecordsResponse* other) {
     if (other == this) return;
@@ -2381,7 +2381,7 @@ class FlatRecordsResponse final : public ::google::protobuf::Message
     return reinterpret_cast<const FlatRecordsResponse*>(
         &_FlatRecordsResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 1;
+  static constexpr int kIndexInFileMessages = 3;
   friend void swap(FlatRecordsResponse& a, FlatRecordsResponse& b) { a.Swap(&b); }
   inline void Swap(FlatRecordsResponse* other) {
     if (other == this) return;
@@ -2577,7 +2577,7 @@ class Envelope final : public ::google::protobuf::Message
     return reinterpret_cast<const Envelope*>(
         &_Envelope_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 5;
+  static constexpr int kIndexInFileMessages = 1;
   friend void swap(Envelope& a, Envelope& b) { a.Swap(&b); }
   inline void Swap(Envelope* other) {
     if (other == this) return;
@@ -2727,214 +2727,6 @@ class Envelope final : public ::google::protobuf::Message
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif  // __GNUC__
-// -------------------------------------------------------------------
-
-// FlatRecordsRequest
-
-// -------------------------------------------------------------------
-
-// FlatRecordsResponse
-
-// .xtcp_flat_record.v1.Envelope.XtcpFlatRecord xtcp_flat_record = 1 [json_name = "xtcpFlatRecord"];
-inline bool FlatRecordsResponse::has_xtcp_flat_record() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.xtcp_flat_record_ != nullptr);
-  return value;
-}
-inline void FlatRecordsResponse::clear_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.xtcp_flat_record_ != nullptr) _impl_.xtcp_flat_record_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& FlatRecordsResponse::_internal_xtcp_flat_record() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* p = _impl_.xtcp_flat_record_;
-  return p != nullptr ? *p : reinterpret_cast<const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord&>(::xtcp_flat_record::v1::_Envelope_XtcpFlatRecord_default_instance_);
-}
-inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& FlatRecordsResponse::xtcp_flat_record() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
-  return _internal_xtcp_flat_record();
-}
-inline void FlatRecordsResponse::unsafe_arena_set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.xtcp_flat_record_);
-  }
-  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::release_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* released = _impl_.xtcp_flat_record_;
-  _impl_.xtcp_flat_record_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::unsafe_arena_release_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* temp = _impl_.xtcp_flat_record_;
-  _impl_.xtcp_flat_record_ = nullptr;
-  return temp;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::_internal_mutable_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.xtcp_flat_record_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord>(GetArena());
-    _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(p);
-  }
-  return _impl_.xtcp_flat_record_;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::mutable_xtcp_flat_record() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* _msg = _internal_mutable_xtcp_flat_record();
-  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
-  return _msg;
-}
-inline void FlatRecordsResponse::set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete (_impl_.xtcp_flat_record_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = (value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-
-  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
-}
-
-// -------------------------------------------------------------------
-
-// PollFlatRecordsRequest
-
-// -------------------------------------------------------------------
-
-// PollFlatRecordsResponse
-
-// .xtcp_flat_record.v1.Envelope.XtcpFlatRecord xtcp_flat_record = 1 [json_name = "xtcpFlatRecord"];
-inline bool PollFlatRecordsResponse::has_xtcp_flat_record() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.xtcp_flat_record_ != nullptr);
-  return value;
-}
-inline void PollFlatRecordsResponse::clear_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.xtcp_flat_record_ != nullptr) _impl_.xtcp_flat_record_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& PollFlatRecordsResponse::_internal_xtcp_flat_record() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* p = _impl_.xtcp_flat_record_;
-  return p != nullptr ? *p : reinterpret_cast<const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord&>(::xtcp_flat_record::v1::_Envelope_XtcpFlatRecord_default_instance_);
-}
-inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& PollFlatRecordsResponse::xtcp_flat_record() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
-  return _internal_xtcp_flat_record();
-}
-inline void PollFlatRecordsResponse::unsafe_arena_set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.xtcp_flat_record_);
-  }
-  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::release_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* released = _impl_.xtcp_flat_record_;
-  _impl_.xtcp_flat_record_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::unsafe_arena_release_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* temp = _impl_.xtcp_flat_record_;
-  _impl_.xtcp_flat_record_ = nullptr;
-  return temp;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::_internal_mutable_xtcp_flat_record() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.xtcp_flat_record_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord>(GetArena());
-    _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(p);
-  }
-  return _impl_.xtcp_flat_record_;
-}
-inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::mutable_xtcp_flat_record() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000001u;
-  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* _msg = _internal_mutable_xtcp_flat_record();
-  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
-  return _msg;
-}
-inline void PollFlatRecordsResponse::set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete (_impl_.xtcp_flat_record_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = (value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-
-  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
-}
-
 // -------------------------------------------------------------------
 
 // Envelope_XtcpFlatRecord
@@ -5856,6 +5648,214 @@ inline ::google::protobuf::RepeatedPtrField<::xtcp_flat_record::v1::Envelope_Xtc
 Envelope::_internal_mutable_row() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.row_;
+}
+
+// -------------------------------------------------------------------
+
+// FlatRecordsRequest
+
+// -------------------------------------------------------------------
+
+// FlatRecordsResponse
+
+// .xtcp_flat_record.v1.Envelope.XtcpFlatRecord xtcp_flat_record = 1 [json_name = "xtcpFlatRecord"];
+inline bool FlatRecordsResponse::has_xtcp_flat_record() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.xtcp_flat_record_ != nullptr);
+  return value;
+}
+inline void FlatRecordsResponse::clear_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.xtcp_flat_record_ != nullptr) _impl_.xtcp_flat_record_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& FlatRecordsResponse::_internal_xtcp_flat_record() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* p = _impl_.xtcp_flat_record_;
+  return p != nullptr ? *p : reinterpret_cast<const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord&>(::xtcp_flat_record::v1::_Envelope_XtcpFlatRecord_default_instance_);
+}
+inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& FlatRecordsResponse::xtcp_flat_record() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
+  return _internal_xtcp_flat_record();
+}
+inline void FlatRecordsResponse::unsafe_arena_set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.xtcp_flat_record_);
+  }
+  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::release_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* released = _impl_.xtcp_flat_record_;
+  _impl_.xtcp_flat_record_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::unsafe_arena_release_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* temp = _impl_.xtcp_flat_record_;
+  _impl_.xtcp_flat_record_ = nullptr;
+  return temp;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::_internal_mutable_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.xtcp_flat_record_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord>(GetArena());
+    _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(p);
+  }
+  return _impl_.xtcp_flat_record_;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* FlatRecordsResponse::mutable_xtcp_flat_record() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* _msg = _internal_mutable_xtcp_flat_record();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
+  return _msg;
+}
+inline void FlatRecordsResponse::set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete (_impl_.xtcp_flat_record_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = (value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+
+  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record)
+}
+
+// -------------------------------------------------------------------
+
+// PollFlatRecordsRequest
+
+// -------------------------------------------------------------------
+
+// PollFlatRecordsResponse
+
+// .xtcp_flat_record.v1.Envelope.XtcpFlatRecord xtcp_flat_record = 1 [json_name = "xtcpFlatRecord"];
+inline bool PollFlatRecordsResponse::has_xtcp_flat_record() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.xtcp_flat_record_ != nullptr);
+  return value;
+}
+inline void PollFlatRecordsResponse::clear_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.xtcp_flat_record_ != nullptr) _impl_.xtcp_flat_record_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& PollFlatRecordsResponse::_internal_xtcp_flat_record() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* p = _impl_.xtcp_flat_record_;
+  return p != nullptr ? *p : reinterpret_cast<const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord&>(::xtcp_flat_record::v1::_Envelope_XtcpFlatRecord_default_instance_);
+}
+inline const ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord& PollFlatRecordsResponse::xtcp_flat_record() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
+  return _internal_xtcp_flat_record();
+}
+inline void PollFlatRecordsResponse::unsafe_arena_set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.xtcp_flat_record_);
+  }
+  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::release_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* released = _impl_.xtcp_flat_record_;
+  _impl_.xtcp_flat_record_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::unsafe_arena_release_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* temp = _impl_.xtcp_flat_record_;
+  _impl_.xtcp_flat_record_ = nullptr;
+  return temp;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::_internal_mutable_xtcp_flat_record() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.xtcp_flat_record_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord>(GetArena());
+    _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(p);
+  }
+  return _impl_.xtcp_flat_record_;
+}
+inline ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* PollFlatRecordsResponse::mutable_xtcp_flat_record() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  ::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* _msg = _internal_mutable_xtcp_flat_record();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
+  return _msg;
+}
+inline void PollFlatRecordsResponse::set_allocated_xtcp_flat_record(::xtcp_flat_record::v1::Envelope_XtcpFlatRecord* value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete (_impl_.xtcp_flat_record_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = (value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+
+  _impl_.xtcp_flat_record_ = reinterpret_cast<::xtcp_flat_record::v1::Envelope_XtcpFlatRecord*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record)
 }
 
 #ifdef __GNUC__

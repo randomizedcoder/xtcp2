@@ -6,13 +6,7 @@ from xtcp_flat_record.v1 import xtcp_flat_record_pb2 as xtcp__flat__record_dot_v
 
 
 class XTCPFlatRecordServiceStub(object):
-    """https://github.com/bufbuild/protovalidate
-    https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
-    https://github.com/bufbuild/protovalidate/tree/main/examples
-    https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
-    import "buf/validate/validate.proto";
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -33,13 +27,7 @@ class XTCPFlatRecordServiceStub(object):
 
 
 class XTCPFlatRecordServiceServicer(object):
-    """https://github.com/bufbuild/protovalidate
-    https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
-    https://github.com/bufbuild/protovalidate/tree/main/examples
-    https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
-    import "buf/validate/validate.proto";
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def FlatRecords(self, request, context):
         """If xtcp is polling, this will return the stream
@@ -77,13 +65,7 @@ def add_XTCPFlatRecordServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class XTCPFlatRecordService(object):
-    """https://github.com/bufbuild/protovalidate
-    https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
-    https://github.com/bufbuild/protovalidate/tree/main/examples
-    https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
-    import "buf/validate/validate.proto";
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def FlatRecords(request,
