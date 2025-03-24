@@ -67,7 +67,7 @@ func BenchmarkSerializeNetlinkDagRequest(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		SerializeNetlinkDagRequest(nlh, req, &requestBytes)
+		SerializeNetlinkDiagRequest(nlh, req, &requestBytes)
 	}
 	resultB = requestBytes
 }

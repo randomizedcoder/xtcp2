@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -93,7 +93,7 @@ func DeserializeVegasInfoReflection(data []byte, vi *VegasInfo) (n int, err erro
 	return VegasInfoReadCst, err
 }
 
-func DeserializeVegasInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < VegasInfoSizeCst {
 		return ErrVegasInfoSmall
@@ -107,7 +107,7 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error)
 	return nil
 }
 
-func ZeroizeVegasInfoXTCP(x *xtcppb.FlatXtcpRecord) {
+func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.VegasInfoEnabled = 0
 	x.VegasInfoRttCnt = 0
 	x.VegasInfoRtt = 0

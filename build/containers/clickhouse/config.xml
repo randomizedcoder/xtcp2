@@ -21,13 +21,16 @@
 
             [1]: https://github.com/pocoproject/poco/blob/poco-1.9.4-release/Foundation/include/Poco/Logger.h#L105-L114
         -->
-        <level>warning</level>
+        <!-- <level>notice</level> -->
+        <!-- <level>information</level> -->
+        <level>debug</level>
+        <!-- <level>trace</level> -->
         <log>/var/log/clickhouse-server/clickhouse-server.log</log>
         <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
         <!-- Rotation policy
              See https://github.com/pocoproject/poco/blob/poco-1.9.4-release/Foundation/include/Poco/FileChannel.h#L54-L85
           -->
-        <size>1000M</size>
+        <size>100M</size>
         <count>10</count>
         <!-- <console>1</console> --> <!-- Default behavior is autodetection (log to console if not daemon mode and is tty) -->
 
@@ -91,7 +94,7 @@
         </formatting> -->
     </logger>
 
-    <url_scheme_mappers>
+    <!-- <url_scheme_mappers>
         <s3>
             <to>https://{bucket}.s3.amazonaws.com</to>
         </s3>
@@ -101,7 +104,7 @@
         <oss>
             <to>https://{bucket}.oss.aliyuncs.com</to>
         </oss>
-    </url_scheme_mappers>
+    </url_scheme_mappers> -->
 
     <!-- Add headers to response in options request. OPTIONS method is used in CORS preflight requests. -->
     <http_options_response>
@@ -371,6 +374,7 @@
     <tables_loader_foreground_pool_size>0</tables_loader_foreground_pool_size>
     <tables_loader_background_pool_size>0</tables_loader_background_pool_size>
     -->
+    <background_pool_size>32</background_pool_size>
 
     <!-- Enables asynchronous loading of databases and tables to speedup server startup.
          Queries to not yet loaded entity will be blocked until load is finished.
@@ -379,6 +383,8 @@
 
     <!-- On memory constrained environments you may have to set this to value larger than 1.
       -->
+    <!-- <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio> -->
+    <!-- dave tweak -->
     <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
 
     <!-- Simple server-wide memory profiler. Collect a stack trace at every peak allocation step (in bytes).
@@ -557,7 +563,7 @@
     <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
 
     <!-- LDAP server definitions. -->
-    <ldap_servers>
+    <!-- <ldap_servers> -->
         <!-- List LDAP servers with their connection parameters here to later 1) use them as authenticators for dedicated local users,
               who have 'ldap' authentication mechanism specified instead of 'password', or to 2) use them as remote user directories.
              Parameters:
@@ -623,7 +629,7 @@
                     <enable_tls>no</enable_tls>
                 </my_ad_server>
         -->
-    </ldap_servers>
+    <!-- </ldap_servers> -->
 
     <!-- To enable Kerberos authentication support for HTTP requests (GSS-SPNEGO), for those users who are explicitly configured
           to authenticate via Kerberos, define a single 'kerberos' section here.
@@ -1278,22 +1284,22 @@
 
     <!-- Storage S3Queue log.
     -->
-    <s3queue_log>
+    <!-- <s3queue_log>
         <database>system</database>
         <table>s3queue_log</table>
         <partition_by>toYYYYMM(event_date)</partition_by>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </s3queue_log>
+    </s3queue_log> -->
 
     <!-- Blob storage object operations log.
     -->
-    <blob_storage_log>
+    <!-- <blob_storage_log>
         <database>system</database>
         <table>blob_storage_log</table>
         <partition_by>toYYYYMM(event_date)</partition_by>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
         <ttl>event_date + INTERVAL 30 DAY</ttl>
-    </blob_storage_log>
+    </blob_storage_log> -->
 
     <!-- <top_level_domains_path>/var/lib/clickhouse/top_level_domains/</top_level_domains_path> -->
     <!-- Custom TLD lists.
@@ -1632,4 +1638,10 @@
 
     <!-- If set true ClickHouse will wait for running queries finish before shutdown. -->
     <!-- <shutdown_wait_unfinished_queries>false</shutdown_wait_unfinished_queries> -->
+
+    <!-- Try to tune -->
+    <!-- <distributed_background_insert_batch>1</distributed_background_insert_batch>
+    <async_insert>1</async_insert>
+    <async_insert_stale_timeout_ms>10000</async_insert_stale_timeout_ms>
+    <allow_experimental_live_view>1</allow_experimental_live_view> -->
 </clickhouse>

@@ -13,7 +13,7 @@ const (
 	TCPAllStatesCst = 4282318848
 )
 
-func SerializeNetlinkDagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
+func SerializeNetlinkDiagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
 
 	// len
 	binary.LittleEndian.PutUint32(

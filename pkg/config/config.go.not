@@ -1,0 +1,28 @@
+// This has been replaced by the protobuf xtcp_config
+//
+// Package xtcpConfig is the struct for the xtcpConfig that gets passed to most of the xtcp go routines
+//package config
+
+import "time"
+
+type Config struct {
+	NLTimeoutMs         *int64
+	PollFrequency       *time.Duration
+	PollTimeout         *time.Duration
+	MaxLoops            *int
+	Netlinkers          *int
+	NlmsgSeq            *int
+	PacketSize          *int
+	PacketSizeMply      *int
+	WriteFiles          *int
+	CapturePath         *string
+	Modulus             *uint
+	Marshal             *string
+	Dest                *string
+	Topic               *string
+	KafkaProduceTimeout *time.Duration
+	GoMaxProcs          *uint
+	PromListen          *string
+	PromPath            *string
+	DebugLevel          *uint
+}

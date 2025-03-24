@@ -1,0 +1,319 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "xtcp_config/v1/xtcp_config.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ConfigService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/ConfigService/Get": {
+      "put": {
+        "operationId": "ConfigService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1GetRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    },
+    "/ConfigService/Set": {
+      "put": {
+        "operationId": "ConfigService_Set",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    },
+    "/ConfigService/SetPollFrequency": {
+      "put": {
+        "operationId": "ConfigService_SetPollFrequency",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetPollFrequencyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetPollFrequencyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1EnabledDeserializers": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "v1GetRequest": {
+      "type": "object",
+      "title": "empty"
+    },
+    "v1GetResponse": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1SetPollFrequencyRequest": {
+      "type": "object",
+      "properties": {
+        "pollFrequency": {
+          "type": "string",
+          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
+        },
+        "pollTimeout": {
+          "type": "string",
+          "title": "Poll timeout per name space\nMust be less than the poll frequency"
+        }
+      }
+    },
+    "v1SetPollFrequencyResponse": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1SetRequest": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1SetResponse": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1XtcpConfig": {
+      "type": "object",
+      "properties": {
+        "nlTimeoutMilliseconds": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Netlink socket timeout in milliseconds\nRecommend 5000"
+        },
+        "pollFrequency": {
+          "type": "string",
+          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
+        },
+        "pollTimeout": {
+          "type": "string",
+          "title": "Poll timeout per name space\nMust be less than the poll frequency"
+        },
+        "maxLoops": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Maximum number of loops, or zero (0) for forever"
+        },
+        "netlinkers": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Netlinker goroutines per netlink socket ( recommend 1,2,4 range )\nNetlinkers read the tcp-diag response messages from the netlink socket\nIf you have a large number of"
+        },
+        "netlinkersDoneChanSize": {
+          "type": "integer",
+          "format": "int64",
+          "title": "netlinkerDoneCh channel size\nThis channel is used between the netlinkers and the poller\nCheck the prom counter to see if the channel is too small\nd.pC.WithLabelValues(\"Deserialize\", \"netlinkerDoneCh\", \"error\").Inc()"
+        },
+        "nlmsgSeq": {
+          "type": "integer",
+          "format": "int64",
+          "description": "nlmsg_seq sequence number (start). This gets incremented."
+        },
+        "packetSize": {
+          "type": "string",
+          "format": "uint64",
+          "title": "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()\nrecommend using 0"
+        },
+        "packetSizeMply": {
+          "type": "integer",
+          "format": "int64",
+          "title": "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply"
+        },
+        "writeFiles": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker\nxtcp will capture this many Netlink response packets when it starts\nThis is PER netlinker"
+        },
+        "capturePath": {
+          "type": "string",
+          "title": "Write files path"
+        },
+        "modulus": {
+          "type": "string",
+          "format": "uint64",
+          "title": "modulus. Report every X socket diag messages to output"
+        },
+        "marshalTo": {
+          "type": "string",
+          "title": "Marshalling of the exported data (protobufList,json,prototext)"
+        },
+        "dest": {
+          "type": "string",
+          "title": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:"
+        },
+        "destWriteFiles": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )\nxtcp will capture this many examples of the marshalled data\nThis is PER poller"
+        },
+        "topic": {
+          "type": "string",
+          "title": "Kafka or NSQ topic"
+        },
+        "xtcpProtoFile": {
+          "type": "string",
+          "title": "XtcpProtoFile"
+        },
+        "kafkaSchemaUrl": {
+          "type": "string",
+          "title": "Kafka schema registry url"
+        },
+        "kafkaProduceTimeout": {
+          "type": "string",
+          "title": "Kafka Produce context timeout.  Use 0 for no context timeout\nRecommend a small timeout, like 1-2 seconds\nkgo seems to have a bug, because the timeout is always expired"
+        },
+        "debugLevel": {
+          "type": "integer",
+          "format": "int64",
+          "title": "DebugLevel"
+        },
+        "label": {
+          "type": "string",
+          "title": "Label applied to the protobuf"
+        },
+        "tag": {
+          "type": "string",
+          "title": "Tag applied to the protobuf"
+        },
+        "grpcPort": {
+          "type": "integer",
+          "format": "int64",
+          "title": "GRPC listening port"
+        },
+        "enabledDeserializers": {
+          "$ref": "#/definitions/v1EnabledDeserializers"
+        }
+      },
+      "title": "xtcp configuration"
+    }
+  }
+}

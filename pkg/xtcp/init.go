@@ -4,51 +4,143 @@ import (
 	"context"
 	"log"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-func (x *XTCP) Init(ctx context.Context, allDoneCh *chan struct{}) {
+const (
+	destinationReadyChSize    = 2
+	changePollFrequencyChSize = 2
+	pollRequestChSize         = 2
+)
 
-	x.InitMarshalers()
-	x.InitDestinations(ctx)
+func (x *XTCP) Init(ctx context.Context) {
+
+	startTime := time.Now()
+
+	if x.debugLevel > 10 {
+		log.Println("Init starting")
+	}
+
+	x.schemaID = 5 // TODO change this!!
+
+	if err := x.checkCapabilities(); err != nil {
+		log.Print(err) // TODO log.Fatal
+	}
+
+	// initChanenls first, so that signaling channels are ready
+	x.initChannels()
+
+	if x.debugLevel > 10 {
+		log.Printf("InitMarshallers starting, after:%0.3f", time.Since(startTime).Seconds())
+	}
+
+	wg := new(sync.WaitGroup)
+
+	wg.Add(1)
+	go x.InitMarshallers(wg)
+	wg.Add(1)
+	go x.InitDests(ctx, wg)
+
+	wg.Wait()
+
 	x.InputValidation()
 
-	x.InitSyncPools()
-	x.InitPromethus()
-	x.InitDeserializers()
-	x.InitZeroizers()
+	wg.Add(1)
+	go x.InitPromethus(wg)
+
+	wg.Add(1)
+	go x.InitDeserializers(wg)
+	wg.Add(1)
+	go x.InitZeroizers(wg)
+
+	wg.Add(1)
+	go x.InitSyncPools(wg)
+	x.initSyncMaps()
 
 	// x.InitIOURing()
 
-	x.socketFD, x.socketAddress = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
-	x.nlRequest = x.CreateNetLinkRequest()
+	//x.socketFD = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
+	wg.Add(1)
+	x.nlRequest = x.CreateNetLinkRequest(wg)
 
-	x.netlinkerDoneCh = make(chan time.Time, netlinkerDoneChSizeCst)
-	x.allDoneCh = allDoneCh
+	x.initHostname()
 
+	wg.Wait()
+
+	if x.debugLevel > 10 {
+		log.Printf("Init complete after:%0.3f", time.Since(startTime).Seconds())
+	}
+}
+
+func (x *XTCP) initChannels() {
+
+	x.DestinationReady = make(chan struct{}, destinationReadyChSize)
+	x.netlinkerDoneCh = make(chan netlinkerDone, int(x.config.NetlinkersDoneChanSize))
+	x.changePollFrequencyCh = make(chan time.Duration, changePollFrequencyChSize)
+	x.pollRequestCh = make(chan struct{}, pollRequestChSize)
+
+}
+
+func (x *XTCP) initHostname() {
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Fatalf("os.Hostname() error:%s", err)
 	}
-	x.hostname.Store(hostnameKeyCst, hostname)
+	x.hostname = hostname
+}
 
-	if x.debugLevel > 10 {
-		log.Println("NewXTCP init complete")
+func (x *XTCP) initSyncMaps() {
+	x.nsMap = &sync.Map{}
+	x.fdToNsMap = &sync.Map{}
+	x.netNsDirs = &sync.Map{}
+
+	if _, err := os.Stat(linuxNetNSDirCst); err == nil {
+		x.netNsDirs.Store(linuxNetNSDirCst, true)
+		if x.debugLevel > 10 {
+			log.Println("initSyncMaps x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
+		}
+	} else {
+		if x.debugLevel > 10 {
+			log.Println("initSyncMaps NOT x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
+		}
+	}
+	if _, err := os.Stat(dockerNetNsDirCst); err == nil {
+		x.netNsDirs.Store(dockerNetNsDirCst, true)
+		if x.debugLevel > 10 {
+			log.Println("initSyncMaps x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
+		}
+	} else {
+		if x.debugLevel > 10 {
+			log.Println("initSyncMaps NOT x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
+		}
+	}
+
+	i := 0
+	x.netNsDirs.Range(func(key, value interface{}) bool {
+		i++
+		return true
+	})
+
+	if i < 1 {
+		log.Fatal("initSyncMaps neither network namespace directory exists.  ??!")
 	}
 }
 
-func (x *XTCP) CreateNetLinkRequest() (nlRequest *[]byte) {
+// CreateNetLinkRequest builds the netlink request
+// TODO this currently only creates IPv4 version
+func (x *XTCP) CreateNetLinkRequest(wg *sync.WaitGroup) (nlRequest *[]byte) {
+
+	defer wg.Done()
 
 	nlh := xtcpnl.NlMsgHdr{
 		Len:   xtcpnl.InetDiagRequestSizeCst,
 		Type:  xtcpnl.SocketDiagByFamilyCst,
 		Flags: uint16(syscall.NLM_F_DUMP | syscall.NLM_F_REQUEST | syscall.NLM_F_REPLACE | syscall.NLM_F_EXCL),
-		Seq:   uint32(*x.config.NlmsgSeq),
+		Seq:   uint32(x.config.NlmsgSeq),
 		//Pid: 0,
 	}
 
@@ -65,36 +157,7 @@ func (x *XTCP) CreateNetLinkRequest() (nlRequest *[]byte) {
 	requestBytes := make([]byte, xtcpnl.InetDiagRequestSizeCst)
 	nlRequest = &requestBytes
 
-	xtcpnl.SerializeNetlinkDagRequest(nlh, req, nlRequest)
+	xtcpnl.SerializeNetlinkDiagRequest(nlh, req, nlRequest)
 
 	return nlRequest
-}
-
-func (x *XTCP) InitPromethus() {
-
-	x.pC = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: "xtcp",
-			Name:      "counts",
-			Help:      "xtcp counts",
-		},
-		[]string{"function", "variable", "type"},
-	)
-
-	x.pH = promauto.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Subsystem: "xtcp",
-			Name:      "histograms",
-			Help:      "xtcp historgrams",
-			Objectives: map[float64]float64{
-				0.1:  quantileError,
-				0.5:  quantileError,
-				0.9:  quantileError,
-				0.99: quantileError,
-			},
-			MaxAge: summaryVecMaxAge,
-		},
-		[]string{"function", "variable", "type"},
-	)
-
 }

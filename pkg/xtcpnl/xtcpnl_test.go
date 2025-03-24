@@ -94,7 +94,7 @@ func TestDecodeFromBytesSerializeTo(t *testing.T) {
 
 		requestBytes := make([]byte, InetDiagRequestSizeCst)
 
-		SerializeNetlinkDagRequest(nlh, req, &requestBytes)
+		SerializeNetlinkDiagRequest(nlh, req, &requestBytes)
 
 		if test.debugLevel >= 0 {
 			t.Logf("i:%d, req:%v", i, req)

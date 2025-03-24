@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -98,7 +98,7 @@ func DeserializeDCTCPInfoReflection(data []byte, d *DCTCPInfo) (n int, err error
 	return DCTCPInfoReadCst, err
 }
 
-func DeserializeDCTCPInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeDCTCPInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < DCTCPInfoSizeCst {
 		return ErrDCTCPInfoSmall
@@ -113,7 +113,7 @@ func DeserializeDCTCPInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error)
 	return nil
 }
 
-func ZeroizeDCTCPInfoXTCP(x *xtcppb.FlatXtcpRecord) {
+func ZeroizeDCTCPInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.DctcpInfoEnabled = 0
 	x.DctcpInfoCeState = 0
 	x.DctcpInfoAlpha = 0

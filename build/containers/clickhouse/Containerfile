@@ -11,7 +11,13 @@ ARG XTCPPATH
 ARG VERSION
 
 # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
-FROM clickhouse/clickhouse-server:24.8.4.13-alpine
+# FROM clickhouse/clickhouse-server:24.8.4.13-alpine
+# FROM clickhouse/clickhouse-server:24.11.2.101-alpine
+# FROM clickhouse/clickhouse-server:24.8.12-alpine
+# FROM clickhouse/clickhouse-server:24.8.12
+# FROM clickhouse/clickhouse-server:24.12.4
+# FROM clickhouse/clickhouse-server:25.1.5.31
+FROM clickhouse/clickhouse-server:25.3.1
 
 ARG XTCPPATH
 ARG VERSION
@@ -23,23 +29,56 @@ RUN echo XTCPPATH:${XTCPPATH} VERSION:${VERSION}
 
 #RUN apt install strace
 #RUN apk add shadow
-RUN apk add busybox-extras
+#RUN apk add busybox-extras
 
-COPY --chmod=544 \
+#
+# Protobufs
+#
+
+# This is now bind mounted into the container
+# RUN mkdir -p /var/lib/clickhouse/format_schemas/google/api/ &&\
+# 	mkdir -p /var/lib/clickhouse/format_schemas/buf/validate/
+
+# This is now bind mounted into the container
+# COPY --chmod=644 \
+# 	./google/api/* \
+# 	/var/lib/clickhouse/format_schemas/google/api/
+
+# This is now bind mounted into the container
+# COPY --chmod=644 \
+# 	./buf/validate/* \
+# 	/var/lib/clickhouse/format_schemas/buf/validate/
+
+# This is now bind mounted into the container
+# COPY --chmod=644 \
+# 	./proto/xtcp_flat_record/v1/xtcp_flat_record.proto \
+# 	/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto
+
+#
+# Clickhouse config
+#
+COPY --chmod=644 \
+	./build/containers/clickhouse/users.xml \
+	/etc/clickhouse-server/users.xml
+
+COPY --chmod=644 \
 	./build/containers/clickhouse/config.xml \
 	/etc/clickhouse-server/config.xml
 
-COPY --chmod=544 \
+COPY --chmod=644 \
 	./build/containers/clickhouse/docker_related_config.xml \
 	/etc/clickhouse-server/config.d/docker_related_config.xml
 
-COPY --chmod=544 \
-	./pkg/xtcppb/flatxtcppb.proto \
-	/var/lib/clickhouse/format_schemas/flatxtcppb.proto
+# can't set most of the sysctls we want from inside the container
+# COPY --chmod=644 \
+# 	./build/containers/clickhouse/sysctl.conf \
+# 	/etc/sysctl.conf
 
-COPY --chmod=544 \
+COPY --chmod=644 \
 	./VERSION \
 	/VERSION
+
+RUN cat /VERSION
 
 # http
 EXPOSE 8123

@@ -3,7 +3,7 @@ package xtcpnl
 import (
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
@@ -82,7 +82,7 @@ func DeserializeCongInfo(data []byte, ci *CongInfo) (n int, err error) {
 // 	return CongInfoReadCst, err
 // }
 
-func DeserializeCongInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < CongInfoSizeCst {
 		return ErrCongInfoSmall
@@ -90,15 +90,15 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) 
 
 	switch string(data[0:4]) {
 	case "cub":
-		x.CongestionAlgorithmEnum = xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_CUBIC
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
 	case "bbr2":
-		x.CongestionAlgorithmEnum = xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_BBR1
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "bbr":
-		x.CongestionAlgorithmEnum = xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_BBR1
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "dct":
-		x.CongestionAlgorithmEnum = xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_DCTCP
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
 	case "veg":
-		x.CongestionAlgorithmEnum = xtcppb.FlatXtcpRecord_CONGESTION_ALGORITHM_VEGAS
+		x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
 	}
 
 	return nil

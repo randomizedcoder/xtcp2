@@ -1,0 +1,98 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"syscall"
+
+	"github.com/iceber/iouring-go"
+	"github.com/vishvananda/netlink/nl"
+)
+
+func main() {
+	// Create a Netlink socket
+	fd, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_GENERIC)
+	if err != nil {
+		log.Fatalf("Failed to create Netlink socket: %v", err)
+	}
+	defer syscall.Close(fd)
+
+	// Bind the Netlink socket
+	addr := syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+		Groups: 0,
+		Pid:    uint32(syscall.Getpid()),
+	}
+	if err := syscall.Bind(fd, &addr); err != nil {
+		log.Fatalf("Failed to bind Netlink socket: %v", err)
+	}
+
+	// Create an io_uring instance
+	ring, err := iouring.New(8) // 8 is the queue size
+	if err != nil {
+		log.Fatalf("Failed to create io_uring: %v", err)
+	}
+	defer ring.Close()
+
+	// Example: Send a message to the Netlink socket
+	go func() {
+		message := nl.NewNetlinkRequest(0, syscall.NLM_F_REQUEST|syscall.NLM_F_DUMP)
+		messageData := message.Serialize()
+
+		submitWrite(ring, fd, messageData)
+	}()
+
+	// Example: Read a message from the Netlink socket
+	submitRead(ring, fd)
+}
+
+func submitWrite(ring *iouring.IOURing, fd int, data []byte) {
+	// Submit a write operation to the ring
+	entry := ring.GetSQEntry()
+	if entry == nil {
+		log.Println("Failed to get submission queue entry for write")
+		return
+	}
+	entry.PrepareWrite(fd, data, 0)
+	ring.Submit()
+
+	// Wait for completion
+	cqe, err := ring.WaitCQEntry()
+	if err != nil {
+		log.Printf("Write operation failed: %v", err)
+		return
+	}
+	if cqe.Res < 0 {
+		log.Printf("Write operation returned error: %d", cqe.Res)
+	} else {
+		log.Printf("Write operation completed: %d bytes written", cqe.Res)
+	}
+	ring.SeenCQEntry(cqe)
+}
+
+func submitRead(ring *iouring.IOURing, fd int) {
+	buffer := make([]byte, 4096)
+
+	// Submit a read operation to the ring
+	entry := ring.GetSQEntry()
+	if entry == nil {
+		log.Println("Failed to get submission queue entry for read")
+		return
+	}
+	entry.PrepareRead(fd, buffer, 0)
+	ring.Submit()
+
+	// Wait for completion
+	cqe, err := ring.WaitCQEntry()
+	if err != nil {
+		log.Printf("Read operation failed: %v", err)
+		return
+	}
+	if cqe.Res < 0 {
+		log.Printf("Read operation returned error: %d", cqe.Res)
+	} else {
+		log.Printf("Read operation completed: %d bytes read", cqe.Res)
+		fmt.Printf("Received: %x\n", buffer[:cqe.Res])
+	}
+	ring.SeenCQEntry(cqe)
+}

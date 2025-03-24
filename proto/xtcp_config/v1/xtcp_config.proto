@@ -1,0 +1,401 @@
+//
+// xTCP - config
+//
+// These are all the structs relating to the TCP diagnotic module in the kernel
+//
+//
+// Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
+
+
+// https://protobuf.dev/programming-guides/encoding/#structure
+
+syntax = "proto3";
+
+package xtcp_config.v1;
+
+option go_package = "./pkg/xtcp_config";
+
+import "google/protobuf/duration.proto";
+// import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
+
+// https://github.com/bufbuild/protovalidate
+// https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
+// https://github.com/bufbuild/protovalidate/tree/main/examples
+// https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
+// https://github.com/bufbuild/protovalidate?tab=readme-ov-file#implementing-validation-constraints
+
+// https://github.com/google/cel-spec
+// https://github.com/google/cel-spec/blob/master/doc/langdef.md
+
+import "buf/validate/validate.proto";
+
+// https://protobuf.dev/programming-guides/proto3/#scalar
+
+service ConfigService {
+
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/Get"
+      body : "*"
+    };
+  };
+
+  rpc Set(SetRequest) returns (SetResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/Set"
+      body : "*"
+    };
+  };
+
+  rpc SetPollFrequency(SetPollFrequencyRequest) returns (SetPollFrequencyResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/SetPollFrequency"
+      body : "*"
+    };
+  };
+
+}
+
+message GetRequest {
+	// empty
+};
+
+message GetResponse {
+	XtcpConfig config                                = 1;
+};
+
+message SetRequest {
+	XtcpConfig config                                = 1;
+};
+
+message SetResponse {
+	XtcpConfig config                                = 1;
+};
+
+message SetPollFrequencyRequest {
+
+	// Poll frequency
+	// This is how often xtcp sends the netlink dump request
+	// Recommend not too frequently, so maybe 30s or 60s
+	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
+	google.protobuf.Duration poll_frequency          = 20 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).duration = {
+			gte: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 604800 // 604800s = 7 days
+			}
+	}];
+
+	// Poll timeout per name space
+	// Must be less than the poll frequency
+	google.protobuf.Duration poll_timeout            = 30 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).duration = {
+			gte: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 604800 // 604800s = 7 days
+			}
+	}];
+
+  option (buf.validate.message).cel = {
+    id: "XtcpConfig.poll",
+    message: "Poll timeout must be less than poll poll_frequency",
+    expression: "this.poll_timeout < this.poll_frequency"
+  };
+
+};
+
+message SetPollFrequencyResponse {
+	XtcpConfig config                                = 1;
+};
+
+// xtcp configuration
+message XtcpConfig {
+
+	// Netlink socket timeout in milliseconds
+	// Recommend 5000
+	uint64 nl_timeout_milliseconds                   = 10 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			lte: 100000
+	}];
+
+	// Poll frequency
+	// This is how often xtcp sends the netlink dump request
+	// Recommend not too frequently, so maybe 30s or 60s
+	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
+	google.protobuf.Duration poll_frequency          = 20 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).duration = {
+			gt: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 604800 // 604800s = 7 days
+			}
+	}];
+
+	// Poll timeout per name space
+	// Must be less than the poll frequency
+	google.protobuf.Duration poll_timeout            = 30 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).duration = {
+			gt: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 604800 // 604800s = 7 days
+			}
+	}];
+
+  option (buf.validate.message).cel = {
+    id: "XtcpConfig.poll",
+    message: "Poll timeout must be less than poll poll_frequency",
+    expression: "this.poll_frequency > this.poll_timeout"
+  };
+
+	// Maximum number of loops, or zero (0) for forever
+	uint64 max_loops                                 = 40 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			lte: 100000
+	}];
+
+	// Netlinker goroutines per netlink socket ( recommend 1,2,4 range )
+	// Netlinkers read the tcp-diag response messages from the netlink socket
+	// If you have a large number of
+	uint32 netlinkers                                = 50 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 100
+	}];
+
+		// netlinkerDoneCh channel size
+		// This channel is used between the netlinkers and the poller
+		// Check the prom counter to see if the channel is too small
+		// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+		uint32 netlinkers_done_chan_size               = 51 [
+			(buf.validate.field).required = true,
+			(buf.validate.field).uint32 = {
+				gte: 1,
+				lte: 1000
+		}];
+
+	// nlmsg_seq sequence number (start). This gets incremented.
+	uint32 nlmsg_seq                                 = 60 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 10000
+	}];
+
+	// netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
+	// recommend using 0
+	uint64 packet_size                               = 70 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint64 = {
+			gte: 0,
+			lte: 1000000
+	}];
+
+	// netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply
+	uint32 packet_size_mply                          = 80 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 100
+	}];
+
+	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
+	// xtcp will capture this many Netlink response packets when it starts
+	// This is PER netlinker
+	uint32 write_files                               = 90 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
+	// Write files path
+	string capture_path                              = 100 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 80,
+	}];
+
+	// modulus. Report every X socket diag messages to output
+	uint64 modulus                                   = 110 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint64 = {
+			gte: 1,
+			lte: 1000000
+	}];
+
+	// Marshalling of the exported data (protobufList,json,prototext)
+	string marshal_to                                = 120 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).string = {
+			min_len: 4,
+			max_len: 40,
+	}];
+
+	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
+	string dest                                      = 130 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).string = {
+			min_len: 4,
+			max_len: 40,
+	}];
+
+	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
+	// xtcp will capture this many examples of the marshalled data
+	// This is PER poller
+	uint32 dest_write_files                          = 135 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
+
+	// Kafka or NSQ topic
+	string topic                                     = 140 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 40,
+	}];
+
+	// XtcpProtoFile
+	string xtcp_proto_file                           = 143 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 80,
+	}];
+
+	// Kafka schema registry url
+	string kafka_schema_url                          = 145 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 60,
+	}];
+
+	// Kafka Produce context timeout.  Use 0 for no context timeout
+	// Recommend a small timeout, like 1-2 seconds
+	// kgo seems to have a bug, because the timeout is always expired
+	google.protobuf.Duration kafka_produce_timeout   = 150 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 600 // 600s = 10 minutes
+			}
+	}];
+
+	// DebugLevel
+	uint32 debug_level                               = 160 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
+	// Label applied to the protobuf
+	string label                                      = 170 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
+
+	// Tag applied to the protobuf
+	string tag                                       = 180 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
+
+	// GRPC listening port
+	uint32 grpc_port                                 = 190 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 65535
+	}];
+
+	EnabledDeserializers enabled_deserializers        = 200 [
+		(buf.validate.field).required = false
+	];
+};
+
+message EnabledDeserializers {
+	map<string, bool> enabled                          = 1;
+}
+
+// message EnabledDeserializers {
+
+// 	// INET_DIAG_MEMINFO 1
+// 	bool inet_diag_meminfo                           = 1;
+
+// 	// INET_DIAG_INFO 2
+// 	bool inet_diag_info                              = 2;
+
+// 	// INET_DIAG_VEGASINFO 3
+// 	bool inet_diag_vegasinfo                         = 3;
+
+// 	// INET_DIAG_CONG 4
+// 	bool inet_diag_cong                              = 4;
+
+// 	// INET_DIAG_TOS 5
+// 	bool inet_diag_tos                               = 5;
+
+// 	// INET_DIAG_TCLASS 6
+// 	bool inet_diag_tcclass                           = 6;
+
+// 	// INET_DIAG_SKMEMINFO 7
+// 	bool inet_diag_skmeminfo                         = 7;
+
+// 	// INET_DIAG_SHUTDOWN 8
+// 	bool inet_diag_shutdown                          = 8;
+
+// 	// INET_DIAG_DCTCPINFO 9
+// 	bool inet_diag_dctcpinfo                         = 9;
+
+// 	// INET_DIAG_PROTOCOL 10
+// 	// INET_DIAG_SKV6ONLY 11
+// 	// INET_DIAG_LOCALS 12
+// 	// INET_DIAG_PEERS 13
+// 	// INET_DIAG_PAD 14
+// 	// INET_DIAG_MARK 15
+
+// 	// INET_DIAG_BBRINFO 16
+// 	bool inet_diag_bbrinfo                           = 16;
+
+// 	// INET_DIAG_CLASS_ID 17
+// 	bool inet_diag_class_id                          = 17;
+
+// 	// INET_DIAG_MD5SIG 18
+// 	// INET_DIAG_ULP_INFO 19
+// 	// INET_DIAG_SK_BPF_STORAGES 20
+
+// 	// INET_DIAG_CGROUP_ID 21
+// 	bool inet_diag_cgroup_id                         = 21;
+
+// 	// INET_DIAG_SOCKOPT 22
+// 	bool inet_diag_sockopt                           = 22;
+// };

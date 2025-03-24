@@ -1,0 +1,271 @@
+//
+// xTCP - eXport TCP Inet Diagnostic messages
+//
+// These are all the structs relating to the TCP diagnotic module in the kernel
+//
+// Please note that protobufs smallest size is 32 bits, so we actually expand uint8/16 to uint32s.
+// In the protos below, I've commented which ones are uint8/16
+//
+// There are links to the kernel source showing where the struct came from.
+//
+// Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
+
+// Little reminder on compiling
+// https://developers.google.com/protocol-buffers/docs/gotutorial
+// go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+// protoc --go_out=paths=source_relative:. xtcppb.proto
+
+// https://protobuf.dev/programming-guides/encoding/#structure
+
+syntax = "proto3";
+
+package xtcp_flat_record.v1;
+
+// https://developers.google.com/protocol-buffers/docs/reference/go-generated
+// option go_package = "github.com/randomizedcoder/xtcp2/pkg/xtcppb";
+// option go_package = "github.com/randomizedcoder/xtcp";
+option go_package = "./pkg/xtcp_flat_record";
+
+// https://github.com/bufbuild/protovalidate
+// https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
+// https://github.com/bufbuild/protovalidate/tree/main/examples
+// https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
+// import "buf/validate/validate.proto";
+
+service XTCPFlatRecordService {
+
+	// If xtcp is polling, this will return the stream
+	rpc FlatRecords ( FlatRecordsRequest ) returns ( stream FlatRecordsResponse );
+
+	// If xtcp is not polling, this allows the client to send a poll request
+	rpc PollFlatRecords ( stream PollFlatRecordsRequest ) returns ( stream FlatRecordsResponse );
+}
+
+message FlatRecordsRequest {
+	// empty
+}
+
+message FlatRecordsResponse {
+	XtcpFlatRecord xtcp_flat_record                 = 1;
+	//xtcp_flat_record xtcp_flat_record                 = 1;
+}
+
+message PollFlatRecordsRequest {
+	// empty
+}
+
+// message PollFlatRecordsResponse {
+//   XtcpFlatRecord xtcp_flat_record                  = 1;
+// }
+
+// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
+message XtcpFlatRecord {
+//message xtcp_flat_record {
+	uint64 sec                                      = 1;
+	uint64 nsec                                     = 2;
+
+	string hostname                                 = 3;
+
+	// network namespace
+	string netns                                    = 4;
+
+	// network namespace id
+	// TODO xtcp does not currently get the id
+	uint32 nsid                                     = 5;
+
+	// free form string
+	string label                                    = 6;
+
+	// free form string
+	string tag                                      = 7;
+
+	uint64 record_counter                           = 8;
+
+	uint64 socket_fd                                = 9;
+
+	uint64 netlinker_id                             = 10;
+
+	// inet_diag_msg inet_diag_msg                  = 100;
+
+	uint32 inet_diag_msg_family                     = 101; // uint8
+	uint32 inet_diag_msg_state                      = 102; // uint8
+	uint32 inet_diag_msg_timer                      = 103; // uint8
+	uint32 inet_diag_msg_retrans                    = 104; // uint8
+
+	uint32 inet_diag_msg_socket_source_port         = 105; // __be16
+	uint32 inet_diag_msg_socket_destination_port    = 106; // __be16
+	bytes inet_diag_msg_socket_source               = 107;
+	bytes inet_diag_msg_socket_destination          = 108;
+	uint32 inet_diag_msg_socket_interface           = 109;
+	uint64 inet_diag_msg_socket_cookie              = 110; // [2]uint32
+	uint64 inet_diag_msg_socket_dest_asn            = 111;
+	uint64 inet_diag_msg_socket_next_hop_asn        = 112;
+
+	uint32 inet_diag_msg_expires                    = 113;
+	uint32 inet_diag_msg_rqueue                     = 114;
+	uint32 inet_diag_msg_wqueue                     = 115;
+	uint32 inet_diag_msg_uid                        = 116;
+	uint32 inet_diag_msg_inode                      = 117;
+
+	// might want to put more here
+	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
+	// mem_info mem_info                            = 200; // INET_DIAG_MEMINFO 1
+
+	uint32 mem_info_rmem                            = 201;
+	uint32 mem_info_wmem                            = 202;
+	uint32 mem_info_fmem                            = 203;
+	uint32 mem_info_tmem                            = 204;
+
+	//tcp_info tcp_info                             = 300; // INET_DIAG_INFO 2
+
+	uint32 tcp_info_state                           = 301; // uint8
+	uint32 tcp_info_ca_state                        = 302; // uint8
+	uint32 tcp_info_retransmits                     = 303; // uint8
+	uint32 tcp_info_probes                          = 304; // uint8
+	uint32 tcp_info_backoff                         = 305; // uint8
+	uint32 tcp_info_options                         = 306; // uint8
+//	__u8	_snd_wscale : 4, _rcv_wscale : 4;
+//	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
+	uint32 tcp_info_send_scale                      = 307; // uint4
+	uint32 tcp_info_rcv_scale                       = 308; // uint4
+	uint32 tcp_info_delivery_rate_app_limited       = 309; // uint8
+	uint32 tcp_info_fast_open_client_failed         = 310; // uint8
+
+	uint32 tcp_info_rto                             = 315;
+	uint32 tcp_info_ato                             = 316;
+	uint32 tcp_info_snd_mss                         = 317;
+	uint32 tcp_info_rcv_mss                         = 318;
+
+	uint32 tcp_info_unacked                         = 319;
+	uint32 tcp_info_sacked                          = 320;
+	uint32 tcp_info_lost                            = 321;
+	uint32 tcp_info_retrans                         = 322;
+	uint32 tcp_info_fackets                         = 323;
+
+	// Times
+	uint32 tcp_info_last_data_sent                  = 324;
+	uint32 tcp_info_last_ack_sent                   = 325;
+	uint32 tcp_info_last_data_recv                  = 326;
+	uint32 tcp_info_last_ack_recv                   = 327;
+
+	// Metrics
+	uint32 tcp_info_pmtu                            = 328;
+	uint32 tcp_info_rcv_ssthresh                    = 329;
+	uint32 tcp_info_rtt                             = 330;
+	uint32 tcp_info_rtt_var                         = 331;
+	uint32 tcp_info_snd_ssthresh                    = 332;
+	uint32 tcp_info_snd_cwnd                        = 333;
+	uint32 tcp_info_adv_mss                         = 334;
+	uint32 tcp_info_reordering                      = 335;
+
+	uint32 tcp_info_rcv_rtt                         = 336;
+	uint32 tcp_info_rcv_space                       = 337;
+
+	uint32 tcp_info_total_retrans                   = 338;
+
+	uint64 tcp_info_pacing_rate                     = 339;
+	uint64 tcp_info_max_pacing_rate                 = 340;
+	uint64 tcp_info_bytes_acked                     = 341; // RFC4898 tcpEStatsAppHCThruOctetsAcked
+	uint64 tcp_info_bytes_received                  = 342; // RFC4898 tcpEStatsAppHCThruOctetsReceived
+	uint32 tcp_info_segs_out                        = 343; // RFC4898 tcpEStatsPerfSegsOut
+	uint32 tcp_info_segs_in                         = 344; // RFC4898 tcpEStatsPerfSegsIn
+
+	uint32 tcp_info_not_sent_bytes                  = 345;
+	uint32 tcp_info_min_rtt                         = 346;
+	uint32 tcp_info_data_segs_in                    = 347; // RFC4898 tcpEStatsDataSegsIn
+	uint32 tcp_info_data_segs_out                   = 348; // RFC4898 tcpEStatsDataSegsOut
+
+	uint64 tcp_info_delivery_rate                   = 349;
+
+	uint64 tcp_info_busy_time                       = 350; // Time (usec) busy sending data
+	uint64 tcp_info_rwnd_limited                    = 351; // Time (usec) limited by receive window
+	uint64 tcp_info_sndbuf_limited                  = 352; // Time (usec) limited by send buffer
+
+	//4.15 kernel tcp_info ends here, 5+ below
+
+	uint32 tcp_info_delivered                       = 353;
+	uint32 tcp_info_delivered_ce                    = 354;
+
+	// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
+	uint64 tcp_info_bytes_sent                      = 355; // RFC4898 tcpEStatsPerfHCDataOctetsOut
+	uint64 tcp_info_bytes_retrans                   = 356; // RFC4898 tcpEStatsPerfOctetsRetrans
+	uint32 tcp_info_dsack_dups                      = 357; // RFC4898 tcpEStatsStackDSACKDups
+	uint32 tcp_info_reord_seen                      = 358; // reordering events seen
+
+	uint32 tcp_info_rcv_ooopack                     = 359; // Out-of-order packets received
+
+	uint32 tcp_info_snd_wnd                         = 360; // peer's advertised receive window after scaling (bytes)
+	uint32 tcp_info_rcv_wnd                         = 361; // local advertised receive window after scaling (bytes)
+	uint32 tcp_info_rehash                          = 362; // PLB or timeout triggered rehash attempts
+	uint32 tcp_info_total_rto                       = 363; // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+	uint32 tcp_info_total_rto_recoveries            = 364; // Total number of RTO recoveries, including any unfinished recovery
+	uint32 tcp_info_total_rto_time                  = 365; // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+
+
+	// Please note it's recommended to use the enum for efficency, but keeping the string
+	// just in case we need to quickly put a different algorithm in without updating the enum.
+	// Obviously it's optional, so it low cost.
+	string congestion_algorithm_string              = 400; // INET_DIAG_CONG 4
+	enum CongestionAlgorithm {
+		CONGESTION_ALGORITHM_UNSPECIFIED = 0;
+		CONGESTION_ALGORITHM_CUBIC       = 1;
+		CONGESTION_ALGORITHM_DCTCP       = 2;
+		CONGESTION_ALGORITHM_VEGAS       = 3;
+		CONGESTION_ALGORITHM_PRAGUE      = 4;
+		CONGESTION_ALGORITHM_BBR1        = 5;
+		CONGESTION_ALGORITHM_BBR2        = 6;
+		CONGESTION_ALGORITHM_BBR3        = 7;
+	};
+	CongestionAlgorithm congestion_algorithm_enum   = 401; // INET_DIAG_CONG 4
+
+	uint32 type_of_service                          = 501; // INET_DIAG_TOS 5 uint8
+	uint32 traffic_class                            = 502; // INET_DIAG_TCLASS 6 uint8
+
+	// sk_mem_info sk_mem_info                      = 600; // INET_DIAG_SKMEMINFO 7
+
+	uint32 sk_mem_info_rmem_alloc                   = 601;
+	uint32 sk_mem_info_rcv_buf                      = 602;
+	uint32 sk_mem_info_wmem_alloc                   = 603;
+	uint32 sk_mem_info_snd_buf                      = 604;
+	uint32 sk_mem_info_fwd_alloc                    = 605;
+	uint32 sk_mem_info_wmem_queued                  = 606;
+	uint32 sk_mem_info_optmem                       = 607;
+	uint32 sk_mem_info_backlog                      = 608;
+	uint32 sk_mem_info_drops                        = 609;
+
+	uint32 shutdown_state                           = 700; // UNIX_DIAG_SHUTDOWN 8uint8
+
+	// vegas_info vegas_info                        = 800; // INET_DIAG_VEGASINFO
+
+	uint32 vegas_info_enabled                       = 801;
+	uint32 vegas_info_rtt_cnt                       = 802;
+	uint32 vegas_info_rtt                           = 803;
+	uint32 vegas_info_min_rtt                       = 804;
+
+	// dctcp_info dctcp_info                        = 900; // INET_DIAG_DCTCPINFO
+
+	uint32 dctcp_info_enabled                       = 901;
+	uint32 dctcp_info_ce_state                      = 902;
+	uint32 dctcp_info_alpha                         = 903;
+	uint32 dctcp_info_ab_ecn                        = 904;
+	uint32 dctcp_info_ab_tot                        = 905;
+
+	// bbr_info bbr_info                            = 1000; // INET_DIAG_BBRINFO 16
+
+	uint32 bbr_info_bw_lo                           = 1001;
+	uint32 bbr_info_bw_hi                           = 1002;
+	uint32 bbr_info_min_rtt                         = 1003;
+	uint32 bbr_info_pacing_gain                     = 1004;
+	uint32 bbr_info_cwnd_gain                       = 1005;
+
+	uint32 class_id                                 = 1101; // INET_DIAG_CLASS_ID 17 uint32
+	uint32 sock_opt                                 = 1102; // INET_DIAG_SOCKOPT
+	uint64 c_group                                  = 1203; // INET_DIAG_BC_CGROUP_COND
+};
+
+// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+message Envelope {
+
+	repeated XtcpFlatRecord row                     = 1;
+	//repeated xtcp_flat_record row                     = 1;
+};

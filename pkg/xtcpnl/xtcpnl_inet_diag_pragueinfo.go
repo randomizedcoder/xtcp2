@@ -98,7 +98,7 @@ func DeserializePragueInfoReflection(data []byte, p *PragueInfo) (n int, err err
 	return PragueInfoReadCst, err
 }
 
-// func DeserializePragueInfoXTCP(data []byte, x *xtcppb.FlatXtcpRecord) (err error) {
+// func DeserializePragueInfoXTCP(data []byte, x *xtcppb.XtcpFlatRecord) (err error) {
 
 // 	if len(data) < PragueInfoSizeCst {
 // 		return ErrPragueInfoSmall
@@ -114,7 +114,7 @@ func DeserializePragueInfoReflection(data []byte, p *PragueInfo) (n int, err err
 // 	return nil
 // }
 
-// func ZeroizePragueInfoXTCP(x *xtcppb.FlatXtcpRecord) {
+// func ZeroizePragueInfoXTCP(x *xtcppb.XtcpFlatRecord) {
 // 	x.Alpha = 0
 // 	x.FracCwnd = 0
 // 	x.RateBytes = 0

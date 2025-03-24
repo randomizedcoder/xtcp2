@@ -1,3 +1,8 @@
+#
+# Main docker-compose for xtcp2
+#
+# Redpanda admin console browse to: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages
+#
 name: xtcp
 networks:
   net:
@@ -52,9 +57,11 @@ services:
       - --smp=1
       - --default-log-level=info
     environment:
-      REDPANDA_VERSION: 24.1.16
+      # REDPANDA_VERSION: 24.1.16
+      REDPANDA_VERSION: 24.3.3
     # https://hub.docker.com/r/redpandadata/redpanda/tags
-    image: docker.redpanda.com/redpandadata/redpanda:v24.1.16
+    # image: docker.redpanda.com/redpandadata/redpanda:v24.1.16
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.3
     container_name: redpanda-0
     volumes:
       - redpanda-0:/var/lib/redpanda/data
@@ -71,13 +78,15 @@ services:
   console:
     container_name: redpanda-console
     # https://hub.docker.com/r/redpandadata/console/tags
-    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    #image: docker.redpanda.com/redpandadata/console:v2.7.2
+    image: docker.redpanda.com/redpandadata/console:v2.8.2
     networks:
       - net
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
-      CONSOLE_VERSION: 2.7.2
+      #CONSOLE_VERSION: 2.7.2
+      CONSOLE_VERSION: 2.8.2
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: |
         kafka:
@@ -91,7 +100,8 @@ services:
             urls: ["http://redpanda-0:9644"]
     ports:
       # Browse to: http://localhost:8080/topics/xtcp?p=-1&s=50&o=-2#messages
-      - 8080:8080
+      # Browse to: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages
+      - 8085:8080
     depends_on:
       - redpanda-0
   #----------------------------------------------------------
@@ -102,16 +112,27 @@ services:
   clickhouse:
     # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
     #image: clickhouse/clickhouse-server:24.6.2.17-alpine
-    image: xtcp_clickhouse
+    image: randomizedcoder/xtcp_clickhouse:2.0.1
     #
-    #environment:
+    environment:
       # https://clickhouse.com/docs/en/operations/access-rights
       # CLICKHOUSE_DB: default
       # CLICKHOUSE_USER: default
       # CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: default
       # CLICKHOUSE_PASSWORD: default
+      CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS: true
+      # Env var switches:
+      # https://github.com/ClickHouse/ClickHouse/blob/master/docker/server/entrypoint.sh
+      # https://kb.altinity.com/altinity-kb-setup-and-maintenance/altinity-kb-clickhouse-in-docker/
     # security_opt:
     #   - "label=type:clickhouse.process"
+    # sysctls:
+    #   # 2025.02.12 04:12:53.948733 [ 1 ] {} <Warning> Context: Delay accounting is not enabled,
+    #   # OSIOWaitMicroseconds will not be gathered. # You can enable it using
+    #   # `echo 1 > /proc/sys/kernel/task_delayacct` or by using sysctl.
+    #   - kernel.task_delayacct = 1
+    #   # - net.ipv4.tcp_rmem = 4096 1000000 16000000
+    #   # - net.ipv4.tcp_wmem = 4096 1000000 16000000
     ulimits:
       #nproc: 65535
       memlock:
@@ -121,26 +142,27 @@ services:
         soft: 262144
         hard: 262144
     cap_add:
+      # https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities
       - NET_ADMIN
       - SYS_NICE
       - IPC_LOCK
       - SYS_PTRACE
     ports:
       # http
-      - 8123:8123
+      - 18123:8123
       # native
-      - 9001:9000
+      - 19001:9000
       # mysql
-      - 9004:9004
+      - 19004:9004
       # postgres
-      - 9005:9005
+      - 19005:9005
       # prometheus
-      - 9363:9363
+      - 19363:9363
     volumes:
       # ch_server-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
       # ch_server-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
       # https://clickhouse.com/docs/en/operations/configuration-files
-      - clickhouse_db:/var/lib/clickhouse/
+      - clickhouse_db:/var/lib/clickhouse/:z
       # - ${XTCPPATH}/build/containers/clickhouse/db/:/var/lib/clickhouse/:z
       # - ${XTCPPATH}/build/containers/clickhouse/bitnami_db/:/bitnami/clickhouse/:z
       #- ch_data:/var/lib/clickhouse/
@@ -158,40 +180,48 @@ services:
       # variables CLICKHOUSE_USER & CLICKHOUSE_PASSWORD that will be used for clickhouse-client
       # during initialization.
       - ${XTCPPATH}/build/containers/clickhouse/initdb.d/:/docker-entrypoint-initdb.d/:z
+      - ${XTCPPATH}/build/containers/clickhouse/format_schemas/:/var/lib/clickhouse/format_schemas/:z
     networks:
       - net
     depends_on:
       - redpanda-0
       # - kafka
-      - nsqd
+      # - nsqd
   #----------------------------------------------------------
   # xtcps
   xtcp2:
     #hostname: t-xtcp2-container
-    image: xtcp2
+    image: randomizedcoder/xtcp2
     entrypoint: /xtcp2
     command: --dest kafka:localhost:19092
     environment:
-      GOMEMLIMIT: 98MiB
+      DEBUG_LEVEL: "111"
+      GOMEMLIMIT: 148MiB
       # https://tip.golang.org/doc/gc-guide#GOGC
       # GOGC: 100
       GOGC: 50
-      # GOMAXPROCS: 4
+      GOMAXPROCS: 4
     ports:
       # prometheus
-      - 9009:9009
+      - 9088:9088
+    #   # grpc
+    #   - 8888:8888
     privileged: true
     network_mode: host
     pid: host
     ipc: host
     cap_add:
-      - NET_ADMIN
+    # https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities
+    # https://github.com/moby/moby/blob/ad9d70b0e6833b746eecccc08a17459ba8bb31c4/oci/caps/utils.go#L83
+    - NET_ADMIN
+    - SYS_ADMIN
+    - SYS_CHROOT
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 100M
+          cpus: "2"
+          memory: 150M
         reservations:
           cpus: "0.25"
           memory: 32M
@@ -200,6 +230,9 @@ services:
     #  - host
     depends_on:
       - redpanda-0
+    volumes:
+      - /run/netns/:/run/netns/:z
+      - /run/docker/netns/:/run/docker/netns/:z
   # xtcp2:
   #   hostname: t-xtcp2-container
   #   image: xtcp2
@@ -246,55 +279,58 @@ services:
   #----------------------------------------------------------
   # nsq
   # https://nsq.io/deployment/docker.html#using-docker-compose
-  nsqlookupd:
-    image: nsqio/nsq
-    command: /nsqlookupd
-    ports:
-      - 4160
-      - 4161
-    networks:
-      - net
-  nsqd:
-    image: nsqio/nsq
-    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --data-path=/data
-    volumes:
-    - nsq_data:/data:rw
-    depends_on:
-      - nsqlookupd
-    ports:
-      - 4150
-      - 4151
-    networks:
-      - net
-  nsqadmin:
-    image: nsqio/nsq
-    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
-    depends_on:
-      - nsqlookupd
-    ports:
-      - 4171
-    networks:
-      - net
-  #----------------------------------------------------------
-  # nats
-  # https://hub.docker.com/_/nats/tags
-  nats:
-    image: nats:alpine3.20
-    ports:
-      - 8222:8222
-    networks:
-      - net
-  #----------------------------------------------------------
-  # valkey
-  # https://hub.docker.com/r/valkey/valkey/tags
-  valkey:
-    image: valkey/valkey:8-alpine3.20
-    volumes:
-    - /valkey_data:/data
-    ports:
-      - 6379:6379
-    networks:
-      - net
+  #https://hub.docker.com/r/nsqio/nsq/tags
+  # nsqlookupd:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqlookupd
+  #   ports:
+  #     - 4160
+  #     - 4161
+  #   networks:
+  #     - net
+  # nsqd:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --data-path=/data
+  #   volumes:
+  #   - nsq_data:/data:rw
+  #   depends_on:
+  #     - nsqlookupd
+  #   ports:
+  #     - 4150
+  #     - 4151
+  #   networks:
+  #     - net
+  # nsqadmin:
+  #   image: nsqio/nsq:v1.3.0
+  #   command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+  #   depends_on:
+  #     - nsqlookupd
+  #   ports:
+  #     - 4171
+  #   networks:
+  #     - net
+  # #----------------------------------------------------------
+  # # nats
+  # # https://hub.docker.com/_/nats/tags
+  # nats:
+  #   #image: nats:alpine3.20
+  #   image: nats:2.10
+  #   ports:
+  #     - 8222:8222
+  #   networks:
+  #     - net
+  # #----------------------------------------------------------
+  # # valkey
+  # # https://hub.docker.com/r/valkey/valkey/tags
+  # valkey:
+  #   #image: valkey/valkey:8-alpine3.20
+  #   image: valkey/valkey:8-alpine3.21
+  #   volumes:
+  #   - /valkey_data:/data
+  #   ports:
+  #     - 6379:6379
+  #   networks:
+  #     - net
   # #----------------------------------------------------------
   # Actually, I haven't written the code for rabbit yet
   # # rabbitMQ

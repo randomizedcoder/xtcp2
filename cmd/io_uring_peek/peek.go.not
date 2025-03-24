@@ -1,0 +1,90 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/iceber/iouring-go"
+)
+
+// UserData is a custom type for tagging each write operation
+type UserData uint64
+
+func main() {
+	// Open a file for write operations
+	file, err := os.OpenFile("batch_output.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	// Create io_uring instance with queue size 8
+	ring, err := iouring.New(8)
+	if err != nil {
+		log.Fatalf("Failed to initialize io_uring: %v", err)
+	}
+	defer ring.Close()
+
+	// Batch of data to write
+	data := []string{
+		"Line 1: Hello, this is io_uring!\n",
+		"Line 2: Writing multiple lines.\n",
+		"Line 3: Using batch writes via io_uring.\n",
+		"Line 4: Adding user_data for tracking completions.\n",
+	}
+
+	// Submit batched write operations
+	submitBatchWrites(ring, file.Fd(), data)
+
+	// Process completions
+	processCompletions(ring, len(data))
+
+	fmt.Println("All I/O operations completed.")
+}
+
+func submitBatchWrites(ring *iouring.IOURing, fd uintptr, data []string) {
+	for i, content := range data {
+		entry := ring.GetSQEntry()
+		if entry == nil {
+			log.Fatalf("Failed to get submission queue entry for write %d", i)
+		}
+
+		// Prepare write request
+		entry.PrepareWrite(int(fd), []byte(content), 0) // Write to file at offset 0 (append sequentially)
+		entry.UserData = uint64(i)                      // Include user_data to identify this operation
+
+		fmt.Printf("Submitted write operation %d with user_data: %d\n", i, entry.UserData)
+	}
+
+	// Submit all the entries in the batch
+	if err := ring.Submit(); err != nil {
+		log.Fatalf("Failed to submit batched writes: %v", err)
+	}
+	fmt.Println("All write operations submitted.")
+}
+
+func processCompletions(ring *iouring.IOURing, expectedCompletions int) {
+	completed := 0
+
+	for completed < expectedCompletions {
+		cqe, err := ring.PeekCQEntry()
+		if err != nil {
+			log.Fatalf("Failed to peek CQE: %v", err)
+		}
+
+		if cqe != nil {
+			// Retrieve the user_data and result
+			userData := UserData(cqe.UserData)
+			if cqe.Res < 0 {
+				log.Printf("Write operation %d failed with error: %d\n", userData, cqe.Res)
+			} else {
+				log.Printf("Write operation %d completed successfully, %d bytes written.\n", userData, cqe.Res)
+			}
+
+			// Mark the completion queue entry as seen
+			ring.SeenCQEntry(cqe)
+			completed++
+		}
+	}
+}

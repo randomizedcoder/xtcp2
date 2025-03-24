@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
 )
 
 var (
@@ -18,14 +19,15 @@ var (
 )
 
 type DeserializeArgs struct {
-	ctx            context.Context
+	ns             *string
+	fd             int
 	NLPacket       *[]byte
 	xtcpRecordPool *sync.Pool
 	nlhPool        *sync.Pool
 	rtaPool        *sync.Pool
 	pC             *prometheus.CounterVec
 	pH             *prometheus.SummaryVec
-	id             int
+	id             uint32
 }
 
 func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, err error) {
@@ -36,25 +38,23 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 	}()
 	d.pC.WithLabelValues("Deserialize", "start", "count").Inc()
 
-	var hostname string
-	if h, ok := x.hostname.Load(hostnameKeyCst); ok {
-		hostname = h.(string)
-	} else {
-		d.pC.WithLabelValues("Deserialize", "hostname", "error").Inc()
-	}
-
 	var startPollTime time.Time
-	if s, ok := x.pollTime.Load(startPollTimeKeyCst); ok {
+	if s, ok := x.pollTime.Load(d.fd); ok {
 		startPollTime = s.(time.Time)
 	} else {
 		d.pC.WithLabelValues("Deserialize", "pollTime", "error").Inc()
 	}
 
-	sec, nsec := startPollTime.UnixNano()/1e9, startPollTime.UnixNano()%1e9
+	timestampNs := float64(startPollTime.UnixNano()) / 1e9
+	// sec, nsec := uint64(startPollTime.UnixNano()/1e9), uint64(startPollTime.UnixNano()%1e9)
 
 	offset := 0
 	length := 0
 	end := len(*d.NLPacket)
+
+	if x.debugLevel > 10 {
+		log.Printf("Deserialize n:%d, offset:%d, end:%d", n, offset, end)
+	}
 
 	for n = 0; offset < end; n++ {
 
@@ -64,19 +64,24 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		// 	log.Printf("Deserialize n:%d", n)
 		// }
 
-		if *x.config.Modulus != 1 {
-			if n%uint64((*x.config.Modulus)) != 1 {
+		if x.config.Modulus != 1 {
+			if n%uint64(x.config.Modulus) != 1 {
 				d.pC.WithLabelValues("Deserialize", "continue", "count").Inc()
 				continue
 			}
 		}
 
 		nlPacketStartTime := time.Now()
-		xtcpRecord := x.xtcpRecordPool.Get().(*xtcppb.FlatXtcpRecord)
-		(*xtcpRecord).Hostname = hostname
-		(*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
+		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
+
+		(*xtcpRecord).Hostname = x.hostname
+		(*xtcpRecord).TimestampNs = timestampNs
+		// (*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
+
+		(*xtcpRecord).Netns = *d.ns
 		(*xtcpRecord).RecordCounter = n
-		(*xtcpRecord).NetlinkerId = uint32(d.id)
+		(*xtcpRecord).SocketFd = uint64(d.fd)
+		(*xtcpRecord).NetlinkerId = uint64(d.id)
 
 		nlh := d.nlhPool.Get().(*xtcpnl.NlMsgHdr)
 
@@ -87,11 +92,30 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			d.pC.WithLabelValues("Deserialize", "DeserializeNlMsgHdr", "error").Inc()
 			return n, ErrParseDeserializeNlMsgHdr
 		}
-
 		offset += length
 
+		if x.debugLevel > 10 {
+			log.Printf("Deserialize DeserializeNlMsgHdr nlh.Len:%d", nlh.Len)
+		}
+
 		if nlh.Type == xtcpnl.NlMsgHdrTypeDoneCst {
-			x.netlinkerDoneCh <- time.Now()
+
+			select {
+			case x.netlinkerDoneCh <- netlinkerDone{
+				fd: d.fd,
+				t:  time.Now(),
+			}:
+			// Non-blocking
+			// This allows us to see if the channel ever becomes blocking
+			default:
+				d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+				// Blocking
+				x.netlinkerDoneCh <- netlinkerDone{
+					fd: d.fd,
+					t:  time.Now(),
+				}
+			}
+
 			return n, nil
 		}
 
@@ -117,27 +141,40 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		offset += length
 
 		if x.debugLevel > 1000 {
-			log.Printf("Deserialize n:%d x.Destation(ctx, x.Marshaler(xtcpRecord))", n)
+			log.Printf("Deserialize n:%d x.Destination(ctx, x.Marshaler(xtcpRecord))", n)
 		}
 
-		n, err := x.Destation(ctx, x.Marshaler(xtcpRecord))
-		if err != nil {
-			d.pC.WithLabelValues("Deserialize", "Destation", "error").Inc()
-		} else {
-			d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(n))
+		// single record send to GRPC client
+		x.flatRecordServiceSend(xtcpRecord)
+
+		//xr := xtcp_flat_record.Envelope_XtcpFlatRecord(xtcpRecord)
+
+		x.envelopeMu.Lock()
+		x.currentEnvelope.Row = append(x.currentEnvelope.Row, xtcpRecord)
+		x.envelopeMu.Unlock()
+
+		if x.debugLevel > 10000 {
+			log.Printf("Deserialize XXXX %d append len(x.currentEnvelope.Row):%d", d.id, len(x.currentEnvelope.Row))
 		}
 
-		if x.debugLevel > 10 {
+		if x.debugLevel > 1000 {
 			log.Printf("Deserialize %d n:%d xtcpRecord:%v", d.id, n, xtcpRecord)
+		}
+
+		if x.debugLevel > 1000 {
+			d.pC.WithLabelValues("Deserialize", strconv.Itoa(d.fd), "count").Inc()
 		}
 
 		d.nlhPool.Put(nlh)
 
 		// We could use reset, but because we expect to overwrite all the values except "cong"
 		// we can simply clear the "cong" specific attributes
-		//xtcpRecord.Reset()
-		x.ZeroXTCPCongRecord(xtcpRecord)
-		d.xtcpRecordPool.Put(xtcpRecord)
+		// x.ZeroXTCPCongRecord(xtcpRecord)
+		// xtcpRecord.Reset()
+		// xr.Reset()
+
+		// d.xtcpRecordPool.Put(xtcpRecord)
+		// d.xtcpRecordPool.Put(xr)
 
 		d.pH.WithLabelValues("Deserialize", "nlPacketComplete", "count").Observe(time.Since(nlPacketStartTime).Seconds())
 
@@ -147,7 +184,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 // ZeroXTCPCongRecord will zero out the congestion algorithm specific fields
 // We need to do this because these won't get over written each time
-func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcppb.FlatXtcpRecord) {
+func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	if zeroer, ok := x.xtcpRecordZeroizer[xtcpRecord.CongestionAlgorithmEnum]; ok {
 		zeroer(xtcpRecord)
 	}
@@ -155,11 +192,11 @@ func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcppb.FlatXtcpRecord) {
 
 type DeserializeAttributesArgs struct {
 	NLPacket   *[]byte
-	xtcpRecord *xtcppb.FlatXtcpRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 	rtaPool    *sync.Pool
 	pC         *prometheus.CounterVec
 	pH         *prometheus.SummaryVec
-	id         int
+	id         uint32
 	offset     int
 	end        int
 }
@@ -202,7 +239,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 type DeserializeAttributeArgs struct {
 	Type       int
 	buf        []byte
-	xtcpRecord *xtcppb.FlatXtcpRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 	pC         *prometheus.CounterVec
 	pH         *prometheus.SummaryVec
 }

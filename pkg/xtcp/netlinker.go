@@ -17,19 +17,18 @@ import (
 
 const (
 	writeFilesPermissionsCst = 0644
-
-	forceGCModulesCst = 1000
+	forceGCModulesCst        = 1000
 )
 
-func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
+func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
 
 	defer wg.Done()
 
 	if x.debugLevel > 10 {
-		log.Printf("Netlinker %d started", id)
+		log.Printf("Netlinker %d started ns:%s fd:%d", id, *nsName, fd)
 	}
 
-	wf := *x.config.WriteFiles
+	wf := x.config.WriteFiles
 
 	packetBuffer := x.packetBufferPool.Get().(*[]byte)
 
@@ -37,18 +36,22 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
 
 		x.pC.WithLabelValues("Netlinker", "RecvfromCalls", "count").Inc()
 
+		if netlinkerDone = x.checkDoneNonBlocking(ctx); netlinkerDone {
+			continue
+		}
+
 		// keep in mind that via SetSocketTimeoutViaSyscall, the setsocket option
-		// has set a read timeout to x.config.NLTimeout milliseconds
+		// has set a read timeout to x.config.NLTimeout milliseconds, so
+		// Recvfrom will not block forever, allowing Netlinkers to be shutdown
 
 		startTime := time.Now()
-		// // https://www.man7.org/linux/man-pages/man3/recvfrom.3p.html
-		n, _, err := syscall.Recvfrom(x.socketFD, *packetBuffer, 0)
+		// https://www.man7.org/linux/man-pages/man3/recvfrom.3p.html
+		n, _, err := syscall.Recvfrom(fd, *packetBuffer, 0)
 
 		x.pH.WithLabelValues("Netlinker", "Recvfrom", "count").Observe(time.Since(startTime).Seconds())
 
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 			x.pC.WithLabelValues("Netlinker", "Timeout", "count").Inc()
-			netlinkerDone = x.CheckDoneNonBlocking(ctx)
 			continue
 		}
 		if err != nil {
@@ -56,8 +59,12 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
 			continue
 		}
 
-		if x.debugLevel > 10 {
-			log.Printf("Netlinker %d Recvfrom packets:%d", id, packets)
+		if x.debugLevel > 100 {
+			if ns, ok := x.fdToNsMap.Load(fd); ok {
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, ns.(string))
+			} else {
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d Unknown FD!!", id, packets, n, fd)
+			}
 		}
 
 		x.pC.WithLabelValues("Netlinker", "packets", "count").Inc()
@@ -66,8 +73,8 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
 		if wf > 0 {
 			now := time.Now()
 			err := os.WriteFile(
-				*x.config.CapturePath+now.Format(time.RFC3339Nano),
-				(*packetBuffer)[0:n],
+				x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
+				*(packetBuffer),
 				writeFilesPermissionsCst)
 			if err != nil {
 				log.Fatal(err)
@@ -80,7 +87,8 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
 		p, errD := x.Deserialize(
 			ctx,
 			DeserializeArgs{
-				ctx:            ctx,
+				ns:             nsName,
+				fd:             fd,
 				NLPacket:       &b,
 				xtcpRecordPool: &x.xtcpRecordPool,
 				nlhPool:        &x.nlhPool,
@@ -95,13 +103,16 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, id int) {
 		}
 		x.pC.WithLabelValues("Netlinker", "p", "count").Add(float64(p))
 
-		if x.debugLevel > 10 {
-			log.Printf("Netlinker %d packets:%d, n:%d, p:%d", id, packets, n, p)
+		if x.debugLevel > 100 {
+			if ns, ok := x.fdToNsMap.Load(fd); ok {
+				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, ns.(string))
+			} else {
+				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d", id, packets, n, p, fd)
+			}
 		}
 
-		netlinkerDone = x.CheckDoneNonBlocking(ctx)
-
 		if packets%forceGCModulesCst == 0 {
+			x.pC.WithLabelValues("Netlinker", "runtime.GC()", "count").Inc()
 			runtime.GC()
 		}
 	}

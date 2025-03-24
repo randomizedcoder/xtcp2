@@ -62,7 +62,7 @@ func Swap16(i uint16) uint16 {
 // Using the newer https://godoc.org/golang.org/x/sys/unix library
 // Commented out is some timeout code, which was used during testing,
 // but leaving it here in case we want it back at some point
-func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int, socketAddress *unix.SockaddrNetlink) {
+func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int) {
 
 	if debugLevel > 100 {
 		fmt.Println("OpenNetlinkSocketWithTimeout\ttimeout:", timeout)
@@ -80,7 +80,7 @@ func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int, socketAddress *u
 
 	// Bind the socket
 	// https://godoc.org/golang.org/x/sys/unix#SockaddrNetlink
-	socketAddress = &unix.SockaddrNetlink{Family: syscall.AF_NETLINK}
+	socketAddress := &unix.SockaddrNetlink{Family: syscall.AF_NETLINK}
 
 	// https://godoc.org/golang.org/x/sys/unix#Bind
 	err = unix.Bind(socketFD, socketAddress)
@@ -93,34 +93,7 @@ func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int, socketAddress *u
 		panic("could not set socket SO_RCVTIMEO timeout")
 	}
 
-	return socketFD, socketAddress
-}
-
-func SetSocketTimeoutViaSyscall(timeout int64, socketFileDescriptor int) (err error) {
-
-	// Set socket timeout based on constants
-	// doing this so that netlinkers can close on their own (or in the very unlikely event the kernel doesn't respond)
-	if timeout != 0 {
-		// https://godoc.org/golang.org/x/sys/unix#SetsockoptTimeval
-		var tv syscall.Timeval
-		if timeout >= 1000 {
-			// seconds
-			tv.Sec = timeout / 1000
-		} else {
-			// milliseconds
-			tv.Usec = timeout * 1000 // microsecond or 1 millionth of a second.  1 milliseconds = 1000 micro
-		}
-		if debugLevel > 100 {
-			fmt.Println("OpenNetlinkSocketWithTimeout\ttv:", tv)
-		}
-
-		err = syscall.SetsockoptTimeval(socketFileDescriptor, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
-		if err != nil {
-			log.Fatalf("OpenNetlinkSocketWithTimeout SetsockopttimeSpec %s", err)
-		}
-	}
-
-	return err
+	return socketFD
 }
 
 type BuildNLRequest struct {

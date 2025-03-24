@@ -1,48 +1,117 @@
+#
+# xtcp buf.gen.yaml
+# https://buf.build/docs/configuration/v2/buf-gen-yaml/
+#
 version: v2
-# managed:
-#   enabled: true
-#   go_package_prefix:
-#     default: github.com/randomizedcoder/xtcp2
+managed:
+  enabled: true
+  disable:
+    - module: buf.build/googleapis/googleapis
+      file_option: go_package_prefix
+    - file_option: go_package_prefix
+      module: buf.build/bufbuild/protovalidate
 plugins:
   # https://buf.build/plugins
   #--------------------------
   # protocolbuffers/go
   # https://buf.build/protocolbuffers/go
   - remote: buf.build/protocolbuffers/go
-    out: gen/go
-    opt:
-      - paths=source_relative
-  # #--------------------------
-  # # protovalidate
-  # # https://github.com/bufbuild/protovalidate
-  # # https://github.com/bufbuild/protovalidate/blob/main/docs/standard-constraints.md#well-known-constraints
-  - remote: buf.build/bufbuild/validate-go
-    out: gen/go
-    opt:
-      - paths=source_relative
+    out: .
+    #out: proto/gen/go
+    # opt:
+    #   - paths=source_relative
   #--------------------------
   # protocolbuffers/go
   # https://buf.build/grpc/go
   - remote: buf.build/grpc/go
-    out: gen/grpc
-    opt:
-      - paths=source_relative
-      - require_unimplemented_servers=false
+    out: .
+    #out: proto/gen/go
+    # opt:
+    #   - paths=source_relative
+    #   - require_unimplemented_servers=false
+  #--------------------------
+  # OpenAPIv2 ( swagger )
+  # https://buf.build/grpc-ecosystem/openapiv2
+  # https://buf.build/grpc-ecosystem/openapiv2?version=v2.25.1
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.25.1
+    out: .
+    #out: proto/gen/openapiv2
+    # opt:
+    #   - paths=source_relative
   #--------------------------
   # REST to GRPC
   # https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/adding_annotations/#using-buf
   # https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/creating_main.go/
   # https://github.com/grpc-ecosystem/grpc-gateway#usage
   # https://buf.build/grpc-ecosystem/gateway
-  #- plugin: buf.build/grpc-ecosystem/gateway
-  - remote: buf.build/grpc-ecosystem/gateway
-    out: gen/go
+  # https://buf.build/grpc-ecosystem/gateway?version=v2.25.1
+  #- remote: buf.build/grpc-ecosystem/gateway:v2.25.1
+  - remote: buf.build/grpc-ecosystem/gateway:v2.25.1
+    out: .
+    #out: proto/gen/go
     opt:
-      - paths=source_relative
       - generate_unbound_methods=true
+    #  - paths=source_relative
+  # https://github.com/grpc-ecosystem/grpc-gateway/blob/main/buf.gen.yaml
+  # - local: protoc-gen-grpc-gateway
+  #   out: pkg/flatxtcppb
+  #   opt:
+  #     - paths=source_relative
+  #     - allow_repeated_fields_in_body=true
+  # #--------------------------
+  # # connectrpc
+  # # https://buf.build/connectrpc/go?version=v1.17.0
+  # # https://connectrpc.com/docs/go/getting-started
+  # - remote: buf.build/connectrpc/go:v1.17.0
+  #   out: .
+  #   opt:
+  #     - paths=source_relative
   #--------------------------
-  # OpenAPIv2 ( swagger )
-  # https://buf.build/grpc-ecosystem/openapiv2
-  - remote: buf.build/grpc-ecosystem/openapiv2:v2.20.0
-    out: ../gen/openapiv2
+  # Dart
+  # https://buf.build/protocolbuffers/dart?version=v21.1.2
+  - remote: buf.build/protocolbuffers/dart:v21.1.2
+    out: dart
+    #out: proto/gen/dart
+    opt:
+      # Enable the "grpc" option if you need gRPC stubs.
+      - grpc
+  #--------------------------------
+  # Python
+  # https://buf.build/protocolbuffers/python?version=v29.2
+  - remote: buf.build/protocolbuffers/python:v29.2
+    out: python
+    #out: proto/gen/python
+  # dependencies
+  - remote: buf.build/protocolbuffers/pyi:v29.2
+    out: python
+  # https://buf.build/grpc/python?version=v1.69.0
+  - remote: buf.build/grpc/python:v1.69.0
+    out: python
+  #--------------------------------
+  # C++
+  # https://buf.build/bufbuild/validate-cpp?version=v1.1.0
+  - remote: buf.build/bufbuild/validate-cpp:v1.1.0
+    out: gen
+  # https://buf.build/grpc/cpp?version=v1.69.0
+  - remote: buf.build/grpc/cpp:v1.69.0
+    out: gen
+  # https://buf.build/protocolbuffers/cpp?version=v29.3
+  - remote: buf.build/protocolbuffers/cpp:v29.3
+    out: gen
+  # #--------------------------------
+  # # Rust/Tonic
+  # # https://buf.build/community/neoeinstein-tonic?version=v0.4.1
+  # - remote: buf.build/community/neoeinstein-tonic:v0.4.1
+  #   out: proto/gen/rust
+  # # dependencies
+  # - remote: buf.build/community/neoeinstein-prost:v0.4.0
+  #   out: proto/gen/rust
+  # #-------------------------------------
+  # # BigQuery Schema
+  # # https://buf.build/googlecloudplatform/bq-schema?version=v2.0.1
+  # # https://github.com/GoogleCloudPlatform/protoc-gen-bq-schema
+  # - remote: buf.build/googlecloudplatform/bq-schema:v2.0.1
+  #   out: proto/gen/bq-schema
+
+# example: https://github.com/nucleuscloud/neosync/blob/main/buf.gen.yaml
 # end

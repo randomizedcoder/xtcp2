@@ -12,8 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcppb"
 )
 
 var (
@@ -25,7 +25,7 @@ type DeserializeTest struct {
 	description string
 	filename    string
 	//c           config.Config
-	xtcpRecord *xtcppb.FlatXtcpRecord
+	xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 }
 
 // TestDeserialize
@@ -38,7 +38,7 @@ func TestDeserialize(t *testing.T) {
 		{
 			description: "laptop_raw_data_capture",
 			filename:    "../xtcpnl/testdata/netlink_packets_capture/2024-08-29T12:10:36.560332872-07:00",
-			xtcpRecord: &xtcppb.FlatXtcpRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -46,7 +46,7 @@ func TestDeserialize(t *testing.T) {
 			description: "10_tcp_sockets_reply",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet2.pcap",
 			//c:           c,
-			xtcpRecord: &xtcppb.FlatXtcpRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -54,7 +54,7 @@ func TestDeserialize(t *testing.T) {
 			description: "netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			//c:           c,
-			xtcpRecord: &xtcppb.FlatXtcpRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -81,7 +81,6 @@ func TestDeserialize(t *testing.T) {
 			Objectives: map[float64]float64{
 				0.1:  quantileError,
 				0.5:  quantileError,
-				0.9:  quantileError,
 				0.99: quantileError,
 			},
 			MaxAge: summaryVecMaxAge,
@@ -91,7 +90,7 @@ func TestDeserialize(t *testing.T) {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcppb.FlatXtcpRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
@@ -136,12 +135,15 @@ func TestDeserialize(t *testing.T) {
 		//t.Logf("i:%d, binary.Size(buf):%d", i, binary.Size(buf))
 		//t.Logf("i:%d,  buf hex:%s", i, hex.EncodeToString(buf))
 
-		xtcpRecord := new(xtcppb.FlatXtcpRecord)
+		xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
+
+		nsName := "fixme"
 
 		_, errD := xtcp.Deserialize(
 			ctx,
 			DeserializeArgs{
-				ctx:            ctx,
+				ns:             &nsName,
+				fd:             0, //FIXME
 				NLPacket:       &buf,
 				xtcpRecordPool: &xtcpRecordPool,
 				nlhPool:        &nlhPool,
@@ -162,7 +164,7 @@ func TestDeserialize(t *testing.T) {
 }
 
 var (
-	resultFlatXtcpRecord *xtcppb.FlatXtcpRecord
+	resultXtcpFlatRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 )
 
 // go test -bench=BenchmarkDeserializeSpawn
@@ -179,7 +181,7 @@ func DeserializeBoth(b *testing.B, s int) {
 		{
 			description: "netlink_sock_diag_reply_single_packet_from_10k.pcap",
 			filename:    "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet_from_10k.pcap",
-			xtcpRecord: &xtcppb.FlatXtcpRecord{
+			xtcpRecord: &xtcp_flat_record.Envelope_XtcpFlatRecord{
 				Hostname: misc.GetHostname(),
 			},
 		},
@@ -207,7 +209,6 @@ func DeserializeBoth(b *testing.B, s int) {
 			Objectives: map[float64]float64{
 				0.1:  quantileError,
 				0.5:  quantileError,
-				0.9:  quantileError,
 				0.99: quantileError,
 			},
 			MaxAge: summaryVecMaxAge,
@@ -217,7 +218,7 @@ func DeserializeBoth(b *testing.B, s int) {
 
 	xtcpRecordPool := sync.Pool{
 		New: func() interface{} {
-			return new(xtcppb.FlatXtcpRecord)
+			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
 
@@ -251,7 +252,9 @@ func DeserializeBoth(b *testing.B, s int) {
 		buf = bs
 	}
 
-	xtcpRecord := new(xtcppb.FlatXtcpRecord)
+	xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
+
+	nsName := "fixme"
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -259,7 +262,8 @@ func DeserializeBoth(b *testing.B, s int) {
 		_, errD := xtcp.Deserialize(
 			ctx,
 			DeserializeArgs{
-				ctx:            ctx,
+				ns:             &nsName,
+				fd:             0, //FIXME
 				NLPacket:       &buf,
 				xtcpRecordPool: &xtcpRecordPool,
 				nlhPool:        &nlhPool,
@@ -274,6 +278,6 @@ func DeserializeBoth(b *testing.B, s int) {
 		}
 	}
 
-	resultFlatXtcpRecord = xtcpRecord
+	resultXtcpFlatRecord = xtcpRecord
 
 }
