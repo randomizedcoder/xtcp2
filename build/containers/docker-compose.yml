@@ -94,6 +94,13 @@ services:
       CONSOLE_CONFIG_FILE: |
         kafka:
           brokers: ["redpanda-0:9092"]
+          protobuf:
+            enabled: true
+            schemaRegistry:
+              # Enable Schema Registry for Protobuf deserialization.
+              enabled: true
+              # Interval to refresh schemas from the Schema Registry.
+              refreshInterval: 5m
           schemaRegistry:
             enabled: true
             urls: ["http://redpanda-0:8081"]
@@ -101,6 +108,7 @@ services:
           adminApi:
             enabled: true
             urls: ["http://redpanda-0:9644"]
+    # https://docs.redpanda.com/current/console/config/deserialization/#sr-protobuf
     ports:
       # Browse to: http://localhost:8080/topics/xtcp?p=-1&s=50&o=-2#messages
       # Browse to: http://localhost:8085/topics/xtcp?p=-1&s=50&o=-2#messages
