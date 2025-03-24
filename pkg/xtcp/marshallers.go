@@ -127,6 +127,61 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
+// protobufListMarshal marshals the protobuf to binary, does NOT include
+// the confluent header
+func (x *XTCP) protobufListMarshalNoHeader(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+
+	buf = x.destBytesPool.Get().(*[]byte)
+
+	*buf = (*buf)[:0]
+
+	if x.debugLevel > 10 {
+		log.Printf("protobufListMarshal protodelim.MarshalTo() x.schemaID:%d x.schemaID:%x", x.schemaID, x.schemaID)
+		log.Printf("protobufListMarshal header bytes: % X", (*buf)[:KafkaHeaderSizeCst])
+	}
+
+	if x.config.ProtobufListLengthDelimit {
+
+		// writer will append from end of buf
+		writer := &ByteSliceWriter{Buf: buf}
+
+		// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
+		n, err := protodelim.MarshalTo(writer, e)
+		if err != nil {
+			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+			if x.debugLevel > 10 {
+				log.Println("protodelim.MarshalTo() err: ", err)
+			}
+		}
+
+		if x.debugLevel > 10 {
+			log.Printf("protobufListMarshal: After MarshalTo, n: %d, len(*buf): %d, *buf: % X", n, len(*buf), (*buf)[:KafkaHeaderSizeCst])
+			//log.Printf("protobufListMarshal: After MarshalTo, len(writer.Buf): %d, writer.Buf: % X", len(*writer.Buf), *writer.Buf)
+			log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
+		}
+
+	} else {
+
+		// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
+		b, err := proto.Marshal(e)
+		if err != nil {
+			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+			if x.debugLevel > 10 {
+				log.Println("protodelim.MarshalTo() err: ", err)
+			}
+		}
+
+		*buf = append(*buf, b...)
+
+	}
+
+	// bufPtr = writer.Buf
+
+	return buf
+}
+
+// protobufListMarshal marshals the protobuf to binary, and includes
+// the confluent header
 func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
 	buf = x.destBytesPool.Get().(*[]byte)

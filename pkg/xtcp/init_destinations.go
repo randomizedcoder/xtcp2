@@ -141,7 +141,7 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 		x.schemaID,
 		&xtcp_flat_record.Envelope{},
 		sr.EncodeFn(func(v any) ([]byte, error) {
-			return *x.protobufListMarshal(v.(*xtcp_flat_record.Envelope)), nil
+			return *x.protobufListMarshalNoHeader(v.(*xtcp_flat_record.Envelope)), nil
 		}),
 		sr.Index(0),
 		// No need to decode currently
