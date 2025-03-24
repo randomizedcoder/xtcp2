@@ -862,8 +862,9 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPacketSizeFieldNumber = 70,
     kNlmsgSeqFieldNumber = 60,
     kPacketSizeMplyFieldNumber = 80,
-    kModulusFieldNumber = 110,
     kWriteFilesFieldNumber = 90,
+    kProtobufListLengthDelimitFieldNumber = 121,
+    kModulusFieldNumber = 110,
     kDestWriteFilesFieldNumber = 135,
     kDebugLevelFieldNumber = 160,
     kGrpcPortFieldNumber = 190,
@@ -1126,16 +1127,6 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_packet_size_mply(::uint32_t value);
 
   public:
-  // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
-  void clear_modulus() ;
-  ::uint64_t modulus() const;
-  void set_modulus(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_modulus() const;
-  void _internal_set_modulus(::uint64_t value);
-
-  public:
   // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
   void clear_write_files() ;
   ::uint32_t write_files() const;
@@ -1144,6 +1135,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   private:
   ::uint32_t _internal_write_files() const;
   void _internal_set_write_files(::uint32_t value);
+
+  public:
+  // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
+  void clear_protobuf_list_length_delimit() ;
+  bool protobuf_list_length_delimit() const;
+  void set_protobuf_list_length_delimit(bool value);
+
+  private:
+  bool _internal_protobuf_list_length_delimit() const;
+  void _internal_set_protobuf_list_length_delimit(bool value);
+
+  public:
+  // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
+  void clear_modulus() ;
+  ::uint64_t modulus() const;
+  void set_modulus(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_modulus() const;
+  void _internal_set_modulus(::uint64_t value);
 
   public:
   // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
@@ -1181,7 +1192,7 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 24, 4,
+      5, 25, 4,
       128, 27>
       _table_;
 
@@ -1220,8 +1231,9 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint64_t packet_size_;
     ::uint32_t nlmsg_seq_;
     ::uint32_t packet_size_mply_;
-    ::uint64_t modulus_;
     ::uint32_t write_files_;
+    bool protobuf_list_length_delimit_;
+    ::uint64_t modulus_;
     ::uint32_t dest_write_files_;
     ::uint32_t debug_level_;
     ::uint32_t grpc_port_;
@@ -3095,6 +3107,28 @@ inline void XtcpConfig::set_allocated_marshal_to(std::string* value) {
     _impl_.marshal_to_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.marshal_to)
+}
+
+// bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
+inline void XtcpConfig::clear_protobuf_list_length_delimit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.protobuf_list_length_delimit_ = false;
+}
+inline bool XtcpConfig::protobuf_list_length_delimit() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.protobuf_list_length_delimit)
+  return _internal_protobuf_list_length_delimit();
+}
+inline void XtcpConfig::set_protobuf_list_length_delimit(bool value) {
+  _internal_set_protobuf_list_length_delimit(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.protobuf_list_length_delimit)
+}
+inline bool XtcpConfig::_internal_protobuf_list_length_delimit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.protobuf_list_length_delimit_;
+}
+inline void XtcpConfig::_internal_set_protobuf_list_length_delimit(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.protobuf_list_length_delimit_ = value;
 }
 
 // string dest = 130 [json_name = "dest", (.buf.validate.field) = {

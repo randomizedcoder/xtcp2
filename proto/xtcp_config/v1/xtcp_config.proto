@@ -249,6 +249,11 @@ message XtcpConfig {
 			max_len: 40,
 	}];
 
+	// protobufListMarshal can optionally not length delimit
+	bool protobuf_list_length_delimit                = 121 [
+		(buf.validate.field).required = false
+	];
+
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
 	string dest                                      = 130 [
 		(buf.validate.field).required = true,

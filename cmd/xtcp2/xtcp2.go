@@ -46,7 +46,8 @@ const (
 	modulusCst = 1 // 2000
 
 	// protobufList, protoSingle, protoDelim, protoJson, protoText, msgpack
-	marshalCst = "protobufList"
+	marshalCst                   = "protobufList"
+	protobufListLengthDelimitCst = false
 
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
@@ -120,6 +121,7 @@ func main() {
 
 	modulus := flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
 	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (protobufList, protoJson, protoText, msgpack)")
+	protobufListLengthDelimit := flag.Bool("protobufListLengthDelimit", protobufListLengthDelimitCst, "protobufListLengthDelimit")
 	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshalled data to destWriteFiles number of files ( for debugging only )")
 	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
@@ -185,6 +187,7 @@ func main() {
 		fmt.Println("*capturePath:", *capturePath)
 		fmt.Println("*modulus:", *modulus)
 		fmt.Println("*marshal:", *marshal)
+		fmt.Println("*protobufListLengthDelimit:", *protobufListLengthDelimit)
 		fmt.Println("*dest:", *dest)
 		fmt.Println("*destWriteFiles:", *destWriteFiles)
 		fmt.Println("*topic:", *topic)
@@ -540,6 +543,14 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		}
 	}
 
+	key = "PROTOBUF_LIST_LENGTH_DELIMIT"
+	if _, exists := os.LookupEnv(key); exists {
+		c.ProtobufListLengthDelimit = true
+		if debugLevel > 10 {
+			log.Printf("key:%s, c.ProtobufListLengthDelimit:%s", key, c.ProtobufListLengthDelimit)
+		}
+	}
+
 	key = "DEST"
 	if value, exists := os.LookupEnv(key); exists {
 		c.Dest = value
@@ -633,6 +644,7 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.CapturePath:", c.CapturePath)
 	fmt.Println("c.Modulus:", c.Modulus)
 	fmt.Println("c.MarshalTo:", c.MarshalTo)
+	fmt.Println("c.ProtobufListLengthDelimit:", c.ProtobufListLengthDelimit)
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)

@@ -346,6 +346,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? capturePath,
     $fixnum.Int64? modulus,
     $core.String? marshalTo,
+    $core.bool? protobufListLengthDelimit,
     $core.String? dest,
     $core.int? destWriteFiles,
     $core.String? topic,
@@ -397,6 +398,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     }
     if (marshalTo != null) {
       $result.marshalTo = marshalTo;
+    }
+    if (protobufListLengthDelimit != null) {
+      $result.protobufListLengthDelimit = protobufListLengthDelimit;
     }
     if (dest != null) {
       $result.dest = dest;
@@ -451,6 +455,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(100, _omitFieldNames ? '' : 'capturePath')
     ..a<$fixnum.Int64>(110, _omitFieldNames ? '' : 'modulus', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(120, _omitFieldNames ? '' : 'marshalTo')
+    ..aOB(121, _omitFieldNames ? '' : 'protobufListLengthDelimit')
     ..aOS(130, _omitFieldNames ? '' : 'dest')
     ..a<$core.int>(135, _omitFieldNames ? '' : 'destWriteFiles', $pb.PbFieldType.OU3)
     ..aOS(140, _omitFieldNames ? '' : 'topic')
@@ -633,13 +638,23 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(120)
   void clearMarshalTo() => clearField(120);
 
+  /// protobufListMarshal can optionally not length delimit
+  @$pb.TagNumber(121)
+  $core.bool get protobufListLengthDelimit => $_getBF(13);
+  @$pb.TagNumber(121)
+  set protobufListLengthDelimit($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(121)
+  $core.bool hasProtobufListLengthDelimit() => $_has(13);
+  @$pb.TagNumber(121)
+  void clearProtobufListLengthDelimit() => clearField(121);
+
   /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
   @$pb.TagNumber(130)
-  $core.String get dest => $_getSZ(13);
+  $core.String get dest => $_getSZ(14);
   @$pb.TagNumber(130)
-  set dest($core.String v) { $_setString(13, v); }
+  set dest($core.String v) { $_setString(14, v); }
   @$pb.TagNumber(130)
-  $core.bool hasDest() => $_has(13);
+  $core.bool hasDest() => $_has(14);
   @$pb.TagNumber(130)
   void clearDest() => clearField(130);
 
@@ -647,41 +662,41 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// xtcp will capture this many examples of the marshalled data
   /// This is PER poller
   @$pb.TagNumber(135)
-  $core.int get destWriteFiles => $_getIZ(14);
+  $core.int get destWriteFiles => $_getIZ(15);
   @$pb.TagNumber(135)
-  set destWriteFiles($core.int v) { $_setUnsignedInt32(14, v); }
+  set destWriteFiles($core.int v) { $_setUnsignedInt32(15, v); }
   @$pb.TagNumber(135)
-  $core.bool hasDestWriteFiles() => $_has(14);
+  $core.bool hasDestWriteFiles() => $_has(15);
   @$pb.TagNumber(135)
   void clearDestWriteFiles() => clearField(135);
 
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(15);
+  $core.String get topic => $_getSZ(16);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(15, v); }
+  set topic($core.String v) { $_setString(16, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(15);
+  $core.bool hasTopic() => $_has(16);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
   /// XtcpProtoFile
   @$pb.TagNumber(143)
-  $core.String get xtcpProtoFile => $_getSZ(16);
+  $core.String get xtcpProtoFile => $_getSZ(17);
   @$pb.TagNumber(143)
-  set xtcpProtoFile($core.String v) { $_setString(16, v); }
+  set xtcpProtoFile($core.String v) { $_setString(17, v); }
   @$pb.TagNumber(143)
-  $core.bool hasXtcpProtoFile() => $_has(16);
+  $core.bool hasXtcpProtoFile() => $_has(17);
   @$pb.TagNumber(143)
   void clearXtcpProtoFile() => clearField(143);
 
   /// Kafka schema registry url
   @$pb.TagNumber(145)
-  $core.String get kafkaSchemaUrl => $_getSZ(17);
+  $core.String get kafkaSchemaUrl => $_getSZ(18);
   @$pb.TagNumber(145)
-  set kafkaSchemaUrl($core.String v) { $_setString(17, v); }
+  set kafkaSchemaUrl($core.String v) { $_setString(18, v); }
   @$pb.TagNumber(145)
-  $core.bool hasKafkaSchemaUrl() => $_has(17);
+  $core.bool hasKafkaSchemaUrl() => $_has(18);
   @$pb.TagNumber(145)
   void clearKafkaSchemaUrl() => clearField(145);
 
@@ -689,66 +704,66 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(18);
+  $2.Duration get kafkaProduceTimeout => $_getN(19);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(18);
+  $core.bool hasKafkaProduceTimeout() => $_has(19);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(18);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(19);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(19);
+  $core.int get debugLevel => $_getIZ(20);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(19, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(20, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(19);
+  $core.bool hasDebugLevel() => $_has(20);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(20);
+  $core.String get label => $_getSZ(21);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(20, v); }
+  set label($core.String v) { $_setString(21, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(20);
+  $core.bool hasLabel() => $_has(21);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(21);
+  $core.String get tag => $_getSZ(22);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(21, v); }
+  set tag($core.String v) { $_setString(22, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(21);
+  $core.bool hasTag() => $_has(22);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(22);
+  $core.int get grpcPort => $_getIZ(23);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(22, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(23, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(22);
+  $core.bool hasGrpcPort() => $_has(23);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(23);
+  EnabledDeserializers get enabledDeserializers => $_getN(24);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(23);
+  $core.bool hasEnabledDeserializers() => $_has(24);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(23);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(24);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {
