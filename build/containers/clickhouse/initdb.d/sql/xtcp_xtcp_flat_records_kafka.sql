@@ -198,14 +198,26 @@ ENGINE = Kafka
 SETTINGS
   kafka_broker_list = 'redpanda-0:9092',
   kafka_topic_list = 'xtcp',
-  kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
-  kafka_max_rows_per_message = 10000,
-  kafka_format = 'ProtobufList',
-  kafka_num_consumers = 1,
-  kafka_thread_per_consumer = 0,
   kafka_group_name = 'xtcp',
-  kafka_skip_broken_messages = 1,
-  kafka_handle_error_mode = 'stream';
+  kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
+  kafka_poll_max_batch_size = 1024,
+  kafka_handle_error_mode = 'stream',
+  kafka_format = 'ProtobufSingle';
+
+  -- kafka_broker_list = 'redpanda-0:9092',
+  -- kafka_topic_list = 'xtcp',
+  -- kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
+  -- kafka_max_rows_per_message = 10000,
+  -- kafka_format = 'ProtobufList',
+  -- kafka_num_consumers = 1,
+  -- kafka_thread_per_consumer = 0,
+  -- kafka_group_name = 'xtcp',
+  -- kafka_skip_broken_messages = 1,
+  -- kafka_handle_error_mode = 'stream';
+
+-- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
+-- SELECT * FROM system.kafka_consumers FORMAT Vertical;
+-- SELECT * FROM system.kafka_consumers WHERE table LIKE '%xtcp_flat_records_kafka%' FORMAT Vertical;
 
 -- https://github.com/ClickHouse/ClickHouse/blob/master/tests/integration/test_storage_kafka/test_batch_fast.py#L226
 

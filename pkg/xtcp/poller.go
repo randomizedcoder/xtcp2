@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"log"
-	"os"
 	"sync"
 	"syscall"
 	"time"
@@ -32,7 +31,7 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 
 	count := x.pollAllNetlinkSockets(0)
 
-	wf := x.config.DestWriteFiles
+	// wf := x.config.DestWriteFiles
 
 	lastPollTime := time.Now()
 
@@ -75,8 +74,9 @@ breakPoint:
 				}
 				continue
 			}
-			timeSinceLastPoll := time.Since(lastPollTime)
-			lastPollTime = time.Now()
+			t := time.Now()
+			timeSinceLastPoll := t.Sub(lastPollTime)
+			lastPollTime = t
 			if x.debugLevel > 10 {
 				log.Printf("Poller <-ticker.C pollingLoops:%d timeSinceLastPoll:%0.3fs", pollingLoops, timeSinceLastPoll.Seconds())
 			}
@@ -124,105 +124,97 @@ breakPoint:
 			//blocking!
 		}
 
-		// Send batch
-		if count == 0 {
+		// // Send batch
+		// if count == 0 {
 
-			x.pollTimeoutTimer.Stop()
+		// 	x.pollTimeoutTimer.Stop()
 
-			// TODO there is an oppertunity here so NOT marshal, in the case of null dest,
-			// or alternatively if the dest is a GRPC endpoint
+		// 	// TODO there is an oppertunity here so NOT marshal, in the case of null dest,
+		// 	// or alternatively if the dest is a GRPC endpoint
 
-			var sTime time.Time
+		// 	var sTime time.Time
 
-			lockTime := time.Now()
-			x.envelopeMu.Lock() // <----------------------- LOCK!
+		// 	lockTime := time.Now()
+		// 	x.envelopeMu.Lock() // <----------------------- LOCK!
 
-			b := x.Marshaller(x.currentEnvelope)
-			l := len(x.currentEnvelope.Row)
+		// 	b := x.Marshaller(x.currentEnvelope)
+		// 	l := len(x.currentEnvelope.Row)
 
-			if x.debugLevel > 10000 {
-				log.Printf("Poller XXXX pollingLoops:%d", pollingLoops)
-				if x.debugLevel > 10 {
-					log.Printf("Poller XXXX pollingLoops:%d append len(x.currentEnvelope.Row):%d", pollingLoops, l)
-				}
-				for i, r := range x.currentEnvelope.Row {
-					log.Printf("Poller XXXX pollingLoops:%d i:%d r:%v", pollingLoops, i, *r)
-				}
-			}
+		// 	for _, r := range x.currentEnvelope.Row {
+		// 		x.ZeroXTCPCongRecord(r)
+		// 		r.Reset()
+		// 		x.xtcpRecordPool.Put(r)
+		// 	}
 
-			for _, r := range x.currentEnvelope.Row {
-				x.ZeroXTCPCongRecord(r)
-				r.Reset()
-				x.xtcpRecordPool.Put(r)
-			}
+		// 	x.currentEnvelope.Reset()
+		// 	sTime = x.pollStartTime
 
-			x.currentEnvelope.Reset()
-			sTime = x.pollStartTime
+		// 	x.envelopeMu.Unlock() // <--------------------- UNLOCK!
 
-			x.envelopeMu.Unlock() // <--------------------- UNLOCK!
+		// 	lt := time.Since(lockTime).Seconds()
+		// 	x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(lt)
+		// 	if x.debugLevel > 10 {
+		// 		log.Printf("Poller pollingLoops:%d time.Since(lockTime).Seconds():%0.4f", pollingLoops, lt)
+		// 	}
 
-			lt := time.Since(lockTime).Seconds()
-			x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(lt)
-			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d time.Since(lockTime).Seconds():%0.4f", pollingLoops, lt)
-			}
+		// 	if x.debugLevel > 10 {
+		// 		log.Printf("Poller pollingLoops:%d  header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
+		// 	}
 
-			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d  header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-			}
+		// 	if wf > 0 {
+		// 		now := time.Now()
+		// 		err := os.WriteFile(
+		// 			x.config.CapturePath+"dest."+now.Format(time.RFC3339Nano),
+		// 			*(b),
+		// 			writeFilesPermissionsCst)
+		// 		if err != nil {
+		// 			log.Fatal(err)
+		// 		}
+		// 		wf--
+		// 		if x.debugLevel > 10 {
+		// 			log.Printf("Poller pollingLoops:%d wrote dest, wf:%d", pollingLoops, wf)
+		// 			log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
+		// 		}
+		// 	}
 
-			if wf > 0 {
-				now := time.Now()
-				err := os.WriteFile(
-					x.config.CapturePath+"dest."+now.Format(time.RFC3339Nano),
-					*(b),
-					writeFilesPermissionsCst)
-				if err != nil {
-					log.Fatal(err)
-				}
-				wf--
-				if x.debugLevel > 10 {
-					log.Printf("Poller pollingLoops:%d wrote dest, wf:%d", pollingLoops, wf)
-					log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-				}
-			}
+		// 	if x.debugLevel > 10 {
+		// 		log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
+		// 	}
 
-			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-			}
+		// 	var n int
+		// 	if len(*b) > 1 {
 
-			var n int
-			if len(*b) > 1 {
+		// 		var err error
+		// 		n, err = x.Destination(ctx, b)
+		// 		if err != nil {
+		// 			x.pC.WithLabelValues("Poller", "Destination", "error").Inc()
+		// 			continue
+		// 		}
+		// 		x.pC.WithLabelValues("Poller", "Destination", "count").Inc()
+		// 		x.pC.WithLabelValues("Poller", "Destination", "countN").Add(float64(l))
+		// 		x.pC.WithLabelValues("Poller", "Destination", "bytes").Add(float64(n))
+		// 		if x.debugLevel > 10 {
+		// 			log.Printf("Poller pollingLoops:%d countN:%d bytes:%d", pollingLoops, l, n)
+		// 		}
 
-				var err error
-				n, err = x.Destination(ctx, b)
-				if err != nil {
-					x.pC.WithLabelValues("Poller", "Destination", "error").Inc()
-					continue
-				}
-				x.pC.WithLabelValues("Poller", "Destination", "count").Inc()
-				x.pC.WithLabelValues("Poller", "Destination", "countN").Add(float64(l))
-				x.pC.WithLabelValues("Poller", "Destination", "bytes").Add(float64(n))
-				if x.debugLevel > 10 {
-					log.Printf("Poller pollingLoops:%d countN:%d bytes:%d", pollingLoops, l, n)
-				}
+		// 	} else {
+		// 		x.pC.WithLabelValues("Poller", "DestinationShort", "error").Inc()
+		// 		if x.debugLevel > 10 {
+		// 			log.Printf("Poller pollingLoops:%d len(*b):%d is too short", pollingLoops, len(*b))
+		// 		}
+		// 	}
 
-			} else {
-				x.pC.WithLabelValues("Poller", "DestinationShort", "error").Inc()
-				if x.debugLevel > 10 {
-					log.Printf("Poller pollingLoops:%d len(*b):%d is too short", pollingLoops, len(*b))
-				}
-			}
+		pollDuration := time.Since(x.pollStartTime)
+		x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
 
-			pollDuration := time.Since(sTime)
-			x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
-
-			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms bytes:%d",
-					pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds(), n)
-			}
-
+		if x.debugLevel > 10 {
+			log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms",
+				pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds())
+			// log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms bytes:%d",
+			// 	pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds(), n)
 		}
+
+		// 	}
 
 	}
 

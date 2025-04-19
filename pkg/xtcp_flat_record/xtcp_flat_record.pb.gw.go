@@ -55,14 +55,12 @@ func request_XTCPFlatRecordService_FlatRecords_0(ctx context.Context, marshaler 
 	return stream, metadata, nil
 }
 
-func request_XTCPFlatRecordService_PollFlatRecords_0(ctx context.Context, marshaler runtime.Marshaler, client XTCPFlatRecordServiceClient, req *http.Request, pathParams map[string]string) (XTCPFlatRecordService_PollFlatRecordsClient, runtime.ServerMetadata, chan error, error) {
+func request_XTCPFlatRecordService_PollFlatRecords_0(ctx context.Context, marshaler runtime.Marshaler, client XTCPFlatRecordServiceClient, req *http.Request, pathParams map[string]string) (XTCPFlatRecordService_PollFlatRecordsClient, runtime.ServerMetadata, error) {
 	var metadata runtime.ServerMetadata
-	errChan := make(chan error, 1)
 	stream, err := client.PollFlatRecords(ctx)
 	if err != nil {
 		grpclog.Errorf("Failed to start streaming: %v", err)
-		close(errChan)
-		return nil, metadata, errChan, err
+		return nil, metadata, err
 	}
 	dec := marshaler.NewDecoder(req.Body)
 	handleSend := func() error {
@@ -82,10 +80,8 @@ func request_XTCPFlatRecordService_PollFlatRecords_0(ctx context.Context, marsha
 		return nil
 	}
 	go func() {
-		defer close(errChan)
 		for {
 			if err := handleSend(); err != nil {
-				errChan <- err
 				break
 			}
 		}
@@ -96,10 +92,10 @@ func request_XTCPFlatRecordService_PollFlatRecords_0(ctx context.Context, marsha
 	header, err := stream.Header()
 	if err != nil {
 		grpclog.Errorf("Failed to get header from client: %v", err)
-		return nil, metadata, errChan, err
+		return nil, metadata, err
 	}
 	metadata.HeaderMD = header
-	return stream, metadata, errChan, nil
+	return stream, metadata, nil
 }
 
 // RegisterXTCPFlatRecordServiceHandlerServer registers the http handlers for service XTCPFlatRecordService to "mux".
@@ -187,20 +183,12 @@ func RegisterXTCPFlatRecordServiceHandlerClient(ctx context.Context, mux *runtim
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-
-		resp, md, reqErrChan, err := request_XTCPFlatRecordService_PollFlatRecords_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_XTCPFlatRecordService_PollFlatRecords_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		go func() {
-			for err := range reqErrChan {
-				if err != nil && !errors.Is(err, io.EOF) {
-					runtime.HTTPStreamError(annotatedContext, mux, outboundMarshaler, w, req, err)
-				}
-			}
-		}()
 		forward_XTCPFlatRecordService_PollFlatRecords_0(annotatedContext, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 	})
 	return nil

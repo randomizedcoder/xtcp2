@@ -16,32 +16,92 @@ func (x *XTCP) destNull(_ context.Context, xtcpRecordBinary *[]byte) (n int, err
 	return len(*xtcpRecordBinary), nil
 }
 
+// // destKafkaProto sends the protobuf in protobuf format to kafka
+// // this is to test the serdes method of franz-go
+// func (x *XTCP) destKafkaProto(ctx context.Context, e *xtcp_flat_record.Envelope) (n int, err error) {
+
+// 	kgoRecord := x.kgoRecordPool.Get().(*kgo.Record)
+// 	// defer x.kgoRecordPool.Put(kgoRecord)
+
+// 	kgoRecord.Topic = "serdeTest"
+// 	kgoRecord.Value = x.kSerde.MustEncode(e)
+// 	//kgoRecord.Value = x.kSerde.MustEncode(*xtcpRecordBinary)
+// 	len := len(kgoRecord.Value)
+
+// 	var (
+// 		ctxP    context.Context
+// 		cancelP context.CancelFunc
+// 	)
+// 	if x.config.KafkaProduceTimeout.AsDuration() != 0 {
+// 		// I don't understand why setting a context with a timeout doesn't work,
+// 		// but it definitely doesn't.  It always says the context is canceled. ?!
+// 		ctxP, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
+// 		defer cancelP()
+// 	}
+// 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
+
+// 	kafkaStartTime := time.Now()
+
+// 	x.kClient.Produce(
+// 		ctxP,
+// 		kgoRecord,
+// 		func(kgoRecord *kgo.Record, err error) {
+// 			dur := time.Since(kafkaStartTime)
+
+// 			x.kgoRecordPool.Put(kgoRecord)
+
+// 			//cancelP()
+// 			if err != nil {
+// 				x.pH.WithLabelValues("destKafkaProto", "Produce", "error").Observe(dur.Seconds())
+// 				x.pC.WithLabelValues("destKafkaProto", "Produce", "error").Inc()
+// 				if x.debugLevel > 10 {
+// 					log.Printf("destKafkaProto %0.6fs Produce err:%v", dur.Seconds(), err)
+// 				}
+// 				return
+// 			}
+
+// 			x.pH.WithLabelValues("destKafkaProto", "Produce", "count").Observe(dur.Seconds())
+// 			x.pC.WithLabelValues("destKafkaProto", "Produce", "count").Inc()
+
+// 			if x.debugLevel > 10 {
+// 				log.Printf("destKafkaProto len:%d %0.6fs %dms", len, dur.Seconds(), dur.Milliseconds())
+// 			}
+// 		},
+// 	)
+
+// 	return 1, err
+// }
+
 // destKafka sends the protobuf to kafka
 func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 
-	if x.debugLevel > 10 {
-		log.Printf("destKafka header bytes: % X", (*xtcpRecordBinary)[:KafkaHeaderSizeCst])
-	}
+	// if x.debugLevel > 10 {
+	// 	log.Printf("destKafka header bytes: % X", (*xtcpRecordBinary)[:KafkaHeaderSizeCst])
+	// }
 
 	kgoRecord := x.kgoRecordPool.Get().(*kgo.Record)
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
 	kgoRecord.Topic = x.config.Topic
 	kgoRecord.Value = *xtcpRecordBinary
-	//kgoRecord.Value = x.kSerde.MustEncode(*xtcpRecordBinary)
-	len := len(*xtcpRecordBinary)
+	len := len(kgoRecord.Value)
 
 	var (
 		ctxP    context.Context
 		cancelP context.CancelFunc
 	)
 	if x.config.KafkaProduceTimeout.AsDuration() != 0 {
-		// I don't understand why setting a context with a timeout doesn't work,
-		// but it definitely doesn't.  It always says the context is canceled. ?!
 		ctxP, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
-		defer cancelP()
 	}
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
+
+	// if x.debugLevel > 10 {
+	// 	if deadline, ok := ctxP.Deadline(); ok {
+	// 		log.Printf("destKafka, ctxP.Deadline():%s, until:%0.3f", deadline.String(), time.Until(deadline).Seconds())
+	// 	} else {
+	// 		log.Printf("destKafka, ctxP.Deadline() is none")
+	// 	}
+	// }
 
 	kafkaStartTime := time.Now()
 
@@ -55,13 +115,22 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 			*xtcpRecordBinary = (*xtcpRecordBinary)[:0]
 			x.destBytesPool.Put(xtcpRecordBinary)
 
-			//cancelP()
 			if err != nil {
 				x.pH.WithLabelValues("destKafka", "Produce", "error").Observe(dur.Seconds())
 				x.pC.WithLabelValues("destKafka", "Produce", "error").Inc()
 				if x.debugLevel > 10 {
 					log.Printf("destKafka %0.6fs Produce err:%v", dur.Seconds(), err)
 				}
+
+				// if x.debugLevel > 10 {
+				// 	if deadline, ok := ctxP.Deadline(); ok {
+				// 		log.Printf("destKafka, Produce ctxP.Deadline():%s, until:%0.3f", deadline.String(), time.Until(deadline).Seconds())
+				// 	} else {
+				// 		log.Printf("destKafka, Produce ctxP.Deadline() is none")
+				// 	}
+				// }
+
+				cancelP()
 				return
 			}
 
@@ -73,23 +142,6 @@ func (x *XTCP) destKafka(ctx context.Context, xtcpRecordBinary *[]byte) (n int, 
 			}
 		},
 	)
-
-	// if err := x.kClient.ProduceSync(ctxP, kgoRecord).FirstErr(); err != nil {
-	// 	dur := time.Since(kafkaStartTime)
-	// 	x.kgoRecordPool.Put(kgoRecord)
-	// 	cancelP()
-	// 	x.pH.WithLabelValues("destKafka", "ProduceSync", "error").Observe(dur.Seconds())
-	// 	x.pC.WithLabelValues("destKafka", "ProduceSync", "error").Inc()
-	// 	if x.debugLevel > 10 {
-	// 		log.Printf("destKafka %0.6fs ProduceSync err:%v", dur.Seconds(), err)
-	// 	}
-	// 	return 0, err
-	// }
-	// x.pH.WithLabelValues("destKafka", "ProduceSync", "count").Observe(time.Since(kafkaStartTime).Seconds())
-	// x.pC.WithLabelValues("destKafka", "ProduceSync", "count").Inc()
-
-	// x.kgoRecordPool.Put(kgoRecord)
-	// cancelP()
 
 	return 1, err
 }

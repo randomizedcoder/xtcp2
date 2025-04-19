@@ -197,7 +197,8 @@ func (s *xtcpFlatRecordService) pfrMapCount() (count uint64) {
 
 // flatRecordServiceSend is called with a protobuf record, and does the grpc .Send()
 // for each connected GRPC client
-func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
+func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
+	// func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 
 	startTime := time.Now()
 	defer func() {

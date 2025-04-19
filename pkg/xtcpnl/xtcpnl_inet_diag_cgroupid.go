@@ -93,7 +93,8 @@ func DeserializeCGroupIDReflection(data []byte, c *CGroupID) (n int, err error) 
 	return CGroupIDSizeCst, err
 }
 
-func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+	// func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < CGroupIDSizeCst {
 		return ErrCGroupIDSmall

@@ -138,15 +138,21 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 
 	// x.kSerde.Register(
 	// 	x.schemaID,
+	// 	&xtcp_flat_record.Envelope{},
 	// 	sr.EncodeFn(func(v any) ([]byte, error) {
-	// 		return *x.protobufListMarshal(v.(*xtcp_flat_record.Envelope)), nil
+	// 		return *x.protobufListMarshalNoHeader(v.(*xtcp_flat_record.Envelope)), nil
+	// 		// return *x.protobufListMarshalNoHeader(v.(*xtcp_flat_record.Envelope)), nil
 	// 	}),
+	// 	sr.Index(0),
+	// 	// No need to decode currently
 	// 	// sr.DecodeFn(func(b []byte, v any) error {
 	// 	// 	return avro.Unmarshal(avroSchema, b, v)
 	// 	// }),
 	// )
+	// // https://github.com/cloudhut/owl-shop/blob/7095131ece7a0fee9a58d00b4fbc9f820a0d13be/pkg/shop/order_service.go#L184
 	// // code lifted from
 	// // https://github.com/twmb/franz-go/blob/35ab5e5f5327ca190b49d4b14f326db4365abb9f/examples/schema_registry/schema_registry.go#L65C1-L74C3
+	// // https://pkg.go.dev/github.com/twmb/franz-go/pkg/sr@v1.3.0#Index
 
 	// https://github.com/twmb/franz-go/tree/master/plugin/kprom
 	kgoMetrics := kprom.NewMetrics("kgo")
@@ -202,7 +208,8 @@ func (x *XTCP) InitDestKafka(ctx context.Context) {
 		// Kafka socket.request.max.bytes default is 100<<20 = 104857600 = 100 MB
 		// https://github.com/twmb/franz-go/blob/v1.17.1/pkg/kgo/config.go#L483C3-L483C87
 		// https://www.wolframalpha.com/input?i=1+%3C%3C+10
-		kgo.BrokerMaxWriteBytes(100 << 18), // 26214400 = 26 MB
+		// kgo.BrokerMaxWriteBytes(100 << 18), // 26214400 = 26 MB
+		kgo.BrokerMaxWriteBytes(1 << 20), // 1048576 = 1 MB
 
 		// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#ProducerBatchMaxBytes
 		// Copied from the benchmark
