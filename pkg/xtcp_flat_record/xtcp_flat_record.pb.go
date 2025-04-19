@@ -104,6 +104,70 @@ func (Envelope_XtcpFlatRecord_CongestionAlgorithm) EnumDescriptor() ([]byte, []i
 	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{0, 0, 0}
 }
 
+type XtcpFlatRecord_CongestionAlgorithm int32
+
+const (
+	XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED XtcpFlatRecord_CongestionAlgorithm = 0
+	XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC       XtcpFlatRecord_CongestionAlgorithm = 1
+	XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP       XtcpFlatRecord_CongestionAlgorithm = 2
+	XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS       XtcpFlatRecord_CongestionAlgorithm = 3
+	XtcpFlatRecord_CONGESTION_ALGORITHM_PRAGUE      XtcpFlatRecord_CongestionAlgorithm = 4
+	XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1        XtcpFlatRecord_CongestionAlgorithm = 5
+	XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2        XtcpFlatRecord_CongestionAlgorithm = 6
+	XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3        XtcpFlatRecord_CongestionAlgorithm = 7
+)
+
+// Enum value maps for XtcpFlatRecord_CongestionAlgorithm.
+var (
+	XtcpFlatRecord_CongestionAlgorithm_name = map[int32]string{
+		0: "CONGESTION_ALGORITHM_UNSPECIFIED",
+		1: "CONGESTION_ALGORITHM_CUBIC",
+		2: "CONGESTION_ALGORITHM_DCTCP",
+		3: "CONGESTION_ALGORITHM_VEGAS",
+		4: "CONGESTION_ALGORITHM_PRAGUE",
+		5: "CONGESTION_ALGORITHM_BBR1",
+		6: "CONGESTION_ALGORITHM_BBR2",
+		7: "CONGESTION_ALGORITHM_BBR3",
+	}
+	XtcpFlatRecord_CongestionAlgorithm_value = map[string]int32{
+		"CONGESTION_ALGORITHM_UNSPECIFIED": 0,
+		"CONGESTION_ALGORITHM_CUBIC":       1,
+		"CONGESTION_ALGORITHM_DCTCP":       2,
+		"CONGESTION_ALGORITHM_VEGAS":       3,
+		"CONGESTION_ALGORITHM_PRAGUE":      4,
+		"CONGESTION_ALGORITHM_BBR1":        5,
+		"CONGESTION_ALGORITHM_BBR2":        6,
+		"CONGESTION_ALGORITHM_BBR3":        7,
+	}
+)
+
+func (x XtcpFlatRecord_CongestionAlgorithm) Enum() *XtcpFlatRecord_CongestionAlgorithm {
+	p := new(XtcpFlatRecord_CongestionAlgorithm)
+	*p = x
+	return p
+}
+
+func (x XtcpFlatRecord_CongestionAlgorithm) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (XtcpFlatRecord_CongestionAlgorithm) Descriptor() protoreflect.EnumDescriptor {
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[1].Descriptor()
+}
+
+func (XtcpFlatRecord_CongestionAlgorithm) Type() protoreflect.EnumType {
+	return &file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[1]
+}
+
+func (x XtcpFlatRecord_CongestionAlgorithm) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use XtcpFlatRecord_CongestionAlgorithm.Descriptor instead.
+func (XtcpFlatRecord_CongestionAlgorithm) EnumDescriptor() ([]byte, []int) {
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1, 0}
+}
+
 // Envelope is the protobufList wrapper to allow for batch inserts into Clickhouse
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 type Envelope struct {
@@ -150,6 +214,1031 @@ func (x *Envelope) GetRow() []*Envelope_XtcpFlatRecord {
 	return nil
 }
 
+type XtcpFlatRecord struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	TimestampNs float64                `protobuf:"fixed64,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
+	Hostname    string                 `protobuf:"bytes,20,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// network namespace
+	Netns string `protobuf:"bytes,30,opt,name=netns,proto3" json:"netns,omitempty"`
+	// network namespace id
+	// TODO xtcp does not currently get the id
+	Nsid uint32 `protobuf:"varint,40,opt,name=nsid,proto3" json:"nsid,omitempty"`
+	// free form string
+	Label string `protobuf:"bytes,50,opt,name=label,proto3" json:"label,omitempty"`
+	// free form string
+	Tag                              string `protobuf:"bytes,60,opt,name=tag,proto3" json:"tag,omitempty"`
+	RecordCounter                    uint64 `protobuf:"varint,70,opt,name=record_counter,json=recordCounter,proto3" json:"record_counter,omitempty"`
+	SocketFd                         uint64 `protobuf:"varint,80,opt,name=socket_fd,json=socketFd,proto3" json:"socket_fd,omitempty"`
+	NetlinkerId                      uint64 `protobuf:"varint,90,opt,name=netlinker_id,json=netlinkerId,proto3" json:"netlinker_id,omitempty"`
+	InetDiagMsgFamily                uint32 `protobuf:"varint,101,opt,name=inet_diag_msg_family,json=inetDiagMsgFamily,proto3" json:"inet_diag_msg_family,omitempty"`                                                  // uint8
+	InetDiagMsgState                 uint32 `protobuf:"varint,102,opt,name=inet_diag_msg_state,json=inetDiagMsgState,proto3" json:"inet_diag_msg_state,omitempty"`                                                     // uint8
+	InetDiagMsgTimer                 uint32 `protobuf:"varint,103,opt,name=inet_diag_msg_timer,json=inetDiagMsgTimer,proto3" json:"inet_diag_msg_timer,omitempty"`                                                     // uint8
+	InetDiagMsgRetrans               uint32 `protobuf:"varint,104,opt,name=inet_diag_msg_retrans,json=inetDiagMsgRetrans,proto3" json:"inet_diag_msg_retrans,omitempty"`                                               // uint8
+	InetDiagMsgSocketSourcePort      uint32 `protobuf:"varint,105,opt,name=inet_diag_msg_socket_source_port,json=inetDiagMsgSocketSourcePort,proto3" json:"inet_diag_msg_socket_source_port,omitempty"`                // __be16
+	InetDiagMsgSocketDestinationPort uint32 `protobuf:"varint,106,opt,name=inet_diag_msg_socket_destination_port,json=inetDiagMsgSocketDestinationPort,proto3" json:"inet_diag_msg_socket_destination_port,omitempty"` // __be16
+	InetDiagMsgSocketSource          []byte `protobuf:"bytes,107,opt,name=inet_diag_msg_socket_source,json=inetDiagMsgSocketSource,proto3" json:"inet_diag_msg_socket_source,omitempty"`
+	InetDiagMsgSocketDestination     []byte `protobuf:"bytes,108,opt,name=inet_diag_msg_socket_destination,json=inetDiagMsgSocketDestination,proto3" json:"inet_diag_msg_socket_destination,omitempty"`
+	InetDiagMsgSocketInterface       uint32 `protobuf:"varint,109,opt,name=inet_diag_msg_socket_interface,json=inetDiagMsgSocketInterface,proto3" json:"inet_diag_msg_socket_interface,omitempty"`
+	InetDiagMsgSocketCookie          uint64 `protobuf:"varint,110,opt,name=inet_diag_msg_socket_cookie,json=inetDiagMsgSocketCookie,proto3" json:"inet_diag_msg_socket_cookie,omitempty"` // [2]uint32
+	InetDiagMsgSocketDestAsn         uint64 `protobuf:"varint,111,opt,name=inet_diag_msg_socket_dest_asn,json=inetDiagMsgSocketDestAsn,proto3" json:"inet_diag_msg_socket_dest_asn,omitempty"`
+	InetDiagMsgSocketNextHopAsn      uint64 `protobuf:"varint,112,opt,name=inet_diag_msg_socket_next_hop_asn,json=inetDiagMsgSocketNextHopAsn,proto3" json:"inet_diag_msg_socket_next_hop_asn,omitempty"`
+	InetDiagMsgExpires               uint32 `protobuf:"varint,113,opt,name=inet_diag_msg_expires,json=inetDiagMsgExpires,proto3" json:"inet_diag_msg_expires,omitempty"`
+	InetDiagMsgRqueue                uint32 `protobuf:"varint,114,opt,name=inet_diag_msg_rqueue,json=inetDiagMsgRqueue,proto3" json:"inet_diag_msg_rqueue,omitempty"`
+	InetDiagMsgWqueue                uint32 `protobuf:"varint,115,opt,name=inet_diag_msg_wqueue,json=inetDiagMsgWqueue,proto3" json:"inet_diag_msg_wqueue,omitempty"`
+	InetDiagMsgUid                   uint32 `protobuf:"varint,116,opt,name=inet_diag_msg_uid,json=inetDiagMsgUid,proto3" json:"inet_diag_msg_uid,omitempty"`
+	InetDiagMsgInode                 uint32 `protobuf:"varint,117,opt,name=inet_diag_msg_inode,json=inetDiagMsgInode,proto3" json:"inet_diag_msg_inode,omitempty"`
+	MemInfoRmem                      uint32 `protobuf:"varint,201,opt,name=mem_info_rmem,json=memInfoRmem,proto3" json:"mem_info_rmem,omitempty"`
+	MemInfoWmem                      uint32 `protobuf:"varint,202,opt,name=mem_info_wmem,json=memInfoWmem,proto3" json:"mem_info_wmem,omitempty"`
+	MemInfoFmem                      uint32 `protobuf:"varint,203,opt,name=mem_info_fmem,json=memInfoFmem,proto3" json:"mem_info_fmem,omitempty"`
+	MemInfoTmem                      uint32 `protobuf:"varint,204,opt,name=mem_info_tmem,json=memInfoTmem,proto3" json:"mem_info_tmem,omitempty"`
+	TcpInfoState                     uint32 `protobuf:"varint,301,opt,name=tcp_info_state,json=tcpInfoState,proto3" json:"tcp_info_state,omitempty"`                   // uint8
+	TcpInfoCaState                   uint32 `protobuf:"varint,302,opt,name=tcp_info_ca_state,json=tcpInfoCaState,proto3" json:"tcp_info_ca_state,omitempty"`           // uint8
+	TcpInfoRetransmits               uint32 `protobuf:"varint,303,opt,name=tcp_info_retransmits,json=tcpInfoRetransmits,proto3" json:"tcp_info_retransmits,omitempty"` // uint8
+	TcpInfoProbes                    uint32 `protobuf:"varint,304,opt,name=tcp_info_probes,json=tcpInfoProbes,proto3" json:"tcp_info_probes,omitempty"`                // uint8
+	TcpInfoBackoff                   uint32 `protobuf:"varint,305,opt,name=tcp_info_backoff,json=tcpInfoBackoff,proto3" json:"tcp_info_backoff,omitempty"`             // uint8
+	TcpInfoOptions                   uint32 `protobuf:"varint,306,opt,name=tcp_info_options,json=tcpInfoOptions,proto3" json:"tcp_info_options,omitempty"`             // uint8
+	// __u8	_snd_wscale : 4, _rcv_wscale : 4;
+	// __u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
+	TcpInfoSendScale              uint32 `protobuf:"varint,307,opt,name=tcp_info_send_scale,json=tcpInfoSendScale,proto3" json:"tcp_info_send_scale,omitempty"`                                            // uint4
+	TcpInfoRcvScale               uint32 `protobuf:"varint,308,opt,name=tcp_info_rcv_scale,json=tcpInfoRcvScale,proto3" json:"tcp_info_rcv_scale,omitempty"`                                               // uint4
+	TcpInfoDeliveryRateAppLimited uint32 `protobuf:"varint,309,opt,name=tcp_info_delivery_rate_app_limited,json=tcpInfoDeliveryRateAppLimited,proto3" json:"tcp_info_delivery_rate_app_limited,omitempty"` // uint8
+	TcpInfoFastOpenClientFailed   uint32 `protobuf:"varint,310,opt,name=tcp_info_fast_open_client_failed,json=tcpInfoFastOpenClientFailed,proto3" json:"tcp_info_fast_open_client_failed,omitempty"`       // uint8
+	TcpInfoRto                    uint32 `protobuf:"varint,315,opt,name=tcp_info_rto,json=tcpInfoRto,proto3" json:"tcp_info_rto,omitempty"`
+	TcpInfoAto                    uint32 `protobuf:"varint,316,opt,name=tcp_info_ato,json=tcpInfoAto,proto3" json:"tcp_info_ato,omitempty"`
+	TcpInfoSndMss                 uint32 `protobuf:"varint,317,opt,name=tcp_info_snd_mss,json=tcpInfoSndMss,proto3" json:"tcp_info_snd_mss,omitempty"`
+	TcpInfoRcvMss                 uint32 `protobuf:"varint,318,opt,name=tcp_info_rcv_mss,json=tcpInfoRcvMss,proto3" json:"tcp_info_rcv_mss,omitempty"`
+	TcpInfoUnacked                uint32 `protobuf:"varint,319,opt,name=tcp_info_unacked,json=tcpInfoUnacked,proto3" json:"tcp_info_unacked,omitempty"`
+	TcpInfoSacked                 uint32 `protobuf:"varint,320,opt,name=tcp_info_sacked,json=tcpInfoSacked,proto3" json:"tcp_info_sacked,omitempty"`
+	TcpInfoLost                   uint32 `protobuf:"varint,321,opt,name=tcp_info_lost,json=tcpInfoLost,proto3" json:"tcp_info_lost,omitempty"`
+	TcpInfoRetrans                uint32 `protobuf:"varint,322,opt,name=tcp_info_retrans,json=tcpInfoRetrans,proto3" json:"tcp_info_retrans,omitempty"`
+	TcpInfoFackets                uint32 `protobuf:"varint,323,opt,name=tcp_info_fackets,json=tcpInfoFackets,proto3" json:"tcp_info_fackets,omitempty"`
+	// Times
+	TcpInfoLastDataSent uint32 `protobuf:"varint,324,opt,name=tcp_info_last_data_sent,json=tcpInfoLastDataSent,proto3" json:"tcp_info_last_data_sent,omitempty"`
+	TcpInfoLastAckSent  uint32 `protobuf:"varint,325,opt,name=tcp_info_last_ack_sent,json=tcpInfoLastAckSent,proto3" json:"tcp_info_last_ack_sent,omitempty"`
+	TcpInfoLastDataRecv uint32 `protobuf:"varint,326,opt,name=tcp_info_last_data_recv,json=tcpInfoLastDataRecv,proto3" json:"tcp_info_last_data_recv,omitempty"`
+	TcpInfoLastAckRecv  uint32 `protobuf:"varint,327,opt,name=tcp_info_last_ack_recv,json=tcpInfoLastAckRecv,proto3" json:"tcp_info_last_ack_recv,omitempty"`
+	// Metrics
+	TcpInfoPmtu          uint32 `protobuf:"varint,328,opt,name=tcp_info_pmtu,json=tcpInfoPmtu,proto3" json:"tcp_info_pmtu,omitempty"`
+	TcpInfoRcvSsthresh   uint32 `protobuf:"varint,329,opt,name=tcp_info_rcv_ssthresh,json=tcpInfoRcvSsthresh,proto3" json:"tcp_info_rcv_ssthresh,omitempty"`
+	TcpInfoRtt           uint32 `protobuf:"varint,330,opt,name=tcp_info_rtt,json=tcpInfoRtt,proto3" json:"tcp_info_rtt,omitempty"`
+	TcpInfoRttVar        uint32 `protobuf:"varint,331,opt,name=tcp_info_rtt_var,json=tcpInfoRttVar,proto3" json:"tcp_info_rtt_var,omitempty"`
+	TcpInfoSndSsthresh   uint32 `protobuf:"varint,332,opt,name=tcp_info_snd_ssthresh,json=tcpInfoSndSsthresh,proto3" json:"tcp_info_snd_ssthresh,omitempty"`
+	TcpInfoSndCwnd       uint32 `protobuf:"varint,333,opt,name=tcp_info_snd_cwnd,json=tcpInfoSndCwnd,proto3" json:"tcp_info_snd_cwnd,omitempty"`
+	TcpInfoAdvMss        uint32 `protobuf:"varint,334,opt,name=tcp_info_adv_mss,json=tcpInfoAdvMss,proto3" json:"tcp_info_adv_mss,omitempty"`
+	TcpInfoReordering    uint32 `protobuf:"varint,335,opt,name=tcp_info_reordering,json=tcpInfoReordering,proto3" json:"tcp_info_reordering,omitempty"`
+	TcpInfoRcvRtt        uint32 `protobuf:"varint,336,opt,name=tcp_info_rcv_rtt,json=tcpInfoRcvRtt,proto3" json:"tcp_info_rcv_rtt,omitempty"`
+	TcpInfoRcvSpace      uint32 `protobuf:"varint,337,opt,name=tcp_info_rcv_space,json=tcpInfoRcvSpace,proto3" json:"tcp_info_rcv_space,omitempty"`
+	TcpInfoTotalRetrans  uint32 `protobuf:"varint,338,opt,name=tcp_info_total_retrans,json=tcpInfoTotalRetrans,proto3" json:"tcp_info_total_retrans,omitempty"`
+	TcpInfoPacingRate    uint64 `protobuf:"varint,339,opt,name=tcp_info_pacing_rate,json=tcpInfoPacingRate,proto3" json:"tcp_info_pacing_rate,omitempty"`
+	TcpInfoMaxPacingRate uint64 `protobuf:"varint,340,opt,name=tcp_info_max_pacing_rate,json=tcpInfoMaxPacingRate,proto3" json:"tcp_info_max_pacing_rate,omitempty"`
+	TcpInfoBytesAcked    uint64 `protobuf:"varint,341,opt,name=tcp_info_bytes_acked,json=tcpInfoBytesAcked,proto3" json:"tcp_info_bytes_acked,omitempty"`          // RFC4898 tcpEStatsAppHCThruOctetsAcked
+	TcpInfoBytesReceived uint64 `protobuf:"varint,342,opt,name=tcp_info_bytes_received,json=tcpInfoBytesReceived,proto3" json:"tcp_info_bytes_received,omitempty"` // RFC4898 tcpEStatsAppHCThruOctetsReceived
+	TcpInfoSegsOut       uint32 `protobuf:"varint,343,opt,name=tcp_info_segs_out,json=tcpInfoSegsOut,proto3" json:"tcp_info_segs_out,omitempty"`                   // RFC4898 tcpEStatsPerfSegsOut
+	TcpInfoSegsIn        uint32 `protobuf:"varint,344,opt,name=tcp_info_segs_in,json=tcpInfoSegsIn,proto3" json:"tcp_info_segs_in,omitempty"`                      // RFC4898 tcpEStatsPerfSegsIn
+	TcpInfoNotSentBytes  uint32 `protobuf:"varint,345,opt,name=tcp_info_not_sent_bytes,json=tcpInfoNotSentBytes,proto3" json:"tcp_info_not_sent_bytes,omitempty"`
+	TcpInfoMinRtt        uint32 `protobuf:"varint,346,opt,name=tcp_info_min_rtt,json=tcpInfoMinRtt,proto3" json:"tcp_info_min_rtt,omitempty"`
+	TcpInfoDataSegsIn    uint32 `protobuf:"varint,347,opt,name=tcp_info_data_segs_in,json=tcpInfoDataSegsIn,proto3" json:"tcp_info_data_segs_in,omitempty"`    // RFC4898 tcpEStatsDataSegsIn
+	TcpInfoDataSegsOut   uint32 `protobuf:"varint,348,opt,name=tcp_info_data_segs_out,json=tcpInfoDataSegsOut,proto3" json:"tcp_info_data_segs_out,omitempty"` // RFC4898 tcpEStatsDataSegsOut
+	TcpInfoDeliveryRate  uint64 `protobuf:"varint,349,opt,name=tcp_info_delivery_rate,json=tcpInfoDeliveryRate,proto3" json:"tcp_info_delivery_rate,omitempty"`
+	TcpInfoBusyTime      uint64 `protobuf:"varint,350,opt,name=tcp_info_busy_time,json=tcpInfoBusyTime,proto3" json:"tcp_info_busy_time,omitempty"`                // Time (usec) busy sending data
+	TcpInfoRwndLimited   uint64 `protobuf:"varint,351,opt,name=tcp_info_rwnd_limited,json=tcpInfoRwndLimited,proto3" json:"tcp_info_rwnd_limited,omitempty"`       // Time (usec) limited by receive window
+	TcpInfoSndbufLimited uint64 `protobuf:"varint,352,opt,name=tcp_info_sndbuf_limited,json=tcpInfoSndbufLimited,proto3" json:"tcp_info_sndbuf_limited,omitempty"` // Time (usec) limited by send buffer
+	TcpInfoDelivered     uint32 `protobuf:"varint,353,opt,name=tcp_info_delivered,json=tcpInfoDelivered,proto3" json:"tcp_info_delivered,omitempty"`
+	TcpInfoDeliveredCe   uint32 `protobuf:"varint,354,opt,name=tcp_info_delivered_ce,json=tcpInfoDeliveredCe,proto3" json:"tcp_info_delivered_ce,omitempty"`
+	// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
+	TcpInfoBytesSent          uint64 `protobuf:"varint,355,opt,name=tcp_info_bytes_sent,json=tcpInfoBytesSent,proto3" json:"tcp_info_bytes_sent,omitempty"`                              // RFC4898 tcpEStatsPerfHCDataOctetsOut
+	TcpInfoBytesRetrans       uint64 `protobuf:"varint,356,opt,name=tcp_info_bytes_retrans,json=tcpInfoBytesRetrans,proto3" json:"tcp_info_bytes_retrans,omitempty"`                     // RFC4898 tcpEStatsPerfOctetsRetrans
+	TcpInfoDsackDups          uint32 `protobuf:"varint,357,opt,name=tcp_info_dsack_dups,json=tcpInfoDsackDups,proto3" json:"tcp_info_dsack_dups,omitempty"`                              // RFC4898 tcpEStatsStackDSACKDups
+	TcpInfoReordSeen          uint32 `protobuf:"varint,358,opt,name=tcp_info_reord_seen,json=tcpInfoReordSeen,proto3" json:"tcp_info_reord_seen,omitempty"`                              // reordering events seen
+	TcpInfoRcvOoopack         uint32 `protobuf:"varint,359,opt,name=tcp_info_rcv_ooopack,json=tcpInfoRcvOoopack,proto3" json:"tcp_info_rcv_ooopack,omitempty"`                           // Out-of-order packets received
+	TcpInfoSndWnd             uint32 `protobuf:"varint,360,opt,name=tcp_info_snd_wnd,json=tcpInfoSndWnd,proto3" json:"tcp_info_snd_wnd,omitempty"`                                       // peer's advertised receive window after scaling (bytes)
+	TcpInfoRcvWnd             uint32 `protobuf:"varint,361,opt,name=tcp_info_rcv_wnd,json=tcpInfoRcvWnd,proto3" json:"tcp_info_rcv_wnd,omitempty"`                                       // local advertised receive window after scaling (bytes)
+	TcpInfoRehash             uint32 `protobuf:"varint,362,opt,name=tcp_info_rehash,json=tcpInfoRehash,proto3" json:"tcp_info_rehash,omitempty"`                                         // PLB or timeout triggered rehash attempts
+	TcpInfoTotalRto           uint32 `protobuf:"varint,363,opt,name=tcp_info_total_rto,json=tcpInfoTotalRto,proto3" json:"tcp_info_total_rto,omitempty"`                                 // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+	TcpInfoTotalRtoRecoveries uint32 `protobuf:"varint,364,opt,name=tcp_info_total_rto_recoveries,json=tcpInfoTotalRtoRecoveries,proto3" json:"tcp_info_total_rto_recoveries,omitempty"` // Total number of RTO recoveries, including any unfinished recovery
+	TcpInfoTotalRtoTime       uint32 `protobuf:"varint,365,opt,name=tcp_info_total_rto_time,json=tcpInfoTotalRtoTime,proto3" json:"tcp_info_total_rto_time,omitempty"`                   // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+	// Please note it's recommended to use the enum for efficency, but keeping the string
+	// just in case we need to quickly put a different algorithm in without updating the enum.
+	// Obviously it's optional, so it low cost.
+	CongestionAlgorithmString string                             `protobuf:"bytes,400,opt,name=congestion_algorithm_string,json=congestionAlgorithmString,proto3" json:"congestion_algorithm_string,omitempty"`                                                        // INET_DIAG_CONG 4
+	CongestionAlgorithmEnum   XtcpFlatRecord_CongestionAlgorithm `protobuf:"varint,401,opt,name=congestion_algorithm_enum,json=congestionAlgorithmEnum,proto3,enum=xtcp_flat_record.v1.XtcpFlatRecord_CongestionAlgorithm" json:"congestion_algorithm_enum,omitempty"` // INET_DIAG_CONG 4
+	TypeOfService             uint32                             `protobuf:"varint,501,opt,name=type_of_service,json=typeOfService,proto3" json:"type_of_service,omitempty"`                                                                                           // INET_DIAG_TOS 5 uint8
+	TrafficClass              uint32                             `protobuf:"varint,502,opt,name=traffic_class,json=trafficClass,proto3" json:"traffic_class,omitempty"`                                                                                                // INET_DIAG_TCLASS 6 uint8
+	SkMemInfoRmemAlloc        uint32                             `protobuf:"varint,601,opt,name=sk_mem_info_rmem_alloc,json=skMemInfoRmemAlloc,proto3" json:"sk_mem_info_rmem_alloc,omitempty"`
+	SkMemInfoRcvBuf           uint32                             `protobuf:"varint,602,opt,name=sk_mem_info_rcv_buf,json=skMemInfoRcvBuf,proto3" json:"sk_mem_info_rcv_buf,omitempty"`
+	SkMemInfoWmemAlloc        uint32                             `protobuf:"varint,603,opt,name=sk_mem_info_wmem_alloc,json=skMemInfoWmemAlloc,proto3" json:"sk_mem_info_wmem_alloc,omitempty"`
+	SkMemInfoSndBuf           uint32                             `protobuf:"varint,604,opt,name=sk_mem_info_snd_buf,json=skMemInfoSndBuf,proto3" json:"sk_mem_info_snd_buf,omitempty"`
+	SkMemInfoFwdAlloc         uint32                             `protobuf:"varint,605,opt,name=sk_mem_info_fwd_alloc,json=skMemInfoFwdAlloc,proto3" json:"sk_mem_info_fwd_alloc,omitempty"`
+	SkMemInfoWmemQueued       uint32                             `protobuf:"varint,606,opt,name=sk_mem_info_wmem_queued,json=skMemInfoWmemQueued,proto3" json:"sk_mem_info_wmem_queued,omitempty"`
+	SkMemInfoOptmem           uint32                             `protobuf:"varint,607,opt,name=sk_mem_info_optmem,json=skMemInfoOptmem,proto3" json:"sk_mem_info_optmem,omitempty"`
+	SkMemInfoBacklog          uint32                             `protobuf:"varint,608,opt,name=sk_mem_info_backlog,json=skMemInfoBacklog,proto3" json:"sk_mem_info_backlog,omitempty"`
+	SkMemInfoDrops            uint32                             `protobuf:"varint,609,opt,name=sk_mem_info_drops,json=skMemInfoDrops,proto3" json:"sk_mem_info_drops,omitempty"`
+	ShutdownState             uint32                             `protobuf:"varint,700,opt,name=shutdown_state,json=shutdownState,proto3" json:"shutdown_state,omitempty"` // UNIX_DIAG_SHUTDOWN 8uint8
+	VegasInfoEnabled          uint32                             `protobuf:"varint,801,opt,name=vegas_info_enabled,json=vegasInfoEnabled,proto3" json:"vegas_info_enabled,omitempty"`
+	VegasInfoRttCnt           uint32                             `protobuf:"varint,802,opt,name=vegas_info_rtt_cnt,json=vegasInfoRttCnt,proto3" json:"vegas_info_rtt_cnt,omitempty"`
+	VegasInfoRtt              uint32                             `protobuf:"varint,803,opt,name=vegas_info_rtt,json=vegasInfoRtt,proto3" json:"vegas_info_rtt,omitempty"`
+	VegasInfoMinRtt           uint32                             `protobuf:"varint,804,opt,name=vegas_info_min_rtt,json=vegasInfoMinRtt,proto3" json:"vegas_info_min_rtt,omitempty"`
+	DctcpInfoEnabled          uint32                             `protobuf:"varint,901,opt,name=dctcp_info_enabled,json=dctcpInfoEnabled,proto3" json:"dctcp_info_enabled,omitempty"`
+	DctcpInfoCeState          uint32                             `protobuf:"varint,902,opt,name=dctcp_info_ce_state,json=dctcpInfoCeState,proto3" json:"dctcp_info_ce_state,omitempty"`
+	DctcpInfoAlpha            uint32                             `protobuf:"varint,903,opt,name=dctcp_info_alpha,json=dctcpInfoAlpha,proto3" json:"dctcp_info_alpha,omitempty"`
+	DctcpInfoAbEcn            uint32                             `protobuf:"varint,904,opt,name=dctcp_info_ab_ecn,json=dctcpInfoAbEcn,proto3" json:"dctcp_info_ab_ecn,omitempty"`
+	DctcpInfoAbTot            uint32                             `protobuf:"varint,905,opt,name=dctcp_info_ab_tot,json=dctcpInfoAbTot,proto3" json:"dctcp_info_ab_tot,omitempty"`
+	BbrInfoBwLo               uint32                             `protobuf:"varint,1001,opt,name=bbr_info_bw_lo,json=bbrInfoBwLo,proto3" json:"bbr_info_bw_lo,omitempty"`
+	BbrInfoBwHi               uint32                             `protobuf:"varint,1002,opt,name=bbr_info_bw_hi,json=bbrInfoBwHi,proto3" json:"bbr_info_bw_hi,omitempty"`
+	BbrInfoMinRtt             uint32                             `protobuf:"varint,1003,opt,name=bbr_info_min_rtt,json=bbrInfoMinRtt,proto3" json:"bbr_info_min_rtt,omitempty"`
+	BbrInfoPacingGain         uint32                             `protobuf:"varint,1004,opt,name=bbr_info_pacing_gain,json=bbrInfoPacingGain,proto3" json:"bbr_info_pacing_gain,omitempty"`
+	BbrInfoCwndGain           uint32                             `protobuf:"varint,1005,opt,name=bbr_info_cwnd_gain,json=bbrInfoCwndGain,proto3" json:"bbr_info_cwnd_gain,omitempty"`
+	ClassId                   uint32                             `protobuf:"varint,1101,opt,name=class_id,json=classId,proto3" json:"class_id,omitempty"` // INET_DIAG_CLASS_ID 17 uint32
+	SockOpt                   uint32                             `protobuf:"varint,1102,opt,name=sock_opt,json=sockOpt,proto3" json:"sock_opt,omitempty"` // INET_DIAG_SOCKOPT
+	CGroup                    uint64                             `protobuf:"varint,1203,opt,name=c_group,json=cGroup,proto3" json:"c_group,omitempty"`    // INET_DIAG_BC_CGROUP_COND
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *XtcpFlatRecord) Reset() {
+	*x = XtcpFlatRecord{}
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *XtcpFlatRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*XtcpFlatRecord) ProtoMessage() {}
+
+func (x *XtcpFlatRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use XtcpFlatRecord.ProtoReflect.Descriptor instead.
+func (*XtcpFlatRecord) Descriptor() ([]byte, []int) {
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *XtcpFlatRecord) GetTimestampNs() float64 {
+	if x != nil {
+		return x.TimestampNs
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetNetns() string {
+	if x != nil {
+		return x.Netns
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetNsid() uint32 {
+	if x != nil {
+		return x.Nsid
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetRecordCounter() uint64 {
+	if x != nil {
+		return x.RecordCounter
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSocketFd() uint64 {
+	if x != nil {
+		return x.SocketFd
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetNetlinkerId() uint64 {
+	if x != nil {
+		return x.NetlinkerId
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgFamily() uint32 {
+	if x != nil {
+		return x.InetDiagMsgFamily
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgState() uint32 {
+	if x != nil {
+		return x.InetDiagMsgState
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgTimer() uint32 {
+	if x != nil {
+		return x.InetDiagMsgTimer
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgRetrans() uint32 {
+	if x != nil {
+		return x.InetDiagMsgRetrans
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketSourcePort() uint32 {
+	if x != nil {
+		return x.InetDiagMsgSocketSourcePort
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestinationPort() uint32 {
+	if x != nil {
+		return x.InetDiagMsgSocketDestinationPort
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketSource() []byte {
+	if x != nil {
+		return x.InetDiagMsgSocketSource
+	}
+	return nil
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestination() []byte {
+	if x != nil {
+		return x.InetDiagMsgSocketDestination
+	}
+	return nil
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketInterface() uint32 {
+	if x != nil {
+		return x.InetDiagMsgSocketInterface
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketCookie() uint64 {
+	if x != nil {
+		return x.InetDiagMsgSocketCookie
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestAsn() uint64 {
+	if x != nil {
+		return x.InetDiagMsgSocketDestAsn
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketNextHopAsn() uint64 {
+	if x != nil {
+		return x.InetDiagMsgSocketNextHopAsn
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgExpires() uint32 {
+	if x != nil {
+		return x.InetDiagMsgExpires
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgRqueue() uint32 {
+	if x != nil {
+		return x.InetDiagMsgRqueue
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgWqueue() uint32 {
+	if x != nil {
+		return x.InetDiagMsgWqueue
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgUid() uint32 {
+	if x != nil {
+		return x.InetDiagMsgUid
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgInode() uint32 {
+	if x != nil {
+		return x.InetDiagMsgInode
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetMemInfoRmem() uint32 {
+	if x != nil {
+		return x.MemInfoRmem
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetMemInfoWmem() uint32 {
+	if x != nil {
+		return x.MemInfoWmem
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetMemInfoFmem() uint32 {
+	if x != nil {
+		return x.MemInfoFmem
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetMemInfoTmem() uint32 {
+	if x != nil {
+		return x.MemInfoTmem
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoState() uint32 {
+	if x != nil {
+		return x.TcpInfoState
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoCaState() uint32 {
+	if x != nil {
+		return x.TcpInfoCaState
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRetransmits() uint32 {
+	if x != nil {
+		return x.TcpInfoRetransmits
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoProbes() uint32 {
+	if x != nil {
+		return x.TcpInfoProbes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBackoff() uint32 {
+	if x != nil {
+		return x.TcpInfoBackoff
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoOptions() uint32 {
+	if x != nil {
+		return x.TcpInfoOptions
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSendScale() uint32 {
+	if x != nil {
+		return x.TcpInfoSendScale
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvScale() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvScale
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveryRateAppLimited() uint32 {
+	if x != nil {
+		return x.TcpInfoDeliveryRateAppLimited
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoFastOpenClientFailed() uint32 {
+	if x != nil {
+		return x.TcpInfoFastOpenClientFailed
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRto() uint32 {
+	if x != nil {
+		return x.TcpInfoRto
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoAto() uint32 {
+	if x != nil {
+		return x.TcpInfoAto
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSndMss() uint32 {
+	if x != nil {
+		return x.TcpInfoSndMss
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvMss() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvMss
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoUnacked() uint32 {
+	if x != nil {
+		return x.TcpInfoUnacked
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSacked() uint32 {
+	if x != nil {
+		return x.TcpInfoSacked
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoLost() uint32 {
+	if x != nil {
+		return x.TcpInfoLost
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRetrans() uint32 {
+	if x != nil {
+		return x.TcpInfoRetrans
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoFackets() uint32 {
+	if x != nil {
+		return x.TcpInfoFackets
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoLastDataSent() uint32 {
+	if x != nil {
+		return x.TcpInfoLastDataSent
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoLastAckSent() uint32 {
+	if x != nil {
+		return x.TcpInfoLastAckSent
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoLastDataRecv() uint32 {
+	if x != nil {
+		return x.TcpInfoLastDataRecv
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoLastAckRecv() uint32 {
+	if x != nil {
+		return x.TcpInfoLastAckRecv
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoPmtu() uint32 {
+	if x != nil {
+		return x.TcpInfoPmtu
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvSsthresh() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvSsthresh
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRtt() uint32 {
+	if x != nil {
+		return x.TcpInfoRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRttVar() uint32 {
+	if x != nil {
+		return x.TcpInfoRttVar
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSndSsthresh() uint32 {
+	if x != nil {
+		return x.TcpInfoSndSsthresh
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSndCwnd() uint32 {
+	if x != nil {
+		return x.TcpInfoSndCwnd
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoAdvMss() uint32 {
+	if x != nil {
+		return x.TcpInfoAdvMss
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoReordering() uint32 {
+	if x != nil {
+		return x.TcpInfoReordering
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvRtt() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvSpace() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvSpace
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoTotalRetrans() uint32 {
+	if x != nil {
+		return x.TcpInfoTotalRetrans
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoPacingRate() uint64 {
+	if x != nil {
+		return x.TcpInfoPacingRate
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoMaxPacingRate() uint64 {
+	if x != nil {
+		return x.TcpInfoMaxPacingRate
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBytesAcked() uint64 {
+	if x != nil {
+		return x.TcpInfoBytesAcked
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBytesReceived() uint64 {
+	if x != nil {
+		return x.TcpInfoBytesReceived
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSegsOut() uint32 {
+	if x != nil {
+		return x.TcpInfoSegsOut
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSegsIn() uint32 {
+	if x != nil {
+		return x.TcpInfoSegsIn
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoNotSentBytes() uint32 {
+	if x != nil {
+		return x.TcpInfoNotSentBytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoMinRtt() uint32 {
+	if x != nil {
+		return x.TcpInfoMinRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDataSegsIn() uint32 {
+	if x != nil {
+		return x.TcpInfoDataSegsIn
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDataSegsOut() uint32 {
+	if x != nil {
+		return x.TcpInfoDataSegsOut
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveryRate() uint64 {
+	if x != nil {
+		return x.TcpInfoDeliveryRate
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBusyTime() uint64 {
+	if x != nil {
+		return x.TcpInfoBusyTime
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRwndLimited() uint64 {
+	if x != nil {
+		return x.TcpInfoRwndLimited
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSndbufLimited() uint64 {
+	if x != nil {
+		return x.TcpInfoSndbufLimited
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDelivered() uint32 {
+	if x != nil {
+		return x.TcpInfoDelivered
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveredCe() uint32 {
+	if x != nil {
+		return x.TcpInfoDeliveredCe
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBytesSent() uint64 {
+	if x != nil {
+		return x.TcpInfoBytesSent
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoBytesRetrans() uint64 {
+	if x != nil {
+		return x.TcpInfoBytesRetrans
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDsackDups() uint32 {
+	if x != nil {
+		return x.TcpInfoDsackDups
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoReordSeen() uint32 {
+	if x != nil {
+		return x.TcpInfoReordSeen
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvOoopack() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvOoopack
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoSndWnd() uint32 {
+	if x != nil {
+		return x.TcpInfoSndWnd
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRcvWnd() uint32 {
+	if x != nil {
+		return x.TcpInfoRcvWnd
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoRehash() uint32 {
+	if x != nil {
+		return x.TcpInfoRehash
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoTotalRto() uint32 {
+	if x != nil {
+		return x.TcpInfoTotalRto
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoTotalRtoRecoveries() uint32 {
+	if x != nil {
+		return x.TcpInfoTotalRtoRecoveries
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoTotalRtoTime() uint32 {
+	if x != nil {
+		return x.TcpInfoTotalRtoTime
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetCongestionAlgorithmString() string {
+	if x != nil {
+		return x.CongestionAlgorithmString
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetCongestionAlgorithmEnum() XtcpFlatRecord_CongestionAlgorithm {
+	if x != nil {
+		return x.CongestionAlgorithmEnum
+	}
+	return XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
+}
+
+func (x *XtcpFlatRecord) GetTypeOfService() uint32 {
+	if x != nil {
+		return x.TypeOfService
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTrafficClass() uint32 {
+	if x != nil {
+		return x.TrafficClass
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoRmemAlloc() uint32 {
+	if x != nil {
+		return x.SkMemInfoRmemAlloc
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoRcvBuf() uint32 {
+	if x != nil {
+		return x.SkMemInfoRcvBuf
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoWmemAlloc() uint32 {
+	if x != nil {
+		return x.SkMemInfoWmemAlloc
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoSndBuf() uint32 {
+	if x != nil {
+		return x.SkMemInfoSndBuf
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoFwdAlloc() uint32 {
+	if x != nil {
+		return x.SkMemInfoFwdAlloc
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoWmemQueued() uint32 {
+	if x != nil {
+		return x.SkMemInfoWmemQueued
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoOptmem() uint32 {
+	if x != nil {
+		return x.SkMemInfoOptmem
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoBacklog() uint32 {
+	if x != nil {
+		return x.SkMemInfoBacklog
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSkMemInfoDrops() uint32 {
+	if x != nil {
+		return x.SkMemInfoDrops
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetShutdownState() uint32 {
+	if x != nil {
+		return x.ShutdownState
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetVegasInfoEnabled() uint32 {
+	if x != nil {
+		return x.VegasInfoEnabled
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetVegasInfoRttCnt() uint32 {
+	if x != nil {
+		return x.VegasInfoRttCnt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetVegasInfoRtt() uint32 {
+	if x != nil {
+		return x.VegasInfoRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetVegasInfoMinRtt() uint32 {
+	if x != nil {
+		return x.VegasInfoMinRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDctcpInfoEnabled() uint32 {
+	if x != nil {
+		return x.DctcpInfoEnabled
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDctcpInfoCeState() uint32 {
+	if x != nil {
+		return x.DctcpInfoCeState
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDctcpInfoAlpha() uint32 {
+	if x != nil {
+		return x.DctcpInfoAlpha
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDctcpInfoAbEcn() uint32 {
+	if x != nil {
+		return x.DctcpInfoAbEcn
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDctcpInfoAbTot() uint32 {
+	if x != nil {
+		return x.DctcpInfoAbTot
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetBbrInfoBwLo() uint32 {
+	if x != nil {
+		return x.BbrInfoBwLo
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetBbrInfoBwHi() uint32 {
+	if x != nil {
+		return x.BbrInfoBwHi
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetBbrInfoMinRtt() uint32 {
+	if x != nil {
+		return x.BbrInfoMinRtt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetBbrInfoPacingGain() uint32 {
+	if x != nil {
+		return x.BbrInfoPacingGain
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetBbrInfoCwndGain() uint32 {
+	if x != nil {
+		return x.BbrInfoCwndGain
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetClassId() uint32 {
+	if x != nil {
+		return x.ClassId
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetSockOpt() uint32 {
+	if x != nil {
+		return x.SockOpt
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetCGroup() uint64 {
+	if x != nil {
+		return x.CGroup
+	}
+	return 0
+}
+
 type FlatRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -158,7 +1247,7 @@ type FlatRecordsRequest struct {
 
 func (x *FlatRecordsRequest) Reset() {
 	*x = FlatRecordsRequest{}
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[1]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -170,7 +1259,7 @@ func (x *FlatRecordsRequest) String() string {
 func (*FlatRecordsRequest) ProtoMessage() {}
 
 func (x *FlatRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[1]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -183,19 +1272,19 @@ func (x *FlatRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlatRecordsRequest.ProtoReflect.Descriptor instead.
 func (*FlatRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1}
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{2}
 }
 
 type FlatRecordsResponse struct {
-	state          protoimpl.MessageState   `protogen:"open.v1"`
-	XtcpFlatRecord *Envelope_XtcpFlatRecord `protobuf:"bytes,1,opt,name=xtcp_flat_record,json=xtcpFlatRecord,proto3" json:"xtcp_flat_record,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	XtcpFlatRecord *XtcpFlatRecord        `protobuf:"bytes,1,opt,name=xtcp_flat_record,json=xtcpFlatRecord,proto3" json:"xtcp_flat_record,omitempty"` // Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *FlatRecordsResponse) Reset() {
 	*x = FlatRecordsResponse{}
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[2]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -207,7 +1296,7 @@ func (x *FlatRecordsResponse) String() string {
 func (*FlatRecordsResponse) ProtoMessage() {}
 
 func (x *FlatRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[2]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -220,10 +1309,10 @@ func (x *FlatRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlatRecordsResponse.ProtoReflect.Descriptor instead.
 func (*FlatRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{2}
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *FlatRecordsResponse) GetXtcpFlatRecord() *Envelope_XtcpFlatRecord {
+func (x *FlatRecordsResponse) GetXtcpFlatRecord() *XtcpFlatRecord {
 	if x != nil {
 		return x.XtcpFlatRecord
 	}
@@ -238,7 +1327,7 @@ type PollFlatRecordsRequest struct {
 
 func (x *PollFlatRecordsRequest) Reset() {
 	*x = PollFlatRecordsRequest{}
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[3]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -250,7 +1339,7 @@ func (x *PollFlatRecordsRequest) String() string {
 func (*PollFlatRecordsRequest) ProtoMessage() {}
 
 func (x *PollFlatRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[3]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -263,19 +1352,19 @@ func (x *PollFlatRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollFlatRecordsRequest.ProtoReflect.Descriptor instead.
 func (*PollFlatRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{3}
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{4}
 }
 
 type PollFlatRecordsResponse struct {
-	state          protoimpl.MessageState   `protogen:"open.v1"`
-	XtcpFlatRecord *Envelope_XtcpFlatRecord `protobuf:"bytes,1,opt,name=xtcp_flat_record,json=xtcpFlatRecord,proto3" json:"xtcp_flat_record,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	XtcpFlatRecord *XtcpFlatRecord        `protobuf:"bytes,1,opt,name=xtcp_flat_record,json=xtcpFlatRecord,proto3" json:"xtcp_flat_record,omitempty"` // Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PollFlatRecordsResponse) Reset() {
 	*x = PollFlatRecordsResponse{}
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[4]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +1376,7 @@ func (x *PollFlatRecordsResponse) String() string {
 func (*PollFlatRecordsResponse) ProtoMessage() {}
 
 func (x *PollFlatRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[4]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,10 +1389,10 @@ func (x *PollFlatRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollFlatRecordsResponse.ProtoReflect.Descriptor instead.
 func (*PollFlatRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{4}
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *PollFlatRecordsResponse) GetXtcpFlatRecord() *Envelope_XtcpFlatRecord {
+func (x *PollFlatRecordsResponse) GetXtcpFlatRecord() *XtcpFlatRecord {
 	if x != nil {
 		return x.XtcpFlatRecord
 	}
@@ -453,7 +1542,7 @@ type Envelope_XtcpFlatRecord struct {
 
 func (x *Envelope_XtcpFlatRecord) Reset() {
 	*x = Envelope_XtcpFlatRecord{}
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[5]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -465,7 +1554,7 @@ func (x *Envelope_XtcpFlatRecord) String() string {
 func (*Envelope_XtcpFlatRecord) ProtoMessage() {}
 
 func (x *Envelope_XtcpFlatRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[5]
+	mi := &file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1478,13 +2567,149 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x1bCONGESTION_ALGORITHM_PRAGUE\x10\x04\x12\x1d\n" +
 	"\x19CONGESTION_ALGORITHM_BBR1\x10\x05\x12\x1d\n" +
 	"\x19CONGESTION_ALGORITHM_BBR2\x10\x06\x12\x1d\n" +
+	"\x19CONGESTION_ALGORITHM_BBR3\x10\a\"\xa3/\n" +
+	"\x0eXtcpFlatRecord\x12!\n" +
+	"\ftimestamp_ns\x18\n" +
+	" \x01(\x01R\vtimestampNs\x12\x1a\n" +
+	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x14\n" +
+	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x12\n" +
+	"\x04nsid\x18( \x01(\rR\x04nsid\x12\x14\n" +
+	"\x05label\x182 \x01(\tR\x05label\x12\x10\n" +
+	"\x03tag\x18< \x01(\tR\x03tag\x12%\n" +
+	"\x0erecord_counter\x18F \x01(\x04R\rrecordCounter\x12\x1b\n" +
+	"\tsocket_fd\x18P \x01(\x04R\bsocketFd\x12!\n" +
+	"\fnetlinker_id\x18Z \x01(\x04R\vnetlinkerId\x12/\n" +
+	"\x14inet_diag_msg_family\x18e \x01(\rR\x11inetDiagMsgFamily\x12-\n" +
+	"\x13inet_diag_msg_state\x18f \x01(\rR\x10inetDiagMsgState\x12-\n" +
+	"\x13inet_diag_msg_timer\x18g \x01(\rR\x10inetDiagMsgTimer\x121\n" +
+	"\x15inet_diag_msg_retrans\x18h \x01(\rR\x12inetDiagMsgRetrans\x12E\n" +
+	" inet_diag_msg_socket_source_port\x18i \x01(\rR\x1binetDiagMsgSocketSourcePort\x12O\n" +
+	"%inet_diag_msg_socket_destination_port\x18j \x01(\rR inetDiagMsgSocketDestinationPort\x12<\n" +
+	"\x1binet_diag_msg_socket_source\x18k \x01(\fR\x17inetDiagMsgSocketSource\x12F\n" +
+	" inet_diag_msg_socket_destination\x18l \x01(\fR\x1cinetDiagMsgSocketDestination\x12B\n" +
+	"\x1einet_diag_msg_socket_interface\x18m \x01(\rR\x1ainetDiagMsgSocketInterface\x12<\n" +
+	"\x1binet_diag_msg_socket_cookie\x18n \x01(\x04R\x17inetDiagMsgSocketCookie\x12?\n" +
+	"\x1dinet_diag_msg_socket_dest_asn\x18o \x01(\x04R\x18inetDiagMsgSocketDestAsn\x12F\n" +
+	"!inet_diag_msg_socket_next_hop_asn\x18p \x01(\x04R\x1binetDiagMsgSocketNextHopAsn\x121\n" +
+	"\x15inet_diag_msg_expires\x18q \x01(\rR\x12inetDiagMsgExpires\x12/\n" +
+	"\x14inet_diag_msg_rqueue\x18r \x01(\rR\x11inetDiagMsgRqueue\x12/\n" +
+	"\x14inet_diag_msg_wqueue\x18s \x01(\rR\x11inetDiagMsgWqueue\x12)\n" +
+	"\x11inet_diag_msg_uid\x18t \x01(\rR\x0einetDiagMsgUid\x12-\n" +
+	"\x13inet_diag_msg_inode\x18u \x01(\rR\x10inetDiagMsgInode\x12#\n" +
+	"\rmem_info_rmem\x18\xc9\x01 \x01(\rR\vmemInfoRmem\x12#\n" +
+	"\rmem_info_wmem\x18\xca\x01 \x01(\rR\vmemInfoWmem\x12#\n" +
+	"\rmem_info_fmem\x18\xcb\x01 \x01(\rR\vmemInfoFmem\x12#\n" +
+	"\rmem_info_tmem\x18\xcc\x01 \x01(\rR\vmemInfoTmem\x12%\n" +
+	"\x0etcp_info_state\x18\xad\x02 \x01(\rR\ftcpInfoState\x12*\n" +
+	"\x11tcp_info_ca_state\x18\xae\x02 \x01(\rR\x0etcpInfoCaState\x121\n" +
+	"\x14tcp_info_retransmits\x18\xaf\x02 \x01(\rR\x12tcpInfoRetransmits\x12'\n" +
+	"\x0ftcp_info_probes\x18\xb0\x02 \x01(\rR\rtcpInfoProbes\x12)\n" +
+	"\x10tcp_info_backoff\x18\xb1\x02 \x01(\rR\x0etcpInfoBackoff\x12)\n" +
+	"\x10tcp_info_options\x18\xb2\x02 \x01(\rR\x0etcpInfoOptions\x12.\n" +
+	"\x13tcp_info_send_scale\x18\xb3\x02 \x01(\rR\x10tcpInfoSendScale\x12,\n" +
+	"\x12tcp_info_rcv_scale\x18\xb4\x02 \x01(\rR\x0ftcpInfoRcvScale\x12J\n" +
+	"\"tcp_info_delivery_rate_app_limited\x18\xb5\x02 \x01(\rR\x1dtcpInfoDeliveryRateAppLimited\x12F\n" +
+	" tcp_info_fast_open_client_failed\x18\xb6\x02 \x01(\rR\x1btcpInfoFastOpenClientFailed\x12!\n" +
+	"\ftcp_info_rto\x18\xbb\x02 \x01(\rR\n" +
+	"tcpInfoRto\x12!\n" +
+	"\ftcp_info_ato\x18\xbc\x02 \x01(\rR\n" +
+	"tcpInfoAto\x12(\n" +
+	"\x10tcp_info_snd_mss\x18\xbd\x02 \x01(\rR\rtcpInfoSndMss\x12(\n" +
+	"\x10tcp_info_rcv_mss\x18\xbe\x02 \x01(\rR\rtcpInfoRcvMss\x12)\n" +
+	"\x10tcp_info_unacked\x18\xbf\x02 \x01(\rR\x0etcpInfoUnacked\x12'\n" +
+	"\x0ftcp_info_sacked\x18\xc0\x02 \x01(\rR\rtcpInfoSacked\x12#\n" +
+	"\rtcp_info_lost\x18\xc1\x02 \x01(\rR\vtcpInfoLost\x12)\n" +
+	"\x10tcp_info_retrans\x18\xc2\x02 \x01(\rR\x0etcpInfoRetrans\x12)\n" +
+	"\x10tcp_info_fackets\x18\xc3\x02 \x01(\rR\x0etcpInfoFackets\x125\n" +
+	"\x17tcp_info_last_data_sent\x18\xc4\x02 \x01(\rR\x13tcpInfoLastDataSent\x123\n" +
+	"\x16tcp_info_last_ack_sent\x18\xc5\x02 \x01(\rR\x12tcpInfoLastAckSent\x125\n" +
+	"\x17tcp_info_last_data_recv\x18\xc6\x02 \x01(\rR\x13tcpInfoLastDataRecv\x123\n" +
+	"\x16tcp_info_last_ack_recv\x18\xc7\x02 \x01(\rR\x12tcpInfoLastAckRecv\x12#\n" +
+	"\rtcp_info_pmtu\x18\xc8\x02 \x01(\rR\vtcpInfoPmtu\x122\n" +
+	"\x15tcp_info_rcv_ssthresh\x18\xc9\x02 \x01(\rR\x12tcpInfoRcvSsthresh\x12!\n" +
+	"\ftcp_info_rtt\x18\xca\x02 \x01(\rR\n" +
+	"tcpInfoRtt\x12(\n" +
+	"\x10tcp_info_rtt_var\x18\xcb\x02 \x01(\rR\rtcpInfoRttVar\x122\n" +
+	"\x15tcp_info_snd_ssthresh\x18\xcc\x02 \x01(\rR\x12tcpInfoSndSsthresh\x12*\n" +
+	"\x11tcp_info_snd_cwnd\x18\xcd\x02 \x01(\rR\x0etcpInfoSndCwnd\x12(\n" +
+	"\x10tcp_info_adv_mss\x18\xce\x02 \x01(\rR\rtcpInfoAdvMss\x12/\n" +
+	"\x13tcp_info_reordering\x18\xcf\x02 \x01(\rR\x11tcpInfoReordering\x12(\n" +
+	"\x10tcp_info_rcv_rtt\x18\xd0\x02 \x01(\rR\rtcpInfoRcvRtt\x12,\n" +
+	"\x12tcp_info_rcv_space\x18\xd1\x02 \x01(\rR\x0ftcpInfoRcvSpace\x124\n" +
+	"\x16tcp_info_total_retrans\x18\xd2\x02 \x01(\rR\x13tcpInfoTotalRetrans\x120\n" +
+	"\x14tcp_info_pacing_rate\x18\xd3\x02 \x01(\x04R\x11tcpInfoPacingRate\x127\n" +
+	"\x18tcp_info_max_pacing_rate\x18\xd4\x02 \x01(\x04R\x14tcpInfoMaxPacingRate\x120\n" +
+	"\x14tcp_info_bytes_acked\x18\xd5\x02 \x01(\x04R\x11tcpInfoBytesAcked\x126\n" +
+	"\x17tcp_info_bytes_received\x18\xd6\x02 \x01(\x04R\x14tcpInfoBytesReceived\x12*\n" +
+	"\x11tcp_info_segs_out\x18\xd7\x02 \x01(\rR\x0etcpInfoSegsOut\x12(\n" +
+	"\x10tcp_info_segs_in\x18\xd8\x02 \x01(\rR\rtcpInfoSegsIn\x125\n" +
+	"\x17tcp_info_not_sent_bytes\x18\xd9\x02 \x01(\rR\x13tcpInfoNotSentBytes\x12(\n" +
+	"\x10tcp_info_min_rtt\x18\xda\x02 \x01(\rR\rtcpInfoMinRtt\x121\n" +
+	"\x15tcp_info_data_segs_in\x18\xdb\x02 \x01(\rR\x11tcpInfoDataSegsIn\x123\n" +
+	"\x16tcp_info_data_segs_out\x18\xdc\x02 \x01(\rR\x12tcpInfoDataSegsOut\x124\n" +
+	"\x16tcp_info_delivery_rate\x18\xdd\x02 \x01(\x04R\x13tcpInfoDeliveryRate\x12,\n" +
+	"\x12tcp_info_busy_time\x18\xde\x02 \x01(\x04R\x0ftcpInfoBusyTime\x122\n" +
+	"\x15tcp_info_rwnd_limited\x18\xdf\x02 \x01(\x04R\x12tcpInfoRwndLimited\x126\n" +
+	"\x17tcp_info_sndbuf_limited\x18\xe0\x02 \x01(\x04R\x14tcpInfoSndbufLimited\x12-\n" +
+	"\x12tcp_info_delivered\x18\xe1\x02 \x01(\rR\x10tcpInfoDelivered\x122\n" +
+	"\x15tcp_info_delivered_ce\x18\xe2\x02 \x01(\rR\x12tcpInfoDeliveredCe\x12.\n" +
+	"\x13tcp_info_bytes_sent\x18\xe3\x02 \x01(\x04R\x10tcpInfoBytesSent\x124\n" +
+	"\x16tcp_info_bytes_retrans\x18\xe4\x02 \x01(\x04R\x13tcpInfoBytesRetrans\x12.\n" +
+	"\x13tcp_info_dsack_dups\x18\xe5\x02 \x01(\rR\x10tcpInfoDsackDups\x12.\n" +
+	"\x13tcp_info_reord_seen\x18\xe6\x02 \x01(\rR\x10tcpInfoReordSeen\x120\n" +
+	"\x14tcp_info_rcv_ooopack\x18\xe7\x02 \x01(\rR\x11tcpInfoRcvOoopack\x12(\n" +
+	"\x10tcp_info_snd_wnd\x18\xe8\x02 \x01(\rR\rtcpInfoSndWnd\x12(\n" +
+	"\x10tcp_info_rcv_wnd\x18\xe9\x02 \x01(\rR\rtcpInfoRcvWnd\x12'\n" +
+	"\x0ftcp_info_rehash\x18\xea\x02 \x01(\rR\rtcpInfoRehash\x12,\n" +
+	"\x12tcp_info_total_rto\x18\xeb\x02 \x01(\rR\x0ftcpInfoTotalRto\x12A\n" +
+	"\x1dtcp_info_total_rto_recoveries\x18\xec\x02 \x01(\rR\x19tcpInfoTotalRtoRecoveries\x125\n" +
+	"\x17tcp_info_total_rto_time\x18\xed\x02 \x01(\rR\x13tcpInfoTotalRtoTime\x12?\n" +
+	"\x1bcongestion_algorithm_string\x18\x90\x03 \x01(\tR\x19congestionAlgorithmString\x12t\n" +
+	"\x19congestion_algorithm_enum\x18\x91\x03 \x01(\x0e27.xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithmR\x17congestionAlgorithmEnum\x12'\n" +
+	"\x0ftype_of_service\x18\xf5\x03 \x01(\rR\rtypeOfService\x12$\n" +
+	"\rtraffic_class\x18\xf6\x03 \x01(\rR\ftrafficClass\x123\n" +
+	"\x16sk_mem_info_rmem_alloc\x18\xd9\x04 \x01(\rR\x12skMemInfoRmemAlloc\x12-\n" +
+	"\x13sk_mem_info_rcv_buf\x18\xda\x04 \x01(\rR\x0fskMemInfoRcvBuf\x123\n" +
+	"\x16sk_mem_info_wmem_alloc\x18\xdb\x04 \x01(\rR\x12skMemInfoWmemAlloc\x12-\n" +
+	"\x13sk_mem_info_snd_buf\x18\xdc\x04 \x01(\rR\x0fskMemInfoSndBuf\x121\n" +
+	"\x15sk_mem_info_fwd_alloc\x18\xdd\x04 \x01(\rR\x11skMemInfoFwdAlloc\x125\n" +
+	"\x17sk_mem_info_wmem_queued\x18\xde\x04 \x01(\rR\x13skMemInfoWmemQueued\x12,\n" +
+	"\x12sk_mem_info_optmem\x18\xdf\x04 \x01(\rR\x0fskMemInfoOptmem\x12.\n" +
+	"\x13sk_mem_info_backlog\x18\xe0\x04 \x01(\rR\x10skMemInfoBacklog\x12*\n" +
+	"\x11sk_mem_info_drops\x18\xe1\x04 \x01(\rR\x0eskMemInfoDrops\x12&\n" +
+	"\x0eshutdown_state\x18\xbc\x05 \x01(\rR\rshutdownState\x12-\n" +
+	"\x12vegas_info_enabled\x18\xa1\x06 \x01(\rR\x10vegasInfoEnabled\x12,\n" +
+	"\x12vegas_info_rtt_cnt\x18\xa2\x06 \x01(\rR\x0fvegasInfoRttCnt\x12%\n" +
+	"\x0evegas_info_rtt\x18\xa3\x06 \x01(\rR\fvegasInfoRtt\x12,\n" +
+	"\x12vegas_info_min_rtt\x18\xa4\x06 \x01(\rR\x0fvegasInfoMinRtt\x12-\n" +
+	"\x12dctcp_info_enabled\x18\x85\a \x01(\rR\x10dctcpInfoEnabled\x12.\n" +
+	"\x13dctcp_info_ce_state\x18\x86\a \x01(\rR\x10dctcpInfoCeState\x12)\n" +
+	"\x10dctcp_info_alpha\x18\x87\a \x01(\rR\x0edctcpInfoAlpha\x12*\n" +
+	"\x11dctcp_info_ab_ecn\x18\x88\a \x01(\rR\x0edctcpInfoAbEcn\x12*\n" +
+	"\x11dctcp_info_ab_tot\x18\x89\a \x01(\rR\x0edctcpInfoAbTot\x12$\n" +
+	"\x0ebbr_info_bw_lo\x18\xe9\a \x01(\rR\vbbrInfoBwLo\x12$\n" +
+	"\x0ebbr_info_bw_hi\x18\xea\a \x01(\rR\vbbrInfoBwHi\x12(\n" +
+	"\x10bbr_info_min_rtt\x18\xeb\a \x01(\rR\rbbrInfoMinRtt\x120\n" +
+	"\x14bbr_info_pacing_gain\x18\xec\a \x01(\rR\x11bbrInfoPacingGain\x12,\n" +
+	"\x12bbr_info_cwnd_gain\x18\xed\a \x01(\rR\x0fbbrInfoCwndGain\x12\x1a\n" +
+	"\bclass_id\x18\xcd\b \x01(\rR\aclassId\x12\x1a\n" +
+	"\bsock_opt\x18\xce\b \x01(\rR\asockOpt\x12\x18\n" +
+	"\ac_group\x18\xb3\t \x01(\x04R\x06cGroup\"\x99\x02\n" +
+	"\x13CongestionAlgorithm\x12$\n" +
+	" CONGESTION_ALGORITHM_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aCONGESTION_ALGORITHM_CUBIC\x10\x01\x12\x1e\n" +
+	"\x1aCONGESTION_ALGORITHM_DCTCP\x10\x02\x12\x1e\n" +
+	"\x1aCONGESTION_ALGORITHM_VEGAS\x10\x03\x12\x1f\n" +
+	"\x1bCONGESTION_ALGORITHM_PRAGUE\x10\x04\x12\x1d\n" +
+	"\x19CONGESTION_ALGORITHM_BBR1\x10\x05\x12\x1d\n" +
+	"\x19CONGESTION_ALGORITHM_BBR2\x10\x06\x12\x1d\n" +
 	"\x19CONGESTION_ALGORITHM_BBR3\x10\a\"\x14\n" +
-	"\x12FlatRecordsRequest\"m\n" +
-	"\x13FlatRecordsResponse\x12V\n" +
-	"\x10xtcp_flat_record\x18\x01 \x01(\v2,.xtcp_flat_record.v1.Envelope.XtcpFlatRecordR\x0extcpFlatRecord\"\x18\n" +
-	"\x16PollFlatRecordsRequest\"q\n" +
-	"\x17PollFlatRecordsResponse\x12V\n" +
-	"\x10xtcp_flat_record\x18\x01 \x01(\v2,.xtcp_flat_record.v1.Envelope.XtcpFlatRecordR\x0extcpFlatRecord2\xed\x01\n" +
+	"\x12FlatRecordsRequest\"d\n" +
+	"\x13FlatRecordsResponse\x12M\n" +
+	"\x10xtcp_flat_record\x18\x01 \x01(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x0extcpFlatRecord\"\x18\n" +
+	"\x16PollFlatRecordsRequest\"h\n" +
+	"\x17PollFlatRecordsResponse\x12M\n" +
+	"\x10xtcp_flat_record\x18\x01 \x01(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x0extcpFlatRecord2\xed\x01\n" +
 	"\x15XTCPFlatRecordService\x12b\n" +
 	"\vFlatRecords\x12'.xtcp_flat_record.v1.FlatRecordsRequest\x1a(.xtcp_flat_record.v1.FlatRecordsResponse0\x01\x12p\n" +
 	"\x0fPollFlatRecords\x12+.xtcp_flat_record.v1.PollFlatRecordsRequest\x1a,.xtcp_flat_record.v1.PollFlatRecordsResponse(\x010\x01B\xab\x01\n" +
@@ -1502,31 +2727,34 @@ func file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP() []byte {
 	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescData
 }
 
-var file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_xtcp_flat_record_v1_xtcp_flat_record_proto_goTypes = []any{
 	(Envelope_XtcpFlatRecord_CongestionAlgorithm)(0), // 0: xtcp_flat_record.v1.Envelope.XtcpFlatRecord.CongestionAlgorithm
-	(*Envelope)(nil),                // 1: xtcp_flat_record.v1.Envelope
-	(*FlatRecordsRequest)(nil),      // 2: xtcp_flat_record.v1.FlatRecordsRequest
-	(*FlatRecordsResponse)(nil),     // 3: xtcp_flat_record.v1.FlatRecordsResponse
-	(*PollFlatRecordsRequest)(nil),  // 4: xtcp_flat_record.v1.PollFlatRecordsRequest
-	(*PollFlatRecordsResponse)(nil), // 5: xtcp_flat_record.v1.PollFlatRecordsResponse
-	(*Envelope_XtcpFlatRecord)(nil), // 6: xtcp_flat_record.v1.Envelope.XtcpFlatRecord
+	(XtcpFlatRecord_CongestionAlgorithm)(0),          // 1: xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
+	(*Envelope)(nil),                                 // 2: xtcp_flat_record.v1.Envelope
+	(*XtcpFlatRecord)(nil),                           // 3: xtcp_flat_record.v1.XtcpFlatRecord
+	(*FlatRecordsRequest)(nil),                       // 4: xtcp_flat_record.v1.FlatRecordsRequest
+	(*FlatRecordsResponse)(nil),                      // 5: xtcp_flat_record.v1.FlatRecordsResponse
+	(*PollFlatRecordsRequest)(nil),                   // 6: xtcp_flat_record.v1.PollFlatRecordsRequest
+	(*PollFlatRecordsResponse)(nil),                  // 7: xtcp_flat_record.v1.PollFlatRecordsResponse
+	(*Envelope_XtcpFlatRecord)(nil),                  // 8: xtcp_flat_record.v1.Envelope.XtcpFlatRecord
 }
 var file_xtcp_flat_record_v1_xtcp_flat_record_proto_depIdxs = []int32{
-	6, // 0: xtcp_flat_record.v1.Envelope.row:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord
-	6, // 1: xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord
-	6, // 2: xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord
-	0, // 3: xtcp_flat_record.v1.Envelope.XtcpFlatRecord.congestion_algorithm_enum:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord.CongestionAlgorithm
-	2, // 4: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:input_type -> xtcp_flat_record.v1.FlatRecordsRequest
-	4, // 5: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:input_type -> xtcp_flat_record.v1.PollFlatRecordsRequest
-	3, // 6: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:output_type -> xtcp_flat_record.v1.FlatRecordsResponse
-	5, // 7: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:output_type -> xtcp_flat_record.v1.PollFlatRecordsResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	8, // 0: xtcp_flat_record.v1.Envelope.row:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord
+	1, // 1: xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_enum:type_name -> xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
+	3, // 2: xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
+	3, // 3: xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
+	0, // 4: xtcp_flat_record.v1.Envelope.XtcpFlatRecord.congestion_algorithm_enum:type_name -> xtcp_flat_record.v1.Envelope.XtcpFlatRecord.CongestionAlgorithm
+	4, // 5: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:input_type -> xtcp_flat_record.v1.FlatRecordsRequest
+	6, // 6: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:input_type -> xtcp_flat_record.v1.PollFlatRecordsRequest
+	5, // 7: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:output_type -> xtcp_flat_record.v1.FlatRecordsResponse
+	7, // 8: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:output_type -> xtcp_flat_record.v1.PollFlatRecordsResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_flat_record_v1_xtcp_flat_record_proto_init() }
@@ -1539,8 +2767,8 @@ func file_xtcp_flat_record_v1_xtcp_flat_record_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc), len(file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   6,
+			NumEnums:      2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

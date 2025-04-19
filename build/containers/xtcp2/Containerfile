@@ -4,7 +4,7 @@
 ARG XTCPPATH
 ARG COMMIT
 ARG DATE
-ARG GO_VERSION=1.24.1
+ARG GO_VERSION=1.24.2
 ARG VERSION
 
 ARG TARGETOS
@@ -37,24 +37,35 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build \
-    -ldflags "-X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${VERSION}" \
+    -trimpath \
+    -tags=netgo,osusergo \
+    -ldflags "-s -w -X main.commit=${COMMIT} -X main.date=${DATE} -X main.version=${VERSION}" \
     -o /go/bin/xtcp2 \
     ./cmd/xtcp2/xtcp2.go
 # https://github.com/docker-archive/compose-cli/blob/main/Dockerfile#L31
 
-# https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#what-images-are-available
-# https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#debug-images
-#FROM gcr.io/distroless/static-debian12:nonroot
-#FROM gcr.io/distroless/static-debian12
-FROM gcr.io/distroless/static-debian12:debug
-# docker exec -ti xtcp-xtcp2-1 sh
+FROM scratch AS arrange
 COPY --from=build --chmod=544 /go/bin/xtcp2 /
-
-# copy the proto, so xtcp can register the proto with the kafka schema registry
 COPY --from=build --chmod=444 /go/src/proto/xtcp_flat_record/v1/xtcp_flat_record.proto /
-# COPY --from=build --chmod=444 /go/src/proto/clickhouse_protolist/v1/clickhouse_protolist.proto /
+
+# # https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#what-images-are-available
+# # https://github.com/GoogleContainerTools/distroless?tab=readme-ov-file#debug-images
+# #FROM gcr.io/distroless/static-debian12:nonroot
+# #FROM gcr.io/distroless/static-debian12
+# FROM gcr.io/distroless/static-debian12:debug
+# # docker exec -ti xtcp-xtcp2-1 sh
+# COPY --from=build --chmod=544 /go/bin/xtcp2 /
+
+# # copy the proto, so xtcp can register the proto with the kafka schema registry
+# COPY --from=build --chmod=444 /go/src/proto/xtcp_flat_record/v1/xtcp_flat_record.proto /
+# # COPY --from=build --chmod=444 /go/src/proto/clickhouse_protolist/v1/clickhouse_protolist.proto /
+
+FROM scratch
+COPY --from=arrange / /
 
 # Prometheus
 EXPOSE 9088
+# GRPC
+EXPOSE 8889
 
 ENTRYPOINT ["/xtcp2"]

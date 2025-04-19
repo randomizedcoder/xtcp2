@@ -162,4 +162,9 @@ nuke_clickhouse:
 	rm -rf ./build/containers/clickhouse/db/*
 	docker volume rm xtcp_clickhouse_db
 
+down_and_clear_redpanda:
+	make down && docker volume rm xtcp_redpanda-0
+
+restart_xtcp: down_and_clear_redpanda build_and_deploy
+
 # end

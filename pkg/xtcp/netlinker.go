@@ -117,6 +117,7 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string
 		}
 	}
 
+	*packetBuffer = (*packetBuffer)[:0]
 	x.packetBufferPool.Put(packetBuffer)
 
 	x.pC.WithLabelValues("Netlinker", "complete", "count").Inc()

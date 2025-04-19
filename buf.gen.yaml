@@ -32,8 +32,8 @@ plugins:
   #--------------------------
   # OpenAPIv2 ( swagger )
   # https://buf.build/grpc-ecosystem/openapiv2
-  # https://buf.build/grpc-ecosystem/openapiv2?version=v2.25.1
-  - remote: buf.build/grpc-ecosystem/openapiv2:v2.25.1
+  # https://buf.build/grpc-ecosystem/openapiv2?version=v2.26.3
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.26.3
     out: .
     #out: proto/gen/openapiv2
     # opt:
@@ -44,9 +44,9 @@ plugins:
   # https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/creating_main.go/
   # https://github.com/grpc-ecosystem/grpc-gateway#usage
   # https://buf.build/grpc-ecosystem/gateway
-  # https://buf.build/grpc-ecosystem/gateway?version=v2.25.1
-  #- remote: buf.build/grpc-ecosystem/gateway:v2.25.1
-  - remote: buf.build/grpc-ecosystem/gateway:v2.25.1
+  # https://buf.build/grpc-ecosystem/gateway?version=v2.26.3
+  #- remote: buf.build/grpc-ecosystem/gateway:v2.26.3
+  - remote: buf.build/grpc-ecosystem/gateway:v2.26.3
     out: .
     #out: proto/gen/go
     opt:
@@ -77,15 +77,15 @@ plugins:
       - grpc
   #--------------------------------
   # Python
-  # https://buf.build/protocolbuffers/python?version=v29.2
-  - remote: buf.build/protocolbuffers/python:v29.2
+  # https://buf.build/protocolbuffers/python?version=v30.1
+  - remote: buf.build/protocolbuffers/python:v30.1
     out: python
     #out: proto/gen/python
   # dependencies
-  - remote: buf.build/protocolbuffers/pyi:v29.2
+  - remote: buf.build/protocolbuffers/pyi:v30.1
     out: python
-  # https://buf.build/grpc/python?version=v1.69.0
-  - remote: buf.build/grpc/python:v1.69.0
+  # https://buf.build/grpc/python?version=v1.71.0
+  - remote: buf.build/grpc/python:v1.71.0
     out: python
   #--------------------------------
   # C++

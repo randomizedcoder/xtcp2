@@ -37,6 +37,15 @@ const (
 	promMaxRequestsInFlight = 10
 	promEnableOpenMetrics   = true
 
+	nltimeoutCst      = 1000
+	pollFrequencyCst  = 10 * time.Second
+	pollTimeoutCst    = 5 * time.Second
+	maxLoopsCst       = 0
+	netlinkersCst     = 4
+	nlmsgSeqCst       = 666
+	packetSizeCst     = 0
+	packetSizeMplyCst = 8
+
 	WriteFilesCst     = 0
 	DestWriteFilesCst = 10
 
@@ -45,8 +54,8 @@ const (
 
 	modulusCst = 1 // 2000
 
-	// protobufList, protoSingle, protoDelim, protoJson, protoText, msgpack
-	marshalCst                   = "protobufList"
+	// protobufList, protobufSingle, protoDelim, protoJson, protoText, msgpack
+	marshalCst                   = "protobufSingle"
 	protobufListLengthDelimitCst = false
 
 	// Redpanda
@@ -63,12 +72,15 @@ const (
 	xtcpProtoFileCst  = "/xtcp_flat_record.proto"
 	kafkaSchemaUrlCst = "http://localhost:18081"
 
-	kafkaProduceTimeoutCst = 0 * time.Second
+	kafkaProduceTimeoutCst = 0 // not sure why this isn't working
+	//kafkaProduceTimeoutCst = 30 * time.Second
 
 	labelCst = ""
 	tagCst   = ""
 
-	grpcPortCst = 8888
+	deserializersCst = "all"
+
+	grpcPortCst = 8889
 
 	netlinkerDoneChSizeCst = 100
 
@@ -106,15 +118,15 @@ func main() {
 	complete := make(chan struct{}, signalChannelSizeCst)
 	go initSignalHandler(cancel, complete)
 
-	nltimeout := flag.Uint64("nltimeout", 1000, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
-	pollFrequency := flag.Duration("frequency", 10*time.Second, "Poll frequency")
-	pollTimeout := flag.Duration("timeout", 5*time.Second, "Poll timeout per name space")
-	maxLoops := flag.Uint64("maxLoops", 0, "Maximum number of loops, or zero (0) for forever")
-	netlinkers := flag.Uint("netlinkers", 2, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
-	nlmsgSeq := flag.Uint("nlmsgSeq", 666, "nlmsgSeq sequence number (start), which should be uint32")
+	nltimeout := flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
+	pollFrequency := flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
+	pollTimeout := flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
+	maxLoops := flag.Uint64("maxLoops", maxLoopsCst, "Maximum number of loops, or zero (0) for forever")
+	netlinkers := flag.Uint("netlinkers", netlinkersCst, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
+	nlmsgSeq := flag.Uint("nlmsgSeq", nlmsgSeqCst, "nlmsgSeq sequence number (start), which should be uint32")
 	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
-	packetSize := flag.Uint64("packetSize", 0, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
-	packetSizeMply := flag.Uint("packetSizeMply", 8, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
+	packetSize := flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
+	packetSizeMply := flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
 
 	writeFiles := flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
 	capturePath := flag.String("capturePath", capturePathCst, "Write files path")
@@ -133,7 +145,7 @@ func main() {
 
 	grpcPort := flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 
-	deserializers := flag.String("deserializers", "", "Comma seperated list of deserializers")
+	deserializers := flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma seperated list of deserializers,%v", xtcp.GetAllDeserializers()))
 	// deserializers := flag.String("deserializers", "info", "Comma seperated list of deserializers")
 	// deserializers := flag.String("deserializers", "info,cong", "Comma seperated list of deserializers")
 	// meminfo := flag.Bool("meminfo", false, "meminfo")
@@ -670,6 +682,17 @@ func getDeserializers(str string) *xtcp_config.EnabledDeserializers {
 
 	des := &xtcp_config.EnabledDeserializers{
 		Enabled: make(map[string]bool),
+	}
+
+	if str == "all" {
+		for _, item := range xtcp.GetAllDeserializers() {
+			des.Enabled[item] = true
+		}
+		return des
+	}
+
+	if str == "" {
+		return des
 	}
 
 	s := strings.Split(str, ",")

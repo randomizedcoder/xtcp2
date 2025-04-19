@@ -11,13 +11,8 @@ ARG XTCPPATH
 ARG VERSION
 
 # https://hub.docker.com/r/clickhouse/clickhouse-server/tags
-# FROM clickhouse/clickhouse-server:24.8.4.13-alpine
-# FROM clickhouse/clickhouse-server:24.11.2.101-alpine
-# FROM clickhouse/clickhouse-server:24.8.12-alpine
-# FROM clickhouse/clickhouse-server:24.8.12
-# FROM clickhouse/clickhouse-server:24.12.4
 # FROM clickhouse/clickhouse-server:25.1.5.31
-FROM clickhouse/clickhouse-server:25.3.1
+FROM clickhouse/clickhouse-server:25.3.2
 
 ARG XTCPPATH
 ARG VERSION
@@ -54,6 +49,7 @@ RUN echo XTCPPATH:${XTCPPATH} VERSION:${VERSION}
 # 	./proto/xtcp_flat_record/v1/xtcp_flat_record.proto \
 # 	/var/lib/clickhouse/format_schemas/xtcp_flat_record.proto
 
+# FROM scratch AS arrange
 #
 # Clickhouse config
 #
@@ -78,7 +74,10 @@ COPY --chmod=644 \
 	./VERSION \
 	/VERSION
 
-RUN cat /VERSION
+#RUN cat /VERSION
+
+# FROM scratch
+# COPY --from=arrange / /
 
 # http
 EXPOSE 8123

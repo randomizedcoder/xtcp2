@@ -77,7 +77,8 @@ func DeserializeShutdownReflection(data []byte, s *Shutdown) (n int, err error) 
 	return n, err
 }
 
-func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+	// func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < ShutdownMinSizeCst {
 		return ErrShutdownSmall

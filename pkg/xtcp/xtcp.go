@@ -75,22 +75,25 @@ type XTCP struct {
 
 	hostname string
 
-	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error)
+	RTATypeDeserializer map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
+	// RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
-	xtcpRecordZeroizer map[xtcp_flat_record.Envelope_XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord)
+	xtcpRecordZeroizer map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord)
+	// xtcpRecordZeroizer map[xtcp_flat_record.Envelope_XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord)
 
-	Marshallers      sync.Map
-	Marshaller       func(e *xtcp_flat_record.Envelope) (buf *[]byte)
+	Marshallers sync.Map
+	Marshaller  func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)
+	//Marshaller       func(e *xtcp_flat_record.Envelope) (buf *[]byte)
 	Destinations     sync.Map
 	Destination      func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error)
 	InitDestinations sync.Map
 	// Signals poller can start
 	DestinationReady chan struct{}
 
-	kClient      *kgo.Client
-	kRegClient   *sr.Client
-	kSerde       sr.Serde
+	kClient    *kgo.Client
+	kRegClient *sr.Client
+	//kSerde       sr.Serde
 	schemaID     int
 	nsqProducer  *nsq.Producer
 	udpConn      net.Conn

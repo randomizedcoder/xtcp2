@@ -94,7 +94,8 @@ func DeserializeMemInfoReflection(data []byte, mi *MemInfo) (n int, err error) {
 
 // INET_DIAG_INFO 2
 
-func DeserializeMemInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+func DeserializeMemInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+	// func DeserializeMemInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < MemInfoSizeCst {
 		return ErrMemInfoSmall

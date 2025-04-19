@@ -98,7 +98,8 @@ func DeserializeBBRInfoReflection(data []byte, b *BBRInfo) (n int, err error) {
 	return BBRInfoReadCst, err
 }
 
-func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
+	// func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < MemInfoSizeCst {
 		return ErrMemInfoSmall
@@ -113,7 +114,8 @@ func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRe
 	return nil
 }
 
-func ZeroizeBBRInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
+func ZeroizeBBRInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
+	// func ZeroizeBBRInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.BbrInfoBwLo = 0
 	x.BbrInfoBwHi = 0
 	x.BbrInfoMinRtt = 0
