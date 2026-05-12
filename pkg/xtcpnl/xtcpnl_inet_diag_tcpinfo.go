@@ -138,14 +138,16 @@ type TCPInfo TCPInfo6_10_3
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#L222
 // tcp_info_for kernel 6.5+
 type TCPInfo6_10_3 struct {
-	State       uint8 // bytes:1 [0:1]
-	CaState     uint8 // bytes:1 [1:2]
-	Retransmits uint8 // bytes:1 [2:3]
-	Probes      uint8 // bytes:1 [3:4]
-	Backoff     uint8 // bytes:1 [4:5]
-	Options     uint8 // bytes:1 [5:6]
-	ScaleTemp   uint8 // bytes:1 [6:7] _snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // bytes:1 [7:8] _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8 // bytes:1 [0:1]
+	CaState                uint8 // bytes:1 [1:2]
+	Retransmits            uint8 // bytes:1 [2:3]
+	Probes                 uint8 // bytes:1 [3:4]
+	Backoff                uint8 // bytes:1 [4:5]
+	Options                uint8 // bytes:1 [5:6]
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32 // bytes:4 [8:12]
 	Ato    uint32 // bytes:4 [12:16]
@@ -226,14 +228,16 @@ type TCPInfo6_10_3 struct {
 // https://github.com/torvalds/linux/blob/v6.8-rc7/include/uapi/linux/tcp.h#L220
 // tcp_info_for kernel 6.5+
 type TCPInfo6_8_12 struct {
-	State       uint8 // bytes:1 [0:1]
-	CaState     uint8 // bytes:1 [1:2]
-	Retransmits uint8 // bytes:1 [2:3]
-	Probes      uint8 // bytes:1 [3:4]
-	Backoff     uint8 // bytes:1 [4:5]
-	Options     uint8 // bytes:1 [5:6]
-	ScaleTemp   uint8 // bytes:1 [6:7] _snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // bytes:1 [7:8] _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8 // bytes:1 [0:1]
+	CaState                uint8 // bytes:1 [1:2]
+	Retransmits            uint8 // bytes:1 [2:3]
+	Probes                 uint8 // bytes:1 [3:4]
+	Backoff                uint8 // bytes:1 [4:5]
+	Options                uint8 // bytes:1 [5:6]
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32 // bytes:4 [8:12]
 	Ato    uint32 // bytes:4 [12:16]
@@ -313,14 +317,16 @@ type TCPInfo6_8_12 struct {
 // https://github.com/torvalds/linux/blob/v6.6-rc7/include/uapi/linux/tcp.h#L214
 // tcp_info_for kernel 6.6+
 type TCPInfo6_6_44 struct {
-	State       uint8 // bytes:1 [0:1]
-	CaState     uint8 // bytes:1 [1:2]
-	Retransmits uint8 // bytes:1 [2:3]
-	Probes      uint8 // bytes:1 [3:4]
-	Backoff     uint8 // bytes:1 [4:5]
-	Options     uint8 // bytes:1 [5:6]
-	ScaleTemp   uint8 // bytes:1 [6:7] _snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // bytes:1 [7:8] _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8 // bytes:1 [0:1]
+	CaState                uint8 // bytes:1 [1:2]
+	Retransmits            uint8 // bytes:1 [2:3]
+	Probes                 uint8 // bytes:1 [3:4]
+	Backoff                uint8 // bytes:1 [4:5]
+	Options                uint8 // bytes:1 [5:6]
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32 // bytes:4 [8:12]
 	Ato    uint32 // bytes:4 [12:16]
@@ -396,14 +402,16 @@ type TCPInfo6_6_44 struct {
 // https://github.com/torvalds/linux/blob/v5.4-rc8/include/uapi/linux/tcp.h#L206
 // tcp_info_for kernel 5.4+
 type TCPInfo5_4_281 struct {
-	State       uint8
-	CaState     uint8
-	Retransmits uint8
-	Probes      uint8
-	Backoff     uint8
-	Options     uint8
-	ScaleTemp   uint8 // _snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8
+	CaState                uint8
+	Retransmits            uint8
+	Probes                 uint8
+	Backoff                uint8
+	Options                uint8
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32
 	Ato    uint32
@@ -477,14 +485,16 @@ type TCPInfo5_4_281 struct {
 // https://github.com/torvalds/linux/blob/v4.19-rc8/include/uapi/linux/tcp.h#L176
 // https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/xenial/tree/include/uapi/linux/tcp.h?h=Ubuntu-hwe-4.15.0-107.108_16.04.1#n168
 type TCPInfo4_19_219 struct {
-	State       uint8
-	CaState     uint8
-	Retransmits uint8
-	Probes      uint8
-	Backoff     uint8
-	Options     uint8
-	ScaleTemp   uint8 //_snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8
+	CaState                uint8
+	Retransmits            uint8
+	Probes                 uint8
+	Backoff                uint8
+	Options                uint8
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32
 	Ato    uint32
@@ -551,14 +561,16 @@ type TCPInfo4_19_219 struct {
 
 // https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/xenial/tree/include/uapi/linux/tcp.h?h=Ubuntu-hwe-4.15.0-107.108_16.04.1#n168
 type TCPInfo4_15 struct {
-	State       uint8
-	CaState     uint8
-	Retransmits uint8
-	Probes      uint8
-	Backoff     uint8
-	Options     uint8
-	ScaleTemp   uint8 //_snd_wscale : 4, _rcv_wscale : 4; fix me
-	FlagsTemp   uint8 // _delivery_rate_app_limited:1, _fastopen_client_fail:2; TODO fix me!
+	State                  uint8
+	CaState                uint8
+	Retransmits            uint8
+	Probes                 uint8
+	Backoff                uint8
+	Options                uint8
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
 
 	Rto    uint32
 	Ato    uint32
@@ -659,8 +671,10 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 	t.Probes = data[3]
 	t.Backoff = data[4]
 	t.Options = data[5]
-	t.ScaleTemp = data[6]
-	t.FlagsTemp = data[7]
+	t.SndWscale = data[6] & 0x0F
+	t.RcvWscale = (data[6] >> 4) & 0x0F
+	t.DeliveryRateAppLimited = data[7] & 0x01
+	t.FastopenClientFail = (data[7] >> 1) & 0x03
 
 	t.Rto = binary.LittleEndian.Uint32(data[8:12])
 	t.Ato = binary.LittleEndian.Uint32(data[12:16])
@@ -825,8 +839,10 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 	x.TcpInfoProbes = uint32(data[3])
 	x.TcpInfoBackoff = uint32(data[4])
 	x.TcpInfoOptions = uint32(data[5])
-	//x.ScaleTemp = data[6]
-	//x.FlagsTemp = data[7]
+	x.TcpInfoSendScale = uint32(data[6] & 0x0F)
+	x.TcpInfoRcvScale = uint32((data[6] >> 4) & 0x0F)
+	x.TcpInfoDeliveryRateAppLimited = uint32(data[7] & 0x01)
+	x.TcpInfoFastOpenClientFailed = uint32((data[7] >> 1) & 0x03)
 
 	x.TcpInfoRto = binary.LittleEndian.Uint32(data[8:12])
 	x.TcpInfoAto = binary.LittleEndian.Uint32(data[12:16])

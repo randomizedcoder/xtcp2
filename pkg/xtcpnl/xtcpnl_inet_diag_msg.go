@@ -48,7 +48,7 @@ type InetDiagMsg struct {
 	State    uint8          // 1 = 2 [1]
 	Timer    uint8          // 1 = 3 [2]
 	Retrans  uint8          // 1 = 4 [3]
-	SocketID InetDiagSockID // 44 = 48 [4:48]
+	SocketID InetDiagSockID // 48 = 52 [4:52]
 	Expires  uint32         // 4 = 56 [52:56]
 	Rqueue   uint32         // 4 = 60 [56:60]
 	Wqueue   uint32         // 4 = 64 [60:64]

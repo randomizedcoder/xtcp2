@@ -23,65 +23,67 @@ func TestDeserializeTCPInfo(t *testing.T) {
 			description: "6_10_3 dport4262",
 			filename:    "./testdata/6_10_3/netlink_sock_diag_response_1000_sockets_sleep1ms_packet8_dport4262_info",
 			tcpinfo: TCPInfo{
-				State:              1,
-				CaState:            0,
-				Retransmits:        0,
-				Probes:             0,
-				Backoff:            0,
-				Options:            31,
-				ScaleTemp:          153,
-				FlagsTemp:          1,
-				Rto:                201000, // rto:201
-				Ato:                40000,  // ato:40
-				SndMss:             65483,  // mss:65483
-				RcvMss:             536,    // rcvmss:536
-				Unacked:            1,      // unacked:1
-				Sacked:             0,
-				Lost:               0,
-				Retrans:            0,
-				Fackets:            0, // This is unused
-				LastDataSent:       0,
-				LastAckSent:        0,
-				LastDataRecv:       15,     // lastrcv:15
-				LastAckRecv:        15,     // lastack:15
-				Pmtu:               65535,  // pmtu:65535
-				RcvSsthresh:        434517, // rcv_space:434517
-				Rtt:                249,    // rtt:0.249/0.239
-				Rttvar:             239,
-				SndSsthresh:        2147483647, // is this correct?
-				SndCwnd:            10,
-				AdvMss:             65483, // advmss:65483
-				Reordering:         3,
-				RcvRtt:             0,
-				RcvSpace:           434517, // rcv_space:434517
-				TotalRetrans:       0,
-				PacingRate:         5257039638,           // pacing_rate 42056317104bps / 8 = 5257039638
-				MaxPacingRate:      18446744073709551615, // ? correct?
-				BytesAcked:         4341,
-				BytesReceived:      4340,
-				SegsOut:            438, // segs_out:438
-				SegsIn:             436, // segs_in:436
-				NotSentBytes:       0,
-				MinRtt:             7,          // minrtt:0.007
-				DataSegsIn:         434,        // data_segs_in:434
-				DataSegsOut:        435,        // data_segs_out:435
-				DeliveryRate:       9354714285, // delivery_rate 74837714280bps / 8 = 9354714285
-				BusyTime:           107000,     // app_limited busy:107ms
-				RwndLimited:        0,
-				SndbufLimited:      0,
-				Delivered:          435, // delivered:435
-				DeliveredCe:        0,
-				BytesSent:          4350, // bytes_sent:4350
-				BytesRetrans:       0,
-				DsackDups:          0,
-				ReordSeen:          0,
-				RcvOoopack:         0,
-				SndWnd:             458752, // snd_wnd:458752
-				RcvWnd:             458752, // rcv_wnd:458752
-				Rehash:             0,
-				TotalRTO:           0,
-				TotalRTORecoveries: 0,
-				TotalRTOTime:       0,
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                31,
+				SndWscale:              9,      // 153 & 0x0F = 9
+				RcvWscale:              9,      // (153 >> 4) & 0x0F = 9
+				DeliveryRateAppLimited: 1,      // 1 & 0x01 = 1
+				FastopenClientFail:     0,      // (1 >> 1) & 0x03 = 0
+				Rto:                    201000, // rto:201
+				Ato:                    40000,  // ato:40
+				SndMss:                 65483,  // mss:65483
+				RcvMss:                 536,    // rcvmss:536
+				Unacked:                1,      // unacked:1
+				Sacked:                 0,
+				Lost:                   0,
+				Retrans:                0,
+				Fackets:                0, // This is unused
+				LastDataSent:           0,
+				LastAckSent:            0,
+				LastDataRecv:           15,     // lastrcv:15
+				LastAckRecv:            15,     // lastack:15
+				Pmtu:                   65535,  // pmtu:65535
+				RcvSsthresh:            434517, // rcv_space:434517
+				Rtt:                    249,    // rtt:0.249/0.239
+				Rttvar:                 239,
+				SndSsthresh:            2147483647, // is this correct?
+				SndCwnd:                10,
+				AdvMss:                 65483, // advmss:65483
+				Reordering:             3,
+				RcvRtt:                 0,
+				RcvSpace:               434517, // rcv_space:434517
+				TotalRetrans:           0,
+				PacingRate:             5257039638,           // pacing_rate 42056317104bps / 8 = 5257039638
+				MaxPacingRate:          18446744073709551615, // ? correct?
+				BytesAcked:             4341,
+				BytesReceived:          4340,
+				SegsOut:                438, // segs_out:438
+				SegsIn:                 436, // segs_in:436
+				NotSentBytes:           0,
+				MinRtt:                 7,          // minrtt:0.007
+				DataSegsIn:             434,        // data_segs_in:434
+				DataSegsOut:            435,        // data_segs_out:435
+				DeliveryRate:           9354714285, // delivery_rate 74837714280bps / 8 = 9354714285
+				BusyTime:               107000,     // app_limited busy:107ms
+				RwndLimited:            0,
+				SndbufLimited:          0,
+				Delivered:              435, // delivered:435
+				DeliveredCe:            0,
+				BytesSent:              4350, // bytes_sent:4350
+				BytesRetrans:           0,
+				DsackDups:              0,
+				ReordSeen:              0,
+				RcvOoopack:             0,
+				SndWnd:                 458752, // snd_wnd:458752
+				RcvWnd:                 458752, // rcv_wnd:458752
+				Rehash:                 0,
+				TotalRTO:               0,
+				TotalRTORecoveries:     0,
+				TotalRTOTime:           0,
 			},
 			Func: func(data []byte, t *TCPInfo) (n int, err error) {
 				return DeserializeTCPInfo(data, t)
@@ -93,65 +95,67 @@ func TestDeserializeTCPInfo(t *testing.T) {
 			description: "6_10_3 dport4262",
 			filename:    "./testdata/6_10_3/netlink_sock_diag_response_2000_sockets_netem_approx30mins_packet4_dport4355_info",
 			tcpinfo: TCPInfo{
-				State:              1,
-				CaState:            0,
-				Retransmits:        0,
-				Probes:             0,
-				Backoff:            0,
-				Options:            31,
-				ScaleTemp:          153,
-				FlagsTemp:          1,
-				Rto:                394000, // rto:394
-				Ato:                40000,  // ato:40
-				SndMss:             65483,  // mss:65483
-				RcvMss:             536,    // rcvmss:536
-				Unacked:            1,      // unacked:1
-				Sacked:             0,
-				Lost:               0,
-				Retrans:            0,  // retrans:0/236 - This is Retrans/TotalRetrans
-				Fackets:            0,  // This is unused
-				LastDataSent:       54, // lastsnd:54
-				LastAckSent:        0,
-				LastDataRecv:       55,     // lastrcv:55
-				LastAckRecv:        55,     // lastack:55
-				Pmtu:               65535,  // pmtu:65535
-				RcvSsthresh:        434517, // rcv_ssthresh:434517
-				Rtt:                189965, // rtt:189.965/45.629
-				Rttvar:             45629,
-				SndSsthresh:        2,     // ssthresh:2
-				SndCwnd:            2,     // cwnd:2
-				AdvMss:             65483, // advmss:65483
-				Reordering:         3,
-				RcvRtt:             0,
-				RcvSpace:           434517,               // rcv_space:434517
-				TotalRetrans:       236,                  // retrans:0/236
-				PacingRate:         827303,               // pacing_rate 6618424bps / 8 = 827303
-				MaxPacingRate:      18446744073709551615, // ? correct?
-				BytesAcked:         124011,               // bytes_acked:124011
-				BytesReceived:      124010,               // bytes_received:124010
-				SegsOut:            13415,                // segs_out:13415
-				SegsIn:             13341,                // segs_in:13341
-				NotSentBytes:       0,
-				MinRtt:             15,         // minrtt:0.015
-				DataSegsIn:         12566,      // data_segs_in:12566
-				DataSegsOut:        12638,      // data_segs_out:12638
-				DeliveryRate:       4365533333, // delivery_rate 34924266664bps / 8 = 4365533333
-				BusyTime:           2383736000, // app_limited busy:2383736ms
-				RwndLimited:        0,
-				SndbufLimited:      0,
-				Delivered:          12550, // delivered:12550
-				DeliveredCe:        0,
-				BytesSent:          126380, // bytes_sent:126380
-				BytesRetrans:       2360,   // bytes_retrans:2360
-				DsackDups:          148,    // dsack_dups:148
-				ReordSeen:          0,
-				RcvOoopack:         0,
-				SndWnd:             458752, // snd_wnd:458752
-				RcvWnd:             458752, // rcv_wnd:458752
-				Rehash:             2,      // rehash:2
-				TotalRTO:           2,      // ? not sure if this is correct.  These aren't in "ss"
-				TotalRTORecoveries: 2,      // ? not sure if this is correct.  These aren't in "ss"
-				TotalRTOTime:       238,    // ? not sure if this is correct.  These aren't in "ss"
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                31,
+				SndWscale:              9,      // 153 & 0x0F = 9
+				RcvWscale:              9,      // (153 >> 4) & 0x0F = 9
+				DeliveryRateAppLimited: 1,      // 1 & 0x01 = 1
+				FastopenClientFail:     0,      // (1 >> 1) & 0x03 = 0
+				Rto:                    394000, // rto:394
+				Ato:                    40000,  // ato:40
+				SndMss:                 65483,  // mss:65483
+				RcvMss:                 536,    // rcvmss:536
+				Unacked:                1,      // unacked:1
+				Sacked:                 0,
+				Lost:                   0,
+				Retrans:                0,  // retrans:0/236 - This is Retrans/TotalRetrans
+				Fackets:                0,  // This is unused
+				LastDataSent:           54, // lastsnd:54
+				LastAckSent:            0,
+				LastDataRecv:           55,     // lastrcv:55
+				LastAckRecv:            55,     // lastack:55
+				Pmtu:                   65535,  // pmtu:65535
+				RcvSsthresh:            434517, // rcv_ssthresh:434517
+				Rtt:                    189965, // rtt:189.965/45.629
+				Rttvar:                 45629,
+				SndSsthresh:            2,     // ssthresh:2
+				SndCwnd:                2,     // cwnd:2
+				AdvMss:                 65483, // advmss:65483
+				Reordering:             3,
+				RcvRtt:                 0,
+				RcvSpace:               434517,               // rcv_space:434517
+				TotalRetrans:           236,                  // retrans:0/236
+				PacingRate:             827303,               // pacing_rate 6618424bps / 8 = 827303
+				MaxPacingRate:          18446744073709551615, // ? correct?
+				BytesAcked:             124011,               // bytes_acked:124011
+				BytesReceived:          124010,               // bytes_received:124010
+				SegsOut:                13415,                // segs_out:13415
+				SegsIn:                 13341,                // segs_in:13341
+				NotSentBytes:           0,
+				MinRtt:                 15,         // minrtt:0.015
+				DataSegsIn:             12566,      // data_segs_in:12566
+				DataSegsOut:            12638,      // data_segs_out:12638
+				DeliveryRate:           4365533333, // delivery_rate 34924266664bps / 8 = 4365533333
+				BusyTime:               2383736000, // app_limited busy:2383736ms
+				RwndLimited:            0,
+				SndbufLimited:          0,
+				Delivered:              12550, // delivered:12550
+				DeliveredCe:            0,
+				BytesSent:              126380, // bytes_sent:126380
+				BytesRetrans:           2360,   // bytes_retrans:2360
+				DsackDups:              148,    // dsack_dups:148
+				ReordSeen:              0,
+				RcvOoopack:             0,
+				SndWnd:                 458752, // snd_wnd:458752
+				RcvWnd:                 458752, // rcv_wnd:458752
+				Rehash:                 2,      // rehash:2
+				TotalRTO:               2,      // ? not sure if this is correct.  These aren't in "ss"
+				TotalRTORecoveries:     2,      // ? not sure if this is correct.  These aren't in "ss"
+				TotalRTOTime:           238,    // ? not sure if this is correct.  These aren't in "ss"
 			},
 			Func: func(data []byte, t *TCPInfo) (n int, err error) {
 				return DeserializeTCPInfo(data, t)
@@ -163,65 +167,279 @@ func TestDeserializeTCPInfo(t *testing.T) {
 			description: "6_10_3 dport5865",
 			filename:    "./testdata/6_10_3/netlink_sock_diag_response_2000_sockets_netem_bbr_approx60mins_packet10_dport5865_info",
 			tcpinfo: TCPInfo{
-				State:              1,
-				CaState:            0,
-				Retransmits:        0,
-				Probes:             0,
-				Backoff:            0,
-				Options:            31,
-				ScaleTemp:          153,
-				FlagsTemp:          1,
-				Rto:                515000, // rto:515
-				Ato:                40000,  // ato:40
-				SndMss:             1448,   // mss:1448
-				RcvMss:             1448,   // rcvmss:1448
-				Unacked:            0,      // ?
-				Sacked:             0,
-				Lost:               0,
-				Retrans:            0,   // retrans:0/7053 - This is Retrans/TotalRetrans
-				Fackets:            0,   // This is unused
-				LastDataSent:       171, // lastsnd:171
-				LastAckSent:        0,
-				LastDataRecv:       224,    // lastrcv:224
-				LastAckRecv:        41,     // lastack:41
-				Pmtu:               1500,   // pmtu:1500
-				RcvSsthresh:        498552, // rcv_ssthresh:498552
-				Rtt:                258135, // rtt:258.135/53.541
-				Rttvar:             53541,
-				SndSsthresh:        141,                  // ssthresh:141
-				SndCwnd:            6,                    // cwnd:6
-				AdvMss:             1448,                 // advmss:1448
-				Reordering:         3,                    // ?
-				RcvRtt:             298752,               // rcv_rtt:298.752
-				RcvSpace:           19464,                // rcv_space:19464
-				TotalRetrans:       7053,                 // retrans:0/7053
-				PacingRate:         31187,                // pacing_rate 249496bps.  Kernel value is in Bps, not bps. 249496/31187=8
-				MaxPacingRate:      18446744073709551615, // ? correct?
-				BytesAcked:         79957417,             // bytes_acked:79957417
-				BytesReceived:      79953300,             // bytes_received:79953300
-				SegsOut:            128380,               // segs_out:128380
-				SegsIn:             127478,               // segs_in:127478
-				NotSentBytes:       0,
-				MinRtt:             7,          // minrtt:0.007
-				DataSegsIn:         78740,      // data_segs_in:78740
-				DataSegsOut:        83109,      // data_segs_out:83109
-				DeliveryRate:       31583,      // delivery_rate 252664bps / 8 = 31583
-				BusyTime:           7404077000, // app_limited busy:7404077ms
-				RwndLimited:        0,
-				SndbufLimited:      0,
-				Delivered:          81381, // delivered:81381
-				DeliveredCe:        0,
-				BytesSent:          87874252, // bytes_sent:87874252
-				BytesRetrans:       7916836,  // bytes_retrans:7916836
-				DsackDups:          5662,     // dsack_dups:5662
-				ReordSeen:          1892,     // reord_seen:1892
-				RcvOoopack:         11211,
-				SndWnd:             498688, // snd_wnd:498688
-				RcvWnd:             498688, // rcv_wnd:498688
-				Rehash:             132,    // rehash:132
-				TotalRTO:           132,    // ? not sure if this is correct.  These aren't in "ss"
-				TotalRTORecoveries: 126,    // ? not sure if this is correct.  These aren't in "ss"
-				TotalRTOTime:       45581,  // ? not sure if this is correct.  These aren't in "ss"
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                31,
+				SndWscale:              9,      // 153 & 0x0F = 9
+				RcvWscale:              9,      // (153 >> 4) & 0x0F = 9
+				DeliveryRateAppLimited: 1,      // 1 & 0x01 = 1
+				FastopenClientFail:     0,      // (1 >> 1) & 0x03 = 0
+				Rto:                    515000, // rto:515
+				Ato:                    40000,  // ato:40
+				SndMss:                 1448,   // mss:1448
+				RcvMss:                 1448,   // rcvmss:1448
+				Unacked:                0,      // ?
+				Sacked:                 0,
+				Lost:                   0,
+				Retrans:                0,   // retrans:0/7053 - This is Retrans/TotalRetrans
+				Fackets:                0,   // This is unused
+				LastDataSent:           171, // lastsnd:171
+				LastAckSent:            0,
+				LastDataRecv:           224,    // lastrcv:224
+				LastAckRecv:            41,     // lastack:41
+				Pmtu:                   1500,   // pmtu:1500
+				RcvSsthresh:            498552, // rcv_ssthresh:498552
+				Rtt:                    258135, // rtt:258.135/53.541
+				Rttvar:                 53541,
+				SndSsthresh:            141,                  // ssthresh:141
+				SndCwnd:                6,                    // cwnd:6
+				AdvMss:                 1448,                 // advmss:1448
+				Reordering:             3,                    // ?
+				RcvRtt:                 298752,               // rcv_rtt:298.752
+				RcvSpace:               19464,                // rcv_space:19464
+				TotalRetrans:           7053,                 // retrans:0/7053
+				PacingRate:             31187,                // pacing_rate 249496bps.  Kernel value is in Bps, not bps. 249496/31187=8
+				MaxPacingRate:          18446744073709551615, // ? correct?
+				BytesAcked:             79957417,             // bytes_acked:79957417
+				BytesReceived:          79953300,             // bytes_received:79953300
+				SegsOut:                128380,               // segs_out:128380
+				SegsIn:                 127478,               // segs_in:127478
+				NotSentBytes:           0,
+				MinRtt:                 7,          // minrtt:0.007
+				DataSegsIn:             78740,      // data_segs_in:78740
+				DataSegsOut:            83109,      // data_segs_out:83109
+				DeliveryRate:           31583,      // delivery_rate 252664bps / 8 = 31583
+				BusyTime:               7404077000, // app_limited busy:7404077ms
+				RwndLimited:            0,
+				SndbufLimited:          0,
+				Delivered:              81381, // delivered:81381
+				DeliveredCe:            0,
+				BytesSent:              87874252, // bytes_sent:87874252
+				BytesRetrans:           7916836,  // bytes_retrans:7916836
+				DsackDups:              5662,     // dsack_dups:5662
+				ReordSeen:              1892,     // reord_seen:1892
+				RcvOoopack:             11211,
+				SndWnd:                 498688, // snd_wnd:498688
+				RcvWnd:                 498688, // rcv_wnd:498688
+				Rehash:                 132,    // rehash:132
+				TotalRTO:               132,    // ? not sure if this is correct.  These aren't in "ss"
+				TotalRTORecoveries:     126,    // ? not sure if this is correct.  These aren't in "ss"
+				TotalRTOTime:           45581,  // ? not sure if this is correct.  These aren't in "ss"
+			},
+			Func: func(data []byte, t *TCPInfo) (n int, err error) {
+				return DeserializeTCPInfo(data, t)
+			},
+		},
+		// 7_0_3 ss_tcp_info_n line 2:
+		// ESTAB 0 0 10.0.6.188:26546 140.82.114.25:443
+		//  cubic wscale:10,9 rto:93 rtt:34.749/10.349 ato:40 mss:1424 pmtu:1500 rcvmss:1424 advmss:1448 cwnd:10 bytes_sent:5807 bytes_acked:5808 bytes_received:3996 segs_out:22 segs_in:23 data_segs_out:10 data_segs_in:11 send 3278368bps lastsnd:56206 lastrcv:56206 lastack:11091 pacing_rate 6556664bps delivery_rate 700528bps delivered:11 app_limited busy:279ms rcv_space:14480 rcv_ssthresh:308593 minrtt:27.996 snd_wnd:79872 rcv_wnd:496640
+		//
+		// Note: kernel 7.0.3 INET_DIAG_INFO is 284 bytes (TCPInfo payload 280
+		// bytes — 32 bytes of trailing AccECN fields beyond 6.5+). The Go
+		// TCPInfo struct still only covers the first 248 bytes; the trailing
+		// AccECN fields are not parsed yet and aren't asserted here.
+		{
+			description: "7_0_3 sport26546 dport443",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443_info",
+			tcpinfo: TCPInfo{
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                15,
+				SndWscale:              10, // wscale:10,9 -> low nibble
+				RcvWscale:              9,  // wscale:10,9 -> high nibble
+				DeliveryRateAppLimited: 1,  // app_limited
+				FastopenClientFail:     0,
+				Rto:                    93000, // rto:93
+				Ato:                    40000, // ato:40
+				SndMss:                 1424,  // mss:1424
+				RcvMss:                 1424,  // rcvmss:1424
+				LastDataSent:           56206, // lastsnd:56206
+				LastAckSent:            0,
+				LastDataRecv:           56206,  // lastrcv:56206
+				LastAckRecv:            11091,  // lastack:11091
+				Pmtu:                   1500,   // pmtu:1500
+				RcvSsthresh:            308593, // rcv_ssthresh:308593
+				Rtt:                    34749,  // rtt:34.749/10.349
+				Rttvar:                 10349,
+				SndSsthresh:            2147483647, // no ssthresh shown -> kernel sentinel
+				SndCwnd:                10,         // cwnd:10
+				AdvMss:                 1448,       // advmss:1448
+				Reordering:             3,          // kernel default
+				RcvRtt:                 0,
+				RcvSpace:               14480, // rcv_space:14480
+				TotalRetrans:           0,
+				PacingRate:             819583,               // pacing_rate 6556664bps / 8
+				MaxPacingRate:          18446744073709551615, // kernel sentinel
+				BytesAcked:             5808,                 // bytes_acked:5808
+				BytesReceived:          3996,                 // bytes_received:3996
+				SegsOut:                22,                   // segs_out:22
+				SegsIn:                 23,                   // segs_in:23
+				NotSentBytes:           0,
+				MinRtt:                 27996,  // minrtt:27.996
+				DataSegsIn:             11,     // data_segs_in:11
+				DataSegsOut:            10,     // data_segs_out:10
+				DeliveryRate:           87566,  // delivery_rate 700528bps / 8
+				BusyTime:               279000, // busy:279ms
+				Delivered:              11,     // delivered:11
+				DeliveredCe:            0,
+				BytesSent:              5807, // bytes_sent:5807
+				BytesRetrans:           0,
+				DsackDups:              0,
+				ReordSeen:              0,
+				RcvOoopack:             0,
+				SndWnd:                 79872,  // snd_wnd:79872
+				RcvWnd:                 496640, // rcv_wnd:496640
+				Rehash:                 0,
+				TotalRTO:               0, // not in ss output
+				TotalRTORecoveries:     0, // not in ss output
+				TotalRTOTime:           0, // not in ss output
+			},
+			Func: func(data []byte, t *TCPInfo) (n int, err error) {
+				return DeserializeTCPInfo(data, t)
+			},
+		},
+		// 7_0_3 ss_tcp_info_n line 13:
+		// ESTAB 0 0 10.0.6.188:63282 3.140.122.174:443
+		//  cubic wscale:12,9 rto:122 rtt:34.053/18.2 ato:40 mss:1288 pmtu:1500 rcvmss:1288 advmss:1448 cwnd:10 bytes_sent:8763 bytes_acked:8764 bytes_received:98264 segs_out:208 segs_in:215 data_segs_out:61 data_segs_in:175 send 3025871bps lastsnd:2145 lastrcv:2108 lastack:2108 pacing_rate 6051696bps delivery_rate 1600656bps delivered:62 app_limited busy:1796ms rcv_rtt:612.859 rcv_space:14480 rcv_ssthresh:281250 minrtt:13.984 snd_wnd:40960 rcv_wnd:419328
+		//
+		// Asymmetric wscale (12,9) and rcv_rtt non-zero (612.859ms) make this
+		// a useful coverage row. lastsnd/lastrcv/lastack values reflect the
+		// pcap-capture moment, not the later ss-text moment, so they differ
+		// from ss (lastsnd 1563 vs ss 2145, etc.) but PacingRate/DeliveryRate
+		// also differ slightly for the same reason.
+		{
+			description: "7_0_3 sport63282 dport443 rcvrtt",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport63282_dport443_rcvrtt_info",
+			tcpinfo: TCPInfo{
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                31,
+				SndWscale:              12, // wscale:12,9 -> low nibble
+				RcvWscale:              9,  // wscale:12,9 -> high nibble
+				DeliveryRateAppLimited: 1,  // app_limited
+				FastopenClientFail:     0,
+				Rto:                    122000, // rto:122
+				Ato:                    40000,
+				SndMss:                 1288,
+				RcvMss:                 1288,
+				LastDataSent:           1563, // pcap-time snapshot (ss-text reads 2145)
+				LastAckSent:            0,
+				LastDataRecv:           1526,
+				LastAckRecv:            1526,
+				Pmtu:                   1500,
+				RcvSsthresh:            281250, // rcv_ssthresh:281250
+				Rtt:                    34053,  // rtt:34.053/18.2
+				Rttvar:                 18200,
+				SndSsthresh:            2147483647,
+				SndCwnd:                10,
+				AdvMss:                 1448,
+				Reordering:             3,
+				RcvRtt:                 612859, // rcv_rtt:612.859
+				RcvSpace:               14480,
+				TotalRetrans:           0,
+				PacingRate:             756462, // pacing-time snapshot
+				MaxPacingRate:          18446744073709551615,
+				BytesAcked:             8764,
+				BytesReceived:          98264,
+				SegsOut:                208,
+				SegsIn:                 215,
+				NotSentBytes:           0,
+				MinRtt:                 13984, // minrtt:13.984
+				DataSegsIn:             175,
+				DataSegsOut:            61,
+				DeliveryRate:           200082,  // delivery-time snapshot
+				BusyTime:               1796000, // busy:1796ms
+				Delivered:              62,
+				DeliveredCe:            0,
+				BytesSent:              8763,
+				BytesRetrans:           0,
+				DsackDups:              0,
+				ReordSeen:              0,
+				RcvOoopack:             0,
+				SndWnd:                 40960,
+				RcvWnd:                 419328,
+				Rehash:                 0,
+				TotalRTO:               0,
+				TotalRTORecoveries:     0,
+				TotalRTOTime:           0,
+			},
+			Func: func(data []byte, t *TCPInfo) (n int, err error) {
+				return DeserializeTCPInfo(data, t)
+			},
+		},
+		// 7_0_3 ss_tcp_info_n line 28:
+		// ESTAB 0 0 [::1]:19000 [::1]:10156
+		//  cubic wscale:9,9 rto:51 rtt:0.022/0.017 ato:40 mss:65464 pmtu:65536 rcvmss:536 advmss:65464 cwnd:10 bytes_sent:644931 bytes_acked:644931 bytes_received:11648 segs_out:192 segs_in:194 data_segs_out:160 data_segs_in:32 send 238050909091bps lastsnd:299 lastrcv:608 lastack:299 pacing_rate 468122458096bps delivery_rate 104742400000bps delivered:161 app_limited busy:4ms rcv_space:434536 rcv_ssthresh:434536 minrtt:0.005 snd_wnd:798208 rcv_wnd:458240
+		//
+		// IPv6 loopback. Values reflect pcap-capture moment, earlier than the
+		// ss-text moment (bytes_sent 624678 here vs 644931 in ss).
+		{
+			description: "7_0_3 sport19000 dport10156 v6",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6_info",
+			tcpinfo: TCPInfo{
+				State:                  1,
+				CaState:                0,
+				Retransmits:            0,
+				Probes:                 0,
+				Backoff:                0,
+				Options:                31,
+				SndWscale:              9,
+				RcvWscale:              9,
+				DeliveryRateAppLimited: 1,
+				FastopenClientFail:     0,
+				Rto:                    51000,
+				Ato:                    40000,
+				SndMss:                 65464,
+				RcvMss:                 536,
+				LastDataSent:           9707,
+				LastAckSent:            0,
+				LastDataRecv:           51,
+				LastAckRecv:            51,
+				Pmtu:                   65536,
+				RcvSsthresh:            434536,
+				Rtt:                    19, // rtt:0.022/0.017 - pcap moment
+				Rttvar:                 19,
+				SndSsthresh:            2147483647,
+				SndCwnd:                10,
+				AdvMss:                 65464,
+				Reordering:             3,
+				RcvRtt:                 0,
+				RcvSpace:               434536,
+				TotalRetrans:           0,
+				PacingRate:             67575741935,
+				MaxPacingRate:          18446744073709551615,
+				BytesAcked:             624678,
+				BytesReceived:          11648,
+				SegsOut:                187,
+				SegsIn:                 189,
+				NotSentBytes:           0,
+				MinRtt:                 5, // minrtt:0.005
+				DataSegsIn:             32,
+				DataSegsOut:            155,
+				DeliveryRate:           13092800000,
+				BusyTime:               4000, // busy:4ms
+				Delivered:              156,
+				DeliveredCe:            0,
+				BytesSent:              624678,
+				BytesRetrans:           0,
+				DsackDups:              0,
+				ReordSeen:              0,
+				RcvOoopack:             0,
+				SndWnd:                 804864,
+				RcvWnd:                 458240,
+				Rehash:                 0,
+				TotalRTO:               0,
+				TotalRTORecoveries:     0,
+				TotalRTOTime:           0,
 			},
 			Func: func(data []byte, t *TCPInfo) (n int, err error) {
 				return DeserializeTCPInfo(data, t)
@@ -283,12 +501,20 @@ func TestDeserializeTCPInfo(t *testing.T) {
 			t.Errorf("Test %d %s tcpinfo.Options:%d != test.tcpinfo.Options:%d", i, test.description, tcpinfo.Options, test.tcpinfo.Options)
 		}
 
-		if tcpinfo.ScaleTemp != test.tcpinfo.ScaleTemp {
-			t.Errorf("Test %d %s tcpinfo.ScaleTemp:%d != test.tcpinfo.ScaleTemp:%d", i, test.description, tcpinfo.ScaleTemp, test.tcpinfo.ScaleTemp)
+		if tcpinfo.SndWscale != test.tcpinfo.SndWscale {
+			t.Errorf("Test %d %s tcpinfo.SndWscale:%d != test.tcpinfo.SndWscale:%d", i, test.description, tcpinfo.SndWscale, test.tcpinfo.SndWscale)
 		}
 
-		if tcpinfo.FlagsTemp != test.tcpinfo.FlagsTemp {
-			t.Errorf("Test %d %s tcpinfo.FlagsTemp:%d != test.tcpinfo.FlagsTemp:%d", i, test.description, tcpinfo.FlagsTemp, test.tcpinfo.FlagsTemp)
+		if tcpinfo.RcvWscale != test.tcpinfo.RcvWscale {
+			t.Errorf("Test %d %s tcpinfo.RcvWscale:%d != test.tcpinfo.RcvWscale:%d", i, test.description, tcpinfo.RcvWscale, test.tcpinfo.RcvWscale)
+		}
+
+		if tcpinfo.DeliveryRateAppLimited != test.tcpinfo.DeliveryRateAppLimited {
+			t.Errorf("Test %d %s tcpinfo.DeliveryRateAppLimited:%d != test.tcpinfo.DeliveryRateAppLimited:%d", i, test.description, tcpinfo.DeliveryRateAppLimited, test.tcpinfo.DeliveryRateAppLimited)
+		}
+
+		if tcpinfo.FastopenClientFail != test.tcpinfo.FastopenClientFail {
+			t.Errorf("Test %d %s tcpinfo.FastopenClientFail:%d != test.tcpinfo.FastopenClientFail:%d", i, test.description, tcpinfo.FastopenClientFail, test.tcpinfo.FastopenClientFail)
 		}
 
 		if tcpinfo.Rto != test.tcpinfo.Rto {

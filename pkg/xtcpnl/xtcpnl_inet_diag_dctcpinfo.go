@@ -54,8 +54,8 @@ type DCTCPInfo struct {
 	Enabled uint16 // 2 = 2
 	CEState uint16 // 2 = 4
 	Alpha   uint32 // 4 = 8
-	ABECN   uint32 // 8 = 12
-	ABTOT   uint32 // 12 = 16
+	ABECN   uint32 // 4 = 12
+	ABTOT   uint32 // 4 = 16
 }
 
 const (

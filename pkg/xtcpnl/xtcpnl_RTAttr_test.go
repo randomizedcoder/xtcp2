@@ -136,6 +136,12 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      228,
 			tyype:       2,
 		},
+		{
+			description: "7_0_3 INET_DIAG_INFO (with AccECN trailer)",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443_info",
+			length:      284, // 280-byte tcp_info payload + 4-byte RTAttr header (kernel 7.0.3 added 32 bytes of AccECN fields)
+			tyype:       2,
+		},
 		//shutdown
 		{
 			description: "attribute_shutdown",

@@ -69,11 +69,15 @@ func TestVerifySizeOfStructs(t *testing.T) {
 			TypeOfServiceSize: TypeOfServiceSizeCst,
 			VegasInfoSize:     VegasInfoSizeCst,
 
-			TCPInfo6_10_3_Size:   TCPInfo6_10_3_SizeCst,
-			TCPInfo6_6_44_Size:   TCPInfo6_6_44_SizeCst,
-			TCPInfo5_4_281_Size:  TCPInfo5_4_281_SizeCst,
-			TCPInfo4_19_219_Size: TCPInfo4_19_219_SizeCst,
-			TCPInfo4_15_Size:     TCPInfo4_15_SizeCst,
+			// TCPInfo structs are 2 bytes larger than wire format because
+			// ScaleTemp/FlagsTemp bitfields were decomposed into 4 separate
+			// uint8 fields (SndWscale, RcvWscale, DeliveryRateAppLimited,
+			// FastopenClientFail) for proper field-level access.
+			TCPInfo6_10_3_Size:   TCPInfo6_10_3_SizeCst + 2,
+			TCPInfo6_6_44_Size:   TCPInfo6_6_44_SizeCst + 2,
+			TCPInfo5_4_281_Size:  TCPInfo5_4_281_SizeCst + 2,
+			TCPInfo4_19_219_Size: TCPInfo4_19_219_SizeCst + 2,
+			TCPInfo4_15_Size:     TCPInfo4_15_SizeCst + 2,
 
 			debugLevel: 111,
 		},
