@@ -96,9 +96,13 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	x.Marshaller = func(r *xtcp_flat_record.XtcpFlatRecord) *[]byte {
 		return x.protobufSingleMarshal(r)
 	}
-	x.Destination = func(ctx context.Context, b *[]byte) (int, error) {
-		return x.destNull(ctx, b)
+	// Build the null destination directly. Bypasses the InitDests path so
+	// the test doesn't need a goroutine + waitgroup just to plumb dest in.
+	nullDst, err := newNullDest(context.Background(), x)
+	if err != nil {
+		panic(err)
 	}
+	x.dest = nullDst
 
 	return x
 }

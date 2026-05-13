@@ -15,6 +15,7 @@
   microvm,
   nixpkgs,
   xtcp2Package,
+  xtcp2AllPackage,
 }:
 
 let
@@ -31,6 +32,7 @@ let
         nixpkgs
         arch
         xtcp2Package
+        xtcp2AllPackage
         ;
     };
 

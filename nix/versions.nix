@@ -68,6 +68,32 @@
   ];
   cgoEnabled = false;
 
+  # Destination flavors. Each maps to a list of `dest_<scheme>` build tags
+  # appended to the binary's build. `null` means "all" — backward-compat
+  # default that pulls in every library destination (kafka/nats/nsq/valkey).
+  # Stdlib destinations (null/udp/unix/unixgram) are always compiled
+  # regardless of this list.
+  #
+  # See nix/binaries.nix for which flavors are surfaced as top-level attrs.
+  destinationFlavors = {
+    full = null;
+    min = [ ];
+    kafka = [ "kafka" ];
+    nats = [ "nats" ];
+    nsq = [ "nsq" ];
+    valkey = [ "valkey" ];
+  };
+
+  # The full destination set, expanded explicitly. mkGoBinary uses this when
+  # `destinations = null` is passed (the "full" flavor) so the build tag
+  # surface is identical to the explicit `destinations = [ "kafka" "nats" "nsq" "valkey" ]` form.
+  allLibraryDestinations = [
+    "kafka"
+    "nats"
+    "nsq"
+    "valkey"
+  ];
+
   # Go vendor hash. Update by running `nix build .#xtcp2` and pasting the
   # `got:` value from the hash mismatch error. Used by every Nix check that
   # needs deps in the sandbox (see nix/lib/goModules.nix).

@@ -15,6 +15,10 @@
   nixpkgs,
   arch,
   xtcp2Package,
+  # xtcp2AllPackage is the symlinkJoin of every cmd/* binary (default
+  # variant). Installed into environment.systemPackages so the in-VM
+  # self-test can `-help` smoke every binary, not just xtcp2.
+  xtcp2AllPackage,
 }:
 
 let
@@ -23,6 +27,7 @@ let
   selfTest = import ./self-test.nix {
     inherit pkgs;
     promPort = cfg.promPort;
+    grpcPort = cfg.grpcPort;
   };
   vmConfig = ./xtcp2-vm-config.json;
 in
@@ -159,17 +164,19 @@ in
           };
         };
 
-        environment.systemPackages = with pkgs; [
-          coreutils
-          iproute2
-          netcat-gnu
-          tcpdump
-          curl
-          jq
-          procps
-          util-linux
-          systemd
-        ];
+        environment.systemPackages =
+          (with pkgs; [
+            coreutils
+            iproute2
+            netcat-gnu
+            tcpdump
+            curl
+            jq
+            procps
+            util-linux
+            systemd
+          ])
+          ++ [ xtcp2AllPackage ];
       }
     )
   ];
