@@ -12,9 +12,14 @@
   lib,
   src,
   vendoredSource,
-  xtcp2,
+  binaries,
 }:
 
+let
+  # Per-binary -help smoke matrix. Each cmd binary gets its own check attr so
+  # CI logs name the failing binary cleanly.
+  helpSmokes = import ./cli-help-smoke.nix { inherit pkgs lib binaries; };
+in
 {
   go-vet = import ./go-vet.nix { inherit pkgs lib vendoredSource; };
   gofmt = import ./gofmt.nix { inherit pkgs lib src; };
@@ -24,7 +29,6 @@
   # Nix sandbox blocks. Run it from `nix develop` via the `buf lint` shell
   # function instead. The file proto-lint.nix is preserved for future hermetic
   # use once buf module deps are pre-fetched as Nix sources.
-  cli-help-smoke = import ./cli-help-smoke.nix { inherit pkgs lib xtcp2; };
 
   golangci-lint-quick = import ./golangci-lint-quick.nix { inherit pkgs lib vendoredSource; };
   golangci-lint = import ./golangci-lint.nix { inherit pkgs lib vendoredSource; };
@@ -38,3 +42,4 @@
   metrics-audit = import ./metrics-audit.nix { inherit pkgs lib vendoredSource; };
   proto-field-audit = import ./proto-field-audit.nix { inherit pkgs lib vendoredSource; };
 }
+// helpSmokes

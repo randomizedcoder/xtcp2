@@ -1,18 +1,27 @@
 # nix/binaries.nix
 #
 # Enumerates the buildable `cmd/<name>/` entries and produces derivations for
-# every {binary} × {variant} cell, where variant ∈ {debug, default, stripped}
-# (see versions.nix → buildVariants).
+# every {binary} × {variant} × {destination-flavor} cell relevant to its cmd.
 #
-# Top-level exports:
-#   <cmd>                  — default variant of every binary
-#   xtcp2-debug            — main xtcp2 binary, debug variant
-#   xtcp2-stripped         — main xtcp2 binary, stripped variant
-#   xtcp2-all              — symlinkJoin of every binary, default variant
-#   xtcp2-all-debug        — symlinkJoin of every binary, debug variant
-#   xtcp2-all-stripped     — symlinkJoin of every binary, stripped variant
-#   byVariant              — internal nested set { <variant>.<cmd> = drv }
-#                            consumed by containers/ to avoid double work.
+# Variant axis (debug / default / stripped) is in versions.nix → buildVariants
+# and affects ldflags + strip. Applies to all cmds.
+#
+# Destination-flavor axis (full / min / kafka / nats / nsq / valkey) is in
+# versions.nix → destinationFlavors and affects build tags. Only applies to
+# `xtcp2` and `ns` — the other 8 cmds don't import pkg/xtcp so destinations
+# are irrelevant to them.
+#
+# Top-level exports (those that show up in `nix flake show .#packages`):
+#   <cmd>                         default variant, full destination set
+#   xtcp2-debug                   main xtcp2, debug variant, full
+#   xtcp2-stripped                main xtcp2, stripped variant, full
+#   xtcp2-min                     main xtcp2, default variant, stdlib only
+#   xtcp2-kafka                   main xtcp2, default variant, kafka only
+#   xtcp2-nats / -nsq / -valkey   ditto for nats / nsq / valkey
+#   xtcp2-all                     symlinkJoin of every binary, full
+#   xtcp2-all-debug               symlinkJoin, debug variant, full
+#   xtcp2-all-stripped            symlinkJoin, stripped variant, full
+#   byVariant / joins             internal nested attrsets used by containers/
 #
 # Not every directory under cmd/ is buildable: grpcurl is README-only, io_uring
 # and io_uring_peek are stashed under .not files. The list below tracks the
@@ -46,8 +55,11 @@ let
   ];
 
   variantNames = builtins.attrNames versions.buildVariants;
+  flavorNames = builtins.attrNames versions.destinationFlavors;
 
-  # byVariant.<variant>.<cmd> = derivation
+  # byVariant.<variant>.<cmd>: every cmd in every build variant, with the
+  # default (full) destination set. Used by the OCI image fan-out and as the
+  # backing store for the top-level <cmd> attrs.
   byVariant = lib.genAttrs variantNames (
     variant:
     lib.genAttrs binaryNames (
@@ -65,8 +77,27 @@ let
     )
   );
 
-  # Joined /bin trees per variant. Used by containers/ + xtcp2-all-* exports.
-  join =
+  # xtcp2 destination flavors: only built in the default variant, since
+  # debug/stripped × per-flavor would explode the eval surface for marginal
+  # value. Users wanting `xtcp2-kafka-stripped` can call mkGoBinary directly.
+  xtcp2ByFlavor = lib.mapAttrs (
+    flavor: destList:
+    mkGoBinary {
+      name = "xtcp2";
+      inherit
+        src
+        commit
+        date
+        version
+        ;
+      variant = "default";
+      destinations = destList;
+    }
+  ) versions.destinationFlavors;
+
+  # Joined /bin trees per build variant (full destination set). OCI images
+  # and the xtcp2-all-* attrs consume these.
+  joinVariant =
     variant:
     let
       suffix = versions.buildVariants.${variant}.tagSuffix;
@@ -76,26 +107,46 @@ let
       paths = lib.attrValues byVariant.${variant};
     };
 
-  joins = lib.genAttrs variantNames join;
+  joins = lib.genAttrs variantNames joinVariant;
 
-  # Surface the default variant of every binary at the top level (existing
-  # `nix build .#xtcp2`, .#clickhouse_protobuflist, etc. keep working).
+  # Per-flavor single-binary join: a derivation containing only the xtcp2
+  # binary for that flavor. Used by the per-flavor OCI images.
+  xtcp2OnlyByFlavor = lib.mapAttrs (
+    flavor: drv:
+    pkgs.symlinkJoin {
+      name = "xtcp2-only-${flavor}-${version}";
+      paths = [ drv ];
+    }
+  ) xtcp2ByFlavor;
+
+  # Default-variant attrs (every cmd → default-variant derivation).
   defaultBinaries = byVariant.default;
 in
 defaultBinaries
 // {
   default = defaultBinaries.xtcp2;
 
-  # Explicit xtcp2 variants (the user's "x3 builds" — single-binary form).
+  # Build-variant axis for xtcp2.
   xtcp2-debug = byVariant.debug.xtcp2;
   xtcp2-stripped = byVariant.stripped.xtcp2;
 
-  # Joined builds, one per variant. OCI images are built from these.
+  # Destination-flavor axis for xtcp2 (default build variant).
+  xtcp2-min = xtcp2ByFlavor.min;
+  xtcp2-kafka = xtcp2ByFlavor.kafka;
+  xtcp2-nats = xtcp2ByFlavor.nats;
+  xtcp2-nsq = xtcp2ByFlavor.nsq;
+  xtcp2-valkey = xtcp2ByFlavor.valkey;
+
+  # Joined builds.
   xtcp2-all = joins.default;
   xtcp2-all-debug = joins.debug;
   xtcp2-all-stripped = joins.stripped;
 
-  # Nested set for downstream consumers (containers/, anyone else who needs
-  # to operate on a single variant uniformly).
-  inherit byVariant joins;
+  # Internal nested sets for downstream consumers (containers/).
+  inherit
+    byVariant
+    joins
+    xtcp2ByFlavor
+    xtcp2OnlyByFlavor
+    ;
 }

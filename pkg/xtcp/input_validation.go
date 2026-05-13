@@ -13,7 +13,7 @@ func (x *XTCP) InputValidation() {
 
 	if x.config.Dest != "null" {
 
-		dest, _, found := strings.Cut(x.config.Dest, ":")
+		scheme, _, found := strings.Cut(x.config.Dest, ":")
 
 		if !found {
 			log.Fatalf("InputValidation XTCP Dest must contain ':' chars:%s", x.config.Dest)
@@ -23,8 +23,8 @@ func (x *XTCP) InputValidation() {
 			log.Fatalf("InputValidation XTCP Dest must contain x2 ':' chars:%s", x.config.Dest)
 		}
 
-		if _, ok := x.Destinations.Load(dest); !ok {
-			log.Fatalf("InputValidation XTCP Dest must start with one of:%s dest:%s :%s", validDestinations(), dest, x.config.Dest)
+		if _, status := lookupDestinationFactory(scheme); status != destLookupFound {
+			log.Fatalf("InputValidation: %v", destinationLookupError(scheme, status))
 		}
 	}
 

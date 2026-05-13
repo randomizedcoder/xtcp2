@@ -38,7 +38,12 @@ let
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
   containers = import ./containers {
-    inherit pkgs lib src binaries;
+    inherit
+      pkgs
+      lib
+      src
+      binaries
+      ;
   };
 
   # MicroVM infrastructure (per supported arch)
@@ -50,6 +55,7 @@ let
       nixpkgs
       ;
     xtcp2Package = binaries.xtcp2;
+    xtcp2AllPackage = binaries.xtcp2-all;
   };
 
   # Static analysis + audit checks
@@ -59,8 +65,8 @@ let
       lib
       src
       vendoredSource
+      binaries
       ;
-    xtcp2 = binaries.xtcp2;
   };
 
   # Behavioral test runners
@@ -83,10 +89,27 @@ in
 {
   packages =
     # Per-binary default-variant attrs (xtcp2, clickhouse_protobuflist, …).
-    (removeAttrs binaries [ "byVariant" "joins" ])
+    (removeAttrs binaries [
+      "byVariant"
+      "joins"
+      "xtcp2ByFlavor"
+      "xtcp2OnlyByFlavor"
+    ])
     // {
-      # Three OCI image variants, in lockstep with the three Go build variants.
-      inherit (containers) oci-xtcp2 oci-xtcp2-debug oci-xtcp2-stripped;
+      # Build-variant OCI images (fat: every cmd binary).
+      inherit (containers)
+        oci-xtcp2
+        oci-xtcp2-debug
+        oci-xtcp2-stripped
+        ;
+      # Per-flavor OCI images (slim: single xtcp2 binary for one destination).
+      inherit (containers)
+        oci-xtcp2-min
+        oci-xtcp2-kafka
+        oci-xtcp2-nats
+        oci-xtcp2-nsq
+        oci-xtcp2-valkey
+        ;
 
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;

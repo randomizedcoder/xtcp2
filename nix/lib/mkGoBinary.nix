@@ -32,6 +32,11 @@ in
   name,
   src,
   variant ? "default",
+  # Library destinations to compile into the binary. `null` (default) →
+  # every destination (matches pre-build-tag behaviour). `[]` → stdlib
+  # destinations only. A list of strings like `[ "kafka" ]` → just those.
+  # Stdlib destinations (null/udp/unix/unixgram) are always compiled in.
+  destinations ? null,
   vendorHash ? versions.goVendorHash,
   commit ? "nix",
   date ? "1970-01-01-00:00",
@@ -43,12 +48,28 @@ in
 let
   variantCfg =
     versions.buildVariants.${variant}
-      or (throw "mkGoBinary: unknown variant '${variant}'; expected one of ${
-        toString (builtins.attrNames versions.buildVariants)
-      }");
+      or (throw "mkGoBinary: unknown variant '${variant}'; expected one of ${toString (builtins.attrNames versions.buildVariants)}");
+
+  # Resolve the effective destination list.
+  effectiveDestinations =
+    if destinations == null then versions.allLibraryDestinations else destinations;
+
+  # `dest_kafka`, `dest_nats`, … — one tag per included library destination.
+  destinationTags = map (s: "dest_${s}") effectiveDestinations;
+
+  # Short suffix encoding the destination set, used in pname so different
+  # flavors produce distinct derivations. Empty for the default ("full") set
+  # so the legacy `xtcp2-<variant>` names stay stable.
+  destSuffix =
+    if destinations == null then
+      ""
+    else if destinations == [ ] then
+      "-min"
+    else
+      "-" + lib.concatStringsSep "-" destinations;
 in
 buildGoModule {
-  pname = "${name}${variantCfg.tagSuffix}";
+  pname = "${name}${destSuffix}${variantCfg.tagSuffix}";
   inherit
     version
     src
@@ -64,7 +85,7 @@ buildGoModule {
     CGO_ENABLED = if versions.cgoEnabled then "1" else "0";
   };
 
-  tags = versions.buildTags;
+  tags = versions.buildTags ++ destinationTags;
 
   ldflags =
     variantCfg.extraLdflags
