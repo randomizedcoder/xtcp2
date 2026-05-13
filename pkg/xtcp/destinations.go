@@ -2,11 +2,17 @@ package xtcp
 
 import (
 	"context"
+	"encoding/binary"
 	"log"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+// Destination functions are invoked from a single deserializer goroutine in
+// production. The implementations below assume serial access to their
+// underlying net.Conn / client field. Concurrent callers are not supported
+// without adding a mutex.
 
 // destNull sends the protobuf to nowhere!
 func (x *XTCP) destNull(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
@@ -236,4 +242,69 @@ func (x *XTCP) destValKey(ctx context.Context, xtcpRecordBinary *[]byte) (n int,
 	x.pC.WithLabelValues("destValKey", "Publish", "count").Inc()
 
 	return 1, err
+}
+
+// destUnixGram sends the protobuf record to a Unix datagram socket.
+// One Write == one datagram == one record; no framing is required because
+// the kernel preserves message boundaries. Records exceeding SO_SNDBUF
+// (≈208 KB on Linux by default) fail with EMSGSIZE; xtcp records today
+// are well below that.
+//
+// TODO: reconnect on persistent write failure (currently dial-once, fail-
+// loudly at startup; runtime errors are logged and the next record is
+// attempted).
+func (x *XTCP) destUnixGram(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+
+	written, err := x.unixGramConn.Write(*xtcpRecordBinary)
+	if err != nil {
+		x.pC.WithLabelValues("destUnixGram", "Write", "error").Inc()
+		if x.debugLevel > 100 {
+			log.Printf("destUnixGram Write err:%v", err)
+		}
+		return 0, err
+	}
+
+	x.pC.WithLabelValues("destUnixGram", "Writes", "count").Inc()
+	x.pC.WithLabelValues("destUnixGram", "WriteBytes", "count").Add(float64(written))
+
+	return 1, nil
+}
+
+// destUnix sends the protobuf record to a Unix stream socket, framed with
+// a varint length prefix so the daemon reader can recover record
+// boundaries. Wire format per record:
+//
+//	[varint(len(payload))] [payload bytes...]
+//
+// Daemon-side: read the varint via binary.ReadUvarint, then exactly that
+// many payload bytes via io.ReadFull.
+//
+// TODO: coalesce the header and payload into a single net.Buffers write if
+// profiling shows the two syscalls matter; reconnect on persistent failure.
+func (x *XTCP) destUnix(_ context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+
+	var hdr [binary.MaxVarintLen64]byte
+	hdrLen := binary.PutUvarint(hdr[:], uint64(len(*xtcpRecordBinary)))
+
+	if _, err = x.unixConn.Write(hdr[:hdrLen]); err != nil {
+		x.pC.WithLabelValues("destUnix", "Write", "error").Inc()
+		if x.debugLevel > 100 {
+			log.Printf("destUnix header Write err:%v", err)
+		}
+		return 0, err
+	}
+
+	written, err := x.unixConn.Write(*xtcpRecordBinary)
+	if err != nil {
+		x.pC.WithLabelValues("destUnix", "Write", "error").Inc()
+		if x.debugLevel > 100 {
+			log.Printf("destUnix payload Write err:%v", err)
+		}
+		return 0, err
+	}
+
+	x.pC.WithLabelValues("destUnix", "Writes", "count").Inc()
+	x.pC.WithLabelValues("destUnix", "WriteBytes", "count").Add(float64(hdrLen + written))
+
+	return 1, nil
 }

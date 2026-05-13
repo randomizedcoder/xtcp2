@@ -254,12 +254,16 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
-	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
+	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
+	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
+	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
+	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
+	// max_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes).
 	string dest                                      = 130 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).string = {
 			min_len: 4,
-			max_len: 40,
+			max_len: 128,
 	}];
 
 	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )

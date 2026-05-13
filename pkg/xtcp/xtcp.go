@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -97,8 +98,17 @@ type XTCP struct {
 	schemaID     int
 	nsqProducer  *nsq.Producer
 	udpConn      net.Conn
+	unixConn     net.Conn
+	unixGramConn net.Conn
 	natsClient   *nats.Conn
 	valKeyClient *redis.Client
+
+	// fatalf is the function used by InitDest* helpers to abort on startup
+	// errors. Defaults to log.Fatalf; tests override it with t.Fatalf so they
+	// can drive the init paths without taking down the process. Only the new
+	// InitDestUnix/InitDestUnixGram use this hook today; existing destinations
+	// still call log.Fatalf directly.
+	fatalf func(format string, args ...any)
 
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
@@ -134,6 +144,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 
 	x.config = config
 	x.debugLevel = x.config.DebugLevel
+	x.fatalf = log.Fatalf
 
 	x.Init(ctx)
 
@@ -146,6 +157,7 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 
 	x.ctx = ctx
 	x.cancel = cancel
+	x.fatalf = log.Fatalf
 
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
@@ -244,12 +256,21 @@ func (x *XTCP) checkDoneNonBlocking(ctx context.Context) (netlinkerDone bool) {
 }
 
 func (x *XTCP) closeDestination() {
-	switch x.config.Dest {
+	scheme, _, _ := strings.Cut(x.config.Dest, ":")
+	switch scheme {
 	case "kafka":
 		x.kClient.Close()
 	case "nsq":
 		x.nsqProducer.Stop()
 	case "udp":
 		x.udpConn.Close()
+	case "unix":
+		if x.unixConn != nil {
+			x.unixConn.Close()
+		}
+	case "unixgram":
+		if x.unixGramConn != nil {
+			x.unixGramConn.Close()
+		}
 	}
 }

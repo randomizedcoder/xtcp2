@@ -272,7 +272,7 @@
         },
         "dest": {
           "type": "string",
-          "title": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:"
+          "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes)."
         },
         "destWriteFiles": {
           "type": "integer",
