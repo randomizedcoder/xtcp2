@@ -1,6 +1,12 @@
 # nix/containers/oci-xtcp2.nix
 #
-# OCI image: a single fat scratch-based image carrying every xtcp2 binary.
+# OCI image factory. Produces a scratch-based image carrying every xtcp2
+# binary built with the requested variant.
+#
+# Three variants are wired up in containers/default.nix:
+#   oci-xtcp2          — default build (-s -w)
+#   oci-xtcp2-debug    — full debug info; useful for in-container delve
+#   oci-xtcp2-stripped — default + binutils strip; smallest
 #
 # Load:
 #   nix build .#oci-xtcp2 && ./result | docker load
@@ -13,7 +19,8 @@
   pkgs,
   lib,
   src,
-  xtcp2All,
+  binaries, # joined /bin tree (e.g., binaries.xtcp2-all-debug)
+  tag ? "latest",
 }:
 
 let
@@ -21,8 +28,8 @@ let
 in
 mkOciImage {
   name = "xtcp2";
-  tag = "latest";
-  binaries = xtcp2All;
+  inherit tag;
+  inherit binaries;
   protoFile = src + "/proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
   exposedPorts = [
     9088

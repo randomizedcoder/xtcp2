@@ -36,10 +36,9 @@ let
   };
   vendoredSource = goMods.vendoredSource;
 
-  # OCI image(s)
+  # OCI image(s) — three variants in lockstep with the Go build variants.
   containers = import ./containers {
-    inherit pkgs lib src;
-    xtcp2All = binaries.all;
+    inherit pkgs lib src binaries;
   };
 
   # MicroVM infrastructure (per supported arch)
@@ -82,17 +81,23 @@ let
   protos = import ./protos { inherit pkgs lib src; };
 in
 {
-  packages = binaries // {
-    inherit (containers) oci-xtcp2;
-    xtcp2-all = binaries.all;
-    regen-protos = protos.regenerate;
-    microvm-x86_64 = microvms.vms.x86_64;
-    # Expose tests as packages too, so they can be built via `nix build .#test-go-unit` etc.
-    test-go-unit = tests.go-unit;
-    test-go-bench = tests.go-bench;
-    test-proto-deserialize-golden = tests.proto-deserialize-golden;
-    test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
-  };
+  packages =
+    # Per-binary default-variant attrs (xtcp2, clickhouse_protobuflist, …).
+    (removeAttrs binaries [ "byVariant" "joins" ])
+    // {
+      # Three OCI image variants, in lockstep with the three Go build variants.
+      inherit (containers) oci-xtcp2 oci-xtcp2-debug oci-xtcp2-stripped;
+
+      regen-protos = protos.regenerate;
+      microvm-x86_64 = microvms.vms.x86_64;
+
+      # Test runners exposed as packages so they can be built via
+      # `nix build .#test-go-unit`, etc.
+      test-go-unit = tests.go-unit;
+      test-go-bench = tests.go-bench;
+      test-proto-deserialize-golden = tests.proto-deserialize-golden;
+      test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
+    };
 
   devShells = {
     default = devshell;
