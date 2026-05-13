@@ -358,6 +358,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? tag,
     $core.int? grpcPort,
     EnabledDeserializers? enabledDeserializers,
+    $core.bool? ioUring,
+    $core.int? ioUringRecvBatchSize,
+    $core.int? ioUringCqeBatchSize,
   }) {
     final $result = create();
     if (nlTimeoutMilliseconds != null) {
@@ -435,6 +438,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (enabledDeserializers != null) {
       $result.enabledDeserializers = enabledDeserializers;
     }
+    if (ioUring != null) {
+      $result.ioUring = ioUring;
+    }
+    if (ioUringRecvBatchSize != null) {
+      $result.ioUringRecvBatchSize = ioUringRecvBatchSize;
+    }
+    if (ioUringCqeBatchSize != null) {
+      $result.ioUringCqeBatchSize = ioUringCqeBatchSize;
+    }
     return $result;
   }
   XtcpConfig._() : super();
@@ -467,6 +479,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(180, _omitFieldNames ? '' : 'tag')
     ..a<$core.int>(190, _omitFieldNames ? '' : 'grpcPort', $pb.PbFieldType.OU3)
     ..aOM<EnabledDeserializers>(200, _omitFieldNames ? '' : 'enabledDeserializers', subBuilder: EnabledDeserializers.create)
+    ..aOB(210, _omitFieldNames ? '' : 'ioUring')
+    ..a<$core.int>(211, _omitFieldNames ? '' : 'ioUringRecvBatchSize', $pb.PbFieldType.OU3)
+    ..a<$core.int>(212, _omitFieldNames ? '' : 'ioUringCqeBatchSize', $pb.PbFieldType.OU3)
     ..hasRequiredFields = false
   ;
 
@@ -768,6 +783,44 @@ class XtcpConfig extends $pb.GeneratedMessage {
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
   EnabledDeserializers ensureEnabledDeserializers() => $_ensure(24);
+
+  /// When true, route netlink reads and raw-socket destination writes
+  /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
+  /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
+  /// flag — they continue to use their own client sockets unchanged.
+  @$pb.TagNumber(210)
+  $core.bool get ioUring => $_getBF(25);
+  @$pb.TagNumber(210)
+  set ioUring($core.bool v) { $_setBool(25, v); }
+  @$pb.TagNumber(210)
+  $core.bool hasIoUring() => $_has(25);
+  @$pb.TagNumber(210)
+  void clearIoUring() => clearField(210);
+
+  /// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
+  /// values reduce io_uring_enter syscalls per dump cycle on hosts with
+  /// many sockets, at the cost of more pinned buffers from packet pool.
+  /// Ignored unless io_uring=true. Default 64.
+  @$pb.TagNumber(211)
+  $core.int get ioUringRecvBatchSize => $_getIZ(26);
+  @$pb.TagNumber(211)
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(26, v); }
+  @$pb.TagNumber(211)
+  $core.bool hasIoUringRecvBatchSize() => $_has(26);
+  @$pb.TagNumber(211)
+  void clearIoUringRecvBatchSize() => clearField(211);
+
+  /// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
+  /// userland loop overhead but increase scheduling latency for the
+  /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
+  @$pb.TagNumber(212)
+  $core.int get ioUringCqeBatchSize => $_getIZ(27);
+  @$pb.TagNumber(212)
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(27, v); }
+  @$pb.TagNumber(212)
+  $core.bool hasIoUringCqeBatchSize() => $_has(27);
+  @$pb.TagNumber(212)
+  void clearIoUringCqeBatchSize() => clearField(212);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

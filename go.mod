@@ -1,6 +1,6 @@
 module github.com/randomizedcoder/xtcp2
 
-go 1.24.1
+go 1.25
 
 //replace ./pkg/xtcp_config => ./pkg/xtcp_config
 
@@ -17,7 +17,7 @@ require (
 	github.com/twmb/franz-go/pkg/sr v1.3.0
 	github.com/twmb/franz-go/plugin/kprom v1.2.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	golang.org/x/sys v0.32.0
+	golang.org/x/sys v0.38.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250409194420-de1ac958c67a
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
@@ -43,16 +43,15 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.16.0 // indirect
+	github.com/randomizedcoder/giouring v0.0.0-00010101000000-000000000000 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.11.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	go.opentelemetry.io/otel v1.34.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250409194420-de1ac958c67a // indirect
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/randomizedcoder/giouring => /home/das/Downloads/giouring

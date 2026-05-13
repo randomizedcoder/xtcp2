@@ -152,12 +152,15 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         packet_size_{::uint64_t{0u}},
         nlmsg_seq_{0u},
         packet_size_mply_{0u},
-        write_files_{0u},
-        protobuf_list_length_delimit_{false},
         modulus_{::uint64_t{0u}},
+        write_files_{0u},
         dest_write_files_{0u},
         debug_level_{0u},
-        grpc_port_{0u} {}
+        protobuf_list_length_delimit_{false},
+        io_uring_{false},
+        grpc_port_{0u},
+        io_uring_recv_batch_size_{0u},
+        io_uring_cqe_batch_size_{0u} {}
 
 template <typename>
 PROTOBUF_CONSTEXPR XtcpConfig::XtcpConfig(::_pbi::ConstantInitialized)
@@ -380,6 +383,9 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.tag_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.grpc_port_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.enabled_deserializers_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_recv_batch_size_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_cqe_batch_size_),
         ~0u,
         0,
         1,
@@ -405,6 +411,9 @@ const ::uint32_t
         ~0u,
         ~0u,
         3,
+        ~0u,
+        ~0u,
+        ~0u,
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _impl_._has_bits_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _internal_metadata_),
         ~0u,  // no _extensions_
@@ -436,9 +445,9 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 93, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {118, 128, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {130, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, 96, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {124, 134, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {136, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -471,7 +480,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\204\014\n\nXtcpConfi"
+    "nfig.v1.XtcpConfigR\006config\"\266\r\n\nXtcpConfi"
     "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
     "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
     "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
@@ -507,26 +516,31 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPort\022b\n\025enab"
     "led_deserializers\030\310\001 \001(\0132$.xtcp_config.v"
     "1.EnabledDeserializersB\006\272H\003\310\001\000R\024enabledD"
-    "eserializers:s\272Hp\032n\n\017XtcpConfig.poll\0222Po"
-    "ll timeout must be less than poll poll_f"
-    "requency\032\'this.poll_frequency > this.pol"
-    "l_timeout\"\237\001\n\024EnabledDeserializers\022K\n\007en"
-    "abled\030\001 \003(\01321.xtcp_config.v1.EnabledDese"
-    "rializers.EnabledEntryR\007enabled\032:\n\014Enabl"
-    "edEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010"
-    "R\005value:\0028\0012\341\002\n\rConfigService\022]\n\003Get\022\032.x"
-    "tcp_config.v1.GetRequest\032\033.xtcp_config.v"
-    "1.GetResponse\"\035\202\323\344\223\002\027\032\022/ConfigService/Ge"
-    "t:\001*\022]\n\003Set\022\032.xtcp_config.v1.SetRequest\032"
-    "\033.xtcp_config.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/C"
-    "onfigService/Set:\001*\022\221\001\n\020SetPollFrequency"
-    "\022\'.xtcp_config.v1.SetPollFrequencyReques"
-    "t\032(.xtcp_config.v1.SetPollFrequencyRespo"
-    "nse\"*\202\323\344\223\002$\032\037/ConfigService/SetPollFrequ"
-    "ency:\001*B\215\001\n\022com.xtcp_config.v1B\017XtcpConf"
-    "igProtoP\001Z\021./pkg/xtcp_config\242\002\003XXX\252\002\rXtc"
-    "pConfig.V1\312\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\"
-    "V1\\GPBMetadata\352\002\016XtcpConfig::V1b\006proto3"
+    "eserializers\022\"\n\010io_uring\030\322\001 \001(\010B\006\272H\003\310\001\000R"
+    "\007ioUring\022F\n\030io_uring_recv_batch_size\030\323\001 "
+    "\001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\024ioUringRecvBatchSize"
+    "\022D\n\027io_uring_cqe_batch_size\030\324\001 \001(\rB\r\272H\n*"
+    "\005\030\200 (\001\310\001\000R\023ioUringCqeBatchSize:s\272Hp\032n\n\017X"
+    "tcpConfig.poll\0222Poll timeout must be les"
+    "s than poll poll_frequency\032\'this.poll_fr"
+    "equency > this.poll_timeout\"\237\001\n\024EnabledD"
+    "eserializers\022K\n\007enabled\030\001 \003(\01321.xtcp_con"
+    "fig.v1.EnabledDeserializers.EnabledEntry"
+    "R\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003"
+    "key\022\024\n\005value\030\002 \001(\010R\005value:\0028\0012\341\002\n\rConfig"
+    "Service\022]\n\003Get\022\032.xtcp_config.v1.GetReque"
+    "st\032\033.xtcp_config.v1.GetResponse\"\035\202\323\344\223\002\027\032"
+    "\022/ConfigService/Get:\001*\022]\n\003Set\022\032.xtcp_con"
+    "fig.v1.SetRequest\032\033.xtcp_config.v1.SetRe"
+    "sponse\"\035\202\323\344\223\002\027\032\022/ConfigService/Set:\001*\022\221\001"
+    "\n\020SetPollFrequency\022\'.xtcp_config.v1.SetP"
+    "ollFrequencyRequest\032(.xtcp_config.v1.Set"
+    "PollFrequencyResponse\"*\202\323\344\223\002$\032\037/ConfigSe"
+    "rvice/SetPollFrequency:\001*B\215\001\n\022com.xtcp_c"
+    "onfig.v1B\017XtcpConfigProtoP\001Z\021./pkg/xtcp_"
+    "config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpConfi"
+    "g\\V1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002\016XtcpC"
+    "onfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -538,7 +552,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    2959,
+    3137,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -2047,9 +2061,9 @@ XtcpConfig::XtcpConfig(
                offsetof(Impl_, nl_timeout_milliseconds_),
            reinterpret_cast<const char *>(&from._impl_) +
                offsetof(Impl_, nl_timeout_milliseconds_),
-           offsetof(Impl_, grpc_port_) -
+           offsetof(Impl_, io_uring_cqe_batch_size_) -
                offsetof(Impl_, nl_timeout_milliseconds_) +
-               sizeof(Impl_::grpc_port_));
+               sizeof(Impl_::io_uring_cqe_batch_size_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.XtcpConfig)
 }
@@ -2071,9 +2085,9 @@ inline void XtcpConfig::SharedCtor(::_pb::Arena* arena) {
   ::memset(reinterpret_cast<char *>(&_impl_) +
                offsetof(Impl_, poll_frequency_),
            0,
-           offsetof(Impl_, grpc_port_) -
+           offsetof(Impl_, io_uring_cqe_batch_size_) -
                offsetof(Impl_, poll_frequency_) +
-               sizeof(Impl_::grpc_port_));
+               sizeof(Impl_::io_uring_cqe_batch_size_));
 }
 XtcpConfig::~XtcpConfig() {
   // @@protoc_insertion_point(destructor:xtcp_config.v1.XtcpConfig)
@@ -2134,15 +2148,15 @@ const ::google::protobuf::internal::ClassData* XtcpConfig::GetClassData() const 
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 25, 4, 128, 27> XtcpConfig::_table_ = {
+const ::_pbi::TcParseTable<5, 28, 4, 128, 27> XtcpConfig::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_._has_bits_),
     0, // no _extensions_
-    200, 248,  // max_field_number, fast_idx_mask
+    212, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
     3757571583,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    25,  // num_field_entries
+    28,  // num_field_entries
     4,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     _class_data_.base(),
@@ -2215,7 +2229,7 @@ const ::_pbi::TcParseTable<5, 25, 4, 128, 27> XtcpConfig::_table_ = {
   }}, {{
     40, 0, 11,
     62462, 3, 49135, 6, 65279, 8, 61435, 9, 65471, 11, 31740, 12,
-    48495, 16, 65279, 20, 61435, 21, 65471, 23, 65534, 24,
+    48495, 16, 65279, 20, 61435, 21, 65471, 23, 58366, 24,
     65535, 65535
   }}, {{
     // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2293,6 +2307,15 @@ const ::_pbi::TcParseTable<5, 25, 4, 128, 27> XtcpConfig::_table_ = {
     // .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 200 [json_name = "enabledDeserializers", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enabled_deserializers_), _Internal::kHasBitsOffset + 3, 3,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+    // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kBool)},
+    // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_recv_batch_size_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_cqe_batch_size_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
   }}, {{
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
@@ -2347,8 +2370,8 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
     }
   }
   ::memset(&_impl_.nl_timeout_milliseconds_, 0, static_cast<::size_t>(
-      reinterpret_cast<char*>(&_impl_.grpc_port_) -
-      reinterpret_cast<char*>(&_impl_.nl_timeout_milliseconds_)) + sizeof(_impl_.grpc_port_));
+      reinterpret_cast<char*>(&_impl_.io_uring_cqe_batch_size_) -
+      reinterpret_cast<char*>(&_impl_.nl_timeout_milliseconds_)) + sizeof(_impl_.io_uring_cqe_batch_size_));
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -2552,6 +2575,27 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
                 stream);
           }
 
+          // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
+          if (this_._internal_io_uring() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteBoolToArray(
+                210, this_._internal_io_uring(), target);
+          }
+
+          // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+          if (this_._internal_io_uring_recv_batch_size() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                211, this_._internal_io_uring_recv_batch_size(), target);
+          }
+
+          // uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+          if (this_._internal_io_uring_cqe_batch_size() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                212, this_._internal_io_uring_cqe_batch_size(), target);
+          }
+
           if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
             target =
                 ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -2677,19 +2721,15 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                               this_._internal_packet_size_mply());
             }
-            // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
-            if (this_._internal_write_files() != 0) {
-              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                              this_._internal_write_files());
-            }
-            // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
-            if (this_._internal_protobuf_list_length_delimit() != 0) {
-              total_size += 3;
-            }
             // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
             if (this_._internal_modulus() != 0) {
               total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                               this_._internal_modulus());
+            }
+            // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
+            if (this_._internal_write_files() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_write_files());
             }
             // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
             if (this_._internal_dest_write_files() != 0) {
@@ -2701,10 +2741,28 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                               this_._internal_debug_level());
             }
+            // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
+            if (this_._internal_protobuf_list_length_delimit() != 0) {
+              total_size += 3;
+            }
+            // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
+            if (this_._internal_io_uring() != 0) {
+              total_size += 3;
+            }
             // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
             if (this_._internal_grpc_port() != 0) {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                               this_._internal_grpc_port());
+            }
+            // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+            if (this_._internal_io_uring_recv_batch_size() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_io_uring_recv_batch_size());
+            }
+            // uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+            if (this_._internal_io_uring_cqe_batch_size() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_io_uring_cqe_batch_size());
             }
           }
           return this_.MaybeComputeUnknownFieldsSize(total_size,
@@ -2804,14 +2862,11 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (from._internal_packet_size_mply() != 0) {
     _this->_impl_.packet_size_mply_ = from._impl_.packet_size_mply_;
   }
-  if (from._internal_write_files() != 0) {
-    _this->_impl_.write_files_ = from._impl_.write_files_;
-  }
-  if (from._internal_protobuf_list_length_delimit() != 0) {
-    _this->_impl_.protobuf_list_length_delimit_ = from._impl_.protobuf_list_length_delimit_;
-  }
   if (from._internal_modulus() != 0) {
     _this->_impl_.modulus_ = from._impl_.modulus_;
+  }
+  if (from._internal_write_files() != 0) {
+    _this->_impl_.write_files_ = from._impl_.write_files_;
   }
   if (from._internal_dest_write_files() != 0) {
     _this->_impl_.dest_write_files_ = from._impl_.dest_write_files_;
@@ -2819,8 +2874,20 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (from._internal_debug_level() != 0) {
     _this->_impl_.debug_level_ = from._impl_.debug_level_;
   }
+  if (from._internal_protobuf_list_length_delimit() != 0) {
+    _this->_impl_.protobuf_list_length_delimit_ = from._impl_.protobuf_list_length_delimit_;
+  }
+  if (from._internal_io_uring() != 0) {
+    _this->_impl_.io_uring_ = from._impl_.io_uring_;
+  }
   if (from._internal_grpc_port() != 0) {
     _this->_impl_.grpc_port_ = from._impl_.grpc_port_;
+  }
+  if (from._internal_io_uring_recv_batch_size() != 0) {
+    _this->_impl_.io_uring_recv_batch_size_ = from._impl_.io_uring_recv_batch_size_;
+  }
+  if (from._internal_io_uring_cqe_batch_size() != 0) {
+    _this->_impl_.io_uring_cqe_batch_size_ = from._impl_.io_uring_cqe_batch_size_;
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
@@ -2849,8 +2916,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.label_, &other->_impl_.label_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.tag_, &other->_impl_.tag_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.grpc_port_)
-      + sizeof(XtcpConfig::_impl_.grpc_port_)
+      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_cqe_batch_size_)
+      + sizeof(XtcpConfig::_impl_.io_uring_cqe_batch_size_)
       - PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.poll_frequency_)>(
           reinterpret_cast<char*>(&_impl_.poll_frequency_),
           reinterpret_cast<char*>(&other->_impl_.poll_frequency_));

@@ -767,6 +767,57 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -850,7 +901,7 @@ return false;
 		}
 	}
 	
-
+// no validation rules for io_uring// no validation rules for io_uring_recv_batch_size// no validation rules for io_uring_cqe_batch_size
 		
 	return true;
 }

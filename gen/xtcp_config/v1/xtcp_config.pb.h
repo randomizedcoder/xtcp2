@@ -862,12 +862,15 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPacketSizeFieldNumber = 70,
     kNlmsgSeqFieldNumber = 60,
     kPacketSizeMplyFieldNumber = 80,
-    kWriteFilesFieldNumber = 90,
-    kProtobufListLengthDelimitFieldNumber = 121,
     kModulusFieldNumber = 110,
+    kWriteFilesFieldNumber = 90,
     kDestWriteFilesFieldNumber = 135,
     kDebugLevelFieldNumber = 160,
+    kProtobufListLengthDelimitFieldNumber = 121,
+    kIoUringFieldNumber = 210,
     kGrpcPortFieldNumber = 190,
+    kIoUringRecvBatchSizeFieldNumber = 211,
+    kIoUringCqeBatchSizeFieldNumber = 212,
   };
   // string capture_path = 100 [json_name = "capturePath", (.buf.validate.field) = {
   void clear_capture_path() ;
@@ -1127,26 +1130,6 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_packet_size_mply(::uint32_t value);
 
   public:
-  // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
-  void clear_write_files() ;
-  ::uint32_t write_files() const;
-  void set_write_files(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_write_files() const;
-  void _internal_set_write_files(::uint32_t value);
-
-  public:
-  // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
-  void clear_protobuf_list_length_delimit() ;
-  bool protobuf_list_length_delimit() const;
-  void set_protobuf_list_length_delimit(bool value);
-
-  private:
-  bool _internal_protobuf_list_length_delimit() const;
-  void _internal_set_protobuf_list_length_delimit(bool value);
-
-  public:
   // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
   void clear_modulus() ;
   ::uint64_t modulus() const;
@@ -1155,6 +1138,16 @@ class XtcpConfig final : public ::google::protobuf::Message
   private:
   ::uint64_t _internal_modulus() const;
   void _internal_set_modulus(::uint64_t value);
+
+  public:
+  // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
+  void clear_write_files() ;
+  ::uint32_t write_files() const;
+  void set_write_files(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_write_files() const;
+  void _internal_set_write_files(::uint32_t value);
 
   public:
   // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
@@ -1177,6 +1170,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_debug_level(::uint32_t value);
 
   public:
+  // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
+  void clear_protobuf_list_length_delimit() ;
+  bool protobuf_list_length_delimit() const;
+  void set_protobuf_list_length_delimit(bool value);
+
+  private:
+  bool _internal_protobuf_list_length_delimit() const;
+  void _internal_set_protobuf_list_length_delimit(bool value);
+
+  public:
+  // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
+  void clear_io_uring() ;
+  bool io_uring() const;
+  void set_io_uring(bool value);
+
+  private:
+  bool _internal_io_uring() const;
+  void _internal_set_io_uring(bool value);
+
+  public:
   // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
   void clear_grpc_port() ;
   ::uint32_t grpc_port() const;
@@ -1187,12 +1200,32 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_grpc_port(::uint32_t value);
 
   public:
+  // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+  void clear_io_uring_recv_batch_size() ;
+  ::uint32_t io_uring_recv_batch_size() const;
+  void set_io_uring_recv_batch_size(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_io_uring_recv_batch_size() const;
+  void _internal_set_io_uring_recv_batch_size(::uint32_t value);
+
+  public:
+  // uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+  void clear_io_uring_cqe_batch_size() ;
+  ::uint32_t io_uring_cqe_batch_size() const;
+  void set_io_uring_cqe_batch_size(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_io_uring_cqe_batch_size() const;
+  void _internal_set_io_uring_cqe_batch_size(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 25, 4,
+      5, 28, 4,
       128, 27>
       _table_;
 
@@ -1231,12 +1264,15 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint64_t packet_size_;
     ::uint32_t nlmsg_seq_;
     ::uint32_t packet_size_mply_;
-    ::uint32_t write_files_;
-    bool protobuf_list_length_delimit_;
     ::uint64_t modulus_;
+    ::uint32_t write_files_;
     ::uint32_t dest_write_files_;
     ::uint32_t debug_level_;
+    bool protobuf_list_length_delimit_;
+    bool io_uring_;
     ::uint32_t grpc_port_;
+    ::uint32_t io_uring_recv_batch_size_;
+    ::uint32_t io_uring_cqe_batch_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -3670,6 +3706,72 @@ inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::E
 
   _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+}
+
+// bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_ = false;
+}
+inline bool XtcpConfig::io_uring() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring)
+  return _internal_io_uring();
+}
+inline void XtcpConfig::set_io_uring(bool value) {
+  _internal_set_io_uring(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring)
+}
+inline bool XtcpConfig::_internal_io_uring() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_;
+}
+inline void XtcpConfig::_internal_set_io_uring(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_ = value;
+}
+
+// uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring_recv_batch_size() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_recv_batch_size_ = 0u;
+}
+inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
+  return _internal_io_uring_recv_batch_size();
+}
+inline void XtcpConfig::set_io_uring_recv_batch_size(::uint32_t value) {
+  _internal_set_io_uring_recv_batch_size(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
+}
+inline ::uint32_t XtcpConfig::_internal_io_uring_recv_batch_size() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_recv_batch_size_;
+}
+inline void XtcpConfig::_internal_set_io_uring_recv_batch_size(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_recv_batch_size_ = value;
+}
+
+// uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring_cqe_batch_size() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_cqe_batch_size_ = 0u;
+}
+inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
+  return _internal_io_uring_cqe_batch_size();
+}
+inline void XtcpConfig::set_io_uring_cqe_batch_size(::uint32_t value) {
+  _internal_set_io_uring_cqe_batch_size(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
+}
+inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_cqe_batch_size_;
+}
+inline void XtcpConfig::_internal_set_io_uring_cqe_batch_size(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_cqe_batch_size_ = value;
 }
 
 // -------------------------------------------------------------------
