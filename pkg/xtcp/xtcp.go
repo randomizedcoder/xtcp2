@@ -92,6 +92,19 @@ type XTCP struct {
 	// Signals poller can start
 	DestinationReady chan struct{}
 
+	// Netlinker function dispatch — same pattern as Marshaller/Destination.
+	// Variants registered in InitNetlinkers; one chosen at init based on
+	// config.IoUring. The Netlinker field is the per-fd goroutine
+	// entry-point invoked from ns_createNetlinkersAndStore.go.
+	Netlinkers     sync.Map
+	Netlinker      NetlinkerFunc
+	NetlinkerReady chan struct{}
+
+	// rings holds the per-Netlinker io_uring rings when config.IoUring is
+	// true. Key is the netlinker id (uint32). Empty / unused on the
+	// syscall path.
+	rings sync.Map
+
 	kClient    *kgo.Client
 	kRegClient *sr.Client
 	//kSerde       sr.Serde
@@ -102,6 +115,13 @@ type XTCP struct {
 	unixGramConn net.Conn
 	natsClient   *nats.Conn
 	valKeyClient *redis.Client
+
+	// Dup'd raw fds extracted from the destination conns at init time.
+	// Set only when config.IoUring is true and the corresponding scheme
+	// is active. Required because io_uring SQEs reference fds directly.
+	udpFD      int
+	unixFD     int
+	unixGramFD int
 
 	// fatalf is the function used by InitDest* helpers to abort on startup
 	// errors. Defaults to log.Fatalf; tests override it with t.Fatalf so they

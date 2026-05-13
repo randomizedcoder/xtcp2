@@ -8,14 +8,29 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
+
+// xioRingNew creates a Ring sized small enough for tests. Returns the
+// New error so tests can Skip when the kernel doesn't support io_uring.
+func xioRingNew(t testing.TB) (*xio.Ring, error) {
+	t.Helper()
+	return xio.New(xio.Config{RecvBatchSize: 4, CQEBatchSize: 16})
+}
+
+// withRing stashes a Ring under the ringCtxKey so io_uring destination
+// functions can find it. Mirrors what netlinkerIoUring does in prod.
+func withRing(ctx context.Context, r *xio.Ring) context.Context {
+	return context.WithValue(ctx, ringCtxKey{}, r)
+}
 
 // destSetupResult is what each row's setup closure returns.
 type destSetupResult struct {
@@ -328,6 +343,138 @@ func TestDestinations(t *testing.T) {
 			}
 			runDestRow(t, c, payloads)
 		})
+	}
+}
+
+// TestDestinationsIoUring mirrors TestDestinations but for the io_uring
+// destination variants. Each row spins up a real listener, dials, opts
+// the XTCP fixture into config.IoUring, drives a per-Netlinker ring, and
+// confirms records round-trip via the new code paths. Skipped on kernels
+// that don't support the required io_uring opcodes.
+func TestDestinationsIoUring(t *testing.T) {
+	identity := func(p []byte) []byte { return p }
+
+	cases := []destCase{
+		{name: "udp_round_trip_iouring", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
+		{name: "udp_multiple_iouring", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
+		{name: "unixgram_round_trip_iouring", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
+		{name: "unixgram_multiple_iouring", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
+		{name: "unix_round_trip_iouring", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
+		{name: "unix_multiple_iouring", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
+	}
+
+	single := [][]byte{[]byte("hello-iouring-record")}
+	triple := [][]byte{
+		[]byte("io-uring-first"),
+		[]byte("io-uring-second-with-more-bytes"),
+		[]byte("io-uring-third"),
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			payloads := single
+			switch c.name {
+			case "udp_multiple_iouring", "unixgram_multiple_iouring", "unix_multiple_iouring":
+				payloads = triple
+			}
+			runIoUringDestRow(t, c, payloads)
+		})
+	}
+}
+
+// runIoUringDestRow drives the io_uring write path end-to-end: spins up
+// a Ring, populates the corresponding x.<scheme>FD, calls the io_uring
+// destination function (which enqueues an SQE), Submits, then drains
+// the CQE and reads back from the listener.
+//
+// LockOSThread pins this test goroutine for the lifetime of the ring so
+// that Go's scheduler can't migrate it across OS threads — io_uring
+// state is per-task, and a ring created on thread A submitting from
+// thread B can return EEXIST or worse.
+func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
+	t.Helper()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	dir := t.TempDir()
+	setup := c.setup(t, dir)
+	defer setup.cleanup()
+
+	x := newTestXTCP(t, setup.dest)
+	x.config.IoUring = true
+	ctx := context.Background()
+
+	// Dial + extract fd. The init helpers do this when config.IoUring is
+	// true; calling them here mirrors production wiring.
+	var (
+		destFn func(context.Context, *[]byte) (int, error)
+		fdPtr  *int
+	)
+	switch c.scheme {
+	case "udp":
+		x.InitDestUDP(ctx)
+		fdPtr = &x.udpFD
+		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUDPIoUring(ctx, b) }
+	case "unix":
+		x.InitDestUnix(ctx)
+		fdPtr = &x.unixFD
+		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUnixIoUring(ctx, b) }
+	case "unixgram":
+		x.InitDestUnixGram(ctx)
+		fdPtr = &x.unixGramFD
+		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUnixGramIoUring(ctx, b) }
+	default:
+		t.Fatalf("unknown scheme %q", c.scheme)
+	}
+	defer x.closeDestination()
+	if *fdPtr <= 0 {
+		t.Fatalf("scheme %q: expected positive dup'd fd, got %d", c.scheme, *fdPtr)
+	}
+
+	// One ring covers the whole row. Sized small so test exits quickly.
+	ring, err := xioRingNew(t)
+	if err != nil {
+		t.Skipf("io_uring not available: %v", err)
+	}
+	defer ring.Close(100*time.Millisecond, nil)
+	ringCtx := withRing(ctx, ring)
+
+	for i, payload := range payloads {
+		buf := append([]byte(nil), payload...)
+		n, err := destFn(ringCtx, &buf)
+		if err != nil {
+			t.Fatalf("payload[%d] dest err: %v", i, err)
+		}
+		if n != 1 {
+			t.Errorf("payload[%d] dest n=%d want=1", i, n)
+		}
+		// Submit + drain the CQE so the receiver can read.
+		if _, err := ring.Submit(); err != nil {
+			t.Fatalf("payload[%d] Submit: %v", i, err)
+		}
+		results, err := ring.WaitOne()
+		if err != nil {
+			t.Fatalf("payload[%d] WaitOne: %v", i, err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("payload[%d] got %d CQEs want 1", i, len(results))
+		}
+		if results[0].Res < 0 {
+			t.Errorf("payload[%d] CQE Res=%d (error)", i, results[0].Res)
+		}
+
+		got, err := setup.recv()
+		if err != nil {
+			t.Fatalf("payload[%d] recv: %v", i, err)
+		}
+		want := c.expectFrame(payload)
+		if !bytes.Equal(got, want) {
+			t.Errorf("payload[%d] mismatch\n got: %x\nwant: %x", i, got, want)
+		}
+	}
+	if ring.InFlightLen() != 0 {
+		t.Errorf("in-flight len=%d, want 0", ring.InFlightLen())
 	}
 }
 
