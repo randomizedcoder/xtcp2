@@ -49,6 +49,18 @@ var (
 	}
 )
 
+// isRawSocketScheme reports whether the given dest scheme corresponds to
+// a raw-fd destination that io_uring can drive directly. Library-backed
+// destinations (kafka, nsq, nats, valkey) own their own sockets via
+// client libraries and are silently excluded.
+func isRawSocketScheme(scheme string) bool {
+	switch scheme {
+	case "udp", "unix", "unixgram":
+		return true
+	}
+	return false
+}
+
 func validDestinations() (dests string) {
 	for key := range validDestinationsMap {
 		dests = dests + key + ","
@@ -95,10 +107,26 @@ func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
 	x.Destinations.Store("unixgram", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destUnixGram(ctx, xtcpRecordBinary)
 	})
+	// io_uring variants for raw-socket destinations. Library destinations
+	// (kafka, nsq, nats, valkey) are not represented here — config.IoUring
+	// is silently ignored for them.
+	x.Destinations.Store("io_uring_udp", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destUDPIoUring(ctx, xtcpRecordBinary)
+	})
+	x.Destinations.Store("io_uring_unix", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destUnixIoUring(ctx, xtcpRecordBinary)
+	})
+	x.Destinations.Store("io_uring_unixgram", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destUnixGramIoUring(ctx, xtcpRecordBinary)
+	})
 
-	f, ok := x.Destinations.Load(dest)
+	loadKey := dest
+	if x.config.IoUring && isRawSocketScheme(dest) {
+		loadKey = "io_uring_" + dest
+	}
+	f, ok := x.Destinations.Load(loadKey)
 	if !ok {
-		log.Fatalf("InitDestinations XTCP Dest load invalid:%s, must be one of:%s", dest, validDestinations())
+		log.Fatalf("InitDestinations XTCP Dest load invalid:%s, must be one of:%s", loadKey, validDestinations())
 	}
 	x.Destination = f.(func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error))
 
@@ -399,7 +427,37 @@ func (x *XTCP) InitDestUDP(ctx context.Context) {
 	if err != nil {
 		log.Fatalf("unable to net.Dial:%v", err)
 	}
-	//defer udpConn.Close()
+	if x.config.IoUring {
+		fd, err := extractFD(x.udpConn)
+		if err != nil {
+			log.Fatalf("InitDestUDP extractFD err:%v", err)
+		}
+		x.udpFD = fd
+	}
+}
+
+// extractFD returns the underlying file descriptor from a net.Conn that
+// is *net.UDPConn or *net.UnixConn. Called only when config.IoUring is
+// true. The fd is dup'd internally by File() — we never close the
+// returned *os.File handle, so the dup stays open for the io_uring path.
+//
+// Important caveat: calling File() puts the underlying socket into
+// blocking mode. That's fine for io_uring (the ring itself manages
+// readiness), but means the syscall destination path can't share the
+// same connection — io_uring mode owns the conn exclusively.
+func extractFD(c net.Conn) (int, error) {
+	type fileGetter interface {
+		File() (*os.File, error)
+	}
+	g, ok := c.(fileGetter)
+	if !ok {
+		return -1, fmt.Errorf("extractFD: conn type %T does not expose File()", c)
+	}
+	f, err := g.File()
+	if err != nil {
+		return -1, fmt.Errorf("extractFD File(): %w", err)
+	}
+	return int(f.Fd()), nil
 }
 
 // InitDestNATS creates the nats client
@@ -504,6 +562,17 @@ func (x *XTCP) pingKafka(ctx context.Context) (err error) {
 	return err
 }
 
+// initIoUringDestFD pulls the underlying fd out of the just-dialled net
+// .Conn so io_uring SQEs can reference it directly. Called only when
+// config.IoUring is true and the corresponding scheme is active.
+func (x *XTCP) initIoUringDestFD(c net.Conn, target *int, name string) {
+	fd, err := extractFD(c)
+	if err != nil {
+		log.Fatalf("%s extractFD err:%v", name, err)
+	}
+	*target = fd
+}
+
 // InitDestUnix dials a Unix stream socket where the daemon is listening.
 // Fails loudly (x.fatalf) when nothing is listening on the path so the
 // process doesn't silently drop records on startup.
@@ -521,6 +590,9 @@ func (x *XTCP) InitDestUnix(ctx context.Context) {
 		return
 	}
 	x.unixConn = conn
+	if x.config.IoUring {
+		x.initIoUringDestFD(conn, &x.unixFD, "InitDestUnix")
+	}
 }
 
 // InitDestUnixGram dials a Unix datagram socket. Because dialing unixgram
@@ -545,4 +617,7 @@ func (x *XTCP) InitDestUnixGram(ctx context.Context) {
 		return
 	}
 	x.unixGramConn = conn
+	if x.config.IoUring {
+		x.initIoUringDestFD(conn, &x.unixGramFD, "InitDestUnixGram")
+	}
 }

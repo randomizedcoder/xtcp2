@@ -347,6 +347,20 @@ func (r *Ring) WaitOne() ([]Result, error) {
 	return r.DrainBatch(), nil
 }
 
+// WaitOneTimeout blocks until at least one CQE is available or the
+// timeout fires. Returns a syscall.ETIME-like error on timeout so callers
+// can distinguish "kernel had no data" from a real failure.
+func (r *Ring) WaitOneTimeout(d time.Duration) ([]Result, error) {
+	if d <= 0 {
+		return r.WaitOne()
+	}
+	ts := syscall.NsecToTimespec(int64(d))
+	if _, err := r.r.WaitCQETimeout(&ts); err != nil {
+		return nil, err
+	}
+	return r.DrainBatch(), nil
+}
+
 // InFlightLen reports how many SQEs are queued but not yet completed —
 // used by tests to assert clean teardown.
 func (r *Ring) InFlightLen() int {

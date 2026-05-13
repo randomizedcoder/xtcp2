@@ -174,6 +174,10 @@ func main() {
 
 	d := flag.Uint("d", debugLevelCst, "debug level")
 
+	ioUring := flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)")
+	ioUringRecvBatch := flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
+	ioUringCqeBatch := flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
+
 	flag.Parse()
 
 	// Print version information passed in via ldflags in the Makefile
@@ -240,6 +244,10 @@ func main() {
 		Tag:                    *tag,
 		GrpcPort:               uint32(*grpcPort),
 		EnabledDeserializers:   des,
+
+		IoUring:              *ioUring,
+		IoUringRecvBatchSize: uint32(*ioUringRecvBatch),
+		IoUringCqeBatchSize:  uint32(*ioUringCqeBatch),
 	}
 
 	if debugLevel > 100 {
