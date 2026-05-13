@@ -1,0 +1,144 @@
+# .golangci.yml
+#
+# Tier 1 — Standard lint (~2 minutes). CI gating.
+#
+# Run:
+#   lint                          (inside nix develop)
+#   nix build .#checks.golangci-lint
+#
+# Policy: every exclusion below states WHY. When a linter fires, the default
+# is to fix the code, not add an exclusion.
+
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: vendor
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    # Tier 0
+    - govet
+    - errcheck
+    - ineffassign
+    - unused
+    - staticcheck
+    # Tier 1 additions
+    - gosec
+    - gocritic
+    - revive
+    - noctx
+    - contextcheck
+    - durationcheck
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+      settings:
+        shadow:
+          strict: true
+
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019"
+
+    gosec:
+      excludes:
+        # G103: unsafe pointer use is intentional in pkg/io_uring (giouring wraps
+        #       liburing SQE/CQE structures with unsafe.Pointer).
+        - G103
+        # G115: integer overflow conversions appear in netlink parsing (uint16
+        #       length fields) and io_uring batch indices; all are bounds-checked.
+        - G115
+        # G204: cmd/ns and cmd/nsTest spawn `ip netns exec ...`; required by design.
+        - G204
+        # G304: register_schema reads .proto files whose path comes from CLI flags.
+        - G304
+
+    gocritic:
+      enabled-checks:
+        - appendAssign
+        - argOrder
+        - badCond
+        - builtinShadow
+        - dupCase
+        - dupSubExpr
+        - nilValReturn
+        - rangeValCopy
+        - sliceClear
+      disabled-checks:
+        # hugeParam: triggers on every netlink callback handler that takes a
+        # NlMsgHdr struct (cheap to copy on hot path; not worth pointer churn).
+        - hugeParam
+
+    revive:
+      rules:
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: error-return
+        - name: error-strings
+        - name: increment-decrement
+        - name: var-declaration
+
+  exclusions:
+    warn-unused: true
+    paths:
+      # Skip generated code entirely (don't even type-check it).
+      - ".*\\.pb\\.go$"
+      - ".*\\.pb\\.gw\\.go$"
+      - "^gen/"
+      - "^dart/"
+      - "^python/"
+    rules:
+      # Test code: relax dup/funlen/gocyclo/errcheck/unused.
+      - path: "_test\\.go"
+        linters:
+          - dupl
+          - funlen
+          - gocyclo
+          - errcheck
+          - unused
+      # G404 (math/rand): acceptable in tests for deterministic randomness.
+      - path: "_test\\.go"
+        linters:
+          - gosec
+        text: "G404"
+      # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
+      # Linux kernel uapi `struct tcp_info` revisions. Renaming breaks the
+      # explicit per-version mapping that is the point of pkg/xtcpnl.
+      - path: "pkg/xtcpnl/"
+        linters:
+          - staticcheck
+        text: "ST1003: should not use underscores in Go names; (struct field|const) TCPInfo[0-9_]+(_Size(Cst)?)?"
+      # ST1003 (naming): protobuf-generated names (PerStream, IO_uring, etc.)
+      # cannot be changed without breaking wire compatibility.
+      - linters:
+          - staticcheck
+        text: "ST1003:"
+      # SA9003 (empty branches): allowed for documented "no-op on purpose"
+      # cases — e.g., netlink message filters that intentionally skip a class.
+      - linters:
+          - staticcheck
+        text: "SA9003:"
+
+output:
+  formats:
+    text:
+      print-issued-lines: true
+      print-linter-name: true

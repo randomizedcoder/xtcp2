@@ -1,0 +1,160 @@
+// proto-field-audit
+//
+// Cross-checks proto field declarations against the Go code that fills them.
+//
+// For each *.proto under proto/, parses field names declared in messages.
+// Then AST-walks Go source under pkg/ looking for `.Set<Field>(` or
+// `.<Field> =` references. Reports any proto field never written in Go.
+//
+// This is the inverse of the existing Rust proto-audit tool in the sibling
+// xdp2 repo (which audits which kernel structs map to which proto fields).
+package main
+
+import (
+	"flag"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// Match `<type> <name> = <number>;` inside `message { ... }`.
+var fieldRE = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+|required\s+)?[\w.<>,]+\s+(\w+)\s*=\s*\d+`)
+
+func main() {
+	protoRoot := flag.String("proto-root", "proto", "directory containing *.proto")
+	goRoot := flag.String("go-root", "pkg", "directory containing Go source")
+	flag.Parse()
+
+	fields, err := collectProtoFields(*protoRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "proto-field-audit: collect protos: %v\n", err)
+		os.Exit(2)
+	}
+
+	references, err := collectGoReferences(*goRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "proto-field-audit: collect go: %v\n", err)
+		os.Exit(2)
+	}
+
+	fmt.Printf("proto-field-audit: %d proto field(s), %d Go reference(s) scanned\n",
+		len(fields), len(references))
+
+	unset := 0
+	for _, f := range fields {
+		camel := snakeToCamel(f.name)
+		setterCalled := references["Set"+camel]
+		directAssign := references[camel]
+		if !setterCalled && !directAssign {
+			fmt.Printf("%s: proto field %q (camel: %s) never written in Go (no Set%s, no .%s assignment)\n",
+				f.where, f.name, camel, camel, camel)
+			unset++
+		}
+	}
+	if unset > 0 {
+		fmt.Fprintf(os.Stderr, "proto-field-audit: %d unset proto field(s)\n", unset)
+		os.Exit(1)
+	}
+	fmt.Println("proto-field-audit: no findings")
+}
+
+type field struct {
+	name  string
+	where string
+}
+
+func collectProtoFields(root string) ([]field, error) {
+	var fields []field
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".proto") {
+			return nil
+		}
+		b, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		inMessage := 0
+		for i, line := range strings.Split(string(b), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "message ") {
+				inMessage++
+				continue
+			}
+			if inMessage > 0 && strings.Contains(trimmed, "{") {
+				inMessage++
+			}
+			if inMessage > 0 && strings.Contains(trimmed, "}") {
+				inMessage--
+				continue
+			}
+			if inMessage == 0 {
+				continue
+			}
+			if strings.HasPrefix(trimmed, "//") || trimmed == "" {
+				continue
+			}
+			m := fieldRE.FindStringSubmatch(trimmed)
+			if m == nil {
+				continue
+			}
+			fields = append(fields, field{
+				name:  m[1],
+				where: fmt.Sprintf("%s:%d", path, i+1),
+			})
+		}
+		return nil
+	})
+	return fields, err
+}
+
+func collectGoReferences(root string) (map[string]bool, error) {
+	refs := map[string]bool{}
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			base := filepath.Base(path)
+			if base == "vendor" || base == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			return parseErr
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			if sel, ok := n.(*ast.SelectorExpr); ok {
+				refs[sel.Sel.Name] = true
+			}
+			return true
+		})
+		return nil
+	})
+	return refs, err
+}
+
+func snakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if p == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(p[:1]) + p[1:]
+	}
+	return strings.Join(parts, "")
+}

@@ -1,0 +1,19 @@
+{
+  "comment": "Minimal xtcp2 config for microvm lifecycle testing. File sink only; no Kafka/ClickHouse.",
+  "frequency": "5s",
+  "io_uring": false,
+  "io_uring_recv_batch_size": 0,
+  "destinations": [
+    {
+      "type": "file",
+      "path": "/var/log/xtcp2.jsonl",
+      "format": "jsonl"
+    }
+  ],
+  "prometheus": {
+    "listen_address": "127.0.0.1:9088"
+  },
+  "grpc": {
+    "listen_address": "127.0.0.1:8889"
+  }
+}
