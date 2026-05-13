@@ -567,7 +567,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if _, exists := os.LookupEnv(key); exists {
 		c.ProtobufListLengthDelimit = true
 		if debugLevel > 10 {
-			log.Printf("key:%s, c.ProtobufListLengthDelimit:%s", key, c.ProtobufListLengthDelimit)
+			log.Printf("key:%s, c.ProtobufListLengthDelimit:%t", key, c.ProtobufListLengthDelimit)
 		}
 	}
 

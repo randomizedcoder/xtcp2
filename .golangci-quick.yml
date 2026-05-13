@@ -1,0 +1,77 @@
+# .golangci-quick.yml
+#
+# Tier 0 — fast feedback (~30s).
+# Suitable for pre-commit and local iteration.
+#
+# Run:
+#   lint-quick                  (inside nix develop)
+#   nix build .#checks.golangci-lint-quick
+
+version: "2"
+
+run:
+  timeout: 60s
+  modules-download-mode: vendor
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - ineffassign
+    - unused
+    - staticcheck
+
+  settings:
+    errcheck:
+      # io.Closer / *os.File Close() are routinely unchecked; flagging them
+      # here is noise. Closer-failure on a read-only handle is not actionable.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+
+    govet:
+      enable-all: true
+      disable:
+        # Struct alignment suggestions are noisy and not bugs.
+        - fieldalignment
+
+    staticcheck:
+      checks:
+        - "all"
+        # SA1019 = deprecated symbols. Allow during migration windows.
+        - "-SA1019"
+
+  exclusions:
+    warn-unused: true
+    paths:
+      # Skip generated code entirely (don't even type-check it).
+      - ".*\\.pb\\.go$"
+      - ".*\\.pb\\.gw\\.go$"
+      - "^gen/"
+      - "^dart/"
+      - "^python/"
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - unused
+      # Kernel-version-tagged struct names (TCPInfo6_10_3, TCPInfo5_4_281, …)
+      # mirror Linux kernel uapi `struct tcp_info` revisions. Renaming would
+      # break the explicit per-version mapping that's the whole point of
+      # pkg/xtcpnl. Allowed by design (gosrt SHA1-in-PBKDF2 precedent).
+      - path: "pkg/xtcpnl/"
+        linters:
+          - staticcheck
+        text: "ST1003: should not use underscores in Go names; (struct field|const) TCPInfo[0-9_]+(_Size(Cst)?)?"
+
+output:
+  formats:
+    text:
+      print-issued-lines: true
+      print-linter-name: true
