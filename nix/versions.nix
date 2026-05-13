@@ -24,11 +24,44 @@
   # gRPC / proto inspection
   grpcurl = pkgs.grpcurl;
 
-  # Build-flag knobs (consumed by mkGoBinary / oci image)
-  ldflagsBase = [
-    "-s"
-    "-w"
-  ];
+  # Per-variant build configuration. mkGoBinary picks one by name.
+  #
+  # Reference: https://words.filippo.io/shrink-your-go-binaries-with-this-one-weird-trick/
+  #
+  #   debug    — plain `go build` output. Keeps the symbol table and DWARF
+  #              debug info. Largest; works directly with delve / `go tool
+  #              pprof -symbolize`. Use for development and post-mortems.
+  #   default  — `-ldflags "-s -w"`. Drops the symbol table (-s) and DWARF
+  #              info (-w). ~25% smaller. Production default; matches the
+  #              existing Containerfile.
+  #   stripped — default + binutils `strip` over the build outputs. A few
+  #              more % off. Smallest. Loses the Go buildid (still readable
+  #              via `go version <bin>` because that's a separate note
+  #              section preserved by strip).
+  buildVariants = {
+    debug = {
+      extraLdflags = [ ];
+      doStrip = false;
+      tagSuffix = "-debug";
+    };
+    default = {
+      extraLdflags = [
+        "-s"
+        "-w"
+      ];
+      doStrip = false;
+      tagSuffix = "";
+    };
+    stripped = {
+      extraLdflags = [
+        "-s"
+        "-w"
+      ];
+      doStrip = true;
+      tagSuffix = "-stripped";
+    };
+  };
+
   buildTags = [
     "netgo"
     "osusergo"
