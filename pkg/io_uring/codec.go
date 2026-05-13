@@ -1,28 +1,52 @@
+// Package io_uring is the xtcp2-internal io_uring helper layer. It owns
+// per-Netlinker ring lifecycle, the canonical 64-bit userdata encoding
+// used to tag every SQE, and the buffer-ownership map that keeps pool
+// buffers alive between submission and completion.
+//
+// See /home/das/.claude/profiles/runpod/plans/in-this-repo-there-starry-tiger.md
+// for the design rationale.
 package io_uring
 
+// Operation tags every CQE so the netlinker goroutine can dispatch
+// completions back to the right consumer without a side-channel lookup.
+//
+// Wire layout of the 64-bit userdata stamped on each SQE:
+//
+//	bits 63..56  Operation     (uint8)
+//	bits 55..32  reserved      (24 bits) — must be zero
+//	bits 31..0   RequestID     (uint32) — per-ring monotonic counter
+//
+// NsID is intentionally absent: the ring is per-Netlinker, so the netns
+// is already implied by the goroutine that owns the ring.
+type Operation uint8
+
+const (
+	// OpRead — a recvmsg SQE submitted against the netlink fd.
+	OpRead Operation = 0
+	// OpSendUDP — a send SQE submitted against the udp dest fd.
+	OpSendUDP Operation = 1
+	// OpSendUnix — a writev SQE (header + payload iovec) submitted
+	// against the unix-stream dest fd.
+	OpSendUnix Operation = 2
+	// OpSendUnixGram — a send SQE submitted against the unixgram dest fd.
+	OpSendUnixGram Operation = 3
+)
+
+// EncodedRequest is the in-memory representation of a CQE userdata.
 type EncodedRequest struct {
-	Operation uint8  // Operation: "read=0", "write=1"
-	NsID      uint16 // Network namespace ID
-	RequestID uint32 // Request ID
+	Operation Operation
+	RequestID uint32
 }
 
-// serialize converts an EncodedRequest into a uint64.
-func serialize(req *EncodedRequest) uint64 {
-	var result uint64
-	result |= uint64(req.Operation) << 56        // Store Operation in the highest 8 bits
-	result |= uint64(req.NsID) << 40             // Store NsID in the next 16 bits
-	result |= uint64(req.RequestID) & 0xFFFFFFFF // Store RequestID in the lowest 32 bits
-	return result
+// serialize packs an EncodedRequest into a 64-bit userdata word.
+func serialize(req EncodedRequest) uint64 {
+	return uint64(req.Operation)<<56 | uint64(req.RequestID)
 }
 
-// deserialize converts a uint64 back into an EncodedRequest.
+// deserialize unpacks a 64-bit userdata word back into an EncodedRequest.
 func deserialize(data uint64) EncodedRequest {
-	operation := uint8(data >> 56)         // Extract the highest 8 bits
-	nsID := uint16((data >> 40) & 0xFFFF)  // Extract the next 16 bits
-	requestID := uint32(data & 0xFFFFFFFF) // Extract the lowest 32 bits
 	return EncodedRequest{
-		Operation: operation,
-		NsID:      nsID,
-		RequestID: requestID,
+		Operation: Operation(data >> 56),
+		RequestID: uint32(data),
 	}
 }

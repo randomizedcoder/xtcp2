@@ -350,6 +350,35 @@ message XtcpConfig {
 	EnabledDeserializers enabled_deserializers        = 200 [
 		(buf.validate.field).required = false
 	];
+
+	// When true, route netlink reads and raw-socket destination writes
+	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
+	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
+	// flag — they continue to use their own client sockets unchanged.
+	bool io_uring                                     = 210 [
+		(buf.validate.field).required = false
+	];
+
+	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
+	// values reduce io_uring_enter syscalls per dump cycle on hosts with
+	// many sockets, at the cost of more pinned buffers from packet pool.
+	// Ignored unless io_uring=true. Default 64.
+	uint32 io_uring_recv_batch_size                   = 211 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 4096
+	}];
+
+	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
+	// userland loop overhead but increase scheduling latency for the
+	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
+	uint32 io_uring_cqe_batch_size                    = 212 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 4096
+	}];
 };
 
 message EnabledDeserializers {

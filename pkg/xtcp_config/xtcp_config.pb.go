@@ -377,8 +377,22 @@ type XtcpConfig struct {
 	// GRPC listening port
 	GrpcPort             uint32                `protobuf:"varint,190,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	EnabledDeserializers *EnabledDeserializers `protobuf:"bytes,200,opt,name=enabled_deserializers,json=enabledDeserializers,proto3" json:"enabled_deserializers,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// When true, route netlink reads and raw-socket destination writes
+	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
+	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
+	// flag — they continue to use their own client sockets unchanged.
+	IoUring bool `protobuf:"varint,210,opt,name=io_uring,json=ioUring,proto3" json:"io_uring,omitempty"`
+	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
+	// values reduce io_uring_enter syscalls per dump cycle on hosts with
+	// many sockets, at the cost of more pinned buffers from packet pool.
+	// Ignored unless io_uring=true. Default 64.
+	IoUringRecvBatchSize uint32 `protobuf:"varint,211,opt,name=io_uring_recv_batch_size,json=ioUringRecvBatchSize,proto3" json:"io_uring_recv_batch_size,omitempty"`
+	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
+	// userland loop overhead but increase scheduling latency for the
+	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
+	IoUringCqeBatchSize uint32 `protobuf:"varint,212,opt,name=io_uring_cqe_batch_size,json=ioUringCqeBatchSize,proto3" json:"io_uring_cqe_batch_size,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -586,6 +600,27 @@ func (x *XtcpConfig) GetEnabledDeserializers() *EnabledDeserializers {
 	return nil
 }
 
+func (x *XtcpConfig) GetIoUring() bool {
+	if x != nil {
+		return x.IoUring
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetIoUringRecvBatchSize() uint32 {
+	if x != nil {
+		return x.IoUringRecvBatchSize
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetIoUringCqeBatchSize() uint32 {
+	if x != nil {
+		return x.IoUringCqeBatchSize
+	}
+	return 0
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -649,7 +684,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x84\f\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb6\r\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -691,7 +726,12 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x03tag\x18\xb4\x01 \x01(\tB\n" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12,\n" +
 	"\tgrpc_port\x18\xbe\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12b\n" +
-	"\x15enabled_deserializers\x18\xc8\x01 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers:s\xbaHp\x1an\n" +
+	"\x15enabled_deserializers\x18\xc8\x01 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers\x12\"\n" +
+	"\bio_uring\x18\xd2\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\aioUring\x12F\n" +
+	"\x18io_uring_recv_batch_size\x18\xd3\x01 \x01(\rB\r\xbaH\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x14ioUringRecvBatchSize\x12D\n" +
+	"\x17io_uring_cqe_batch_size\x18\xd4\x01 \x01(\rB\r\xbaH\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +

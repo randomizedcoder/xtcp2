@@ -122,6 +122,9 @@ const XtcpConfig$json = {
     {'1': 'tag', '3': 180, '4': 1, '5': 9, '8': {}, '10': 'tag'},
     {'1': 'grpc_port', '3': 190, '4': 1, '5': 13, '8': {}, '10': 'grpcPort'},
     {'1': 'enabled_deserializers', '3': 200, '4': 1, '5': 11, '6': '.xtcp_config.v1.EnabledDeserializers', '8': {}, '10': 'enabledDeserializers'},
+    {'1': 'io_uring', '3': 210, '4': 1, '5': 8, '8': {}, '10': 'ioUring'},
+    {'1': 'io_uring_recv_batch_size', '3': 211, '4': 1, '5': 13, '8': {}, '10': 'ioUringRecvBatchSize'},
+    {'1': 'io_uring_cqe_batch_size', '3': 212, '4': 1, '5': 13, '8': {}, '10': 'ioUringCqeBatchSize'},
   ],
   '7': {},
 };
@@ -153,9 +156,12 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'qgEgASgJQgq6SAfIAQByAhgoUgVsYWJlbBIdCgN0YWcYtAEgASgJQgq6SAfIAQByAhgoUgN0YW'
     'cSLAoJZ3JwY19wb3J0GL4BIAEoDUIOukgLyAEBKgYY//8DKAFSCGdycGNQb3J0EmIKFWVuYWJs'
     'ZWRfZGVzZXJpYWxpemVycxjIASABKAsyJC54dGNwX2NvbmZpZy52MS5FbmFibGVkRGVzZXJpYW'
-    'xpemVyc0IGukgDyAEAUhRlbmFibGVkRGVzZXJpYWxpemVyczpzukhwGm4KD1h0Y3BDb25maWcu'
-    'cG9sbBIyUG9sbCB0aW1lb3V0IG11c3QgYmUgbGVzcyB0aGFuIHBvbGwgcG9sbF9mcmVxdWVuY3'
-    'kaJ3RoaXMucG9sbF9mcmVxdWVuY3kgPiB0aGlzLnBvbGxfdGltZW91dA==');
+    'xpemVyc0IGukgDyAEAUhRlbmFibGVkRGVzZXJpYWxpemVycxIiCghpb191cmluZxjSASABKAhC'
+    'BrpIA8gBAFIHaW9VcmluZxJGChhpb191cmluZ19yZWN2X2JhdGNoX3NpemUY0wEgASgNQg26SA'
+    'rIAQAqBRiAICgBUhRpb1VyaW5nUmVjdkJhdGNoU2l6ZRJEChdpb191cmluZ19jcWVfYmF0Y2hf'
+    'c2l6ZRjUASABKA1CDbpICsgBACoFGIAgKAFSE2lvVXJpbmdDcWVCYXRjaFNpemU6c7pIcBpuCg'
+    '9YdGNwQ29uZmlnLnBvbGwSMlBvbGwgdGltZW91dCBtdXN0IGJlIGxlc3MgdGhhbiBwb2xsIHBv'
+    'bGxfZnJlcXVlbmN5Gid0aGlzLnBvbGxfZnJlcXVlbmN5ID4gdGhpcy5wb2xsX3RpbWVvdXQ=');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {
