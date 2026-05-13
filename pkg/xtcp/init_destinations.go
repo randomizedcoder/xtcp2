@@ -38,12 +38,14 @@ const (
 
 var (
 	validDestinationsMap = map[string]bool{
-		"null":   true,
-		"kafka":  true,
-		"nsq":    true,
-		"udp":    true,
-		"nats":   true,
-		"valkey": true,
+		"null":     true,
+		"kafka":    true,
+		"nsq":      true,
+		"udp":      true,
+		"nats":     true,
+		"valkey":   true,
+		"unix":     true,
+		"unixgram": true,
 	}
 )
 
@@ -87,6 +89,12 @@ func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
 	x.Destinations.Store("valkey", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
 		return x.destValKey(ctx, xtcpRecordBinary)
 	})
+	x.Destinations.Store("unix", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destUnix(ctx, xtcpRecordBinary)
+	})
+	x.Destinations.Store("unixgram", func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error) {
+		return x.destUnixGram(ctx, xtcpRecordBinary)
+	})
 
 	f, ok := x.Destinations.Load(dest)
 	if !ok {
@@ -109,6 +117,12 @@ func (x *XTCP) InitDests(ctx context.Context, wg *sync.WaitGroup) {
 	})
 	x.InitDestinations.Store("valkey", func(ctx context.Context) {
 		x.InitDestValKey(ctx)
+	})
+	x.InitDestinations.Store("unix", func(ctx context.Context) {
+		x.InitDestUnix(ctx)
+	})
+	x.InitDestinations.Store("unixgram", func(ctx context.Context) {
+		x.InitDestUnixGram(ctx)
 	})
 
 	if f, ok := x.InitDestinations.Load(dest); ok {
@@ -488,4 +502,47 @@ func (x *XTCP) pingKafka(ctx context.Context) (err error) {
 		log.Printf("pingKafka kafka ping time:%0.6fs\n", time.Since(pTime).Seconds())
 	}
 	return err
+}
+
+// InitDestUnix dials a Unix stream socket where the daemon is listening.
+// Fails loudly (x.fatalf) when nothing is listening on the path so the
+// process doesn't silently drop records on startup.
+func (x *XTCP) InitDestUnix(ctx context.Context) {
+
+	path := strings.TrimPrefix(x.config.Dest, "unix:")
+
+	if x.debugLevel > 10 {
+		log.Printf("InitDestUnix config.Dest:%s path:%s", x.config.Dest, path)
+	}
+
+	conn, err := net.Dial("unix", path)
+	if err != nil {
+		x.fatalf("InitDestUnix net.Dial(unix, %q) err:%v", path, err)
+		return
+	}
+	x.unixConn = conn
+}
+
+// InitDestUnixGram dials a Unix datagram socket. Because dialing unixgram
+// does not verify the peer exists, we pre-check the socket file via
+// os.Stat so that the "fail loudly at startup" contract is preserved.
+func (x *XTCP) InitDestUnixGram(ctx context.Context) {
+
+	path := strings.TrimPrefix(x.config.Dest, "unixgram:")
+
+	if x.debugLevel > 10 {
+		log.Printf("InitDestUnixGram config.Dest:%s path:%s", x.config.Dest, path)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		x.fatalf("InitDestUnixGram socket %q does not exist: %v", path, err)
+		return
+	}
+
+	conn, err := net.Dial("unixgram", path)
+	if err != nil {
+		x.fatalf("InitDestUnixGram net.Dial(unixgram, %q) err:%v", path, err)
+		return
+	}
+	x.unixGramConn = conn
 }
