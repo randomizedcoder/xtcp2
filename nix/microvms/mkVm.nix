@@ -8,6 +8,15 @@
 #   - bundles the self-test as a oneshot service triggered after xtcp2
 #   - shares /nix/store with the host via 9p
 #
+# Two flavors selected by `sink`:
+#   - "minimal" (default): xtcp2 alone, JSONL configFile (currently a no-op
+#                          stub; the netlink-readout check tolerates a missing
+#                          file). Cheap CI smoke.
+#   - "vector":            xtcp2 → unixgram UDS → Vector → parquet → MinIO,
+#                          all inside the VM. Uses memVector budget. Self-test
+#                          checks VECTOR/MINIO/PARQUET sentinels in addition
+#                          to the rest of the suite.
+#
 {
   pkgs,
   lib,
@@ -15,21 +24,61 @@
   nixpkgs,
   arch,
   xtcp2Package,
-  # xtcp2AllPackage is the symlinkJoin of every cmd/* binary (default
-  # variant). Installed into environment.systemPackages so the in-VM
-  # self-test can `-help` smoke every binary, not just xtcp2.
   xtcp2AllPackage,
+  sink ? "minimal",
+  # Required when sink == "vector". A derivation that provides
+  # share/xtcp2/xtcp_flat_record.desc. See nix/lib/mkProtoDescSet.nix.
+  protoDescPackage ? null,
 }:
 
 let
   constants = import ./constants.nix;
   cfg = constants.architectures.${arch};
-  selfTest = import ./self-test.nix {
-    inherit pkgs;
-    promPort = cfg.promPort;
-    grpcPort = cfg.grpcPort;
-  };
+
+  isVector = sink == "vector";
+  effectiveMem = if isVector then cfg.memVector else cfg.mem;
+
+  selfTest =
+    if isVector then
+      import ./self-test-vector.nix {
+        inherit pkgs;
+        promPort = cfg.promPort;
+        grpcPort = cfg.grpcPort;
+      }
+    else
+      import ./self-test.nix {
+        inherit pkgs;
+        promPort = cfg.promPort;
+        grpcPort = cfg.grpcPort;
+      };
+
   vmConfig = ./xtcp2-vm-config.json;
+
+  vectorModules =
+    assert lib.assertMsg (
+      protoDescPackage != null
+    ) "mkVm.nix: sink=\"vector\" requires protoDescPackage";
+    [
+      (import ../modules/vector-pipeline.nix {
+        inherit protoDescPackage;
+      })
+      (import ../modules/minio-bucket-bootstrap.nix { })
+      ../modules/xtcp2-vector-path.nix
+    ];
+
+  xtcp2VectorArgs = [
+    "-dest"
+    "unixgram:/run/xtcp2/output.sock"
+    "-marshal"
+    "protobufSingle"
+    "-frequency"
+    "2s"
+    # xtcp2 requires `-timeout < -frequency`; defaults are 5 s / 10 s. With
+    # frequency dropped to 2 s for fast lifecycle-test cycles, timeout must
+    # come down too.
+    "-timeout"
+    "1s"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -37,7 +86,9 @@ in
   modules = [
     microvm.nixosModules.microvm
     ../modules/xtcp2-service.nix
-
+  ]
+  ++ lib.optionals isVector vectorModules
+  ++ [
     (
       { config, ... }:
       {
@@ -64,7 +115,7 @@ in
 
         microvm = {
           hypervisor = "qemu";
-          mem = cfg.mem;
+          mem = effectiveMem;
           vcpu = cfg.vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
           volumes = [ ];
@@ -136,6 +187,15 @@ in
           "kernel.io_uring_disabled" = 0;
         };
 
+        # xtcp2 enumerates network namespaces by listing /run/netns/ and
+        # /run/docker/netns/. If neither exists it fatal-exits with
+        # "neither network namespace directory exists.  ??!"
+        # (pkg/xtcp/init.go:130). Pre-create the linux one so xtcp2 starts
+        # cleanly in a fresh microvm where no namespaces have been added.
+        systemd.tmpfiles.rules = [
+          "d /run/netns 0755 root root -"
+        ];
+
         services.getty.autologinUser = "root";
         systemd.enableEmergencyMode = false;
 
@@ -144,9 +204,13 @@ in
           enable = true;
           package = xtcp2Package;
           configFile = vmConfig;
+          extraArgs = if isVector then xtcp2VectorArgs else [ ];
         };
 
-        # Self-test oneshot, fires after xtcp2 has started
+        # Self-test oneshot. The self-test's check 1 retries `systemctl
+        # is-active xtcp2` for 30 s, so it is robust to xtcp2 starting via
+        # the systemd.path gate (vector flavor) vs. directly at boot
+        # (minimal flavor).
         systemd.services.xtcp2-self-test = {
           description = "xtcp2 microvm self-test";
           after = [
@@ -176,6 +240,15 @@ in
             util-linux
             systemd
           ])
+          ++ lib.optionals isVector (
+            with pkgs;
+            [
+              vector
+              minio
+              minio-client
+              duckdb
+            ]
+          )
           ++ [ xtcp2AllPackage ];
       }
     )

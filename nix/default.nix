@@ -46,6 +46,16 @@ let
       ;
   };
 
+  # Protobuf FileDescriptorSet for the XtcpFlatRecord schema. Vector loads
+  # this at runtime to decode protobuf bytes streamed over the unixgram
+  # destination. Built once here so every consumer (vector module, smoke
+  # tests, future tooling) reuses the same derivation.
+  mkProtoDescSet = import ./lib/mkProtoDescSet.nix { inherit pkgs lib src; };
+  xtcpFlatRecordDescPackage = mkProtoDescSet {
+    name = "xtcp_flat_record";
+    protoFile = "proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
+  };
+
   # MicroVM infrastructure (per supported arch)
   microvms = import ./microvms {
     inherit
@@ -56,6 +66,7 @@ let
       ;
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
+    protoDescPackage = xtcpFlatRecordDescPackage;
   };
 
   # Static analysis + audit checks
@@ -113,6 +124,11 @@ in
 
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
+      microvm-x86_64-vector = microvms.vmsVector.x86_64;
+
+      # Protobuf FileDescriptorSet — buildable so users can grab the .desc
+      # without standing up the whole microvm.
+      xtcp-flat-record-desc = xtcpFlatRecordDescPackage;
 
       # Test runners exposed as packages so they can be built via
       # `nix build .#test-go-unit`, etc.
@@ -120,6 +136,7 @@ in
       test-go-bench = tests.go-bench;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
     };
 
   devShells = {
@@ -129,6 +146,7 @@ in
   checks = checks // {
     # Microvm lifecycle per arch shows up alongside the rest of the checks.
     microvm-lifecycle-x86_64 = microvms.checks.x86_64;
+    microvm-lifecycle-x86_64-vector = microvms.checksVector.x86_64;
   };
 
   apps = {
@@ -139,6 +157,10 @@ in
     microvm-x86_64-lifecycle = {
       type = "app";
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
+    };
+    microvm-x86_64-lifecycle-vector = {
+      type = "app";
+      program = "${microvms.lifecycleVector.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-vector";
     };
   };
 

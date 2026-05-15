@@ -21,6 +21,13 @@
       qemuCpu = null; # null => microvm.nix selects -enable-kvm -cpu host
       useKvm = true;
       mem = 1024;
+      # memVector is used by the "vector" flavor of the microvm. Vector
+      # (~120 MB RSS) plus MinIO (~80 MB) plus the Arrow/parquet working set
+      # require headroom above the 1 GiB baseline.
+      #
+      # Avoid exactly 2048 — microvm.nix #171: QEMU hangs at boot when memory
+      # is exactly 2 GiB. 2304 (2.25 GiB) sidesteps that and leaves slack.
+      memVector = 2304;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;

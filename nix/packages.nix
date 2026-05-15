@@ -65,6 +65,13 @@ in
 
     # Container plumbing
     skopeo # inspect dockerTools-built images without docker
+
+    # Vector / MinIO pipeline (microvm vector flavor; also useful for
+    # interactive debugging of the protobuf → parquet path on the host).
+    vector
+    minio
+    minio-client
+    duckdb
   ];
 
   # Combined list (everything for the dev shell)
