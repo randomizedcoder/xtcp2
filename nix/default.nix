@@ -96,6 +96,52 @@ let
 
   # Proto plumbing
   protos = import ./protos { inherit pkgs lib src; };
+
+  # Pedantic code-quality aggregator: runs every static-analysis tool +
+  # custom audit, never short-circuits, emits a single markdown report.
+  qualityReport = import ./quality-report {
+    inherit
+      pkgs
+      lib
+      vendoredSource
+      src
+      ;
+  };
+
+  # User-facing wrapper that refreshes docs/quality-report.md from the
+  # current source tree. Invoked via `nix run .#update-quality-report`.
+  updateQualityReport = pkgs.writeShellApplication {
+    name = "xtcp2-update-quality-report";
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+    ];
+    text = ''
+      set -eu
+
+      if [ ! -f flake.nix ]; then
+        echo "update-quality-report: must be run from the xtcp2 repo root" >&2
+        exit 2
+      fi
+
+      echo "==> building .#quality-report (Tier 2 takes ~10 min on a cold cache;"
+      echo "    Nix-cached on subsequent runs)"
+      result=$(nix build --no-link --print-out-paths --accept-flake-config .#quality-report)
+
+      mkdir -p docs
+      cp "$result/quality-report.md" docs/quality-report.md
+      chmod +w docs/quality-report.md
+
+      echo
+      echo "==> wrote docs/quality-report.md"
+
+      if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+        echo
+        echo "==> git diff --stat docs/quality-report.md"
+        git diff --stat docs/quality-report.md || true
+      fi
+    '';
+  };
 in
 {
   packages =
@@ -137,6 +183,9 @@ in
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
+
+      # Pedantic code-quality report — aggregates every tool's findings.
+      quality-report = qualityReport;
     };
 
   devShells = {
@@ -161,6 +210,14 @@ in
     microvm-x86_64-lifecycle-vector = {
       type = "app";
       program = "${microvms.lifecycleVector.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-vector";
+    };
+    quality-report = {
+      type = "app";
+      program = "${qualityReport}/bin/quality-report";
+    };
+    update-quality-report = {
+      type = "app";
+      program = "${updateQualityReport}/bin/xtcp2-update-quality-report";
     };
   };
 

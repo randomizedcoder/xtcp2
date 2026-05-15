@@ -1,0 +1,14 @@
+# Pre-existing test failures the quality-report should not count as new
+# regressions. Format: one entry per line, either
+#   <Package>.<Test>          (full path)
+# or
+#   <Test>                    (any test of that name, in any package)
+#
+# Remove an entry once the test is fixed.
+
+# pkg/xtcp ns_reconcile_test.go: existed before the vector-microvm work;
+# TestReconcileMaps has multiple sub-tests that fail due to a stale-vs-fresh
+# value comparison in ns_reconcile.go's reconcileMaps function.
+TestReconcileMaps
+TestReconcileMaps/Add_missing_keys_and_remove_extra_keys
+TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_less
