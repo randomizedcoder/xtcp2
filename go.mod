@@ -12,6 +12,7 @@ require (
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.22.0
+	github.com/randomizedcoder/giouring v0.0.0-00010101000000-000000000000
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/sr v1.3.0
@@ -36,6 +37,7 @@ require (
 	github.com/google/cel-go v0.24.1 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
@@ -43,7 +45,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.16.0 // indirect
-	github.com/randomizedcoder/giouring v0.0.0-00010101000000-000000000000 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.11.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
