@@ -59,6 +59,17 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		d.pC.WithLabelValues("Deserialize", "n", "count").Inc()
 
+		// Safety net before slicing: if the remaining buffer is shorter than
+		// a netlink header, the packet is truncated. DeserializeNlMsgHdr
+		// below would already return ErrNlMsgHdrSmall, but the slice
+		// expression that feeds it would panic with "slice bounds out of
+		// range" first. Reject cleanly so a malformed kernel response (or
+		// adversarial input) can't crash the daemon.
+		if end-offset < xtcpnl.NlMsgHdrSizeCst {
+			d.pC.WithLabelValues("Deserialize", "truncatedAtHeader", "error").Inc()
+			return n, ErrParseDeserializeNlMsgHdr
+		}
+
 		// if x.debugLevel > 1000 {
 		// 	log.Printf("Deserialize n:%d", n)
 		// }
@@ -116,11 +127,43 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 				}
 			}
 
+			d.nlhPool.Put(nlh)
+			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, nil
 		}
 
 		if nlh.Type != xtcpnl.NlMsgHdrTypeInetDiagCst {
-			return n, ErrParseDeserializeNLHTypeUnknown
+			// Skip non-InetDiag messages (NLMSG_NOOP=1, NLMSG_ERROR=2,
+			// NLMSG_OVERRUN=4, and any vendor/firewall messages the kernel
+			// may interleave). Previously this aborted the multipart parse
+			// the first time any such message appeared, which meant a
+			// single ACK or harmless framing message would suppress every
+			// real InetDiag record in the same response — net effect:
+			// xtcp2 silently produces zero records forever on kernels /
+			// network namespaces that include such messages.
+			//
+			// Advance past the body and continue. `nlh.Len` is the total
+			// message length (header + payload). We have already consumed
+			// the 16-byte header, so the body length is `nlh.Len - 16`.
+			// Guard against a malformed `nlh.Len` that would either rewind
+			// the cursor or run past the buffer, both of which would lead
+			// to an infinite loop or a panic.
+			d.pC.WithLabelValues("Deserialize", "skipUnknownType", "count").Inc()
+			if x.debugLevel > 10 {
+				log.Printf("Deserialize skipping nlh.Type:%d nlh.Len:%d offset:%d end:%d",
+					nlh.Type, nlh.Len, offset, end)
+			}
+			bodyLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst
+			if bodyLen < 0 || offset+bodyLen > end {
+				d.pC.WithLabelValues("Deserialize", "skipUnknownTypeBadLen", "error").Inc()
+				d.nlhPool.Put(nlh)
+				d.xtcpRecordPool.Put(xtcpRecord)
+				return n, nil
+			}
+			offset += bodyLen
+			d.nlhPool.Put(nlh)
+			d.xtcpRecordPool.Put(xtcpRecord)
+			continue
 		}
 
 		length := xtcpnl.InetDiagMsgSizeCst
