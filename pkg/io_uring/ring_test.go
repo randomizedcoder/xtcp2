@@ -61,13 +61,13 @@ func TestRecvSingleDatagram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRecvMsg: %v", err)
 	}
-	if _, err := r.Submit(); err != nil {
-		t.Fatalf("Submit: %v", err)
+	if _, serr := r.Submit(); serr != nil {
+		t.Fatalf("Submit: %v", serr)
 	}
 
 	payload := []byte("hello-netlink-shaped-bytes")
-	if _, err := syscall.Write(srv, payload); err != nil {
-		t.Fatalf("syscall.Write: %v", err)
+	if _, werr := syscall.Write(srv, payload); werr != nil {
+		t.Fatalf("syscall.Write: %v", werr)
 	}
 
 	results, err := r.WaitOne()
@@ -277,11 +277,11 @@ func TestWritevUnixStream(t *testing.T) {
 	header := []byte{0x12} // varint(18)
 	payload := []byte("the-eighteen-bytes")
 	buf := &payload
-	if _, err := r.EnqueueWritevUnix(cli, header, buf); err != nil {
-		t.Fatalf("EnqueueWritevUnix: %v", err)
+	if _, eerr := r.EnqueueWritevUnix(cli, header, buf); eerr != nil {
+		t.Fatalf("EnqueueWritevUnix: %v", eerr)
 	}
-	if _, err := r.Submit(); err != nil {
-		t.Fatalf("Submit: %v", err)
+	if _, serr := r.Submit(); serr != nil {
+		t.Fatalf("Submit: %v", serr)
 	}
 
 	results, err := r.WaitOne()
@@ -342,14 +342,14 @@ func TestTeardownDrainsCleanly(t *testing.T) {
 	}
 	srv, cli := socketpair(t)
 
-	if _, err := r.EnqueueRecvMsg(cli, allocBuf(64)); err != nil {
-		t.Fatalf("EnqueueRecvMsg: %v", err)
+	if _, eerr := r.EnqueueRecvMsg(cli, allocBuf(64)); eerr != nil {
+		t.Fatalf("EnqueueRecvMsg: %v", eerr)
 	}
-	if _, err := r.Submit(); err != nil {
-		t.Fatalf("Submit: %v", err)
+	if _, serr := r.Submit(); serr != nil {
+		t.Fatalf("Submit: %v", serr)
 	}
-	if _, err := syscall.Write(srv, []byte("x")); err != nil {
-		t.Fatalf("Write: %v", err)
+	if _, werr := syscall.Write(srv, []byte("x")); werr != nil {
+		t.Fatalf("Write: %v", werr)
 	}
 
 	var drained int
