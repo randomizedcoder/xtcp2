@@ -63,7 +63,8 @@ func MaxLoopsOrForEver(pollingLoops uint64, maxLoops uint64) bool {
 func ScanFile(file string) []string {
 	var lines []string
 
-	f, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
+	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
+	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
 		log.Fatalf("XTCPStater scanFile open file error: %v", err)
 	}
@@ -87,7 +88,8 @@ func ScanFile(file string) []string {
 func ReadFile(file string) []string {
 	var lines []string
 
-	f, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
+	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
+	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
 		log.Fatalf("open file error: %v", err)
 	}
