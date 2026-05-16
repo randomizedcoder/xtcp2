@@ -36,7 +36,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	if _, ok := validMarshallersMap[x.config.MarshalTo]; !ok {
-		wg.Done() // release the WG explicitly; log.Fatalf skips the deferred Done
+		wg.Done()                                                                                                          // release the WG explicitly; log.Fatalf skips the deferred Done
 		log.Fatalf("InitMarshallers XTCP MarshalTo invalid:%s, must be one of:%s", x.config.MarshalTo, validMarshallers()) //nolint:gocritic // exitAfterDefer: deferred wg.Done() is released explicitly above
 	}
 

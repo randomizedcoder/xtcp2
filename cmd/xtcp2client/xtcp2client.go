@@ -325,7 +325,7 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		_ = conn.Close()                                                                       // close explicitly; log.Fatal skips the deferred conn.Close
+		_ = conn.Close()                                      // close explicitly; log.Fatal skips the deferred conn.Close
 		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
 	}
 

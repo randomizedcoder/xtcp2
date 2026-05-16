@@ -76,7 +76,7 @@ func ScanFile(file string) []string {
 		lines = append(lines, line+string('\n'))
 	}
 	if err := sc.Err(); err != nil {
-		_ = f.Close()                                                                        // close explicitly; log.Fatalf skips the deferred Close
+		_ = f.Close()                                              // close explicitly; log.Fatalf skips the deferred Close
 		log.Fatalf("XTCPStater scanFile scan file error: %v", err) //nolint:gocritic // exitAfterDefer: deferred f.Close() is released explicitly above
 	}
 	return lines
@@ -104,7 +104,7 @@ func ReadFile(file string) []string {
 				break
 			}
 
-			_ = f.Close()                                                  // close explicitly; log.Fatalf skips the deferred Close
+			_ = f.Close()                               // close explicitly; log.Fatalf skips the deferred Close
 			log.Fatalf("read file line error: %v", err) //nolint:gocritic // exitAfterDefer: deferred f.Close() is released explicitly above
 		}
 		lines = append(lines, line)
