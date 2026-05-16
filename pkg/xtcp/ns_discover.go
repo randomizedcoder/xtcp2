@@ -15,9 +15,10 @@ func (x *XTCP) discoverAllNamespaces() (nsMap *sync.Map) {
 
 	var nsMaps []*sync.Map
 	x.netNsDirs.Range(func(key, value interface{}) bool {
-		nm := x.discoverNamespaces(key.(string))
+		dir, _ := key.(string)
+		nm := x.discoverNamespaces(dir)
 		if x.debugLevel > 10 {
-			log.Printf("discoverALLNamespaces x.discoverNamespaces(netNsDir):%s", key.(string))
+			log.Printf("discoverALLNamespaces x.discoverNamespaces(netNsDir):%s", dir)
 		}
 		nsMaps = append(nsMaps, nm)
 		return true
