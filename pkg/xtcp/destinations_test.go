@@ -111,7 +111,7 @@ func setupUDPDest(t *testing.T, _ string) destSetupResult {
 			}
 			return buf[:n], nil
 		},
-		cleanup: func() { pc.Close() },
+		cleanup: func() { _ = pc.Close() },
 	}
 }
 
@@ -140,7 +140,7 @@ func setupUnixGramDest(t *testing.T, dir string) destSetupResult {
 			}
 			return buf[:n], nil
 		},
-		cleanup: func() { conn.Close() },
+		cleanup: func() { _ = conn.Close() },
 	}
 }
 
@@ -212,9 +212,9 @@ func setupUnixDest(t *testing.T, dir string) destSetupResult {
 		},
 		cleanup: func() {
 			if clientConn != nil {
-				clientConn.Close()
+				_ = clientConn.Close()
 			}
-			ln.Close()
+			_ = ln.Close()
 		},
 	}
 }
@@ -599,7 +599,7 @@ func setupUDPDestTB(t testing.TB, dir string) destSetupResult {
 	return destSetupResult{
 		dest: "udp:" + addr,
 		recv: func() ([]byte, error) {
-			pc.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			_ = pc.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			buf := make([]byte, 1<<16)
 			n, _, err := pc.ReadFrom(buf)
 			if err != nil {
@@ -607,7 +607,7 @@ func setupUDPDestTB(t testing.TB, dir string) destSetupResult {
 			}
 			return buf[:n], nil
 		},
-		cleanup: func() { pc.Close() },
+		cleanup: func() { _ = pc.Close() },
 	}
 }
 func setupUnixGramDestTB(t testing.TB, dir string) destSetupResult {
@@ -620,7 +620,7 @@ func setupUnixGramDestTB(t testing.TB, dir string) destSetupResult {
 	return destSetupResult{
 		dest: "unixgram:" + path,
 		recv: func() ([]byte, error) {
-			conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			buf := make([]byte, 1<<16)
 			n, _, err := conn.ReadFromUnix(buf)
 			if err != nil {
@@ -628,7 +628,7 @@ func setupUnixGramDestTB(t testing.TB, dir string) destSetupResult {
 			}
 			return buf[:n], nil
 		},
-		cleanup: func() { conn.Close() },
+		cleanup: func() { _ = conn.Close() },
 	}
 }
 func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
@@ -664,7 +664,7 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 		dest: "unix:" + path,
 		recv: func() ([]byte, error) {
 			c := getConn()
-			c.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			_ = c.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			br := newByteReader(c)
 			length, err := binary.ReadUvarint(br)
 			if err != nil {
@@ -678,9 +678,9 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 		},
 		cleanup: func() {
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
-			ln.Close()
+			_ = ln.Close()
 		},
 	}
 }
