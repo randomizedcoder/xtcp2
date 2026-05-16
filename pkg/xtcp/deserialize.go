@@ -39,7 +39,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 	var startPollTime time.Time
 	if s, ok := x.pollTime.Load(d.fd); ok {
-		startPollTime, _ = s.(time.Time)
+		startPollTime, _ = s.(time.Time) //nolint:errcheck // sync.Map Store sites all use time.Time
 	} else {
 		d.pC.WithLabelValues("Deserialize", "pollTime", "error").Inc()
 	}
@@ -82,7 +82,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		}
 
 		nlPacketStartTime := time.Now()
-		xtcpRecord, _ := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+		xtcpRecord, _ := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.New returns *XtcpFlatRecord
 		// xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 		xtcpRecord.Hostname = x.hostname
@@ -94,7 +94,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord.SocketFd = uint64(d.fd)
 		xtcpRecord.NetlinkerId = uint64(d.id)
 
-		nlh, _ := d.nlhPool.Get().(*xtcpnl.NlMsgHdr)
+		nlh, _ := d.nlhPool.Get().(*xtcpnl.NlMsgHdr) //nolint:errcheck // pool.New returns *NlMsgHdr
 
 		var errD error
 		length = xtcpnl.NlMsgHdrSizeCst
@@ -266,7 +266,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 
 	for j := 0; d.offset < d.end; j++ {
 
-		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr)
+		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr) //nolint:errcheck // pool.New returns *RTAttr
 
 		length := xtcpnl.RTAttrSizeCst
 		_, errD := xtcpnl.DeserializeRTAttr((*d.NLPacket)[d.offset:d.offset+length], rta)
@@ -276,7 +276,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 		d.offset += length
 
 		length = int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
-		_ = x.DeserializeAttribute(DeserializeAttributeArgs{
+		_ = x.DeserializeAttribute(DeserializeAttributeArgs{ //nolint:errcheck // always returns nil today; signature reserves the option
 			Type:       int(rta.Type),
 			buf:        (*d.NLPacket)[d.offset : d.offset+length],
 			xtcpRecord: d.xtcpRecord,
@@ -309,7 +309,7 @@ func (x *XTCP) DeserializeAttribute(d DeserializeAttributeArgs) error {
 	// pC.WithLabelValues("DeserializeAttribute", x.RTATypeDeserializerStr[Type], "count").Inc()
 
 	if Deserializer, ok := x.RTATypeDeserializer[d.Type]; ok {
-		_ = Deserializer(d.buf, d.xtcpRecord)
+		_ = Deserializer(d.buf, d.xtcpRecord) //nolint:errcheck // per-attribute deserializers currently return nil; signature reserves the option
 		return nil
 	}
 

@@ -74,7 +74,7 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 			if testing {
 				destMap.Store(key, value)
 			} else {
-				nsName, _ := key.(string)
+				nsName, _ := key.(string) //nolint:errcheck // sourceMap.Range keys are strings
 				x.nsAdd(ctx, &nsName)
 			}
 			storeCount++

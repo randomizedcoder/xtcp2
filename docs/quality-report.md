@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T22:38:25Z
+Generated: 2026-05-16T22:58:20Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 62 |
-| Findings (Tier 0) | 44 |
+| Total findings | 43 |
+| Findings (Tier 0) | 29 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 12 |
-| Findings (non-tiered) | 6 |
-| Files with at least one finding | 29 |
+| Findings (non-tiered) | 2 |
+| Files with at least one finding | 23 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,15 +31,15 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 56 | 5s |
-| golangci-lint (standard) | findings | 44 | 5s |
-| golangci-lint (quick) | findings | 33 | 13s |
-| gosec | findings | 6 | 1s |
+| golangci-lint (comprehensive) | findings | 41 | 4s |
+| golangci-lint (standard) | findings | 29 | 5s |
+| golangci-lint (quick) | findings | 26 | 13s |
+| gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 0s |
+| gofmt | clean | 0 | 1s |
 | nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
-| iouring-audit | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 1s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 6 | 2s |
@@ -51,7 +51,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 44 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 29 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 12 | 0 |
 
@@ -63,27 +63,27 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `pkg/xtcp/deserialize.go` | 11 | errcheck×7, G104×3, funlen×1 |
+| `pkg/xtcp/deserialize.go` | 7 | errcheck×6, funlen×1 |
 | `pkg/xtcp/poller.go` | 5 | errcheck×4, funlen×1 |
 | `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 4 | dupl×2, funlen×2 |
 | `pkg/xtcp/grpc_flatRecordService.go` | 3 | errcheck×3 |
 | `pkg/xtcp/netlinker.go` | 3 | errcheck×3 |
-| `tools/tcp_client/tcp_client.go` | 3 | errcheck×3 |
-| `tools/udp_receiver_server/udp_receiver_server.go` | 3 | errcheck×3 |
 | `cmd/xtcp2/xtcp2.go` | 2 | funlen×1, gocyclo×1 |
-| `cmd/xtcp2client/xtcp2client.go` | 2 | errcheck×2 |
-| `pkg/xtcp/grpc_server.go` | 2 | errcheck×1, G104×1 |
+| `pkg/xtcp/netlinker_iouring.go` | 2 | errcheck×2 |
+| `pkg/xtcp/ns_watch.go` | 2 | errcheck×1, G301×1 |
+| `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go` | 1 | errcheck×1 |
+| `pkg/misc/misc_test.go` | 1 | govet×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### golangci-lint / errcheck — 43
+### golangci-lint / errcheck — 27
 
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:213`: Error return value of `io.ReadAll` is not checked
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:272`: Error return value is not checked
-- `cmd/xtcp2client/xtcp2client.go:318`: Error return value of `conn.Close` is not checked
+- `pkg/xtcp/deserialize.go:42`: Error return value is not checked
+- `pkg/xtcp/deserialize.go:85`: Error return value is not checked
 
 ### golangci-lint / dupl — 6
 
@@ -94,16 +94,17 @@ between commits reveals exactly what changed.
 ### golangci-lint / funlen — 5
 
 - `cmd/xtcp2/xtcp2.go:111`: Function 'main' has too many statements (123 > 60)
-- `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (74 > 60)
-- `pkg/xtcp/poller.go:16`: Function 'Poller' is too long (134 > 100)
+- `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (75 > 60)
+- `pkg/xtcp/poller.go:16`: Function 'Poller' is too long (136 > 100)
+
+### golangci-lint / govet — 2
+
+- `pkg/misc/misc_test.go:115`: nilness: impossible condition: nil != nil
+- `pkg/xtcp/grpc_server.go:81`: shadow: declaration of "err" shadows declaration at line 42
 
 ### golangci-lint / gocyclo — 1
 
 - `cmd/xtcp2/xtcp2.go:444`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
-
-### golangci-lint / govet — 1
-
-- `pkg/misc/misc_test.go:115`: nilness: impossible condition: nil != nil
 
 ---
 
@@ -117,10 +118,6 @@ between commits reveals exactly what changed.
 
 - **high** `G122` at `tools/proto-field-audit/main.go:81` — Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal (CWE-367)
 - **medium** `G301` at `pkg/xtcp/ns_watch.go:119` — Expect directory permissions to be 0750 or less (CWE-276)
-- **low** `G104` at `pkg/xtcp/deserialize.go:170` — Errors unhandled (CWE-703)
-- **low** `G104` at `pkg/xtcp/deserialize.go:277` — Errors unhandled (CWE-703)
-- **low** `G104` at `pkg/xtcp/deserialize.go:310` — Errors unhandled (CWE-703)
-- **low** `G104` at `pkg/xtcp/grpc_server.go:81` — Errors unhandled (CWE-703)
 
 
 ---
@@ -176,7 +173,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/errcheck** with 43 findings (69% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `pkg/xtcp/deserialize.go` carries 11 findings (errcheck×7, G104×3, funlen×1). Refactor here before touching adjacent code.
+- Top contributor: **golangci-lint/errcheck** with 27 findings (63% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `pkg/xtcp/deserialize.go` carries 7 findings (errcheck×6, funlen×1). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
 

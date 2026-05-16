@@ -222,7 +222,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		return
 	}
 
-	xtcpFlatRecordsResponse, _ := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse)
+	xtcpFlatRecordsResponse, _ := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse) //nolint:errcheck // pool.New returns *FlatRecordsResponse
 	// defer x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
 
 	xtcpFlatRecordsResponse.XtcpFlatRecord = xtcpRecord
@@ -230,7 +230,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	if frClientCount > 0 {
 		x.flatRecordService.FlatRecordsClients.Range(func(k, v interface{}) bool {
 
-			stream, _ := k.(*xtcp_flat_record.XTCPFlatRecordService_FlatRecordsServer)
+			stream, _ := k.(*xtcp_flat_record.XTCPFlatRecordService_FlatRecordsServer) //nolint:errcheck // sync.Map Store sites all use this type
 			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil { // <<------------------------- Send
 				x.pC.WithLabelValues("flatRecordServiceSend", "frSend", "error").Inc()
 			}
@@ -246,7 +246,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	if pfrClientCount > 0 {
 		x.flatRecordService.PollFlatRecordsClients.Range(func(k, v interface{}) bool {
 
-			stream, _ := k.(*grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse])
+			stream, _ := k.(*grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse]) //nolint:errcheck // sync.Map Store sites all use this type
 			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil { // <<------------------------- Send
 				x.pC.WithLabelValues("flatRecordServiceSend", "pfrSend", "error").Inc()
 			}
