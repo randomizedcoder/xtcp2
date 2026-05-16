@@ -195,7 +195,7 @@ func insertIntoCH(ctx context.Context, c config, binaryData []byte) error {
 
 	log.Printf("clickhouseURL: %v", clickhouseURL)
 
-	req, err := http.NewRequest("POST", clickhouseURL, bytes.NewReader(binaryData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, clickhouseURL, bytes.NewReader(binaryData))
 	if err != nil {
 		log.Fatalf("Failed to create request: %v", err)
 	}
