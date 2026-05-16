@@ -27,9 +27,7 @@ func TestDeserializeCongInfo(t *testing.T) {
 				Cong: []byte{0x63, 0x75, 0x62, 0x69, 0x63, 0x0},
 			},
 			cong: "cubic\x00",
-			Func: func(data []byte, ci *CongInfo) (n int, err error) {
-				return DeserializeCongInfo(data, ci)
-			},
+			Func: DeserializeCongInfo,
 		},
 		{
 			description: "attribute_cong_bbr",
@@ -38,9 +36,7 @@ func TestDeserializeCongInfo(t *testing.T) {
 				Cong: []byte{0x62, 0x62, 0x72, 0x00},
 			},
 			cong: "bbr\x00",
-			Func: func(data []byte, ci *CongInfo) (n int, err error) {
-				return DeserializeCongInfo(data, ci)
-			},
+			Func: DeserializeCongInfo,
 		},
 		{
 			description: "attribute_cong_vegas",
@@ -49,9 +45,7 @@ func TestDeserializeCongInfo(t *testing.T) {
 				Cong: []byte{0x76, 0x65, 0x67, 0x61, 0x73, 0x00},
 			},
 			cong: "vegas\x00",
-			Func: func(data []byte, ci *CongInfo) (n int, err error) {
-				return DeserializeCongInfo(data, ci)
-			},
+			Func: DeserializeCongInfo,
 		},
 		{
 			description: "attribute_cong_dctcp",
@@ -60,9 +54,7 @@ func TestDeserializeCongInfo(t *testing.T) {
 				Cong: []byte{0x64, 0x63, 0x74, 0x63, 0x70, 0x00},
 			},
 			cong: "dctcp\x00",
-			Func: func(data []byte, ci *CongInfo) (n int, err error) {
-				return DeserializeCongInfo(data, ci)
-			},
+			Func: DeserializeCongInfo,
 		},
 	}
 	for i, test := range tests {
@@ -118,10 +110,7 @@ var (
 
 // go test -bench=BenchmarkDeserializeCongInfo
 func BenchmarkDeserializeCongInfo(b *testing.B) {
-	f := func(data []byte, ci *CongInfo) (n int, err error) {
-		return DeserializeCongInfo(data, ci)
-	}
-	DeserializeCongInfoBoth(b, f)
+	DeserializeCongInfoBoth(b, DeserializeCongInfo)
 }
 
 // func BenchmarkDeserializeCongInfoReflection(b *testing.B) {
@@ -140,9 +129,7 @@ func DeserializeCongInfoBoth(b *testing.B, Func func(data []byte, ci *CongInfo) 
 				Cong: []byte{0x63, 0x75, 0x62, 0x69, 0x63, 0x0},
 			},
 			cong: "cubic\x00",
-			Func: func(data []byte, ci *CongInfo) (n int, err error) {
-				return DeserializeCongInfo(data, ci)
-			},
+			Func: DeserializeCongInfo,
 		},
 	}
 

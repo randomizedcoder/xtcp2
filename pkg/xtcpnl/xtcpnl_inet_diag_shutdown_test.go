@@ -22,17 +22,13 @@ func TestDeserializeShutdown(t *testing.T) {
 			description: tnAttrShutdown,
 			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
-			Func: func(data []byte, s *Shutdown) (n int, err error) {
-				return DeserializeShutdown(data, s)
-			},
+			Func: DeserializeShutdown,
 		},
 		{
 			description: "attribute_shutdown_reflection",
 			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
-			Func: func(data []byte, s *Shutdown) (n int, err error) {
-				return DeserializeShutdownReflection(data, s)
-			},
+			Func: DeserializeShutdownReflection,
 		},
 	}
 	for i, test := range tests {
@@ -81,17 +77,11 @@ var (
 
 // go test -bench=BenchmarkDeserializeShutdown
 func BenchmarkDeserializeShutdown(b *testing.B) {
-	f := func(data []byte, s *Shutdown) (n int, err error) {
-		return DeserializeShutdown(data, s)
-	}
-	DeserializeShutdownBoth(b, f)
+	DeserializeShutdownBoth(b, DeserializeShutdown)
 }
 
 func BenchmarkDeserializeShutdownReflection(b *testing.B) {
-	f := func(data []byte, s *Shutdown) (n int, err error) {
-		return DeserializeShutdownReflection(data, s)
-	}
-	DeserializeShutdownBoth(b, f)
+	DeserializeShutdownBoth(b, DeserializeShutdownReflection)
 }
 
 func DeserializeShutdownBoth(b *testing.B, Func func(data []byte, s *Shutdown) (n int, err error)) {

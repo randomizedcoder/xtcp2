@@ -50,9 +50,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   15598,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -71,9 +69,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   204403,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -92,9 +88,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   204403,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsgViaReflection(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsgViaReflection,
 
 			debugLevel: 11,
 		},
@@ -113,9 +107,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   10698,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -134,9 +126,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   10698,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsgViaReflection(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsgViaReflection,
 
 			debugLevel: 11,
 		},
@@ -155,9 +145,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   27461,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -176,9 +164,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   27461,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsgViaReflection(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsgViaReflection,
 
 			debugLevel: 11,
 		},
@@ -197,9 +183,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26664450,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -218,9 +202,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26664450,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsgViaReflection(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsgViaReflection,
 
 			debugLevel: 11,
 		},
@@ -239,9 +221,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26683184,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -260,9 +240,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26683184,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsgViaReflection(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsgViaReflection,
 
 			debugLevel: 11,
 		},
@@ -280,9 +258,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   98949,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},
@@ -300,9 +276,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     990,
 			Inode:   100876,
 
-			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-				return DeserializeInetDiagMsg(data, idm, s)
-			},
+			Func: DeserializeInetDiagMsg,
 
 			debugLevel: 11,
 		},

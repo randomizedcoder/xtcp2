@@ -25,25 +25,19 @@ func TestDeserializeSockOpt(t *testing.T) {
 			description: tnAttrSockopt,
 			filename:    tdAttrSockopt_6_10_3,
 			s:           &t1,
-			Func: func(data []byte, s *SockOpt) (n int, err error) {
-				return DeserializeSockOpt(data, s)
-			},
+			Func: DeserializeSockOpt,
 		},
 		{
 			description: "attribute_sockopt_reflection",
 			filename:    tdAttrSockopt_6_10_3,
 			s:           &t2,
-			Func: func(data []byte, s *SockOpt) (n int, err error) {
-				return DeserializeSockOptReflection(data, s)
-			},
+			Func: DeserializeSockOptReflection,
 		},
 		{
 			description: "attribute_sockopt_5200",
 			filename:    "./testdata/6_10_3/attribute_sockopt_5200",
 			s:           &t3,
-			Func: func(data []byte, s *SockOpt) (n int, err error) {
-				return DeserializeSockOpt(data, s)
-			},
+			Func: DeserializeSockOpt,
 		},
 	}
 	for i, test := range tests {
@@ -92,17 +86,11 @@ var (
 
 // go test -bench=BenchmarkDeserializeSockOpt
 func BenchmarkDeserializeSockOpt(b *testing.B) {
-	f := func(data []byte, s *SockOpt) (n int, err error) {
-		return DeserializeSockOpt(data, s)
-	}
-	DeserializeSockOptBoth(b, f)
+	DeserializeSockOptBoth(b, DeserializeSockOpt)
 }
 
 func BenchmarkDeserializeSockOptReflection(b *testing.B) {
-	f := func(data []byte, s *SockOpt) (n int, err error) {
-		return DeserializeSockOptReflection(data, s)
-	}
-	DeserializeSockOptBoth(b, f)
+	DeserializeSockOptBoth(b, DeserializeSockOptReflection)
 }
 
 func DeserializeSockOptBoth(b *testing.B, Func func(data []byte, tc *SockOpt) (n int, err error)) {

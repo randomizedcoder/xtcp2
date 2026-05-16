@@ -77,17 +77,11 @@ var (
 )
 
 func BenchmarkDeserializeNlMsgHdr(b *testing.B) {
-	f := func(data []byte, nlmsghr *NlMsgHdr) (n int, err error) {
-		return DeserializeNlMsgHdr(data, nlmsghr)
-	}
-	DeserializeNlMsgHdrBoth(b, f)
+	DeserializeNlMsgHdrBoth(b, DeserializeNlMsgHdr)
 }
 
 func BenchmarkDeserializeNlMsgHdrReflection(b *testing.B) {
-	f := func(data []byte, nlmsghr *NlMsgHdr) (n int, err error) {
-		return DeserializeNlMsgHdrRelection(data, nlmsghr)
-	}
-	DeserializeNlMsgHdrBoth(b, f)
+	DeserializeNlMsgHdrBoth(b, DeserializeNlMsgHdrRelection)
 }
 
 func DeserializeNlMsgHdrBoth(b *testing.B, Func func(data []byte, nlmsghr *NlMsgHdr) (n int, err error)) {
@@ -139,21 +133,15 @@ var (
 // go test -bench=BenchmarkDeserializeInetDiagReqV2
 func BenchmarkDeserializeInetDiagReqV2(b *testing.B) {
 
-	f := func(data []byte, inetdiagreqv2 *InetDiagReqV2, s *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagReqV2(data, inetdiagreqv2, s)
-	}
 
-	DeserializeInetDiagReqV2Both(b, f)
+	DeserializeInetDiagReqV2Both(b, DeserializeInetDiagReqV2)
 
 }
 
 func BenchmarkDeserializeInetDiagReqV2Reflection(b *testing.B) {
 
-	f := func(data []byte, inetdiagreqv2 *InetDiagReqV2, s *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagReqV2Relection(data, inetdiagreqv2, s)
-	}
 
-	DeserializeInetDiagReqV2Both(b, f)
+	DeserializeInetDiagReqV2Both(b, DeserializeInetDiagReqV2Relection)
 
 }
 
@@ -210,20 +198,14 @@ var (
 
 func BenchmarkDeserializeInetDiagMsg(b *testing.B) {
 
-	f := func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagMsg(data, idm, s)
-	}
 
-	DeserializeInetDiagMsgBoth(b, f)
+	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsg)
 }
 
 func BenchmarkDeserializeInetDiagMsgReflection(b *testing.B) {
 
-	f := func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagMsgViaReflection(data, idm, s)
-	}
 
-	DeserializeInetDiagMsgBoth(b, f)
+	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsgViaReflection)
 }
 
 func DeserializeInetDiagMsgBoth(b *testing.B, Func func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error)) {
@@ -287,17 +269,11 @@ var (
 // go test -bench=BenchmarkDeserializeInetDiagSockID
 
 func BenchmarkDeserializeInetDiagSockID(b *testing.B) {
-	f := func(data []byte, sockid *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagSockID(data, sockid)
-	}
-	DeserializeInetDiagSockIDBoth(b, f)
+	DeserializeInetDiagSockIDBoth(b, DeserializeInetDiagSockID)
 }
 
 func BenchmarkDeserializeInetDiagSockIDReflection(b *testing.B) {
-	f := func(data []byte, sockid *InetDiagSockID) (n int, err error) {
-		return DeserializeInetDiagSockIDReflection(data, sockid)
-	}
-	DeserializeInetDiagSockIDBoth(b, f)
+	DeserializeInetDiagSockIDBoth(b, DeserializeInetDiagSockIDReflection)
 }
 
 func DeserializeInetDiagSockIDBoth(b *testing.B, Func func(data []byte, sockid *InetDiagSockID) (n int, err error)) {
@@ -345,17 +321,11 @@ var (
 // go test -bench=BenchmarkDeserializeRTAttr
 
 func BenchmarkDeserializeRTAttr(b *testing.B) {
-	f := func(data []byte, rta *RTAttr) (n int, err error) {
-		return DeserializeRTAttr(data, rta)
-	}
-	DeserializeRTAttrBoth(b, f)
+	DeserializeRTAttrBoth(b, DeserializeRTAttr)
 }
 
 func BenchmarkDeserializeRTAttrReflection(b *testing.B) {
-	f := func(data []byte, rta *RTAttr) (n int, err error) {
-		return DeserializeRTAttrReflection(data, rta)
-	}
-	DeserializeRTAttrBoth(b, f)
+	DeserializeRTAttrBoth(b, DeserializeRTAttrReflection)
 }
 
 func DeserializeRTAttrBoth(b *testing.B, Func func(data []byte, rta *RTAttr) (n int, err error)) {

@@ -26,9 +26,7 @@ func TestDeserializeMemInfo(t *testing.T) {
 				Fmem: 2284,
 				Tmem: 4,
 			},
-			Func: func(data []byte, mi *MemInfo) (n int, err error) {
-				return DeserializeMemInfo(data, mi)
-			},
+			Func: DeserializeMemInfo,
 		},
 		{
 			description: "attribute_meminfo_1506",
@@ -39,9 +37,7 @@ func TestDeserializeMemInfo(t *testing.T) {
 				Fmem: 2590,
 				Tmem: 2,
 			},
-			Func: func(data []byte, mi *MemInfo) (n int, err error) {
-				return DeserializeMemInfo(data, mi)
-			},
+			Func: DeserializeMemInfo,
 		},
 		{
 			description: "attribute_meminfo",
@@ -52,9 +48,7 @@ func TestDeserializeMemInfo(t *testing.T) {
 				Fmem: 0,
 				Tmem: 0,
 			},
-			Func: func(data []byte, mi *MemInfo) (n int, err error) {
-				return DeserializeMemInfo(data, mi)
-			},
+			Func: DeserializeMemInfo,
 		},
 		{
 			description: tnMeminfo4_19_319,
@@ -65,9 +59,7 @@ func TestDeserializeMemInfo(t *testing.T) {
 				Fmem: 4096,
 				Tmem: 0,
 			},
-			Func: func(data []byte, mi *MemInfo) (n int, err error) {
-				return DeserializeMemInfo(data, mi)
-			},
+			Func: DeserializeMemInfo,
 		},
 		{
 			description: tnMeminfo4_19_319,
@@ -78,9 +70,7 @@ func TestDeserializeMemInfo(t *testing.T) {
 				Fmem: 4096,
 				Tmem: 0,
 			},
-			Func: func(data []byte, mi *MemInfo) (n int, err error) {
-				return DeserializeMemInfoReflection(data, mi)
-			},
+			Func: DeserializeMemInfoReflection,
 		},
 	}
 	for i, test := range tests {
@@ -140,17 +130,11 @@ var (
 // go test -bench=BenchmarkDeserializeMemInfo
 
 func BenchmarkDeserializeMemInfo(b *testing.B) {
-	f := func(data []byte, mi *MemInfo) (n int, err error) {
-		return DeserializeMemInfo(data, mi)
-	}
-	DeserializeMemInfoBoth(b, f)
+	DeserializeMemInfoBoth(b, DeserializeMemInfo)
 }
 
 func BenchmarkDeserializeMemInfoReflection(b *testing.B) {
-	f := func(data []byte, mi *MemInfo) (n int, err error) {
-		return DeserializeMemInfoReflection(data, mi)
-	}
-	DeserializeMemInfoBoth(b, f)
+	DeserializeMemInfoBoth(b, DeserializeMemInfoReflection)
 }
 
 func DeserializeMemInfoBoth(b *testing.B, Func func(data []byte, mi *MemInfo) (n int, err error)) {
