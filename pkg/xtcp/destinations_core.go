@@ -129,6 +129,9 @@ func destinationLookupError(scheme string, status destLookup) error {
 			"rebuild with '-tags dest_%s' (or use the matching `xtcp2-%s` Nix attribute). "+
 			"Compiled-in destinations: %v",
 			scheme, scheme, scheme, CompiledInSchemes())
+	case destLookupFound:
+		// Caller shouldn't be asking for an error message in the OK case;
+		// fall through to the generic nil return rather than panic.
 	}
 	return nil
 }
