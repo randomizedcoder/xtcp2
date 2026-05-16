@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-15T03:34:19Z
+Generated: 2026-05-16T17:37:31Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 747 |
-| Findings (Tier 0) | 181 |
-| Findings (Tier 1) | 349 |
-| Findings (Tier 2) | 192 |
-| Findings (non-tiered) | 25 |
-| Files with at least one finding | 102 |
+| Total findings | 577 |
+| Findings (Tier 0) | 180 |
+| Findings (Tier 1) | 217 |
+| Findings (Tier 2) | 168 |
+| Findings (non-tiered) | 12 |
+| Files with at least one finding | 96 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,15 +31,15 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 722 | 5s |
-| golangci-lint (standard) | findings | 532 | 4s |
-| golangci-lint (quick) | findings | 80 | 14s |
-| gosec | findings | 25 | 1s |
+| golangci-lint (comprehensive) | findings | 565 | 4s |
+| golangci-lint (standard) | findings | 399 | 5s |
+| golangci-lint (quick) | findings | 78 | 13s |
+| gosec | findings | 12 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 0s |
+| gofmt | clean | 0 | 1s |
 | nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
-| iouring-audit | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 1s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 6 | 2s |
@@ -51,9 +51,9 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 181 | 0 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 349 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 192 | 33 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 180 | 0 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 217 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 168 | 12 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,26 +64,26 @@ between commits reveals exactly what changed.
 | File | Findings | Top rules |
 |---|---|---|
 | `pkg/xtcp/destinations_test.go` | 43 | govet×20, gosec×11, goconst×8 |
-| `pkg/xtcpnl/xtcpnl_RTAttr_test.go` | 29 | gocritic×15, goconst×14 |
-| `pkg/xtcpnl/xtcpnl_bench_test.go` | 26 | gocritic×19, goconst×7 |
 | `pkg/xtcpnl/xtcpnl_inet_diag_msg_test.go` | 25 | gocritic×14, goconst×11 |
 | `tools/quality-report/main.go` | 25 | errcheck×11, goconst×7, govet×4 |
-| `pkg/xtcp/deserialize.go` | 22 | gocritic×8, errcheck×7, G104×3 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 21 | gocritic×9, staticcheck×7, dupl×2 |
-| `pkg/xtcpnl/xtcpnl_pcap_test.go` | 20 | gocritic×16, goconst×4 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_msg.go` | 18 | gocritic×16, staticcheck×2 |
-| `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go` | 16 | gocritic×5, gosec×3, G306×2 |
+| `pkg/xtcpnl/xtcpnl_bench_test.go` | 22 | gocritic×15, goconst×7 |
+| `pkg/xtcp/deserialize.go` | 20 | errcheck×7, gocritic×6, G104×3 |
+| `pkg/xtcpnl/xtcpnl_pcap_test.go` | 16 | gocritic×12, goconst×4 |
+| `pkg/xtcpnl/calculatePad_test.go` | 15 | gocritic×12, goconst×3 |
+| `pkg/xtcp/deserializers.go` | 14 | gocritic×13, funlen×1 |
+| `pkg/xtcpnl/xtcpnl_RTAttr_test.go` | 14 | goconst×14 |
+| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 12 | staticcheck×7, dupl×2, funlen×2 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### golangci-lint / gocritic — 303
+### golangci-lint / gocritic — 185
 
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:21`: commentFormatting: put a space between `//` and comment text
-- `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:17`: commentFormatting: put a space between `//` and comment text
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:25`: commentFormatting: put a space between `//` and comment text
+- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:22`: commentFormatting: put a space between `//` and comment text
+- `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:18`: commentFormatting: put a space between `//` and comment text
+- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:26`: commentFormatting: put a space between `//` and comment text
 
 ### golangci-lint / goconst — 139
 
@@ -91,41 +91,35 @@ between commits reveals exactly what changed.
 - `pkg/xtcp/deserialize_test.go:63`: string `null:` has 3 occurrences, make it a constant
 - `pkg/xtcp/deserialize_test.go:78`: string `counts` has 7 occurrences, make it a constant
 
-### golangci-lint / govet — 83
+### golangci-lint / govet — 84
 
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:447`: shadow: declaration of "err" shadows declaration at line 437
 - `cmd/register_schema/register_schema.go:76`: shadow: declaration of "err" shadows declaration at line 66
 - `cmd/register_schema/register_schema.go:110`: shadow: declaration of "err" shadows declaration at line 93
 
-### golangci-lint / errcheck — 54
+### golangci-lint / errcheck — 53
 
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:213`: Error return value of `io.ReadAll` is not checked
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:272`: Error return value is not checked
-- `cmd/xtcp2client/xtcp2client.go:174`: Error return value of `stream.Send` is not checked
+- `cmd/xtcp2client/xtcp2client.go:318`: Error return value of `conn.Close` is not checked
 
-### golangci-lint / staticcheck — 44
+### golangci-lint / staticcheck — 43
 
-- `cmd/xtcp2/xtcp2.go:392`: SA4009: argument promListen is overwritten before first use
-- `cmd/xtcp2/xtcp2.go:395`: SA4009(related information): assignment to promListen
-- `cmd/xtcp2/xtcp2.go:403`: SA4009(related information): assignment to promPath
+- `cmd/xtcp2/xtcp2.go:399`: SA4009: argument promListen is overwritten before first use
+- `cmd/xtcp2/xtcp2.go:402`: SA4009(related information): assignment to promListen
+- `cmd/xtcp2/xtcp2.go:410`: SA4009(related information): assignment to promPath
 
-### golangci-lint / gosec — 32
-
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:148`: G306: Expect WriteFile permissions to be 0600 or less
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:182`: G306: Expect WriteFile permissions to be 0600 or less
-- `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:46`: G306: Expect WriteFile permissions to be 0600 or less
-
-### golangci-lint / misspell — 21
-
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:52`: `seperated` is a misspelling of `separated`
-- `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:48`: `seperated` is a misspelling of `separated`
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:76`: `seperated` is a misspelling of `separated`
-
-### golangci-lint / noctx — 13
+### golangci-lint / noctx — 16
 
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:198`: net/http.NewRequest must not be called. use net/http.NewRequestWithContext
+- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:437`: net/http.Get must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)
 - `cmd/nsTest/nsTest.go:51`: os/exec.Command must not be called. use os/exec.CommandContext
-- `cmd/nsTest/nsTest.go:60`: os/exec.Command must not be called. use os/exec.CommandContext
+
+### golangci-lint / gosec — 15
+
+- `pkg/misc/misc_test.go:105`: G104: Errors unhandled
+- `pkg/xtcp/deserialize_test.go:161`: G104: Errors unhandled
+- `pkg/xtcp/destinations_test.go:114`: G104: Errors unhandled
 
 ### golangci-lint / unconvert — 12
 
@@ -145,12 +139,6 @@ between commits reveals exactly what changed.
 - `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (74 > 60)
 - `pkg/xtcp/deserializers.go:32`: Function 'InitDeserializers' has too many statements (71 > 60)
 
-### golangci-lint / nakedret — 3
-
-- `pkg/xtcp/ns_discover.go:37`: naked return in func `discoverAllNamespaces` with 56 lines of code
-- `pkg/xtcp/ns_discover.go:106`: naked return in func `discoverNamespaces` with 33 lines of code
-- `pkg/xtcp/ns_net_namespace.go:161`: naked return in func `openAndSetNSWithRetries` with 71 lines of code
-
 ### golangci-lint / prealloc — 3
 
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:77`: Consider preallocating values with capacity len(valueStrs)
@@ -167,7 +155,7 @@ between commits reveals exactly what changed.
 
 ### golangci-lint / gocyclo — 1
 
-- `cmd/xtcp2/xtcp2.go:439`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
+- `cmd/xtcp2/xtcp2.go:446`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
 
 ---
 
@@ -179,24 +167,11 @@ between commits reveals exactly what changed.
 
 ## 7. Security (gosec)
 
-- **high** `G108` at `cmd/ns/ns.go:14` — Profiling endpoint is automatically exposed on /debug/pprof (CWE-200)
 - **high** `G122` at `tools/proto-field-audit/main.go:81` — Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal (CWE-367)
-- **medium** `G306` at `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:148` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:182` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:46` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:138` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:186` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:220` — Expect WriteFile permissions to be 0600 or less (CWE-276)
-- **medium** `G306` at `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:257` — Expect WriteFile permissions to be 0600 or less (CWE-276)
 - **medium** `G107` at `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:437` — Potential HTTP request made with variable url (CWE-88)
-- **medium** `G114` at `cmd/ns/ns.go:173` — Use of net/http serve function that has no support for setting timeouts (CWE-676)
 - **medium** `G107` at `cmd/register_schema/register_schema.go:47` — Potential HTTP request made with variable url (CWE-88)
 - **medium** `G107` at `cmd/register_schema/register_schema.go:66` — Potential HTTP request made with variable url (CWE-88)
-- **medium** `G114` at `cmd/xtcp2/xtcp2.go:381` — Use of net/http serve function that has no support for setting timeouts (CWE-676)
-- **medium** `G302` at `pkg/misc/misc.go:66` — Expect file permissions to be 0600 or less (CWE-276)
-- **medium** `G302` at `pkg/misc/misc.go:90` — Expect file permissions to be 0600 or less (CWE-276)
 - **medium** `G301` at `pkg/xtcp/ns_watch.go:119` — Expect directory permissions to be 0750 or less (CWE-276)
-- **low** `G104` at `cmd/xtcp2client/xtcp2client.go:174` — Errors unhandled (CWE-703)
 - **low** `G104` at `pkg/xtcp/deserialize.go:170` — Errors unhandled (CWE-703)
 - **low** `G104` at `pkg/xtcp/deserialize.go:277` — Errors unhandled (CWE-703)
 - **low** `G104` at `pkg/xtcp/deserialize.go:310` — Errors unhandled (CWE-703)
@@ -212,7 +187,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 64 |
+| Pass | 86 |
 | Fail (new) | 3 |
 | Fail (pre-existing) | 3 |
 | Skip | 21 |
@@ -259,8 +234,8 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/gocritic** with 303 findings (41% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~33 quick-fixable findings before manual review.
+- Top contributor: **golangci-lint/gocritic** with 185 findings (32% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~12 quick-fixable findings before manual review.
 - Hotspot file: `pkg/xtcp/destinations_test.go` carries 43 findings (govet×20, gosec×11, goconst×8). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
 
