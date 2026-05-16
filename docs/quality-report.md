@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T18:58:15Z
+Generated: 2026-05-16T19:16:36Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 423 |
-| Findings (Tier 0) | 180 |
-| Findings (Tier 1) | 216 |
+| Total findings | 379 |
+| Findings (Tier 0) | 143 |
+| Findings (Tier 1) | 208 |
 | Findings (Tier 2) | 15 |
-| Findings (non-tiered) | 12 |
-| Files with at least one finding | 86 |
+| Findings (non-tiered) | 13 |
+| Files with at least one finding | 64 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 411 | 5s |
-| golangci-lint (standard) | findings | 398 | 4s |
-| golangci-lint (quick) | findings | 93 | 14s |
+| golangci-lint (comprehensive) | findings | 366 | 5s |
+| golangci-lint (standard) | findings | 351 | 4s |
+| golangci-lint (quick) | findings | 54 | 14s |
 | gosec | findings | 12 | 2s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 0s |
+| gofmt | findings | 1 | 0s |
 | nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
-| proto-field-audit | clean | 0 | 1s |
-| go test | findings | 6 | 2s |
+| proto-field-audit | clean | 0 | 0s |
+| go test | findings | 6 | 3s |
 
 
 ---
@@ -51,8 +51,8 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 180 | 0 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 216 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 143 | 2 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 208 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 15 | 2 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
@@ -68,22 +68,22 @@ between commits reveals exactly what changed.
 | `tools/quality-report/main.go` | 18 | errcheck×11, govet×4, gocritic×1 |
 | `pkg/xtcpnl/xtcpnl_bench_test.go` | 15 | gocritic×15 |
 | `pkg/xtcp/deserializers.go` | 14 | gocritic×13, funlen×1 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_msg_test.go` | 14 | gocritic×14 |
+| `pkg/xtcpnl/xtcpnl_inet_diag_msg_test.go` | 13 | gocritic×13 |
 | `pkg/xtcpnl/calculatePad_test.go` | 12 | gocritic×12 |
 | `pkg/xtcpnl/xtcpnl_pcap_test.go` | 12 | gocritic×12 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 11 | staticcheck×7, dupl×2, funlen×2 |
 | `pkg/io_uring/bench_test.go` | 9 | govet×7, unconvert×2 |
+| `pkg/xtcp/netlinker_iouring.go` | 8 | govet×5, errcheck×2, gocritic×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### golangci-lint / gocritic — 185
+### golangci-lint / gocritic — 177
 
-- `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:22`: commentFormatting: put a space between `//` and comment text
-- `cmd/clickhouse_protobuflist_db/clickhouse_protobuflist_db.go:18`: commentFormatting: put a space between `//` and comment text
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:26`: commentFormatting: put a space between `//` and comment text
+- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:277`: builtinShadow: shadowing of predeclared identifier: len
+- `cmd/xtcp2/xtcp2.go:186`: exitAfterDefer: os.Exit will exit, and `defer cancel()` will not run
+- `cmd/xtcp2_kafka_client/xtcp2_kafka_client.go:61`: exitAfterDefer: log.Fatalf will exit, and `defer cancel()` will not run
 
 ### golangci-lint / govet — 84
 
@@ -96,12 +96,6 @@ between commits reveals exactly what changed.
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:213`: Error return value of `io.ReadAll` is not checked
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:272`: Error return value is not checked
 - `cmd/xtcp2client/xtcp2client.go:318`: Error return value of `conn.Close` is not checked
-
-### golangci-lint / staticcheck — 43
-
-- `cmd/xtcp2/xtcp2.go:399`: SA4009: argument promListen is overwritten before first use
-- `cmd/xtcp2/xtcp2.go:402`: SA4009(related information): assignment to promListen
-- `cmd/xtcp2/xtcp2.go:410`: SA4009(related information): assignment to promPath
 
 ### golangci-lint / noctx — 16
 
@@ -127,14 +121,28 @@ between commits reveals exactly what changed.
 - `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (74 > 60)
 - `pkg/xtcp/deserializers.go:32`: Function 'InitDeserializers' has too many statements (71 > 60)
 
+### golangci-lint / staticcheck — 5
+
+- `cmd/xtcp2/xtcp2.go:399`: SA4009: argument promListen is overwritten before first use
+- `cmd/xtcp2/xtcp2.go:402`: SA4009(related information): assignment to promListen
+- `cmd/xtcp2/xtcp2.go:410`: SA4009(related information): assignment to promPath
+
 ### golangci-lint / unconvert — 2
 
 - `pkg/io_uring/bench_test.go:34`: unnecessary conversion
 - `pkg/io_uring/bench_test.go:35`: unnecessary conversion
 
+### gofmt / format — 1
+
+- `pkg/xtcpnl/xtcpnl_inet_diag_skmeminfo.go`: file not formatted
+
 ### golangci-lint / gocyclo — 1
 
 - `cmd/xtcp2/xtcp2.go:446`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
+
+### golangci-lint / gofmt — 1
+
+- `pkg/xtcpnl/xtcpnl_inet_diag_skmeminfo.go:41`: File is not properly formatted
 
 ---
 
@@ -190,8 +198,9 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-`gofmt`: clean.
+**`gofmt` would reformat (1 file):**
 
+- `pkg/xtcpnl/xtcpnl_inet_diag_skmeminfo.go`
 `nixfmt`: clean.
 
 ---
@@ -213,8 +222,9 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/gocritic** with 185 findings (44% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~2 quick-fixable findings before manual review.
+- Top contributor: **golangci-lint/gocritic** with 177 findings (47% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~4 quick-fixable findings before manual review.
 - Hotspot file: `pkg/xtcp/destinations_test.go` carries 35 findings (govet×20, gosec×11, noctx×4). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
+- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
