@@ -97,8 +97,8 @@ func main() {
 
 		*kgoFetches = client.PollFetches(ctxC)
 		cancelC()
-		if err := kgoFetches.Err(); err != nil {
-			log.Printf("i:%d Error fetching messages: %v", i, err)
+		if ferr := kgoFetches.Err(); ferr != nil {
+			log.Printf("i:%d Error fetching messages: %v", i, ferr)
 			continue
 		}
 
@@ -110,8 +110,8 @@ func main() {
 			fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
 				i, j, records, record.Topic, record.Partition, record.Offset)
 
-			if err := proto.Unmarshal(record.Value, xtcpRecord); err != nil {
-				log.Printf("Error unmarshalling protobuf message: %v", err)
+			if uerr := proto.Unmarshal(record.Value, xtcpRecord); uerr != nil {
+				log.Printf("Error unmarshalling protobuf message: %v", uerr)
 				return
 			}
 

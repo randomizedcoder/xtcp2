@@ -47,15 +47,15 @@ func server(wg *sync.WaitGroup, bind string, port int) {
 	defer func() { _ = ln.Close() }()
 
 	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			panic(err)
+		conn, aerr := ln.Accept()
+		if aerr != nil {
+			panic(aerr)
 		}
 		go func(conn net.Conn) {
-			_, err := io.Copy(conn, conn)
+			_, cerr := io.Copy(conn, conn)
 			defer func() { _ = conn.Close() }()
-			if err != nil {
-				panic(err)
+			if cerr != nil {
+				panic(cerr)
 			}
 		}(conn)
 	}

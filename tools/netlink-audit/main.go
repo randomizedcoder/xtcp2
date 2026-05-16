@@ -57,11 +57,11 @@ func main() {
 			}
 			hasLenGuard := false
 			ast.Inspect(fn.Body, func(m ast.Node) bool {
-				call, ok := m.(*ast.CallExpr)
-				if !ok {
+				call, okCall := m.(*ast.CallExpr)
+				if !okCall {
 					return true
 				}
-				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "len" {
+				if id, okIdent := call.Fun.(*ast.Ident); okIdent && id.Name == "len" {
 					hasLenGuard = true
 				}
 				return true
