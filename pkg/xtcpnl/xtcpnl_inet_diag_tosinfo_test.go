@@ -22,33 +22,25 @@ func TestDeserializeTypeOfService(t *testing.T) {
 			description: "attribute_tos",
 			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
-			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
-				return DeserializeTypeOfService(data, tos)
-			},
+			Func: DeserializeTypeOfService,
 		},
 		{
 			description: "attribute_tos_reflection",
 			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
-			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
-				return DeserializeTypeOfServiceReflection(data, tos)
-			},
+			Func: DeserializeTypeOfServiceReflection,
 		},
 		{
 			description: "attribute_tos2",
 			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
-			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
-				return DeserializeTypeOfService(data, tos)
-			},
+			Func: DeserializeTypeOfService,
 		},
 		{
 			description: "attribute_tos2_reflection",
 			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
-			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
-				return DeserializeTypeOfServiceReflection(data, tos)
-			},
+			Func: DeserializeTypeOfServiceReflection,
 		},
 	}
 	for i, test := range tests {
@@ -97,17 +89,11 @@ var (
 
 // go test -bench=BenchmarkDeserializeTypeOfService
 func BenchmarkDeserializeTypeOfService(b *testing.B) {
-	f := func(data []byte, tos *TypeOfService) (n int, err error) {
-		return DeserializeTypeOfService(data, tos)
-	}
-	DeserializeTypeOfServiceBoth(b, f)
+	DeserializeTypeOfServiceBoth(b, DeserializeTypeOfService)
 }
 
 func BenchmarkDeserializeTypeOfServiceReflection(b *testing.B) {
-	f := func(data []byte, tos *TypeOfService) (n int, err error) {
-		return DeserializeTypeOfServiceReflection(data, tos)
-	}
-	DeserializeTypeOfServiceBoth(b, f)
+	DeserializeTypeOfServiceBoth(b, DeserializeTypeOfServiceReflection)
 }
 
 func DeserializeTypeOfServiceBoth(b *testing.B, Func func(data []byte, tos *TypeOfService) (n int, err error)) {

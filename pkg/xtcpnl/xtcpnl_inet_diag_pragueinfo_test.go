@@ -28,9 +28,7 @@ func TestDeserializePragueInfo(t *testing.T) {
 				Round:     0,
 				RttTarget: 0,
 			},
-			Func: func(data []byte, p *PragueInfo) (n int, err error) {
-				return DeserializePragueInfo(data, p)
-			},
+			Func: DeserializePragueInfo,
 		},
 		{
 			description: "attribute_pragueinfo_fake_fixme_reflection",
@@ -43,9 +41,7 @@ func TestDeserializePragueInfo(t *testing.T) {
 				Round:     0,
 				RttTarget: 0,
 			},
-			Func: func(data []byte, p *PragueInfo) (n int, err error) {
-				return DeserializePragueInfoReflection(data, p)
-			},
+			Func: DeserializePragueInfoReflection,
 		},
 	}
 	for i, test := range tests {
@@ -113,17 +109,11 @@ var (
 // go test -bench=BenchmarkDeserializeMemInfo
 
 func BenchmarkDeserializePragueInfo(b *testing.B) {
-	f := func(data []byte, p *PragueInfo) (n int, err error) {
-		return DeserializePragueInfo(data, p)
-	}
-	DeserializePragueInfoBoth(b, f)
+	DeserializePragueInfoBoth(b, DeserializePragueInfo)
 }
 
 func BenchmarkDeserializePragueInfoReflection(b *testing.B) {
-	f := func(data []byte, p *PragueInfo) (n int, err error) {
-		return DeserializePragueInfoReflection(data, p)
-	}
-	DeserializePragueInfoBoth(b, f)
+	DeserializePragueInfoBoth(b, DeserializePragueInfoReflection)
 }
 
 func DeserializePragueInfoBoth(b *testing.B, Func func(data []byte, d *PragueInfo) (n int, err error)) {

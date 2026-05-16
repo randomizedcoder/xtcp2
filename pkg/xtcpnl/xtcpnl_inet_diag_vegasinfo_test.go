@@ -27,9 +27,7 @@ func TestDeserializeVegasInfo(t *testing.T) {
 				Rtt:     211,
 				MinRtt:  2147483647,
 			},
-			Func: func(data []byte, vi *VegasInfo) (n int, err error) {
-				return DeserializeVegasInfo(data, vi)
-			},
+			Func: DeserializeVegasInfo,
 		},
 		{
 			description: tnAttrVegasinfo,
@@ -40,9 +38,7 @@ func TestDeserializeVegasInfo(t *testing.T) {
 				Rtt:     211,
 				MinRtt:  2147483647,
 			},
-			Func: func(data []byte, vi *VegasInfo) (n int, err error) {
-				return DeserializeVegasInfoReflection(data, vi)
-			},
+			Func: DeserializeVegasInfoReflection,
 		},
 	}
 	for i, test := range tests {
@@ -101,17 +97,11 @@ var (
 
 // go test -bench=BenchmarkDeserializeVegasInfo
 func BenchmarkDeserializeVegasInfo(b *testing.B) {
-	f := func(data []byte, vi *VegasInfo) (n int, err error) {
-		return DeserializeVegasInfo(data, vi)
-	}
-	DeserializeVegasInfoBoth(b, f)
+	DeserializeVegasInfoBoth(b, DeserializeVegasInfo)
 }
 
 func BenchmarkDeserializeVegasInfoReflection(b *testing.B) {
-	f := func(data []byte, vi *VegasInfo) (n int, err error) {
-		return DeserializeVegasInfoReflection(data, vi)
-	}
-	DeserializeVegasInfoBoth(b, f)
+	DeserializeVegasInfoBoth(b, DeserializeVegasInfoReflection)
 }
 
 func DeserializeVegasInfoBoth(b *testing.B, Func func(data []byte, vi *VegasInfo) (n int, err error)) {

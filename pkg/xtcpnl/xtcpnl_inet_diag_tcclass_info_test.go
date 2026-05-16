@@ -22,17 +22,13 @@ func TestDeserializeTrafficClass(t *testing.T) {
 			description: tnAttrTcclass,
 			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
-			Func: func(data []byte, tc *TrafficClass) (n int, err error) {
-				return DeserializeTrafficClass(data, tc)
-			},
+			Func: DeserializeTrafficClass,
 		},
 		{
 			description: "attribute_tcclass_reflection",
 			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
-			Func: func(data []byte, tc *TrafficClass) (n int, err error) {
-				return DeserializeTrafficClassReflection(data, tc)
-			},
+			Func: DeserializeTrafficClassReflection,
 		},
 	}
 	for i, test := range tests {
@@ -82,17 +78,11 @@ var (
 
 // go test -bench=BenchmarkDeserializeTrafficClass
 func BenchmarkDeserializeTrafficClass(b *testing.B) {
-	f := func(data []byte, tc *TrafficClass) (n int, err error) {
-		return DeserializeTrafficClass(data, tc)
-	}
-	DeserializeTrafficClassBoth(b, f)
+	DeserializeTrafficClassBoth(b, DeserializeTrafficClass)
 }
 
 func BenchmarkDeserializeTrafficClassReflection(b *testing.B) {
-	f := func(data []byte, tc *TrafficClass) (n int, err error) {
-		return DeserializeTrafficClassReflection(data, tc)
-	}
-	DeserializeTrafficClassBoth(b, f)
+	DeserializeTrafficClassBoth(b, DeserializeTrafficClassReflection)
 }
 
 func DeserializeTrafficClassBoth(b *testing.B, Func func(data []byte, tc *TrafficClass) (n int, err error)) {
