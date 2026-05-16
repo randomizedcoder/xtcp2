@@ -42,7 +42,7 @@ func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDi
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
-	defer func() { _ = watcher.Close() }()
+	defer func() { _ = watcher.Close() }() //nolint:errcheck // watcher.Close teardown; err non-actionable
 
 	if err = watcher.Add(netNsDir); err != nil {
 		return fmt.Errorf("failed to watch directory %s: %w", netNsDir, err)

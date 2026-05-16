@@ -36,7 +36,7 @@ func (x *XTCP) InitNetlinkers(ctx context.Context, wg *sync.WaitGroup) {
 		wg.Done()                                                          // release the WG explicitly; log.Fatalf skips the deferred Done
 		log.Fatalf("InitNetlinkers no variant registered for key:%s", key) //nolint:gocritic // exitAfterDefer: deferred wg.Done() is released explicitly above
 	}
-	x.Netlinker, _ = f.(NetlinkerFunc)
+	x.Netlinker, _ = f.(NetlinkerFunc) //nolint:errcheck // Netlinkers.Store sites all use NetlinkerFunc
 
 	if x.debugLevel > 10 {
 		log.Printf("InitNetlinkers selected variant:%s", key)
