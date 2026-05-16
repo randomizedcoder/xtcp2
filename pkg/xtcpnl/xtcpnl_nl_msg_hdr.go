@@ -38,8 +38,8 @@ var (
 	ErrNlMsgHdrSmall = errors.New("data too small for NlMsgHdr")
 )
 
-// DeserializeNlMsgHdrLengthAndType does a binary read of Length and Type
-// It does a basic length check
+// DeserializeNlMsgHdr does a binary read of an NlMsgHdr with a basic
+// length check.
 func DeserializeNlMsgHdr(data []byte, nlmsghr *NlMsgHdr) (n int, err error) {
 
 	if len(data) < NlMsgHdrSizeCst {

@@ -36,11 +36,11 @@ import (
 // 23
 // __INET_DIAG_MAX 24
 
-// INET_DIAG_SKMEMINFO 7
-
+// SkMemInfo mirrors the kernel's `struct sk_meminfo` (INET_DIAG_SKMEMINFO=7).
+//
 // Described here:
-// http://man7.org/linux/man-pages/man7/sock_diag.7.html
-// https://github.com/torvalds/linux/blob/a811c1fa0a02c062555b54651065899437bacdbe/net/core/sock.c#L3226
+//   - http://man7.org/linux/man-pages/man7/sock_diag.7.html
+//   - https://github.com/torvalds/linux/blob/a811c1fa0a02c062555b54651065899437bacdbe/net/core/sock.c#L3226
 //
 //	struct sk_meminfo {
 //	    __u32   rmem_alloc; //The amount of data in receive queue

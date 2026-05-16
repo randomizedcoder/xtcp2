@@ -36,9 +36,9 @@ import (
 // 23
 // __INET_DIAG_MAX 24
 
-// INET_DIAG_MEMINFO 1
+// MemInfo mirrors the kernel's `struct inet_diag_meminfo` (INET_DIAG_MEMINFO=1).
+//
 // https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L174
-// /* INET_DIAG_MEM */
 //
 //	struct inet_diag_meminfo {
 //		__u32	idiag_rmem;

@@ -43,7 +43,7 @@ func NativeEndian() binary.ByteOrder {
 	return nativeEndian
 }
 
-// Byte swap a 16 bit value if we aren't big endian
+// Swap16 byte-swaps a 16 bit value when we are not on a big-endian host.
 func Swap16(i uint16) uint16 {
 	if NativeEndian() == binary.BigEndian {
 		return i
