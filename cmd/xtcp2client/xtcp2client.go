@@ -171,8 +171,8 @@ breakPoint:
 			break breakPoint
 
 		case <-ticker.C:
-			if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
-				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, err)
+			if serr := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); serr != nil {
+				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, serr)
 				break breakPoint
 			}
 			if debugLevel > 10 {
@@ -343,7 +343,8 @@ breakPoint:
 			log.Printf("id: %d waiting for message i:%d", id, i)
 		}
 
-		flatRecordsResponse, err := stream.Recv()
+		var flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse
+		flatRecordsResponse, err = stream.Recv()
 		if err == io.EOF {
 			continue
 		}

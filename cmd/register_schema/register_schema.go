@@ -83,7 +83,7 @@ func getLatestSchemaID(subject string) (int, error) {
 		ID int `json:"id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}
 
@@ -117,7 +117,8 @@ func main() {
 	}
 
 	if *get {
-		id, err := getLatestSchemaID(subject)
+		var id int
+		id, err = getLatestSchemaID(subject)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error registering schema: %v\n", err)
 			os.Exit(1)
