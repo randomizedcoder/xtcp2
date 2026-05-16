@@ -98,10 +98,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	}
 
 	packets := uint64(0)
-	for {
-		if x.checkDoneNonBlocking(ctx) {
-			break
-		}
+	for !x.checkDoneNonBlocking(ctx) {
 
 		results, err := x.iouringWaitWithTimeout(ring, nlTimeout)
 		if err != nil {
