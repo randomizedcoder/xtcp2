@@ -6,9 +6,21 @@ import (
 	"testing"
 )
 
-// const (
-// 	debugLevelForTest = 111
-// )
+// Test-fixture keys/values reused across every TestReconcileMaps row.
+const (
+	testKey1   = "key1"
+	testKey2   = "key2"
+	testKey3   = "key3"
+	testKey4   = "key4"
+	testValue1 = "value1"
+	testValue2 = "value2"
+	testValue3 = "value3"
+	testValue4 = "value4"
+
+	// testOldValue2 mimics a stale entry already present in the destination
+	// map when reconcileMaps runs — it should be replaced by testValue2.
+	testOldValue2 = "old_value2"
+)
 
 func TestReconcileMaps(t *testing.T) {
 	tests := []struct {
@@ -22,16 +34,16 @@ func TestReconcileMaps(t *testing.T) {
 		{
 			name: "Add missing keys and remove extra keys",
 			srcEntries: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			destEntries: map[interface{}]interface{}{
-				"key2": "old_value2",
-				"key3": "value3",
+				testKey2: testOldValue2,
+				testKey3: testValue3,
 			},
 			expectedDest: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			deletes: 2,
 			stores:  2,
@@ -39,16 +51,16 @@ func TestReconcileMaps(t *testing.T) {
 		{
 			name: "No changes needed",
 			srcEntries: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			destEntries: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			expectedDest: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			deletes: 0,
 			stores:  0,
@@ -56,17 +68,17 @@ func TestReconcileMaps(t *testing.T) {
 		{
 			name: "Add missing keys and remove extra keys, one extra",
 			srcEntries: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			destEntries: map[interface{}]interface{}{
-				"key2": "old_value2",
-				"key3": "value3",
-				"key4": "value4",
+				testKey2: testOldValue2,
+				testKey3: testValue3,
+				testKey4: testValue4,
 			},
 			expectedDest: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			deletes: 3,
 			stores:  2,
@@ -74,15 +86,15 @@ func TestReconcileMaps(t *testing.T) {
 		{
 			name: "Add missing keys and remove extra keys, one less",
 			srcEntries: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			destEntries: map[interface{}]interface{}{
-				"key2": "old_value2",
+				testKey2: testOldValue2,
 			},
 			expectedDest: map[interface{}]interface{}{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			deletes: 1,
 			stores:  2,
