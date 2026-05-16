@@ -63,16 +63,16 @@ func newTestXTCP(t *testing.T, dest string) *XTCP {
 
 	reg := prometheus.NewRegistry()
 	x.pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{Subsystem: "xtcp_test", Name: "counts", Help: "test counts"},
-		[]string{"function", "variable", "type"},
+		prometheus.CounterOpts{Subsystem: "xtcp_test", Name: promNameCounts, Help: "test counts"},
+		promLabels,
 	)
 	x.pH = promauto.With(reg).NewSummaryVec(
 		prometheus.SummaryOpts{
-			Subsystem: "xtcp_test", Name: "histograms", Help: "test histograms",
+			Subsystem: "xtcp_test", Name: promNameHistograms, Help: "test histograms",
 			Objectives: map[float64]float64{0.5: quantileError, 0.99: quantileError},
 			MaxAge:     summaryVecMaxAge,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	return x
@@ -524,12 +524,12 @@ func benchDest(b *testing.B, scheme string, setup func(t testing.TB, dir string)
 	}
 	reg := prometheus.NewRegistry()
 	x.pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{Subsystem: "xtcp_bench", Name: "counts", Help: "bench counts"},
-		[]string{"function", "variable", "type"},
+		prometheus.CounterOpts{Subsystem: "xtcp_bench", Name: promNameCounts, Help: "bench counts"},
+		promLabels,
 	)
 	x.pH = promauto.With(reg).NewSummaryVec(
-		prometheus.SummaryOpts{Subsystem: "xtcp_bench", Name: "histograms", Help: "bench histograms"},
-		[]string{"function", "variable", "type"},
+		prometheus.SummaryOpts{Subsystem: "xtcp_bench", Name: promNameHistograms, Help: "bench histograms"},
+		promLabels,
 	)
 
 	ctx := context.Background()
