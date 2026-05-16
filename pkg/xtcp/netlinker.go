@@ -47,7 +47,7 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	wf := x.config.WriteFiles
 
-	packetBuffer := x.packetBufferPool.Get().(*[]byte)
+	packetBuffer, _ := x.packetBufferPool.Get().(*[]byte)
 
 	for packets, netlinkerDone := 0, false; !netlinkerDone; packets++ {
 
@@ -78,7 +78,8 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if x.debugLevel > 100 {
 			if ns, ok := x.fdToNsMap.Load(fd); ok {
-				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, ns.(string))
+				nsStr, _ := ns.(string)
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, nsStr)
 			} else {
 				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d Unknown FD!!", id, packets, n, fd)
 			}
@@ -123,7 +124,8 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if x.debugLevel > 100 {
 			if ns, ok := x.fdToNsMap.Load(fd); ok {
-				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, ns.(string))
+				nsStr, _ := ns.(string)
+				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, nsStr)
 			} else {
 				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d", id, packets, n, p, fd)
 			}

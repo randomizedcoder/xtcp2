@@ -66,7 +66,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	})
 
 	if f, ok := x.Marshallers.Load(x.config.MarshalTo); ok {
-		x.Marshaller = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte))
+		x.Marshaller, _ = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte))
 	} else {
 		log.Fatalf("InitMarshalers XTCP Marshal must be one of protoSingle, protoDelim, protoJson, protoText, msgpack:%s", x.config.MarshalTo)
 	}

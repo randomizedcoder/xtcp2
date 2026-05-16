@@ -27,7 +27,8 @@ func ringFromContext(ctx context.Context) *xio.Ring {
 	if v == nil {
 		return nil
 	}
-	return v.(*xio.Ring)
+	ring, _ := v.(*xio.Ring)
+	return ring
 }
 
 // netlinkerIoUring is the opt-in io_uring variant of the Netlinker
@@ -159,7 +160,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 // in-flight map until its CQE fires.
 func (x *XTCP) iouringPrefillRecvs(ring *xio.Ring, fd int, n int) error {
 	for i := 0; i < n; i++ {
-		buf := x.packetBufferPool.Get().(*[]byte)
+		buf, _ := x.packetBufferPool.Get().(*[]byte)
 		// Restore full capacity so the kernel sees a writable buffer.
 		*buf = (*buf)[:cap(*buf)]
 		if _, err := ring.EnqueueRecvMsg(fd, buf); err != nil {
