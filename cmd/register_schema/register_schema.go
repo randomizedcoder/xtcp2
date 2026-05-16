@@ -44,7 +44,7 @@ func registerProtobufSchema(subject string, schema string) error {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := http.Post(url, "application/vnd.schemaregistry.v1+json", bytes.NewReader(bodyBytes))
+	resp, err := http.Post(url, "application/vnd.schemaregistry.v1+json", bytes.NewReader(bodyBytes)) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -63,7 +63,7 @@ func getLatestSchemaID(subject string) (int, error) {
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
 	if err != nil {
 		return 0, err
 	}

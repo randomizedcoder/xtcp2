@@ -434,7 +434,7 @@ func getLatestSchemaID(subject string) (int, error) {
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
 	if err != nil {
 		return 0, err
 	}
