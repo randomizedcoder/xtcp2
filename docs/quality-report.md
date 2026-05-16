@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T21:47:44Z
+Generated: 2026-05-16T21:49:54Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,11 +15,11 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 158 |
-| Findings (Tier 0) | 133 |
+| Total findings | 145 |
+| Findings (Tier 0) | 127 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 12 |
-| Findings (non-tiered) | 13 |
+| Findings (non-tiered) | 6 |
 | Files with at least one finding | 41 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
@@ -31,16 +31,16 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 145 | 4s |
-| golangci-lint (standard) | findings | 133 | 5s |
-| golangci-lint (quick) | findings | 49 | 13s |
+| golangci-lint (comprehensive) | findings | 139 | 4s |
+| golangci-lint (standard) | findings | 127 | 5s |
+| golangci-lint (quick) | findings | 42 | 14s |
 | gosec | findings | 6 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 1s |
+| gofmt | clean | 0 | 1s |
 | nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
-| iouring-audit | clean | 0 | 1s |
-| metrics-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 0s |
+| metrics-audit | clean | 0 | 1s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 6 | 2s |
 
@@ -51,7 +51,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 133 | 13 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 127 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 12 | 0 |
 
@@ -65,14 +65,14 @@ between commits reveals exactly what changed.
 |---|---|---|
 | `pkg/xtcp/destinations_test.go` | 20 | govet×20 |
 | `pkg/xtcp/deserialize.go` | 13 | errcheck×7, G104×3, govet×2 |
-| `pkg/xtcp/netlinker_iouring.go` | 9 | govet×5, errcheck×2, format×1 |
 | `pkg/io_uring/bench_test.go` | 7 | govet×7 |
 | `pkg/io_uring/ring_test.go` | 7 | govet×7 |
+| `pkg/xtcp/netlinker_iouring.go` | 7 | govet×5, errcheck×2 |
 | `pkg/xtcpnl/xtcpnl_extract_7_0_3_fixtures_test.go` | 7 | govet×7 |
-| `pkg/xtcp/netlinker.go` | 6 | errcheck×3, gofmt×1, govet×1 |
 | `pkg/xtcp/poller.go` | 6 | errcheck×4, funlen×1, govet×1 |
-| `cmd/xtcp2client/xtcp2client.go` | 5 | errcheck×2, govet×2, format×1 |
-| `pkg/xtcp/ns_watch.go` | 5 | govet×3, errcheck×1, G301×1 |
+| `pkg/xtcp/ns_watch.go` | 5 | govet×3, G301×1, errcheck×1 |
+| `cmd/xtcp2client/xtcp2client.go` | 4 | errcheck×2, govet×2 |
+| `pkg/xtcp/netlinker.go` | 4 | errcheck×3, govet×1 |
 
 
 ---
@@ -91,23 +91,11 @@ between commits reveals exactly what changed.
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:272`: Error return value is not checked
 - `cmd/xtcp2client/xtcp2client.go:318`: Error return value of `conn.Close` is not checked
 
-### gofmt / format — 7
-
-- `cmd/xtcp2client/xtcp2client.go`: file not formatted
-- `pkg/misc/misc.go`: file not formatted
-- `pkg/xtcp/init_netlinkers.go`: file not formatted
-
 ### golangci-lint / dupl — 6
 
 - `pkg/xtcp/destinations_udp.go:71`: 71-99 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:51-79`
 - `pkg/xtcp/destinations_unixgram.go:51`: 51-79 lines are duplicate of `pkg/xtcp/destinations_udp.go:71-99`
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
-
-### golangci-lint / gofmt — 6
-
-- `pkg/misc/misc.go:79`: File is not properly formatted
-- `pkg/xtcp/init_netlinkers.go:36`: File is not properly formatted
-- `pkg/xtcp/marshallers.go:39`: File is not properly formatted
 
 ### golangci-lint / funlen — 5
 
@@ -167,15 +155,8 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-**`gofmt` would reformat (7 files):**
+`gofmt`: clean.
 
-- `cmd/xtcp2client/xtcp2client.go`
-- `pkg/misc/misc.go`
-- `pkg/xtcp/init_netlinkers.go`
-- `pkg/xtcp/marshallers.go`
-- `pkg/xtcp/netlinker.go`
-- `pkg/xtcp/netlinker_iouring.go`
-- `pkg/xtcp/ns_net_namespace.go`
 `nixfmt`: clean.
 
 ---
@@ -197,9 +178,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/govet** with 84 findings (53% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~13 quick-fixable findings before manual review.
+- Top contributor: **golangci-lint/govet** with 84 findings (58% of total). Concentrate effort here for the biggest quality win.
 - Hotspot file: `pkg/xtcp/destinations_test.go` carries 20 findings (govet×20). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
-- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
