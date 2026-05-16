@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -37,7 +38,8 @@ func server(wg *sync.WaitGroup, bind string, port int) {
 
 	defer wg.Done()
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", bind, port)) // this DOES bind to "::" because of "tcp"
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", fmt.Sprintf("%s:%d", bind, port)) // this DOES bind to "::" because of "tcp"
 	if err != nil {
 		panic(err)
 	}
