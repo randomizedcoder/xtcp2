@@ -39,7 +39,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 	var startPollTime time.Time
 	if s, ok := x.pollTime.Load(d.fd); ok {
-		startPollTime = s.(time.Time)
+		startPollTime, _ = s.(time.Time)
 	} else {
 		d.pC.WithLabelValues("Deserialize", "pollTime", "error").Inc()
 	}
@@ -82,7 +82,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		}
 
 		nlPacketStartTime := time.Now()
-		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+		xtcpRecord, _ := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
 		// xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 		xtcpRecord.Hostname = x.hostname
@@ -94,7 +94,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord.SocketFd = uint64(d.fd)
 		xtcpRecord.NetlinkerId = uint64(d.id)
 
-		nlh := d.nlhPool.Get().(*xtcpnl.NlMsgHdr)
+		nlh, _ := d.nlhPool.Get().(*xtcpnl.NlMsgHdr)
 
 		var errD error
 		length = xtcpnl.NlMsgHdrSizeCst
@@ -167,7 +167,9 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		}
 
 		length = xtcpnl.InetDiagMsgSizeCst
-		xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord)
+		if ierr := xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord); ierr != nil {
+			d.pC.WithLabelValues("Deserialize", "DeserializeInetDiagMsgXTCP", "error").Inc()
+		}
 		offset += length
 
 		length = int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
@@ -264,7 +266,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 
 	for j := 0; d.offset < d.end; j++ {
 
-		rta := d.rtaPool.Get().(*xtcpnl.RTAttr)
+		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr)
 
 		length := xtcpnl.RTAttrSizeCst
 		_, errD := xtcpnl.DeserializeRTAttr((*d.NLPacket)[d.offset:d.offset+length], rta)
@@ -274,7 +276,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 		d.offset += length
 
 		length = int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
-		x.DeserializeAttribute(DeserializeAttributeArgs{
+		_ = x.DeserializeAttribute(DeserializeAttributeArgs{
 			Type:       int(rta.Type),
 			buf:        (*d.NLPacket)[d.offset : d.offset+length],
 			xtcpRecord: d.xtcpRecord,
@@ -307,7 +309,7 @@ func (x *XTCP) DeserializeAttribute(d DeserializeAttributeArgs) error {
 	// pC.WithLabelValues("DeserializeAttribute", x.RTATypeDeserializerStr[Type], "count").Inc()
 
 	if Deserializer, ok := x.RTATypeDeserializer[d.Type]; ok {
-		Deserializer(d.buf, d.xtcpRecord)
+		_ = Deserializer(d.buf, d.xtcpRecord)
 		return nil
 	}
 
