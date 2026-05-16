@@ -94,7 +94,8 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 				*(packetBuffer),
 				writeFilesPermissionsCst)
 			if err != nil {
-				log.Fatal(err)
+				wg.Done()     // release the WG explicitly; log.Fatal skips the deferred Done
+				log.Fatal(err) //nolint:gocritic // exitAfterDefer: deferred wg.Done() is released explicitly above
 			}
 			wf--
 		}

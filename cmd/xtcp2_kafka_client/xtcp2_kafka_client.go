@@ -58,7 +58,7 @@ func main() {
 
 	cl, err := kgo.NewClient(opts...)
 	if err != nil {
-		log.Fatalf("unable to create client: %v", err)
+		log.Fatalf("unable to create client: %v", err) //nolint:gocritic // exitAfterDefer: client construction failed before cl exists; deferred cancel() is moot at process shutdown
 	}
 	defer cl.Close()
 
