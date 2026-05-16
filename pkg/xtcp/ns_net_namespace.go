@@ -75,7 +75,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance unix.Bind err: %v", err)
 		}
-		x.closeSocket(socketFD)                                                 // close explicitly; log.Fatalf skips the deferred closeSocket
+		x.closeSocket(socketFD)                              // close explicitly; log.Fatalf skips the deferred closeSocket
 		log.Fatalf("netNamespaceInstance unix.Bind %s", err) //nolint:gocritic // exitAfterDefer: deferred closeSocket is released explicitly above
 	}
 

@@ -69,8 +69,8 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 		CQEBatchSize:  cqeBatch,
 	})
 	if err != nil {
-		wg.Done()                                                       // release the WG explicitly; log.Fatalf skips the deferred Done
-		runtime.UnlockOSThread()                                        // unpin before exit; deferred UnlockOSThread skipped
+		wg.Done()                                                // release the WG explicitly; log.Fatalf skips the deferred Done
+		runtime.UnlockOSThread()                                 // unpin before exit; deferred UnlockOSThread skipped
 		log.Fatalf("netlinkerIoUring %d ring init: %v", id, err) //nolint:gocritic // exitAfterDefer: deferred wg.Done() + UnlockOSThread released explicitly above
 	}
 	x.rings.Store(id, ring)
