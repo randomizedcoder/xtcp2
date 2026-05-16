@@ -45,7 +45,6 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 	}
 
 	timestampNs := float64(startPollTime.UnixNano()) / 1e9
-	// sec, nsec := uint64(startPollTime.UnixNano()/1e9), uint64(startPollTime.UnixNano()%1e9)
 
 	offset := 0
 	length := 0
@@ -70,10 +69,6 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			return n, ErrParseDeserializeNlMsgHdr
 		}
 
-		// if x.debugLevel > 1000 {
-		// 	log.Printf("Deserialize n:%d", n)
-		// }
-
 		if x.config.Modulus != 1 {
 			if n%x.config.Modulus != 1 {
 				d.pC.WithLabelValues("Deserialize", "continue", "count").Inc()
@@ -83,12 +78,9 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		nlPacketStartTime := time.Now()
 		xtcpRecord, _ := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.New returns *XtcpFlatRecord
-		// xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 		xtcpRecord.Hostname = x.hostname
 		xtcpRecord.TimestampNs = timestampNs
-		// (*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
-
 		xtcpRecord.Netns = *d.ns
 		xtcpRecord.RecordCounter = n
 		xtcpRecord.SocketFd = uint64(d.fd)
@@ -96,73 +88,28 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		nlh, _ := d.nlhPool.Get().(*xtcpnl.NlMsgHdr) //nolint:errcheck // pool.New returns *NlMsgHdr
 
-		var errD error
 		length = xtcpnl.NlMsgHdrSizeCst
-		_, errD = xtcpnl.DeserializeNlMsgHdr((*d.NLPacket)[offset:offset+length], nlh)
-		if errD != nil {
+		if _, errD := xtcpnl.DeserializeNlMsgHdr((*d.NLPacket)[offset:offset+length], nlh); errD != nil {
 			d.pC.WithLabelValues("Deserialize", "DeserializeNlMsgHdr", "error").Inc()
 			return n, ErrParseDeserializeNlMsgHdr
 		}
 		offset += length
 
-		// if x.debugLevel > 10 {
-		// 	log.Printf("Deserialize DeserializeNlMsgHdr nlh.Len:%d", nlh.Len)
-		// }
-
 		if nlh.Type == xtcpnl.NlMsgHdrTypeDoneCst {
-
-			select {
-			case x.netlinkerDoneCh <- netlinkerDone{
-				fd: d.fd,
-				t:  time.Now(),
-			}:
-			// Non-blocking
-			// This allows us to see if the channel ever becomes blocking
-			default:
-				d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
-				// Blocking
-				x.netlinkerDoneCh <- netlinkerDone{
-					fd: d.fd,
-					t:  time.Now(),
-				}
-			}
-
+			x.signalNetlinkerDone(d)
 			d.nlhPool.Put(nlh)
 			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, nil
 		}
 
 		if nlh.Type != xtcpnl.NlMsgHdrTypeInetDiagCst {
-			// Skip non-InetDiag messages (NLMSG_NOOP=1, NLMSG_ERROR=2,
-			// NLMSG_OVERRUN=4, and any vendor/firewall messages the kernel
-			// may interleave). Previously this aborted the multipart parse
-			// the first time any such message appeared, which meant a
-			// single ACK or harmless framing message would suppress every
-			// real InetDiag record in the same response — net effect:
-			// xtcp2 silently produces zero records forever on kernels /
-			// network namespaces that include such messages.
-			//
-			// Advance past the body and continue. `nlh.Len` is the total
-			// message length (header + payload). We have already consumed
-			// the 16-byte header, so the body length is `nlh.Len - 16`.
-			// Guard against a malformed `nlh.Len` that would either rewind
-			// the cursor or run past the buffer, both of which would lead
-			// to an infinite loop or a panic.
-			d.pC.WithLabelValues("Deserialize", "skipUnknownType", "count").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("Deserialize skipping nlh.Type:%d nlh.Len:%d offset:%d end:%d",
-					nlh.Type, nlh.Len, offset, end)
-			}
-			bodyLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst
-			if bodyLen < 0 || offset+bodyLen > end {
-				d.pC.WithLabelValues("Deserialize", "skipUnknownTypeBadLen", "error").Inc()
-				d.nlhPool.Put(nlh)
-				d.xtcpRecordPool.Put(xtcpRecord)
-				return n, nil
-			}
-			offset += bodyLen
+			advance, ok := x.skipUnknownNlmsg(d, nlh, offset, end)
 			d.nlhPool.Put(nlh)
 			d.xtcpRecordPool.Put(xtcpRecord)
+			if !ok {
+				return n, nil
+			}
+			offset = advance
 			continue
 		}
 
@@ -199,39 +146,47 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(sent))
 		}
 
-		// xr := xtcp_flat_record.Envelope_XtcpFlatRecord(xtcpRecord)
-
-		// x.envelopeMu.Lock()
-		// x.currentEnvelope.Row = append(x.currentEnvelope.Row, xtcpRecord)
-		// x.envelopeMu.Unlock()
-
-		// if x.debugLevel > 10000 {
-		// 	log.Printf("Deserialize XXXX %d append len(x.currentEnvelope.Row):%d", d.id, len(x.currentEnvelope.Row))
-		// }
-
-		// if x.debugLevel > 1000 {
-		// 	log.Printf("Deserialize %d n:%d xtcpRecord:%v", d.id, n, xtcpRecord)
-		// }
-
-		// if x.debugLevel > 1000 {
-		// 	d.pC.WithLabelValues("Deserialize", strconv.Itoa(d.fd), "count").Inc()
-		// }
-
 		d.nlhPool.Put(nlh)
-
-		// We could use reset, but because we expect to overwrite all the values except "cong"
-		// we can simply clear the "cong" specific attributes
-		// x.ZeroXTCPCongRecord(xtcpRecord)
-		// xtcpRecord.Reset()
-		// xr.Reset()
-
-		// d.xtcpRecordPool.Put(xtcpRecord)
-		// d.xtcpRecordPool.Put(xr)
 
 		d.pH.WithLabelValues("Deserialize", "nlPacketComplete", "count").Observe(time.Since(nlPacketStartTime).Seconds())
 
 	}
 	return n, nil
+}
+
+// signalNetlinkerDone emits the per-fd "dump complete" event the poller
+// is waiting for. Tries a non-blocking send first so we can count
+// instances where the channel is saturated, then falls back to the
+// blocking send to preserve at-least-once delivery.
+func (x *XTCP) signalNetlinkerDone(d DeserializeArgs) {
+	select {
+	case x.netlinkerDoneCh <- netlinkerDone{fd: d.fd, t: time.Now()}:
+	default:
+		d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+		x.netlinkerDoneCh <- netlinkerDone{fd: d.fd, t: time.Now()}
+	}
+}
+
+// skipUnknownNlmsg advances `offset` past a non-InetDiag message body
+// (NLMSG_NOOP=1, NLMSG_ERROR=2, NLMSG_OVERRUN=4, or any vendor/firewall
+// message the kernel interleaves). nlh.Len covers header + payload;
+// the header has already been consumed, so the body length is
+// `nlh.Len - 16`. Returns (newOffset, true) on success or (0, false)
+// when the declared length would either rewind the cursor or overrun
+// the buffer — both of which would otherwise lead to an infinite loop
+// or a panic. The caller releases pool resources in either case.
+func (x *XTCP) skipUnknownNlmsg(d DeserializeArgs, nlh *xtcpnl.NlMsgHdr, offset, end int) (int, bool) {
+	d.pC.WithLabelValues("Deserialize", "skipUnknownType", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("Deserialize skipping nlh.Type:%d nlh.Len:%d offset:%d end:%d",
+			nlh.Type, nlh.Len, offset, end)
+	}
+	bodyLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst
+	if bodyLen < 0 || offset+bodyLen > end {
+		d.pC.WithLabelValues("Deserialize", "skipUnknownTypeBadLen", "error").Inc()
+		return 0, false
+	}
+	return offset + bodyLen, true
 }
 
 // ZeroXTCPCongRecord will zero out the congestion algorithm specific fields
