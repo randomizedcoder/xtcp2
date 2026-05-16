@@ -63,7 +63,7 @@ func (x *XTCP) Init(ctx context.Context) {
 
 	// x.InitIOURing()
 
-	//x.socketFD = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
+	// x.socketFD = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
 	wg.Add(1)
 	x.nlRequest = x.CreateNetLinkRequest(wg)
 

@@ -22,14 +22,14 @@ import (
 )
 
 // 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
-//import "google.golang.org/protobuf/encoding/protowire"
+// import "google.golang.org/protobuf/encoding/protowire"
 //import "google.golang.org/protobuf/encoding/protodelim"
 
 const (
 	schemaRegistryURLCst = "http://localhost:18081"
 
 	brokerCst = "127.0.0.1:9092"
-	//brokerCst   = "redpanda-0:9092"
+	// brokerCst   = "redpanda-0:9092"
 	topicCst    = "clickhouse_protolist"
 	clientIDCst = "dave"
 
@@ -277,7 +277,7 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 	len := len(*xtcpRecordBinary)
 
 	var ctxP context.Context
-	//var cancelP context.CancelFunc
+	// var cancelP context.CancelFunc
 	// if x.config.KafkaProduceTimeout.AsDuration() != 0 {
 	// 	// I don't understand why setting a context with a timeout doesn't work,
 	// 	// but it definitely doesn't.  It always says the context is canceled. ?!
@@ -305,7 +305,7 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 			}()
 
 			dur := time.Since(kafkaStartTime)
-			//cancelP()
+			// cancelP()
 			if err != nil {
 				if c.debugLevel > 10 {
 					log.Printf("destKafka %0.6fs Produce err:%v", dur.Seconds(), err)

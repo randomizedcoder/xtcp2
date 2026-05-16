@@ -121,7 +121,7 @@ breakPoint:
 			}
 
 			//default:
-			//blocking!
+			// blocking!
 		}
 
 		// // Send batch
@@ -266,7 +266,7 @@ func (x *XTCP) poll(fd int) {
 	x.pollTime.Store(fd, startTime)
 
 	x.sendNetlinkDumpRequest(fd, x.nlRequest)
-	//x.SendNetlinkDumpRequestPtr(x.socketFD, x.socketAddress, x.nlRequest)
+	// x.SendNetlinkDumpRequestPtr(x.socketFD, x.socketAddress, x.nlRequest)
 	//x.SendNetlinkDumpRequestPtrIOUring(x.socketFD, x.nlRequest)
 
 	x.pC.WithLabelValues("poller", "poll", "count").Inc()

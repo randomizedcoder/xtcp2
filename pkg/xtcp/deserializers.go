@@ -37,7 +37,7 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	// x.RTATypeDeserializer = make(map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error), RTATypeDeserializerMapLengthCst)
 	x.RTATypeDeserializerStr = make(map[int]string, RTATypeDeserializerMapLengthCst)
 
-	//x.RTATypeDeserializer[0] = None
+	// x.RTATypeDeserializer[0] = None
 
 	// INET_DIAG_MEMINFO 1
 	key := "meminfo"

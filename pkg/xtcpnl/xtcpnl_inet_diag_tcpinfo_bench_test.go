@@ -226,4 +226,4 @@ func BenchmarkDeserializeTCPInfo4_19_219Reflection(b *testing.B) {
 }
 
 // Haven't got test data for 4.15 unfortunately
-//func BenchmarkDeserializeTCPInfoTCPInfo4_15Reflection(b *testing.B) {
+// func BenchmarkDeserializeTCPInfoTCPInfo4_15Reflection(b *testing.B) {

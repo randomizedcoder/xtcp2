@@ -223,7 +223,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	}
 
 	xtcpFlatRecordsResponse := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse)
-	//defer x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
+	// defer x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
 
 	(*xtcpFlatRecordsResponse).XtcpFlatRecord = xtcpRecord
 
@@ -259,7 +259,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		})
 	}
 
-	//xtcpFlatRecordsResponse.Reset()
+	// xtcpFlatRecordsResponse.Reset()
 	x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
 
 }

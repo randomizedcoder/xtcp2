@@ -14,7 +14,7 @@ func (x *XTCP) InitZeroizers(wg *sync.WaitGroup) {
 	x.xtcpRecordZeroizer = make(map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord))
 	// x.xtcpRecordZeroizer = make(map[xtcp_flat_record.Envelope_XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord))
 
-	//x.xtcpRecordZeroizer[XtcpFlatRecord]
+	// x.xtcpRecordZeroizer[XtcpFlatRecord]
 
 	x.xtcpRecordZeroizer[xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1] = func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 		// x.xtcpRecordZeroizer[xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1] = func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {

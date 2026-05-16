@@ -95,17 +95,17 @@ func TestDeserializeCongInfo(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeMemInfo errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(ci.Cong, test.ci.Cong) {
 			t.Errorf("Test %d %s !reflect.DeepEqual(ci.Cong:%x, test.ci.Cong:%x)", i, test.description, ci.Cong, test.ci.Cong)
 		}
 
-		str := string(ci.Cong[:])
-		//if str != test.cong {
+		str := string(ci.Cong)
+		// if str != test.cong {
 		if strings.Compare(str, test.cong) != 0 {
-			//t.Errorf("Test %d %s str:%sX != test.cong:%sX", i, test.description, str, test.cong)
+			// t.Errorf("Test %d %s str:%sX != test.cong:%sX", i, test.description, str, test.cong)
 			t.Errorf("Test %d %s strings.Compare(str:%s, test.cong:%s)!=0:%d, len(str):%d, len(test.cong):%d", i, test.description, str, test.cong, strings.Compare(str, test.cong), len(str), len(test.cong))
 		}
 
@@ -160,7 +160,7 @@ func DeserializeCongInfoBoth(b *testing.B, Func func(data []byte, ci *CongInfo) 
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeMemInfoBoth(buf, rta)
+		// _, errD = DeserializeMemInfoBoth(buf, rta)
 		_, errD = Func(buf, ci)
 		if errD != nil {
 			b.Error("Test Failed DeserializeCongInfoBoth errD", errD)

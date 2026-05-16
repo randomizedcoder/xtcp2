@@ -66,7 +66,7 @@ func TestDeserializeTrafficClass(t *testing.T) {
 			t.Fatal("Test Failed DeserializeTypeOfService errD", errD)
 		}
 
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(*tc, test.tc) {

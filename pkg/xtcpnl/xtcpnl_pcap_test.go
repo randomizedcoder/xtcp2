@@ -25,7 +25,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 			description: "DeserializePcapTest",
 			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
 			ph: PcapHeader{
-				Magic:        2712847316, //a1b2c3d4 = seconds and microseconds
+				Magic:        2712847316, // a1b2c3d4 = seconds and microseconds
 				VersionMajor: 2,
 				VersionMinor: 4,
 				Reserved1:    0,
@@ -42,7 +42,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 			description: "DeserializePcapTest",
 			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
 			ph: PcapHeader{
-				Magic:        2712847316, //a1b2c3d4 = seconds and microseconds
+				Magic:        2712847316, // a1b2c3d4 = seconds and microseconds
 				VersionMajor: 2,
 				VersionMinor: 4,
 				Reserved1:    0,
@@ -104,7 +104,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeSockOpt errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(*ph, test.ph) {
@@ -196,7 +196,7 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeSockOpt errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(*prh, test.prh) {

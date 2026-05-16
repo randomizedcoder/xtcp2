@@ -82,7 +82,7 @@ func main() {
 			panic(err)
 		}
 
-		//fmt.Printf("Received i:%d, %d bytes from %s: %s\n", i, n, remoteAddr, string((*packetBuffer)[:n]))
+		// fmt.Printf("Received i:%d, %d bytes from %s: %s\n", i, n, remoteAddr, string((*packetBuffer)[:n]))
 		fmt.Printf("Received i:%d, n:%d %v\n", i, n, xtcpRecord)
 	}
 

@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	//protovalidate "github.com/bufbuild/protovalidate-go"
+	// protovalidate "github.com/bufbuild/protovalidate-go"
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
@@ -73,7 +73,7 @@ const (
 	kafkaSchemaUrlCst = "http://localhost:18081"
 
 	kafkaProduceTimeoutCst = 0 // not sure why this isn't working
-	//kafkaProduceTimeoutCst = 30 * time.Second
+	// kafkaProduceTimeoutCst = 30 * time.Second
 
 	labelCst = ""
 	tagCst   = ""

@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	//protoSingle, protoDelim, protoJson, protoText, msgpack
+	// protoSingle, protoDelim, protoJson, protoText, msgpack
 	validMarshallersMap = map[string]bool{
 		// "protobuf":       true, // https://clickhouse.com/docs/en/interfaces/formats/Protobuf
 		"protobufSingle": true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufSingle
-		//"protobufList":   true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
+		// "protobufList":   true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
 		"protoJson": true,
 		"protoText": true,
 		"msgpack":   true,
@@ -43,7 +43,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	// 	return x.protobufMarshal(e)
 	// })
 
-	//x.Marshallers.Store("protobufSingle", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// x.Marshallers.Store("protobufSingle", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	x.Marshallers.Store("protobufSingle", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protobufSingleMarshal(r)
 	})
@@ -104,7 +104,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 // https://clickhouse.com/docs/en/interfaces/formats#protobufsingle
 // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
 func (x *XTCP) protobufSingleMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	//func (x *XTCP) protobufSingleMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// func (x *XTCP) protobufSingleMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
 	b, err := proto.Marshal(r)
 	if err != nil {
@@ -247,7 +247,7 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 // protoJsonMarshal marshals to json and does error handling
 // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
 func (x *XTCP) protoJsonMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	//func (x *XTCP) protoJsonMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// func (x *XTCP) protoJsonMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b := []byte(protojson.Format(r))
 	buf = &b
 	return buf
@@ -256,7 +256,7 @@ func (x *XTCP) protoJsonMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte
 // protoTextMarshal marshals to json and does error handling
 // https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext#Marshal
 func (x *XTCP) protoTextMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	//func (x *XTCP) protoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// func (x *XTCP) protoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b := []byte(prototext.Format(r))
 	buf = &b
 	return buf
@@ -268,7 +268,7 @@ func (x *XTCP) protoTextMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte
 // https://github.com/msgpack/msgpack
 // TODO look at https://github.com/shamaton/msgpackgen for high performance msgpack
 func (x *XTCP) protoMsgPackMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	//func (x *XTCP) protoMsgPackMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	// func (x *XTCP) protoMsgPackMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b, err := msgpack.Marshal(r)
 	if err != nil {
 		x.pC.WithLabelValues("protoMsgPackMarshal", "Marshal", "error").Inc()
