@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -81,7 +82,10 @@ func client(wg *sync.WaitGroup,
 	for r, success := 1, false; r < dialr && !success; r++ {
 
 		var err error
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", bind, port), timeout)
+		dialer := net.Dialer{Timeout: timeout}
+		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		conn, err = dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%d", bind, port))
+		cancel()
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			timeout = dialTimeoutCst + (dialTimeoutCst * time.Duration(r))
 			continue
