@@ -117,7 +117,7 @@ func main() {
 	// Print version information passed in via ldflags in the Makefile
 	if *v {
 		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: -v prints version and exits; deferred cancel() is moot at process shutdown
 	}
 	debugLevel = *d
 
@@ -325,7 +325,8 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		log.Fatal("Error making gRPC request: ", err.Error())
+		_ = conn.Close()                                                                       // close explicitly; log.Fatal skips the deferred conn.Close
+		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
 	}
 
 breakPoint:

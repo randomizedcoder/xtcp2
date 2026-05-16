@@ -51,7 +51,7 @@ func main() {
 	// Print version information passed in via ldflags in the Makefile
 	if *version {
 		log.Println("xtcp commit:", commit, "\tdate(UTC):", date)
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: -version prints and exits; deferred cancel() is moot at process shutdown
 	}
 
 	debugLevel = *d
