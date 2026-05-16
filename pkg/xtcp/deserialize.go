@@ -166,7 +166,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			continue
 		}
 
-		length := xtcpnl.InetDiagMsgSizeCst
+		length = xtcpnl.InetDiagMsgSizeCst
 		xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord)
 		offset += length
 
@@ -190,11 +190,11 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		// single record send to GRPC client
 		x.flatRecordServiceSend(xtcpRecord)
 
-		n, err := x.dest.Send(ctx, x.Marshaller(xtcpRecord))
-		if err != nil {
+		sent, serr := x.dest.Send(ctx, x.Marshaller(xtcpRecord))
+		if serr != nil {
 			d.pC.WithLabelValues("Deserialize", "Destation", "error").Inc()
 		} else {
-			d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(n))
+			d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(sent))
 		}
 
 		// xr := xtcp_flat_record.Envelope_XtcpFlatRecord(xtcpRecord)

@@ -85,11 +85,11 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	// Pre-fill the SQ with `batch` recvmsg SQEs from the pool. Each one
 	// gets pinned in the ring's in-flight map; the kernel will fill them
 	// as netlink datagrams arrive.
-	if err := x.iouringPrefillRecvs(ring, fd, batch); err != nil {
-		log.Fatalf("netlinkerIoUring %d prefill: %v", id, err)
+	if perr := x.iouringPrefillRecvs(ring, fd, batch); perr != nil {
+		log.Fatalf("netlinkerIoUring %d prefill: %v", id, perr)
 	}
-	if _, err := ring.Submit(); err != nil {
-		log.Printf("netlinkerIoUring %d initial Submit: %v", id, err)
+	if _, serr := ring.Submit(); serr != nil {
+		log.Printf("netlinkerIoUring %d initial Submit: %v", id, serr)
 	}
 
 	// Use a Timespec equal to the netlink timeout so cancel polling and
@@ -102,18 +102,18 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	packets := uint64(0)
 	for !x.checkDoneNonBlocking(ctx) {
 
-		results, err := x.iouringWaitWithTimeout(ring, nlTimeout)
-		if err != nil {
+		results, werr := x.iouringWaitWithTimeout(ring, nlTimeout)
+		if werr != nil {
 			// ETIME is the "kernel had no data in this window" signal —
 			// equivalent to syscall.Recvfrom's SO_RCVTIMEO timeout in the
 			// syscall path. We just loop and re-check ctx.
-			if isETimeError(err) {
+			if isETimeError(werr) {
 				x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
 				continue
 			}
 			x.pC.WithLabelValues("NetlinkerIoUring", "WaitErr", "count").Inc()
 			if x.debugLevel > 10 {
-				log.Printf("netlinkerIoUring %d WaitOne err: %v", id, err)
+				log.Printf("netlinkerIoUring %d WaitOne err: %v", id, werr)
 			}
 			continue
 		}
@@ -124,10 +124,10 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 			switch res.Op {
 			case xio.OpRead:
 				x.handleRecvCQE(ctxRing, ring, nsName, fd, id, res)
-				if err := x.iouringPrefillRecvs(ring, fd, 1); err != nil {
+				if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
 					x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
 					if x.debugLevel > 10 {
-						log.Printf("netlinkerIoUring %d refill err: %v", id, err)
+						log.Printf("netlinkerIoUring %d refill err: %v", id, rerr)
 					}
 				}
 			default:
@@ -139,7 +139,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 			}
 		}
 
-		if _, err := ring.Submit(); err != nil {
+		if _, serr := ring.Submit(); serr != nil {
 			x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
 		}
 

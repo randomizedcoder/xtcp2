@@ -44,7 +44,7 @@ func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDi
 	}
 	defer watcher.Close()
 
-	if err := watcher.Add(netNsDir); err != nil {
+	if err = watcher.Add(netNsDir); err != nil {
 		return fmt.Errorf("failed to watch directory %s: %w", netNsDir, err)
 	}
 
@@ -86,14 +86,14 @@ breakPoint:
 				continue
 			}
 
-		case err, ok := <-watcher.Errors:
+		case werr, ok := <-watcher.Errors:
 			x.pC.WithLabelValues("watchNamespaces", "error", "error").Inc()
 			if !ok {
 				x.pC.WithLabelValues("watchNamespaces", "watcherCloseErr", "counter").Inc()
 				return fmt.Errorf("watchNamespaces %s error channel closed", netNsDir)
 			}
 			if x.debugLevel > 10 {
-				log.Printf("Watcher error: %v", err)
+				log.Printf("Watcher error: %v", werr)
 			}
 		}
 	}
@@ -133,7 +133,7 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	defer fd.Close()
 
 	// Use syscall to bind the namespace to the file
-	if err := syscall.Mount("/proc/self/ns/net", fd.Name(), "none", syscall.MS_BIND, ""); err != nil {
+	if err = syscall.Mount("/proc/self/ns/net", fd.Name(), "none", syscall.MS_BIND, ""); err != nil {
 		return fmt.Errorf("failed to bind namespace: %w", err)
 	}
 

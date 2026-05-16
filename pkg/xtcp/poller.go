@@ -97,7 +97,7 @@ breakPoint:
 				x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pTime.Seconds())
 
 				if x.debugLevel > 10 {
-					if ns, ok := x.fdToNsMap.Load(doneReceived.fd); ok {
+					if ns, okNs := x.fdToNsMap.Load(doneReceived.fd); okNs {
 						log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
 							count, doneReceived.fd, ns.(string), pTime.Seconds(), pTime.Milliseconds())
 					} else {
