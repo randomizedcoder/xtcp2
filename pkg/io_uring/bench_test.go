@@ -31,8 +31,8 @@ func snapshotRusage(b *testing.B) rusageDelta {
 		b.Fatalf("Getrusage: %v", err)
 	}
 	return rusageDelta{
-		user: ru.Utime.Sec*1e6 + int64(ru.Utime.Usec),
-		sys:  ru.Stime.Sec*1e6 + int64(ru.Stime.Usec),
+		user: ru.Utime.Sec*1e6 + ru.Utime.Usec,
+		sys:  ru.Stime.Sec*1e6 + ru.Stime.Usec,
 		maj:  ru.Majflt,
 		nvcs: ru.Nvcsw,
 		nivs: ru.Nivcsw,
