@@ -50,8 +50,8 @@ func (x *XTCP) nsMapCountReporter(ctx context.Context, wg *sync.WaitGroup) {
 
 func (x *XTCP) MapCount() uint64 {
 	store := x.storeCount.Load()
-	delete := x.deleteCount.Load()
-	return store - delete
+	deleted := x.deleteCount.Load()
+	return store - deleted
 }
 
 // LenSyncMap wraps lenSyncMap
