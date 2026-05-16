@@ -80,7 +80,7 @@ func (c *xtcpConfigService) Get(
 		if c.debugLevel > 10 {
 			log.Println("Get config validation failed:", err)
 		}
-		err := status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
 		return nil, err
 	}
 
@@ -101,7 +101,7 @@ func (c *xtcpConfigService) Set(
 		if c.debugLevel > 10 {
 			log.Println("Set config validation failed:", err)
 		}
-		err := status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
 		return nil, err
 	}
 
@@ -130,7 +130,7 @@ func (c *xtcpConfigService) SetPollFrequency(
 		if c.debugLevel > 10 {
 			log.Println("SetPollFrequency config validation failed:", err)
 		}
-		err := status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
 		return nil, err
 	}
 

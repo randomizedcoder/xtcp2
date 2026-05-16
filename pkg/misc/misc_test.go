@@ -127,9 +127,9 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 	// Benchmark timer RESET here!!!                       <--- Reset
 	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for i := 0; i < b.N; i++ {
 		if scanType == "scan" {
-			scanFileLines := ScanFile(filename)
+			scanFileLines = ScanFile(filename)
 			if debugLevel > 100 {
 				fmt.Println("len(scanFileLines):\t", len(scanFileLines))
 			}

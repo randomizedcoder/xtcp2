@@ -75,7 +75,7 @@ func ScanFile(file string) []string {
 		line := sc.Text()
 		lines = append(lines, line+string('\n'))
 	}
-	if err := sc.Err(); err != nil {
+	if err = sc.Err(); err != nil {
 		_ = f.Close()                                              // close explicitly; log.Fatalf skips the deferred Close
 		log.Fatalf("XTCPStater scanFile scan file error: %v", err) //nolint:gocritic // exitAfterDefer: deferred f.Close() is released explicitly above
 	}
@@ -98,7 +98,8 @@ func ReadFile(file string) []string {
 
 	rd := bufio.NewReader(f)
 	for {
-		line, err := rd.ReadString('\n')
+		var line string
+		line, err = rd.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				break

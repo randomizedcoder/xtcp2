@@ -102,13 +102,13 @@ func setupUDPDest(t *testing.T, _ string) destSetupResult {
 	return destSetupResult{
 		dest: "udp:" + addr,
 		recv: func() ([]byte, error) {
-			if err := pc.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-				return nil, err
+			if derr := pc.SetReadDeadline(time.Now().Add(2 * time.Second)); derr != nil {
+				return nil, derr
 			}
 			buf := make([]byte, 1<<16)
-			n, _, err := pc.ReadFrom(buf)
-			if err != nil {
-				return nil, err
+			n, _, rerr := pc.ReadFrom(buf)
+			if rerr != nil {
+				return nil, rerr
 			}
 			return buf[:n], nil
 		},
@@ -131,13 +131,13 @@ func setupUnixGramDest(t *testing.T, dir string) destSetupResult {
 	return destSetupResult{
 		dest: "unixgram:" + path,
 		recv: func() ([]byte, error) {
-			if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-				return nil, err
+			if derr := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); derr != nil {
+				return nil, derr
 			}
 			buf := make([]byte, 1<<16)
-			n, _, err := conn.ReadFromUnix(buf)
-			if err != nil {
-				return nil, err
+			n, _, rerr := conn.ReadFromUnix(buf)
+			if rerr != nil {
+				return nil, rerr
 			}
 			return buf[:n], nil
 		},
@@ -161,9 +161,9 @@ func setupUnixDest(t *testing.T, dir string) destSetupResult {
 	connCh := make(chan net.Conn, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		c, err := ln.Accept()
-		if err != nil {
-			errCh <- err
+		c, aerr := ln.Accept()
+		if aerr != nil {
+			errCh <- aerr
 			return
 		}
 		connCh <- c
@@ -179,8 +179,8 @@ func setupUnixDest(t *testing.T, dir string) destSetupResult {
 			select {
 			case c := <-connCh:
 				clientConn = c
-			case err := <-errCh:
-				firstErr = err
+			case eerr := <-errCh:
+				firstErr = eerr
 			case <-time.After(2 * time.Second):
 				firstErr = fmt.Errorf("timeout waiting for client to dial unix socket")
 			}
@@ -194,21 +194,21 @@ func setupUnixDest(t *testing.T, dir string) destSetupResult {
 	return destSetupResult{
 		dest: "unix:" + path,
 		recv: func() ([]byte, error) {
-			c, err := getConn()
-			if err != nil {
-				return nil, err
+			c, gerr := getConn()
+			if gerr != nil {
+				return nil, gerr
 			}
-			if err := c.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-				return nil, err
+			if derr := c.SetReadDeadline(time.Now().Add(2 * time.Second)); derr != nil {
+				return nil, derr
 			}
 			br := newByteReader(c)
-			length, err := binary.ReadUvarint(br)
-			if err != nil {
-				return nil, fmt.Errorf("read varint: %w", err)
+			length, lerr := binary.ReadUvarint(br)
+			if lerr != nil {
+				return nil, fmt.Errorf("read varint: %w", lerr)
 			}
 			payload := make([]byte, length)
-			if _, err := io.ReadFull(c, payload); err != nil {
-				return nil, fmt.Errorf("read payload: %w", err)
+			if _, rerr := io.ReadFull(c, payload); rerr != nil {
+				return nil, fmt.Errorf("read payload: %w", rerr)
 			}
 			return payload, nil
 		},
@@ -262,9 +262,9 @@ func runDestRow(t *testing.T, c destCase, payloads [][]byte) {
 
 	for i, payload := range payloads {
 		buf := append([]byte(nil), payload...)
-		n, err := dest.Send(ctx, &buf)
-		if err != nil {
-			t.Fatalf("payload[%d] Send err: %v", i, err)
+		n, serr := dest.Send(ctx, &buf)
+		if serr != nil {
+			t.Fatalf("payload[%d] Send err: %v", i, serr)
 		}
 		if c.scheme == schemeNull {
 			if n != len(payload) {
@@ -276,9 +276,9 @@ func runDestRow(t *testing.T, c destCase, payloads [][]byte) {
 			t.Errorf("payload[%d] Send n=%d want=1", i, n)
 		}
 
-		got, err := setup.recv()
-		if err != nil {
-			t.Fatalf("payload[%d] recv err: %v", i, err)
+		got, rerr := setup.recv()
+		if rerr != nil {
+			t.Fatalf("payload[%d] recv err: %v", i, rerr)
 		}
 		want := c.expectFrame(payload)
 		if !bytes.Equal(got, want) {
@@ -399,29 +399,29 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	defer x.closeDestination()
 
 	// One ring covers the whole row. Sized small so test exits quickly.
-	ring, err := xioRingNew(t)
-	if err != nil {
-		t.Skipf("io_uring not available: %v", err)
+	ring, rerr := xioRingNew(t)
+	if rerr != nil {
+		t.Skipf("io_uring not available: %v", rerr)
 	}
 	defer ring.Close(100*time.Millisecond, nil)
 	ringCtx := withRing(ctx, ring)
 
 	for i, payload := range payloads {
 		buf := append([]byte(nil), payload...)
-		n, err := dest.Send(ringCtx, &buf)
-		if err != nil {
-			t.Fatalf("payload[%d] Send err: %v", i, err)
+		n, serr := dest.Send(ringCtx, &buf)
+		if serr != nil {
+			t.Fatalf("payload[%d] Send err: %v", i, serr)
 		}
 		if n != 1 {
 			t.Errorf("payload[%d] Send n=%d want=1", i, n)
 		}
 		// Submit + drain the CQE so the receiver can read.
-		if _, err := ring.Submit(); err != nil {
-			t.Fatalf("payload[%d] Submit: %v", i, err)
+		if _, srerr := ring.Submit(); srerr != nil {
+			t.Fatalf("payload[%d] Submit: %v", i, srerr)
 		}
-		results, err := ring.WaitOne()
-		if err != nil {
-			t.Fatalf("payload[%d] WaitOne: %v", i, err)
+		results, werr := ring.WaitOne()
+		if werr != nil {
+			t.Fatalf("payload[%d] WaitOne: %v", i, werr)
 		}
 		if len(results) != 1 {
 			t.Fatalf("payload[%d] got %d CQEs want 1", i, len(results))
@@ -430,9 +430,9 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 			t.Errorf("payload[%d] CQE Res=%d (error)", i, results[0].Res)
 		}
 
-		got, err := setup.recv()
-		if err != nil {
-			t.Fatalf("payload[%d] recv: %v", i, err)
+		got, gerr := setup.recv()
+		if gerr != nil {
+			t.Fatalf("payload[%d] recv: %v", i, gerr)
 		}
 		want := c.expectFrame(payload)
 		if !bytes.Equal(got, want) {
@@ -468,12 +468,12 @@ func TestDestUnix_StreamFraming(t *testing.T) {
 			payload[i] = byte(i & 0xff)
 		}
 		buf := append([]byte(nil), payload...)
-		if _, err := dest.Send(ctx, &buf); err != nil {
-			t.Fatalf("size=%d Send err: %v", size, err)
+		if _, serr := dest.Send(ctx, &buf); serr != nil {
+			t.Fatalf("size=%d Send err: %v", size, serr)
 		}
-		got, err := setup.recv()
-		if err != nil {
-			t.Fatalf("size=%d recv err: %v", size, err)
+		got, rerr := setup.recv()
+		if rerr != nil {
+			t.Fatalf("size=%d recv err: %v", size, rerr)
 		}
 		if !bytes.Equal(got, payload) {
 			t.Errorf("size=%d payload mismatch (first 16 bytes got=%x want=%x)", size, got[:min(16, len(got))], payload[:min(16, len(payload))])
@@ -574,8 +574,8 @@ func benchDest(b *testing.B, scheme string, setup func(t testing.TB, dir string)
 
 	for i := 0; i < b.N; i++ {
 		buf := append([]byte(nil), payload...)
-		if _, err := dest.Send(ctx, &buf); err != nil {
-			b.Fatalf("write err: %v", err)
+		if _, serr := dest.Send(ctx, &buf); serr != nil {
+			b.Fatalf("write err: %v", serr)
 		}
 	}
 }
@@ -604,9 +604,9 @@ func setupUDPDestTB(t testing.TB, dir string) destSetupResult {
 		recv: func() ([]byte, error) {
 			_ = pc.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			buf := make([]byte, 1<<16)
-			n, _, err := pc.ReadFrom(buf)
-			if err != nil {
-				return nil, err
+			n, _, rerr := pc.ReadFrom(buf)
+			if rerr != nil {
+				return nil, rerr
 			}
 			return buf[:n], nil
 		},
@@ -625,9 +625,9 @@ func setupUnixGramDestTB(t testing.TB, dir string) destSetupResult {
 		recv: func() ([]byte, error) {
 			_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			buf := make([]byte, 1<<16)
-			n, _, err := conn.ReadFromUnix(buf)
-			if err != nil {
-				return nil, err
+			n, _, rerr := conn.ReadFromUnix(buf)
+			if rerr != nil {
+				return nil, rerr
 			}
 			return buf[:n], nil
 		},
@@ -647,8 +647,8 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 	}
 	ch := make(chan connOrErr, 1)
 	go func() {
-		c, err := ln.Accept()
-		ch <- connOrErr{c, err}
+		c, aerr := ln.Accept()
+		ch <- connOrErr{c, aerr}
 	}()
 	var (
 		conn       net.Conn
@@ -670,13 +670,13 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 			c := getConn()
 			_ = c.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 			br := newByteReader(c)
-			length, err := binary.ReadUvarint(br)
-			if err != nil {
-				return nil, err
+			length, lerr := binary.ReadUvarint(br)
+			if lerr != nil {
+				return nil, lerr
 			}
 			payload := make([]byte, length)
-			if _, err := io.ReadFull(c, payload); err != nil {
-				return nil, err
+			if _, rerr := io.ReadFull(c, payload); rerr != nil {
+				return nil, rerr
 			}
 			return payload, nil
 		},

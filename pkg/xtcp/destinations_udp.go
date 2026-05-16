@@ -59,7 +59,8 @@ func newUDPDest(ctx context.Context, x *XTCP) (Destination, error) {
 	}
 	d := &udpDest{x: x, conn: conn}
 	if x.config.IoUring {
-		fd, err := extractFD(conn)
+		var fd int
+		fd, err = extractFD(conn)
 		if err != nil {
 			return nil, fmt.Errorf("InitDestUDP extractFD: %w", err)
 		}
