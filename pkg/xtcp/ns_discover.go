@@ -34,7 +34,7 @@ func (x *XTCP) discoverAllNamespaces() (nsMap *sync.Map) {
 
 	if len(nsMaps) == 1 {
 		nsMap = nsMaps[0]
-		return
+		return nsMap
 	}
 
 	// if x.debugLevel > 1000 {
@@ -103,7 +103,7 @@ func (x *XTCP) discoverNamespaces(netNsDir string) (nsMap *sync.Map) {
 		if x.debugLevel > 10 {
 			log.Printf("discoverNamespaces Error reading namespace directory: %v", err)
 		}
-		return
+		return nsMap
 	}
 
 	for i, file := range files {
