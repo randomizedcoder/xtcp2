@@ -78,7 +78,7 @@ func main() {
 			return new(kgo.Fetches)
 		},
 	}
-	kgoFetches := kgoFetchesPool.Get().(*kgo.Fetches)
+	kgoFetches, _ := kgoFetchesPool.Get().(*kgo.Fetches)
 	defer kgoFetchesPool.Put(kgoFetches)
 
 	xtcpRecordPool := sync.Pool{
@@ -87,7 +87,7 @@ func main() {
 		},
 	}
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
+	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0
