@@ -18,8 +18,8 @@ type BenchmarkTCPInfoTest struct {
 func BenchmarkDeserializeTCPInfo(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/6_10_3/attribute_info",
+			description: tnAttrInfo,
+			filename:    tdAttrInfo_6_10_3,
 		},
 	}
 
@@ -53,8 +53,8 @@ func BenchmarkDeserializeTCPInfo(b *testing.B) {
 func BenchmarkDeserializeTCPInfoReflection(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/6_10_3/attribute_info",
+			description: tnAttrInfo,
+			filename:    tdAttrInfo_6_10_3,
 		},
 	}
 
@@ -88,8 +88,8 @@ func BenchmarkDeserializeTCPInfoReflection(b *testing.B) {
 func BenchmarkDeserializeTCPInfo6_10_3Reflection(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/6_10_3/attribute_info",
+			description: tnAttrInfo,
+			filename:    tdAttrInfo_6_10_3,
 		},
 	}
 
@@ -123,8 +123,8 @@ func BenchmarkDeserializeTCPInfo6_10_3Reflection(b *testing.B) {
 func BenchmarkDeserializeTCPInfoTCPInfo6_6_44Reflection(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/6_6_44/attribute_info",
+			description: tnAttrInfo,
+			filename:    tdAttrInfo_6_6_44,
 		},
 	}
 
@@ -158,7 +158,7 @@ func BenchmarkDeserializeTCPInfoTCPInfo6_6_44Reflection(b *testing.B) {
 func BenchmarkDeserializeTCPInfo5_4_281Reflection(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
+			description: tnAttrInfo,
 			filename:    "./testdata/5_4_281/attribute_info",
 		},
 	}
@@ -193,7 +193,7 @@ func BenchmarkDeserializeTCPInfo5_4_281Reflection(b *testing.B) {
 func BenchmarkDeserializeTCPInfo4_19_219Reflection(b *testing.B) {
 	var tests = []BenchmarkTCPInfoTest{
 		{
-			description: "attribute_info",
+			description: tnAttrInfo,
 			filename:    "./testdata/4_19_319/attribute_info",
 		},
 	}

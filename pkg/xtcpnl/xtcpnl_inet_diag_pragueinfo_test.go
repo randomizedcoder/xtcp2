@@ -19,7 +19,7 @@ func TestDeserializePragueInfo(t *testing.T) {
 	var tests = []DeserializePragueInfoTest{
 		{
 			description: "attribute_pragueinfo_fake_fixme",
-			filename:    "./testdata/attribute_pragueinfo_fake_fixme",
+			filename:    tdAttrPragueinfoFake,
 			p: PragueInfo{
 				Alpha:     0,
 				FracCwnd:  0,
@@ -34,7 +34,7 @@ func TestDeserializePragueInfo(t *testing.T) {
 		},
 		{
 			description: "attribute_pragueinfo_fake_fixme_reflection",
-			filename:    "./testdata/attribute_pragueinfo_fake_fixme",
+			filename:    tdAttrPragueinfoFake,
 			p: PragueInfo{
 				Alpha:     0,
 				FracCwnd:  0,
@@ -130,7 +130,7 @@ func DeserializePragueInfoBoth(b *testing.B, Func func(data []byte, d *PragueInf
 	var tests = []DeserializePragueInfoTest{
 		{
 			description: "attribute_pragueinfo_fake_fixme",
-			filename:    "./testdata/attribute_pragueinfo_fake_fixme",
+			filename:    tdAttrPragueinfoFake,
 		},
 	}
 

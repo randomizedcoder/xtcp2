@@ -22,7 +22,7 @@ func TestDeserializeDCTCPInfo(t *testing.T) {
 		// dctcp:(ce_state:0,alpha:540,ab_ecn:0,ab_tot:32768)
 		{
 			description: "attribute_dctcpinfo_4033",
-			filename:    "./testdata/6_6_44/attribute_dctcpinfo_4033",
+			filename:    tdAttrDctcpinfo_6_6_44,
 			d: DCTCPInfo{
 				Enabled: 1,
 				CEState: 0,
@@ -36,7 +36,7 @@ func TestDeserializeDCTCPInfo(t *testing.T) {
 		},
 		{
 			description: "attribute_dctcpinfo_4033_reflection",
-			filename:    "./testdata/6_6_44/attribute_dctcpinfo_4033",
+			filename:    tdAttrDctcpinfo_6_6_44,
 			d: DCTCPInfo{
 				Enabled: 1,
 				CEState: 0,
@@ -127,7 +127,7 @@ func DeserializeDCTCPInfoBoth(b *testing.B, Func func(data []byte, d *DCTCPInfo)
 	var tests = []DeserializeMemInfoTest{
 		{
 			description: "attribute_dctcpinfo_4033_reflection",
-			filename:    "./testdata/6_6_44/attribute_dctcpinfo_4033",
+			filename:    tdAttrDctcpinfo_6_6_44,
 		},
 	}
 

@@ -37,7 +37,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 	var tests = []DeserializeInetDiagMsgTest{
 		{
 			description: "6_10_3 port4322",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_reply_single_packet_port4322.pcap",
+			filename:    tdReplyPort4322_6_10_3,
 
 			Family:  2,
 			State:   1,
@@ -57,8 +57,8 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			debugLevel: 11,
 		},
 		{
-			description: "port4018",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4018.pcap",
+			description: tnPort4018,
+			filename:    tdReplyPort4018_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -79,7 +79,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port4018reflect",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4018.pcap",
+			filename:    tdReplyPort4018_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -100,7 +100,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port4001",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4001.pcap",
+			filename:    tdReplyPort4001_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -121,7 +121,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port4001reflect",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4001.pcap",
+			filename:    tdReplyPort4001_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -142,7 +142,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "4_19_319_port4005",
-			filename:    "./testdata/4_19_319/netlink_sock_diag_reply_single_packet_port4005.pcap",
+			filename:    tdReplyPort4005_4_19_319,
 
 			Family:  2,
 			State:   1,
@@ -163,7 +163,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "4_19_319_port4005reflect",
-			filename:    "./testdata/4_19_319/netlink_sock_diag_reply_single_packet_port4005.pcap",
+			filename:    tdReplyPort4005_4_19_319,
 
 			Family:  2,
 			State:   1,
@@ -184,7 +184,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port443v4",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v4.pcap",
+			filename:    tdReplyPort443V4_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -205,7 +205,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port443v4reflect",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v4.pcap",
+			filename:    tdReplyPort443V4_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -226,7 +226,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port443v6",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v6.pcap",
+			filename:    tdReplyPort443V6_6_6_44,
 
 			Family:  10,
 			State:   1,
@@ -247,7 +247,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		},
 		{
 			description: "port443v6reflect",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v6.pcap",
+			filename:    tdReplyPort443V6_6_6_44,
 
 			Family:  10,
 			State:   1,
@@ -267,8 +267,8 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			debugLevel: 11,
 		},
 		{
-			description: "7_0_3 sport26546 dport443",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			description: tnSport26546V4,
+			filename:    tdResp26546_7_0_3,
 
 			Family:  2,
 			State:   1,
@@ -287,8 +287,8 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			debugLevel: 11,
 		},
 		{
-			description: "7_0_3 sport19000 dport10156 v6",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap",
+			description: tnSport19000V6,
+			filename:    tdResp19000V6_7_0_3,
 
 			Family:  10,
 			State:   1,

@@ -20,7 +20,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 	var tests = []DeserializeTypeOfServiceTest{
 		{
 			description: "attribute_tos",
-			filename:    "./testdata/6_6_44/attribute_tos",
+			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
 			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
 				return DeserializeTypeOfService(data, tos)
@@ -28,7 +28,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 		},
 		{
 			description: "attribute_tos_reflection",
-			filename:    "./testdata/6_6_44/attribute_tos",
+			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
 			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
 				return DeserializeTypeOfServiceReflection(data, tos)
@@ -36,7 +36,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 		},
 		{
 			description: "attribute_tos2",
-			filename:    "./testdata/6_6_44/attribute_tos2",
+			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
 			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
 				return DeserializeTypeOfService(data, tos)
@@ -44,7 +44,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 		},
 		{
 			description: "attribute_tos2_reflection",
-			filename:    "./testdata/6_6_44/attribute_tos2",
+			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
 			Func: func(data []byte, tos *TypeOfService) (n int, err error) {
 				return DeserializeTypeOfServiceReflection(data, tos)
@@ -114,7 +114,7 @@ func DeserializeTypeOfServiceBoth(b *testing.B, Func func(data []byte, tos *Type
 	var tests = []DeserializeTypeOfServiceTest{
 		{
 			description: "attribute_tos2",
-			filename:    "./testdata/6_6_44/attribute_tos2",
+			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
 		},
 	}

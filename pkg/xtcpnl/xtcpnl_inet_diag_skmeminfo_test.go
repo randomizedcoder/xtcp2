@@ -19,8 +19,8 @@ type DeserializeSkMemInfoTest struct {
 func TestDeserializeSkMemInfo(t *testing.T) {
 	var tests = []DeserializeSkMemInfoTest{
 		{
-			description: "attribute_skmeminfo2",
-			filename:    "./testdata/6_6_44/attribute_skmeminfo2",
+			description: tnAttrSkmeminfo2,
+			filename:    tdAttrSkmeminfo2_6_6_44,
 			sm: SkMemInfo{
 				RmemAlloc:  0,
 				RcvBuf:     1000000,
@@ -37,8 +37,8 @@ func TestDeserializeSkMemInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "attribute_skmeminfo2",
-			filename:    "./testdata/6_6_44/attribute_skmeminfo2",
+			description: tnAttrSkmeminfo2,
+			filename:    tdAttrSkmeminfo2_6_6_44,
 			sm: SkMemInfo{
 				RmemAlloc:  0,
 				RcvBuf:     1000000,
@@ -157,8 +157,8 @@ func BenchmarkDeserializeSkMemInfoReflection(b *testing.B) {
 func DeserializeSkMemInfoBoth(b *testing.B, Func func(data []byte, sm *SkMemInfo) (n int, err error)) {
 	var tests = []DeserializeSkMemInfoTest{
 		{
-			description: "attribute_skmeminfo2",
-			filename:    "./testdata/6_6_44/attribute_skmeminfo2",
+			description: tnAttrSkmeminfo2,
+			filename:    tdAttrSkmeminfo2_6_6_44,
 			sm: SkMemInfo{
 				RmemAlloc:  0,
 				RcvBuf:     1000000,
