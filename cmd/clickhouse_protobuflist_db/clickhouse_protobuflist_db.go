@@ -45,7 +45,7 @@ type config struct {
 func main() {
 
 	filename := flag.String("filename", "protoBytes.bin", "filename")
-	valueStr := flag.String("values", "1", "values uints -> uint32, comma seperated")
+	valueStr := flag.String("values", "1", "values uints -> uint32, comma separated")
 
 	envelope := flag.Bool("envelope", false, "envelope")
 	db := flag.Bool("db", false, "db")

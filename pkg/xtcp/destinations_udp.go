@@ -41,7 +41,7 @@ func extractFD(c net.Conn) (int, error) {
 	return int(f.Fd()), nil
 }
 
-// udpDest writes each marshalled record to a connected UDP socket.
+// udpDest writes each marshaled record to a connected UDP socket.
 // When config.IoUring is set, send goes through the per-netlinker ring
 // instead of a direct syscall write.
 type udpDest struct {

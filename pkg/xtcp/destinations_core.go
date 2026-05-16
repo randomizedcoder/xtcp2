@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Destination is the shipping target xtcp writes each marshalled record to.
+// Destination is the shipping target xtcp writes each marshaled record to.
 // One Destination per running process; chosen at startup based on
 // config.Dest's scheme ("kafka:..." → kafka factory).
 //
@@ -21,7 +21,7 @@ type Destination interface {
 
 // DestinationFactory builds a Destination for the running process. Called
 // once at startup with the configured XTCP. Factories are responsible for
-// validating the destination spec (in x.config.Dest) and dialling/connecting
+// validating the destination spec (in x.config.Dest) and dialing/connecting
 // any backing client. Returning a non-nil error aborts process startup.
 type DestinationFactory func(ctx context.Context, x *XTCP) (Destination, error)
 

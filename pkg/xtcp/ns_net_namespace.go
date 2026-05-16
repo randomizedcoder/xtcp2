@@ -22,7 +22,7 @@ const (
 // netNamespaceInstance runs as a goroutine, and moves the thread
 // into a network namespace, opens a netlink socket, and passes
 // the socketFD back to the creator of this goroutine
-// then this goroutine blocks, waiting to be cancelled
+// then this goroutine blocks, waiting to be canceled
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromName
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromPath
 // https://tip.golang.org/doc/go1.10#runtime

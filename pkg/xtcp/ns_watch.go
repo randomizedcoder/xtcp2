@@ -17,7 +17,7 @@ import (
 // and removed, and then with inotify in place, this function also calls
 // discoverNamespaces() to read all the existing name spaces from "/run/netns/"
 //
-// if running in a k8s environment, an alterantive approach would be to get
+// if running in a k8s environment, an alternative approach would be to get
 // events, like pod create/detele, from the API, but this would make
 // xtcp specific to k8s, rather than more generic
 func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDir string) error {
