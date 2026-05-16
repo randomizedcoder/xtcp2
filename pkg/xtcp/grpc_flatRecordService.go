@@ -225,7 +225,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	xtcpFlatRecordsResponse := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse)
 	// defer x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
 
-	(*xtcpFlatRecordsResponse).XtcpFlatRecord = xtcpRecord
+	xtcpFlatRecordsResponse.XtcpFlatRecord = xtcpRecord
 
 	if frClientCount > 0 {
 		x.flatRecordService.FlatRecordsClients.Range(func(k, v interface{}) bool {

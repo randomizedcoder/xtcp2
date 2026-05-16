@@ -85,14 +85,14 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
 		// xtcpRecord := x.xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
 
-		(*xtcpRecord).Hostname = x.hostname
-		(*xtcpRecord).TimestampNs = timestampNs
+		xtcpRecord.Hostname = x.hostname
+		xtcpRecord.TimestampNs = timestampNs
 		// (*xtcpRecord).Sec, (*xtcpRecord).Nsec = sec, nsec
 
-		(*xtcpRecord).Netns = *d.ns
-		(*xtcpRecord).RecordCounter = n
-		(*xtcpRecord).SocketFd = uint64(d.fd)
-		(*xtcpRecord).NetlinkerId = uint64(d.id)
+		xtcpRecord.Netns = *d.ns
+		xtcpRecord.RecordCounter = n
+		xtcpRecord.SocketFd = uint64(d.fd)
+		xtcpRecord.NetlinkerId = uint64(d.id)
 
 		nlh := d.nlhPool.Get().(*xtcpnl.NlMsgHdr)
 
