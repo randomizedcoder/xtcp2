@@ -145,7 +145,7 @@ func main() {
 
 func primaryFunction(ctx context.Context, c config) {
 
-	id, err := getLatestSchemaID(c.subject)
+	id, err := getLatestSchemaID(ctx, c.subject)
 	if err != nil {
 		log.Printf("getLatestSchemaID err:%v", err)
 	}
@@ -428,12 +428,16 @@ func InitDestKafka(ctx context.Context, c config) {
 
 }
 
-func getLatestSchemaID(subject string) (int, error) {
+func getLatestSchemaID(ctx context.Context, subject string) (int, error) {
 	fmt.Println("getLatestSchemaID")
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}

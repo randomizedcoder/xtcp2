@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -48,7 +49,7 @@ func namespaceName(index int) string {
 func createNamespace(name string) {
 
 	log.Printf("createNamespace: ip netns add %s", name)
-	cmd := exec.Command("ip", "netns", "add", name)
+	cmd := exec.CommandContext(context.Background(), "ip", "netns", "add", name)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to create namespace %s: %v", name, err)
 	}
@@ -57,7 +58,7 @@ func createNamespace(name string) {
 
 func removeNamespace(name string) {
 	log.Printf("removeNamespace: ip netns del %s", name)
-	cmd := exec.Command("ip", "netns", "del", name)
+	cmd := exec.CommandContext(context.Background(), "ip", "netns", "del", name)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to remove namespace %s: %v", name, err)
 	}
