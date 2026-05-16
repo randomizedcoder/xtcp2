@@ -8,6 +8,7 @@
 // Selection happens at init time from config.IoUring. Same dispatch
 // pattern as Marshaller/Destination (sync.Map of closures + chosen
 // function pointer on XTCP).
+
 package xtcp
 
 import (

@@ -1,6 +1,7 @@
 // Small helper functions used throughout the xtcp package. The original
 // file-level comment said "Package misc" but the file is actually in the
 // xtcp package; the canonical package-doc comment lives in xtcp.go.
+
 package xtcp
 
 import (
