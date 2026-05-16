@@ -175,8 +175,8 @@ func (s *xtcpFlatRecordService) PollFlatRecords(
 // of items in the FlatRecordsClients map
 func (s *xtcpFlatRecordService) frMapCount() (count uint64) {
 	store := s.frStoreCount.Load()
-	delete := s.frDeleteCount.Load()
-	count = store - delete
+	deleted := s.frDeleteCount.Load()
+	count = store - deleted
 	if s.debugLevel > 1000 {
 		log.Printf("frMapCount:%d", count)
 	}
@@ -187,8 +187,8 @@ func (s *xtcpFlatRecordService) frMapCount() (count uint64) {
 // of items in the FlatRecordsClients map
 func (s *xtcpFlatRecordService) pfrMapCount() (count uint64) {
 	store := s.pfrStoreCount.Load()
-	delete := s.pfrDeleteCount.Load()
-	count = store - delete
+	deleted := s.pfrDeleteCount.Load()
+	count = store - deleted
 	if s.debugLevel > 1000 {
 		log.Printf("pfrMapCount:%d", count)
 	}

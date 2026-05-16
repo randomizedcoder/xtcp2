@@ -274,7 +274,7 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 
 	kgoRecord.Topic = c.topic
 	kgoRecord.Value = *xtcpRecordBinary
-	len := len(*xtcpRecordBinary)
+	binaryLen := len(*xtcpRecordBinary)
 
 	// Propagate the caller's context to kClient.Produce so cancellation
 	// flows correctly. Previously a nil `ctxP` was passed (contextcheck).
@@ -313,7 +313,7 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 			}
 
 			if c.debugLevel > 10 {
-				log.Printf("destKafka len:%d %0.6fs %dms", len, dur.Seconds(), dur.Milliseconds())
+				log.Printf("destKafka len:%d %0.6fs %dms", binaryLen, dur.Seconds(), dur.Milliseconds())
 			}
 		},
 	)
