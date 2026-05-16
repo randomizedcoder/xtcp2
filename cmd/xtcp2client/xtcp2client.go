@@ -171,11 +171,14 @@ breakPoint:
 			break breakPoint
 
 		case <-ticker.C:
-			stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{})
+			if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
+				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, err)
+				break breakPoint
+			}
 			if debugLevel > 10 {
 				log.Printf("pollMode i:%d <-ticker.C, send", i)
 			}
-			//default:
+			// default:
 			// non-blocking
 		}
 
