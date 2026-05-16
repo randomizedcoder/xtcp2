@@ -25,14 +25,32 @@ type Destination interface {
 // any backing client. Returning a non-nil error aborts process startup.
 type DestinationFactory func(ctx context.Context, x *XTCP) (Destination, error)
 
+// Destination scheme identifiers. Doubles as the scheme prefix in `-dest
+// <scheme>:<addr>` and (for unix/unixgram/udp) as the corresponding net
+// package network name accepted by net.Dial / net.Listen.
+const (
+	schemeNull     = "null"
+	schemeUDP      = "udp"
+	schemeUnix     = "unix"
+	schemeUnixgram = "unixgram"
+	schemeKafka    = "kafka"
+	schemeNats     = "nats"
+	schemeNsq      = "nsq"
+	schemeValkey   = "valkey"
+
+	// schemeNullPrefix is the `-dest` value that selects the null sink
+	// without an address payload. Used as a no-op destination in tests.
+	schemeNullPrefix = "null:"
+)
+
 // knownSchemes is the closed set of every destination scheme xtcp2 has ever
 // supported. The set of compiled-in schemes is a subset (those whose
 // `dest_<scheme>` build tag is set). Used by the CLI error path to
 // distinguish "unknown scheme" from "exists but not compiled into this
 // binary" so the operator gets the right hint.
 var knownSchemes = []string{
-	"null", "udp", "unix", "unixgram",
-	"kafka", "nats", "nsq", "valkey",
+	schemeNull, schemeUDP, schemeUnix, schemeUnixgram,
+	schemeKafka, schemeNats, schemeNsq, schemeValkey,
 }
 
 var (
