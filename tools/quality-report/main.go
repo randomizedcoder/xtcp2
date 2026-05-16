@@ -483,8 +483,8 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 	}
 	out := make([]Finding, 0, len(j.Issues))
 	for _, is := range j.Issues {
-		ln, _ := strconv.Atoi(strings.SplitN(is.Line, "-", 2)[0])
-		col, _ := strconv.Atoi(is.Column)
+		ln := atoiOr0(strings.SplitN(is.Line, "-", 2)[0])
+		col := atoiOr0(is.Column)
 		msg := is.Details
 		if is.CWE.ID != "" {
 			msg = fmt.Sprintf("%s (CWE-%s)", msg, is.CWE.ID)
@@ -525,8 +525,8 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			continue
 		}
 		if m := reFileLineCol.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
-			col, _ := strconv.Atoi(m[3])
+			ln := atoiOr0(m[2])
+			col := atoiOr0(m[3])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
 				Severity: severityWarning,
@@ -535,7 +535,7 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			continue
 		}
 		if m := reFileLine.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
+			ln := atoiOr0(m[2])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
 				Severity: severityWarning,
@@ -569,8 +569,8 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 			continue
 		}
 		if m := reFileLineCol.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
-			col, _ := strconv.Atoi(m[3])
+			ln := atoiOr0(m[2])
+			col := atoiOr0(m[3])
 			out = append(out, Finding{
 				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Column: col, Message: m[4],
@@ -578,7 +578,7 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 			continue
 		}
 		if m := reFileLine.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
+			ln := atoiOr0(m[2])
 			out = append(out, Finding{
 				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Message: m[3],
@@ -675,8 +675,8 @@ func parseCliHelpSmoke(path string) ([]CliHelpResult, bool) {
 		if len(fields) < 3 {
 			continue
 		}
-		rc, _ := strconv.Atoi(fields[1])
-		bytes, _ := strconv.Atoi(fields[2])
+		rc := atoiOr0(fields[1])
+		bytes := atoiOr0(fields[2])
 		out = append(out, CliHelpResult{
 			Binary:   fields[0],
 			ExitCode: rc,
@@ -809,13 +809,22 @@ func readKVFile(path string) map[string]string {
 func readRuntimes(path string) map[string]int {
 	out := map[string]int{}
 	for k, v := range readKVFile(path) {
-		out[k], _ = strconv.Atoi(v)
+		out[k] = atoiOr0(v)
 	}
 	return out
 }
 
 func readExitCodes(path string) map[string]int {
 	return readRuntimes(path) // same shape: key=int
+}
+
+// atoiOr0 is a best-effort parse for already-validated numeric strings
+// (regex digit captures, golangci-lint JSON column fields, runtime KV
+// values, etc.). Anywhere the upstream guarantees parseability, the
+// error is uninteresting.
+func atoiOr0(s string) int {
+	n, _ := strconv.Atoi(s) //nolint:errcheck // best-effort parse of pre-validated digits
+	return n
 }
 
 func fileExists(path string) bool {
