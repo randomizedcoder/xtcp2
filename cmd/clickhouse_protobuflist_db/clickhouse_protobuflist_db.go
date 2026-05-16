@@ -135,7 +135,7 @@ func prepareBinary(c config) (binaryData []byte) {
 		binaryData = b.Bytes()
 
 		if c.debugDump {
-			errW := os.WriteFile(c.dumpFilename+".envelope", binaryData, 0644)
+			errW := os.WriteFile(c.dumpFilename+".envelope", binaryData, 0600) // gosec G306
 			if errW != nil {
 				log.Fatalf("Failed to write protobuf envelope data: %v", errW)
 			}
@@ -183,7 +183,7 @@ func fileOrDB(c config, binaryData []byte) {
 
 func writeDataToFile(filename string, data []byte) error {
 
-	err := os.WriteFile(filename, data, 0644) // 0644 permissions (rw-r--r--)
+	err := os.WriteFile(filename, data, 0600) // 0600 permissions (rw-------) per gosec G306
 	if err != nil {
 		return fmt.Errorf("error writing to file: %w", err) // Wrap the error
 	}
