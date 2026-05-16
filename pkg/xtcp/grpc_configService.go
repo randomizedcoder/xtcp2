@@ -46,17 +46,17 @@ func NewXtcpConfigService(
 	c.pC = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: "xtcp_config_grpc",
-			Name:      "counts",
-			Help:      "xtcp counts",
+			Name:      promNameCounts,
+			Help:      promHelpCounts,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	c.pH = promauto.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Subsystem: "xtcp_config_grpc",
-			Name:      "histograms",
-			Help:      "xtcp historgrams",
+			Name:      promNameHistograms,
+			Help:      promHelpHistograms,
 			Objectives: map[float64]float64{
 				0.1:  quantileError,
 				0.5:  quantileError,
@@ -64,7 +64,7 @@ func NewXtcpConfigService(
 			},
 			MaxAge: summaryVecMaxAge,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	return c
