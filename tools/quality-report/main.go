@@ -419,7 +419,7 @@ func parseGolangci(path, tool string, tier int, repoRoot string) ([]Finding, boo
 		return nil, true
 	}
 	var j golangciJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	if err = json.Unmarshal(b, &j); err != nil {
 		// Tolerate: emit a single synthetic finding noting the parse failure.
 		return []Finding{{
 			Tool:     tool,
@@ -473,7 +473,7 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 		return nil, true
 	}
 	var j gosecJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	if err = json.Unmarshal(b, &j); err != nil {
 		return []Finding{{
 			Tool:     toolGosec,
 			Rule:     "internal/parse-error",
@@ -613,8 +613,8 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 	dec := json.NewDecoder(f)
 	for {
 		var e event
-		if err := dec.Decode(&e); err != nil {
-			if err == io.EOF {
+		if derr := dec.Decode(&e); derr != nil {
+			if derr == io.EOF {
 				break
 			}
 			// Some Go test output mixes JSON with stderr; skip non-JSON tokens.
@@ -857,7 +857,7 @@ func relpath(p, root string) string {
 	if err != nil {
 		return p
 	}
-	if r, err := filepath.Rel(abs, p); err == nil && !strings.HasPrefix(r, "..") {
+	if r, rerr := filepath.Rel(abs, p); rerr == nil && !strings.HasPrefix(r, "..") {
 		return r
 	}
 	return p

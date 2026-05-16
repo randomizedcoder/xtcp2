@@ -71,7 +71,8 @@ func main() {
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	for i := 0; ; i++ {
-		n, _, err := conn.ReadFromUDP(*packetBuffer)
+		var n int
+		n, _, err = conn.ReadFromUDP(*packetBuffer)
 		if err != nil {
 			log.Printf("Error reading from UDP socket: %v", err)
 			continue
