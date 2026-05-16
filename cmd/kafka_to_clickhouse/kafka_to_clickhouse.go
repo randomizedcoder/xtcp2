@@ -447,7 +447,7 @@ func getLatestSchemaID(ctx context.Context, subject string) (int, error) {
 		ID int `json:"id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}
 
