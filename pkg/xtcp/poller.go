@@ -93,13 +93,15 @@ breakPoint:
 			x.pC.WithLabelValues("Poller", "done", "count").Inc()
 
 			if p, ok := x.pollTime.Load(doneReceived.fd); ok {
-				pTime := doneReceived.t.Sub(p.(time.Time))
+				pt, _ := p.(time.Time)
+				pTime := doneReceived.t.Sub(pt)
 				x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pTime.Seconds())
 
 				if x.debugLevel > 10 {
 					if ns, okNs := x.fdToNsMap.Load(doneReceived.fd); okNs {
+						nsStr, _ := ns.(string)
 						log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
-							count, doneReceived.fd, ns.(string), pTime.Seconds(), pTime.Milliseconds())
+							count, doneReceived.fd, nsStr, pTime.Seconds(), pTime.Milliseconds())
 					} else {
 						x.pC.WithLabelValues("Poller", "fdToNsMap", "error").Inc()
 						log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d after: %0.3fs %dms",
@@ -226,7 +228,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	startTime := time.Now()
 
 	x.envelopeMu.Lock()
-	x.currentEnvelope = x.xtcpEnvelopePool.Get().(*xtcp_flat_record.Envelope)
+	x.currentEnvelope, _ = x.xtcpEnvelopePool.Get().(*xtcp_flat_record.Envelope)
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 
@@ -235,8 +237,9 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	socketFDs := x.GetNetlinkSocketFDs()
 	for i, socketFD := range socketFDs {
 		if ns, ok := x.fdToNsMap.Load(socketFD); ok {
+			nsStr, _ := ns.(string)
 			// "/run/netns/xtcpNS"
-			if ns.(string) == linuxNetNSDirCst+xtcpNSName {
+			if nsStr == linuxNetNSDirCst+xtcpNSName {
 				if x.debugLevel > 100 {
 					log.Printf("pollAllNetlinkSockets skip "+linuxNetNSDirCst+xtcpNSName+" Poll i:%d", i)
 				}
