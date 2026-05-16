@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T21:49:54Z
+Generated: 2026-05-16T22:38:25Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 145 |
-| Findings (Tier 0) | 127 |
+| Total findings | 62 |
+| Findings (Tier 0) | 44 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 12 |
 | Findings (non-tiered) | 6 |
-| Files with at least one finding | 41 |
+| Files with at least one finding | 29 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,16 +31,16 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 139 | 4s |
-| golangci-lint (standard) | findings | 127 | 5s |
-| golangci-lint (quick) | findings | 42 | 14s |
+| golangci-lint (comprehensive) | findings | 56 | 5s |
+| golangci-lint (standard) | findings | 44 | 5s |
+| golangci-lint (quick) | findings | 33 | 13s |
 | gosec | findings | 6 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 1s |
+| gofmt | clean | 0 | 0s |
 | nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
-| metrics-audit | clean | 0 | 1s |
+| metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 6 | 2s |
 
@@ -51,7 +51,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 127 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 44 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 12 | 0 |
 
@@ -63,27 +63,21 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `pkg/xtcp/destinations_test.go` | 20 | govet×20 |
-| `pkg/xtcp/deserialize.go` | 13 | errcheck×7, G104×3, govet×2 |
-| `pkg/io_uring/bench_test.go` | 7 | govet×7 |
-| `pkg/io_uring/ring_test.go` | 7 | govet×7 |
-| `pkg/xtcp/netlinker_iouring.go` | 7 | govet×5, errcheck×2 |
-| `pkg/xtcpnl/xtcpnl_extract_7_0_3_fixtures_test.go` | 7 | govet×7 |
-| `pkg/xtcp/poller.go` | 6 | errcheck×4, funlen×1, govet×1 |
-| `pkg/xtcp/ns_watch.go` | 5 | govet×3, G301×1, errcheck×1 |
-| `cmd/xtcp2client/xtcp2client.go` | 4 | errcheck×2, govet×2 |
-| `pkg/xtcp/netlinker.go` | 4 | errcheck×3, govet×1 |
+| `pkg/xtcp/deserialize.go` | 11 | errcheck×7, G104×3, funlen×1 |
+| `pkg/xtcp/poller.go` | 5 | errcheck×4, funlen×1 |
+| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 4 | dupl×2, funlen×2 |
+| `pkg/xtcp/grpc_flatRecordService.go` | 3 | errcheck×3 |
+| `pkg/xtcp/netlinker.go` | 3 | errcheck×3 |
+| `tools/tcp_client/tcp_client.go` | 3 | errcheck×3 |
+| `tools/udp_receiver_server/udp_receiver_server.go` | 3 | errcheck×3 |
+| `cmd/xtcp2/xtcp2.go` | 2 | funlen×1, gocyclo×1 |
+| `cmd/xtcp2client/xtcp2client.go` | 2 | errcheck×2 |
+| `pkg/xtcp/grpc_server.go` | 2 | errcheck×1, G104×1 |
 
 
 ---
 
 ## 5. Findings by linter
-
-### golangci-lint / govet — 84
-
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:450`: shadow: declaration of "err" shadows declaration at line 436
-- `cmd/register_schema/register_schema.go:86`: shadow: declaration of "err" shadows declaration at line 72
-- `cmd/register_schema/register_schema.go:120`: shadow: declaration of "err" shadows declaration at line 103
 
 ### golangci-lint / errcheck — 43
 
@@ -93,8 +87,8 @@ between commits reveals exactly what changed.
 
 ### golangci-lint / dupl — 6
 
-- `pkg/xtcp/destinations_udp.go:71`: 71-99 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:51-79`
-- `pkg/xtcp/destinations_unixgram.go:51`: 51-79 lines are duplicate of `pkg/xtcp/destinations_udp.go:71-99`
+- `pkg/xtcp/destinations_udp.go:72`: 72-100 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:52-80`
+- `pkg/xtcp/destinations_unixgram.go:52`: 52-80 lines are duplicate of `pkg/xtcp/destinations_udp.go:72-100`
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
 
 ### golangci-lint / funlen — 5
@@ -106,6 +100,10 @@ between commits reveals exactly what changed.
 ### golangci-lint / gocyclo — 1
 
 - `cmd/xtcp2/xtcp2.go:444`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
+
+### golangci-lint / govet — 1
+
+- `pkg/misc/misc_test.go:115`: nilness: impossible condition: nil != nil
 
 ---
 
@@ -178,7 +176,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/govet** with 84 findings (58% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `pkg/xtcp/destinations_test.go` carries 20 findings (govet×20). Refactor here before touching adjacent code.
+- Top contributor: **golangci-lint/errcheck** with 43 findings (69% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `pkg/xtcp/deserialize.go` carries 11 findings (errcheck×7, G104×3, funlen×1). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
 
