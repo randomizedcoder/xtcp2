@@ -22,13 +22,13 @@ func TestDeserializeTrafficClass(t *testing.T) {
 			description: tnAttrTcclass,
 			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
-			Func: DeserializeTrafficClass,
+			Func:        DeserializeTrafficClass,
 		},
 		{
 			description: "attribute_tcclass_reflection",
 			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
-			Func: DeserializeTrafficClassReflection,
+			Func:        DeserializeTrafficClassReflection,
 		},
 	}
 	for i, test := range tests {

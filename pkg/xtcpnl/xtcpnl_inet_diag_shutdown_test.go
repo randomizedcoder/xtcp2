@@ -22,13 +22,13 @@ func TestDeserializeShutdown(t *testing.T) {
 			description: tnAttrShutdown,
 			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
-			Func: DeserializeShutdown,
+			Func:        DeserializeShutdown,
 		},
 		{
 			description: "attribute_shutdown_reflection",
 			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
-			Func: DeserializeShutdownReflection,
+			Func:        DeserializeShutdownReflection,
 		},
 	}
 	for i, test := range tests {
