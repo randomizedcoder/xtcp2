@@ -43,7 +43,7 @@ func encodeLengthDelimitedEnvelope(encodedData []byte) (result []byte, err error
 }
 
 func writeDataToFile(filename string, data []byte) error {
-	err := os.WriteFile(filename, data, 0644) // 0644 permissions (rw-r--r--)
+	err := os.WriteFile(filename, data, 0600) // 0600 permissions (rw-------) per gosec G306
 	if err != nil {
 		return fmt.Errorf("error writing to file: %w", err) // Wrap the error
 	}
