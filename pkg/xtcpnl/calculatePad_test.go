@@ -17,82 +17,62 @@ func TestCalculatePadding(t *testing.T) {
 		{
 			description: tnPadSlow,
 			RTAttrLen:   0,
-			F: func(size int) int {
-				return CalculatePadding(size)
-			},
+			F: CalculatePadding,
 			Pad: 0,
 		},
 		{
 			description: tnPadSlow,
 			RTAttrLen:   5,
-			F: func(size int) int {
-				return CalculatePadding(size)
-			},
+			F: CalculatePadding,
 			Pad: 3,
 		},
 		{
 			description: tnPadSlow,
 			RTAttrLen:   6,
-			F: func(size int) int {
-				return CalculatePadding(size)
-			},
+			F: CalculatePadding,
 			Pad: 2,
 		},
 		{
 			description: tnPadSlow,
 			RTAttrLen:   7,
-			F: func(size int) int {
-				return CalculatePadding(size)
-			},
+			F: CalculatePadding,
 			Pad: 1,
 		},
 		{
 			description: tnPadSlow,
 			RTAttrLen:   8,
-			F: func(size int) int {
-				return CalculatePadding(size)
-			},
+			F: CalculatePadding,
 			Pad: 0,
 		},
 		// Fast! Branchless
 		{
 			description: tnPadFastBranchless,
 			RTAttrLen:   0,
-			F: func(size int) int {
-				return FourByteAlignPadding(size)
-			},
+			F: FourByteAlignPadding,
 			Pad: 0,
 		},
 		{
 			description: tnPadFastBranchless,
 			RTAttrLen:   5,
-			F: func(size int) int {
-				return FourByteAlignPadding(size)
-			},
+			F: FourByteAlignPadding,
 			Pad: 3,
 		},
 		{
 			description: tnPadFastBranchless,
 			RTAttrLen:   6,
-			F: func(size int) int {
-				return FourByteAlignPadding(size)
-			},
+			F: FourByteAlignPadding,
 			Pad: 2,
 		},
 		{
 			description: tnPadFastBranchless,
 			RTAttrLen:   7,
-			F: func(size int) int {
-				return FourByteAlignPadding(size)
-			},
+			F: FourByteAlignPadding,
 			Pad: 1,
 		},
 		{
 			description: tnPadFastBranchless,
 			RTAttrLen:   8,
-			F: func(size int) int {
-				return FourByteAlignPadding(size)
-			},
+			F: FourByteAlignPadding,
 			Pad: 0,
 		},
 	}
@@ -116,17 +96,11 @@ var (
 
 // go test -bench=BenchmarkPad
 func BenchmarkPadCalculatePadding(b *testing.B) {
-	f := func(size int) int {
-		return CalculatePadding(size)
-	}
-	CalculatePaddingBoth(b, f)
+	CalculatePaddingBoth(b, CalculatePadding)
 }
 
 func BenchmarkPadFourByteAlignPadding(b *testing.B) {
-	f := func(size int) int {
-		return FourByteAlignPadding(size)
-	}
-	CalculatePaddingBoth(b, f)
+	CalculatePaddingBoth(b, FourByteAlignPadding)
 }
 
 func CalculatePaddingBoth(b *testing.B, f func(size int) int) {
