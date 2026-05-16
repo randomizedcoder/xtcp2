@@ -264,7 +264,7 @@ func runDestRow(t *testing.T, c destCase, payloads [][]byte) {
 		if err != nil {
 			t.Fatalf("payload[%d] Send err: %v", i, err)
 		}
-		if c.scheme == "null" {
+		if c.scheme == schemeNull {
 			if n != len(payload) {
 				t.Errorf("payload[%d] null n=%d want=%d", i, n, len(payload))
 			}
@@ -292,16 +292,16 @@ func TestDestinations(t *testing.T) {
 	identity := func(p []byte) []byte { return p }
 
 	cases := []destCase{
-		{name: "null", scheme: "null", setup: setupNullDest, expectFrame: identity},
-		{name: "udp_round_trip", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
-		{name: "udp_multiple", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
-		{name: "unixgram_round_trip", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
-		{name: "unixgram_multiple", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
+		{name: schemeNull, scheme: schemeNull, setup: setupNullDest, expectFrame: identity},
+		{name: "udp_round_trip", scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity},
+		{name: "udp_multiple", scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity},
+		{name: "unixgram_round_trip", scheme: schemeUnixgram, setup: setupUnixGramDest, expectFrame: identity},
+		{name: "unixgram_multiple", scheme: schemeUnixgram, setup: setupUnixGramDest, expectFrame: identity},
 		// For unix, recv() already strips the varint length prefix and returns
 		// the raw payload; the framing is exercised inside recv()'s
 		// binary.ReadUvarint + io.ReadFull. So the comparison is identity.
-		{name: "unix_round_trip", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
-		{name: "unix_multiple", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
+		{name: "unix_round_trip", scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity},
+		{name: "unix_multiple", scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity},
 	}
 
 	single := [][]byte{[]byte("hello-xtcp2-record")}
@@ -332,12 +332,12 @@ func TestDestinationsIoUring(t *testing.T) {
 	identity := func(p []byte) []byte { return p }
 
 	cases := []destCase{
-		{name: "udp_round_trip_iouring", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
-		{name: "udp_multiple_iouring", scheme: "udp", setup: setupUDPDest, expectFrame: identity},
-		{name: "unixgram_round_trip_iouring", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
-		{name: "unixgram_multiple_iouring", scheme: "unixgram", setup: setupUnixGramDest, expectFrame: identity},
-		{name: "unix_round_trip_iouring", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
-		{name: "unix_multiple_iouring", scheme: "unix", setup: setupUnixDest, expectFrame: identity},
+		{name: "udp_round_trip_iouring", scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity},
+		{name: "udp_multiple_iouring", scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity},
+		{name: "unixgram_round_trip_iouring", scheme: schemeUnixgram, setup: setupUnixGramDest, expectFrame: identity},
+		{name: "unixgram_multiple_iouring", scheme: schemeUnixgram, setup: setupUnixGramDest, expectFrame: identity},
+		{name: "unix_round_trip_iouring", scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity},
+		{name: "unix_multiple_iouring", scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity},
 	}
 
 	single := [][]byte{[]byte("hello-iouring-record")}
@@ -588,7 +588,7 @@ func (t testingTB) Fatalf(format string, args ...any) { t.TB.Fatalf(format, args
 
 // Adapt the *testing.T setup signatures to testing.TB.
 func setupNullDestTB(t testing.TB, _ string) destSetupResult {
-	return destSetupResult{dest: "null:", recv: nil, cleanup: func() {}}
+	return destSetupResult{dest: schemeNullPrefix, recv: nil, cleanup: func() {}}
 }
 func setupUDPDestTB(t testing.TB, dir string) destSetupResult {
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
@@ -686,14 +686,14 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 }
 
 func BenchmarkDestNull(b *testing.B) {
-	benchDest(b, "null", setupNullDestTB)
+	benchDest(b, schemeNull, setupNullDestTB)
 }
 func BenchmarkDestUDP(b *testing.B) {
-	benchDest(b, "udp", setupUDPDestTB)
+	benchDest(b, schemeUDP, setupUDPDestTB)
 }
 func BenchmarkDestUnixGram(b *testing.B) {
-	benchDest(b, "unixgram", setupUnixGramDestTB)
+	benchDest(b, schemeUnixgram, setupUnixGramDestTB)
 }
 func BenchmarkDestUnix(b *testing.B) {
-	benchDest(b, "unix", setupUnixDestTB)
+	benchDest(b, schemeUnix, setupUnixDestTB)
 }

@@ -141,7 +141,7 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
-		Dest:                  "null",
+		Dest:                  schemeNull,
 		MarshalTo:             "proto",
 		Topic:                 "not-a-topic",
 		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
