@@ -85,7 +85,7 @@ func BenchmarkDeserializeTrafficClassReflection(b *testing.B) {
 	DeserializeTrafficClassBoth(b, DeserializeTrafficClassReflection)
 }
 
-func DeserializeTrafficClassBoth(b *testing.B, Func func(data []byte, tc *TrafficClass) (n int, err error)) {
+func DeserializeTrafficClassBoth(b *testing.B, fn func(data []byte, tc *TrafficClass) (n int, err error)) {
 	var tests = []DeserializeTrafficClassTest{
 		{
 			description: tnAttrTcclass,
@@ -108,7 +108,7 @@ func DeserializeTrafficClassBoth(b *testing.B, Func func(data []byte, tc *Traffi
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, tc)
+		_, errD = fn(buf, tc)
 		if errD != nil {
 			b.Error("Test Failed DeserializeTrafficClassBoth errD", errD)
 		}

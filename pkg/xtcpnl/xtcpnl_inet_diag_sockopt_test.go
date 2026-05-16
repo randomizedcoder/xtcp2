@@ -93,7 +93,7 @@ func BenchmarkDeserializeSockOptReflection(b *testing.B) {
 	DeserializeSockOptBoth(b, DeserializeSockOptReflection)
 }
 
-func DeserializeSockOptBoth(b *testing.B, Func func(data []byte, tc *SockOpt) (n int, err error)) {
+func DeserializeSockOptBoth(b *testing.B, fn func(data []byte, tc *SockOpt) (n int, err error)) {
 	var tests = []DeserializeSockOptTest{
 		{
 			description: tnAttrSockopt,
@@ -115,7 +115,7 @@ func DeserializeSockOptBoth(b *testing.B, Func func(data []byte, tc *SockOpt) (n
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, c)
+		_, errD = fn(buf, c)
 		if errD != nil {
 			b.Error("Test Failed DeserializeSockOptBoth errD", errD)
 		}

@@ -101,7 +101,7 @@ func BenchmarkDeserializeCGroupIDReflection(b *testing.B) {
 	DeserializeCGroupIDBoth(b, DeserializeCGroupIDReflection)
 }
 
-func DeserializeCGroupIDBoth(b *testing.B, Func func(data []byte, tc *CGroupID) (n int, err error)) {
+func DeserializeCGroupIDBoth(b *testing.B, fn func(data []byte, tc *CGroupID) (n int, err error)) {
 	var tests = []DeserializeCGroupIDTest{
 		{
 			description: tnAttrCgroupID,
@@ -123,7 +123,7 @@ func DeserializeCGroupIDBoth(b *testing.B, Func func(data []byte, tc *CGroupID) 
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, c)
+		_, errD = fn(buf, c)
 		if errD != nil {
 			b.Error("Test Failed DeserializeCGroupIDBoth errD", errD)
 		}

@@ -140,7 +140,7 @@ func BenchmarkDeserializeSkMemInfoReflection(b *testing.B) {
 	DeserializeSkMemInfoBoth(b, DeserializeSkMemInfoReflection)
 }
 
-func DeserializeSkMemInfoBoth(b *testing.B, Func func(data []byte, sm *SkMemInfo) (n int, err error)) {
+func DeserializeSkMemInfoBoth(b *testing.B, fn func(data []byte, sm *SkMemInfo) (n int, err error)) {
 	var tests = []DeserializeSkMemInfoTest{
 		{
 			description: tnAttrSkmeminfo2,
@@ -173,7 +173,7 @@ func DeserializeSkMemInfoBoth(b *testing.B, Func func(data []byte, sm *SkMemInfo
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, sm)
+		_, errD = fn(buf, sm)
 		if errD != nil {
 			b.Error("Test Failed DeserializeSkMemInfoBoth errD", errD)
 		}

@@ -152,7 +152,7 @@ func BenchmarkDeserializeBBRInfoReflection(b *testing.B) {
 	DeserializeBBRInfoBoth(b, DeserializeBBRInfoReflection)
 }
 
-func DeserializeBBRInfoBoth(b *testing.B, Func func(data []byte, bi *BBRInfo) (n int, err error)) {
+func DeserializeBBRInfoBoth(b *testing.B, fn func(data []byte, bi *BBRInfo) (n int, err error)) {
 	var tests = []DeserializeMemInfoTest{
 		{
 			description: tnAttrBbrinfo,
@@ -175,7 +175,7 @@ func DeserializeBBRInfoBoth(b *testing.B, Func func(data []byte, bi *BBRInfo) (n
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 
-		_, errD = Func(buf, bi)
+		_, errD = fn(buf, bi)
 		if errD != nil {
 			b.Error("Test Failed DeserializeBBRInfoBoth errD", errD)
 		}

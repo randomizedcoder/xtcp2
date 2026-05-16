@@ -84,7 +84,7 @@ func BenchmarkDeserializeShutdownReflection(b *testing.B) {
 	DeserializeShutdownBoth(b, DeserializeShutdownReflection)
 }
 
-func DeserializeShutdownBoth(b *testing.B, Func func(data []byte, s *Shutdown) (n int, err error)) {
+func DeserializeShutdownBoth(b *testing.B, fn func(data []byte, s *Shutdown) (n int, err error)) {
 	var tests = []DeserializeShutdownTest{
 		{
 			description: tnAttrShutdown,
@@ -107,7 +107,7 @@ func DeserializeShutdownBoth(b *testing.B, Func func(data []byte, s *Shutdown) (
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, s)
+		_, errD = fn(buf, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeShutdownBoth errD", errD)
 		}
