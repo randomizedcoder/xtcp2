@@ -304,7 +304,7 @@ func main() {
 		}
 	}
 
-	environmentOverrideProm(promPath, promListen, debugLevel)
+	environmentOverrideProm(promListen, promPath, debugLevel)
 	go initPromHandler(*promPath, *promListen)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *promListen, *promPath)
@@ -394,12 +394,10 @@ func initPromHandler(promPath string, promListen string) {
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
 // variables exist.  This allows over riding the cli flags
-//
-//lint:ignore SA4009 this is nasty, but it's going to be ok
 func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 	key := "PROM_LISTEN"
 	if value, exists := os.LookupEnv(key); exists {
-		promListen = &value
+		*promListen = value
 		if debugLevel > 10 {
 			log.Printf("key:%s, c.PromListen:%s", key, *promListen)
 		}
@@ -407,9 +405,9 @@ func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 
 	key = "PROM_PATH"
 	if value, exists := os.LookupEnv(key); exists {
-		promPath = &value
+		*promPath = value
 		if debugLevel > 10 {
-			log.Printf("key:%s, c.PromListen:%s", key, *promPath)
+			log.Printf("key:%s, c.PromPath:%s", key, *promPath)
 		}
 	}
 }
