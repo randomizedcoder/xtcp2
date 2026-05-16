@@ -105,7 +105,7 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 	f, err := os.Create(filename)
 	if err != nil {
 		fmt.Println(err)
-		f.Close()
+		_ = f.Close()
 		return
 	}
 

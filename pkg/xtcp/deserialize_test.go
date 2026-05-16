@@ -158,7 +158,7 @@ func TestDeserialize(t *testing.T) {
 		}
 
 		bs, err := io.ReadAll(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
 			t.Fatalf("test %d read %s: %v", i, test.filename, err)
 		}

@@ -739,7 +739,7 @@ func parseExclusions(repoRoot string) []ConfigExclusion {
 				lastComment = ""
 			}
 		}
-		f.Close()
+		_ = f.Close()
 	}
 	// gosec exclusions — hardcoded in nix/checks/go-sec.nix.
 	out = append(out,
