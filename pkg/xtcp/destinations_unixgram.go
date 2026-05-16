@@ -11,7 +11,7 @@ import (
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 )
 
-// unixgramDest writes each marshalled record to a Unix datagram socket.
+// unixgramDest writes each marshaled record to a Unix datagram socket.
 // One Write == one datagram == one record; no framing is required because
 // the kernel preserves message boundaries. Records exceeding SO_SNDBUF
 // (~208 KB on Linux by default) fail with EMSGSIZE; xtcp records today
@@ -27,7 +27,7 @@ func newUnixGramDest(_ context.Context, x *XTCP) (Destination, error) {
 	if x.debugLevel > 10 {
 		log.Printf("InitDestUnixGram config.Dest:%s path:%s", x.config.Dest, path)
 	}
-	// Dialling unixgram does not verify the peer exists, so pre-check via
+	// Dialing unixgram does not verify the peer exists, so pre-check via
 	// os.Stat to preserve the "fail loudly at startup" contract.
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("InitDestUnixGram socket %q does not exist: %w", path, err)

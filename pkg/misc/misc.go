@@ -110,7 +110,7 @@ func ReadFile(file string) []string {
 
 // CheckFilePermissions checks the permission bits on a filename 0755
 // e.g. pass filename and the permissions you want to check
-// This is a crude string comparisions, and does NOT look at who
+// This is a crude string comparisons, and does NOT look at who
 // is running this code, or the ownership of the file in question
 func CheckFilePermissions(filename string, permissions string) bool {
 	// https://golang.org/pkg/os/#Stat
@@ -134,7 +134,7 @@ func byteToMegabyte(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
-// PrintMemUsage uses the go runtime libary to print out current memory usage
+// PrintMemUsage uses the go runtime library to print out current memory usage
 func PrintMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

@@ -83,7 +83,7 @@ func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{},
 // stores the pointer to the client's "stream" in the map, which allows
 // other goroutines to send data on the stream.
 // Then this goroutine just blocks waiting for the client to disconnect,
-// or the context to be cancelled()
+// or the context to be canceled()
 func (s *xtcpFlatRecordService) FlatRecords(
 	flatRecordsReq *xtcp_flat_record.FlatRecordsRequest,
 	stream xtcp_flat_record.XTCPFlatRecordService_FlatRecordsServer) error {

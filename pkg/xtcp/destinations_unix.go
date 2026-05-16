@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// unixDest writes each marshalled record to a Unix stream socket, framed
+// unixDest writes each marshaled record to a Unix stream socket, framed
 // with a varint length prefix so the daemon reader can recover record
 // boundaries. Wire format per record:
 //

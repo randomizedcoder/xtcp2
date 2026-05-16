@@ -2,7 +2,7 @@ package xtcp
 
 import "context"
 
-// nullDest sends each marshalled record nowhere. Useful for benchmarking
+// nullDest sends each marshaled record nowhere. Useful for benchmarking
 // the deserialize+marshal path in isolation, and as the default for tests.
 type nullDest struct {
 	x *XTCP

@@ -132,10 +132,10 @@ func main() {
 	capturePath := flag.String("capturePath", capturePathCst, "Write files path")
 
 	modulus := flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
-	marshal := flag.String("marshal", marshalCst, "Marshalling of the exported data (protobufList, protoJson, protoText, msgpack)")
+	marshal := flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack)")
 	protobufListLengthDelimit := flag.Bool("protobufListLengthDelimit", protobufListLengthDelimitCst, "protobufListLengthDelimit")
 	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
-	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshalled data to destWriteFiles number of files ( for debugging only )")
+	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
 	xtcpProtoFile := flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")
 	kafkaSchemaUrl := flag.String("kafkaSchemaUrl", kafkaSchemaUrlCst, "kafka schema registry URL")
@@ -145,9 +145,9 @@ func main() {
 
 	grpcPort := flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 
-	deserializers := flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma seperated list of deserializers,%v", xtcp.GetAllDeserializers()))
-	// deserializers := flag.String("deserializers", "info", "Comma seperated list of deserializers")
-	// deserializers := flag.String("deserializers", "info,cong", "Comma seperated list of deserializers")
+	deserializers := flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
+	// deserializers := flag.String("deserializers", "info", "Comma separated list of deserializers")
+	// deserializers := flag.String("deserializers", "info,cong", "Comma separated list of deserializers")
 	// meminfo := flag.Bool("meminfo", false, "meminfo")
 	// info := flag.Bool("info", false, "info")
 	// vegas := flag.Bool("vegas", false, "vegas")

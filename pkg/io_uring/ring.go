@@ -28,7 +28,7 @@ const setupFlags uint32 = giouring.SetupSingleIssuer |
 	giouring.SetupCoopTaskrun
 
 // Required opcodes — if any are missing we refuse to enable io_uring mode.
-// Centralised here so the panic message and the probe check stay in sync.
+// Centralized here so the panic message and the probe check stay in sync.
 var requiredOps = []uint8{
 	giouring.OpRecvmsg,
 	giouring.OpSend,
