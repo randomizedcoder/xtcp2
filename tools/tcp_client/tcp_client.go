@@ -95,18 +95,18 @@ func client(wg *sync.WaitGroup,
 		success = true
 	}
 
-	defer func() { _ = conn.Close() }()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // demo client teardown
 
 	for i := 0; ; i++ {
 
-		_ = conn.SetWriteDeadline(time.Now().Add(wto))
+		_ = conn.SetWriteDeadline(time.Now().Add(wto)) //nolint:errcheck // deadline err surfaces on next Write
 		_, werr := conn.Write(buf)
 		if nerr, ok := werr.(net.Error); ok && nerr.Timeout() {
 			fmt.Println("write timeout")
 			continue
 		}
 
-		_ = conn.SetReadDeadline(time.Now().Add(rto))
+		_ = conn.SetReadDeadline(time.Now().Add(rto)) //nolint:errcheck // deadline err surfaces on next Read
 		_, rerr := conn.Read(reply)
 		if nerr, ok := rerr.(net.Error); ok && nerr.Timeout() {
 			fmt.Println("read timeout")

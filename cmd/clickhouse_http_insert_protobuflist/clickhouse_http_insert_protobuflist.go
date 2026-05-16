@@ -210,7 +210,7 @@ func insertIntoCH(ctx context.Context, c config, binaryData []byte) error {
 
 	if resp.StatusCode != http.StatusOK {
 		// Read the response body for detailed error messages
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort body read for error logging; original Do err is already wrapped below
 		log.Printf("ClickHouse HTTP Error (Status %d): %s", resp.StatusCode, string(body))
 
 		return fmt.Errorf("%w: %v", ErrClickHouseHTTPPost, err)
