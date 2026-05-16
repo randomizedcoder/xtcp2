@@ -9,7 +9,7 @@ import (
 
 // Shared metric-naming strings for every prometheus.{Counter,Summary,Gauge}Vec
 // the package and its tests register. The grpc service constructors and the
-// test harnesses all use the same Name/Help/Label values; centralising them
+// test harnesses all use the same Name/Help/Label values; centralizing them
 // here keeps them in lockstep and silences goconst.
 const (
 	promSubsystemXTCP = "xtcp"
