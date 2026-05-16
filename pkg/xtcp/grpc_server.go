@@ -38,7 +38,8 @@ const (
 
 func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
+	var lc net.ListenConfig
+	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
