@@ -231,7 +231,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		x.flatRecordService.FlatRecordsClients.Range(func(k, v interface{}) bool {
 
 			stream, _ := k.(*xtcp_flat_record.XTCPFlatRecordService_FlatRecordsServer) //nolint:errcheck // sync.Map Store sites all use this type
-			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil { // <<------------------------- Send
+			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil {            // <<------------------------- Send
 				x.pC.WithLabelValues("flatRecordServiceSend", "frSend", "error").Inc()
 			}
 			x.pC.WithLabelValues("flatRecordServiceSend", "frSent", "count").Inc()
@@ -247,7 +247,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		x.flatRecordService.PollFlatRecordsClients.Range(func(k, v interface{}) bool {
 
 			stream, _ := k.(*grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse]) //nolint:errcheck // sync.Map Store sites all use this type
-			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil { // <<------------------------- Send
+			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil {                                                           // <<------------------------- Send
 				x.pC.WithLabelValues("flatRecordServiceSend", "pfrSend", "error").Inc()
 			}
 			x.pC.WithLabelValues("flatRecordServiceSend", "pfrSent", "count").Inc()

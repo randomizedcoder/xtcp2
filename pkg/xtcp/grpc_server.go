@@ -78,7 +78,7 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	x.configService = NewXtcpConfigService(ctx, x.config, &x.changePollFrequencyCh, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", err)
+	if serveErr := grpcServer.Serve(lis); serveErr != nil {
+		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
 	}
 }

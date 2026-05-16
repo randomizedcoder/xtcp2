@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T22:58:20Z
+Generated: 2026-05-16T23:03:29Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 43 |
-| Findings (Tier 0) | 29 |
+| Total findings | 18 |
+| Findings (Tier 0) | 3 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 12 |
-| Findings (non-tiered) | 2 |
-| Files with at least one finding | 23 |
+| Findings (non-tiered) | 3 |
+| Files with at least one finding | 13 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 41 | 4s |
-| golangci-lint (standard) | findings | 29 | 5s |
-| golangci-lint (quick) | findings | 26 | 13s |
+| golangci-lint (comprehensive) | findings | 15 | 5s |
+| golangci-lint (standard) | findings | 3 | 4s |
+| golangci-lint (quick) | findings | 27 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | findings | 1 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
-| iouring-audit | clean | 0 | 1s |
+| iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | findings | 6 | 2s |
+| go test | findings | 6 | 3s |
 
 
 ---
@@ -51,7 +51,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 29 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 3 | 2 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 12 | 0 |
 
@@ -63,27 +63,21 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `pkg/xtcp/deserialize.go` | 7 | errcheck×6, funlen×1 |
-| `pkg/xtcp/poller.go` | 5 | errcheck×4, funlen×1 |
 | `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 4 | dupl×2, funlen×2 |
-| `pkg/xtcp/grpc_flatRecordService.go` | 3 | errcheck×3 |
-| `pkg/xtcp/netlinker.go` | 3 | errcheck×3 |
 | `cmd/xtcp2/xtcp2.go` | 2 | funlen×1, gocyclo×1 |
-| `pkg/xtcp/netlinker_iouring.go` | 2 | errcheck×2 |
-| `pkg/xtcp/ns_watch.go` | 2 | errcheck×1, G301×1 |
-| `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go` | 1 | errcheck×1 |
+| `pkg/xtcp/grpc_flatRecordService.go` | 2 | gofmt×1, format×1 |
 | `pkg/misc/misc_test.go` | 1 | govet×1 |
+| `pkg/xtcp/deserialize.go` | 1 | funlen×1 |
+| `pkg/xtcp/destinations_udp.go` | 1 | dupl×1 |
+| `pkg/xtcp/destinations_unixgram.go` | 1 | dupl×1 |
+| `pkg/xtcp/grpc_server.go` | 1 | govet×1 |
+| `pkg/xtcp/ns_watch.go` | 1 | G301×1 |
+| `pkg/xtcp/poller.go` | 1 | funlen×1 |
 
 
 ---
 
 ## 5. Findings by linter
-
-### golangci-lint / errcheck — 27
-
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse.go:272`: Error return value is not checked
-- `pkg/xtcp/deserialize.go:42`: Error return value is not checked
-- `pkg/xtcp/deserialize.go:85`: Error return value is not checked
 
 ### golangci-lint / dupl — 6
 
@@ -95,16 +89,24 @@ between commits reveals exactly what changed.
 
 - `cmd/xtcp2/xtcp2.go:111`: Function 'main' has too many statements (123 > 60)
 - `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (75 > 60)
-- `pkg/xtcp/poller.go:16`: Function 'Poller' is too long (136 > 100)
+- `pkg/xtcp/poller.go:16`: Function 'Poller' is too long (134 > 100)
 
 ### golangci-lint / govet — 2
 
 - `pkg/misc/misc_test.go:115`: nilness: impossible condition: nil != nil
 - `pkg/xtcp/grpc_server.go:81`: shadow: declaration of "err" shadows declaration at line 42
 
+### gofmt / format — 1
+
+- `pkg/xtcp/grpc_flatRecordService.go`: file not formatted
+
 ### golangci-lint / gocyclo — 1
 
 - `cmd/xtcp2/xtcp2.go:444`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
+
+### golangci-lint / gofmt — 1
+
+- `pkg/xtcp/grpc_flatRecordService.go:234`: File is not properly formatted
 
 ---
 
@@ -150,8 +152,9 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-`gofmt`: clean.
+**`gofmt` would reformat (1 file):**
 
+- `pkg/xtcp/grpc_flatRecordService.go`
 `nixfmt`: clean.
 
 ---
@@ -173,7 +176,9 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/errcheck** with 27 findings (63% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `pkg/xtcp/deserialize.go` carries 7 findings (errcheck×6, funlen×1). Refactor here before touching adjacent code.
+- Top contributor: **golangci-lint/dupl** with 6 findings (33% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~2 quick-fixable findings before manual review.
+- Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 4 findings (dupl×2, funlen×2). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
+- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
