@@ -207,7 +207,7 @@ func BenchmarkDeserializePcapHeaderReflection(b *testing.B) {
 	DeserializePcapHeaderBoth(b, DeserializePcapHeaderReflection)
 }
 
-func DeserializePcapHeaderBoth(b *testing.B, Func func(data []byte, ph *PcapHeader) (n int, err error)) {
+func DeserializePcapHeaderBoth(b *testing.B, fn func(data []byte, ph *PcapHeader) (n int, err error)) {
 	var tests = []DeserializePcapHeaderTest{
 		{
 			description: tnDeserializePcap,
@@ -229,7 +229,7 @@ func DeserializePcapHeaderBoth(b *testing.B, Func func(data []byte, ph *PcapHead
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, ph)
+		_, errD = fn(buf, ph)
 		if errD != nil {
 			b.Error("Test Failed DeserializePcapHeaderBoth errD", errD)
 		}
@@ -250,7 +250,7 @@ func BenchmarkDeserializePcapRecordHeaderReflection(b *testing.B) {
 	DeserializePcapRecordHeaderBoth(b, DeserializePcapRecordHeaderReflection)
 }
 
-func DeserializePcapRecordHeaderBoth(b *testing.B, Func func(data []byte, prh *PcapRecordHeader) (n int, err error)) {
+func DeserializePcapRecordHeaderBoth(b *testing.B, fn func(data []byte, prh *PcapRecordHeader) (n int, err error)) {
 	var tests = []DeserializePcapRecordHeaderTest{
 		{
 			description: tnDeserializePcap,
@@ -272,7 +272,7 @@ func DeserializePcapRecordHeaderBoth(b *testing.B, Func func(data []byte, prh *P
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, prh)
+		_, errD = fn(buf, prh)
 		if errD != nil {
 			b.Error("Test Failed DeserializePcapRecordHeaderBoth errD", errD)
 		}

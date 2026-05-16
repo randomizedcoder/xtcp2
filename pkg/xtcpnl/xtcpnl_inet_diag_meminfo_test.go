@@ -137,7 +137,7 @@ func BenchmarkDeserializeMemInfoReflection(b *testing.B) {
 	DeserializeMemInfoBoth(b, DeserializeMemInfoReflection)
 }
 
-func DeserializeMemInfoBoth(b *testing.B, Func func(data []byte, mi *MemInfo) (n int, err error)) {
+func DeserializeMemInfoBoth(b *testing.B, fn func(data []byte, mi *MemInfo) (n int, err error)) {
 	var tests = []DeserializeMemInfoTest{
 		{
 			description: tnAttrInfo,
@@ -166,7 +166,7 @@ func DeserializeMemInfoBoth(b *testing.B, Func func(data []byte, mi *MemInfo) (n
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeMemInfoBoth(buf, rta)
-		_, errD = Func(buf, mi)
+		_, errD = fn(buf, mi)
 		if errD != nil {
 			b.Error("Test Failed DeserializeMemInfoBoth errD", errD)
 		}

@@ -120,7 +120,7 @@ func BenchmarkDeserializeCongInfo(b *testing.B) {
 // 	DeserializeCongInfoBoth(b, f)
 // }
 
-func DeserializeCongInfoBoth(b *testing.B, Func func(data []byte, ci *CongInfo) (n int, err error)) {
+func DeserializeCongInfoBoth(b *testing.B, fn func(data []byte, ci *CongInfo) (n int, err error)) {
 	var tests = []DeserializeCongInfoTest{
 		{
 			description: "attribute_cong_cubic",
@@ -148,7 +148,7 @@ func DeserializeCongInfoBoth(b *testing.B, Func func(data []byte, ci *CongInfo) 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeMemInfoBoth(buf, rta)
-		_, errD = Func(buf, ci)
+		_, errD = fn(buf, ci)
 		if errD != nil {
 			b.Error("Test Failed DeserializeCongInfoBoth errD", errD)
 		}

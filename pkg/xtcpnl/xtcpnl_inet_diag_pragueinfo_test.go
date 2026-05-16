@@ -116,7 +116,7 @@ func BenchmarkDeserializePragueInfoReflection(b *testing.B) {
 	DeserializePragueInfoBoth(b, DeserializePragueInfoReflection)
 }
 
-func DeserializePragueInfoBoth(b *testing.B, Func func(data []byte, d *PragueInfo) (n int, err error)) {
+func DeserializePragueInfoBoth(b *testing.B, fn func(data []byte, d *PragueInfo) (n int, err error)) {
 	var tests = []DeserializePragueInfoTest{
 		{
 			description: "attribute_pragueinfo_fake_fixme",
@@ -139,7 +139,7 @@ func DeserializePragueInfoBoth(b *testing.B, Func func(data []byte, d *PragueInf
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 
-		_, errD = Func(buf, p)
+		_, errD = fn(buf, p)
 		if errD != nil {
 			b.Error("Test Failed DeserializePragueInfoBoth errD", errD)
 		}

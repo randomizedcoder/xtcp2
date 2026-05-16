@@ -104,7 +104,7 @@ func BenchmarkDeserializeVegasInfoReflection(b *testing.B) {
 	DeserializeVegasInfoBoth(b, DeserializeVegasInfoReflection)
 }
 
-func DeserializeVegasInfoBoth(b *testing.B, Func func(data []byte, vi *VegasInfo) (n int, err error)) {
+func DeserializeVegasInfoBoth(b *testing.B, fn func(data []byte, vi *VegasInfo) (n int, err error)) {
 	var tests = []DeserializeVegasInfoTest{
 		{
 			description: tnAttrVegasinfo,
@@ -133,7 +133,7 @@ func DeserializeVegasInfoBoth(b *testing.B, Func func(data []byte, vi *VegasInfo
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeMemInfoBoth(buf, rta)
-		_, errD = Func(buf, vi)
+		_, errD = fn(buf, vi)
 		if errD != nil {
 			b.Error("Test Failed DeserializeMemInfoBoth errD", errD)
 		}

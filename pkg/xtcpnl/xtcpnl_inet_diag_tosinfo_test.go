@@ -96,7 +96,7 @@ func BenchmarkDeserializeTypeOfServiceReflection(b *testing.B) {
 	DeserializeTypeOfServiceBoth(b, DeserializeTypeOfServiceReflection)
 }
 
-func DeserializeTypeOfServiceBoth(b *testing.B, Func func(data []byte, tos *TypeOfService) (n int, err error)) {
+func DeserializeTypeOfServiceBoth(b *testing.B, fn func(data []byte, tos *TypeOfService) (n int, err error)) {
 	var tests = []DeserializeTypeOfServiceTest{
 		{
 			description: "attribute_tos2",
@@ -120,7 +120,7 @@ func DeserializeTypeOfServiceBoth(b *testing.B, Func func(data []byte, tos *Type
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeMemInfoBoth(buf, rta)
-		_, errD = Func(buf, tos)
+		_, errD = fn(buf, tos)
 		if errD != nil {
 			b.Error("Test Failed DeserializeTypeOfServiceBoth errD", errD)
 		}

@@ -84,7 +84,7 @@ func BenchmarkDeserializeNlMsgHdrReflection(b *testing.B) {
 	DeserializeNlMsgHdrBoth(b, DeserializeNlMsgHdrRelection)
 }
 
-func DeserializeNlMsgHdrBoth(b *testing.B, Func func(data []byte, nlmsghr *NlMsgHdr) (n int, err error)) {
+func DeserializeNlMsgHdrBoth(b *testing.B, fn func(data []byte, nlmsghr *NlMsgHdr) (n int, err error)) {
 	var tests = []DeserializeNlMsgHdrTest{
 		{
 			description: "request_all_response",
@@ -117,7 +117,7 @@ func DeserializeNlMsgHdrBoth(b *testing.B, Func func(data []byte, nlmsghr *NlMsg
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeNlMsgHdrLengthAndType(buf, nlh)
-		_, errD = Func(buf, nlh)
+		_, errD = fn(buf, nlh)
 		if errD != nil {
 			b.Error("Test Failed DeserializeNlMsgHdrLengthAndType err", errD)
 		}
@@ -145,7 +145,7 @@ func BenchmarkDeserializeInetDiagReqV2Reflection(b *testing.B) {
 
 }
 
-func DeserializeInetDiagReqV2Both(b *testing.B, Func func(data []byte, inetdiagreqv2 *InetDiagReqV2, s *InetDiagSockID) (n int, err error)) {
+func DeserializeInetDiagReqV2Both(b *testing.B, fn func(data []byte, inetdiagreqv2 *InetDiagReqV2, s *InetDiagSockID) (n int, err error)) {
 	var tests = []DeserializeInetDiagReqV2Test{
 		{
 			description: "request_v6",
@@ -180,7 +180,7 @@ func DeserializeInetDiagReqV2Both(b *testing.B, Func func(data []byte, inetdiagr
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeInetDiagReqV2(buf, idr, s)
-		_, errD = Func(buf, idr, s)
+		_, errD = fn(buf, idr, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeInetDiagReqV2 err", errD)
 		}
@@ -208,7 +208,7 @@ func BenchmarkDeserializeInetDiagMsgReflection(b *testing.B) {
 	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsgViaReflection)
 }
 
-func DeserializeInetDiagMsgBoth(b *testing.B, Func func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error)) {
+func DeserializeInetDiagMsgBoth(b *testing.B, fn func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error)) {
 	var tests = []DeserializeInetDiagMsgTest{
 		{
 			description: tnPort4018,
@@ -253,7 +253,7 @@ func DeserializeInetDiagMsgBoth(b *testing.B, Func func(data []byte, idm *InetDi
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, idm, s)
+		_, errD = fn(buf, idm, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeInetDiagMsg err", errD)
 		}
@@ -276,7 +276,7 @@ func BenchmarkDeserializeInetDiagSockIDReflection(b *testing.B) {
 	DeserializeInetDiagSockIDBoth(b, DeserializeInetDiagSockIDReflection)
 }
 
-func DeserializeInetDiagSockIDBoth(b *testing.B, Func func(data []byte, sockid *InetDiagSockID) (n int, err error)) {
+func DeserializeInetDiagSockIDBoth(b *testing.B, fn func(data []byte, sockid *InetDiagSockID) (n int, err error)) {
 	var tests = []DeserializeInetDiagSockIDTest{
 		{
 			description: "port443v6_2",
@@ -306,7 +306,7 @@ func DeserializeInetDiagSockIDBoth(b *testing.B, Func func(data []byte, sockid *
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeInetDiagSockID(buf, s)
-		_, errD = Func(buf, s)
+		_, errD = fn(buf, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeInetDiagSockID err", errD)
 		}
@@ -328,7 +328,7 @@ func BenchmarkDeserializeRTAttrReflection(b *testing.B) {
 	DeserializeRTAttrBoth(b, DeserializeRTAttrReflection)
 }
 
-func DeserializeRTAttrBoth(b *testing.B, Func func(data []byte, rta *RTAttr) (n int, err error)) {
+func DeserializeRTAttrBoth(b *testing.B, fn func(data []byte, rta *RTAttr) (n int, err error)) {
 	var tests = []DeserializeRTAttrTest{
 		{
 			description: tnAttrInfo,
@@ -353,7 +353,7 @@ func DeserializeRTAttrBoth(b *testing.B, Func func(data []byte, rta *RTAttr) (n 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// _, errD = DeserializeRTAttr(buf, rta)
-		_, errD = Func(buf, rta)
+		_, errD = fn(buf, rta)
 		if errD != nil {
 			b.Error("Test Failed DeserializeRTAttr errD", errD)
 		}
