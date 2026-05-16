@@ -92,7 +92,8 @@ func setupNullDest(_ *testing.T, _ string) destSetupResult {
 func setupUDPDest(t *testing.T, _ string) destSetupResult {
 	t.Helper()
 
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("ListenPacket udp: %v", err)
 	}
@@ -151,7 +152,8 @@ func setupUnixDest(t *testing.T, dir string) destSetupResult {
 	t.Helper()
 
 	path := filepath.Join(dir, "u.sock")
-	ln, err := net.Listen("unix", path)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "unix", path)
 	if err != nil {
 		t.Fatalf("Listen unix %s: %v", path, err)
 	}
@@ -591,7 +593,8 @@ func setupNullDestTB(t testing.TB, _ string) destSetupResult {
 	return destSetupResult{dest: schemeNullPrefix, recv: nil, cleanup: func() {}}
 }
 func setupUDPDestTB(t testing.TB, dir string) destSetupResult {
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("ListenPacket udp: %v", err)
 	}
@@ -633,7 +636,8 @@ func setupUnixGramDestTB(t testing.TB, dir string) destSetupResult {
 }
 func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 	path := filepath.Join(dir, "u.sock")
-	ln, err := net.Listen("unix", path)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "unix", path)
 	if err != nil {
 		t.Fatalf("Listen unix %s: %v", path, err)
 	}
