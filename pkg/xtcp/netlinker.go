@@ -1,8 +1,6 @@
-// Package netlinker is the netlinker go routine of the xtcp package.
-//
-// Netlinker receives netlink packets from the kernel and feeds the
-// deserializer. The function-pointer x.Netlinker (registered in
-// pkg/xtcp/init_netlinkers.go) is one of:
+// Netlinker is the per-namespace goroutine that receives netlink packets
+// from the kernel and feeds the deserializer. The function-pointer
+// x.Netlinker (registered in pkg/xtcp/init_netlinkers.go) is one of:
 //
 //	netlinkerSyscall  — the original synchronous syscall.Recvfrom path.
 //	netlinkerIoUring  — opt-in io_uring path with batched recvmsg SQEs.

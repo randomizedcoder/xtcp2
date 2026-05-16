@@ -1,6 +1,6 @@
-// Package misc are some small helper functions used throughout the xtcp code
-//
-// It is perhaps poor form to name a module "misc", could be renamed to "utils"
+// Small helper functions used throughout the xtcp package. The original
+// file-level comment said "Package misc" but the file is actually in the
+// xtcp package; the canonical package-doc comment lives in xtcp.go.
 package xtcp
 
 import (

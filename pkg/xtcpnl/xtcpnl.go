@@ -1,14 +1,15 @@
+// Package xtcpnl owns the low-level netlink machinery: opening netlink
+// sockets, building netlink_sock_diag request payloads, sending them, and
+// deserialising the responses into XtcpFlatRecord fields.
 //
-// This package contains netlink related functions for opening netlinks sockets,
-// building netlink messages, and sending netlink messages
+// Entry points:
+//   - openNetlinkSocketWithTimeout — opens a netlink socket via syscalls
+//   - buildNetlinkSockDiagRequest  — builds the binary blob to send (unsafe)
+//   - sendNetlinkDumpRequest       — sends an inet_diag dump request
 //
-// openNetlinkSocketWithTimeout - opens netlink socket using syscalls
-// buildNetlinkSockDiagRequest - builds binary blobs to send to the netlink socket (unsafe)
-// sendNetlinkDumpRequest - sends a netlink inetdiag dump request
-//
-// These functions will log.Fatalf if they fail
-// pretty horrible has happened if you can't get a netlink socket or send to it.
-
+// Failure modes are aggressive: these functions log.Fatalf if they cannot
+// obtain or send on a netlink socket — if you cannot reach the kernel
+// you usually cannot recover.
 package xtcpnl
 
 // import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
