@@ -350,7 +350,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		s := new(InetDiagSockID)
 
 		// _, errD := DeserializeInetDiagMsgViaReflection(buf, idm, s)
-		//_, errD := DeserializeInetDiagMsg(buf, idm, s)
+		// _, errD := DeserializeInetDiagMsg(buf, idm, s)
 		_, errD := test.Func(buf, idm, s)
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeInetDiagMsg err", errD)
