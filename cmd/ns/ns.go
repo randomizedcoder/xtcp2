@@ -5,13 +5,12 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof"
 
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,6 +65,8 @@ func main() {
 
 	d := flag.Uint("d", debugLevelCst, "debug level")
 
+	enablePprof := flag.Bool("pprof", false, "expose /debug/pprof on the prometheus listener (off by default; was unconditional, gosec G108)")
+
 	flag.Parse()
 
 	// Print version information passed in via ldflags in the Makefile
@@ -76,14 +77,17 @@ func main() {
 
 	debugLevel = *d
 
-	// go func() {
-	// 	// https://go.dev/blog/pprof
-	// 	// go tool pprof http://localhost:6060/debug/pprof/profile?seconds=60
-	// 	// go tool pprof http://localhost:6060/debug/pprof/heap?seconds=60
-	// 	// go tool pprof http://localhost:6060/debug/pprof/block?seconds=60
-	// 	// https://pkg.go.dev/runtime/pprof#Profile
-	// 	log.Println(http.ListenAndServe("0.0.0.0:6060", nil))
-	// }()
+	if *enablePprof {
+		// pprof handlers are normally registered by the `net/http/pprof`
+		// init function; we register them by hand here so they're only
+		// exposed when the operator asks for them. gosec G108.
+		http.HandleFunc("/debug/pprof/", pprof.Index)
+		http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		log.Println("pprof endpoints registered at /debug/pprof on", *promListen)
+	}
 
 	if *d > 10 {
 		log.Println("*profileMode:", *profileMode)
