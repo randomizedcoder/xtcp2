@@ -133,13 +133,11 @@ var (
 // go test -bench=BenchmarkDeserializeInetDiagReqV2
 func BenchmarkDeserializeInetDiagReqV2(b *testing.B) {
 
-
 	DeserializeInetDiagReqV2Both(b, DeserializeInetDiagReqV2)
 
 }
 
 func BenchmarkDeserializeInetDiagReqV2Reflection(b *testing.B) {
-
 
 	DeserializeInetDiagReqV2Both(b, DeserializeInetDiagReqV2Relection)
 
@@ -198,12 +196,10 @@ var (
 
 func BenchmarkDeserializeInetDiagMsg(b *testing.B) {
 
-
 	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsg)
 }
 
 func BenchmarkDeserializeInetDiagMsgReflection(b *testing.B) {
-
 
 	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsgViaReflection)
 }

@@ -25,19 +25,19 @@ func TestDeserializeSockOpt(t *testing.T) {
 			description: tnAttrSockopt,
 			filename:    tdAttrSockopt_6_10_3,
 			s:           &t1,
-			Func: DeserializeSockOpt,
+			Func:        DeserializeSockOpt,
 		},
 		{
 			description: "attribute_sockopt_reflection",
 			filename:    tdAttrSockopt_6_10_3,
 			s:           &t2,
-			Func: DeserializeSockOptReflection,
+			Func:        DeserializeSockOptReflection,
 		},
 		{
 			description: "attribute_sockopt_5200",
 			filename:    "./testdata/6_10_3/attribute_sockopt_5200",
 			s:           &t3,
-			Func: DeserializeSockOpt,
+			Func:        DeserializeSockOpt,
 		},
 	}
 	for i, test := range tests {

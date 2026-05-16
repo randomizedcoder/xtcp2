@@ -22,13 +22,13 @@ func TestDeserializeClassID(t *testing.T) {
 			description: "attribute_class_id",
 			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
-			Func: DeserializeClassID,
+			Func:        DeserializeClassID,
 		},
 		{
 			description: "attribute_class_id_reflection",
 			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
-			Func: DeserializeClassIDReflection,
+			Func:        DeserializeClassIDReflection,
 		},
 	}
 	for i, test := range tests {

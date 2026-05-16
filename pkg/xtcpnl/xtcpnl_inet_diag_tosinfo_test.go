@@ -22,25 +22,25 @@ func TestDeserializeTypeOfService(t *testing.T) {
 			description: "attribute_tos",
 			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
-			Func: DeserializeTypeOfService,
+			Func:        DeserializeTypeOfService,
 		},
 		{
 			description: "attribute_tos_reflection",
 			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
-			Func: DeserializeTypeOfServiceReflection,
+			Func:        DeserializeTypeOfServiceReflection,
 		},
 		{
 			description: "attribute_tos2",
 			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
-			Func: DeserializeTypeOfService,
+			Func:        DeserializeTypeOfService,
 		},
 		{
 			description: "attribute_tos2_reflection",
 			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
-			Func: DeserializeTypeOfServiceReflection,
+			Func:        DeserializeTypeOfServiceReflection,
 		},
 	}
 	for i, test := range tests {

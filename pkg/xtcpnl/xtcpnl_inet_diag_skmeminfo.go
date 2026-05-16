@@ -39,20 +39,22 @@ import (
 // SkMemInfo mirrors the kernel's `struct sk_meminfo` (INET_DIAG_SKMEMINFO=7).
 //
 // Described here:
+//
 //   - http://man7.org/linux/man-pages/man7/sock_diag.7.html
+//
 //   - https://github.com/torvalds/linux/blob/a811c1fa0a02c062555b54651065899437bacdbe/net/core/sock.c#L3226
 //
-//	struct sk_meminfo {
-//	    __u32   rmem_alloc; //The amount of data in receive queue
-//	    __u32   rcv_buf;    //The receive socket buffer as set by SO_RCVBUF.
-//	    __u32   wmem_alloc; //The amount of data in send queue.
-//	    __u32   snd_buf;    //The send socket buffer as set by SO_SNDBUF.
-//	    __u32   fwd_alloc;  //The amount of memory scheduled for future use (TCP only).
-//	    __u32   wmem_queued;//The amount of data queued by TCP, but not yet sent.
-//	    __u32   optmem;     //The amount of memory allocated for the sockets service needs
-//	    __u32   backlog;    //The amount of packets in the backlog (not yet processed).
-//	    __u32   drops;
-//	};
+//     struct sk_meminfo {
+//     __u32   rmem_alloc; //The amount of data in receive queue
+//     __u32   rcv_buf;    //The receive socket buffer as set by SO_RCVBUF.
+//     __u32   wmem_alloc; //The amount of data in send queue.
+//     __u32   snd_buf;    //The send socket buffer as set by SO_SNDBUF.
+//     __u32   fwd_alloc;  //The amount of memory scheduled for future use (TCP only).
+//     __u32   wmem_queued;//The amount of data queued by TCP, but not yet sent.
+//     __u32   optmem;     //The amount of memory allocated for the sockets service needs
+//     __u32   backlog;    //The amount of packets in the backlog (not yet processed).
+//     __u32   drops;
+//     };
 type SkMemInfo struct {
 	RmemAlloc  uint32 // 4 = 4
 	RcvBuf     uint32 // 4 = 8
