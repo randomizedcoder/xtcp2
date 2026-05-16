@@ -170,7 +170,14 @@ func initPromHandler(promPath string, promListen string) {
 		},
 	))
 	go func() {
-		err := http.ListenAndServe(promListen, nil)
+		srv := &http.Server{
+			Addr:              promListen,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      10 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+		err := srv.ListenAndServe()
 		if err != nil {
 			log.Fatal("prometheus error", err)
 		}
