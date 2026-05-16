@@ -15,7 +15,7 @@ type calculatePadTest struct {
 func TestCalculatePadding(t *testing.T) {
 	var tests = []calculatePadTest{
 		{
-			description: "pad slow",
+			description: tnPadSlow,
 			RTAttrLen:   0,
 			F: func(size int) int {
 				return CalculatePadding(size)
@@ -23,7 +23,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 0,
 		},
 		{
-			description: "pad slow",
+			description: tnPadSlow,
 			RTAttrLen:   5,
 			F: func(size int) int {
 				return CalculatePadding(size)
@@ -31,7 +31,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 3,
 		},
 		{
-			description: "pad slow",
+			description: tnPadSlow,
 			RTAttrLen:   6,
 			F: func(size int) int {
 				return CalculatePadding(size)
@@ -39,7 +39,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 2,
 		},
 		{
-			description: "pad slow",
+			description: tnPadSlow,
 			RTAttrLen:   7,
 			F: func(size int) int {
 				return CalculatePadding(size)
@@ -47,7 +47,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 1,
 		},
 		{
-			description: "pad slow",
+			description: tnPadSlow,
 			RTAttrLen:   8,
 			F: func(size int) int {
 				return CalculatePadding(size)
@@ -56,7 +56,7 @@ func TestCalculatePadding(t *testing.T) {
 		},
 		// Fast! Branchless
 		{
-			description: "pad fast/brachless",
+			description: tnPadFastBranchless,
 			RTAttrLen:   0,
 			F: func(size int) int {
 				return FourByteAlignPadding(size)
@@ -64,7 +64,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 0,
 		},
 		{
-			description: "pad fast/brachless",
+			description: tnPadFastBranchless,
 			RTAttrLen:   5,
 			F: func(size int) int {
 				return FourByteAlignPadding(size)
@@ -72,7 +72,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 3,
 		},
 		{
-			description: "pad fast/brachless",
+			description: tnPadFastBranchless,
 			RTAttrLen:   6,
 			F: func(size int) int {
 				return FourByteAlignPadding(size)
@@ -80,7 +80,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 2,
 		},
 		{
-			description: "pad fast/brachless",
+			description: tnPadFastBranchless,
 			RTAttrLen:   7,
 			F: func(size int) int {
 				return FourByteAlignPadding(size)
@@ -88,7 +88,7 @@ func TestCalculatePadding(t *testing.T) {
 			Pad: 1,
 		},
 		{
-			description: "pad fast/brachless",
+			description: tnPadFastBranchless,
 			RTAttrLen:   8,
 			F: func(size int) int {
 				return FourByteAlignPadding(size)
@@ -132,7 +132,7 @@ func BenchmarkPadFourByteAlignPadding(b *testing.B) {
 func CalculatePaddingBoth(b *testing.B, f func(size int) int) {
 	var tests = []calculatePadTest{
 		{
-			description: "verify_request",
+			description: tnVerifyRequest,
 			RTAttrLen:   6,
 			Pad:         2,
 		},

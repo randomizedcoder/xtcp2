@@ -30,7 +30,7 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 		},
 		{
 			description: "request_all_example2",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example2",
+			filename:    tdReqBytes2_6_6_44,
 			length:      72,
 			tyype:       20,
 			flags:       769,
@@ -39,7 +39,7 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 		},
 		{
 			description: "request_all_example3",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example3",
+			filename:    tdReqBytes3_6_6_44,
 			length:      72,
 			tyype:       20,
 			flags:       769,
@@ -66,7 +66,7 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 		},
 		{
 			description: "6_10_3 end_of_dump_pcap",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			filename:    tdRespDumpDone_6_10_3,
 			length:      20,
 			tyype:       3,
 			flags:       2,
@@ -102,7 +102,7 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 		},
 		{
 			description: "6_10_3 reply_single_packet.pcap",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_reply_single_packet_port4322.pcap",
+			filename:    tdReplyPort4322_6_10_3,
 			length:      456,
 			tyype:       20,
 			flags:       2,
@@ -119,8 +119,8 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 			pid:         1573,
 		},
 		{
-			description: "7_0_3 sport26546 dport443",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			description: tnSport26546V4,
+			filename:    tdResp26546_7_0_3,
 			length:      412,
 			tyype:       20,
 			flags:       2,
@@ -128,8 +128,8 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 			pid:         13275,
 		},
 		{
-			description: "7_0_3 sport19000 dport10156 v6",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap",
+			description: tnSport19000V6,
+			filename:    tdResp19000V6_7_0_3,
 			length:      400,
 			tyype:       20,
 			flags:       2,

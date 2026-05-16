@@ -20,7 +20,7 @@ func TestDeserializeClassID(t *testing.T) {
 	var tests = []DeserializeClassIDTest{
 		{
 			description: "attribute_class_id",
-			filename:    "./testdata/6_6_44/attribute_class_id",
+			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
 			Func: func(data []byte, c *ClassID) (n int, err error) {
 				return DeserializeClassID(data, c)
@@ -28,7 +28,7 @@ func TestDeserializeClassID(t *testing.T) {
 		},
 		{
 			description: "attribute_class_id_reflection",
-			filename:    "./testdata/6_6_44/attribute_class_id",
+			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
 			Func: func(data []byte, c *ClassID) (n int, err error) {
 				return DeserializeClassIDReflection(data, c)
@@ -97,8 +97,8 @@ func BenchmarkDeserializeClassIDReflection(b *testing.B) {
 func DeserializeClassIDBoth(b *testing.B, Func func(data []byte, tc *ClassID) (n int, err error)) {
 	var tests = []DeserializeClassIDTest{
 		{
-			description: "attribute_tcclass",
-			filename:    "./testdata/6_6_44/attribute_tcclass",
+			description: tnAttrTcclass,
+			filename:    tdAttrTcclass_6_6_44,
 			c:           ClassID(2),
 		},
 	}

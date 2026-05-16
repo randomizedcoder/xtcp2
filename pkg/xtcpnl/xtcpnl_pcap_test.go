@@ -22,8 +22,8 @@ type DeserializePcapHeaderTest struct {
 func TestDeserializePcapHeader(t *testing.T) {
 	var tests = []DeserializePcapHeaderTest{
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 			ph: PcapHeader{
 				Magic:        2712847316, // a1b2c3d4 = seconds and microseconds
 				VersionMajor: 2,
@@ -39,8 +39,8 @@ func TestDeserializePcapHeader(t *testing.T) {
 			},
 		},
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 			ph: PcapHeader{
 				Magic:        2712847316, // a1b2c3d4 = seconds and microseconds
 				VersionMajor: 2,
@@ -56,8 +56,8 @@ func TestDeserializePcapHeader(t *testing.T) {
 			},
 		},
 		{
-			description: "7_0_3 sport26546 dport443",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			description: tnSport26546V4,
+			filename:    tdResp26546_7_0_3,
 			ph: PcapHeader{
 				Magic:        2712847316,
 				VersionMajor: 2,
@@ -126,8 +126,8 @@ type DeserializePcapRecordHeaderTest struct {
 func TestDeserializePcapRecordHeader(t *testing.T) {
 	var tests = []DeserializePcapRecordHeaderTest{
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 			prh: PcapRecordHeader{
 				TsSec:  1723171594,
 				TsXsec: 213187,
@@ -139,8 +139,8 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 			},
 		},
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 			prh: PcapRecordHeader{
 				TsSec:  1723171594,
 				TsXsec: 213187,
@@ -152,8 +152,8 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 			},
 		},
 		{
-			description: "7_0_3 sport26546 dport443",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			description: tnSport26546V4,
+			filename:    tdResp26546_7_0_3,
 			prh: PcapRecordHeader{
 				TsSec:  1778603922,
 				TsXsec: 514716,
@@ -228,8 +228,8 @@ func BenchmarkDeserializePcapHeaderReflection(b *testing.B) {
 func DeserializePcapHeaderBoth(b *testing.B, Func func(data []byte, ph *PcapHeader) (n int, err error)) {
 	var tests = []DeserializePcapHeaderTest{
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 		},
 	}
 
@@ -277,8 +277,8 @@ func BenchmarkDeserializePcapRecordHeaderReflection(b *testing.B) {
 func DeserializePcapRecordHeaderBoth(b *testing.B, Func func(data []byte, prh *PcapRecordHeader) (n int, err error)) {
 	var tests = []DeserializePcapRecordHeaderTest{
 		{
-			description: "DeserializePcapTest",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_response_dump_done.pcap",
+			description: tnDeserializePcap,
+			filename:    tdRespDumpDone_6_10_3,
 		},
 	}
 
