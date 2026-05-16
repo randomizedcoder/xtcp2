@@ -78,7 +78,7 @@ func collectProtoFields(root string) ([]field, error) {
 		if d.IsDir() || !strings.HasSuffix(path, ".proto") {
 			return nil
 		}
-		b, readErr := os.ReadFile(path)
+		b, readErr := os.ReadFile(path) //nolint:gosec // G122: this tool runs in CI against trusted local repo source; TOCTOU on .proto files is not a real threat vector here
 		if readErr != nil {
 			return readErr
 		}
