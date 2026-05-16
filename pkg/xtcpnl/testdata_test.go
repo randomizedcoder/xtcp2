@@ -3,7 +3,7 @@ package xtcpnl
 // Shared constants for the xtcpnl test suite.
 //
 // goconst would otherwise flag the testdata paths and t.Run sub-test names
-// that recur across this package's _test.go files. Centralise them here so
+// that recur across this package's _test.go files. Centralize them here so
 // adding a new test for an existing fixture reuses the same name and any
 // path change lands in exactly one place.
 
