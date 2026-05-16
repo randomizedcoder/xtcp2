@@ -176,7 +176,7 @@ func TestCheckFilePermissions(t *testing.T) {
 		{"/bin/ls", "0755", true},   // test 1
 		// {"/etc/shadow", "0640", true},      // test 2 - can't test these in gitlab
 		// {"/etc/sysctl.conf", "0644", true}, // test 3 - can't test these in gitlab
-		//{"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
+		// {"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
 		{"/bin/bash", "0333", false}, // test 5 - negative
 	}
 	for i, test := range tests {
