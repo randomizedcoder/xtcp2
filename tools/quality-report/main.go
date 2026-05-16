@@ -482,7 +482,8 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 		}}, true
 	}
 	out := make([]Finding, 0, len(j.Issues))
-	for _, is := range j.Issues {
+	for i := range j.Issues {
+		is := &j.Issues[i]
 		ln := atoiOr0(strings.SplitN(is.Line, "-", 2)[0])
 		col := atoiOr0(is.Column)
 		msg := is.Details
