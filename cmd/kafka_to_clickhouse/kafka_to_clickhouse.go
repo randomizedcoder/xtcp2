@@ -269,7 +269,7 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 		log.Println("destKafka start")
 	}
 
-	kgoRecord := kgoRecordPool.Get().(*kgo.Record)
+	kgoRecord, _ := kgoRecordPool.Get().(*kgo.Record)
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
 	kgoRecord.Topic = c.topic

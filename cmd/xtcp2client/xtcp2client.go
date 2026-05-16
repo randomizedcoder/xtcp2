@@ -315,7 +315,7 @@ func newGRPCClient(target string) *grpc.ClientConn {
 func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
 
 	defer wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // streaming client teardown; conn.Close err is non-actionable
 
 	req := &xtcp_flat_record.FlatRecordsRequest{}
 
@@ -325,7 +325,7 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		_ = conn.Close()                                      // close explicitly; log.Fatal skips the deferred conn.Close
+		_ = conn.Close()                                      //nolint:errcheck // close explicitly; log.Fatal skips the deferred conn.Close
 		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
 	}
 

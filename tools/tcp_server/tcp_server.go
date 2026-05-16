@@ -44,7 +44,7 @@ func server(wg *sync.WaitGroup, bind string, port int) {
 		panic(err)
 	}
 
-	defer func() { _ = ln.Close() }()
+	defer func() { _ = ln.Close() }() //nolint:errcheck // demo server teardown
 
 	for {
 		conn, aerr := ln.Accept()
@@ -53,7 +53,7 @@ func server(wg *sync.WaitGroup, bind string, port int) {
 		}
 		go func(conn net.Conn) {
 			_, cerr := io.Copy(conn, conn)
-			defer func() { _ = conn.Close() }()
+			defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
 			if cerr != nil {
 				panic(cerr)
 			}
