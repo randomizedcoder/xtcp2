@@ -59,7 +59,7 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 
 	destMap.Range(func(key, value interface{}) bool {
 		// do not compare value
-		//if srcValue, ok := srcMap.Load(key); !ok || srcValue != value {
+		// if srcValue, ok := srcMap.Load(key); !ok || srcValue != value {
 		if _, ok := srcMap.Load(key); !ok {
 			destMap.Delete(key)
 			deleteCount++
@@ -69,7 +69,7 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 
 	srcMap.Range(func(key, value interface{}) bool {
 		// do not compare value
-		//if destValue, ok := destMap.Load(key); !ok || destValue != value {
+		// if destValue, ok := destMap.Load(key); !ok || destValue != value {
 		if _, ok := destMap.Load(key); !ok {
 			if testing {
 				destMap.Store(key, value)

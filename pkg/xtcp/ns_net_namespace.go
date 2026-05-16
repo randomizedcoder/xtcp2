@@ -62,7 +62,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance syscall.Socket err: %v", err)
 		}
-		//log.Fatalf("netNamespaceInstance unix.Socket %s", err)
+		// log.Fatalf("netNamespaceInstance unix.Socket %s", err)
 		return
 	}
 
@@ -151,7 +151,7 @@ const (
 func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	// https://www.man7.org/linux/man-pages/man2/opex.2.html
-	//nsFullName := netnsDir + *ns.name
+	// nsFullName := netnsDir + *ns.name
 	if x.debugLevel > 10 {
 		log.Printf("openAndSetNSWithRetries nsFullName: %s", *nsName)
 	}

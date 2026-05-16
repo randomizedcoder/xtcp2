@@ -144,6 +144,6 @@ func (c *xtcpConfigService) SetPollFrequency(
 			c.config.PollFrequency.AsDuration().Seconds(), c.config.PollTimeout.AsDuration().Seconds())
 	}
 
-	//err := status.Error(codes.Unimplemented, "unimplemented")
+	// err := status.Error(codes.Unimplemented, "unimplemented")
 	return nil, nil
 }

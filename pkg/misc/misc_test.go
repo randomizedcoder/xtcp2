@@ -98,7 +98,7 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 
 	// write out larger file (x100)
 	filename = "./testdata/non_copy_write_text_new"
-	//Create creates or truncates the named file. If the file already exists, it is truncated.
+	// Create creates or truncates the named file. If the file already exists, it is truncated.
 	f, err := os.Create(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -171,7 +171,7 @@ func TestCheckFilePermissions(t *testing.T) {
 	}{
 		{"/bin/bash", "0755", true}, // test 0
 		{"/bin/ls", "0755", true},   // test 1
-		//{"/etc/shadow", "0640", true},      // test 2 - can't test these in gitlab
+		// {"/etc/shadow", "0640", true},      // test 2 - can't test these in gitlab
 		//{"/etc/sysctl.conf", "0644", true}, // test 3 - can't test these in gitlab
 		//{"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
 		{"/bin/bash", "0333", false}, // test 5 - negative

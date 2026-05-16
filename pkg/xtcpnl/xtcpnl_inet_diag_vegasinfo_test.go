@@ -17,7 +17,7 @@ type DeserializeVegasInfoTest struct {
 // go test --run TestDeserializeVegasInfo
 func TestDeserializeVegasInfo(t *testing.T) {
 	var tests = []DeserializeVegasInfoTest{
-		//vegasinfo
+		// vegasinfo
 		{
 			description: "attribute_vegasinfo",
 			filename:    "./testdata/6_6_44/attribute_vegasinfo",
@@ -142,7 +142,7 @@ func DeserializeVegasInfoBoth(b *testing.B, Func func(data []byte, vi *VegasInfo
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeMemInfoBoth(buf, rta)
+		// _, errD = DeserializeMemInfoBoth(buf, rta)
 		_, errD = Func(buf, vi)
 		if errD != nil {
 			b.Error("Test Failed DeserializeMemInfoBoth errD", errD)

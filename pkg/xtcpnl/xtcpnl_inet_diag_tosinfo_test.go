@@ -81,7 +81,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeTypeOfService errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(*tos, test.tos) {
@@ -133,7 +133,7 @@ func DeserializeTypeOfServiceBoth(b *testing.B, Func func(data []byte, tos *Type
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeMemInfoBoth(buf, rta)
+		// _, errD = DeserializeMemInfoBoth(buf, rta)
 		_, errD = Func(buf, tos)
 		if errD != nil {
 			b.Error("Test Failed DeserializeTypeOfServiceBoth errD", errD)

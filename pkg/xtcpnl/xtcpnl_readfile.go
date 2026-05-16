@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-//import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
+// import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
 
 // const (
 // 	debugLevel int = 11

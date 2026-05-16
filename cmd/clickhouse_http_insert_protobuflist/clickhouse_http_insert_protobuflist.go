@@ -18,7 +18,7 @@ import (
 )
 
 // 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
-//import "google.golang.org/protobuf/encoding/protowire"
+// import "google.golang.org/protobuf/encoding/protowire"
 //import "google.golang.org/protobuf/encoding/protodelim"
 
 const (

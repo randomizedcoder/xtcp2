@@ -65,7 +65,7 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 				PermitWithoutStream: true,
 			}),
 	)
-	//grpc.ForceServerCodec(gzip.Name),
+	// grpc.ForceServerCodec(gzip.Name),
 
 	// https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md#enable-server-reflection
 	// https://github.com/fullstorydev/grpcurl?tab=readme-ov-file#server-reflection

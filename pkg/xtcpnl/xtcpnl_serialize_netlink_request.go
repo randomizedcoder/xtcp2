@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	//sdebugLevel int = 11
+	// sdebugLevel int = 11
 
 	InetDiagRequestSizeCst = 72
 	SocketDiagByFamilyCst  = 20
@@ -25,7 +25,7 @@ func SerializeNetlinkDiagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
 	binary.LittleEndian.PutUint16(
 		(*b)[4:6],
 		nlh.Type,
-		//uint16(SocketDiagByFamilyCst),
+		// uint16(SocketDiagByFamilyCst),
 	) // #define SOCK_DIAG_BY_FAMILY 20  in uapi/linux/sock_diag.h
 
 	// flags
@@ -34,7 +34,7 @@ func SerializeNetlinkDiagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
 	binary.LittleEndian.PutUint16(
 		(*b)[6:8],
 		nlh.Flags,
-		//uint16(syscall.NLM_F_DUMP|syscall.NLM_F_REQUEST|syscall.NLM_F_REPLACE|syscall.NLM_F_EXCL),
+		// uint16(syscall.NLM_F_DUMP|syscall.NLM_F_REQUEST|syscall.NLM_F_REPLACE|syscall.NLM_F_EXCL),
 	)
 
 	// seq
@@ -44,7 +44,7 @@ func SerializeNetlinkDiagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
 	)
 
 	// pid - leave this blank
-	//binary.LittleEndian.PutUint32(packetBytes[12:16], uint32(r.NlMsgPid)) // not using pid
+	// binary.LittleEndian.PutUint32(packetBytes[12:16], uint32(r.NlMsgPid)) // not using pid
 
 	// // There is no PutUint8
 	// // family

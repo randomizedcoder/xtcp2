@@ -22,7 +22,7 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 	}
 
 	var packetBufferSize int
-	//** is not double pointer.  it is multiply by pointer.
+	// ** is not double pointer.  it is multiply by pointer.
 	if x.config.PacketSize == 0 {
 		packetBufferSize = syscall.Getpagesize() * int(x.config.PacketSizeMply)
 	} else {

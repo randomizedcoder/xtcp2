@@ -47,7 +47,7 @@ func DeserializeInetDiagReqV2(data []byte, inetdiagreqv2 *InetDiagReqV2, s *Inet
 	inetdiagreqv2.IDiagExt = data[2]
 
 	// Don't bother grabbing pad
-	//inetdiagreqv2.Pad = data[3]
+	// inetdiagreqv2.Pad = data[3]
 
 	inetdiagreqv2.IDiagStates = binary.BigEndian.Uint32(data[4:8])
 

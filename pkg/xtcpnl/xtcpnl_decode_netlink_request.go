@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-//import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
+// import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
 
 const (
 	ddebugLevel int = 11

@@ -85,7 +85,7 @@ func TestDeserializeCGroupID(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeCGroupID errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		if !reflect.DeepEqual(*c, *test.c) {
 			t.Errorf("Test %d %s !reflect.DeepEqual(*c:%x:%d, *test.c:%x:%d)", i, test.description, *c, *c, *test.c, *test.c)

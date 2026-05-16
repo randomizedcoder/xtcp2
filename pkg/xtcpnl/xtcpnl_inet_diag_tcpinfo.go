@@ -9,7 +9,7 @@ import (
 )
 
 // wireshark filter
-//netlink-sock_diag.inet_sport == 58501
+// netlink-sock_diag.inet_sport == 58501
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134
 // https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
@@ -201,7 +201,7 @@ type TCPInfo6_10_3 struct {
 	RwndLimited   uint64 // bytes:8 [176:184] // Time (usec) limited by receive window
 	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 
 	Delivered   uint32 // bytes:4 [192:196]
 	DeliveredCe uint32 // bytes:4 [196:200]
@@ -290,7 +290,7 @@ type TCPInfo6_8_12 struct {
 	RwndLimited   uint64 // bytes:8 [176:184] // Time (usec) limited by receive window
 	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 
 	Delivered   uint32 // bytes:4 [192:196]
 	DeliveredCe uint32 // bytes:4 [196:200]
@@ -379,7 +379,7 @@ type TCPInfo6_6_44 struct {
 	RwndLimited   uint64 // bytes:8 [176:184] // Time (usec) limited by receive window
 	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 
 	Delivered   uint32 // bytes:4 [192:196]
 	DeliveredCe uint32 // bytes:4 [196:200]
@@ -463,7 +463,7 @@ type TCPInfo5_4_281 struct {
 	RwndLimited   uint64 // Time (usec) limited by receive window
 	SndbufLimited uint64 // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 
 	Delivered   uint32
 	DeliveredCe uint32
@@ -546,7 +546,7 @@ type TCPInfo4_19_219 struct {
 	RwndLimited   uint64 // Time (usec) limited by receive window
 	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 
 	Delivered   uint32
 	DeliveredCe uint32
@@ -622,7 +622,7 @@ type TCPInfo4_15 struct {
 	RwndLimited   uint64 // Time (usec) limited by receive window
 	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below}
+	// 4.15 kernel tcp_info ends here, 5+ below}
 }
 
 // [das@t:~/Downloads/xtcp/pkg/xtcpnl/testdata]$ find ./ -name 'attribute_info*' | xargs -n 1 ls -la
@@ -732,7 +732,7 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 	t.RwndLimited = binary.LittleEndian.Uint64(data[176:184])
 	t.SndbufLimited = binary.LittleEndian.Uint64(data[184:192])
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 	if len(data) == TCPInfo4_15_SizeCst {
 		return len(data), nil
 	}
@@ -900,7 +900,7 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 	x.TcpInfoRwndLimited = binary.LittleEndian.Uint64(data[176:184])
 	x.TcpInfoSndbufLimited = binary.LittleEndian.Uint64(data[184:192])
 
-	//4.15 kernel tcp_info ends here, 5+ below
+	// 4.15 kernel tcp_info ends here, 5+ below
 	if len(data) == TCPInfo4_15_SizeCst {
 		return nil
 	}

@@ -16,7 +16,7 @@ type DeserializeRTAttrTest struct {
 
 func TestDeserializeRTAttr(t *testing.T) {
 	var tests = []DeserializeRTAttrTest{
-		//bbrinfo
+		// bbrinfo
 		{
 			description: "attribute_bbrinfo",
 			filename:    "./testdata/6_6_44/attribute_bbrinfo",
@@ -29,28 +29,28 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      24,
 			tyype:       16,
 		},
-		//vegasinfo
+		// vegasinfo
 		{
 			description: "attribute_vegasinfo",
 			filename:    "./testdata/6_6_44/attribute_vegasinfo",
 			length:      20,
 			tyype:       3,
 		},
-		//dctcpinfo
+		// dctcpinfo
 		{
 			description: "attribute_dctcpinfo",
 			filename:    "./testdata/6_6_44/attribute_dctcpinfo",
 			length:      20,
 			tyype:       9,
 		},
-		//class_id
+		// class_id
 		{
 			description: "attribute_class_id",
 			filename:    "./testdata/6_6_44/attribute_class_id",
 			length:      8,
 			tyype:       17,
 		},
-		//cong
+		// cong
 		// Actually cong is a null terminated string, so this can be variable length
 		{
 			description: "attribute_cong",
@@ -58,35 +58,35 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      10,
 			tyype:       4,
 		},
-		//cong_bbr
+		// cong_bbr
 		{
 			description: "attribute_cong_bbr",
 			filename:    "./testdata/6_6_44/attribute_cong_bbr",
 			length:      8,
 			tyype:       4,
 		},
-		//cong_vegas
+		// cong_vegas
 		{
 			description: "attribute_cong_vegas",
 			filename:    "./testdata/6_6_44/attribute_cong_vegas",
 			length:      10,
 			tyype:       4,
 		},
-		//cong_dctcp
+		// cong_dctcp
 		{
 			description: "attribute_cong_dctcp",
 			filename:    "./testdata/6_6_44/attribute_cong_dctcp",
 			length:      10,
 			tyype:       4,
 		},
-		//group_id
+		// group_id
 		{
 			description: "attribute_group_id",
 			filename:    "./testdata/6_6_44/attribute_cgroup_id",
 			length:      12,
 			tyype:       21,
 		},
-		//meninfo
+		// meninfo
 		{
 			description: "attribute_meminfo",
 			filename:    "./testdata/6_6_44/attribute_meminfo",
@@ -99,7 +99,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      20,
 			tyype:       1,
 		},
-		//info
+		// info
 		{
 			description: "6_10_3 attribute_info",
 			filename:    "./testdata/6_10_3/attribute_info",
@@ -142,14 +142,14 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      284, // 280-byte tcp_info payload + 4-byte RTAttr header (kernel 7.0.3 added 32 bytes of AccECN fields)
 			tyype:       2,
 		},
-		//shutdown
+		// shutdown
 		{
 			description: "attribute_shutdown",
 			filename:    "./testdata/6_6_44/attribute_shutdown",
 			length:      5,
 			tyype:       8,
 		},
-		//skmeminfo
+		// skmeminfo
 		{
 			description: "attribute_skmeminfo",
 			filename:    "./testdata/6_6_44/attribute_skmeminfo",
@@ -162,14 +162,14 @@ func TestDeserializeRTAttr(t *testing.T) {
 			length:      40,
 			tyype:       7,
 		},
-		//sockopt
+		// sockopt
 		{
 			description: "attribute_sockopt",
 			filename:    "./testdata/6_6_44/attribute_sockopt",
 			length:      6,
 			tyype:       22,
 		},
-		//tos
+		// tos
 		{
 			description: "attribute_tos",
 			filename:    "./testdata/6_6_44/attribute_tos",

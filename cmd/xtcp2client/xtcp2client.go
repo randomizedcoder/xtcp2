@@ -151,7 +151,7 @@ func pollMode(ctx context.Context, target string, complete *chan struct{}, pollF
 		log.Fatalf("client.PollFlatRecords(shortCtx) err:%v", err)
 	}
 
-	//recvCh := make(chan *xtcp_flat_record.FlatRecordsResponse)
+	// recvCh := make(chan *xtcp_flat_record.FlatRecordsResponse)
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go pollStreamRecv(ctx, wg, json, &stream, debugLevel)
@@ -176,7 +176,7 @@ breakPoint:
 				log.Printf("pollMode i:%d <-ticker.C, send", i)
 			}
 			//default:
-			//non-blocking
+			// non-blocking
 		}
 
 	}
@@ -188,7 +188,7 @@ func pollStreamRecv(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	json bool,
-	//recvCh chan *xtcp_flat_record.FlatRecordsResponse,
+	// recvCh chan *xtcp_flat_record.FlatRecordsResponse,
 	stream *grpc.BidiStreamingClient[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.PollFlatRecordsResponse],
 	debugLevel uint) {
 
@@ -224,16 +224,16 @@ breakPoint:
 			}
 			continue
 		}
-		//log.Printf("rec:%v", rec)
+		// log.Printf("rec:%v", rec)
 		printPollFlatRecordsResponse(pollFlatRecordsResponse, 1, json, debugLevel)
 
-		//recvCh <- rec
+		// recvCh <- rec
 
 		select {
 		case <-ctx.Done():
 			break breakPoint
 		default:
-			//non-blocking
+			// non-blocking
 		}
 	}
 }
@@ -305,7 +305,7 @@ func newGRPCClient(target string) *grpc.ClientConn {
 	if err != nil {
 		log.Fatal("Error connecting to gRPC server: ", err.Error())
 	}
-	//defer conn.Close()
+	// defer conn.Close()
 	return conn
 }
 
@@ -319,7 +319,7 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
 
 	stream, err := client.FlatRecords(ctx, req)
-	//stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
+	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	//stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		log.Fatal("Error making gRPC request: ", err.Error())

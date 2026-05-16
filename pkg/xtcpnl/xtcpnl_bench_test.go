@@ -122,7 +122,7 @@ func DeserializeNlMsgHdrBoth(b *testing.B, Func func(data []byte, nlmsghr *NlMsg
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeNlMsgHdrLengthAndType(buf, nlh)
+		// _, errD = DeserializeNlMsgHdrLengthAndType(buf, nlh)
 		_, errD = Func(buf, nlh)
 		if errD != nil {
 			b.Error("Test Failed DeserializeNlMsgHdrLengthAndType err", errD)
@@ -191,7 +191,7 @@ func DeserializeInetDiagReqV2Both(b *testing.B, Func func(data []byte, inetdiagr
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeInetDiagReqV2(buf, idr, s)
+		// _, errD = DeserializeInetDiagReqV2(buf, idr, s)
 		_, errD = Func(buf, idr, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeInetDiagReqV2 err", errD)
@@ -329,7 +329,7 @@ func DeserializeInetDiagSockIDBoth(b *testing.B, Func func(data []byte, sockid *
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeInetDiagSockID(buf, s)
+		// _, errD = DeserializeInetDiagSockID(buf, s)
 		_, errD = Func(buf, s)
 		if errD != nil {
 			b.Error("Test Failed DeserializeInetDiagSockID err", errD)
@@ -382,7 +382,7 @@ func DeserializeRTAttrBoth(b *testing.B, Func func(data []byte, rta *RTAttr) (n 
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeRTAttr(buf, rta)
+		// _, errD = DeserializeRTAttr(buf, rta)
 		_, errD = Func(buf, rta)
 		if errD != nil {
 			b.Error("Test Failed DeserializeRTAttr errD", errD)

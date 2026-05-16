@@ -68,7 +68,7 @@ breakPoint:
 				return fmt.Errorf("watcher event channel closed")
 			}
 
-			//nsName := filepath.Base(event.Name)
+			// nsName := filepath.Base(event.Name)
 			//nsName := netNsDir + event.Name
 			nsName := event.Name
 

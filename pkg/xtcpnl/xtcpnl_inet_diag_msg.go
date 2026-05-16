@@ -79,13 +79,13 @@ func DeserializeInetDiagMsg(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n
 		return 0, ErrInetDiagMsgSmall
 	}
 
-	//log.Printf("Expires 0:4 hex:%s", hex.EncodeToString(data[0:4]))
+	// log.Printf("Expires 0:4 hex:%s", hex.EncodeToString(data[0:4]))
 	idm.Family = data[0]
 	idm.State = data[1]
 	idm.Timer = data[2]
 	idm.Retrans = data[3]
 
-	//log.Printf("sock 4:%d hex:%s", 4+InetDiagSockIDSizeCst, hex.EncodeToString(data[4:4+InetDiagSockIDSizeCst]))
+	// log.Printf("sock 4:%d hex:%s", 4+InetDiagSockIDSizeCst, hex.EncodeToString(data[4:4+InetDiagSockIDSizeCst]))
 	_, errD := DeserializeInetDiagSockID(data[4:4+InetDiagSockIDSizeCst], s)
 	if errD != nil {
 		return 0, errD
@@ -93,19 +93,19 @@ func DeserializeInetDiagMsg(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n
 
 	idm.SocketID = *s
 
-	//log.Printf("Expires 52:56 hex:%s", hex.EncodeToString(data[52:56]))
+	// log.Printf("Expires 52:56 hex:%s", hex.EncodeToString(data[52:56]))
 	idm.Expires = binary.LittleEndian.Uint32(data[52:56])
 
-	//log.Printf("Rqueue 52:56 hex:%s", hex.EncodeToString(data[56:60]))
+	// log.Printf("Rqueue 52:56 hex:%s", hex.EncodeToString(data[56:60]))
 	idm.Rqueue = binary.LittleEndian.Uint32(data[56:60])
 
-	//log.Printf("Wqueue 60:64 hex:%s", hex.EncodeToString(data[60:64]))
+	// log.Printf("Wqueue 60:64 hex:%s", hex.EncodeToString(data[60:64]))
 	idm.Wqueue = binary.LittleEndian.Uint32(data[60:64])
 
-	//log.Printf("UID 64:68 hex:%s", hex.EncodeToString(data[64:68]))
+	// log.Printf("UID 64:68 hex:%s", hex.EncodeToString(data[64:68]))
 	idm.UID = binary.LittleEndian.Uint32(data[64:68])
 
-	//log.Printf("Inode 68:72 hex:%s", hex.EncodeToString(data[68:72]))
+	// log.Printf("Inode 68:72 hex:%s", hex.EncodeToString(data[68:72]))
 	idm.Inode = binary.LittleEndian.Uint32(data[68:72])
 
 	return InetDiagMsgReadCst, nil
@@ -199,43 +199,43 @@ func DeserializeInetDiagSockIDReflection(data []byte, sockid *InetDiagSockID) (n
 // XTCP
 
 func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
-	//func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+	// func DeserializeInetDiagMsgXTCPWG(wg *sync.WaitGroup, data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 	defer wg.Done()
 	return DeserializeInetDiagMsgXTCP(data, x)
 }
 
 func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
-	//func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+	// func DeserializeInetDiagMsgXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
 	if len(data) < InetDiagMsgSizeCst {
 		return ErrInetDiagMsgSmall
 	}
 
-	//log.Printf("Expires 0:4 hex:%s", hex.EncodeToString(data[0:4]))
+	// log.Printf("Expires 0:4 hex:%s", hex.EncodeToString(data[0:4]))
 	x.InetDiagMsgFamily = uint32(data[0])
 	x.InetDiagMsgState = uint32(data[1])
 	x.InetDiagMsgTimer = uint32(data[2])
 	x.InetDiagMsgRetrans = uint32(data[3])
 
-	//log.Printf("sock 4:%d hex:%s", 4+InetDiagSockIDSizeCst, hex.EncodeToString(data[4:4+InetDiagSockIDSizeCst]))
+	// log.Printf("sock 4:%d hex:%s", 4+InetDiagSockIDSizeCst, hex.EncodeToString(data[4:4+InetDiagSockIDSizeCst]))
 	errD := DeserializeInetDiagSockIDXTCP(data[4:4+InetDiagSockIDSizeCst], x)
 	if errD != nil {
 		return errD
 	}
 
-	//log.Printf("Expires 52:56 hex:%s", hex.EncodeToString(data[52:56]))
+	// log.Printf("Expires 52:56 hex:%s", hex.EncodeToString(data[52:56]))
 	x.InetDiagMsgExpires = binary.LittleEndian.Uint32(data[52:56])
 
-	//log.Printf("Rqueue 52:56 hex:%s", hex.EncodeToString(data[56:60]))
+	// log.Printf("Rqueue 52:56 hex:%s", hex.EncodeToString(data[56:60]))
 	x.InetDiagMsgRqueue = binary.LittleEndian.Uint32(data[56:60])
 
-	//log.Printf("Wqueue 60:64 hex:%s", hex.EncodeToString(data[60:64]))
+	// log.Printf("Wqueue 60:64 hex:%s", hex.EncodeToString(data[60:64]))
 	x.InetDiagMsgWqueue = binary.LittleEndian.Uint32(data[60:64])
 
-	//log.Printf("UID 64:68 hex:%s", hex.EncodeToString(data[64:68]))
+	// log.Printf("UID 64:68 hex:%s", hex.EncodeToString(data[64:68]))
 	x.InetDiagMsgUid = binary.LittleEndian.Uint32(data[64:68])
 
-	//log.Printf("Inode 68:72 hex:%s", hex.EncodeToString(data[68:72]))
+	// log.Printf("Inode 68:72 hex:%s", hex.EncodeToString(data[68:72]))
 	x.InetDiagMsgInode = binary.LittleEndian.Uint32(data[68:72])
 
 	return nil
