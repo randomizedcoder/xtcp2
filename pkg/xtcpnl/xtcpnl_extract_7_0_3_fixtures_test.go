@@ -221,7 +221,7 @@ func writeIfChanged(path string, data []byte) error {
 	if err == nil && len(cur) == len(data) && bytesEqual(cur, data) {
 		return nil
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func bytesEqual(a, b []byte) bool {
