@@ -111,9 +111,8 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 
 	for i := 0; i < n; i++ {
 		for _, line := range scanFileLines {
-			fmt.Fprintln(f, line)
-			if err != nil {
-				fmt.Println(err)
+			if _, werr := fmt.Fprintln(f, line); werr != nil {
+				fmt.Println(werr)
 				return
 			}
 		}
