@@ -135,7 +135,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	// }; 4+2+2+4+4=16 bytes
 
 	// len
-	binary.LittleEndian.PutUint32(packetBytes[0:4], uint32(r.NlMsgLen)) // constant hack for the length
+	binary.LittleEndian.PutUint32(packetBytes[0:4], r.NlMsgLen) // constant hack for the length
 	// type
 	binary.LittleEndian.PutUint16(packetBytes[4:6], uint16(20)) // #define SOCK_DIAG_BY_FAMILY 20  in uapi/linux/sock_diag.h
 	// flags
@@ -144,7 +144,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	binary.LittleEndian.PutUint16(packetBytes[6:8], uint16(syscall.NLM_F_DUMP|syscall.NLM_F_REQUEST|syscall.NLM_F_REPLACE|syscall.NLM_F_EXCL))
 
 	// seq
-	binary.LittleEndian.PutUint32(packetBytes[8:12], uint32(r.NlMsgSeq))
+	binary.LittleEndian.PutUint32(packetBytes[8:12], r.NlMsgSeq)
 	// pid
 	// binary.LittleEndian.PutUint32(packetBytes[12:16], uint32(r.NlMsgPid)) // not using pid
 
@@ -164,7 +164,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 
 	// There is no PutUint8
 	// family
-	*(*uint8)(unsafe.Pointer(&packetBytes[16:17][0])) = uint8(r.AddressFamily) // #define AF_INET      2
+	*(*uint8)(unsafe.Pointer(&packetBytes[16:17][0])) = r.AddressFamily // #define AF_INET      2
 	// protocol
 	*(*uint8)(unsafe.Pointer(&packetBytes[17:18][0])) = uint8(unix.IPPROTO_TCP) // IPPROTO_TCP = 6
 
@@ -193,7 +193,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	// There is no PutUint8
 	// ext
 	// binary.LittleEndian.PutUint8(packetBytes[18:19], uint8(0xFF)) // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
-	*(*uint8)(unsafe.Pointer(&packetBytes[18:19][0])) = uint8(r.IDiagExt) // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
+	*(*uint8)(unsafe.Pointer(&packetBytes[18:19][0])) = r.IDiagExt // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
 	// pad
 	*(*uint8)(unsafe.Pointer(&packetBytes[19:20][0])) = uint8(0) // pad
 

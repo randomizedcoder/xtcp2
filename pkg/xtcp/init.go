@@ -141,7 +141,7 @@ func (x *XTCP) CreateNetLinkRequest(wg *sync.WaitGroup) (nlRequest *[]byte) {
 		Len:   xtcpnl.InetDiagRequestSizeCst,
 		Type:  xtcpnl.SocketDiagByFamilyCst,
 		Flags: uint16(syscall.NLM_F_DUMP | syscall.NLM_F_REQUEST | syscall.NLM_F_REPLACE | syscall.NLM_F_EXCL),
-		Seq:   uint32(x.config.NlmsgSeq),
+		Seq:   x.config.NlmsgSeq,
 		//Pid: 0,
 	}
 

@@ -75,7 +75,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		// }
 
 		if x.config.Modulus != 1 {
-			if n%uint64(x.config.Modulus) != 1 {
+			if n%x.config.Modulus != 1 {
 				d.pC.WithLabelValues("Deserialize", "continue", "count").Inc()
 				continue
 			}

@@ -49,15 +49,15 @@ func SerializeNetlinkDiagRequest(nlh NlMsgHdr, req InetDiagReqV2, b *[]byte) {
 	// // There is no PutUint8
 	// // family
 	// *(*uint8)(unsafe.Pointer(&b[16:17][0])) = uint8(req.SDiagFamily) // #define AF_INET      2
-	(*b)[16] = byte(req.SDiagFamily)
+	(*b)[16] = req.SDiagFamily
 	// // protocol
 	// //*(*uint8)(unsafe.Pointer(&b[17:18][0])) = uint8(unix.IPPROTO_TCP) // IPPROTO_TCP = 6
 	// *(*uint8)(unsafe.Pointer(&b[17:18][0])) = uint8(req.SDiagProtocol) // IPPROTO_TCP = 6
-	(*b)[17] = byte(req.SDiagProtocol)
+	(*b)[17] = req.SDiagProtocol
 
 	// // ext
 	// *(*uint8)(unsafe.Pointer(&b[18:19][0])) = uint8(req.IDiagExt)
-	(*b)[18] = byte(req.IDiagExt)
+	(*b)[18] = req.IDiagExt
 	// // pad
 	// *(*uint8)(unsafe.Pointer(&b[19:20][0])) = uint8(0) // pad
 

@@ -929,7 +929,7 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 
 	x.TcpInfoTotalRto = uint32(binary.LittleEndian.Uint16(data[240:242]))
 	x.TcpInfoTotalRtoRecoveries = uint32(binary.LittleEndian.Uint16(data[242:244]))
-	x.TcpInfoTotalRtoTime = uint32(binary.LittleEndian.Uint32(data[244:248]))
+	x.TcpInfoTotalRtoTime = binary.LittleEndian.Uint32(data[244:248])
 
 	return nil
 }
