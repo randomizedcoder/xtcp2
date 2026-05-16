@@ -158,7 +158,7 @@ func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	found, err := x.checkMountInfoWithRetries(nsName)
 	if err != nil || !found {
-		return
+		return fd
 	}
 
 	for attempt := 0; attempt < maxRetriesCst; attempt++ {
