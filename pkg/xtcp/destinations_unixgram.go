@@ -22,7 +22,7 @@ type unixgramDest struct {
 	fd   int
 }
 
-func newUnixGramDest(_ context.Context, x *XTCP) (Destination, error) {
+func newUnixGramDest(ctx context.Context, x *XTCP) (Destination, error) {
 	path := strings.TrimPrefix(x.config.Dest, "unixgram:")
 	if x.debugLevel > 10 {
 		log.Printf("InitDestUnixGram config.Dest:%s path:%s", x.config.Dest, path)
@@ -32,7 +32,8 @@ func newUnixGramDest(_ context.Context, x *XTCP) (Destination, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("InitDestUnixGram socket %q does not exist: %w", path, err)
 	}
-	conn, err := net.Dial("unixgram", path)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "unixgram", path)
 	if err != nil {
 		return nil, fmt.Errorf("InitDestUnixGram net.Dial(unixgram, %q): %w", path, err)
 	}
