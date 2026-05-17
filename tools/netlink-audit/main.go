@@ -17,6 +17,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -32,11 +33,38 @@ type finding struct {
 func main() {
 	root := flag.String("root", "pkg/xtcpnl", "directory to audit")
 	flag.Parse()
+	os.Exit(runAudit(*root, os.Stdout, os.Stderr))
+}
 
+// runAudit walks `root` and reports per-function indexing without a
+// preceding len() guard. Returns 0 (clean), 1 (findings), or 2 (walk
+// or parse error). Output is informative; not parsed by the report
+// aggregator beyond grepping for "no findings".
+func runAudit(root string, stdout, stderr io.Writer) int {
+	findings, err := auditTree(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "netlink-audit: walk failed: %v\n", err)
+		return 2
+	}
+	fmt.Fprintf(stdout, "netlink-audit: scanned %s\n", root)
+	if len(findings) == 0 {
+		fmt.Fprintln(stdout, "netlink-audit: no findings")
+		return 0
+	}
+	for _, f := range findings {
+		fmt.Fprintf(stdout, "%s: %s (in func %s): %s\n", f.pos, f.msg, f.fn,
+			"consider adding `if len(b) < N { return ... }`")
+	}
+	fmt.Fprintf(stderr, "netlink-audit: %d finding(s)\n", len(findings))
+	return 1
+}
+
+// auditTree walks `root` once and produces the full list of unguarded
+// byte-slice access findings.
+func auditTree(root string) ([]finding, error) {
 	fset := token.NewFileSet()
 	var findings []finding
-
-	err := filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -94,21 +122,7 @@ func main() {
 		})
 		return nil
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "netlink-audit: walk failed: %v\n", err)
-		os.Exit(2)
-	}
-
-	fmt.Printf("netlink-audit: scanned %s\n", *root)
-	if len(findings) == 0 {
-		fmt.Println("netlink-audit: no findings")
-		return
-	}
-	for _, f := range findings {
-		fmt.Printf("%s: %s (in func %s): %s\n", f.pos, f.msg, f.fn, "consider adding `if len(b) < N { return ... }`")
-	}
-	fmt.Fprintf(os.Stderr, "netlink-audit: %d finding(s)\n", len(findings))
-	os.Exit(1)
+	return findings, err
 }
 
 func isByteSliceExpr(e ast.Expr) bool {

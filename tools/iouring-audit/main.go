@@ -17,6 +17,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,11 +27,24 @@ import (
 func main() {
 	root := flag.String("root", "pkg/io_uring", "directory to audit")
 	flag.Parse()
+	rc := runAudit(*root, os.Stdout, os.Stderr)
+	os.Exit(rc)
+}
 
+// AuditResult counts the call sites for the SQE submission lifecycle.
+type AuditResult struct {
+	GetSQE   int // SQE acquisitions
+	Submit   int // Submit + SubmitAndWait
+	Findings []string
+}
+
+// auditTree walks `root`, parsing each non-test .go file and counting
+// GetSQE / Submit* call sites. Returns the totals plus any per-file
+// parse error encountered.
+func auditTree(root string) (AuditResult, error) {
+	var res AuditResult
 	fset := token.NewFileSet()
-	getSQECount, submitCount := 0, 0
-
-	err := filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -48,31 +62,39 @@ func main() {
 			}
 			switch selectorName(call.Fun) {
 			case "GetSQE":
-				getSQECount++
+				res.GetSQE++
 			case "SubmitAndWait", "Submit":
-				submitCount++
+				res.Submit++
 			}
 			return true
 		})
 		return nil
 	})
+	return res, err
+}
+
+// runAudit ties auditTree to the binary's exit-code contract:
+//
+//	0 — clean.
+//	1 — finding: GetSQE > 0 but Submit == 0.
+//	2 — walk/parse error.
+func runAudit(root string, stdout, stderr io.Writer) int {
+	res, err := auditTree(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "iouring-audit: walk failed: %v\n", err)
-		os.Exit(2)
+		fmt.Fprintf(stderr, "iouring-audit: walk failed: %v\n", err)
+		return 2
 	}
-
-	fmt.Printf("iouring-audit: scanned %s\n", *root)
-	fmt.Printf("iouring-audit: GetSQE calls = %d, Submit*/SubmitAndWait calls = %d\n",
-		getSQECount, submitCount)
-
-	if getSQECount > 0 && submitCount == 0 {
-		fmt.Fprintf(os.Stderr,
+	fmt.Fprintf(stdout, "iouring-audit: scanned %s\n", root)
+	fmt.Fprintf(stdout, "iouring-audit: GetSQE calls = %d, Submit*/SubmitAndWait calls = %d\n",
+		res.GetSQE, res.Submit)
+	if res.GetSQE > 0 && res.Submit == 0 {
+		fmt.Fprintf(stderr,
 			"iouring-audit: found %d GetSQE call(s) but no submission call — SQEs never reach the kernel\n",
-			getSQECount)
-		os.Exit(1)
+			res.GetSQE)
+		return 1
 	}
-
-	fmt.Println("iouring-audit: no findings")
+	fmt.Fprintln(stdout, "iouring-audit: no findings")
+	return 0
 }
 
 func selectorName(e ast.Expr) string {
