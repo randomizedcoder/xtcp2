@@ -99,10 +99,11 @@ func DeserializeBBRInfoReflection(data []byte, b *BBRInfo) (n int, err error) {
 }
 
 func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
-	// func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
-
-	if len(data) < MemInfoSizeCst {
-		return ErrMemInfoSmall
+	// BBRInfo is 20 bytes (4 × uint32 + a uint32 cwnd_gain). The previous
+	// guard checked MemInfoSizeCst (16), which let a 16-19 byte buffer
+	// pass the validation and then panic on the data[16:20] slice.
+	if len(data) < BBRInfoSizeCst {
+		return ErrBBRInfoSmall
 	}
 
 	x.BbrInfoBwLo = binary.LittleEndian.Uint32(data[0:4])
