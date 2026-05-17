@@ -667,14 +667,43 @@ var (
 	ErrTCPInfoSmall = errors.New("data too small for TCPInfo")
 )
 
-// DeserializeTCPInfo does a binary read of a TCPInfo
-// It does a basic length check
+// DeserializeTCPInfo does a binary read of a TCPInfo, returning the
+// number of bytes consumed (kernel-version-specific). The wire layout
+// grows monotonically across kernel releases, so the parse is split
+// into base + per-kernel-version tail extensions. Each tail reads any
+// new fields beyond the previous size cap and returns the matching
+// SizeCst when the input ends exactly there.
 func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 
 	if len(data) < TCPInfoMinSizeCst {
 		return 0, ErrTCPInfoSmall
 	}
 
+	deserializeTCPInfoBase(data, t)
+
+	// 4.15 kernel tcp_info ends here, 5+ below
+	if len(data) == TCPInfo4_15_SizeCst {
+		return len(data), nil
+	}
+	deserializeTCPInfoTail4_19(data, t)
+	if len(data) == TCPInfo4_19_219_SizeCst {
+		return TCPInfo4_19_219_SizeCst, nil
+	}
+	deserializeTCPInfoTail5_4(data, t)
+	if len(data) == TCPInfo5_4_281_SizeCst {
+		return TCPInfo5_4_281_SizeCst, nil
+	}
+	deserializeTCPInfoTail6_6(data, t)
+	if len(data) == TCPInfo6_6_44_SizeCst {
+		return TCPInfo6_6_44_SizeCst, nil
+	}
+	deserializeTCPInfoTail6_10(data, t)
+	return TCPInfo6_10_3_SizeCst, nil
+}
+
+// deserializeTCPInfoBase reads fields present in every supported kernel
+// (4.15 and later — bytes 0..191).
+func deserializeTCPInfoBase(data []byte, t *TCPInfo) {
 	t.State = data[0]
 	t.CaState = data[1]
 	t.Retransmits = data[2]
@@ -741,12 +770,12 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 	t.BusyTime = binary.LittleEndian.Uint64(data[168:176])
 	t.RwndLimited = binary.LittleEndian.Uint64(data[176:184])
 	t.SndbufLimited = binary.LittleEndian.Uint64(data[184:192])
+}
 
-	// 4.15 kernel tcp_info ends here, 5+ below
-	if len(data) == TCPInfo4_15_SizeCst {
-		return len(data), nil
-	}
-
+// deserializeTCPInfoTail4_19 reads the bytes added between kernels 4.15
+// and 4.19 (bytes 192..223 — Delivered/Ce, BytesSent/Retrans, DsackDups,
+// ReordSeen).
+func deserializeTCPInfoTail4_19(data []byte, t *TCPInfo) {
 	t.Delivered = binary.LittleEndian.Uint32(data[192:196])
 	t.DeliveredCe = binary.LittleEndian.Uint32(data[196:200])
 
@@ -755,31 +784,28 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 
 	t.DsackDups = binary.LittleEndian.Uint32(data[216:220])
 	t.ReordSeen = binary.LittleEndian.Uint32(data[220:224])
+}
 
-	if len(data) == TCPInfo4_19_219_SizeCst {
-		return TCPInfo4_19_219_SizeCst, nil
-	}
-
+// deserializeTCPInfoTail5_4 reads the bytes added in kernel 5.4
+// (RcvOoopack and SndWnd, bytes 224..231).
+func deserializeTCPInfoTail5_4(data []byte, t *TCPInfo) {
 	t.RcvOoopack = binary.LittleEndian.Uint32(data[224:228])
-
 	t.SndWnd = binary.LittleEndian.Uint32(data[228:232])
+}
 
-	if len(data) == TCPInfo5_4_281_SizeCst {
-		return TCPInfo5_4_281_SizeCst, nil
-	}
-
+// deserializeTCPInfoTail6_6 reads the bytes added in kernel 6.5
+// (RcvWnd and Rehash, bytes 232..239).
+func deserializeTCPInfoTail6_6(data []byte, t *TCPInfo) {
 	t.RcvWnd = binary.LittleEndian.Uint32(data[232:236])
 	t.Rehash = binary.LittleEndian.Uint32(data[236:240])
+}
 
-	if len(data) == TCPInfo6_6_44_SizeCst {
-		return TCPInfo6_6_44_SizeCst, nil
-	}
-
+// deserializeTCPInfoTail6_10 reads the RTO totals appended in kernel
+// 6.10 (bytes 240..247).
+func deserializeTCPInfoTail6_10(data []byte, t *TCPInfo) {
 	t.TotalRTO = binary.LittleEndian.Uint16(data[240:242])
 	t.TotalRTORecoveries = binary.LittleEndian.Uint16(data[242:244])
 	t.TotalRTOTime = binary.LittleEndian.Uint32(data[244:248])
-
-	return TCPInfo6_10_3_SizeCst, nil
 }
 
 func DeserializeTCPInfoReflection(data []byte, mi *TCPInfo) (n int, err error) {
@@ -842,13 +868,34 @@ func DeserializeTCPInfo4_19_219Reflection(data []byte, t *TCPInfo4_19_219) (n in
 	return MemInfoReadCst, err
 }
 
+// DeserializeTCPInfoXTCP reads a kernel tcp_info payload directly into
+// the protobuf XtcpFlatRecord, split per kernel version the same way
+// as DeserializeTCPInfo (see comments there).
 func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
-	// func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
-
 	if len(data) < TCPInfoMinSizeCst {
 		return ErrTCPInfoSmall
 	}
+	deserializeTCPInfoXTCPBase(data, x)
+	if len(data) == TCPInfo4_15_SizeCst {
+		return nil
+	}
+	deserializeTCPInfoXTCPTail4_19(data, x)
+	if len(data) == TCPInfo4_19_219_SizeCst {
+		return nil
+	}
+	deserializeTCPInfoXTCPTail5_4(data, x)
+	if len(data) == TCPInfo5_4_281_SizeCst {
+		return nil
+	}
+	deserializeTCPInfoXTCPTail6_6(data, x)
+	if len(data) == TCPInfo6_6_44_SizeCst {
+		return nil
+	}
+	deserializeTCPInfoXTCPTail6_10(data, x)
+	return nil
+}
 
+func deserializeTCPInfoXTCPBase(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
 	x.TcpInfoState = uint32(data[0])
 	x.TcpInfoCaState = uint32(data[1])
 	x.TcpInfoRetransmits = uint32(data[2])
@@ -909,12 +956,9 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 	x.TcpInfoBusyTime = binary.LittleEndian.Uint64(data[168:176])
 	x.TcpInfoRwndLimited = binary.LittleEndian.Uint64(data[176:184])
 	x.TcpInfoSndbufLimited = binary.LittleEndian.Uint64(data[184:192])
+}
 
-	// 4.15 kernel tcp_info ends here, 5+ below
-	if len(data) == TCPInfo4_15_SizeCst {
-		return nil
-	}
-
+func deserializeTCPInfoXTCPTail4_19(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
 	x.TcpInfoDelivered = binary.LittleEndian.Uint32(data[192:196])
 	x.TcpInfoDeliveredCe = binary.LittleEndian.Uint32(data[196:200])
 
@@ -923,29 +967,20 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 
 	x.TcpInfoDsackDups = binary.LittleEndian.Uint32(data[216:220])
 	x.TcpInfoReordSeen = binary.LittleEndian.Uint32(data[220:224])
+}
 
-	if len(data) == TCPInfo4_19_219_SizeCst {
-		return nil
-	}
-
+func deserializeTCPInfoXTCPTail5_4(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
 	x.TcpInfoRcvOoopack = binary.LittleEndian.Uint32(data[224:228])
-
 	x.TcpInfoSndWnd = binary.LittleEndian.Uint32(data[228:232])
+}
 
-	if len(data) == TCPInfo5_4_281_SizeCst {
-		return nil
-	}
-
+func deserializeTCPInfoXTCPTail6_6(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
 	x.TcpInfoRcvWnd = binary.LittleEndian.Uint32(data[232:236])
 	x.TcpInfoRehash = binary.LittleEndian.Uint32(data[236:240])
+}
 
-	if len(data) == TCPInfo6_6_44_SizeCst {
-		return nil
-	}
-
+func deserializeTCPInfoXTCPTail6_10(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
 	x.TcpInfoTotalRto = uint32(binary.LittleEndian.Uint16(data[240:242]))
 	x.TcpInfoTotalRtoRecoveries = uint32(binary.LittleEndian.Uint16(data[242:244]))
 	x.TcpInfoTotalRtoTime = binary.LittleEndian.Uint32(data[244:248])
-
-	return nil
 }
