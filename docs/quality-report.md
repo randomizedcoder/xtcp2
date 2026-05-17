@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-17T18:40:17Z
+Generated: 2026-05-17T22:01:32Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -36,13 +36,14 @@ between commits reveals exactly what changed.
 | golangci-lint (quick) | findings | 25 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | clean | 0 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
-| proto-field-audit | clean | 0 | 1s |
-| go test | findings | 6 | 2s |
+| proto-field-audit | clean | 0 | 0s |
+| go test | findings | 6 | 3s |
+| go test -cover | findings | 23 | 1s |
 
 
 ---
@@ -102,10 +103,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 86 |
+| Pass | 104 |
 | Fail (new) | 2 |
 | Fail (pre-existing) | 4 |
-| Skip | 21 |
+| Skip | 3 |
 
 **Failures:**
 
@@ -152,4 +153,38 @@ the adjacent YAML comment. Rows with no justification need review.
 - Top contributor: **golangci-lint/dupl** with 6 findings (75% of total). Concentrate effort here for the biggest quality win.
 - Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 2 findings (dupl×2). Refactor here before touching adjacent code.
 - 4 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
+
+
+---
+
+## 13. Test coverage
+
+**Overall:** 16.1% of statements (target: 90% per package).
+
+| Package | Coverage | Status |
+|---|---|---|
+| `cmd/clickhouse_http_insert_protobuflist` | 0.0% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist` | 0.0% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist_db` | 0.0% | 🔴 below 90% |
+| `cmd/kafka_to_clickhouse` | 0.0% | 🔴 below 90% |
+| `cmd/ns` | 0.0% | 🔴 below 90% |
+| `cmd/nsTest` | 0.0% | 🔴 below 90% |
+| `cmd/register_schema` | 0.0% | 🔴 below 90% |
+| `cmd/xtcp2` | 0.0% | 🔴 below 90% |
+| `cmd/xtcp2_kafka_client` | 0.0% | 🔴 below 90% |
+| `cmd/xtcp2client` | 0.0% | 🔴 below 90% |
+| `pkg/io_uring` | 73.3% | 🔴 below 90% |
+| `pkg/misc` | 8.3% | 🔴 below 90% |
+| `pkg/xtcp` | 22.0% | 🔴 below 90% |
+| `pkg/xtcpnl` | 44.5% | 🔴 below 90% |
+| `tools/iouring-audit` | 0.0% | 🔴 below 90% |
+| `tools/kafka_topic_reader` | 0.0% | 🔴 below 90% |
+| `tools/metrics-audit` | 0.0% | 🔴 below 90% |
+| `tools/netlink-audit` | 0.0% | 🔴 below 90% |
+| `tools/proto-field-audit` | 0.0% | 🔴 below 90% |
+| `tools/quality-report` | 0.0% | 🔴 below 90% |
+| `tools/tcp_client` | 0.0% | 🔴 below 90% |
+| `tools/tcp_server` | 0.0% | 🔴 below 90% |
+| `tools/udp_receiver_server` | 0.0% | 🔴 below 90% |
+
 
