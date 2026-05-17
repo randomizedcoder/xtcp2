@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-17T15:00:05Z
+Generated: 2026-05-17T18:40:17Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -41,8 +41,8 @@ between commits reveals exactly what changed.
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
-| proto-field-audit | clean | 0 | 0s |
-| go test | findings | 6 | 3s |
+| proto-field-audit | clean | 0 | 1s |
+| go test | findings | 6 | 2s |
 
 
 ---
