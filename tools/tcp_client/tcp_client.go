@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"slices"
 	"sync"
@@ -69,53 +71,87 @@ func client(wg *sync.WaitGroup,
 
 	defer wg.Done()
 
-	msg := []byte("client" + fmt.Sprintf("%d", port))
-
-	pad := make([]byte, pads)
-
-	buf := slices.Concat(msg, pad)
-
+	buf := buildMessage(port, pads)
 	reply := make([]byte, readBufferSizeCst)
 
-	var conn net.Conn
-	timeout := dialTimeoutCst
-	for r, success := 1, false; r < dialr && !success; r++ {
-
-		var err error
-		dialer := net.Dialer{Timeout: timeout}
-		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
-		conn, err = dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%d", bind, port))
-		cancel()
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			timeout = dialTimeoutCst + (dialTimeoutCst * time.Duration(r))
-			continue
-		} else if err != nil {
-			panic(err)
-		}
-		success = true
+	conn, err := dialWithRetry(bind, port, dialr, dialTimeoutCst)
+	if err != nil {
+		log.Printf("dialWithRetry: %v", err)
+		return
 	}
 
 	defer func() { _ = conn.Close() }() //nolint:errcheck // demo client teardown
 
 	for i := 0; ; i++ {
-
-		_ = conn.SetWriteDeadline(time.Now().Add(wto)) //nolint:errcheck // deadline err surfaces on next Write
-		_, werr := conn.Write(buf)
-		if nerr, ok := werr.(net.Error); ok && nerr.Timeout() {
-			fmt.Println("write timeout")
-			continue
+		if err := clientOnce(conn, buf, reply, wto, rto); err != nil {
+			if errors.Is(err, ErrTimeout) {
+				continue
+			}
+			log.Printf("clientOnce i=%d: %v", i, err)
+			return
 		}
-
-		_ = conn.SetReadDeadline(time.Now().Add(rto)) //nolint:errcheck // deadline err surfaces on next Read
-		_, rerr := conn.Read(reply)
-		if nerr, ok := rerr.(net.Error); ok && nerr.Timeout() {
-			fmt.Println("read timeout")
-			continue
-		}
-
 		fmt.Printf("received from server i:%d : [%s]\n", i, string(reply))
-
 		time.Sleep(sleep)
 	}
+}
 
+// ErrTimeout is the sentinel returned by clientOnce when the underlying
+// Read/Write deadline fires, signalling "retry next iteration".
+var ErrTimeout = errors.New("net deadline")
+
+// buildMessage assembles the per-client send buffer: "clientPORT" + pads of
+// zero padding, sized so the receiver tells us apart by port.
+func buildMessage(port, pads int) []byte {
+	msg := fmt.Appendf(nil, "client%d", port)
+	pad := make([]byte, pads)
+	return slices.Concat(msg, pad)
+}
+
+// dialWithRetry retries dial up to `attempts` times with linearly-increasing
+// timeout. Returns the first successful conn or the last non-timeout error.
+func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
+	timeout := baseTimeout
+	addr := fmt.Sprintf("%s:%d", bind, port)
+	var lastErr error
+	for r := 1; r < attempts; r++ {
+		dialer := net.Dialer{Timeout: timeout}
+		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
+		cancel()
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			timeout = baseTimeout + (baseTimeout * time.Duration(r))
+			continue
+		}
+		return nil, err
+	}
+	return nil, fmt.Errorf("dial %s: %w", addr, lastErr)
+}
+
+// clientOnce performs one write+read round-trip against the open conn,
+// applying separate write/read deadlines. Returns ErrTimeout on a deadline
+// hit (caller decides whether to retry) or the underlying I/O error.
+func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error {
+	_ = conn.SetWriteDeadline(time.Now().Add(wto)) //nolint:errcheck // deadline err surfaces on next Write
+	if _, err := conn.Write(buf); err != nil {
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return ErrTimeout
+		}
+		return fmt.Errorf("write: %w", err)
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(rto)) //nolint:errcheck // deadline err surfaces on next Read
+	if _, err := conn.Read(reply); err != nil {
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return ErrTimeout
+		}
+		return fmt.Errorf("read: %w", err)
+	}
+	return nil
 }
