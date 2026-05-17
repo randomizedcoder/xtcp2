@@ -285,22 +285,22 @@ func startProfile(mode string, debugLevel uint) func() {
 	return p.Stop
 }
 
-func main() {
+// versionString builds the -v output line. Exposed (lowercase but in the
+// same package, called from tests) so the version-flag path is testable
+// without a subprocess.
+func versionString() string {
+	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s",
+		commit, date, version)
+}
 
-	misc.DieIfNotLinux()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	complete := make(chan struct{}, signalChannelSizeCst)
-	go initSignalHandler(cancel, complete)
-
-	f := defineFlags()
-	flag.Parse()
-
+// prepareConfig runs the env-override + validation portion of main() up
+// to (but not including) the NewXTCP / RunWithPoller daemon-start step.
+// Returns the built *xtcp_config.XtcpConfig and a `done` flag set when
+// either -v or -conf short-circuited the run (caller should exit 0).
+func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 	if *f.v {
-		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0) //nolint:gocritic // exitAfterDefer: -v prints version and exits; deferred cancel() is moot at process shutdown
+		log.Print(versionString())
+		return nil, true
 	}
 
 	environmentOverrideDebugLevel(f.d, *f.d)
@@ -322,7 +322,27 @@ func main() {
 
 	if *f.conf {
 		printConfig(c, "conf argument")
-		os.Exit(0)
+		return c, true
+	}
+	return c, false
+}
+
+func main() {
+
+	misc.DieIfNotLinux()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	complete := make(chan struct{}, signalChannelSizeCst)
+	go initSignalHandler(cancel, complete)
+
+	f := defineFlags()
+	flag.Parse()
+
+	c, done := prepareConfig(f)
+	if done {
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: short-circuit exit; deferred cancel() is moot
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
