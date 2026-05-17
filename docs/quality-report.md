@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-17T08:29:12Z
+Generated: 2026-05-17T15:00:05Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,14 +15,14 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 10 |
+| Total findings | 8 |
 | Findings (Tier 0) | 0 |
 | Findings (Tier 1) | 0 |
-| Findings (Tier 2) | 8 |
+| Findings (Tier 2) | 6 |
 | Findings (non-tiered) | 2 |
 | Files with at least one finding | 7 |
-| Test failures (new) | 3 |
-| Test failures (pre-existing) | 3 |
+| Test failures (new) | 2 |
+| Test failures (pre-existing) | 4 |
 | Config exclusions reviewed | 4 |
 
 ---
@@ -31,13 +31,13 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 8 | 5s |
+| golangci-lint (comprehensive) | findings | 6 | 5s |
 | golangci-lint (standard) | clean | 0 | 4s |
 | golangci-lint (quick) | findings | 25 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 0s |
-| nixfmt | clean | 0 | 1s |
+| gofmt | clean | 0 | 1s |
+| nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
@@ -53,7 +53,7 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 8 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 6 | 0 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -63,7 +63,7 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 4 | dupl×2, funlen×2 |
+| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 2 | dupl×2 |
 | `pkg/xtcp/destinations_udp.go` | 1 | dupl×1 |
 | `pkg/xtcp/destinations_unixgram.go` | 1 | dupl×1 |
 | `pkg/xtcp/ns_watch.go` | 1 | G301×1 |
@@ -81,11 +81,6 @@ between commits reveals exactly what changed.
 - `pkg/xtcp/destinations_udp.go:72`: 72-100 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:52-80`
 - `pkg/xtcp/destinations_unixgram.go:52`: 52-80 lines are duplicate of `pkg/xtcp/destinations_udp.go:72-100`
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
-
-### golangci-lint / funlen — 2
-
-- `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:672`: Function 'DeserializeTCPInfo' has too many statements (71 > 60)
-- `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:839`: Function 'DeserializeTCPInfoXTCP' has too many statements (71 > 60)
 
 ---
 
@@ -108,15 +103,15 @@ between commits reveals exactly what changed.
 | Status | Count |
 |---|---|
 | Pass | 86 |
-| Fail (new) | 3 |
-| Fail (pre-existing) | 3 |
+| Fail (new) | 2 |
+| Fail (pre-existing) | 4 |
 | Skip | 21 |
 
 **Failures:**
 
 - 🟡 **PRE-EXISTING** `github.com/randomizedcoder/xtcp2/pkg/xtcp` / `TestReconcileMaps`
 - 🟡 **PRE-EXISTING** `github.com/randomizedcoder/xtcp2/pkg/xtcp` / `TestReconcileMaps/Add_missing_keys_and_remove_extra_keys`
-- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcp` / `TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_extra`
+- 🟡 **PRE-EXISTING** `github.com/randomizedcoder/xtcp2/pkg/xtcp` / `TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_extra`
 - 🟡 **PRE-EXISTING** `github.com/randomizedcoder/xtcp2/pkg/xtcp` / `TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_less`
 
 
@@ -154,7 +149,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/dupl** with 6 findings (60% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 4 findings (dupl×2, funlen×2). Refactor here before touching adjacent code.
-- 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
+- Top contributor: **golangci-lint/dupl** with 6 findings (75% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 2 findings (dupl×2). Refactor here before touching adjacent code.
+- 4 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
 
