@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-16T23:53:26Z
+Generated: 2026-05-17T08:29:12Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 13 |
+| Total findings | 10 |
 | Findings (Tier 0) | 0 |
 | Findings (Tier 1) | 0 |
-| Findings (Tier 2) | 11 |
+| Findings (Tier 2) | 8 |
 | Findings (non-tiered) | 2 |
-| Files with at least one finding | 9 |
+| Files with at least one finding | 7 |
 | Test failures (new) | 3 |
 | Test failures (pre-existing) | 3 |
 | Config exclusions reviewed | 4 |
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 11 | 4s |
-| golangci-lint (standard) | clean | 0 | 5s |
-| golangci-lint (quick) | findings | 25 | 13s |
+| golangci-lint (comprehensive) | findings | 8 | 5s |
+| golangci-lint (standard) | clean | 0 | 4s |
+| golangci-lint (quick) | findings | 25 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | clean | 0 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
-| iouring-audit | clean | 0 | 1s |
+| iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | findings | 6 | 2s |
+| go test | findings | 6 | 3s |
 
 
 ---
@@ -53,7 +53,7 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 11 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 8 | 0 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,8 +64,6 @@ between commits reveals exactly what changed.
 | File | Findings | Top rules |
 |---|---|---|
 | `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 4 | dupl×2, funlen×2 |
-| `cmd/xtcp2/xtcp2.go` | 2 | funlen×1, gocyclo×1 |
-| `pkg/xtcp/deserialize.go` | 1 | funlen×1 |
 | `pkg/xtcp/destinations_udp.go` | 1 | dupl×1 |
 | `pkg/xtcp/destinations_unixgram.go` | 1 | dupl×1 |
 | `pkg/xtcp/ns_watch.go` | 1 | G301×1 |
@@ -84,15 +82,10 @@ between commits reveals exactly what changed.
 - `pkg/xtcp/destinations_unixgram.go:52`: 52-80 lines are duplicate of `pkg/xtcp/destinations_udp.go:72-100`
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
 
-### golangci-lint / funlen — 4
+### golangci-lint / funlen — 2
 
-- `cmd/xtcp2/xtcp2.go:111`: Function 'main' has too many statements (123 > 60)
-- `pkg/xtcp/deserialize.go:32`: Function 'Deserialize' has too many statements (65 > 60)
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:672`: Function 'DeserializeTCPInfo' has too many statements (71 > 60)
-
-### golangci-lint / gocyclo — 1
-
-- `cmd/xtcp2/xtcp2.go:444`: cyclomatic complexity 61 of func `environmentOverrideConfig` is high (> 30)
+- `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:839`: Function 'DeserializeTCPInfoXTCP' has too many statements (71 > 60)
 
 ---
 
@@ -161,7 +154,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/dupl** with 6 findings (46% of total). Concentrate effort here for the biggest quality win.
+- Top contributor: **golangci-lint/dupl** with 6 findings (60% of total). Concentrate effort here for the biggest quality win.
 - Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 4 findings (dupl×2, funlen×2). Refactor here before touching adjacent code.
 - 3 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
 
