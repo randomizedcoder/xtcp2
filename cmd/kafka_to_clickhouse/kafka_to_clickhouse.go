@@ -429,15 +429,20 @@ func InitDestKafka(ctx context.Context, c config) {
 }
 
 func getLatestSchemaID(ctx context.Context, subject string) (int, error) {
-	fmt.Println("getLatestSchemaID")
+	return getLatestSchemaIDAt(ctx, http.DefaultClient, schemaRegistryURLCst, subject)
+}
 
-	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
+// getLatestSchemaIDAt fetches the latest schema ID for `subject` via the
+// supplied HTTP client + base URL. Extracted so tests can drive it against
+// an httptest.Server instead of the hardcoded schemaRegistryURLCst.
+func getLatestSchemaIDAt(ctx context.Context, client *http.Client, baseURL, subject string) (int, error) {
+	url := fmt.Sprintf("%s/subjects/%s/versions/latest", baseURL, subject)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
