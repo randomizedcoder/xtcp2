@@ -59,7 +59,7 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	x := new(XTCP)
 	x.config = &xtcp_config.XtcpConfig{
 		Modulus:    1,
-		MarshalTo:  "protobufSingle",
+		MarshalTo:  MarshallerProtobufSingle,
 		Dest:       schemeNullPrefix,
 		DebugLevel: 0,
 	}

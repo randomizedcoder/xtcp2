@@ -16,7 +16,7 @@ import (
 func newValidationFixture(t *testing.T, c *xtcp_config.XtcpConfig) *XTCP {
 	t.Helper()
 	x := &XTCP{config: c}
-	x.Marshallers.Store("protobufSingle", true)
+	x.Marshallers.Store(MarshallerProtobufSingle, true)
 	return x
 }
 
@@ -28,7 +28,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "null dest skips dest parsing",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      schemeNull,
 				Topic:     "xtcp",
 			},
@@ -36,7 +36,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "udp dest with host:port",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "udp:127.0.0.1:13000",
 				Topic:     "xtcp",
 			},
@@ -44,7 +44,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "unix dest with absolute path",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "unix:/var/run/xtcp.sock",
 				Topic:     "xtcp",
 			},
@@ -52,7 +52,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "unixgram dest with absolute path",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "unixgram:/var/run/xtcp.sock",
 				Topic:     "xtcp",
 			},
@@ -60,7 +60,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "unix dest tolerates colon in path",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "unix:/var/run/weird:path.sock",
 				Topic:     "xtcp",
 			},
@@ -68,7 +68,7 @@ func TestValidateInput_happyPaths(t *testing.T) {
 		{
 			name: "topic at boundary length=80",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      schemeNull,
 				Topic:     strings.Repeat("a", 80),
 			},
@@ -103,7 +103,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "dest missing colon",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "udp",
 				Topic:     "xtcp",
 			},
@@ -112,7 +112,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "udp dest with too few colons",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "udp:127.0.0.1",
 				Topic:     "xtcp",
 			},
@@ -121,7 +121,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "udp dest with too many colons",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "udp:127.0.0.1:13000:extra",
 				Topic:     "xtcp",
 			},
@@ -130,7 +130,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "unknown scheme",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      "carrier:pigeon:9000",
 				Topic:     "xtcp",
 			},
@@ -139,7 +139,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "empty topic",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      schemeNull,
 				Topic:     "",
 			},
@@ -148,7 +148,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 		{
 			name: "topic exceeds 80 chars",
 			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: "protobufSingle",
+				MarshalTo: MarshallerProtobufSingle,
 				Dest:      schemeNull,
 				Topic:     strings.Repeat("a", 81),
 			},
@@ -174,7 +174,7 @@ func TestValidateInput_errorPaths(t *testing.T) {
 // the function itself doesn't write to x. Race-test verifies that.
 func TestValidateInput_concurrent(t *testing.T) {
 	cfg := &xtcp_config.XtcpConfig{
-		MarshalTo: "protobufSingle",
+		MarshalTo: MarshallerProtobufSingle,
 		Dest:      schemeNull,
 		Topic:     "xtcp",
 	}

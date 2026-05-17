@@ -38,7 +38,7 @@ func newMarshalFixture(t *testing.T) (*XTCP, *xtcp_flat_record.XtcpFlatRecord) {
 
 func TestValidMarshallers(t *testing.T) {
 	got := validMarshallers()
-	want := []string{"protobufSingle", "protoJson", "protoText", "msgpack"}
+	want := []string{MarshallerProtobufSingle, "protoJson", "protoText", "msgpack"}
 	for _, w := range want {
 		if !strings.Contains(got, w) {
 			t.Errorf("validMarshallers() = %q, missing %q", got, w)
@@ -53,8 +53,8 @@ func TestProtobufSingleMarshal_roundtrip(t *testing.T) {
 		t.Fatalf("protobufSingleMarshal returned empty buf")
 	}
 	var got xtcp_flat_record.XtcpFlatRecord
-	if err := proto.Unmarshal(*buf, &got); err != nil {
-		t.Fatalf("Unmarshal of marshalled output failed: %v", err)
+	if uerr := proto.Unmarshal(*buf, &got); uerr != nil {
+		t.Fatalf("Unmarshal of marshaled output failed: %v", uerr)
 	}
 	if got.Hostname != rec.Hostname || got.SocketFd != rec.SocketFd {
 		t.Errorf("roundtrip lost fields: in.Hostname=%q out.Hostname=%q in.SocketFd=%d out.SocketFd=%d",
@@ -93,8 +93,8 @@ func TestProtoMsgPackMarshal_roundtrip(t *testing.T) {
 		t.Fatalf("protoMsgPackMarshal returned empty buf")
 	}
 	var got xtcp_flat_record.XtcpFlatRecord
-	if err := msgpack.Unmarshal(*buf, &got); err != nil {
-		t.Fatalf("msgpack.Unmarshal failed: %v", err)
+	if uerr := msgpack.Unmarshal(*buf, &got); uerr != nil {
+		t.Fatalf("msgpack.Unmarshal failed: %v", uerr)
 	}
 	if got.Hostname != rec.Hostname {
 		t.Errorf("msgpack roundtrip lost hostname: %q", got.Hostname)
@@ -128,7 +128,7 @@ func TestByteSliceWriter_Write(t *testing.T) {
 // resolves x.Marshaller to the one named by config.MarshalTo. Verify
 // every valid name dispatches.
 func TestInitMarshallers_validNames(t *testing.T) {
-	for _, name := range []string{"protobufSingle", "protoJson", "protoText", "msgpack"} {
+	for _, name := range []string{MarshallerProtobufSingle, "protoJson", "protoText", "msgpack"} {
 		t.Run(name, func(t *testing.T) {
 			x, rec := newMarshalFixture(t)
 			x.config.MarshalTo = name

@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-17T22:01:32Z
+Generated: 2026-05-17T22:16:47Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 8 |
-| Findings (Tier 0) | 0 |
+| Total findings | 30 |
+| Findings (Tier 0) | 2 |
 | Findings (Tier 1) | 0 |
-| Findings (Tier 2) | 6 |
-| Findings (non-tiered) | 2 |
-| Files with at least one finding | 7 |
+| Findings (Tier 2) | 25 |
+| Findings (non-tiered) | 3 |
+| Files with at least one finding | 15 |
 | Test failures (new) | 2 |
 | Test failures (pre-existing) | 4 |
 | Config exclusions reviewed | 4 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 6 | 5s |
-| golangci-lint (standard) | clean | 0 | 4s |
-| golangci-lint (quick) | findings | 25 | 14s |
+| golangci-lint (comprehensive) | findings | 27 | 4s |
+| golangci-lint (standard) | findings | 2 | 5s |
+| golangci-lint (quick) | findings | 26 | 13s |
 | gosec | findings | 2 | 1s |
-| go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 0s |
-| nixfmt | clean | 0 | 1s |
-| netlink-audit | clean | 0 | 0s |
+| go vet | clean | 0 | 3s |
+| gofmt | findings | 1 | 0s |
+| nixfmt | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 6 | 3s |
-| go test -cover | findings | 23 | 1s |
+| go test -cover | findings | 22 | 1s |
 
 
 ---
@@ -52,9 +52,9 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 2 | 2 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 6 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 25 | 2 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,24 +64,50 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
+| `cmd/xtcp2/xtcp2_test.go` | 5 | goconst×3, gofmt×1, format×1 |
+| `pkg/xtcp/marshallers.go` | 4 | goconst×4 |
+| `pkg/xtcp/marshallers_test.go` | 3 | goconst×1, govet×1, misspell×1 |
+| `tools/quality-report/main.go` | 3 | goconst×3 |
+| `tools/quality-report/main_test.go` | 3 | goconst×3 |
+| `pkg/xtcp/input_validation_test.go` | 2 | goconst×2 |
 | `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 2 | dupl×2 |
+| `pkg/xtcp/deserialize_test.go` | 1 | goconst×1 |
 | `pkg/xtcp/destinations_udp.go` | 1 | dupl×1 |
 | `pkg/xtcp/destinations_unixgram.go` | 1 | dupl×1 |
-| `pkg/xtcp/ns_watch.go` | 1 | G301×1 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go` | 1 | dupl×1 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go` | 1 | dupl×1 |
-| `tools/proto-field-audit/main.go` | 1 | G122×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
+### golangci-lint / goconst — 17
+
+- `cmd/xtcp2/xtcp2_test.go:254`: string `:9000` has 3 occurrences, make it a constant
+- `cmd/xtcp2/xtcp2_test.go:309`: string `info` has 4 occurrences, make it a constant
+- `cmd/xtcp2/xtcp2_test.go:310`: string `vegas` has 3 occurrences, make it a constant
+
 ### golangci-lint / dupl — 6
 
 - `pkg/xtcp/destinations_udp.go:72`: 72-100 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:52-80`
 - `pkg/xtcp/destinations_unixgram.go:52`: 52-80 lines are duplicate of `pkg/xtcp/destinations_udp.go:72-100`
 - `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
+
+### golangci-lint / misspell — 2
+
+- `pkg/xtcp/input_validation.go:20`: `behaviour` is a misspelling of `behavior`
+- `pkg/xtcp/marshallers_test.go:57`: `marshalled` is a misspelling of `marshaled`
+
+### gofmt / format — 1
+
+- `cmd/xtcp2/xtcp2_test.go`: file not formatted
+
+### golangci-lint / gofmt — 1
+
+- `cmd/xtcp2/xtcp2_test.go:44`: File is not properly formatted
+
+### golangci-lint / govet — 1
+
+- `pkg/xtcp/marshallers_test.go:119`: shadow: declaration of "err" shadows declaration at line 108
 
 ---
 
@@ -103,7 +129,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 104 |
+| Pass | 200 |
 | Fail (new) | 2 |
 | Fail (pre-existing) | 4 |
 | Skip | 3 |
@@ -127,8 +153,9 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-`gofmt`: clean.
+**`gofmt` would reformat (1 file):**
 
+- `cmd/xtcp2/xtcp2_test.go`
 `nixfmt`: clean.
 
 ---
@@ -150,16 +177,18 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/dupl** with 6 findings (75% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` carries 2 findings (dupl×2). Refactor here before touching adjacent code.
+- Top contributor: **golangci-lint/goconst** with 17 findings (57% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~4 quick-fixable findings before manual review.
+- Hotspot file: `cmd/xtcp2/xtcp2_test.go` carries 5 findings (goconst×3, gofmt×1, format×1). Refactor here before touching adjacent code.
 - 4 pre-existing test failure(s) tracked via `tools/quality-report/known-failures.txt`. Schedule a focused fix-up; today they're masking real regression signal.
+- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
 
 ---
 
 ## 13. Test coverage
 
-**Overall:** 16.1% of statements (target: 90% per package).
+**Overall:** 31.7% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -170,19 +199,19 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/ns` | 0.0% | 🔴 below 90% |
 | `cmd/nsTest` | 0.0% | 🔴 below 90% |
 | `cmd/register_schema` | 0.0% | 🔴 below 90% |
-| `cmd/xtcp2` | 0.0% | 🔴 below 90% |
+| `cmd/xtcp2` | 82.2% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 0.0% | 🔴 below 90% |
 | `cmd/xtcp2client` | 0.0% | 🔴 below 90% |
-| `pkg/io_uring` | 73.3% | 🔴 below 90% |
+| `pkg/io_uring` | 73.0% | 🔴 below 90% |
 | `pkg/misc` | 8.3% | 🔴 below 90% |
-| `pkg/xtcp` | 22.0% | 🔴 below 90% |
+| `pkg/xtcp` | 29.5% | 🔴 below 90% |
 | `pkg/xtcpnl` | 44.5% | 🔴 below 90% |
 | `tools/iouring-audit` | 0.0% | 🔴 below 90% |
 | `tools/kafka_topic_reader` | 0.0% | 🔴 below 90% |
 | `tools/metrics-audit` | 0.0% | 🔴 below 90% |
 | `tools/netlink-audit` | 0.0% | 🔴 below 90% |
 | `tools/proto-field-audit` | 0.0% | 🔴 below 90% |
-| `tools/quality-report` | 0.0% | 🔴 below 90% |
+| `tools/quality-report` | 90.5% | 🟢 OK |
 | `tools/tcp_client` | 0.0% | 🔴 below 90% |
 | `tools/tcp_server` | 0.0% | 🔴 below 90% |
 | `tools/udp_receiver_server` | 0.0% | 🔴 below 90% |

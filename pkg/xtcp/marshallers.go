@@ -12,15 +12,24 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Canonical Marshaller names — referenced by tests and config-validation
+// alike, kept here so a typo in any one site is a compile error.
+const (
+	MarshallerProtobufSingle = "protobufSingle"
+	MarshallerProtoJSON      = "protoJson"
+	MarshallerProtoText      = "protoText"
+	MarshallerMsgPack        = "msgpack"
+)
+
 var (
 	// protoSingle, protoDelim, protoJson, protoText, msgpack
 	validMarshallersMap = map[string]bool{
 		// "protobuf":       true, // https://clickhouse.com/docs/en/interfaces/formats/Protobuf
-		"protobufSingle": true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufSingle
+		MarshallerProtobufSingle: true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufSingle
 		// "protobufList":   true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
-		"protoJson": true,
-		"protoText": true,
-		"msgpack":   true,
+		MarshallerProtoJSON: true,
+		MarshallerProtoText: true,
+		MarshallerMsgPack:   true,
 	}
 )
 
@@ -44,24 +53,19 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	// 	return x.protobufMarshal(e)
 	// })
 
-	// x.Marshallers.Store("protobufSingle", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	x.Marshallers.Store("protobufSingle", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	x.Marshallers.Store(MarshallerProtobufSingle, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protobufSingleMarshal(r)
 	})
 
-	// x.Marshallers.Store("protobufList", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	// 	return x.protobufListMarshal(r)
-	// })
-
-	x.Marshallers.Store("protoJson", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	x.Marshallers.Store(MarshallerProtoJSON, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protoJsonMarshal(r)
 	})
 
-	x.Marshallers.Store("protoText", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	x.Marshallers.Store(MarshallerProtoText, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protoTextMarshal(r)
 	})
 
-	x.Marshallers.Store("msgpack", func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	x.Marshallers.Store(MarshallerMsgPack, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protoMsgPackMarshal(r)
 	})
 
