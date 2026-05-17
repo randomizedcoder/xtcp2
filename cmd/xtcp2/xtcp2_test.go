@@ -542,3 +542,58 @@ func TestDefineFlags(t *testing.T) {
 		t.Fatalf("defineFlags returned an incomplete mainFlags: %+v", f)
 	}
 }
+
+// ───────────────────────────────────────────────────────────────────────
+// versionString + prepareConfig — split out of main() so the version /
+// -conf short-circuits are testable.
+// ───────────────────────────────────────────────────────────────────────
+
+func TestVersionString(t *testing.T) {
+	// commit/date/version are filled by -ldflags at build time; in the
+	// test binary they're empty strings. The function should still
+	// produce a sentence with the constant tokens.
+	got := versionString()
+	if !strings.Contains(got, "xtcp commit:") {
+		t.Errorf("versionString missing prefix; got %q", got)
+	}
+}
+
+func TestPrepareConfig_versionFlag(t *testing.T) {
+	envHelperReset(t)
+	f := defineFlags()
+	tt := true
+	f.v = &tt
+	c, done := prepareConfig(f)
+	if !done {
+		t.Error("-v should produce done=true")
+	}
+	if c != nil {
+		t.Error("-v should produce nil config")
+	}
+}
+
+func TestPrepareConfig_confFlag(t *testing.T) {
+	envHelperReset(t)
+	f := defineFlags()
+	tt := true
+	f.conf = &tt
+	c, done := prepareConfig(f)
+	if !done {
+		t.Error("-conf should produce done=true")
+	}
+	if c == nil {
+		t.Error("-conf should still build the config")
+	}
+}
+
+func TestPrepareConfig_runPath(t *testing.T) {
+	envHelperReset(t)
+	f := defineFlags()
+	c, done := prepareConfig(f)
+	if done {
+		t.Error("no short-circuit flag → done=false")
+	}
+	if c == nil {
+		t.Error("non-short-circuit path should produce a non-nil config")
+	}
+}
