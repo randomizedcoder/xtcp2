@@ -1,22 +1,34 @@
 package xtcp
 
 import (
+	"fmt"
 	"log"
 	"strings"
 )
 
+// InputValidation is the original log.Fatalf wrapper around validateInput.
+// Kept for the existing call site in init.go; new code should call
+// validateInput directly so the error path is testable.
 func (x *XTCP) InputValidation() {
+	if err := x.validateInput(); err != nil {
+		log.Fatalf("InputValidation: %v", err)
+	}
+}
 
+// validateInput checks XTCP's runtime configuration and returns a
+// descriptive error rather than fataling. The wrapper above preserves
+// the legacy log.Fatalf behaviour for the init-time call site.
+func (x *XTCP) validateInput() error {
 	if _, ok := x.Marshallers.Load(x.config.MarshalTo); !ok {
-		log.Fatalf("InputValidation XTCP Marshal must be one of:%s MarshalTo:%s", validMarshallers(), x.config.MarshalTo)
+		return fmt.Errorf("XTCP Marshal must be one of:%s MarshalTo:%s",
+			validMarshallers(), x.config.MarshalTo)
 	}
 
 	if x.config.Dest != schemeNull {
 
 		scheme, _, found := strings.Cut(x.config.Dest, ":")
-
 		if !found {
-			log.Fatalf("InputValidation XTCP Dest must contain ':' chars:%s", x.config.Dest)
+			return fmt.Errorf("XTCP Dest must contain ':' chars:%s", x.config.Dest)
 		}
 
 		// Schemes that take a network address (host:port) need exactly two
@@ -29,16 +41,18 @@ func (x *XTCP) InputValidation() {
 			// per-destination factory validates the path further.
 		default:
 			if strings.Count(x.config.Dest, ":") != 2 {
-				log.Fatalf("InputValidation XTCP Dest must contain x2 ':' chars:%s", x.config.Dest)
+				return fmt.Errorf("XTCP Dest must contain x2 ':' chars:%s", x.config.Dest)
 			}
 		}
 
 		if _, status := lookupDestinationFactory(scheme); status != destLookupFound {
-			log.Fatalf("InputValidation: %v", destinationLookupError(scheme, status))
+			return destinationLookupError(scheme, status)
 		}
 	}
 
 	if len(x.config.Topic) < 1 || len(x.config.Topic) > 80 {
-		log.Fatalf("InputValidation XTCP Topic must not be length < 1 or > 80:%d", len(x.config.Topic))
+		return fmt.Errorf("XTCP Topic must not be length < 1 or > 80:%d",
+			len(x.config.Topic))
 	}
+	return nil
 }
