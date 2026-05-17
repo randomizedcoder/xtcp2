@@ -113,45 +113,58 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			continue
 		}
 
-		length = xtcpnl.InetDiagMsgSizeCst
-		if ierr := xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord); ierr != nil {
-			d.pC.WithLabelValues("Deserialize", "DeserializeInetDiagMsgXTCP", "error").Inc()
-		}
-		offset += length
-
-		length = int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
-		x.DeserializeAttributes(DeserializeAttributesArgs{
-			NLPacket:   d.NLPacket,
-			xtcpRecord: xtcpRecord,
-			rtaPool:    d.rtaPool,
-			pC:         d.pC,
-			pH:         d.pH,
-			id:         d.id,
-			offset:     offset,
-			end:        offset + length,
-		})
-		offset += length
-
-		if x.debugLevel > 1000 {
-			log.Printf("Deserialize n:%d x.dest.Send(ctx, x.Marshaler(xtcpRecord))", n)
-		}
-
-		// single record send to GRPC client
-		x.flatRecordServiceSend(xtcpRecord)
-
-		sent, serr := x.dest.Send(ctx, x.Marshaller(xtcpRecord))
-		if serr != nil {
-			d.pC.WithLabelValues("Deserialize", "Destation", "error").Inc()
-		} else {
-			d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(sent))
-		}
-
+		offset = x.processInetDiagRecord(ctx, d, xtcpRecord, nlh, offset, n)
 		d.nlhPool.Put(nlh)
-
 		d.pH.WithLabelValues("Deserialize", "nlPacketComplete", "count").Observe(time.Since(nlPacketStartTime).Seconds())
-
 	}
 	return n, nil
+}
+
+// processInetDiagRecord parses the InetDiagMsg body + its attributes
+// into xtcpRecord, fans the populated record out to the gRPC stream
+// service, and ships it through the configured destination. Returns
+// the new offset after consuming the message body.
+func (x *XTCP) processInetDiagRecord(
+	ctx context.Context,
+	d DeserializeArgs,
+	xtcpRecord *xtcp_flat_record.XtcpFlatRecord,
+	nlh *xtcpnl.NlMsgHdr,
+	offset int,
+	n uint64,
+) int {
+	length := xtcpnl.InetDiagMsgSizeCst
+	if ierr := xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord); ierr != nil {
+		d.pC.WithLabelValues("Deserialize", "DeserializeInetDiagMsgXTCP", "error").Inc()
+	}
+	offset += length
+
+	length = int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
+	x.DeserializeAttributes(DeserializeAttributesArgs{
+		NLPacket:   d.NLPacket,
+		xtcpRecord: xtcpRecord,
+		rtaPool:    d.rtaPool,
+		pC:         d.pC,
+		pH:         d.pH,
+		id:         d.id,
+		offset:     offset,
+		end:        offset + length,
+	})
+	offset += length
+
+	if x.debugLevel > 1000 {
+		log.Printf("Deserialize n:%d x.dest.Send(ctx, x.Marshaler(xtcpRecord))", n)
+	}
+
+	x.flatRecordServiceSend(xtcpRecord)
+
+	sent, serr := x.dest.Send(ctx, x.Marshaller(xtcpRecord))
+	if serr != nil {
+		d.pC.WithLabelValues("Deserialize", "Destation", "error").Inc()
+	} else {
+		d.pC.WithLabelValues("Deserialize", "Destation", "count").Add(float64(sent))
+	}
+
+	return offset
 }
 
 // signalNetlinkerDone emits the per-fd "dump complete" event the poller
