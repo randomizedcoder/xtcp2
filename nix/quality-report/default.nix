@@ -168,7 +168,56 @@ pkgs.runCommand "xtcp2-quality-report"
       go run ./tools/proto-field-audit -proto-root proto -go-root pkg
 
     # ── go test (some tests require KVM/netlink/caps; will fail in sandbox) ─
-    runtool gotest "$RAW/gotest.json" -- go test -json -short ./...
+    # Coverage is collected against pkg/, tools/, cmd/ — excluding the
+    # auto-generated protobuf packages (xtcp_config, xtcp_flat_record,
+    # clickhouse_protolist). `-coverpkg` instruments only the listed
+    # packages, so generated code never enters the profile.
+    coverPkg='./pkg/io_uring/...,./pkg/misc/...,./pkg/xtcp/...,./pkg/xtcpnl/...,./tools/...,./cmd/...'
+    runtool gotest "$RAW/gotest.json" -- \
+      go test -json -short \
+        -coverprofile="$RAW/coverage.out" -covermode=atomic \
+        -coverpkg="$coverPkg" \
+        ./...
+
+    # ── coverage post-processing ───────────────────────────────────────
+    # The TSV summary is the canonical input the quality-report aggregator
+    # parses; the HTML lands at $out/coverage.html for the user to open
+    # directly. Both are best-effort: if `go test` produced no profile
+    # (e.g. all tests failed before any package was instrumented) the
+    # rest of the report should still build.
+    if [ -s "$RAW/coverage.out" ]; then
+      cov_start=$(date +%s)
+      go tool cover -func="$RAW/coverage.out" \
+        > "$RAW/coverage-func.out" 2>>"$RAW/stderr.log" || true
+      go tool cover -html="$RAW/coverage.out" \
+        -o "$RAW/coverage.html" 2>>"$RAW/stderr.log" || true
+      # Per-package TSV: one row per package with average function
+      # coverage. Format: `<package>\t<percent>`.
+      awk -F'\t+' '
+        /^github.com\/randomizedcoder\/xtcp2\// {
+          # Strip module prefix.
+          path=$1
+          sub("^github.com/randomizedcoder/xtcp2/","",path)
+          # Drop the "<file>.go:<line>:<col>:" tail to get the package path.
+          sub("/[^/]*\\.go:.*","",path)
+          # $NF is "NN.N%" — strip the % and accumulate.
+          cov=$NF; sub("%","",cov)
+          sumCov[path]+=cov; cnt[path]++
+        }
+        END {
+          for (p in sumCov)
+            printf "%s\t%.1f\n", p, sumCov[p]/cnt[p]
+        }
+      ' "$RAW/coverage-func.out" | sort > "$RAW/coverage-per-package.tsv"
+      cov_end=$(date +%s)
+      echo "coverage=$((cov_end-cov_start))" >> "$RAW/runtimes.txt"
+      echo "coverage=0" >> "$RAW/exit-codes.txt"
+    else
+      : > "$RAW/coverage-func.out"
+      : > "$RAW/coverage-per-package.tsv"
+      echo "coverage=0" >> "$RAW/runtimes.txt"
+      echo "coverage=2" >> "$RAW/exit-codes.txt"
+    fi
 
     # ── cli-help-smoke is covered by nix flake check; leave empty here ──
     : > "$RAW/cli-help-smoke.out"
@@ -183,6 +232,12 @@ pkgs.runCommand "xtcp2-quality-report"
 
     mkdir -p $out/raw
     cp -r "$RAW"/. $out/raw/ || true
+
+    # Surface the coverage HTML at $out/coverage.html for easy access via
+    # `xdg-open result/coverage.html`.
+    if [ -s "$RAW/coverage.html" ]; then
+      cp "$RAW/coverage.html" "$out/coverage.html"
+    fi
 
     mkdir -p $out/bin
     cat > $out/bin/quality-report <<EOF
