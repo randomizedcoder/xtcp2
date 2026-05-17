@@ -52,15 +52,22 @@ func (x *XTCP) reconcile(ctx context.Context) (int, int) {
 	return x.reconcileMaps(ctx, x.discoverAllNamespaces(), x.nsMap, false)
 }
 
-// reconcileMaps reconciles srcMap into destMap. Keys in srcMap are added to destMap.
-// If a key in destMap is not present in srcMap, it is deleted.
-// We are NOT checking the values
+// reconcileMaps reconciles srcMap into destMap, comparing both keys AND
+// values. The dest is mutated to converge with src:
+//
+//   - Entries in dest that are missing from src, or whose value differs,
+//     are deleted. (A stale value counts as out-of-sync; the second pass
+//     re-stores the fresh value.)
+//   - Entries in src that are now missing from dest are stored — in
+//     production via x.nsAdd which kicks the namespace-instance goroutine;
+//     in `testing=true` callers the raw value is copied over.
+//
+// Returns the count of deletes and stores observed during the pass.
 func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, testing bool) (deleteCount, storeCount int) {
 
 	destMap.Range(func(key, value interface{}) bool {
-		// do not compare value
-		// if srcValue, ok := srcMap.Load(key); !ok || srcValue != value {
-		if _, ok := srcMap.Load(key); !ok {
+		// Delete when the key is gone from src OR its value drifted.
+		if srcValue, ok := srcMap.Load(key); !ok || srcValue != value {
 			destMap.Delete(key)
 			deleteCount++
 		}
@@ -68,8 +75,6 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 	})
 
 	srcMap.Range(func(key, value interface{}) bool {
-		// do not compare value
-		// if destValue, ok := destMap.Load(key); !ok || destValue != value {
 		if _, ok := destMap.Load(key); !ok {
 			if testing {
 				destMap.Store(key, value)

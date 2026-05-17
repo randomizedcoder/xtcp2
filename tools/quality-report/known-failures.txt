@@ -6,14 +6,6 @@
 #
 # Remove an entry once the test is fixed.
 
-# pkg/xtcp ns_reconcile_test.go: existed before the vector-microvm work;
-# TestReconcileMaps has multiple sub-tests that fail due to a stale-vs-fresh
-# value comparison in ns_reconcile.go's reconcileMaps function.
-TestReconcileMaps
-TestReconcileMaps/Add_missing_keys_and_remove_extra_keys
-TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_extra
-TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_less
-
 # pkg/misc TestCheckFilePermissions: environment-dependent — tests /bin/bash
 # and /bin/ls hardcoded to 0755, which is not the case on NixOS where those
 # are symlinks into /nix/store with different perms. The test itself is
