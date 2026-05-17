@@ -11,6 +11,7 @@
 # value comparison in ns_reconcile.go's reconcileMaps function.
 TestReconcileMaps
 TestReconcileMaps/Add_missing_keys_and_remove_extra_keys
+TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_extra
 TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_less
 
 # pkg/misc TestCheckFilePermissions: environment-dependent — tests /bin/bash
