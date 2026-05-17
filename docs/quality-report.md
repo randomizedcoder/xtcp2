@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-17T23:38:08Z
+Generated: 2026-05-17T23:45:58Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 75 | 5s |
+| golangci-lint (comprehensive) | findings | 75 | 4s |
 | golangci-lint (standard) | findings | 29 | 5s |
-| golangci-lint (quick) | findings | 47 | 13s |
+| golangci-lint (quick) | findings | 47 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 1 | 0s |
-| nixfmt | clean | 0 | 1s |
+| gofmt | findings | 1 | 1s |
+| nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
-| iouring-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 1s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 1 | 3s |
-| go test -cover | findings | 22 | 1s |
+| go test -cover | findings | 22 | 0s |
 
 
 ---
@@ -72,7 +72,7 @@ between commits reveals exactly what changed.
 | `tools/netlink-audit/main.go` | 5 | errcheck×5 |
 | `tools/proto-field-audit/main_test.go` | 5 | gosec×5 |
 | `pkg/xtcp/init_test.go` | 4 | misspell×3, goconst×1 |
-| `pkg/xtcpnl/xtcp_writer_test.go` | 4 | misspell×2, gofmt×1, format×1 |
+| `pkg/xtcpnl/xtcp_writer_test.go` | 4 | misspell×2, format×1, gofmt×1 |
 | `cmd/xtcp2/xtcp2_test.go` | 3 | goconst×3 |
 
 
@@ -142,7 +142,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 307 |
+| Pass | 336 |
 | Fail (new) | 1 |
 | Fail (pre-existing) | 0 |
 | Skip | 3 |
@@ -194,18 +194,18 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 44.1% of statements (target: 90% per package).
+**Overall:** 46.7% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
-| `cmd/clickhouse_http_insert_protobuflist` | 0.0% | 🔴 below 90% |
-| `cmd/clickhouse_protobuflist` | 0.0% | 🔴 below 90% |
-| `cmd/clickhouse_protobuflist_db` | 0.0% | 🔴 below 90% |
+| `cmd/clickhouse_http_insert_protobuflist` | 30.7% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist` | 71.4% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist_db` | 36.8% | 🔴 below 90% |
 | `cmd/kafka_to_clickhouse` | 0.0% | 🔴 below 90% |
 | `cmd/ns` | 0.0% | 🔴 below 90% |
-| `cmd/nsTest` | 0.0% | 🔴 below 90% |
-| `cmd/register_schema` | 0.0% | 🔴 below 90% |
-| `cmd/xtcp2` | 82.2% | 🔴 below 90% |
+| `cmd/nsTest` | 75.0% | 🔴 below 90% |
+| `cmd/register_schema` | 46.4% | 🔴 below 90% |
+| `cmd/xtcp2` | 83.6% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 0.0% | 🔴 below 90% |
 | `cmd/xtcp2client` | 0.0% | 🔴 below 90% |
 | `pkg/io_uring` | 73.0% | 🔴 below 90% |
