@@ -17,6 +17,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -32,12 +33,42 @@ type defn struct {
 func main() {
 	root := flag.String("root", ".", "repo root")
 	flag.Parse()
+	os.Exit(runAudit(*root, os.Stdout, os.Stderr))
+}
 
+// runAudit walks root, collects metric definitions + references, and
+// reports unreferenced ones as orphans. Returns 0 / 1 / 2.
+func runAudit(root string, stdout, stderr io.Writer) int {
+	defs, refs, err := auditTree(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "metrics-audit: walk failed: %v\n", err)
+		return 2
+	}
+	fmt.Fprintf(stdout, "metrics-audit: scanned %s — %d metric definition(s)\n",
+		root, len(defs))
+	orphans := 0
+	for _, d := range defs {
+		if refs[d.name] <= 1 {
+			fmt.Fprintf(stdout, "%s: orphan metric %q (%s) — defined but never referenced\n",
+				d.pos, d.name, d.metric)
+			orphans++
+		}
+	}
+	if orphans > 0 {
+		fmt.Fprintf(stderr, "metrics-audit: %d orphan metric(s)\n", orphans)
+		return 1
+	}
+	fmt.Fprintln(stdout, "metrics-audit: no findings")
+	return 0
+}
+
+// auditTree walks root once and returns the parsed metric definitions
+// plus an identifier→count reference map for orphan detection.
+func auditTree(root string) ([]defn, map[string]int, error) {
 	fset := token.NewFileSet()
 	var definitions []defn
 	references := map[string]int{}
-
-	err := filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -59,7 +90,6 @@ func main() {
 			return parseErr
 		}
 		ast.Inspect(file, func(n ast.Node) bool {
-			// Capture metric definitions: `var foo = prometheus.NewCounter(...)`
 			if vd, ok := n.(*ast.ValueSpec); ok {
 				for i, ident := range vd.Names {
 					if i >= len(vd.Values) {
@@ -81,26 +111,7 @@ func main() {
 		})
 		return nil
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "metrics-audit: walk failed: %v\n", err)
-		os.Exit(2)
-	}
-
-	fmt.Printf("metrics-audit: scanned %s — %d metric definition(s)\n", *root, len(definitions))
-
-	orphans := 0
-	for _, d := range definitions {
-		if references[d.name] <= 1 { // 1 = the definition itself
-			fmt.Printf("%s: orphan metric %q (%s) — defined but never referenced\n",
-				d.pos, d.name, d.metric)
-			orphans++
-		}
-	}
-	if orphans > 0 {
-		fmt.Fprintf(os.Stderr, "metrics-audit: %d orphan metric(s)\n", orphans)
-		os.Exit(1)
-	}
-	fmt.Println("metrics-audit: no findings")
+	return definitions, references, err
 }
 
 func promNewKind(e ast.Expr) string {
