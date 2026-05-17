@@ -41,12 +41,12 @@ func captureLog(t *testing.T, fn func()) string {
 
 func TestEnvUint64(t *testing.T) {
 	cases := []struct {
-		name      string
-		key       string
-		set       bool
-		val       string
-		wantVal   uint64
-		wantOK    bool
+		name    string
+		key     string
+		set     bool
+		val     string
+		wantVal uint64
+		wantOK  bool
 	}{
 		{name: "unset", key: "TEST_U64_UNSET", set: false, wantOK: false},
 		{name: "valid", key: "TEST_U64_OK", set: true, val: "42", wantVal: 42, wantOK: true},
@@ -299,11 +299,11 @@ func TestEnvironmentOverrideGoMaxProcs(t *testing.T) {
 
 func TestGetDeserializers(t *testing.T) {
 	cases := []struct {
-		name      string
-		input     string
+		name        string
+		input       string
 		envOverride string
-		envSet    bool
-		want      []string // keys that must be true; rest must be false/absent
+		envSet      bool
+		want        []string // keys that must be true; rest must be false/absent
 	}{
 		{name: "empty", input: "", want: nil},
 		{name: "single", input: "info", want: []string{"info"}},
