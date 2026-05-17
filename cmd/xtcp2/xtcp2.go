@@ -442,216 +442,172 @@ func environmentOverrideGoMaxProcs(goMaxProcs *uint, debugLevel uint) {
 // this is to allow the environment variables to override the arguments
 // (probably poor form to be mutatating)
 func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
-	key := "NLTIMEOUTMS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.NlTimeoutMilliseconds = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NlTimeoutMilliseconds:%d", key, c.NlTimeoutMilliseconds)
-			}
-		}
-	}
+	envOverridePolling(c, debugLevel)
+	envOverrideNetlinker(c, debugLevel)
+	envOverridePacket(c, debugLevel)
+	envOverrideMarshalAndDest(c, debugLevel)
+	envOverrideKafka(c, debugLevel)
+	envOverrideLabeling(c, debugLevel)
+}
 
-	key = "POLL_FREQUENCY"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.PollFrequency = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PollingFrequency:%s", key, c.PollFrequency.String())
-			}
-		}
+// envUint64 parses an env var as base-10 int64 and yields it as uint64.
+// Returns ok=false when the var is unset or unparseable.
+func envUint64(key string) (uint64, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "POLL_TIMEOUT"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.PollTimeout = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PollingFrequency:%s", key, c.PollTimeout.String())
-			}
-		}
+	i, err := strconv.ParseInt(v, base10, sixtyFour)
+	if err != nil {
+		return 0, false
 	}
+	return uint64(i), true
+}
 
-	key = "MAX_LOOPS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.MaxLoops = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.MaxLoops:%d", key, c.MaxLoops)
-			}
-		}
+// envUint32 parses an env var as decimal int and yields it as uint32.
+func envUint32(key string) (uint32, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "NETLINKERS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.Netlinkers = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.Netlinkers:%d", key, c.Netlinkers)
-			}
-		}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
 	}
+	return uint32(i), true
+}
 
-	key = "NETLINKERS_DONE_CHAN_SIZE"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.NetlinkersDoneChanSize = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NetlinkersDoneChanSize:%d", key, c.NetlinkersDoneChanSize)
-			}
-		}
+// envDuration parses an env var via time.ParseDuration.
+func envDuration(key string) (time.Duration, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "NLMSQSEQ"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.NlmsgSeq = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NlmsgSeq:%d", key, c.NlmsgSeq)
-			}
-		}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, false
 	}
+	return d, true
+}
 
-	key = "PACKET_SIZE"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.PacketSize = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PacketSize:%d", key, c.PacketSize)
-			}
-		}
+// envString returns the env value if set.
+func envString(key string) (string, bool) {
+	return os.LookupEnv(key)
+}
+
+func logEnv(key, msg string, debugLevel uint) {
+	if debugLevel > 10 {
+		log.Printf("key:%s, %s", key, msg)
 	}
+}
 
-	key = "PACKETSIZEMPLY"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.PacketSizeMply = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PacketSizeMply:%d", key, c.PacketSizeMply)
-			}
-		}
+func envOverridePolling(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint64("NLTIMEOUTMS"); ok {
+		c.NlTimeoutMilliseconds = v
+		logEnv("NLTIMEOUTMS", fmt.Sprintf("c.NlTimeoutMilliseconds:%d", v), debugLevel)
 	}
-
-	key = "WRITEFILES"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.WriteFiles = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.WriteFiles:%d", key, c.WriteFiles)
-			}
-		}
+	if d, ok := envDuration("POLL_FREQUENCY"); ok {
+		c.PollFrequency = durationpb.New(d)
+		logEnv("POLL_FREQUENCY", fmt.Sprintf("c.PollingFrequency:%s", c.PollFrequency.String()), debugLevel)
 	}
-
-	key = "CAPTUREPATH"
-	if value, exists := os.LookupEnv(key); exists {
-		c.CapturePath = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.CapturePath:%s", key, c.CapturePath)
-		}
+	if d, ok := envDuration("POLL_TIMEOUT"); ok {
+		c.PollTimeout = durationpb.New(d)
+		logEnv("POLL_TIMEOUT", fmt.Sprintf("c.PollingFrequency:%s", c.PollTimeout.String()), debugLevel)
 	}
-
-	key = "MODULUS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.Modulus = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.Modulus:%d", key, c.Modulus)
-			}
-		}
+	if v, ok := envUint64("MAX_LOOPS"); ok {
+		c.MaxLoops = v
+		logEnv("MAX_LOOPS", fmt.Sprintf("c.MaxLoops:%d", v), debugLevel)
 	}
-
-	key = "MARSHAL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.MarshalTo = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Marshal:%s", key, c.MarshalTo)
-		}
+	if v, ok := envUint64("MODULUS"); ok {
+		c.Modulus = v
+		logEnv("MODULUS", fmt.Sprintf("c.Modulus:%d", v), debugLevel)
 	}
+}
 
-	key = "PROTOBUF_LIST_LENGTH_DELIMIT"
-	if _, exists := os.LookupEnv(key); exists {
+func envOverrideNetlinker(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint32("NETLINKERS"); ok {
+		c.Netlinkers = v
+		logEnv("NETLINKERS", fmt.Sprintf("c.Netlinkers:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("NETLINKERS_DONE_CHAN_SIZE"); ok {
+		c.NetlinkersDoneChanSize = v
+		logEnv("NETLINKERS_DONE_CHAN_SIZE", fmt.Sprintf("c.NetlinkersDoneChanSize:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("NLMSQSEQ"); ok {
+		c.NlmsgSeq = v
+		logEnv("NLMSQSEQ", fmt.Sprintf("c.NlmsgSeq:%d", v), debugLevel)
+	}
+}
+
+func envOverridePacket(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint64("PACKET_SIZE"); ok {
+		c.PacketSize = v
+		logEnv("PACKET_SIZE", fmt.Sprintf("c.PacketSize:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("PACKETSIZEMPLY"); ok {
+		c.PacketSizeMply = v
+		logEnv("PACKETSIZEMPLY", fmt.Sprintf("c.PacketSizeMply:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("WRITEFILES"); ok {
+		c.WriteFiles = v
+		logEnv("WRITEFILES", fmt.Sprintf("c.WriteFiles:%d", v), debugLevel)
+	}
+	if v, ok := envString("CAPTUREPATH"); ok {
+		c.CapturePath = v
+		logEnv("CAPTUREPATH", fmt.Sprintf("c.CapturePath:%s", v), debugLevel)
+	}
+}
+
+func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("MARSHAL"); ok {
+		c.MarshalTo = v
+		logEnv("MARSHAL", fmt.Sprintf("c.Marshal:%s", v), debugLevel)
+	}
+	if _, ok := os.LookupEnv("PROTOBUF_LIST_LENGTH_DELIMIT"); ok {
 		c.ProtobufListLengthDelimit = true
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.ProtobufListLengthDelimit:%t", key, c.ProtobufListLengthDelimit)
-		}
+		logEnv("PROTOBUF_LIST_LENGTH_DELIMIT", fmt.Sprintf("c.ProtobufListLengthDelimit:%t", c.ProtobufListLengthDelimit), debugLevel)
 	}
-
-	key = "DEST"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Dest = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Dest:%s", key, c.Dest)
-		}
+	if v, ok := envString("DEST"); ok {
+		c.Dest = v
+		logEnv("DEST", fmt.Sprintf("c.Dest:%s", v), debugLevel)
 	}
-
-	key = "DEST_WRITE_FILES"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.DestWriteFiles = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.DestWriteFiles:%d", key, c.DestWriteFiles)
-			}
-		}
+	if v, ok := envUint32("DEST_WRITE_FILES"); ok {
+		c.DestWriteFiles = v
+		logEnv("DEST_WRITE_FILES", fmt.Sprintf("c.DestWriteFiles:%d", v), debugLevel)
 	}
+}
 
-	key = "TOPIC"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Topic = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Topic:%s", key, c.Topic)
-		}
+func envOverrideKafka(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("TOPIC"); ok {
+		c.Topic = v
+		logEnv("TOPIC", fmt.Sprintf("c.Topic:%s", v), debugLevel)
 	}
-
-	key = "XTCP_PROTO_FILE"
-	if value, exists := os.LookupEnv(key); exists {
-		c.XtcpProtoFile = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.XtcpProtoFile:%s", key, c.XtcpProtoFile)
-		}
+	if v, ok := envString("XTCP_PROTO_FILE"); ok {
+		c.XtcpProtoFile = v
+		logEnv("XTCP_PROTO_FILE", fmt.Sprintf("c.XtcpProtoFile:%s", v), debugLevel)
 	}
-
-	key = "KAFKA_SCHEMA_URL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.KafkaSchemaUrl = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.KafkaSchemaUrl:%s", key, c.KafkaSchemaUrl)
-		}
+	if v, ok := envString("KAFKA_SCHEMA_URL"); ok {
+		c.KafkaSchemaUrl = v
+		logEnv("KAFKA_SCHEMA_URL", fmt.Sprintf("c.KafkaSchemaUrl:%s", v), debugLevel)
 	}
-
-	key = "KAFKA_PRODUCE_TIMEOUT"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.KafkaProduceTimeout = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.KafkaProduceTimeout:%s", key, c.KafkaProduceTimeout.AsDuration())
-			}
-		}
+	if d, ok := envDuration("KAFKA_PRODUCE_TIMEOUT"); ok {
+		c.KafkaProduceTimeout = durationpb.New(d)
+		logEnv("KAFKA_PRODUCE_TIMEOUT", fmt.Sprintf("c.KafkaProduceTimeout:%s", c.KafkaProduceTimeout.AsDuration()), debugLevel)
 	}
+}
 
-	key = "LABEL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Label = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Label:%s", key, c.Label)
-		}
+func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("LABEL"); ok {
+		c.Label = v
+		logEnv("LABEL", fmt.Sprintf("c.Label:%s", v), debugLevel)
 	}
-
-	key = "TAG"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Tag = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Tag:%s", key, c.Tag)
-		}
+	if v, ok := envString("TAG"); ok {
+		c.Tag = v
+		logEnv("TAG", fmt.Sprintf("c.Tag:%s", v), debugLevel)
 	}
-
-	key = "GRPC_PORT"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.GrpcPort = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.GrpcPort:%d", key, c.GrpcPort)
-			}
-		}
+	if v, ok := envUint32("GRPC_PORT"); ok {
+		c.GrpcPort = v
+		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
 	}
 }
 
