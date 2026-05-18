@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -423,5 +424,53 @@ func TestInitDests_unknownScheme(t *testing.T) {
 	wg.Wait()
 	if !fatalfHit {
 		t.Error("InitDests should have called fatalf for unknown scheme")
+	}
+}
+
+// InitDests with debugLevel>10 also hits the CompiledInSchemes log branch
+// at the bottom of the happy path.
+func TestInitDests_debugLog(t *testing.T) {
+	x := newInitFixture(t)
+	x.config.Dest = "null"
+	x.debugLevel = 20
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitDests(context.Background(), &wg)
+	wg.Wait()
+	select {
+	case <-x.DestinationReady:
+	default:
+		t.Error("DestinationReady should have been signalled")
+	}
+}
+
+// InitDests with a registered scheme whose factory always errors: confirms
+// the "factory(...) err" branch routes through x.fatalf. The registry is
+// per-package so we register a unique scheme directly and remove it on
+// cleanup.
+func TestInitDests_factoryErr(t *testing.T) {
+	const scheme = "errorscheme"
+	errInjected := errors.New("injected factory error")
+	destRegistryMu.Lock()
+	destRegistry[scheme] = func(_ context.Context, _ *XTCP) (Destination, error) {
+		return nil, errInjected
+	}
+	destRegistryMu.Unlock()
+	t.Cleanup(func() {
+		destRegistryMu.Lock()
+		delete(destRegistry, scheme)
+		destRegistryMu.Unlock()
+	})
+
+	fatalfHit := false
+	x := newInitFixture(t)
+	x.fatalf = func(format string, args ...any) { fatalfHit = true }
+	x.config.Dest = scheme + ":"
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitDests(context.Background(), &wg)
+	wg.Wait()
+	if !fatalfHit {
+		t.Error("InitDests should have called fatalf for factory error")
 	}
 }
