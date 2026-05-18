@@ -152,11 +152,15 @@ func TestRunMain_cancellable(t *testing.T) {
 	go func() {
 		done <- runMain(ctx, []string{"-port", itoa(port)}, &stdout, &stderr)
 	}()
+	// Send a packet so ReadFromUDP unblocks, then cancel so the receive
+	// loop exits.
 	time.Sleep(50 * time.Millisecond)
+	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
+	if derr == nil {
+		_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF}) //nolint:errcheck // test plumbing
+		_ = cli.Close()                                   //nolint:errcheck // test plumbing
+	}
 	cancel()
-	// Cancel alone won't unblock ReadFromUDP without a fake packet — but
-	// the listener will be closed on test exit; force-quit it now.
-	// Just wait for runMain to return via the ListenUDP error path.
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
