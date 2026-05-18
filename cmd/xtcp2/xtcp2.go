@@ -432,6 +432,11 @@ func awaitSignalAndShutdown(
 
 // initPromHandler starts the prom handler with error checking
 // https://pkg.go.dev/github.com/prometheus/client_golang/prometheus/promhttp?tab=doc#HandlerOpts
+// fatalf is the package-level abort handler. Defaults to log.Fatalf;
+// tests swap this in for a capture so servePromHandler's
+// ListenAndServe error branch is exercisable without exiting.
+var fatalf = log.Fatalf
+
 func initPromHandler(promPath string, promListen string) {
 	http.Handle(promPath, promhttp.HandlerFor(
 		prometheus.DefaultGatherer,
@@ -440,19 +445,24 @@ func initPromHandler(promPath string, promListen string) {
 			MaxRequestsInFlight: promMaxRequestsInFlight,
 		},
 	))
-	go func() {
-		srv := &http.Server{
-			Addr:              promListen,
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       10 * time.Second,
-			WriteTimeout:      10 * time.Second,
-			IdleTimeout:       30 * time.Second,
-		}
-		err := srv.ListenAndServe()
-		if err != nil {
-			log.Fatal("prometheus error", err)
-		}
-	}()
+	go servePromHandler(promListen)
+}
+
+// servePromHandler runs the prom HTTP server on promListen. On
+// ListenAndServe failure it invokes fatalf (default log.Fatalf in
+// production, swapped to a capture by tests). Extracted from
+// initPromHandler so tests can drive the error path in isolation.
+func servePromHandler(promListen string) {
+	srv := &http.Server{
+		Addr:              promListen,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		fatalf("prometheus error: %v", err)
+	}
 }
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
