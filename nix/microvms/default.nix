@@ -81,6 +81,21 @@ let
       sink = "coverage";
     };
 
+  mkOneCoverageIoUring =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2AllPackage
+        ;
+      xtcp2Package = xtcp2CoverPackage;
+      sink = "coverage-iouring";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
@@ -89,6 +104,10 @@ let
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs mkOneCoverage
+  );
+
+  vmsCoverageIoUring = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs mkOneCoverageIoUring
   );
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
@@ -116,6 +135,17 @@ let
         inherit arch;
         vm = vmsCoverage.${arch};
         suffix = "-coverage";
+        scrapeCoverage = true;
+      };
+    })
+  );
+
+  lifecycleCoverageIoUring = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      fullTest = microvmLib.mkLifecycleFullTest {
+        inherit arch;
+        vm = vmsCoverageIoUring.${arch};
+        suffix = "-coverage-iouring";
         scrapeCoverage = true;
       };
     })
@@ -153,9 +183,11 @@ in
     vms
     vmsVector
     vmsCoverage
+    vmsCoverageIoUring
     lifecycle
     lifecycleVector
     lifecycleCoverage
+    lifecycleCoverageIoUring
     checks
     checksVector
     ;

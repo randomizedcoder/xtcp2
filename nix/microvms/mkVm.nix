@@ -36,7 +36,8 @@ let
   cfg = constants.architectures.${arch};
 
   isVector = sink == "vector";
-  isCoverage = sink == "coverage";
+  isCoverage = sink == "coverage" || sink == "coverage-iouring";
+  isCoverageIoUring = sink == "coverage-iouring";
   effectiveMem = if isVector then cfg.memVector else cfg.mem;
 
   coverDir = "/var/lib/xtcp2cov";
@@ -96,7 +97,10 @@ let
     "2s"
     "-timeout"
     "1s"
-  ];
+  ]
+  # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
+  # path runs (otherwise 0% covered; the syscall variant runs by default).
+  ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
