@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,5 +162,44 @@ var c = fmt.Sprintf("x")
 	}
 	if len(defs) != 0 {
 		t.Errorf("non-prometheus call should not be captured; got %+v", defs)
+	}
+}
+
+func TestPromNewKind_unitDispatch(t *testing.T) {
+	// Non-CallExpr (e.g. plain Ident) → ""
+	if got := promNewKind(&ast.Ident{Name: "x"}); got != "" {
+		t.Errorf("non-CallExpr: got %q, want \"\"", got)
+	}
+	// CallExpr with non-SelectorExpr Fun → ""
+	if got := promNewKind(&ast.CallExpr{Fun: &ast.Ident{Name: "f"}}); got != "" {
+		t.Errorf("CallExpr/Ident Fun: got %q, want \"\"", got)
+	}
+	// CallExpr with SelectorExpr but non-Ident X → ""
+	if got := promNewKind(&ast.CallExpr{Fun: &ast.SelectorExpr{
+		X:   &ast.SelectorExpr{}, // not an Ident
+		Sel: &ast.Ident{Name: "NewCounter"},
+	}}); got != "" {
+		t.Errorf("nested SelectorExpr X: got %q, want \"\"", got)
+	}
+	// Known prometheus.NewCounter call → "NewCounter"
+	if got := promNewKind(&ast.CallExpr{Fun: &ast.SelectorExpr{
+		X:   &ast.Ident{Name: "prometheus"},
+		Sel: &ast.Ident{Name: "NewCounter"},
+	}}); got != "NewCounter" {
+		t.Errorf("prometheus.NewCounter: got %q, want NewCounter", got)
+	}
+	// Known promauto.NewGauge → "NewGauge"
+	if got := promNewKind(&ast.CallExpr{Fun: &ast.SelectorExpr{
+		X:   &ast.Ident{Name: "promauto"},
+		Sel: &ast.Ident{Name: "NewGauge"},
+	}}); got != "NewGauge" {
+		t.Errorf("promauto.NewGauge: got %q, want NewGauge", got)
+	}
+	// Unsupported prometheus.Foo → ""
+	if got := promNewKind(&ast.CallExpr{Fun: &ast.SelectorExpr{
+		X:   &ast.Ident{Name: "prometheus"},
+		Sel: &ast.Ident{Name: "NotAConstructor"},
+	}}); got != "" {
+		t.Errorf("prometheus.NotAConstructor: got %q, want \"\"", got)
 	}
 }
