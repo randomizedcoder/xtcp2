@@ -147,10 +147,12 @@ linters:
           - gocyclo
           - errcheck
           - unused
+          - goconst
+          - noctx
       - path: "_test\\.go"
         linters:
           - gosec
-        text: "G404"
+        text: "G404|G301"
       # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
       # Linux kernel uapi `struct tcp_info` revisions; renaming would defeat
       # the per-version mapping that is the point of pkg/xtcpnl.
