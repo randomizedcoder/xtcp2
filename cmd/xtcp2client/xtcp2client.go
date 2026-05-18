@@ -265,6 +265,11 @@ func listenMode(ctx context.Context, addr string, workers int, complete *chan st
 	}
 }
 
+// reconnectTimeVar wraps the production reconnectTime constant so tests
+// can swap in a much shorter sleep to exercise the per-iteration
+// restart branch without waiting 10 seconds.
+var reconnectTimeVar = reconnectTime
+
 func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
 
 	defer wg.Done()
@@ -289,7 +294,7 @@ breakPoint:
 			// non-blocking
 		}
 
-		sleepTime := reconnectTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
+		sleepTime := reconnectTimeVar + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
 		if debugLevel > 10 {
 			log.Printf("restarting client i:%d, after sleeping:%0.3f", i, sleepTime.Seconds())
 		}
