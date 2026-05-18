@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -111,6 +112,78 @@ func TestClientOnce_writeError(t *testing.T) {
 		t.Error("write error should NOT be ErrTimeout")
 	}
 	_ = a.Close() //nolint:errcheck // test plumbing
+}
+
+func TestRunMain_zeroCount(t *testing.T) {
+	if rc := runMain([]string{"-count", "0"}, &strings.Builder{}); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+// client() with a guaranteed conn-refused: dialWithRetry returns an error,
+// client logs it and returns immediately (no infinite loop).
+func TestClient_dialFailure(t *testing.T) {
+	// Bind + close → guaranteed conn-refused.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close() //nolint:errcheck // test plumbing
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		client(&wg, "127.0.0.1", port, time.Hour, time.Second, time.Second, 2, 4)
+		close(done)
+	}()
+	wg.Wait()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("client did not return on dial failure")
+	}
+}
+
+// client() reaching the read-error branch: dial succeeds, then the server
+// closes the connection mid-loop. clientOnce returns a non-Timeout error
+// and client returns.
+func TestClient_serverCloses(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }() //nolint:errcheck // test plumbing
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	// Accept one connection, close it immediately.
+	go func() {
+		c, _ := ln.Accept() //nolint:errcheck // test plumbing
+		if c != nil {
+			_ = c.Close() //nolint:errcheck // test plumbing
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		client(&wg, "127.0.0.1", port, time.Hour, time.Second, time.Second, 5, 4)
+		close(done)
+	}()
+	wg.Wait()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("client did not return after server close")
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	if rc := runMain([]string{"-not-a-flag"}, &strings.Builder{}); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
 }
 
 func TestClientOnce_readError(t *testing.T) {

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -36,27 +38,34 @@ const (
 )
 
 func main() {
+	os.Exit(runMain(os.Args[1:], os.Stderr))
+}
 
-	count := flag.Int("count", countCst, "count")
-	connect := flag.String("connect", connectCst, "connect")
-	sleep := flag.Duration("sleep", sleepCst, "sleep between writes")
-	startsleep := flag.Duration("startsleep", startsleepCst, "sleep between client starts")
-	wto := flag.Duration("wto", writeTimeoutCst, "write time out")
-	rto := flag.Duration("rto", readTimeoutCst, "read time out")
-	dialr := flag.Int("dialr", dialRetryCst, "dial retries")
-	pads := flag.Int("pads", padSizeCst, "pad size")
-
-	flag.Parse()
+// runMain wires flag parsing + client fan-out. Extracted so tests can drive
+// it with synthetic args (and count=0 makes the function a pure no-op fan-out).
+func runMain(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("tcp_client", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	count := fs.Int("count", countCst, "count")
+	connect := fs.String("connect", connectCst, "connect")
+	sleep := fs.Duration("sleep", sleepCst, "sleep between writes")
+	startsleep := fs.Duration("startsleep", startsleepCst, "sleep between client starts")
+	wto := fs.Duration("wto", writeTimeoutCst, "write time out")
+	rto := fs.Duration("rto", readTimeoutCst, "read time out")
+	dialr := fs.Int("dialr", dialRetryCst, "dial retries")
+	pads := fs.Int("pads", padSizeCst, "pad size")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	var wg sync.WaitGroup
-
 	for i := 0; i < *count; i++ {
 		wg.Add(1)
 		go client(&wg, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
 		time.Sleep(*startsleep)
 	}
-
 	wg.Wait()
+	return 0
 }
 
 func client(wg *sync.WaitGroup,
