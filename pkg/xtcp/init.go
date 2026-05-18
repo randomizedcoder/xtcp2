@@ -26,7 +26,13 @@ func (x *XTCP) Init(ctx context.Context) {
 	}
 
 	if err := x.checkCapabilities(); err != nil {
-		log.Print(err) // TODO log.Fatal
+		// checkCapabilities returning err means CAP_NET_ADMIN or
+		// CAP_SYS_CHROOT is missing. Production still treats this as a
+		// non-fatal log line (the kernel will surface a permission error
+		// later if it's actually needed). Tests that need to assert the
+		// "missing caps" path can swap x.fatalf and call x.checkCapabilities
+		// directly — runtime behavior preserved.
+		log.Print(err)
 	}
 
 	// initChanenls first, so that signaling channels are ready
@@ -86,34 +92,52 @@ func (x *XTCP) initChannels() {
 
 }
 
+// hostnameLookup is the indirection point for x.initHostname so tests can
+// inject an error-returning fake without breaking the host. Production
+// defaults to os.Hostname.
+var hostnameLookup = os.Hostname
+
 func (x *XTCP) initHostname() {
-	hostname, err := os.Hostname()
+	hostname, err := hostnameLookup()
 	if err != nil {
-		log.Fatalf("os.Hostname() error:%s", err)
+		x.callFatalf("os.Hostname() error:%s", err)
+		return
 	}
 	x.hostname = hostname
 }
+
+// callFatalf invokes x.fatalf when set, falling back to log.Fatalf when
+// it isn't (paths that call initSyncMaps / initHostname before the parent
+// constructor wires up the fatalf field shouldn't crash on nil-deref).
+func (x *XTCP) callFatalf(format string, args ...any) {
+	if x.fatalf != nil {
+		x.fatalf(format, args...)
+		return
+	}
+	log.Fatalf(format, args...)
+}
+
+// netNsCandidateDirs is the list of directories initSyncMaps probes for
+// network-namespace mounts. Production lists the two well-known kernel +
+// docker locations; tests can prepend a tempdir to this slice so the
+// probe finds at least one valid entry and the function runs to
+// completion.
+var netNsCandidateDirs = []string{linuxNetNSDirCst, dockerNetNsDirCst}
 
 func (x *XTCP) initSyncMaps() {
 	x.nsMap = &sync.Map{}
 	x.fdToNsMap = &sync.Map{}
 	x.netNsDirs = &sync.Map{}
 
-	if _, err := os.Stat(linuxNetNSDirCst); err == nil {
-		x.netNsDirs.Store(linuxNetNSDirCst, true)
-		if x.debugLevel > 10 {
-			log.Println("initSyncMaps x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
+	for _, dir := range netNsCandidateDirs {
+		if _, err := os.Stat(dir); err == nil {
+			x.netNsDirs.Store(dir, true)
+			if x.debugLevel > 10 {
+				log.Println("initSyncMaps x.netNsDirs.Store(" + dir + ")")
+			}
+		} else if x.debugLevel > 10 {
+			log.Println("initSyncMaps NOT x.netNsDirs.Store(" + dir + ")")
 		}
-	} else if x.debugLevel > 10 {
-		log.Println("initSyncMaps NOT x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
-	}
-	if _, err := os.Stat(dockerNetNsDirCst); err == nil {
-		x.netNsDirs.Store(dockerNetNsDirCst, true)
-		if x.debugLevel > 10 {
-			log.Println("initSyncMaps x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
-		}
-	} else if x.debugLevel > 10 {
-		log.Println("initSyncMaps NOT x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
 	}
 
 	i := 0
@@ -123,7 +147,8 @@ func (x *XTCP) initSyncMaps() {
 	})
 
 	if i < 1 {
-		log.Fatal("initSyncMaps neither network namespace directory exists.  ??!")
+		x.callFatalf("%s", "initSyncMaps neither network namespace directory exists.  ??!")
+		return
 	}
 }
 
