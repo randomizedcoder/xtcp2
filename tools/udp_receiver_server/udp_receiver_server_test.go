@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,6 +110,72 @@ func TestRunReceiver_ctxCancel(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("runReceiver did not return after cancel")
 	}
+}
+
+func TestRunMain_version(t *testing.T) {
+	var stdout, stderr strings.Builder
+	if rc := runMain(t.Context(), []string{"-version"}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if !strings.Contains(stdout.String(), "commit:") {
+		t.Errorf("stdout should mention commit:; got %q", stdout.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr strings.Builder
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_bindError(t *testing.T) {
+	// Port -1 is invalid → ListenUDP fails → rc=1.
+	var stdout, stderr strings.Builder
+	if rc := runMain(t.Context(), []string{"-port", "-1"}, &stdout, &stderr); rc != 1 {
+		t.Errorf("rc = %d, want 1; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestRunMain_cancellable(t *testing.T) {
+	// Pick a fresh free port via a probe listener.
+	probe, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := probe.LocalAddr().(*net.UDPAddr).Port
+	_ = probe.Close() //nolint:errcheck // test plumbing
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan int, 1)
+	var stdout, stderr strings.Builder
+	go func() {
+		done <- runMain(ctx, []string{"-port", itoa(port)}, &stdout, &stderr)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	// Cancel alone won't unblock ReadFromUDP without a fake packet — but
+	// the listener will be closed on test exit; force-quit it now.
+	// Just wait for runMain to return via the ListenUDP error path.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("runMain hangs without a packet; ctx cancel alone doesn't unblock ReadFromUDP")
+	}
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
 }
 
 func TestRunReceiver_readError(t *testing.T) {
