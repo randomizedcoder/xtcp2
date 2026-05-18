@@ -191,24 +191,50 @@ pkgs.runCommand "xtcp2-quality-report"
         > "$RAW/coverage-func.out" 2>>"$RAW/stderr.log" || true
       go tool cover -html="$RAW/coverage.out" \
         -o "$RAW/coverage.html" 2>>"$RAW/stderr.log" || true
-      # Per-package TSV: one row per package with average function
-      # coverage. Format: `<package>\t<percent>`.
-      awk -F'\t+' '
+      # Per-package TSV: one row per package with line-weighted statement
+      # coverage. Format: `<package>\t<percent>`. We parse the raw
+      # coverage.out profile (not `go tool cover -func` output) because
+      # the profile records per-block (statements, count) pairs that we
+      # can aggregate properly. Previously this awk averaged per-function
+      # percentages — that gave too much weight to tiny untestable
+      # main() wrappers and was misleading vs `go tool cover -func`'s
+      # bottom-line statement coverage.
+      #
+      # Atomic-mode profiles emit one row per block PER test-binary that
+      # instrumented the package, so the same block appears many times
+      # with the same path:range key — dedupe by keeping the max-count
+      # row per key (i.e. the most coverage observed across all binaries),
+      # mirroring what `go tool cover` does internally.
+      awk '
+        NR==1 && $1 == "mode:" { next }
         /^github.com\/randomizedcoder\/xtcp2\// {
-          # Strip module prefix.
-          path=$1
-          sub("^github.com/randomizedcoder/xtcp2/","",path)
-          # Drop the "<file>.go:<line>:<col>:" tail to get the package path.
-          sub("/[^/]*\\.go:.*","",path)
-          # $NF is "NN.N%" — strip the % and accumulate.
-          cov=$NF; sub("%","",cov)
-          sumCov[path]+=cov; cnt[path]++
+          key=$1
+          numStmt = $2 + 0
+          count   = $3 + 0
+          if (!(key in seenStmt)) {
+            seenStmt[key] = numStmt
+            seenCount[key] = count
+          } else if (count > seenCount[key]) {
+            seenCount[key] = count
+          }
         }
         END {
-          for (p in sumCov)
-            printf "%s\t%.1f\n", p, sumCov[p]/cnt[p]
+          for (key in seenStmt) {
+            n=split(key, parts, ":")
+            path=parts[1]
+            sub("^github.com/randomizedcoder/xtcp2/","",path)
+            sub("/[^/]*\\.go$","",path)
+            tot[path] += seenStmt[key]
+            if (seenCount[key] > 0) {
+              hit[path] += seenStmt[key]
+            }
+          }
+          for (p in tot) {
+            pct = (tot[p] > 0) ? (100.0 * hit[p] / tot[p]) : 0
+            printf "%s\t%.1f\n", p, pct
+          }
         }
-      ' "$RAW/coverage-func.out" | sort > "$RAW/coverage-per-package.tsv"
+      ' "$RAW/coverage.out" | sort > "$RAW/coverage-per-package.tsv"
       cov_end=$(date +%s)
       echo "coverage=$((cov_end-cov_start))" >> "$RAW/runtimes.txt"
       echo "coverage=0" >> "$RAW/exit-codes.txt"

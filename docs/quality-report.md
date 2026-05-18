@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T00:18:39Z
+Generated: 2026-05-18T00:32:12Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,10 +15,10 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 119 |
+| Total findings | 125 |
 | Findings (Tier 0) | 32 |
 | Findings (Tier 1) | 12 |
-| Findings (Tier 2) | 70 |
+| Findings (Tier 2) | 76 |
 | Findings (non-tiered) | 5 |
 | Files with at least one finding | 46 |
 | Test failures (new) | 1 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 114 | 4s |
+| golangci-lint (comprehensive) | findings | 120 | 4s |
 | golangci-lint (standard) | findings | 44 | 5s |
 | golangci-lint (quick) | findings | 50 | 14s |
 | gosec | findings | 2 | 1s |
-| go vet | clean | 0 | 2s |
-| gofmt | findings | 3 | 1s |
+| go vet | clean | 0 | 3s |
+| gofmt | findings | 3 | 0s |
 | nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | findings | 1 | 4s |
-| go test -cover | findings | 21 | 0s |
+| go test -cover | findings | 18 | 0s |
 
 
 ---
@@ -54,7 +54,7 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 32 | 6 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 12 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 70 | 24 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 76 | 24 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,13 +64,13 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
+| `tools/metrics-audit/main.go` | 8 | errcheck×5, goconst×3 |
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
 | `pkg/xtcp/ns_test.go` | 6 | goconst×3, misspell×3 |
 | `pkg/xtcp/run_helpers_test.go` | 5 | misspell×3, goconst×2 |
 | `tools/iouring-audit/main.go` | 5 | errcheck×5 |
-| `tools/metrics-audit/main.go` | 5 | errcheck×5 |
 | `tools/netlink-audit/main.go` | 5 | errcheck×5 |
 | `tools/proto-field-audit/main_test.go` | 5 | gosec×5 |
 | `pkg/xtcp/init_test.go` | 4 | misspell×3, goconst×1 |
@@ -80,7 +80,7 @@ between commits reveals exactly what changed.
 
 ## 5. Findings by linter
 
-### golangci-lint / goconst — 40
+### golangci-lint / goconst — 46
 
 - `cmd/xtcp2/xtcp2_test.go:254`: string `:9000` has 3 occurrences, make it a constant
 - `cmd/xtcp2/xtcp2_test.go:309`: string `info` has 4 occurrences, make it a constant
@@ -95,8 +95,8 @@ between commits reveals exactly what changed.
 ### golangci-lint / errcheck — 22
 
 - `cmd/xtcp2_kafka_client/xtcp2_kafka_client.go:88`: Error return value is not checked
-- `tools/iouring-audit/main.go:84`: Error return value of `fmt.Fprintf` is not checked
-- `tools/iouring-audit/main.go:87`: Error return value of `fmt.Fprintf` is not checked
+- `tools/iouring-audit/main.go:93`: Error return value of `fmt.Fprintf` is not checked
+- `tools/iouring-audit/main.go:96`: Error return value of `fmt.Fprintf` is not checked
 
 ### golangci-lint / govet — 7
 
@@ -112,9 +112,9 @@ between commits reveals exactly what changed.
 
 ### golangci-lint / gosec — 6
 
-- `tools/metrics-audit/main_test.go:70`: G301: Expect directory permissions to be 0750 or less
-- `tools/proto-field-audit/main_test.go:96`: G301: Expect directory permissions to be 0750 or less
-- `tools/proto-field-audit/main_test.go:116`: G301: Expect directory permissions to be 0750 or less
+- `tools/metrics-audit/main_test.go:71`: G301: Expect directory permissions to be 0750 or less
+- `tools/proto-field-audit/main_test.go:154`: G301: Expect directory permissions to be 0750 or less
+- `tools/proto-field-audit/main_test.go:174`: G301: Expect directory permissions to be 0750 or less
 
 ### golangci-lint / noctx — 4
 
@@ -149,7 +149,7 @@ between commits reveals exactly what changed.
 
 ## 7. Security (gosec)
 
-- **high** `G122` at `tools/proto-field-audit/main.go:87` — Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal (CWE-367)
+- **high** `G122` at `tools/proto-field-audit/main.go:97` — Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal (CWE-367)
 - **medium** `G301` at `pkg/xtcp/ns_watch.go:119` — Expect directory permissions to be 0750 or less (CWE-276)
 
 
@@ -159,7 +159,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 452 |
+| Pass | 465 |
 | Fail (new) | 1 |
 | Fail (pre-existing) | 0 |
 | Skip | 3 |
@@ -203,9 +203,9 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/goconst** with 40 findings (34% of total). Concentrate effort here for the biggest quality win.
+- Top contributor: **golangci-lint/goconst** with 46 findings (37% of total). Concentrate effort here for the biggest quality win.
 - Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~30 quick-fixable findings before manual review.
-- Hotspot file: `pkg/xtcp/deserializers.go` carries 7 findings (goconst×7). Refactor here before touching adjacent code.
+- Hotspot file: `tools/metrics-audit/main.go` carries 8 findings (errcheck×5, goconst×3). Refactor here before touching adjacent code.
 - Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
 
@@ -213,32 +213,32 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 56.4% of statements (target: 90% per package).
+**Overall:** 57.0% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
-| `cmd/clickhouse_http_insert_protobuflist` | 30.7% | 🔴 below 90% |
-| `cmd/clickhouse_protobuflist` | 71.4% | 🔴 below 90% |
-| `cmd/clickhouse_protobuflist_db` | 36.8% | 🔴 below 90% |
-| `cmd/kafka_to_clickhouse` | 34.9% | 🔴 below 90% |
-| `cmd/ns` | 22.7% | 🔴 below 90% |
-| `cmd/nsTest` | 75.0% | 🔴 below 90% |
-| `cmd/register_schema` | 46.4% | 🔴 below 90% |
-| `cmd/xtcp2` | 83.6% | 🔴 below 90% |
-| `cmd/xtcp2_kafka_client` | 33.3% | 🔴 below 90% |
-| `cmd/xtcp2client` | 24.7% | 🔴 below 90% |
-| `pkg/io_uring` | 91.4% | 🟢 OK |
-| `pkg/misc` | 8.3% | 🔴 below 90% |
-| `pkg/xtcp` | 60.4% | 🔴 below 90% |
-| `pkg/xtcpnl` | 76.4% | 🔴 below 90% |
-| `tools/iouring-audit` | 67.5% | 🔴 below 90% |
-| `tools/kafka_topic_reader` | 50.0% | 🔴 below 90% |
-| `tools/metrics-audit` | 67.1% | 🔴 below 90% |
-| `tools/netlink-audit` | 66.0% | 🔴 below 90% |
-| `tools/proto-field-audit` | 76.1% | 🔴 below 90% |
-| `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 54.9% | 🔴 below 90% |
-| `tools/tcp_server` | 64.6% | 🔴 below 90% |
-| `tools/udp_receiver_server` | 47.6% | 🔴 below 90% |
+| `cmd/clickhouse_http_insert_protobuflist` | 26.3% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist` | 29.5% | 🔴 below 90% |
+| `cmd/clickhouse_protobuflist_db` | 36.4% | 🔴 below 90% |
+| `cmd/kafka_to_clickhouse` | 26.7% | 🔴 below 90% |
+| `cmd/ns` | 14.9% | 🔴 below 90% |
+| `cmd/nsTest` | 39.1% | 🔴 below 90% |
+| `cmd/register_schema` | 50.9% | 🔴 below 90% |
+| `cmd/xtcp2` | 77.9% | 🔴 below 90% |
+| `cmd/xtcp2_kafka_client` | 31.2% | 🔴 below 90% |
+| `cmd/xtcp2client` | 15.5% | 🔴 below 90% |
+| `pkg/io_uring` | 90.1% | 🟢 OK |
+| `pkg/misc` | 7.0% | 🔴 below 90% |
+| `pkg/xtcp` | 44.8% | 🔴 below 90% |
+| `pkg/xtcpnl` | 79.6% | 🔴 below 90% |
+| `tools/iouring-audit` | 95.2% | 🟢 OK |
+| `tools/kafka_topic_reader` | 10.6% | 🔴 below 90% |
+| `tools/metrics-audit` | 95.3% | 🟢 OK |
+| `tools/netlink-audit` | 96.7% | 🟢 OK |
+| `tools/proto-field-audit` | 96.6% | 🟢 OK |
+| `tools/quality-report` | 71.5% | 🔴 below 90% |
+| `tools/tcp_client` | 44.6% | 🔴 below 90% |
+| `tools/tcp_server` | 58.1% | 🔴 below 90% |
+| `tools/udp_receiver_server` | 55.6% | 🔴 below 90% |
 
 
