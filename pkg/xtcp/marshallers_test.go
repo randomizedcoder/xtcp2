@@ -124,6 +124,25 @@ func TestByteSliceWriter_Write(t *testing.T) {
 	}
 }
 
+// InitMarshallers with an invalid MarshalTo: fatalf fires once (the
+// early-return path); the function exits without populating x.Marshaller.
+func TestInitMarshallers_invalidName(t *testing.T) {
+	x, _ := newMarshalFixture(t)
+	x.config.MarshalTo = "not-a-marshaller"
+	called := 0
+	x.fatalf = func(string, ...any) { called++ }
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitMarshallers(&wg)
+	wg.Wait()
+	if called != 1 {
+		t.Errorf("fatalf called %d times, want 1", called)
+	}
+	if x.Marshaller != nil {
+		t.Error("Marshaller should remain nil on invalid name")
+	}
+}
+
 // InitMarshallers registers four marshallers into x.Marshallers and
 // resolves x.Marshaller to the one named by config.MarshalTo. Verify
 // every valid name dispatches.
