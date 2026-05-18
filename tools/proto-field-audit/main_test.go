@@ -110,6 +110,24 @@ func TestCollectGoReferences_parseError(t *testing.T) {
 	}
 }
 
+func TestRunMain_clean(t *testing.T) {
+	protoDir := t.TempDir()
+	goDir := t.TempDir()
+	writeFile(t, protoDir, "schema.proto", "syntax = \"proto3\";")
+	writeFile(t, goDir, "x.go", "package x")
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-proto-root", protoDir, "-go-root", goDir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("invalid flag rc = %d, want 2", rc)
+	}
+}
+
 func TestCollectGoReferences(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "x.go", `

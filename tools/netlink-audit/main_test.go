@@ -21,6 +21,28 @@ func TestIsByteSliceExpr(t *testing.T) {
 	// when no len() guard exists. Tests below cover both branches.
 }
 
+func TestRunMain_clean(t *testing.T) {
+	dir := t.TempDir()
+	writeGo(t, dir, "x.go", `
+package x
+func f(b []byte) byte {
+	if len(b) < 4 { return 0 }
+	return b[0]
+}
+`)
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-root", dir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("invalid flag rc = %d, want 2", rc)
+	}
+}
+
 func TestIsByteSliceExpr_unitDispatch(t *testing.T) {
 	// Direct calls cover all branches of isByteSliceExpr.
 	for _, name := range []string{"b", "buf", "buffer", "data", "msg", "raw", "p", "payload"} {

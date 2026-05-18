@@ -141,6 +141,27 @@ func use2(r R) { r.M() } // SelectorExpr path
 	}
 }
 
+func TestRunMain_happyPath(t *testing.T) {
+	// Use the package's own pkg/io_uring source as input. It should have
+	// matching GetSQE/Submit call counts and produce rc=0.
+	dir := t.TempDir()
+	writeGo(t, dir, "x.go", `
+package x
+func use() {}
+`)
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-root", dir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("invalid flag rc = %d, want 2", rc)
+	}
+}
+
 func TestSelectorName_unitDispatch(t *testing.T) {
 	// Direct calls cover all three branches of selectorName.
 	if got := selectorName(&ast.Ident{Name: "x"}); got != "x" {

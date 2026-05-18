@@ -28,10 +28,20 @@ import (
 var fieldRE = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+|required\s+)?[\w.<>,]+\s+(\w+)\s*=\s*\d+`)
 
 func main() {
-	protoRoot := flag.String("proto-root", "proto", "directory containing *.proto")
-	goRoot := flag.String("go-root", "pkg", "directory containing Go source")
-	flag.Parse()
-	os.Exit(runAudit(*protoRoot, *goRoot, os.Stdout, os.Stderr))
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// runMain wires flag parsing + runAudit. Extracted so tests can drive it
+// with synthetic args + capture buffers without subprocessing.
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("proto-field-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	protoRoot := fs.String("proto-root", "proto", "directory containing *.proto")
+	goRoot := fs.String("go-root", "pkg", "directory containing Go source")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	return runAudit(*protoRoot, *goRoot, stdout, stderr)
 }
 
 // runAudit collects fields from `protoRoot` and references from `goRoot`
