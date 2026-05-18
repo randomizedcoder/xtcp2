@@ -140,6 +140,31 @@ func TestFlatRecords_bufconnCancelExits(t *testing.T) {
 	if got := srvSvc.frMapCount(); got != 1 {
 		t.Errorf("frMapCount = %d, want 1 after open stream", got)
 	}
+
+	// While the stream is open, drive flatRecordServiceSend through the
+	// FlatRecordsClients map — exercises the frClientCount > 0 path that
+	// the no-clients tests skip.
+	reg := prometheus.NewRegistry()
+	x := &XTCP{flatRecordService: srvSvc}
+	x.pC = promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{Subsystem: "xtcp_send_buf_test",
+			Name: promNameCounts, Help: "test"},
+		promLabels,
+	)
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{Subsystem: "xtcp_send_buf_test",
+			Name: promNameHistograms, Help: "test",
+			Objectives: map[float64]float64{0.5: quantileError},
+			MaxAge:     summaryVecMaxAge},
+		promLabels,
+	)
+	x.flatRecordServiceSend(&xtcp_flat_record.XtcpFlatRecord{Hostname: "via-stream"})
+
+	// Verify the client received the record.
+	if rerr := stream.RecvMsg(&xtcp_flat_record.FlatRecordsResponse{}); rerr != nil {
+		t.Errorf("RecvMsg from stream: %v", rerr)
+	}
+
 	cancel()
 	_, _ = stream.Recv() //nolint:errcheck // test plumbing
 	time.Sleep(50 * time.Millisecond)
