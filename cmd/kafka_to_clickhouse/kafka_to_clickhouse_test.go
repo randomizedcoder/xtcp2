@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -119,4 +121,64 @@ func TestGetLatestSchemaIDAt_ctxCancel(t *testing.T) {
 	if _, err := getLatestSchemaIDAt(ctx, srv.Client(), srv.URL, "subj"); err == nil {
 		t.Error("cancelled ctx should produce error")
 	}
+}
+
+func TestRunMain_version(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain(t.Context(), []string{"-v"}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if !strings.Contains(stdout.String(), "commit:") {
+		t.Errorf("stdout = %q, want commit prefix", stdout.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &bytes.Buffer{}, &bytes.Buffer{}); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_badValue(t *testing.T) {
+	rc := runMain(t.Context(), []string{"-values", "abc"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1", rc)
+	}
+}
+
+func TestRunMain_fileMode(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	rc := runMain(t.Context(), []string{
+		"-filename", out, "-values", "1,2,3", "-kafka=false",
+		"-loops", "1", "-loopsSleep", "1ms",
+	}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+func TestInitDestKafka_noopWhenDisabled(t *testing.T) {
+	// kafka=false → InitDestKafka short-circuits without trying to create
+	// a client.
+	if err := InitDestKafka(t.Context(), config{kafka: false}); err != nil {
+		t.Errorf("InitDestKafka with kafka=false: %v", err)
+	}
+}
+
+func TestFileOrKafka_fileMode(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	data := []byte("x")
+	fileOrKafka(t.Context(), config{filename: out, kafka: false}, &data)
+	if _, err := os.Stat(out); err != nil {
+		t.Errorf("expected file written: %v", err)
+	}
+}
+
+func TestFileOrKafka_writeError(t *testing.T) {
+	data := []byte("x")
+	// fileOrKafka logs but does not propagate the error; just verify
+	// no-panic when the write fails.
+	fileOrKafka(t.Context(), config{filename: "/no/such/dir/x", kafka: false}, &data)
 }
