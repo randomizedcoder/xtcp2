@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -33,46 +34,56 @@ var (
 )
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// runMain wires flag parsing + Kafka client + poll loop. Extracted so tests
+// can drive it with synthetic args + a cancellable ctx (without actually
+// connecting to Kafka). Returns the process exit code.
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("kafka_topic_reader", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	broker := fs.String("broker", brokerCst, "broker")
+	topic := fs.String("topic", topicCst, "topic")
+	groupID := fs.String("groupID", groupIDCst, "groupID")
+	consumeTimeout := fs.Duration("consumeTimeout", consumeTimeoutCst, "consume context timeout")
+	version := fs.Bool("version", false, "show version")
+	d := fs.Int("d", debugLevelCst, "debug level")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
-	broker := flag.String("broker", brokerCst, "broker")
-	topic := flag.String("topic", topicCst, "topic")
-	groupID := flag.String("groupID", groupIDCst, "groupID")
-	consumeTimeout := flag.Duration("consumeTimeout", consumeTimeoutCst, "consume context timeout")
-
-	version := flag.Bool("version", false, "show version")
-
-	d := flag.Int("d", debugLevelCst, "debug level")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
 	if *version {
-		log.Println("xtcp commit:", commit, "\tdate(UTC):", date)
-		os.Exit(0) //nolint:gocritic // exitAfterDefer: -version prints and exits; deferred cancel() is moot at process shutdown
+		fmt.Fprintf(stdout, "xtcp commit:%s\tdate(UTC):%s\n", commit, date)
+		return 0
 	}
 
 	debugLevel = *d
 
 	if debugLevel > 10 {
-		fmt.Println("*broker:", *broker)
-		fmt.Println("*topic:", *topic)
-		fmt.Println("*groupID:", *groupID)
+		fmt.Fprintln(stdout, "*broker:", *broker)
+		fmt.Fprintln(stdout, "*topic:", *topic)
+		fmt.Fprintln(stdout, "*groupID:", *groupID)
 	}
 
-	// Initialize Kafka consumer client
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(*broker),
 		kgo.ConsumerGroup(*groupID),
 		kgo.ConsumeTopics(*topic),
 	)
 	if err != nil {
-		log.Fatalf("Error creating Kafka client: %v", err)
+		fmt.Fprintf(stderr, "Error creating Kafka client: %v\n", err)
+		return 1
 	}
 	defer client.Close()
 
+	pollLoop(ctx, client, *consumeTimeout)
+	return 0
+}
+
+// pollLoop is the Kafka consumer body. Extracted so test code can call it
+// against a fake client (or skip it entirely via the runMain happy paths).
+func pollLoop(ctx context.Context, client *kgo.Client, consumeTimeout time.Duration) {
 	kgoFetchesPool := sync.Pool{
 		New: func() any {
 			return new(kgo.Fetches)
@@ -86,18 +97,24 @@ func main() {
 			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
-
 	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0
 	for i := 0; ; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 
-		ctxC, cancelC := context.WithTimeout(ctx, *consumeTimeout)
-
+		ctxC, cancelC := context.WithTimeout(ctx, consumeTimeout)
 		*kgoFetches = client.PollFetches(ctxC)
 		cancelC()
 		if ferr := kgoFetches.Err(); ferr != nil {
+			if ctx.Err() != nil {
+				return
+			}
 			log.Printf("i:%d Error fetching messages: %v", i, ferr)
 			continue
 		}
