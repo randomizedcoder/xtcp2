@@ -1,6 +1,7 @@
 package xtcp
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 	"testing"
@@ -143,5 +144,90 @@ func TestPoll_errorPath(t *testing.T) {
 	// pollTime.Store(-1, ...) should have run before sendNetlinkDumpRequest.
 	if _, ok := x.pollTime.Load(-1); !ok {
 		t.Error("poll should have stored fd in pollTime even on send error")
+	}
+}
+
+// Poller select-loop coverage: drive each select case through the bounded
+// MaxLoops loop. Sequence:
+//   - iter 1: send to pollRequestCh         → handlePollRequest branch
+//   - iter 2: send to changePollFrequencyCh → ticker.Reset branch
+//   - iter 3: send to netlinkerDoneCh       → observeNetlinkerDone branch
+//   - iter 4: ctx cancellation              → ctx.Done() break
+//
+// PollFrequency is large enough that the ticker.C branch never fires.
+// The fdToNsMap is empty so pollAllNetlinkSockets returns 0 (no real
+// netlink syscalls).
+func TestPoller_selectBranches(t *testing.T) {
+	x := newPollerFixture(t)
+	x.config.PollFrequency = durationpb.New(time.Hour) // never tick during test
+	x.config.MaxLoops = 4
+	x.debugLevel = 11 // exercise inner log lines
+	x.DestinationReady = make(chan struct{}, 1)
+	x.NetlinkerReady = make(chan struct{}, 1)
+	x.pollRequestCh = make(chan struct{}, 4)
+	x.changePollFrequencyCh = make(chan time.Duration, 1)
+	x.netlinkerDoneCh = make(chan netlinkerDone, 1)
+	x.pollStartTime = time.Now()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go x.Poller(ctx, &wg)
+
+	// Signal DestinationReady so the goroutine moves past its receive.
+	x.DestinationReady <- struct{}{}
+
+	// iter1: pollRequestCh
+	x.pollRequestCh <- struct{}{}
+	time.Sleep(40 * time.Millisecond)
+	// iter2: changePollFrequencyCh
+	x.changePollFrequencyCh <- 5 * time.Second
+	time.Sleep(40 * time.Millisecond)
+	// iter3: netlinkerDoneCh — pre-populate pollTime for the fd so
+	// observeNetlinkerDone proceeds past the early-return.
+	x.pollTime.Store(7, time.Now().Add(-5*time.Millisecond))
+	x.fdToNsMap.Store(7, "/run/netns/foo")
+	x.netlinkerDoneCh <- netlinkerDone{fd: 7, t: time.Now()}
+	time.Sleep(40 * time.Millisecond)
+	// iter4: cancel → exits via ctx.Done
+	cancel()
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Poller did not exit after cancel")
+	}
+}
+
+// Poller with pollTimeoutTimer set short: pollAllNetlinkSockets resets
+// the timer to config.PollTimeout, so we set PollTimeout small enough
+// that the select takes the timeout arm before the test deadline.
+func TestPoller_pollTimeoutBranch(t *testing.T) {
+	x := newPollerFixture(t)
+	x.config.PollFrequency = durationpb.New(time.Hour)
+	x.config.PollTimeout = durationpb.New(50 * time.Millisecond)
+	x.config.MaxLoops = 1
+	x.debugLevel = 11
+	x.DestinationReady = make(chan struct{}, 1)
+	x.pollRequestCh = make(chan struct{}, 1)
+	x.changePollFrequencyCh = make(chan time.Duration, 1)
+	x.netlinkerDoneCh = make(chan netlinkerDone, 1)
+	x.pollStartTime = time.Now()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go x.Poller(ctx, &wg)
+	x.DestinationReady <- struct{}{}
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Poller did not exit after one iteration")
 	}
 }
