@@ -210,6 +210,7 @@ in
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-vector = microvms.vmsVector.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
+      microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -223,6 +224,7 @@ in
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
 
       # Pedantic code-quality report — aggregates every tool's findings.
       quality-report = qualityReport;
@@ -254,6 +256,10 @@ in
     microvm-x86_64-lifecycle-coverage = {
       type = "app";
       program = "${microvms.lifecycleCoverage.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-coverage";
+    };
+    microvm-x86_64-lifecycle-coverage-iouring = {
+      type = "app";
+      program = "${microvms.lifecycleCoverageIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-coverage-iouring";
     };
     quality-report = {
       type = "app";
