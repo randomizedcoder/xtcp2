@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +138,19 @@ func use2(r R) { r.M() } // SelectorExpr path
 `)
 	if _, err := auditTree(dir); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSelectorName_unitDispatch(t *testing.T) {
+	// Direct calls cover all three branches of selectorName.
+	if got := selectorName(&ast.Ident{Name: "x"}); got != "x" {
+		t.Errorf("Ident branch: got %q, want x", got)
+	}
+	if got := selectorName(&ast.SelectorExpr{Sel: &ast.Ident{Name: "M"}}); got != "M" {
+		t.Errorf("SelectorExpr branch: got %q, want M", got)
+	}
+	// BasicLit is neither — exercises the catch-all return "".
+	if got := selectorName(&ast.BasicLit{Value: "1"}); got != "" {
+		t.Errorf("BasicLit catch-all: got %q, want \"\"", got)
 	}
 }
