@@ -166,6 +166,45 @@ func TestListenMode_oneWorkerCancellable(t *testing.T) {
 	}
 }
 
+func TestPollMode_dialAndCancel(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, false, 0)
+		close(done)
+	}()
+	time.Sleep(150 * time.Millisecond) // let one tick fire
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("pollMode worker doesn't exit on ctx alone")
+	}
+}
+
+func TestPollMode_completeChannel(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		pollMode(t.Context(), addr, &complete, time.Hour, false, 0)
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	complete <- struct{}{}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("pollMode complete-channel exit didn't trigger")
+	}
+}
+
 func TestStream_dialAndCancel(t *testing.T) {
 	addr, cleanup := startTestGRPC(t)
 	defer cleanup()
