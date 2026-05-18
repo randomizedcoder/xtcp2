@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T05:04:59Z
+Generated: 2026-05-18T05:07:56Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -32,18 +32,18 @@ between commits reveals exactly what changed.
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 210 | 5s |
-| golangci-lint (standard) | findings | 100 | 5s |
-| golangci-lint (quick) | findings | 88 | 14s |
+| golangci-lint (standard) | findings | 100 | 4s |
+| golangci-lint (quick) | findings | 88 | 15s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 0s |
-| nixfmt | clean | 0 | 1s |
+| gofmt | findings | 7 | 1s |
+| nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
-| iouring-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 1s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 10s |
-| go test -cover | findings | 8 | 0s |
+| go test | clean | 0 | 9s |
+| go test -cover | findings | 8 | 1s |
 
 
 ---
@@ -71,7 +71,7 @@ between commits reveals exactly what changed.
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `tools/quality-report/main_test.go` | 7 | goconst×7 |
-| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, gofmt×1, format×1 |
+| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, format×1, gofmt×1 |
 | `cmd/register_schema/register_schema.go` | 6 | errcheck×4, govet×2 |
 | `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
 
@@ -106,9 +106,9 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 8
 
-- `cmd/xtcp2_kafka_client`: package coverage 79.1% < 90%
 - `pkg/xtcp`: package coverage 62.4% < 90%
-- `cmd/clickhouse_protobuflist`: package coverage 86.4% < 90%
+- `cmd/xtcp2_kafka_client`: package coverage 79.1% < 90%
+- `cmd/xtcp2client`: package coverage 74.3% < 90%
 
 ### golangci-lint / noctx — 8
 
@@ -171,7 +171,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 643 |
+| Pass | 645 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 8 |
@@ -229,7 +229,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 80.3% of statements (target: 90% per package).
+**Overall:** 80.4% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -240,7 +240,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/ns` | 86.6% | 🔴 below 90% |
 | `cmd/nsTest` | 94.1% | 🟢 OK |
 | `cmd/register_schema` | 92.9% | 🟢 OK |
-| `cmd/xtcp2` | 81.6% | 🔴 below 90% |
+| `cmd/xtcp2` | 83.5% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 79.1% | 🔴 below 90% |
 | `cmd/xtcp2client` | 74.3% | 🔴 below 90% |
 | `pkg/io_uring` | 90.1% | 🟢 OK |
