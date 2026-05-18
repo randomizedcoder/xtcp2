@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -43,38 +44,42 @@ type config struct {
 }
 
 func main() {
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	filename := flag.String("filename", "protoBytes.bin", "filename")
-	valueStr := flag.String("values", "1", "values uints -> uint32, comma separated")
+// runMain wires flag parsing + config build + primaryFunction. Extracted so
+// tests can drive it with synthetic args without exiting.
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("clickhouse_protobuflist_db", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	filename := fs.String("filename", "protoBytes.bin", "filename")
+	valueStr := fs.String("values", "1", "values uints -> uint32, comma separated")
+	envelope := fs.Bool("envelope", false, "envelope")
+	db := fs.Bool("db", false, "db")
+	connect := fs.String("connect", clickhouseConnectStringCst, "clickhouse database connect string")
+	user := fs.String("user", clickhouseUserCst, "clickhosue user")
+	pass := fs.String("pass", clickhousePasswordCst, "clickhosue pass")
+	dump := fs.Bool("dump", false, "dump proto for debug")
+	dumpFilename := fs.String("dumpFileName", "dump.bin", "dump file name")
+	v := fs.Bool("v", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
-	envelope := flag.Bool("envelope", false, "envelope")
-	db := flag.Bool("db", false, "db")
-
-	connect := flag.String("connect", clickhouseConnectStringCst, "clickhouse database connect string")
-	user := flag.String("user", clickhouseUserCst, "clickhosue user")
-	pass := flag.String("pass", clickhousePasswordCst, "clickhosue pass")
-
-	dump := flag.Bool("dump", false, "dump proto for debug")
-	dumpFilename := flag.String("dumpFileName", "dump.bin", "dump file name")
-
-	v := flag.Bool("v", false, "show version")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
 	if *v {
-		log.Printf("commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+		fmt.Fprintf(stdout, "commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
 	}
 
 	valueStrs := strings.Split(*valueStr, ",")
 	values := make([]uint, 0, len(valueStrs))
 	for _, str := range valueStrs {
-		v, err := strconv.ParseUint(str, 10, 32)
+		parsed, err := strconv.ParseUint(str, 10, 32)
 		if err != nil {
-			log.Fatalf("Invalid value: %v", err)
+			fmt.Fprintf(stderr, "Invalid value: %v\n", err)
+			return 1
 		}
-		values = append(values, uint(v))
+		values = append(values, uint(parsed))
 	}
 
 	c := config{
@@ -89,15 +94,12 @@ func main() {
 		dumpFilename: *dumpFilename,
 	}
 
-	primaryFunction(c)
+	return primaryFunction(c, stderr)
 }
 
-func primaryFunction(c config) {
-
+func primaryFunction(c config, stderr io.Writer) int {
 	binaryData := prepareBinary(c)
-
-	fileOrDB(c, binaryData)
-
+	return fileOrDB(c, binaryData, stderr)
 }
 
 func prepareBinary(c config) (binaryData []byte) {
@@ -160,25 +162,16 @@ func prepareBinary(c config) (binaryData []byte) {
 // 	return append(buf[:n], serializedData...)
 // }
 
-func fileOrDB(c config, binaryData []byte) {
-
-	if !c.db {
-		errW := writeDataToFile(c.filename, binaryData)
-		if errW != nil {
-			log.Println("Error:", errW)
-		}
-		os.Exit(0)
-	}
-
+func fileOrDB(c config, binaryData []byte, stderr io.Writer) int {
 	if c.db {
-		log.Fatal("db not implemented, cos it's hard to insert protobuf with the clickhouse library")
+		fmt.Fprintln(stderr, "db not implemented, cos it's hard to insert protobuf with the clickhouse library")
+		return 1
 	}
-
-	// errDB := insertIntoCH(c, binaryData)
-	// if errDB != nil {
-	// 	log.Println("Error:", errDB)
-	// }
-
+	if err := writeDataToFile(c.filename, binaryData); err != nil {
+		fmt.Fprintln(stderr, "Error:", err)
+		return 1
+	}
+	return 0
 }
 
 func writeDataToFile(filename string, data []byte) error {
