@@ -37,7 +37,13 @@ type xtcpFlatRecordService struct {
 	debugLevel uint32
 }
 
-func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{}, debugLevel uint32) *xtcpFlatRecordService {
+// NewXtcpFlatRecordService builds the gRPC FlatRecordService. The reg
+// argument is the prometheus.Registerer the service's CounterVec +
+// SummaryVec are registered into; pass nil to use
+// prometheus.DefaultRegisterer (the production default). Tests inject a
+// fresh prometheus.NewRegistry() so the constructor can be called more
+// than once per process.
+func NewXtcpFlatRecordService(ctx context.Context, reg prometheus.Registerer, pollRequestCh *chan struct{}, debugLevel uint32) *xtcpFlatRecordService {
 
 	s := new(xtcpFlatRecordService)
 
@@ -52,7 +58,12 @@ func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{},
 
 	s.pollRequestCh = pollRequestCh
 
-	s.pC = promauto.NewCounterVec(
+	if reg == nil {
+		reg = prometheus.DefaultRegisterer
+	}
+	factory := promauto.With(reg)
+
+	s.pC = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: "xtcp_record_grpc",
 			Name:      promNameCounts,
@@ -61,7 +72,7 @@ func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{},
 		promLabels,
 	)
 
-	s.pH = promauto.NewSummaryVec(
+	s.pH = factory.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Subsystem: "xtcp_record_grpc",
 			Name:      promNameHistograms,

@@ -29,18 +29,17 @@ type DeserializeTest struct {
 }
 
 // testFlatRecordService is shared across every newTestDeserializeXTCP
-// call because NewXtcpFlatRecordService registers metrics into the
-// default Prometheus registry, and a second registration panics with
-// "duplicate metrics collector registration attempted". Tests don't have
-// real GRPC clients, so flatRecordServiceSend's no-client fast path
-// (grpc_flatRecordService.go:218-223) means the shared service is a
-// harmless no-op.
+// call. With the registry-injection refactor, NewXtcpFlatRecordService
+// accepts a *prometheus.Registry — tests now use a fresh registry per
+// call, but we keep the sync.Once + shared instance so existing tests
+// that read the service's atomic counters across calls keep their
+// observed-state semantics.
 var testFlatRecordServiceOnce sync.Once
 var testFlatRecordService *xtcpFlatRecordService
 
 func getTestFlatRecordService(pollRequestCh *chan struct{}) *xtcpFlatRecordService {
 	testFlatRecordServiceOnce.Do(func() {
-		testFlatRecordService = NewXtcpFlatRecordService(context.Background(), pollRequestCh, 0)
+		testFlatRecordService = NewXtcpFlatRecordService(context.Background(), prometheus.NewRegistry(), pollRequestCh, 0)
 	})
 	return testFlatRecordService
 }

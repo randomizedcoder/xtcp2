@@ -72,10 +72,10 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	// https://github.com/fullstorydev/grpcurl?tab=readme-ov-file#server-reflection
 	reflection.Register(grpcServer)
 
-	x.flatRecordService = NewXtcpFlatRecordService(ctx, &x.pollRequestCh, x.debugLevel)
+	x.flatRecordService = NewXtcpFlatRecordService(ctx, x.registry, &x.pollRequestCh, x.debugLevel)
 	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(grpcServer, x.flatRecordService)
 
-	x.configService = NewXtcpConfigService(ctx, x.config, &x.changePollFrequencyCh, x.debugLevel)
+	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
 	if serveErr := grpcServer.Serve(lis); serveErr != nil {
