@@ -113,6 +113,72 @@ func TestCallFatalf_routes(t *testing.T) {
 	}
 }
 
+// NewXTCP via constructorRegistry swap + netNsCandidateDirs override.
+// Pass a minimal valid config (null dest + valid marshaller + non-empty
+// topic) so InputValidation passes.
+func TestNewXTCP_runsToCompletion(t *testing.T) {
+	prevReg := constructorRegistry
+	prevDirs := netNsCandidateDirs
+	t.Cleanup(func() {
+		constructorRegistry = prevReg
+		netNsCandidateDirs = prevDirs
+	})
+	constructorRegistry = prometheus.NewRegistry()
+	netNsCandidateDirs = append([]string{t.TempDir()}, prevDirs...)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := &xtcp_config.XtcpConfig{
+		Dest:      schemeNull,
+		MarshalTo: MarshallerProtobufSingle,
+		Topic:     "test",
+		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
+			Enabled: make(map[string]bool),
+		},
+	}
+	x := NewXTCP(ctx, cancel, cfg)
+	if x == nil {
+		t.Fatal("NewXTCP returned nil")
+	}
+	if x.Marshaller == nil {
+		t.Error("Marshaller should be populated after Init")
+	}
+	if x.Netlinker == nil {
+		t.Error("Netlinker should be populated after Init")
+	}
+}
+
+// NewNsTestingXTCP via constructorRegistry swap + netNsCandidateDirs
+// override. The full Init runs to completion: every helper now uses
+// callFatalf and the fresh registry avoids duplicate-collector panics.
+func TestNewNsTestingXTCP_runsToCompletion(t *testing.T) {
+	// Override the package vars the constructor + Init read from.
+	prevReg := constructorRegistry
+	prevDirs := netNsCandidateDirs
+	t.Cleanup(func() {
+		constructorRegistry = prevReg
+		netNsCandidateDirs = prevDirs
+	})
+	constructorRegistry = prometheus.NewRegistry()
+	netNsCandidateDirs = append([]string{t.TempDir()}, prevDirs...)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	x := NewNsTestingXTCP(ctx, cancel, 0)
+	if x == nil {
+		t.Fatal("NewNsTestingXTCP returned nil")
+	}
+	if x.Marshaller == nil {
+		t.Error("Marshaller should be populated after Init")
+	}
+	if x.Netlinker == nil {
+		t.Error("Netlinker should be populated after Init")
+	}
+	if x.hostname == "" {
+		t.Error("hostname should be populated after Init")
+	}
+}
+
 // stringContains is a tiny substring helper kept local to this test file.
 func stringContains(s, substr string) bool {
 	if len(substr) == 0 {
