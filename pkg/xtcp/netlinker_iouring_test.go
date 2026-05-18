@@ -71,6 +71,15 @@ func TestIsETimeError_other(t *testing.T) {
 	}
 }
 
+// String-fallback branch: errors that wrap an ETIME but whose As-cast
+// to syscall.Errno fails should still classify via the "errno 62"
+// string compare.
+func TestIsETimeError_stringFallback(t *testing.T) {
+	if !isETimeError(errors.New("errno 62")) {
+		t.Error("wrapped 'errno 62' string should classify as ETIME")
+	}
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // isTimeoutErrno: EAGAIN/EWOULDBLOCK/ETIME → true; else false
 // ───────────────────────────────────────────────────────────────────────
@@ -167,6 +176,27 @@ func TestOnRingClosedResult_sendBuf(t *testing.T) {
 	x.onRingClosedResult(xio.Result{Op: xio.OpSendUDP, Buf: &b})
 }
 
+// iouringPrefillRecvs err branch: swap packetBufferPool to yield an
+// empty buffer so EnqueueRecvMsg rejects it and the function returns
+// the error.
+func TestIouringPrefillRecvs_enqueueErr(t *testing.T) {
+	ring, err := xioRingNew(t)
+	if err != nil {
+		t.Skipf("io_uring unavailable: %v", err)
+	}
+	t.Cleanup(func() { ring.Close(time.Second, nil) })
+
+	x := newIouringFixture(t)
+	x.packetBufferPool = sync.Pool{New: func() any {
+		// Empty slice — EnqueueRecvMsg rejects it.
+		b := make([]byte, 0)
+		return &b
+	}}
+	if err := x.iouringPrefillRecvs(ring, 3, 1); err == nil {
+		t.Error("empty buf should make EnqueueRecvMsg return an error")
+	}
+}
+
 // iouringPrefillRecvs + iouringWaitWithTimeout: drive with a real ring
 // + socketpair fd. Prefill submits one recv SQE; wait should timeout
 // with ETIME since no peer wrote to the socket.
@@ -212,6 +242,7 @@ func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
 	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
 }
+
 
 func TestIouringWaitWithTimeout_etime(t *testing.T) {
 	ring, err := xioRingNew(t)
