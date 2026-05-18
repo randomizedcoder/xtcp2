@@ -1,9 +1,79 @@
 package main
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestRunMain_missingRawDir(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{}, &stdout, &stderr); rc != 2 {
+		t.Errorf("missing -raw-dir: rc = %d, want 2", rc)
+	}
+	if !strings.Contains(stderr.String(), "raw-dir") {
+		t.Errorf("stderr should mention raw-dir; got %q", stderr.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("invalid flag: rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_emptyRawDir(t *testing.T) {
+	rawDir := t.TempDir()
+	// Empty raw dir: every parse* call returns ok=false. emit() should
+	// still execute and produce a markdown report.
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-raw-dir", rawDir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"## 1. Executive summary", "## 13. Test coverage"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output", want)
+		}
+	}
+}
+
+func TestRunMain_withSomeRaws(t *testing.T) {
+	rawDir := t.TempDir()
+	// Sprinkle minimal-but-valid raw files. Each parser should succeed.
+	must := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(rawDir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	must("commit.txt", "abcdef\n")
+	must("branch.txt", "main\n")
+	must("versions.txt", "go=go1.25\n")
+	must("runtimes.txt", "gotest=5\n")
+	must("exit-codes.txt", "gotest=0\n")
+	must("golangci-comprehensive.json", `{"Issues":[]}`)
+	must("gosec.json", `{"Issues":[]}`)
+	must("govet.out", "")
+	must("gofmt.out", "")
+	must("nix-fmt.out", "")
+	must("netlink-audit.out", "no findings\n")
+	must("iouring-audit.out", "no findings\n")
+	must("metrics-audit.out", "no findings\n")
+	must("proto-field-audit.out", "no findings\n")
+	must("gotest.json", "")
+
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-raw-dir", rawDir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "abcdef") {
+		t.Errorf("commit SHA should appear in output")
+	}
+}
 
 // ───────────────────────────────────────────────────────────────────────
 // severityOrder: cover all 4 buckets including the default (return 3)
