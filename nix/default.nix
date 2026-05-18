@@ -121,6 +121,8 @@ let
   # (which exists for the Nix sandbox's vendoredSource path). Locally the
   # repo has no committed vendor/ tree, so we fall back to module-mode
   # against the user's GOMODCACHE.
+  coverageMerge = import ./coverage-merge.nix { inherit pkgs; };
+
   lintFixOne = pkgs.writeShellApplication {
     name = "xtcp2-lint-fix-one";
     runtimeInputs = [ versions.golangci-lint ];
@@ -260,6 +262,10 @@ in
     update-quality-report = {
       type = "app";
       program = "${updateQualityReport}/bin/xtcp2-update-quality-report";
+    };
+    coverage-merge = {
+      type = "app";
+      program = "${coverageMerge}/bin/xtcp2-coverage-merge";
     };
     lint-fix-one = {
       type = "app";
