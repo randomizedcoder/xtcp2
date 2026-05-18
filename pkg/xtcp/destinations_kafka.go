@@ -250,7 +250,13 @@ func (d *kafkaDest) pingKafkaWithRetries(ctx context.Context, retries int, sleep
 			if d.x.debugLevel > 10 {
 				log.Printf("pingKafkaWithRetries i:%d sleep:%0.3fs", i, s.Seconds())
 			}
-			time.Sleep(s)
+			// time.Sleep would block through ctx cancellation; a
+			// startup-time ctx-cancel should abort retries promptly.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s):
+			}
 			continue
 		}
 		break
