@@ -108,6 +108,21 @@ func TestRunMain_cancellable(t *testing.T) {
 	}
 }
 
+// runMain spawns runServer in a goroutine; when runServer fails the
+// goroutine's log.Printf branch fires. Bind to a malformed address so
+// every spawned goroutine returns an err immediately, then the wg.Wait
+// exit lets runMain return 0.
+func TestRunMain_runServerLogsErr(t *testing.T) {
+	var stderr strings.Builder
+	rc := runMain(t.Context(), []string{
+		"-count", "1",
+		"-bind", "bad-host-:-:bind",
+	}, &stderr)
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0 (runMain doesn't surface goroutine err)", rc)
+	}
+}
+
 func TestHandleConn_eof(t *testing.T) {
 	// In-process Pipe: handleConn echoes whatever it reads. Closing the
 	// remote end causes io.Copy to return EOF; handleConn returns.
