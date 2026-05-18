@@ -20,8 +20,17 @@
 #
 {
   pkgs,
+  lib ? pkgs.lib,
   promPort ? 9088,
   grpcPort ? 8889,
+  # When true, after the standard checks complete the self-test stops
+  # xtcp2.service (which flushes Go coverage data to GOCOVERDIR) and
+  # emits the tar+base64-encoded directory between
+  #   XTCP2_COVERAGE_DUMP_START / _END
+  # markers on stdout. The host lifecycle runner scrapes those markers
+  # to extract per-run coverage. See nix/microvms/lib.nix.
+  coverageEnabled ? false,
+  coverDir ? "/var/lib/xtcp2cov",
 }:
 
 pkgs.writeShellApplication {
@@ -35,6 +44,8 @@ pkgs.writeShellApplication {
     gnugrep
     procps
     util-linux
+    gnutar
+    gzip
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -213,10 +224,30 @@ pkgs.writeShellApplication {
     echo "================================================"
     if [ "$overall_ok" -eq 1 ]; then
       echo "XTCP2_SELF_TEST_OVERALL_PASS"
-      exit 0
+      overall_rc=0
     else
       echo "XTCP2_SELF_TEST_OVERALL_FAIL"
-      exit 1
+      overall_rc=1
     fi
+
+    ${lib.optionalString coverageEnabled ''
+    # ─── Coverage dump (coverage flavor only) ────────────────────────────
+    # systemctl stop sends SIGTERM, xtcp2's runtime flushes -cover counters
+    # to $GOCOVERDIR on clean exit. Wait a beat for the flush, then tar +
+    # base64 the directory between marker lines so the host can scrape it.
+    echo "--- coverage: stopping xtcp2 so -cover data flushes ---"
+    systemctl stop xtcp2 || true
+    sleep 2
+    if [ -d "${coverDir}" ] && [ -n "$(ls -A "${coverDir}" 2>/dev/null)" ]; then
+      echo "XTCP2_COVERAGE_DUMP_START"
+      tar c -C "${coverDir}" . | gzip -n | base64 -w0
+      echo
+      echo "XTCP2_COVERAGE_DUMP_END"
+    else
+      echo "XTCP2_COVERAGE_DUMP_EMPTY (${coverDir} is missing or empty)"
+    fi
+    ''}
+
+    exit "$overall_rc"
   '';
 }
