@@ -327,11 +327,27 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 	return c, false
 }
 
+// daemonRunner builds the xtcp daemon and runs it. Defaults to the
+// production xtcp.NewXTCP + RunWithPoller path; tests substitute a stub
+// that returns immediately so cmd/xtcp2 tests don't need real netlink.
+var daemonRunner = runDaemonDefault
+
+// promHandlerStarter is the indirection point for the prom-handler
+// goroutine launch. Default starts the real handler; tests swap it for
+// a no-op to skip the port-bind.
+var promHandlerStarter = func(promPath, promListen string) {
+	go initPromHandler(promPath, promListen)
+}
+
 func main() {
-
 	misc.DieIfNotLinux()
+	os.Exit(runMain(context.Background()))
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
+// runMain wires the production main body. Extracted so tests can run
+// it with stubbed daemonRunner / promHandlerStarter.
+func runMain(parentCtx context.Context) int {
+	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
 	complete := make(chan struct{}, signalChannelSizeCst)
@@ -342,7 +358,7 @@ func main() {
 
 	c, done := prepareConfig(f)
 	if done {
-		os.Exit(0) //nolint:gocritic // exitAfterDefer: short-circuit exit; deferred cancel() is moot
+		return 0
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
@@ -356,37 +372,44 @@ func main() {
 	defer startProfile(*f.profileMode, debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
-	go initPromHandler(*f.promPath, *f.promListen)
+	promHandlerStarter(*f.promPath, *f.promListen)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
 
 	if err := protovalidate.Validate(c); err != nil {
-		log.Fatal("config validation failed:", err)
+		fatalf("config validation failed: %v", err)
+		return 1
 	}
 	if debugLevel > 10 {
 		log.Println("config validation succeeded")
 	}
 
-	xtcp := xtcp.NewXTCP(ctx, cancel, c)
-	if debugLevel > 10 {
-		log.Println("xtcp.Run(ctx, &wg)")
+	daemonRunner(ctx, cancel, c)
+	select {
+	case complete <- struct{}{}:
+	default:
 	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	xtcp.RunWithPoller(ctx, &wg)
-
-	if debugLevel > 10 {
-		log.Println("xtcp.Run(ctx) complete. wg.Wait()")
-	}
-
-	wg.Wait()
-	complete <- struct{}{}
-
 	if debugLevel > 10 {
 		log.Println("xtcp2.go Main complete - farewell")
 	}
+	return 0
+}
+
+// runDaemonDefault is the production daemon body: build an xtcp instance
+// and run RunWithPoller until ctx cancels the WG.
+func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
+	x := xtcp.NewXTCP(ctx, cancel, c)
+	if debugLevel > 10 {
+		log.Println("xtcp.Run(ctx, &wg)")
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.RunWithPoller(ctx, &wg)
+	if debugLevel > 10 {
+		log.Println("xtcp.Run(ctx) complete. wg.Wait()")
+	}
+	wg.Wait()
 }
 
 // initSignalHandler sets up signal handling for the process, and

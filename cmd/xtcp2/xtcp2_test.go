@@ -337,6 +337,76 @@ func TestServePromHandler_bindError(t *testing.T) {
 	}
 }
 
+// runMain with a -v flag short-circuits before any daemon launch.
+// Reset flag.CommandLine + os.Args around the call so we don't disturb
+// global state.
+func TestRunMain_version(t *testing.T) {
+	envHelperReset(t)
+	prevArgs := os.Args
+	os.Args = []string{"xtcp2", "-v"}
+	t.Cleanup(func() { os.Args = prevArgs })
+
+	// Stub the prom handler starter so it doesn't bind a port.
+	prevProm := promHandlerStarter
+	promHandlerStarter = func(_, _ string) {}
+	t.Cleanup(func() { promHandlerStarter = prevProm })
+
+	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
+	// The goroutine leak is fine for a test that exits quickly.
+	captureLog(t, func() {
+		if rc := runMain(t.Context()); rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	})
+}
+
+// runMain with -conf short-circuits after building config (also returns 0).
+func TestRunMain_conf(t *testing.T) {
+	envHelperReset(t)
+	prevArgs := os.Args
+	os.Args = []string{"xtcp2", "-conf"}
+	t.Cleanup(func() { os.Args = prevArgs })
+
+	prevProm := promHandlerStarter
+	promHandlerStarter = func(_, _ string) {}
+	t.Cleanup(func() { promHandlerStarter = prevProm })
+
+	captureLog(t, func() {
+		if rc := runMain(t.Context()); rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	})
+}
+
+// runMain happy path with stubbed daemon: parses flags, runs through
+// the full setup, then daemonRunner returns immediately.
+func TestRunMain_stubbedDaemon(t *testing.T) {
+	envHelperReset(t)
+	prevArgs := os.Args
+	os.Args = []string{"xtcp2", "-dest", "null"}
+	t.Cleanup(func() { os.Args = prevArgs })
+
+	prevProm := promHandlerStarter
+	promHandlerStarter = func(_, _ string) {}
+	t.Cleanup(func() { promHandlerStarter = prevProm })
+
+	prevDaemon := daemonRunner
+	called := false
+	daemonRunner = func(_ context.Context, _ context.CancelFunc, _ *xtcp_config.XtcpConfig) {
+		called = true
+	}
+	t.Cleanup(func() { daemonRunner = prevDaemon })
+
+	captureLog(t, func() {
+		if rc := runMain(t.Context()); rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	})
+	if !called {
+		t.Error("daemonRunner stub was not invoked")
+	}
+}
+
 func TestInitPromHandler_smoke(t *testing.T) {
 	prevMux := http.DefaultServeMux
 	http.DefaultServeMux = http.NewServeMux()
