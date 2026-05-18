@@ -28,8 +28,14 @@ type xtcpConfigService struct {
 	debugLevel uint32
 }
 
+// NewXtcpConfigService builds the gRPC ConfigService. The reg argument
+// is the prometheus.Registerer the service's CounterVec + SummaryVec are
+// registered into; pass nil to use prometheus.DefaultRegisterer (the
+// production default). Tests inject a fresh prometheus.NewRegistry() so
+// the constructor can be called more than once per process.
 func NewXtcpConfigService(
 	ctx context.Context,
+	reg prometheus.Registerer,
 	config *xtcp_config.XtcpConfig,
 	changePollFrequencyCh *chan time.Duration,
 	debugLevel uint32) *xtcpConfigService {
@@ -43,7 +49,12 @@ func NewXtcpConfigService(
 
 	c.changePollFrequencyCh = changePollFrequencyCh
 
-	c.pC = promauto.NewCounterVec(
+	if reg == nil {
+		reg = prometheus.DefaultRegisterer
+	}
+	factory := promauto.With(reg)
+
+	c.pC = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: "xtcp_config_grpc",
 			Name:      promNameCounts,
@@ -52,7 +63,7 @@ func NewXtcpConfigService(
 		promLabels,
 	)
 
-	c.pH = promauto.NewSummaryVec(
+	c.pH = factory.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Subsystem: "xtcp_config_grpc",
 			Name:      promNameHistograms,

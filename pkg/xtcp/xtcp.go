@@ -96,6 +96,15 @@ type XTCP struct {
 	// can drive the init paths without taking down the process.
 	fatalf func(format string, args ...any)
 
+	// registry is the Prometheus registry InitPromethus and the gRPC
+	// service constructors register metrics into. Defaults to
+	// prometheus.DefaultRegisterer in NewXTCP / NewNsTestingXTCP so
+	// production behavior is unchanged; tests pre-fill this field with a
+	// fresh prometheus.NewRegistry() so repeated InitPromethus /
+	// NewXtcp*Service calls within the same process don't panic from
+	// duplicate metrics collector registration.
+	registry prometheus.Registerer
+
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
 
@@ -131,6 +140,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 	x.config = config
 	x.debugLevel = x.config.DebugLevel
 	x.fatalf = log.Fatalf
+	x.registry = prometheus.DefaultRegisterer
 
 	x.Init(ctx)
 
@@ -144,6 +154,7 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 	x.ctx = ctx
 	x.cancel = cancel
 	x.fatalf = log.Fatalf
+	x.registry = prometheus.DefaultRegisterer
 
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
