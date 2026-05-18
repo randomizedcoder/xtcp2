@@ -6,8 +6,5 @@
 #
 # Remove an entry once the test is fixed.
 
-# pkg/misc TestCheckFilePermissions: environment-dependent — tests /bin/bash
-# and /bin/ls hardcoded to 0755, which is not the case on NixOS where those
-# are symlinks into /nix/store with different perms. The test itself is
-# valid; the fixture is wrong for hermetic environments.
-TestCheckFilePermissions
+# (no known-failure entries — TestCheckFilePermissions was fixed to use
+# t.TempDir() fixture files instead of hardcoded /bin/bash + /bin/ls)

@@ -3,6 +3,7 @@ package misc
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"testing"
@@ -163,20 +164,30 @@ func BenchmarkReadFile1000(b *testing.B) {
 	benchmarkFileN(1000, "read", b)
 }
 
-// TestCheckFilePermissions uses some common files to check permissions
+// TestCheckFilePermissions writes a tempdir file with known permissions
+// rather than relying on /bin/bash being 0755 (which fails on NixOS where
+// the binary is a 0555 symlink into /nix/store).
 func TestCheckFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	pTrue := filepath.Join(dir, "exec755")
+	if err := os.WriteFile(pTrue, []byte("x"), 0o755); err != nil { //nolint:gosec // G306: 0o755 IS the test fixture mode
+		t.Fatal(err)
+	}
+	pFalse := filepath.Join(dir, "exec600")
+	if err := os.WriteFile(pFalse, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	var tests = []struct {
 		filename    string
 		permissions string
 		expected    bool
 	}{
-		{"/bin/bash", "0755", true}, // test 0
-		{"/bin/ls", "0755", true},   // test 1
-		// {"/etc/shadow", "0640", true},      // test 2 - can't test these in gitlab
-		// {"/etc/sysctl.conf", "0644", true}, // test 3 - can't test these in gitlab
-		// {"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
-		{"/bin/bash", "0333", false}, // test 5 - negative
+		{pTrue, "0755", true},
+		{pTrue, "0333", false},
+		{pFalse, "0600", true},
+		// Missing-file case is omitted: CheckFilePermissions calls log.Fatal
+		// on os.Stat error, which would kill the test process.
 	}
 	for i, test := range tests {
 
@@ -185,7 +196,7 @@ func TestCheckFilePermissions(t *testing.T) {
 		}
 
 		if output := CheckFilePermissions(test.filename, test.permissions); output != test.expected {
-			t.Errorf("TestCheckFilePermissions Failed")
+			t.Errorf("test %d: CheckFilePermissions(%q,%q)=%v, want %v", i, test.filename, test.permissions, output, test.expected)
 		}
 	}
 
