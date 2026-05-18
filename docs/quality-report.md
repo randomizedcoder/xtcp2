@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T00:42:56Z
+Generated: 2026-05-18T00:45:16Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -43,7 +43,7 @@ between commits reveals exactly what changed.
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | clean | 0 | 4s |
-| go test -cover | findings | 19 | 0s |
+| go test -cover | findings | 18 | 0s |
 
 
 ---
@@ -69,7 +69,7 @@ between commits reveals exactly what changed.
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `tools/quality-report/main_test.go` | 7 | goconst×7 |
-| `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
+| `pkg/xtcp/netlinker_test.go` | 6 | misspell×3, goconst×3 |
 | `pkg/xtcp/ns_test.go` | 6 | goconst×3, misspell×3 |
 | `tools/quality-report/main.go` | 6 | goconst×6 |
 | `pkg/xtcp/run_helpers_test.go` | 5 | misspell×3, goconst×2 |
@@ -159,7 +159,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 484 |
+| Pass | 485 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 3 |
@@ -214,7 +214,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 59.4% of statements (target: 90% per package).
+**Overall:** 59.9% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -228,10 +228,10 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2` | 77.9% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 31.2% | 🔴 below 90% |
 | `cmd/xtcp2client` | 15.5% | 🔴 below 90% |
-| `pkg/io_uring` | 89.3% | 🔴 below 90% |
+| `pkg/io_uring` | 90.1% | 🟢 OK |
 | `pkg/misc` | 82.5% | 🔴 below 90% |
 | `pkg/xtcp` | 44.8% | 🔴 below 90% |
-| `pkg/xtcpnl` | 84.4% | 🔴 below 90% |
+| `pkg/xtcpnl` | 87.1% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 10.6% | 🔴 below 90% |
 | `tools/metrics-audit` | 95.3% | 🟢 OK |
