@@ -142,6 +142,10 @@ func TestHandleSendCQE_errorDebugLog(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
+// InputValidation: wrap validateInput with x.fatalf so we can capture
+// instead of exiting
+// ───────────────────────────────────────────────────────────────────────
+
 // onRingClosedResult: nil buf, OpRead, send-op
 // ───────────────────────────────────────────────────────────────────────
 
