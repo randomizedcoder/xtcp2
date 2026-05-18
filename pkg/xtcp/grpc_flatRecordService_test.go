@@ -194,3 +194,37 @@ func TestPollFlatRecords_bufconn(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond)
 }
+
+// Same flow as TestPollFlatRecords_bufconn but with debugLevel>10 so the
+// io.EOF + send-success log branches fire.
+func TestPollFlatRecords_bufconnDebugLog(t *testing.T) {
+	srvSvc := newFlatRecordServiceFixture(t)
+	srvSvc.debugLevel = 20
+	conn, cleanup := setupBufconnServer(t, srvSvc)
+	defer cleanup()
+
+	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.PollFlatRecords(ctx)
+	if err != nil {
+		t.Fatalf("PollFlatRecords: %v", err)
+	}
+	if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := stream.CloseSend(); err != nil && !errors.Is(err, context.Canceled) {
+		t.Errorf("CloseSend: %v", err)
+	}
+	time.Sleep(80 * time.Millisecond)
+}
+
+// frMapCount + pfrMapCount debugLevel>1000 branches are gated by an
+// extreme debug threshold; bumping s.debugLevel triggers them.
+func TestFlatRecordService_mapCountDebugLog(t *testing.T) {
+	s := newFlatRecordServiceFixture(t)
+	s.debugLevel = 2000
+	_ = s.frMapCount()
+	_ = s.pfrMapCount()
+}

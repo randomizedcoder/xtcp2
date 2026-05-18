@@ -8,6 +8,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// capgetFunc is unix.Capget by default; tests swap it to inject capability
+// bits without needing real CAP_SYS_ADMIN.
+var capgetFunc = unix.Capget
+
 // checkCapabilities checks for CAP_NET_ADMIN and CAP_SYS_CHROOT
 // https://www.man7.org/linux/man-pages/man7/capabilities.7.html
 // https://pkg.go.dev/golang.org/x/sys/unix#pkg-constants
@@ -19,7 +23,7 @@ func (x *XTCP) checkCapabilities() error {
 
 	var caps unix.CapUserData
 	// https://pkg.go.dev/golang.org/x/sys/unix#Capget
-	if err := unix.Capget(&hdr, &caps); err != nil {
+	if err := capgetFunc(&hdr, &caps); err != nil {
 		return fmt.Errorf("failed to get capabilities: %w", err)
 	}
 
