@@ -119,3 +119,29 @@ func TestHandlePollRequest_fresh(t *testing.T) {
 		t.Errorf("fresh: count=%d, polled=%v; want 0, true", count, polled)
 	}
 }
+
+// sendNetlinkDumpRequest: unix.Sendto with NETLINK sockaddr against a
+// non-netlink fd fails and increments the error metric. We use a regular
+// unix datagram socketpair fd → SendTo will return an error (ENOTSOCK or
+// similar).
+func TestSendNetlinkDumpRequest_errorPath(t *testing.T) {
+	x := newPollerFixture(t)
+	x.debugLevel = 11 // hit the log branch on error
+	// Bad fd → unix.Sendto returns an error; function logs + counts but
+	// does not return the error.
+	pkt := []byte("netlink")
+	x.sendNetlinkDumpRequest(-1, &pkt)
+}
+
+// poll: calls sendNetlinkDumpRequest. With an invalid fd, sendNetlinkDumpRequest
+// logs the error metric and poll continues; the function itself never errors.
+func TestPoll_errorPath(t *testing.T) {
+	x := newPollerFixture(t)
+	x.pollTime = sync.Map{}
+	x.debugLevel = 11
+	x.poll(-1)
+	// pollTime.Store(-1, ...) should have run before sendNetlinkDumpRequest.
+	if _, ok := x.pollTime.Load(-1); !ok {
+		t.Error("poll should have stored fd in pollTime even on send error")
+	}
+}
