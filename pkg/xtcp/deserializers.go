@@ -10,22 +10,41 @@ import (
 
 const (
 	RTATypeDeserializerMapLengthCst = 25
+
+	// Deserializer key strings. Each maps to one INET_DIAG_* attribute
+	// type (see pkg/xtcpnl/*EnumValueCst). Lifted to consts so the
+	// linter (goconst) stops complaining about repeated literals across
+	// GetAllDeserializers + InitDeserializers — and so an operator can
+	// grep for the canonical name once.
+	dsKeyMemInfo = "meminfo"
+	dsKeyInfo    = "info"
+	dsKeyVegas   = "vegas"
+	dsKeyCong    = "cong"
+	dsKeyTos     = "tos"
+	dsKeyTc      = "tc"
+	dsKeySkmem   = "skmem"
+	dsKeyShut    = "shut"
+	dsKeyDctcp   = "dctcp"
+	dsKeyBbr     = "bbr"
+	dsKeyClassID = "classid"
+	dsKeyCgroup  = "cgroup"
+	dsKeySockopt = "sockopt"
 )
 
 func GetAllDeserializers() (deserializers []string) {
-	deserializers = append(deserializers, "meminfo")
-	deserializers = append(deserializers, "info")
-	deserializers = append(deserializers, "vegas")
-	deserializers = append(deserializers, "cong")
-	deserializers = append(deserializers, "tos")
-	deserializers = append(deserializers, "tc")
-	deserializers = append(deserializers, "skmem")
-	deserializers = append(deserializers, "shut")
-	deserializers = append(deserializers, "dctcp")
-	deserializers = append(deserializers, "bbr")
-	deserializers = append(deserializers, "classid")
-	deserializers = append(deserializers, "cgroup")
-	deserializers = append(deserializers, "sockopt")
+	deserializers = append(deserializers, dsKeyMemInfo)
+	deserializers = append(deserializers, dsKeyInfo)
+	deserializers = append(deserializers, dsKeyVegas)
+	deserializers = append(deserializers, dsKeyCong)
+	deserializers = append(deserializers, dsKeyTos)
+	deserializers = append(deserializers, dsKeyTc)
+	deserializers = append(deserializers, dsKeySkmem)
+	deserializers = append(deserializers, dsKeyShut)
+	deserializers = append(deserializers, dsKeyDctcp)
+	deserializers = append(deserializers, dsKeyBbr)
+	deserializers = append(deserializers, dsKeyClassID)
+	deserializers = append(deserializers, dsKeyCgroup)
+	deserializers = append(deserializers, dsKeySockopt)
 	return deserializers
 }
 
@@ -40,63 +59,63 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	// x.RTATypeDeserializer[0] = None
 
 	// INET_DIAG_MEMINFO 1
-	key := "meminfo"
+	key := dsKeyMemInfo
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.MemInfoEmumValueCst] = xtcpnl.DeserializeMemInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.MemInfoEmumValueCst] = key
 	}
 
 	// INET_DIAG_INFO 2
-	key = "info"
+	key = dsKeyInfo
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.TCPInfoEmumValueCst] = xtcpnl.DeserializeTCPInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.TCPInfoEmumValueCst] = key
 	}
 
 	// INET_DIAG_VEGASINFO 3
-	key = "vegas"
+	key = dsKeyVegas
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.VegasInfoEnumValueCst] = xtcpnl.DeserializeVegasInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.VegasInfoEnumValueCst] = key
 	}
 
 	// INET_DIAG_CONG 4
-	key = "cong"
+	key = dsKeyCong
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.CongInfoEmumValueCst] = xtcpnl.DeserializeCongInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.CongInfoEmumValueCst] = key
 	}
 
 	// INET_DIAG_TOS 5
-	key = "tos"
+	key = dsKeyTos
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.TypeOfServiceEmumValueCst] = xtcpnl.DeserializeTypeOfServiceXTCP
 		x.RTATypeDeserializerStr[xtcpnl.TypeOfServiceEmumValueCst] = key
 	}
 
 	// INET_DIAG_TCLASS 6
-	key = "tc"
+	key = dsKeyTc
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.TrafficClassEmumValueCst] = xtcpnl.DeserializeTrafficClassXTCP
 		x.RTATypeDeserializerStr[xtcpnl.TrafficClassEmumValueCst] = key
 	}
 
 	// INET_DIAG_SKMEMINFO 7
-	key = "skmem"
+	key = dsKeySkmem
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.SkMemInfoEnumValueCst] = xtcpnl.DeserializeSkMemInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.SkMemInfoEnumValueCst] = key
 	}
 
 	// INET_DIAG_SHUTDOWN 8
-	key = "shut"
+	key = dsKeyShut
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.ShutdownEmumValueCst] = xtcpnl.DeserializeShutdownXTCP
 		x.RTATypeDeserializerStr[xtcpnl.ShutdownEmumValueCst] = key
 	}
 
 	// INET_DIAG_DCTCPINFO 9
-	key = "dctcp"
+	key = dsKeyDctcp
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.DCTCPInfoEnumValueCst] = xtcpnl.DeserializeDCTCPInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.DCTCPInfoEnumValueCst] = key
@@ -110,14 +129,14 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	// INET_DIAG_MARK 15
 
 	// INET_DIAG_BBRINFO 16
-	key = "bbr"
+	key = dsKeyBbr
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.BBRInfoEnumValueCst] = xtcpnl.DeserializeBBRInfoXTCP
 		x.RTATypeDeserializerStr[xtcpnl.BBRInfoEnumValueCst] = key
 	}
 
 	// INET_DIAG_CLASS_ID 17
-	key = "classid"
+	key = dsKeyClassID
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.ClassIDEnumValueCst] = xtcpnl.DeserializeClassIDXTCP
 		x.RTATypeDeserializerStr[xtcpnl.ClassIDEnumValueCst] = key
@@ -128,14 +147,14 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	// INET_DIAG_SK_BPF_STORAGES 20
 
 	// INET_DIAG_CGROUP_ID 21
-	key = "cgroup"
+	key = dsKeyCgroup
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.CGroupIDEnumValueCst] = xtcpnl.DeserializeCGroupIDXTCP
 		x.RTATypeDeserializerStr[xtcpnl.CGroupIDEnumValueCst] = key
 	}
 
 	// INET_DIAG_SOCKOPT 22
-	key = "sockopt"
+	key = dsKeySockopt
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
 		x.RTATypeDeserializer[xtcpnl.SockOptEnumValueCst] = xtcpnl.DeserializeCGroupIDXTCP
 		x.RTATypeDeserializerStr[xtcpnl.SockOptEnumValueCst] = key
