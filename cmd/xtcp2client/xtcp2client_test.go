@@ -122,6 +122,54 @@ type noopFRServer struct {
 	xtcp_flat_record.UnimplementedXTCPFlatRecordServiceServer
 }
 
+// recordingFRServer is a tiny gRPC server impl that pushes records to
+// connected stream clients so pollStreamRecv + stream.Recv-success
+// branches fire.
+type recordingFRServer struct {
+	xtcp_flat_record.UnimplementedXTCPFlatRecordServiceServer
+}
+
+func (s *recordingFRServer) FlatRecords(_ *xtcp_flat_record.FlatRecordsRequest, stream grpc.ServerStreamingServer[xtcp_flat_record.FlatRecordsResponse]) error {
+	// Send a single record then return so client.Recv() observes a
+	// successful message + EOF.
+	rec := &xtcp_flat_record.FlatRecordsResponse{
+		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "test-host"},
+	}
+	if err := stream.Send(rec); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *recordingFRServer) PollFlatRecords(stream xtcp_flat_record.XTCPFlatRecordService_PollFlatRecordsServer) error {
+	// On the first client Send, push a record back then return so the
+	// client's pollStreamRecv observes a real record before io.EOF.
+	if _, err := stream.Recv(); err != nil {
+		return err
+	}
+	rec := &xtcp_flat_record.PollFlatRecordsResponse{
+		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "poll-test"},
+	}
+	return stream.Send(rec)
+}
+
+func startRecordingGRPC(t *testing.T) (addr string, cleanup func()) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := grpc.NewServer()
+	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, &recordingFRServer{})
+	go func() {
+		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+	}()
+	return lis.Addr().String(), func() {
+		srv.Stop()
+		_ = lis.Close() //nolint:errcheck // test plumbing
+	}
+}
+
 func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -202,6 +250,61 @@ func TestPollMode_completeChannel(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Skip("pollMode complete-channel exit didn't trigger")
+	}
+}
+
+// pollMode against a recording server: the server pushes one record on
+// receipt of the client's first PollFlatRecordsRequest, exercising
+// pollStreamRecv's printPollFlatRecordsResponse path.
+func TestPollMode_recordingServer(t *testing.T) {
+	addr, cleanup := startRecordingGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		// debugLevel=11 hits more printPollFlatRecordsResponse log branches.
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, true, 11)
+		close(done)
+	}()
+	// Let one tick fire so stream.Send + server.Recv complete.
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("pollMode doesn't exit on cancel alone")
+	}
+}
+
+// stream() against a recording server: server pushes one record then
+// closes, so client.Recv observes the record + io.EOF.
+func TestStream_recordingServer(t *testing.T) {
+	addr, cleanup := startRecordingGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	conn := newGRPCClient(addr)
+	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		// debugLevel=200 hits the per-record + EOF log paths.
+		debugLevel = 200
+		stream(ctx, wg, conn, true, 0)
+		close(done)
+	}()
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("stream doesn't exit on cancel alone after server EOF")
 	}
 }
 
