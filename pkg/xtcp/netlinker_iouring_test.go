@@ -187,6 +187,32 @@ func TestIouringPrefillRecvs_smoke(t *testing.T) {
 	}
 }
 
+// handleRecvCQE error paths: Res<0 with timeout errno + non-timeout errno.
+// Buffer return-to-pool fires regardless.
+func TestHandleRecvCQE_timeoutErr(t *testing.T) {
+	x := newIouringFixture(t)
+	b := make([]byte, 64)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EAGAIN), Buf: &b})
+}
+
+func TestHandleRecvCQE_otherErr(t *testing.T) {
+	x := newIouringFixture(t)
+	x.debugLevel = 11 // hit log branch
+	b := make([]byte, 64)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: &b})
+}
+
+func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
+	x := newIouringFixture(t)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
+}
+
 func TestIouringWaitWithTimeout_etime(t *testing.T) {
 	ring, err := xioRingNew(t)
 	if err != nil {
