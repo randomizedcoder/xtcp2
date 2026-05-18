@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -64,5 +69,105 @@ func TestWriteDataToFile_badPath(t *testing.T) {
 	err := writeDataToFile(context.Background(), "/no/such/dir/out.bin", []byte("x"))
 	if err == nil {
 		t.Error("writing to non-existent directory should error")
+	}
+}
+
+func TestRunMain_version(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain(t.Context(), []string{"-v"}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if !strings.Contains(stdout.String(), "commit:") {
+		t.Errorf("stdout = %q, want commit prefix", stdout.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &bytes.Buffer{}, &bytes.Buffer{}); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_badValue(t *testing.T) {
+	rc := runMain(t.Context(), []string{"-values", "abc"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1", rc)
+	}
+}
+
+func TestRunMain_fileMode(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	rc := runMain(t.Context(), []string{"-filename", out, "-db=false"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+func TestRunMain_writeError(t *testing.T) {
+	rc := runMain(t.Context(), []string{"-filename", "/no/such/dir/x", "-db=false"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1", rc)
+	}
+}
+
+func TestRunMain_dbBadConnect(t *testing.T) {
+	// Default -db=true with a bogus connect string forces insertIntoCH to
+	// fail. rc=1, stderr should mention Error.
+	var stderr bytes.Buffer
+	rc := runMain(t.Context(), []string{"-connect", "127.0.0.1:0"}, &bytes.Buffer{}, &stderr)
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestInsertIntoCH_thinWrapper(t *testing.T) {
+	// Production-default wrapper picks baseURL from config.connectStr.
+	// Use a bogus port so the dial fails fast and the wrapper returns err.
+	c := config{connectStr: "127.0.0.1:0"}
+	if err := insertIntoCH(t.Context(), c, []byte("p")); err == nil {
+		t.Error("insertIntoCH against bogus connect should error")
+	}
+}
+
+func TestInsertIntoCHAt_success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	if err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload")); err != nil {
+		t.Errorf("err = %v, want nil", err)
+	}
+}
+
+func TestInsertIntoCHAt_serverError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("oops")) //nolint:errcheck // test plumbing
+	}))
+	defer srv.Close()
+	err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload"))
+	if err == nil {
+		t.Error("500 should produce error")
+	}
+	if !errors.Is(err, ErrClickHouseHTTPPost) {
+		t.Errorf("err should wrap ErrClickHouseHTTPPost, got %v", err)
+	}
+}
+
+func TestInsertIntoCHAt_connRefused(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	if err := insertIntoCHAt(t.Context(), http.DefaultClient, url, []byte("payload")); err == nil {
+		t.Error("conn-refused should produce error")
+	}
+}
+
+func TestInsertIntoCHAt_badURL(t *testing.T) {
+	// Malformed URL forces http.NewRequestWithContext to fail.
+	err := insertIntoCHAt(t.Context(), http.DefaultClient, "://not a url", []byte("p"))
+	if err == nil {
+		t.Error("malformed URL should produce error")
 	}
 }
