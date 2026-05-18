@@ -121,6 +121,23 @@ let
 
   # Default-variant attrs (every cmd → default-variant derivation).
   defaultBinaries = byVariant.default;
+
+  # Coverage-instrumented xtcp2: `-cover` build flag plus `-coverpkg` set
+  # to the in-scope namespace. Writes Go coverage data to $GOCOVERDIR on
+  # clean exit. Consumed by the wave 10 microvm coverage harness; not
+  # exposed by default for production use.
+  xtcp2-cover = mkGoBinary {
+    name = "xtcp2";
+    inherit
+      src
+      commit
+      date
+      version
+      ;
+    variant = "default";
+    coverage = true;
+    coverPkg = "github.com/randomizedcoder/xtcp2/...";
+  };
 in
 defaultBinaries
 // {
@@ -136,6 +153,9 @@ defaultBinaries
   xtcp2-nats = xtcp2ByFlavor.nats;
   xtcp2-nsq = xtcp2ByFlavor.nsq;
   xtcp2-valkey = xtcp2ByFlavor.valkey;
+
+  # Coverage-instrumented xtcp2 for the microvm coverage harness.
+  inherit xtcp2-cover;
 
   # Joined builds.
   xtcp2-all = joins.default;

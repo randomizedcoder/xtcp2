@@ -43,6 +43,14 @@ in
   version ? "0.0.0-nix",
   extraLdflags ? [ ],
   doCheck ? false,
+  # When true, compile with `-cover` so the binary writes Go coverage
+  # data to $GOCOVERDIR on exit. Used by the microvm lifecycle
+  # coverage harness (nix/microvms/) to capture integration-test
+  # coverage that unit tests alone can't reach.
+  coverage ? false,
+  # When coverage=true, the comma-separated package patterns whose code
+  # gets instrumented. Defaults to the full xtcp2 namespace.
+  coverPkg ? "github.com/randomizedcoder/xtcp2/...",
 }:
 
 let
@@ -69,7 +77,7 @@ let
       "-" + lib.concatStringsSep "-" destinations;
 in
 buildGoModule {
-  pname = "${name}${destSuffix}${variantCfg.tagSuffix}";
+  pname = "${name}${destSuffix}${variantCfg.tagSuffix}${lib.optionalString coverage "-cover"}";
   inherit
     version
     src
@@ -96,9 +104,14 @@ buildGoModule {
     ]
     ++ extraLdflags;
 
-  # Strip and trim paths
+  # Strip and trim paths. When coverage=true, also append `-cover` +
+  # `-coverpkg=<patterns>` so the binary writes per-package coverage
+  # profiles to $GOCOVERDIR on clean exit.
   preBuild = ''
     export GOFLAGS="-trimpath ''${GOFLAGS:-}"
+  ''
+  + lib.optionalString coverage ''
+    export GOFLAGS="-cover -coverpkg=${coverPkg} ''${GOFLAGS:-}"
   '';
 
   # Filippo's trick: `strip` after -s -w shaves a bit more off. Only applied
