@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T02:05:47Z
+Generated: 2026-05-18T02:09:32Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,9 +15,9 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 202 |
+| Total findings | 203 |
 | Findings (Tier 0) | 75 |
-| Findings (Tier 1) | 15 |
+| Findings (Tier 1) | 16 |
 | Findings (Tier 2) | 103 |
 | Findings (non-tiered) | 9 |
 | Files with at least one finding | 59 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 193 | 5s |
-| golangci-lint (standard) | findings | 91 | 5s |
+| golangci-lint (comprehensive) | findings | 194 | 5s |
+| golangci-lint (standard) | findings | 92 | 5s |
 | golangci-lint (quick) | findings | 87 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
 | gofmt | findings | 7 | 0s |
-| nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
+| nixfmt | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 4s |
-| go test -cover | findings | 12 | 1s |
+| go test | clean | 0 | 8s |
+| go test -cover | findings | 13 | 0s |
 
 
 ---
@@ -53,7 +53,7 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 75 | 13 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 15 | 0 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 16 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 103 | 30 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
@@ -71,7 +71,7 @@ between commits reveals exactly what changed.
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `tools/quality-report/main_test.go` | 7 | goconst×7 |
-| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, format×1, gofmt×1 |
+| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, gofmt×1, format×1 |
 | `cmd/register_schema/register_schema.go` | 6 | errcheck×4, govet×2 |
 | `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
 
@@ -104,17 +104,17 @@ between commits reveals exactly what changed.
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:103`: shadow: declaration of "err" shadows declaration at line 84
 - `cmd/register_schema/register_schema.go:109`: shadow: declaration of "err" shadows declaration at line 100
 
+### golangci-lint / noctx — 8
+
+- `cmd/xtcp2client/xtcp2client_test.go:127`: net.Listen must not be called. use (*net.ListenConfig).Listen
+- `tools/tcp_client/tcp_client_test.go:32`: net.Listen must not be called. use (*net.ListenConfig).Listen
+- `tools/tcp_client/tcp_client_test.go:53`: net.Listen must not be called. use (*net.ListenConfig).Listen
+
 ### gofmt / format — 7
 
 - `cmd/xtcp2_kafka_client/xtcp2_kafka_client.go`: file not formatted
 - `cmd/xtcp2client/xtcp2client.go`: file not formatted
 - `pkg/xtcpnl/xtcp_writer_test.go`: file not formatted
-
-### golangci-lint / noctx — 7
-
-- `tools/tcp_client/tcp_client_test.go:32`: net.Listen must not be called. use (*net.ListenConfig).Listen
-- `tools/tcp_client/tcp_client_test.go:53`: net.Listen must not be called. use (*net.ListenConfig).Listen
-- `tools/tcp_client/tcp_client_test.go:127`: net.Listen must not be called. use (*net.ListenConfig).Listen
 
 ### golangci-lint / dupl — 6
 
@@ -125,7 +125,7 @@ between commits reveals exactly what changed.
 ### golangci-lint / gofmt — 6
 
 - `cmd/xtcp2_kafka_client/xtcp2_kafka_client.go:24`: File is not properly formatted
-- `cmd/xtcp2client/xtcp2client.go:436`: File is not properly formatted
+- `cmd/xtcp2client/xtcp2client.go:442`: File is not properly formatted
 - `pkg/xtcpnl/xtcp_writer_test.go:14`: File is not properly formatted
 
 ### golangci-lint / gosec — 6
@@ -159,10 +159,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 577 |
+| Pass | 579 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 5 |
+| Skip | 6 |
 
 
 
@@ -217,7 +217,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 72.4% of statements (target: 90% per package).
+**Overall:** 73.2% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -230,7 +230,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/register_schema` | 92.9% | 🟢 OK |
 | `cmd/xtcp2` | 81.6% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 69.8% | 🔴 below 90% |
-| `cmd/xtcp2client` | 32.9% | 🔴 below 90% |
+| `cmd/xtcp2client` | 54.7% | 🔴 below 90% |
 | `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 82.5% | 🔴 below 90% |
 | `pkg/xtcp` | 53.3% | 🔴 below 90% |
@@ -241,7 +241,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 96.7% | 🟢 OK |
 | `tools/proto-field-audit` | 96.6% | 🟢 OK |
 | `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 91.4% | 🟢 OK |
+| `tools/tcp_client` | 88.6% | 🔴 below 90% |
 | `tools/tcp_server` | 91.4% | 🟢 OK |
 | `tools/udp_receiver_server` | 92.9% | 🟢 OK |
 
