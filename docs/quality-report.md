@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T00:40:00Z
+Generated: 2026-05-18T00:42:56Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -32,18 +32,18 @@ between commits reveals exactly what changed.
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 137 | 5s |
-| golangci-lint (standard) | findings | 45 | 4s |
+| golangci-lint (standard) | findings | 45 | 5s |
 | golangci-lint (quick) | findings | 51 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 4 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | findings | 4 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
-| metrics-audit | clean | 0 | 1s |
+| metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 3s |
-| go test -cover | findings | 19 | 1s |
+| go test | clean | 0 | 4s |
+| go test -cover | findings | 19 | 0s |
 
 
 ---
@@ -69,7 +69,7 @@ between commits reveals exactly what changed.
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `tools/quality-report/main_test.go` | 7 | goconst×7 |
-| `pkg/xtcp/netlinker_test.go` | 6 | misspell×3, goconst×3 |
+| `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
 | `pkg/xtcp/ns_test.go` | 6 | goconst×3, misspell×3 |
 | `tools/quality-report/main.go` | 6 | goconst×6 |
 | `pkg/xtcp/run_helpers_test.go` | 5 | misspell×3, goconst×2 |
@@ -159,7 +159,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 471 |
+| Pass | 484 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 3 |
@@ -214,7 +214,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 58.6% of statements (target: 90% per package).
+**Overall:** 59.4% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -231,7 +231,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 82.5% | 🔴 below 90% |
 | `pkg/xtcp` | 44.8% | 🔴 below 90% |
-| `pkg/xtcpnl` | 79.6% | 🔴 below 90% |
+| `pkg/xtcpnl` | 84.4% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 10.6% | 🔴 below 90% |
 | `tools/metrics-audit` | 95.3% | 🟢 OK |
