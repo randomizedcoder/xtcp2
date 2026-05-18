@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T03:26:40Z
+Generated: 2026-05-18T03:42:47Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -32,18 +32,18 @@ between commits reveals exactly what changed.
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 197 | 5s |
-| golangci-lint (standard) | findings | 93 | 4s |
-| golangci-lint (quick) | findings | 88 | 15s |
-| gosec | findings | 2 | 1s |
+| golangci-lint (standard) | findings | 93 | 5s |
+| golangci-lint (quick) | findings | 88 | 14s |
+| gosec | findings | 2 | 2s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 1s |
+| gofmt | findings | 7 | 0s |
 | nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | clean | 0 | 10s |
-| go test -cover | findings | 12 | 0s |
+| go test -cover | findings | 11 | 1s |
 
 
 ---
@@ -159,10 +159,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 606 |
+| Pass | 613 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 8 |
+| Skip | 9 |
 
 
 
@@ -217,7 +217,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 76.0% of statements (target: 90% per package).
+**Overall:** 76.6% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -233,7 +233,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 73.6% | 🔴 below 90% |
 | `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 55.7% | 🔴 below 90% |
+| `pkg/xtcp` | 57.5% | 🔴 below 90% |
 | `pkg/xtcpnl` | 87.9% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 71.4% | 🔴 below 90% |
@@ -241,7 +241,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 96.7% | 🟢 OK |
 | `tools/proto-field-audit` | 96.6% | 🟢 OK |
 | `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 88.6% | 🔴 below 90% |
+| `tools/tcp_client` | 91.4% | 🟢 OK |
 | `tools/tcp_server` | 91.4% | 🟢 OK |
 | `tools/udp_receiver_server` | 92.9% | 🟢 OK |
 
