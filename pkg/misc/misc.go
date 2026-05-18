@@ -22,6 +22,14 @@ var (
 		uint8(2):  "v4",
 		uint8(10): "v6",
 	}
+
+	// fatalf is the package-level abort handler. Defaults to log.Fatalf
+	// (which prints and os.Exit(1)s). Tests swap this in for a panic or
+	// capture so the error branches of helpers like ScanFile / GetHostname
+	// can be exercised without terminating the test process. Callers must
+	// return a sensible zero value after invoking fatalf, since the test
+	// implementation typically does NOT exit.
+	fatalf = log.Fatalf
 )
 
 // DieIfNotLinux as the name suggests kills this program if we aren't running on linux
@@ -29,17 +37,30 @@ var (
 // Although I think Darwin has netlink also
 // TODO - test Darwin
 func DieIfNotLinux() {
-	if runtime.GOOS != "linux" {
-		log.Fatal("This code is only designed for linux.")
+	dieIfNotLinuxImpl(runtime.GOOS)
+}
+
+// dieIfNotLinuxImpl is the testable kernel: separate from DieIfNotLinux
+// so unit tests can drive the non-linux branch by passing "darwin" without
+// having to actually run on Darwin.
+func dieIfNotLinuxImpl(goos string) {
+	if goos != "linux" {
+		fatalf("%s", "This code is only designed for linux.")
 	}
 }
+
+// hostnameLookup is the indirection point that GetHostname uses to read
+// the system hostname. Tests swap it to inject errors so the fatalf branch
+// is exercisable without actually breaking the host.
+var hostnameLookup = os.Hostname
 
 // GetHostname is a little gethostname helper with fatal error check
 // arguably this function shouldn't exist
 func GetHostname() string {
-	hostname, err := os.Hostname()
+	hostname, err := hostnameLookup()
 	if err != nil {
-		log.Fatalf("os.Hostname() error:%s", err)
+		fatalf("os.Hostname() error:%s", err)
+		return ""
 	}
 	if debugLevel > 100 {
 		fmt.Println("Hostname:", hostname)
@@ -66,7 +87,8 @@ func ScanFile(file string) []string {
 	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
 	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
-		log.Fatalf("XTCPStater scanFile open file error: %v", err)
+		fatalf("XTCPStater scanFile open file error: %v", err)
+		return nil
 	}
 	defer f.Close()
 
@@ -76,8 +98,9 @@ func ScanFile(file string) []string {
 		lines = append(lines, line+string('\n'))
 	}
 	if err = sc.Err(); err != nil {
-		_ = f.Close()                                              // close explicitly; log.Fatalf skips the deferred Close
-		log.Fatalf("XTCPStater scanFile scan file error: %v", err) //nolint:gocritic // exitAfterDefer: deferred f.Close() is released explicitly above
+		_ = f.Close() // close explicitly in case fatalf doesn't exit
+		fatalf("XTCPStater scanFile scan file error: %v", err)
+		return nil
 	}
 	return lines
 }
@@ -92,7 +115,8 @@ func ReadFile(file string) []string {
 	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
 	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
-		log.Fatalf("open file error: %v", err)
+		fatalf("open file error: %v", err)
+		return nil
 	}
 	defer f.Close()
 
@@ -105,8 +129,9 @@ func ReadFile(file string) []string {
 				break
 			}
 
-			_ = f.Close()                               // close explicitly; log.Fatalf skips the deferred Close
-			log.Fatalf("read file line error: %v", err) //nolint:gocritic // exitAfterDefer: deferred f.Close() is released explicitly above
+			_ = f.Close() // close explicitly in case fatalf doesn't exit
+			fatalf("read file line error: %v", err)
+			return nil
 		}
 		lines = append(lines, line)
 	}
@@ -122,7 +147,8 @@ func CheckFilePermissions(filename string, permissions string) bool {
 	// https://golang.org/pkg/os/#FileInfo
 	fileStat, err := os.Stat(filename)
 	if err != nil {
-		log.Fatal("checkFilePermissions os.Stat error:", filename, err)
+		fatalf("checkFilePermissions os.Stat error: %s %v", filename, err)
+		return false
 	}
 	filePerms := fmt.Sprintf("%#o", fileStat.Mode().Perm())
 	if filePerms != permissions {
