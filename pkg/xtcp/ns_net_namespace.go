@@ -63,7 +63,10 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance syscall.Socket err: %v", err)
 		}
-		// log.Fatalf("netNamespaceInstance unix.Socket %s", err)
+		// Don't leak fd: openAndSetNSWithRetries returned a netns fd
+		// we no longer need now that this namespace's setup is
+		// abandoned.
+		x.closeFD(fd)
 		return
 	}
 
@@ -73,11 +76,17 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 	// https://godoc.org/golang.org/x/sys/unix#SockaddrNetlink
 	err = unix.Bind(socketFD, &unix.SockaddrNetlink{Family: syscall.AF_NETLINK})
 	if err != nil {
+		// Demoted from log.Fatalf: a per-namespace Bind failure used
+		// to kill the entire daemon (and every other namespace's
+		// goroutine + the gRPC services + the poller). Count it,
+		// release the fd we opened to setns, and return so the
+		// surrounding nsAdd path can move on.
+		x.pC.WithLabelValues("netNamespaceInstance", "Bind", "error").Inc()
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance unix.Bind err: %v", err)
 		}
-		x.closeSocket(socketFD)                              // close explicitly; log.Fatalf skips the deferred closeSocket
-		log.Fatalf("netNamespaceInstance unix.Bind %s", err) //nolint:gocritic // exitAfterDefer: deferred closeSocket is released explicitly above
+		x.closeFD(fd)
+		return
 	}
 
 	x.createNetlinkersAndStore(ctx, nsName, socketFD)
