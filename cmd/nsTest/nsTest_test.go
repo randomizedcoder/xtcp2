@@ -32,12 +32,12 @@ func TestNamespaceName(t *testing.T) {
 func TestCreateNamespace_logsError(t *testing.T) {
 	// Use a name with characters that ip netns rejects so the call
 	// fails fast without requiring privileges.
-	createNamespace("test/invalid/name/with/slashes")
+	createNamespace(t.Context(), "test/invalid/name/with/slashes")
 	// No panic = pass; we don't introspect log output.
 }
 
 func TestRemoveNamespace_logsError(t *testing.T) {
-	removeNamespace("test/invalid/name/with/slashes")
+	removeNamespace(t.Context(), "test/invalid/name/with/slashes")
 }
 
 func TestRunMain_invalidFlag(t *testing.T) {

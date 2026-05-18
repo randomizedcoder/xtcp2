@@ -40,7 +40,7 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 		if ctx.Err() != nil {
 			return 0
 		}
-		createNamespace(namespaceName(i))
+		createNamespace(ctx, namespaceName(i))
 	}
 
 	// Churn loop: alternately create+remove one namespace per tick.
@@ -57,11 +57,11 @@ func churn(ctx context.Context, initial int, sleep time.Duration) int {
 			return 0
 		}
 		newNamespace := namespaceName(j + initial)
-		createNamespace(newNamespace)
+		createNamespace(ctx, newNamespace)
 		log.Printf("Added namespace: %s\n", newNamespace)
 
 		oldestNamespace := namespaceName(j)
-		removeNamespace(oldestNamespace)
+		removeNamespace(ctx, oldestNamespace)
 		log.Printf("Removed namespace: %s\n", oldestNamespace)
 
 		j++
@@ -77,19 +77,19 @@ func namespaceName(index int) string {
 	return fmt.Sprintf("%s%d", baseNamespaceName, index)
 }
 
-func createNamespace(name string) {
+func createNamespace(ctx context.Context, name string) {
 
 	log.Printf("createNamespace: ip netns add %s", name)
-	cmd := exec.CommandContext(context.Background(), "ip", "netns", "add", name)
+	cmd := exec.CommandContext(ctx, "ip", "netns", "add", name)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to create namespace %s: %v", name, err)
 	}
 
 }
 
-func removeNamespace(name string) {
+func removeNamespace(ctx context.Context, name string) {
 	log.Printf("removeNamespace: ip netns del %s", name)
-	cmd := exec.CommandContext(context.Background(), "ip", "netns", "del", name)
+	cmd := exec.CommandContext(ctx, "ip", "netns", "del", name)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to remove namespace %s: %v", name, err)
 	}

@@ -449,7 +449,7 @@ func awaitSignalAndShutdown(
 	}
 
 	if doExit {
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // intentional process exit; deferred timer.Stop is moot once the process terminates
 	}
 }
 
