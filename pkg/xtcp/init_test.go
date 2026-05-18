@@ -333,7 +333,7 @@ func TestInitNetlinkers_syscallDefault(t *testing.T) {
 	select {
 	case <-x.NetlinkerReady:
 	default:
-		t.Error("NetlinkerReady should have been signalled")
+		t.Error("NetlinkerReady should have been signaled")
 	}
 }
 
@@ -387,11 +387,11 @@ func TestInitDests_null(t *testing.T) {
 	if x.dest == nil {
 		t.Fatal("InitDests didn't set x.dest for null scheme")
 	}
-	// DestinationReady should be signalled.
+	// DestinationReady should be signaled.
 	select {
 	case <-x.DestinationReady:
 	default:
-		t.Error("DestinationReady should have been signalled")
+		t.Error("DestinationReady should have been signaled")
 	}
 }
 
@@ -482,7 +482,7 @@ func TestInitDests_debugLog(t *testing.T) {
 	select {
 	case <-x.DestinationReady:
 	default:
-		t.Error("DestinationReady should have been signalled")
+		t.Error("DestinationReady should have been signaled")
 	}
 }
 

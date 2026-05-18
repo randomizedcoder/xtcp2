@@ -44,7 +44,7 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 
 func TestAwaitSignalAndShutdown_timeoutPath(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
-	complete := make(chan struct{}) // never signalled
+	complete := make(chan struct{}) // never signaled
 	_, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {

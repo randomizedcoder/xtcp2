@@ -129,10 +129,10 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			},
 		},
 		{
-			// CongInfo writes only on a recognised "cub" / "bbr" / etc.
+			// CongInfo writes only on a recognized "cub" / "bbr" / etc.
 			// prefix. Garbage 0x01 bytes fall through the switch with
 			// no observable side effect, which is the intended kernel-
-			// compatibility behaviour. We only assert the parse succeeds.
+			// compatibility behavior. We only assert the parse succeeds.
 			name:  "CongInfo",
 			min:   CongInfoSizeCst,
 			parse: DeserializeCongInfoXTCP,

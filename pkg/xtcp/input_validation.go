@@ -17,7 +17,7 @@ func (x *XTCP) InputValidation() {
 
 // validateInput checks XTCP's runtime configuration and returns a
 // descriptive error rather than fataling. The wrapper above preserves
-// the legacy log.Fatalf behaviour for the init-time call site.
+// the legacy log.Fatalf behavior for the init-time call site.
 func (x *XTCP) validateInput() error {
 	if _, ok := x.Marshallers.Load(x.config.MarshalTo); !ok {
 		return fmt.Errorf("XTCP Marshal must be one of:%s MarshalTo:%s",
