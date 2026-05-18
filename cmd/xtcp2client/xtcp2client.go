@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	_ "unsafe"
@@ -41,7 +40,6 @@ func FastRandN(n uint32) uint32
 
 const (
 	signalChannelSizeCst = 10
-	cancelSleepTimeCst   = 20 * time.Second
 
 	tagertHostnameCst = "localhost"
 	grpcPortCst       = "8888"
@@ -96,37 +94,41 @@ var (
 )
 
 func main() {
-
 	misc.DieIfNotLinux()
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// runMain wires flag parsing + pollMode/listenMode dispatch. Extracted so
+// tests can drive it with synthetic args + a cancellable ctx (no gRPC
+// server needed). Tests that exercise pollMode/listenMode use bufconn
+// directly.
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("xtcp2client", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	target := fs.String("target", tagertHostnameCst, "Target hostanme")
+	poll := fs.Bool("poll", false, "poll mode means the client will trigger polling via the PollFlatRecords service")
+	pollFrequency := fs.Duration("pollFrequency", pollFrequencyCst, "poll mode frequency")
+	workers := fs.Int("workers", 10, "workers")
+	json := fs.Bool("json", false, "json output")
+	d := fs.Uint("d", 11, "debugLevel")
+	v := fs.Bool("v", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
-	complete := make(chan struct{}, signalChannelSizeCst)
-	go initSignalHandler(cancel, complete)
-
-	target := flag.String("target", tagertHostnameCst, "Target hostanme")
-	poll := flag.Bool("poll", false, "poll mode means the client will trigger polling via the PollFlatRecords service")
-	pollFrequency := flag.Duration("pollFrequency", pollFrequencyCst, "poll mode frequency")
-	workers := flag.Int("workers", 10, "workers")
-	json := flag.Bool("json", false, "json output")
-	d := flag.Uint("d", 11, "debugLevel")
-	v := flag.Bool("v", false, "show version")
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
 	if *v {
-		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0) //nolint:gocritic // exitAfterDefer: -v prints version and exits; deferred cancel() is moot at process shutdown
+		fmt.Fprintf(stdout, "xtcp commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
 	}
 	debugLevel = *d
 
+	complete := make(chan struct{}, signalChannelSizeCst)
 	if *poll {
 		pollMode(ctx, *target, &complete, *pollFrequency, *json, debugLevel)
 	} else {
 		listenMode(ctx, *target, *workers, &complete, *json)
 	}
-
+	return 0
 }
 
 // func (c *xTCPFlatRecordServiceClient) PollFlatRecords(
@@ -432,26 +434,3 @@ func printPollFlatRecordsResponse(pollFlatRecordsResponse *xtcp_flat_record.Poll
 	}
 }
 
-func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}) {
-
-	c := make(chan os.Signal, signalChannelSizeCst)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	<-c
-	log.Printf("Signal caught, closing application")
-	cancel()
-
-	log.Printf("Signal caught, cancel() called, and sleeping to allow goroutines to close")
-	timer := time.NewTimer(cancelSleepTimeCst)
-
-	select {
-	case <-complete:
-		log.Printf("<-complete exit(0)")
-	case <-timer.C:
-		// if we exit here, this means all the other go routines didn't shutdown
-		// need to investigate why
-		log.Printf("Sleep complete, goodbye! exit(0)")
-	}
-
-	os.Exit(0)
-}
