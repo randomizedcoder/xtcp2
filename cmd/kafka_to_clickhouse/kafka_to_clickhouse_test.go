@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func TestPrepareBinary_noEnvelope(t *testing.T) {
@@ -181,4 +183,84 @@ func TestFileOrKafka_writeError(t *testing.T) {
 	// fileOrKafka logs but does not propagate the error; just verify
 	// no-panic when the write fails.
 	fileOrKafka(t.Context(), config{filename: "/no/such/dir/x", kafka: false}, &data)
+}
+
+// destKafka against an unreachable broker: kgo.NewClient succeeds (lazy),
+// then Produce's callback fires with an error after ctx cancellation.
+// Drives the destKafka body without needing a real broker.
+func TestDestKafka_unreachable(t *testing.T) {
+	// Set up the global kClient + kgoRecordPool the same way runMain does.
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.DefaultProduceTopic("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+	prevClient := kClient
+	prevPoolNew := kgoRecordPool.New
+	kClient = cl
+	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	t.Cleanup(func() {
+		kClient = prevClient
+		kgoRecordPool.New = prevPoolNew
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+
+	payload := []byte("payload")
+	c := config{topic: "test-topic", debugLevel: 11}
+	n, _ := destKafka(ctx, c, &payload) //nolint:errcheck // err is logged inside the callback
+	if n != 1 {
+		t.Errorf("n = %d, want 1 (Produce was attempted)", n)
+	}
+}
+
+// InitDestKafka happy path: kafka=true + valid broker constructs the
+// client. Reset the global kClient afterwards so other tests aren't
+// affected.
+func TestInitDestKafka_happy(t *testing.T) {
+	prevClient := kClient
+	t.Cleanup(func() {
+		if kClient != prevClient && kClient != nil {
+			kClient.Close()
+		}
+		kClient = prevClient
+	})
+
+	c := config{
+		kafka:    true,
+		topic:    "test-topic",
+		broker:   "localhost:0",
+		clientID: "test",
+	}
+	if err := InitDestKafka(t.Context(), c); err != nil {
+		t.Errorf("InitDestKafka: %v", err)
+	}
+	if kClient == nil {
+		t.Error("kClient should be non-nil after successful InitDestKafka")
+	}
+}
+
+func TestInitDestKafka_debugLog(t *testing.T) {
+	prevClient := kClient
+	t.Cleanup(func() {
+		if kClient != prevClient && kClient != nil {
+			kClient.Close()
+		}
+		kClient = prevClient
+	})
+
+	c := config{
+		kafka:      true,
+		topic:      "test-topic",
+		broker:     "localhost:0",
+		clientID:   "test",
+		debugLevel: 11, // hit the log.Printf branch
+	}
+	if err := InitDestKafka(t.Context(), c); err != nil {
+		t.Errorf("InitDestKafka: %v", err)
+	}
 }
