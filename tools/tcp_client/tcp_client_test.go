@@ -114,6 +114,41 @@ func TestClientOnce_writeError(t *testing.T) {
 	_ = a.Close() //nolint:errcheck // test plumbing
 }
 
+// clientOnce write-timeout path: connect to a pipe with no reader,
+// set a microsecond write deadline → Write returns a timeout error
+// (since the pipe buffer fills) → returns ErrTimeout. net.Pipe is
+// synchronous so any Write without a matching Read blocks until the
+// deadline.
+func TestClientOnce_writeTimeout(t *testing.T) {
+	a, b := net.Pipe()
+	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = b.Close() }() //nolint:errcheck // test plumbing
+
+	// Don't read from b → a.Write blocks until deadline.
+	buf := []byte("x")
+	err := clientOnce(a, buf, make([]byte, 16), time.Millisecond, time.Second)
+	if err == nil {
+		t.Error("expected error from write-deadline expiry")
+	}
+	if !errors.Is(err, ErrTimeout) {
+		t.Errorf("expected ErrTimeout; got %v", err)
+	}
+}
+
+// dialWithRetry where every attempt times out → exhausts retries and
+// returns the wrapped "dial %s: %w" error with lastErr inside.
+// 192.0.2.0/24 is TEST-NET-1, guaranteed unrouted, so dial blocks
+// until timeout.
+func TestDialWithRetry_allTimeouts(t *testing.T) {
+	_, err := dialWithRetry("192.0.2.1", 9, 3, 50*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected error after retry exhaustion")
+	}
+	if !strings.Contains(err.Error(), "dial 192.0.2.1:9") {
+		t.Errorf("err should wrap dial address; got %v", err)
+	}
+}
+
 func TestRunMain_zeroCount(t *testing.T) {
 	if rc := runMain([]string{"-count", "0"}, &strings.Builder{}); rc != 0 {
 		t.Errorf("rc = %d, want 0", rc)
