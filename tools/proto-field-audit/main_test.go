@@ -70,6 +70,46 @@ func TestCollectProtoFields_missing(t *testing.T) {
 	}
 }
 
+func TestCollectProtoFields_nestedMessages(t *testing.T) {
+	dir := t.TempDir()
+	// Nested + commented + non-message body covers the inMessage counter
+	// branches: "{ " on a separate line increments, "}" decrements, comments
+	// and empty lines short-circuit before the regex.
+	writeFile(t, dir, "nested.proto", `
+syntax = "proto3";
+message Outer {
+  message Inner
+  {
+    string nested_field = 1;
+  }
+  string outer_field = 2;
+  //
+}
+`)
+	fields, err := collectProtoFields(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, f := range fields {
+		names[f.name] = true
+	}
+	for _, want := range []string{"nested_field", "outer_field"} {
+		if !names[want] {
+			t.Errorf("expected to find %q; got %v", want, names)
+		}
+	}
+}
+
+func TestCollectGoReferences_parseError(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "bad.go", "this is not valid Go")
+	_, err := collectGoReferences(dir)
+	if err == nil {
+		t.Error("malformed .go should propagate parse error")
+	}
+}
+
 func TestCollectGoReferences(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "x.go", `
