@@ -126,6 +126,11 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 		ctxP,
 		rec,
 		func(rec *kgo.Record, err error) {
+			// Release the WithTimeout resources whether the produce
+			// succeeded or failed; the previous code only called cancelP
+			// in the err branch, leaking a goroutine + timer per
+			// successful send until the timeout naturally fired.
+			defer cancelP()
 			dur := time.Since(start)
 			d.recordPool.Put(rec)
 			*b = (*b)[:0]
@@ -136,7 +141,6 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 				if d.x.debugLevel > 10 {
 					log.Printf("destKafka %0.6fs Produce err:%v", dur.Seconds(), err)
 				}
-				cancelP()
 				return
 			}
 			d.x.pH.WithLabelValues("destKafka", "Produce", "count").Observe(dur.Seconds())
