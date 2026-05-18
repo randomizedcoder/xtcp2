@@ -165,6 +165,22 @@ var c = fmt.Sprintf("x")
 	}
 }
 
+func TestRunMain_clean(t *testing.T) {
+	dir := t.TempDir()
+	writeGo(t, dir, "x.go", `package x`)
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-root", dir}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-not-a-flag"}, &stdout, &stderr); rc != 2 {
+		t.Errorf("invalid flag rc = %d, want 2", rc)
+	}
+}
+
 func TestPromNewKind_unitDispatch(t *testing.T) {
 	// Non-CallExpr (e.g. plain Ident) → ""
 	if got := promNewKind(&ast.Ident{Name: "x"}); got != "" {

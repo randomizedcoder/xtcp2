@@ -31,9 +31,19 @@ type finding struct {
 }
 
 func main() {
-	root := flag.String("root", "pkg/xtcpnl", "directory to audit")
-	flag.Parse()
-	os.Exit(runAudit(*root, os.Stdout, os.Stderr))
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// runMain wires flag parsing + runAudit. Extracted so tests can drive it
+// with synthetic args + capture buffers without subprocessing.
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("netlink-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "pkg/xtcpnl", "directory to audit")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	return runAudit(*root, stdout, stderr)
 }
 
 // runAudit walks `root` and reports per-function indexing without a
