@@ -188,6 +188,24 @@ func TestFileOrKafka_writeError(t *testing.T) {
 // fileOrKafka with kafka=true: drives the destKafka path via the in-process
 // kgo client fixture (the broker is unreachable so Produce's callback fires
 // with an error, but fileOrKafka swallows + logs it).
+// prepareBinary debugDump write-error: fatalf fires when the dump file
+// can't be written. Use a bogus dumpFilename + fatalf swap.
+func TestPrepareBinary_dumpWriteError(t *testing.T) {
+	prev := fatalf
+	called := false
+	fatalf = func(string, ...any) { called = true }
+	t.Cleanup(func() { fatalf = prev })
+
+	c := config{
+		envelope: true, values: []uint{1},
+		debugDump: true, dumpFilename: "/no/such/dir/dump",
+	}
+	prepareBinary(t.Context(), c, 1)
+	if !called {
+		t.Error("fatalf should have been invoked")
+	}
+}
+
 func TestFileOrKafka_kafkaMode(t *testing.T) {
 	cl, err := kgo.NewClient(
 		kgo.SeedBrokers("localhost:0"),
