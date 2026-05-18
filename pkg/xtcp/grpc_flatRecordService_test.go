@@ -2,10 +2,16 @@ package xtcp
 
 import (
 	"context"
+	"errors"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
@@ -89,8 +95,77 @@ func TestFlatRecordServiceSend_noClients(t *testing.T) {
 	// No panic = pass.
 }
 
-// FlatRecords + PollFlatRecords streaming RPC tests: the bufconn-based
-// approach is the natural fit, but google.golang.org/grpc/test/bufconn
-// isn't pulled into the Nix vendored source (buildGoModule strips
-// test-only sub-packages). Coverage for these handlers is left to the
-// microvm lifecycle harness which spins up a real gRPC server.
+// FlatRecords + PollFlatRecords streaming RPC tests via bufconn. The
+// bufconn sub-package is anchored in the dependency graph via a blank
+// import in bufconn_import.go so buildGoModule includes it in the Nix
+// vendored source.
+
+func setupBufconnServer(t *testing.T, s *xtcpFlatRecordService) (*grpc.ClientConn, func()) {
+	t.Helper()
+	lis := bufconn.Listen(1024 * 1024)
+	srv := grpc.NewServer()
+	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, s)
+	go func() {
+		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+	}()
+	dialer := func(_ context.Context, _ string) (net.Conn, error) {
+		return lis.Dial()
+	}
+	conn, err := grpc.NewClient("passthrough://bufconn",
+		grpc.WithContextDialer(dialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup := func() {
+		_ = conn.Close() //nolint:errcheck // test plumbing
+		srv.Stop()
+	}
+	return conn, cleanup
+}
+
+func TestFlatRecords_bufconnCancelExits(t *testing.T) {
+	srvSvc := newFlatRecordServiceFixture(t)
+	conn, cleanup := setupBufconnServer(t, srvSvc)
+	defer cleanup()
+
+	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx, cancel := context.WithCancel(t.Context())
+	stream, err := client.FlatRecords(ctx, &xtcp_flat_record.FlatRecordsRequest{})
+	if err != nil {
+		t.Fatalf("FlatRecords: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if got := srvSvc.frMapCount(); got != 1 {
+		t.Errorf("frMapCount = %d, want 1 after open stream", got)
+	}
+	cancel()
+	_, _ = stream.Recv() //nolint:errcheck // test plumbing
+	time.Sleep(50 * time.Millisecond)
+	if got := srvSvc.frMapCount(); got != 0 {
+		t.Errorf("frMapCount = %d, want 0 after close", got)
+	}
+}
+
+func TestPollFlatRecords_bufconn(t *testing.T) {
+	srvSvc := newFlatRecordServiceFixture(t)
+	conn, cleanup := setupBufconnServer(t, srvSvc)
+	defer cleanup()
+
+	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.PollFlatRecords(ctx)
+	if err != nil {
+		t.Fatalf("PollFlatRecords: %v", err)
+	}
+	if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := stream.CloseSend(); err != nil && !errors.Is(err, context.Canceled) {
+		t.Errorf("CloseSend: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+}
