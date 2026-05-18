@@ -8,11 +8,16 @@ import (
 
 // InputValidation is the original log.Fatalf wrapper around validateInput.
 // Kept for the existing call site in init.go; new code should call
-// validateInput directly so the error path is testable. Same observable
-// behavior at the existing init.go call site as the pre-split version.
+// validateInput directly so the error path is testable. Uses x.fatalf when
+// set (lets tests substitute a non-exit-ing implementation) and falls
+// back to log.Fatalf otherwise.
 func (x *XTCP) InputValidation() {
 	if err := x.validateInput(); err != nil {
-		log.Fatalf("InputValidation: %v", err)
+		fatalf := x.fatalf
+		if fatalf == nil {
+			fatalf = log.Fatalf
+		}
+		fatalf("InputValidation: %v", err)
 	}
 }
 
