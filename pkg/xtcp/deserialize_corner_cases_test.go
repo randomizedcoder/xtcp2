@@ -79,6 +79,11 @@ func loadRealMultipart(tb testing.TB) []byte {
 // signalNetlinkerDone: non-blocking send (default cap=1) covers the happy
 // arm; with the channel pre-filled the default branch executes (counter
 // increment) and the subsequent blocking send completes once we drain.
+//
+// A short sleep before draining ensures the goroutine reaches the select
+// (and takes the `default` arm + the blocking send) BEFORE the main
+// goroutine drains — otherwise there's a race where the drain wins and
+// the non-blocking arm fires instead, missing the default branch.
 func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
 	x := newTestXTCP(t, "null")
 	x.netlinkerDoneCh = make(chan netlinkerDone, 1)
@@ -91,8 +96,11 @@ func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
 		x.signalNetlinkerDone(args)
 		close(done)
 	}()
-	// Drain so the blocking send can proceed.
-	<-x.netlinkerDoneCh
+	// Sleep before draining so the goroutine has time to hit the
+	// default arm + reach the blocking send.
+	time.Sleep(50 * time.Millisecond)
+	<-x.netlinkerDoneCh // unblocks the goroutine's blocking send
+	<-x.netlinkerDoneCh // and drains its sent value
 	select {
 	case <-done:
 	case <-time.After(time.Second):
