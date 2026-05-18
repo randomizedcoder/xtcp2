@@ -205,8 +205,8 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if derr == nil {
 		buf, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h"}) //nolint:errcheck // test plumbing
-		_, _ = cli.Write(buf)                                                              //nolint:errcheck // test plumbing
-		_ = cli.Close()                                                                    //nolint:errcheck // test plumbing
+		_, _ = cli.Write(buf)                                                             //nolint:errcheck // test plumbing
+		_ = cli.Close()                                                                   //nolint:errcheck // test plumbing
 	}
 	time.Sleep(50 * time.Millisecond)
 	cancel()
@@ -214,8 +214,8 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 	// so ReadFromUDP returns and the loop observes ctx.Done().
 	if cli2, _ := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}); cli2 != nil { //nolint:errcheck // test plumbing
 		buf2, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h2"}) //nolint:errcheck // test plumbing
-		_, _ = cli2.Write(buf2)                                                              //nolint:errcheck // test plumbing
-		_ = cli2.Close()                                                                     //nolint:errcheck // test plumbing
+		_, _ = cli2.Write(buf2)                                                             //nolint:errcheck // test plumbing
+		_ = cli2.Close()                                                                    //nolint:errcheck // test plumbing
 	}
 	select {
 	case rc := <-done:
