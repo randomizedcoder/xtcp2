@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -58,5 +62,41 @@ func TestProcessRecord_debugLogging(t *testing.T) {
 func TestErrRecordTooShort_message(t *testing.T) {
 	if ErrRecordTooShort.Error() == "" {
 		t.Error("ErrRecordTooShort should have a message")
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stderr bytes.Buffer
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &stderr); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_cancellable(t *testing.T) {
+	// Pre-cancelled ctx → pollLoop exits via ctx.Done() before fetching.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if rc := runMain(ctx, []string{"-d", "0"}, &bytes.Buffer{}); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+func TestPollLoop_cancelledCtx(t *testing.T) {
+	cl, err := kgo.NewClient(kgo.SeedBrokers("localhost:0"))
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, cl)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit on cancel")
 	}
 }
