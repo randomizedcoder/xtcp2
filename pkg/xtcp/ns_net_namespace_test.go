@@ -131,3 +131,30 @@ func TestCheckMountInfo_debugLog(t *testing.T) {
 	nsName := "/"
 	_, _ = x.checkMountInfo(&nsName) //nolint:errcheck // test plumbing
 }
+
+// checkMountInfoWithRetries: retry wrapper. Found-on-first-try and
+// not-found-after-retries exercise both branches.
+func TestCheckMountInfoWithRetries_foundFirst(t *testing.T) {
+	x := newCloseFixture(t)
+	nsName := "/" // every mountinfo has /
+	found, err := x.checkMountInfoWithRetries(&nsName)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !found {
+		t.Error("expected found=true on first iteration")
+	}
+}
+
+func TestCheckMountInfoWithRetries_neverFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("retries with exponential backoff take seconds")
+	}
+	x := newCloseFixture(t)
+	x.debugLevel = 11 // hit the log branch
+	nsName := "ridiculously-unlikely-namespace-suffix-xq44"
+	found, _ := x.checkMountInfoWithRetries(&nsName) //nolint:errcheck // test plumbing
+	if found {
+		t.Error("expected not-found for synthetic nsName")
+	}
+}
