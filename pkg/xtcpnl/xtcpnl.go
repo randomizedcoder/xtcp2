@@ -30,6 +30,15 @@ const (
 
 var nativeEndian binary.ByteOrder
 
+// fatalf is the package-level abort handler. Defaults to log.Fatalf
+// (prints + os.Exit(1)). Tests swap this in for a capture so the
+// error branches of OpenNetlinkSocketWithTimeout, SendNetlinkDumpRequest,
+// SendNetlinkDumpRequestPtr, and SetSocketTimeoutViaSyscall can be
+// exercised without terminating the test process. Callers must check
+// state after invoking fatalf since the test impl typically does NOT
+// exit.
+var fatalf = log.Fatalf
+
 // NativeEndian gets native endianness for the system
 func NativeEndian() binary.ByteOrder {
 	if nativeEndian == nil {
@@ -76,7 +85,8 @@ func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int) {
 		unix.NETLINK_INET_DIAG,
 	)
 	if err != nil {
-		log.Fatalf("OpenNetlinkSocketWithTimeout unix.Socket %s", err)
+		fatalf("OpenNetlinkSocketWithTimeout unix.Socket %s", err)
+		return -1
 	}
 
 	// Bind the socket
@@ -86,12 +96,14 @@ func OpenNetlinkSocketWithTimeout(timeout int64) (socketFD int) {
 	// https://godoc.org/golang.org/x/sys/unix#Bind
 	err = unix.Bind(socketFD, socketAddress)
 	if err != nil {
-		log.Fatalf("OpenNetlinkSocketWithTimeout unix.Bind %s", err)
+		fatalf("OpenNetlinkSocketWithTimeout unix.Bind %s", err)
+		return -1
 	}
 
 	err = SetSocketTimeoutViaSyscall(timeout, socketFD)
 	if err != nil {
-		panic("could not set socket SO_RCVTIMEO timeout")
+		fatalf("OpenNetlinkSocketWithTimeout SetSocketTimeoutViaSyscall: %s", err)
+		return -1
 	}
 
 	return socketFD
@@ -275,7 +287,7 @@ func SendNetlinkDumpRequest(
 	// https://godoc.org/golang.org/x/sys/unix#Sendto
 	err := unix.Sendto(socketFileDescriptor, packetBytes, 0, socketAddress)
 	if err != nil {
-		log.Fatalf("unix.Sendto:%s", err)
+		fatalf("unix.Sendto:%s", err)
 	}
 }
 
@@ -288,7 +300,7 @@ func SendNetlinkDumpRequestPtr(
 	// https://godoc.org/golang.org/x/sys/unix#Sendto
 	err := unix.Sendto(socketFileDescriptor, *packetBytes, 0, socketAddress)
 	if err != nil {
-		log.Fatalf("unix.Sendto:%s", err)
+		fatalf("unix.Sendto:%s", err)
 	}
 
 }
