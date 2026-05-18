@@ -82,6 +82,55 @@ func TestConfigService_Set(t *testing.T) {
 // SetPollFrequency — mutates config + signals on the channel
 // ───────────────────────────────────────────────────────────────────────
 
+// SetPollFrequency validate-error branch — empty request fails validation
+// since poll_frequency and poll_timeout are both required. debugLevel>10
+// exercises the inner log + counter branches.
+func TestConfigService_SetPollFrequency_validateErr(t *testing.T) {
+	c, _ := newConfigServiceFixture(t)
+	c.debugLevel = 20
+	_, err := c.SetPollFrequency(context.Background(), &xtcp_config.SetPollFrequencyRequest{})
+	if err == nil {
+		t.Fatal("empty SetPollFrequencyRequest should fail validation")
+	}
+	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument; got %v", err)
+	}
+}
+
+// SetPollFrequency debug-log happy path: debugLevel>10 hits the entry
+// + exit Printf branches.
+func TestConfigService_SetPollFrequency_debugLog(t *testing.T) {
+	c, ch := newConfigServiceFixture(t)
+	c.debugLevel = 20
+	req := &xtcp_config.SetPollFrequencyRequest{
+		PollFrequency: durationpb.New(5 * time.Second),
+		PollTimeout:   durationpb.New(2 * time.Second),
+	}
+	if _, err := c.SetPollFrequency(context.Background(), req); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	<-ch
+}
+
+// Get + Set + SetPollFrequency debug-log entry counters: hit the
+// "start" counter and (where reachable) the debug-level log branch.
+func TestConfigService_Get_debugLog(t *testing.T) {
+	c, _ := newConfigServiceFixture(t)
+	c.debugLevel = 20
+	if _, err := c.Get(context.Background(), &xtcp_config.GetRequest{}); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+}
+
+func TestConfigService_Set_debugLog(t *testing.T) {
+	c, _ := newConfigServiceFixture(t)
+	c.debugLevel = 20
+	_, err := c.Set(context.Background(), &xtcp_config.SetRequest{})
+	if err == nil {
+		t.Fatal("Set should return Unimplemented")
+	}
+}
+
 func TestConfigService_SetPollFrequency_happy(t *testing.T) {
 	c, ch := newConfigServiceFixture(t)
 	req := &xtcp_config.SetPollFrequencyRequest{
