@@ -553,11 +553,13 @@ func envUint64(key string) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	i, err := strconv.ParseInt(v, base10, sixtyFour)
+	// ParseUint (not ParseInt) so a negative env value like "-1" is
+	// rejected. Previously: ParseInt + uint64(i) → -1 became MaxUint64.
+	u, err := strconv.ParseUint(v, base10, sixtyFour)
 	if err != nil {
 		return 0, false
 	}
-	return uint64(i), true
+	return u, true
 }
 
 // envUint32 parses an env var as decimal int and yields it as uint32.
@@ -566,11 +568,13 @@ func envUint32(key string) (uint32, bool) {
 	if !ok {
 		return 0, false
 	}
-	i, err := strconv.Atoi(v)
+	// Same fix as envUint64: ParseUint rejects negative values that
+	// previously wrapped to a huge unsigned via Atoi + uint32(i).
+	u, err := strconv.ParseUint(v, base10, 32)
 	if err != nil {
 		return 0, false
 	}
-	return uint32(i), true
+	return uint32(u), true
 }
 
 // envDuration parses an env var via time.ParseDuration.
