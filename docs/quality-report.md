@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T18:58:11Z
+Generated: 2026-05-18T19:43:00Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,13 +15,13 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 25 |
+| Total findings | 5 |
 | Findings (Tier 0) | 0 |
 | Findings (Tier 1) | 0 |
-| Findings (Tier 2) | 16 |
-| Findings (non-tiered) | 9 |
-| Files with at least one finding | 17 |
-| Test failures (new) | 2 |
+| Findings (Tier 2) | 0 |
+| Findings (non-tiered) | 5 |
+| Files with at least one finding | 5 |
+| Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
 
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 16 | 4s |
+| golangci-lint (comprehensive) | clean | 0 | 5s |
 | golangci-lint (standard) | clean | 0 | 5s |
-| golangci-lint (quick) | findings | 81 | 14s |
-| gosec | findings | 2 | 1s |
-| go vet | clean | 0 | 3s |
+| golangci-lint (quick) | clean | 0 | 14s |
+| gosec | clean | 0 | 1s |
+| go vet | clean | 0 | 2s |
 | gofmt | clean | 0 | 0s |
-| nixfmt | findings | 2 | 1s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | findings | 2 | 11s |
+| go test | clean | 0 | 11s |
 | go test -cover | findings | 5 | 0s |
 
 
@@ -52,9 +52,9 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 2 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 16 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 0 | 0 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,44 +64,22 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `tools/quality-report/main.go` | 6 | goconst×6 |
-| `tools/metrics-audit/main.go` | 3 | goconst×3 |
-| `pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go` | 2 | dupl×2 |
-| `./nix/microvms/lib.nix` | 1 | format×1 |
-| `./nix/microvms/self-test.nix` | 1 | format×1 |
 | `cmd/clickhouse_protobuflist` | 1 | below-90pct×1 |
-| `cmd/ns/ns.go` | 1 | goconst×1 |
 | `cmd/xtcp2_kafka_client` | 1 | below-90pct×1 |
 | `cmd/xtcp2client` | 1 | below-90pct×1 |
 | `pkg/xtcp` | 1 | below-90pct×1 |
+| `tools/kafka_topic_reader` | 1 | below-90pct×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### golangci-lint / goconst — 10
-
-- `cmd/ns/ns.go:175`: string `cpu` has 5 occurrences, make it a constant
-- `tools/metrics-audit/main.go:137`: string `prometheus` has 3 occurrences, make it a constant
-- `tools/metrics-audit/main.go:141`: string `NewCounter` has 4 occurrences, make it a constant
-
-### golangci-lint / dupl — 6
-
-- `pkg/xtcp/destinations_udp.go:72`: 72-100 lines are duplicate of `pkg/xtcp/destinations_unixgram.go:52-80`
-- `pkg/xtcp/destinations_unixgram.go:52`: 52-80 lines are duplicate of `pkg/xtcp/destinations_udp.go:72-100`
-- `pkg/xtcpnl/xtcpnl_inet_diag_tcclass_info.go:1`: 1-91 lines are duplicate of `pkg/xtcpnl/xtcpnl_inet_diag_tosinfo.go:1-91`
-
 ### go-test-cover / below-90pct — 5
 
-- `cmd/xtcp2_kafka_client`: package coverage 81.4% < 90%
-- `tools/kafka_topic_reader`: package coverage 85.7% < 90%
+- `pkg/xtcp`: package coverage 75.9% < 90%
+- `cmd/clickhouse_protobuflist`: package coverage 86.4% < 90%
 - `cmd/xtcp2client`: package coverage 85.8% < 90%
-
-### nixfmt / format — 2
-
-- `./nix/microvms/self-test.nix`: file not formatted
-- `./nix/microvms/lib.nix`: file not formatted
 
 ---
 
@@ -113,8 +91,8 @@ between commits reveals exactly what changed.
 
 ## 7. Security (gosec)
 
-- **high** `G122` at `tools/proto-field-audit/main.go:97` — Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal (CWE-367)
-- **medium** `G301` at `pkg/xtcp/ns_watch.go:119` — Expect directory permissions to be 0750 or less (CWE-276)
+*No security findings.*
+
 
 
 ---
@@ -123,14 +101,11 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 704 |
-| Fail (new) | 2 |
+| Pass | 706 |
+| Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 10 |
 
-**Failures:**
-
-- 🔴 `github.com/randomizedcoder/xtcp2/tools/tcp_client` / `TestDialWithRetry_allTimeouts`
 
 
 ---
@@ -146,10 +121,8 @@ between commits reveals exactly what changed.
 
 `gofmt`: clean.
 
-**`nixfmt` would reformat (2 files):**
+`nixfmt`: clean.
 
-- `./nix/microvms/self-test.nix`
-- `./nix/microvms/lib.nix`
 ---
 
 ## 11. Configuration audit
@@ -169,10 +142,8 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/goconst** with 10 findings (40% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~2 quick-fixable findings before manual review.
-- Hotspot file: `tools/quality-report/main.go` carries 6 findings (goconst×6). Refactor here before touching adjacent code.
-- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
+- Top contributor: **go-test-cover/below-90pct** with 5 findings (100% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `cmd/clickhouse_protobuflist` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
 
 
 ---
