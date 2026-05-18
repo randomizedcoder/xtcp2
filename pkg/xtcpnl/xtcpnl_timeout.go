@@ -2,7 +2,6 @@ package xtcpnl
 
 import (
 	"fmt"
-	"log"
 	"syscall"
 )
 
@@ -26,7 +25,8 @@ func SetSocketTimeoutViaSyscall(timeout int64, socketFileDescriptor int) (err er
 
 		err = syscall.SetsockoptTimeval(socketFileDescriptor, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
 		if err != nil {
-			log.Fatalf("OpenNetlinkSocketWithTimeout SetsockopttimeSpec %s", err)
+			fatalf("OpenNetlinkSocketWithTimeout SetsockopttimeSpec %s", err)
+			return err
 		}
 	}
 
