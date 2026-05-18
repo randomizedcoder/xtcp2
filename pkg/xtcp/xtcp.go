@@ -138,6 +138,27 @@ type netlinkerDone struct {
 // from duplicate metrics collector registration.
 var constructorRegistry prometheus.Registerer = prometheus.DefaultRegisterer
 
+// SetConstructorRegistry swaps the registry used by NewXTCP /
+// NewNsTestingXTCP and returns the previous value. Intended for cross-
+// package tests (cmd/ns, cmd/xtcp2) that want a fresh registry per
+// test invocation. Restoring the previous value via the returned hook
+// keeps successive tests' registrations isolated.
+func SetConstructorRegistry(reg prometheus.Registerer) prometheus.Registerer {
+	prev := constructorRegistry
+	constructorRegistry = reg
+	return prev
+}
+
+// SetNetNsCandidateDirs swaps the netns-directory list initSyncMaps
+// probes for. Returns the previous list so tests can restore it.
+// Cross-package tests (cmd/ns) prepend a tempdir so initSyncMaps
+// doesn't fatalf on sandboxes lacking /run/netns + /run/docker/netns.
+func SetNetNsCandidateDirs(dirs []string) []string {
+	prev := netNsCandidateDirs
+	netNsCandidateDirs = dirs
+	return prev
+}
+
 func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config.XtcpConfig) *XTCP {
 
 	x := new(XTCP)
