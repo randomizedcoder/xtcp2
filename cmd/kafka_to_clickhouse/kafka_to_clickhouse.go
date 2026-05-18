@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -71,49 +72,46 @@ type config struct {
 }
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	filename := flag.String("filename", "protoBytes.bin", "filename")
-	valueStr := flag.String("values", "1", "values uints -> uint32, comma separated")
-
-	envelope := flag.Bool("envelope", true, "envelope")
-	kafka := flag.Bool("kafka", true, "kafka")
-
-	broker := flag.String("broker", brokerCst, "broker string")
-	topic := flag.String("topic", topicCst, "kafka topic")
-	clientID := flag.String("clientID", clientIDCst, "clientID")
-
-	loops := flag.Int("loops", loopsCst, "loops")
-	loopsSleep := flag.Duration("loopsSleep", loopSleepCst, "loops sleep duration")
-
-	dump := flag.Bool("dump", false, "dump proto for debug")
-	dumpFilename := flag.String("dumpFileName", "dump.bin", "dump file name")
-
-	d := flag.Int("d", debugLevelCst, "debug level")
-
-	v := flag.Bool("v", false, "show version")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
-	if *v {
-		log.Printf("commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+// runMain wires flag parsing + InitDestKafka + primaryFunction. Extracted
+// so tests can drive it with synthetic args + a cancellable ctx without
+// connecting to Kafka or exiting.
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("kafka_to_clickhouse", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	filename := fs.String("filename", "protoBytes.bin", "filename")
+	valueStr := fs.String("values", "1", "values uints -> uint32, comma separated")
+	envelope := fs.Bool("envelope", true, "envelope")
+	kafka := fs.Bool("kafka", true, "kafka")
+	broker := fs.String("broker", brokerCst, "broker string")
+	topic := fs.String("topic", topicCst, "kafka topic")
+	clientID := fs.String("clientID", clientIDCst, "clientID")
+	loops := fs.Int("loops", loopsCst, "loops")
+	loopsSleep := fs.Duration("loopsSleep", loopSleepCst, "loops sleep duration")
+	dump := fs.Bool("dump", false, "dump proto for debug")
+	dumpFilename := fs.String("dumpFileName", "dump.bin", "dump file name")
+	d := fs.Int("d", debugLevelCst, "debug level")
+	v := fs.Bool("v", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 
-	ctx := context.TODO()
+	if *v {
+		fmt.Fprintf(stdout, "commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
+	}
 
 	valueStrs := strings.Split(*valueStr, ",")
 	values := make([]uint, 0, len(valueStrs))
 	for _, str := range valueStrs {
-		v, err := strconv.ParseUint(str, 10, 32)
+		parsed, err := strconv.ParseUint(str, 10, 32)
 		if err != nil {
-			log.Fatalf("Invalid value: %v", err)
+			fmt.Fprintf(stderr, "Invalid value: %v\n", err)
+			return 1
 		}
-		values = append(values, uint(v))
-	}
-
-	for i, v := range values {
-		log.Printf("values: %d:%v", i, v)
+		values = append(values, uint(parsed))
 	}
 
 	c := config{
@@ -133,18 +131,22 @@ func main() {
 	}
 
 	kgoRecordPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(kgo.Record)
 		},
 	}
 
-	InitDestKafka(ctx, c)
-
+	if c.kafka {
+		if err := InitDestKafka(ctx, c); err != nil {
+			fmt.Fprintf(stderr, "InitDestKafka: %v\n", err)
+			return 1
+		}
+	}
 	primaryFunction(ctx, c)
+	return 0
 }
 
 func primaryFunction(ctx context.Context, c config) {
-
 	id, err := getLatestSchemaID(ctx, c.subject)
 	if err != nil {
 		log.Printf("getLatestSchemaID err:%v", err)
@@ -154,18 +156,19 @@ func primaryFunction(ctx context.Context, c config) {
 	}
 
 	for i := 0; i < c.loops; i++ {
-
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		binaryData := prepareBinary(ctx, c, id)
-
 		incrementSlice(c, &c.values, 1)
-
 		if c.debugLevel > 10 {
 			log.Printf("primaryFunction i:%d", i)
 		}
 		fileOrKafka(ctx, c, &binaryData)
 		time.Sleep(c.loopsSleep)
 	}
-
 }
 
 func incrementSlice(c config, values *[]uint, amount uint) {
@@ -229,24 +232,17 @@ func prepareBinary(_ context.Context, c config, id int) (binaryData []byte) {
 }
 
 func fileOrKafka(ctx context.Context, c config, binaryData *[]byte) {
-
 	if !c.kafka {
-		errW := writeDataToFile(ctx, c.filename, *binaryData)
-		if errW != nil {
-			log.Println("Error:", errW)
+		if err := writeDataToFile(ctx, c.filename, *binaryData); err != nil {
+			log.Println("Error:", err)
 		}
-		os.Exit(0)
+		return
 	}
-
-	// if c.db {
-	// 	log.Fatal("db not implemented, cos it's hard to insert protobuf with the clickhouse library")
-	// }
 
 	n, errK := destKafka(ctx, c, binaryData)
 	if errK != nil {
 		log.Println("errk:", errK)
 	}
-
 	if c.debugLevel > 10 {
 		log.Printf("destKafka n:%d", n)
 	}
@@ -345,10 +341,10 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 }
 
 // InitDestKafka creates the franz-go kafka client
-func InitDestKafka(ctx context.Context, c config) {
+func InitDestKafka(ctx context.Context, c config) error {
 
 	if !c.kafka {
-		return
+		return nil
 	}
 
 	// https://github.com/twmb/franz-go/tree/master/plugin/kprom
@@ -415,17 +411,10 @@ func InitDestKafka(ctx context.Context, c config) {
 	var err error
 	kClient, err = kgo.NewClient(opts...)
 	if err != nil {
-		log.Fatalf("unable to create client:%v", err)
+		return fmt.Errorf("kgo.NewClient: %w", err)
 	}
-
-	// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#Client.AllowRebalance
 	kClient.AllowRebalance()
-
-	// errP := x.pingKafkaWithRetries(ctx, kafkaPingRetriesCst, kafkaPingRetrySleepCst)
-	// if errP != nil {
-	// 	log.Fatalf("InitDestKafka pingKafkaWithRetries errP:%v", errP)
-	// }
-
+	return nil
 }
 
 func getLatestSchemaID(ctx context.Context, subject string) (int, error) {
