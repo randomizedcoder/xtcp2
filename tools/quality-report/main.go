@@ -187,14 +187,25 @@ func countBelowThreshold(cov Coverage) int {
 }
 
 func main() {
-	rawDir := flag.String("raw-dir", "", "directory with per-tool raw outputs")
-	repoRoot := flag.String("repo-root", ".", "repo root (used to relativise paths)")
-	knownFile := flag.String("known-failures", "", "file listing pre-existing test failures (Package/Test per line)")
-	flag.Parse()
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// runMain wires flag parsing + report assembly + emit. Extracted from main
+// so tests can drive it with synthetic args + capture buffers (instead of
+// subprocessing). Returns the process exit code.
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fset := flag.NewFlagSet("quality-report", flag.ContinueOnError)
+	fset.SetOutput(stderr)
+	rawDir := fset.String("raw-dir", "", "directory with per-tool raw outputs")
+	repoRoot := fset.String("repo-root", ".", "repo root (used to relativise paths)")
+	knownFile := fset.String("known-failures", "", "file listing pre-existing test failures (Package/Test per line)")
+	if err := fset.Parse(args); err != nil {
+		return 2
+	}
 
 	if *rawDir == "" {
-		fmt.Fprintln(os.Stderr, "quality-report: -raw-dir is required")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "quality-report: -raw-dir is required")
+		return 2
 	}
 
 	known := loadKnownFailures(*knownFile)
@@ -427,10 +438,11 @@ func main() {
 	// Configuration audit — parse the .golangci*.yml exclusion sections.
 	in.Exclusions = parseExclusions(*repoRoot)
 
-	if err := emit(os.Stdout, in); err != nil {
-		fmt.Fprintf(os.Stderr, "quality-report: emit: %v\n", err)
-		os.Exit(2)
+	if err := emit(stdout, in); err != nil {
+		fmt.Fprintf(stderr, "quality-report: emit: %v\n", err)
+		return 2
 	}
+	return 0
 }
 
 // ─── parsers ───────────────────────────────────────────────────────────────
