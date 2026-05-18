@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T05:13:28Z
+Generated: 2026-05-18T05:16:53Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -32,18 +32,18 @@ between commits reveals exactly what changed.
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 212 | 5s |
-| golangci-lint (standard) | findings | 100 | 4s |
+| golangci-lint (standard) | findings | 100 | 5s |
 | golangci-lint (quick) | findings | 88 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | findings | 7 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
-| metrics-audit | clean | 0 | 1s |
+| metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 9s |
-| go test -cover | findings | 6 | 1s |
+| go test | clean | 0 | 10s |
+| go test -cover | findings | 6 | 0s |
 
 
 ---
@@ -83,7 +83,7 @@ between commits reveals exactly what changed.
 ### golangci-lint / goconst — 74
 
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist_test.go:78`: string `-filename` has 4 occurrences, make it a constant
-- `cmd/kafka_to_clickhouse/kafka_to_clickhouse_test.go:214`: string `test-topic` has 3 occurrences, make it a constant
+- `cmd/kafka_to_clickhouse/kafka_to_clickhouse_test.go:212`: string `test-topic` has 4 occurrences, make it a constant
 - `cmd/ns/ns.go:175`: string `cpu` has 5 occurrences, make it a constant
 
 ### golangci-lint / errcheck — 55
@@ -118,7 +118,7 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 6
 
-- `cmd/xtcp2client`: package coverage 74.3% < 90%
+- `tools/kafka_topic_reader`: package coverage 85.7% < 90%
 - `cmd/clickhouse_protobuflist`: package coverage 86.4% < 90%
 - `pkg/xtcp`: package coverage 65.3% < 90%
 
@@ -171,7 +171,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 648 |
+| Pass | 649 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 9 |
@@ -229,14 +229,14 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 82.2% of statements (target: 90% per package).
+**Overall:** 82.3% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
 | `cmd/clickhouse_http_insert_protobuflist` | 93.4% | 🟢 OK |
 | `cmd/clickhouse_protobuflist` | 86.4% | 🔴 below 90% |
 | `cmd/clickhouse_protobuflist_db` | 93.3% | 🟢 OK |
-| `cmd/kafka_to_clickhouse` | 86.7% | 🔴 below 90% |
+| `cmd/kafka_to_clickhouse` | 89.5% | 🔴 below 90% |
 | `cmd/ns` | 93.9% | 🟢 OK |
 | `cmd/nsTest` | 94.1% | 🟢 OK |
 | `cmd/register_schema` | 92.9% | 🟢 OK |
