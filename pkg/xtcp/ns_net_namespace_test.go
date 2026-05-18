@@ -99,3 +99,35 @@ func TestSetSocketTimeoutViaSyscall_seconds(t *testing.T) {
 }
 
 // netNamespaceInstance: requires CAP_SYS_ADMIN + netlink. Microvm-only.
+
+// checkMountInfo: opens /proc/self/mountinfo and grep's for nsName.
+func TestCheckMountInfo_notFound(t *testing.T) {
+	x := newCloseFixture(t)
+	nsName := "ridiculously-unlikely-namespace-suffix-xq42"
+	found, err := x.checkMountInfo(&nsName)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if found {
+		t.Errorf("found = true for synthetic nsName; want false")
+	}
+}
+
+func TestCheckMountInfo_found(t *testing.T) {
+	x := newCloseFixture(t)
+	nsName := "/" // every Linux mountinfo contains /
+	found, err := x.checkMountInfo(&nsName)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !found {
+		t.Error("expected mountinfo to contain /")
+	}
+}
+
+func TestCheckMountInfo_debugLog(t *testing.T) {
+	x := newCloseFixture(t)
+	x.debugLevel = 11 // hit log.Printf branch
+	nsName := "/"
+	_, _ = x.checkMountInfo(&nsName) //nolint:errcheck // test plumbing
+}
