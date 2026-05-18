@@ -299,7 +299,14 @@ breakPoint:
 			log.Printf("restarting client i:%d, after sleeping:%0.3f", i, sleepTime.Seconds())
 		}
 
-		time.Sleep(sleepTime)
+		// time.Sleep ignores ctx — Ctrl-C should shut the client down
+		// promptly even mid-reconnect-backoff, not after a full
+		// reconnectTime + jitter wait.
+		select {
+		case <-ctx.Done():
+			break breakPoint
+		case <-time.After(sleepTime):
+		}
 
 	}
 }
@@ -375,22 +382,35 @@ breakPoint:
 			}
 
 			// https://github.com/grpc/grpc-go/blob/master/examples/features/error_handling/client/main.go
-
-			if status.Code(err) != codes.ResourceExhausted {
-
+			// ResourceExhausted is the retryable case from the gRPC
+			// example; back off and try again. (The prior code had the
+			// condition inverted — backoff fired for every OTHER err
+			// and ResourceExhausted fell through to print a nil
+			// flatRecordsResponse.) Use ctx-aware wait so shutdown is
+			// prompt.
+			if status.Code(err) == codes.ResourceExhausted {
 				sleepTime := ResourceExhaustedSleepTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
 				if debugLevel > 10 {
 					log.Printf("Received ResourceExhausted error: %v, so sleeping:%0.3f before retry", err, sleepTime.Seconds())
 				}
-				time.Sleep(sleepTime)
+				select {
+				case <-ctx.Done():
+					break breakPoint
+				case <-time.After(sleepTime):
+				}
 				continue
 			}
 
-			printFlatRecordsResponse(flatRecordsResponse, id, json, debugLevel)
-
+			// Non-retryable error: nothing useful to print (the
+			// flatRecordsResponse is nil after Recv returned an error).
 			continue
 		}
 
+		// Recv succeeded — print the record. Previously the function
+		// dead-ended here without ever consuming the response (the
+		// orphaned printFlatRecordsResponse call lived inside the
+		// inverted error branch).
+		printFlatRecordsResponse(flatRecordsResponse, id, json, debugLevel)
 	}
 
 	if debugLevel > 10 {
