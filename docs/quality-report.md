@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T05:22:01Z
+Generated: 2026-05-18T05:25:25Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 228 |
+| Total findings | 231 |
 | Findings (Tier 0) | 81 |
-| Findings (Tier 1) | 19 |
+| Findings (Tier 1) | 20 |
 | Findings (Tier 2) | 113 |
-| Findings (non-tiered) | 15 |
-| Files with at least one finding | 68 |
+| Findings (non-tiered) | 17 |
+| Files with at least one finding | 70 |
 | Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 213 | 4s |
-| golangci-lint (standard) | findings | 101 | 5s |
+| golangci-lint (comprehensive) | findings | 214 | 5s |
+| golangci-lint (standard) | findings | 102 | 5s |
 | golangci-lint (quick) | findings | 89 | 14s |
 | gosec | findings | 2 | 1s |
-| go vet | clean | 0 | 3s |
+| go vet | clean | 0 | 2s |
 | gofmt | findings | 8 | 0s |
-| nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
+| nixfmt | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 10s |
-| go test -cover | findings | 5 | 0s |
+| go test | clean | 0 | 11s |
+| go test -cover | findings | 7 | 0s |
 
 
 ---
@@ -53,7 +53,7 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 81 | 15 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 19 | 0 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 20 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 113 | 33 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
@@ -104,17 +104,23 @@ between commits reveals exactly what changed.
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:103`: shadow: declaration of "err" shadows declaration at line 84
 - `cmd/register_schema/register_schema.go:109`: shadow: declaration of "err" shadows declaration at line 100
 
+### golangci-lint / noctx — 9
+
+- `cmd/xtcp2client/xtcp2client_test.go:158`: net.Listen must not be called. use (*net.ListenConfig).Listen
+- `cmd/xtcp2client/xtcp2client_test.go:175`: net.Listen must not be called. use (*net.ListenConfig).Listen
+- `tools/tcp_client/tcp_client_test.go:32`: net.Listen must not be called. use (*net.ListenConfig).Listen
+
 ### gofmt / format — 8
 
 - `cmd/xtcp2_kafka_client/xtcp2_kafka_client.go`: file not formatted
 - `cmd/xtcp2client/xtcp2client.go`: file not formatted
 - `pkg/xtcpnl/xtcp_writer_test.go`: file not formatted
 
-### golangci-lint / noctx — 8
+### go-test-cover / below-90pct — 7
 
-- `cmd/xtcp2client/xtcp2client_test.go:127`: net.Listen must not be called. use (*net.ListenConfig).Listen
-- `tools/tcp_client/tcp_client_test.go:32`: net.Listen must not be called. use (*net.ListenConfig).Listen
-- `tools/tcp_client/tcp_client_test.go:53`: net.Listen must not be called. use (*net.ListenConfig).Listen
+- `cmd/xtcp2client`: package coverage 85.1% < 90%
+- `cmd/clickhouse_protobuflist`: package coverage 86.4% < 90%
+- `pkg/io_uring`: package coverage 89.3% < 90%
 
 ### golangci-lint / gofmt — 7
 
@@ -133,12 +139,6 @@ between commits reveals exactly what changed.
 - `tools/metrics-audit/main_test.go:71`: G301: Expect directory permissions to be 0750 or less
 - `tools/proto-field-audit/main_test.go:154`: G301: Expect directory permissions to be 0750 or less
 - `tools/proto-field-audit/main_test.go:174`: G301: Expect directory permissions to be 0750 or less
-
-### go-test-cover / below-90pct — 5
-
-- `cmd/clickhouse_protobuflist`: package coverage 86.4% < 90%
-- `pkg/xtcp`: package coverage 65.3% < 90%
-- `cmd/xtcp2_kafka_client`: package coverage 79.1% < 90%
 
 ### golangci-lint / contextcheck — 3
 
@@ -171,10 +171,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 652 |
+| Pass | 655 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 9 |
+| Skip | 8 |
 
 
 
@@ -230,7 +230,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 82.3% of statements (target: 90% per package).
+**Overall:** 82.6% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -243,18 +243,18 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/register_schema` | 92.9% | 🟢 OK |
 | `cmd/xtcp2` | 92.4% | 🟢 OK |
 | `cmd/xtcp2_kafka_client` | 79.1% | 🔴 below 90% |
-| `cmd/xtcp2client` | 74.3% | 🔴 below 90% |
-| `pkg/io_uring` | 90.1% | 🟢 OK |
+| `cmd/xtcp2client` | 85.1% | 🔴 below 90% |
+| `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 93.8% | 🟢 OK |
 | `pkg/xtcp` | 65.3% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.3% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
-| `tools/kafka_topic_reader` | 83.9% | 🔴 below 90% |
+| `tools/kafka_topic_reader` | 85.7% | 🔴 below 90% |
 | `tools/metrics-audit` | 95.3% | 🟢 OK |
 | `tools/netlink-audit` | 96.7% | 🟢 OK |
 | `tools/proto-field-audit` | 96.6% | 🟢 OK |
 | `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 91.4% | 🟢 OK |
+| `tools/tcp_client` | 88.6% | 🔴 below 90% |
 | `tools/tcp_server` | 91.4% | 🟢 OK |
 | `tools/udp_receiver_server` | 92.9% | 🟢 OK |
 
