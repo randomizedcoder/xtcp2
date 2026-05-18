@@ -205,6 +205,32 @@ func TestPollMode_completeChannel(t *testing.T) {
 	}
 }
 
+// singleStreamingClient: pre-cancelled ctx → outer for-loop's first
+// ctx.Done() select fires before any stream() call. Exercises the
+// early-exit path that's distinct from stream()'s own cancel paths.
+func TestSingleStreamingClient_preCancelled(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	conn := newGRPCClient(addr)
+	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		singleStreamingClient(ctx, wg, conn, false, 0)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("singleStreamingClient did not exit on pre-cancelled ctx")
+	}
+}
+
 func TestStream_dialAndCancel(t *testing.T) {
 	addr, cleanup := startTestGRPC(t)
 	defer cleanup()
