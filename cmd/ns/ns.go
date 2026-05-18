@@ -172,7 +172,7 @@ func registerPprof(promListen string) {
 // exercise the switch's branches without holding a deferred profiler.
 func startProfile(mode string, d uint) func() {
 	switch mode {
-	case "cpu":
+	case "cpu": //nolint:goconst // pprof mode names are exact CLI inputs; consts add no value here
 		return profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop
 	case "mem":
 		return profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop
