@@ -36,7 +36,10 @@ let
   cfg = constants.architectures.${arch};
 
   isVector = sink == "vector";
+  isCoverage = sink == "coverage";
   effectiveMem = if isVector then cfg.memVector else cfg.mem;
+
+  coverDir = "/var/lib/xtcp2cov";
 
   selfTest =
     if isVector then
@@ -47,9 +50,11 @@ let
       }
     else
       import ./self-test.nix {
-        inherit pkgs;
+        inherit pkgs lib;
         promPort = cfg.promPort;
         grpcPort = cfg.grpcPort;
+        coverageEnabled = isCoverage;
+        inherit coverDir;
       };
 
   vmConfig = ./xtcp2-vm-config.json;
@@ -192,9 +197,20 @@ in
         # "neither network namespace directory exists.  ??!"
         # (pkg/xtcp/init.go:130). Pre-create the linux one so xtcp2 starts
         # cleanly in a fresh microvm where no namespaces have been added.
+        # When sink=coverage, also create the coverage output directory
+        # the xtcp2-cover binary writes counter+meta files into.
         systemd.tmpfiles.rules = [
           "d /run/netns 0755 root root -"
-        ];
+        ]
+        ++ lib.optional isCoverage "d ${coverDir} 0755 root root -";
+
+        # GOCOVERDIR for the coverage-instrumented xtcp2 build. The runtime
+        # writes covcounters.* + covmeta files into this directory on clean
+        # exit (SIGTERM via systemctl stop). The self-test scrapes those
+        # files between XTCP2_COVERAGE_DUMP_{START,END} markers.
+        systemd.services.xtcp2 = lib.mkIf isCoverage {
+          environment.GOCOVERDIR = coverDir;
+        };
 
         services.getty.autologinUser = "root";
         systemd.enableEmergencyMode = false;

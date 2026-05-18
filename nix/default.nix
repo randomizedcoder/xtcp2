@@ -66,6 +66,7 @@ let
       ;
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
+    xtcp2CoverPackage = binaries.xtcp2-cover;
     protoDescPackage = xtcpFlatRecordDescPackage;
   };
 
@@ -206,6 +207,7 @@ in
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-vector = microvms.vmsVector.x86_64;
+      microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -218,6 +220,7 @@ in
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
 
       # Pedantic code-quality report — aggregates every tool's findings.
       quality-report = qualityReport;
@@ -245,6 +248,10 @@ in
     microvm-x86_64-lifecycle-vector = {
       type = "app";
       program = "${microvms.lifecycleVector.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-vector";
+    };
+    microvm-x86_64-lifecycle-coverage = {
+      type = "app";
+      program = "${microvms.lifecycleCoverage.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-coverage";
     };
     quality-report = {
       type = "app";

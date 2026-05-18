@@ -29,6 +29,12 @@ rec {
       suffix ? "",
       sentinelRe ? "SYSTEMD|METRICS|NETLINK|OVERALL",
       timeoutSec ? 180,
+      # When true, after a passing OVERALL sentinel the runner also looks
+      # for an XTCP2_COVERAGE_DUMP_START / _END block in the log, decodes
+      # it (base64 + gzip + tar), writes the resulting Go coverage data
+      # into "$XTCP2_COVERDIR" (env var, defaults to /tmp/xtcp2cov), and
+      # logs the file count it extracted. Used by the coverage flavor.
+      scrapeCoverage ? false,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -41,6 +47,8 @@ rec {
         netcat-gnu
         gawk
         procps
+        gnutar
+        gzip
       ];
       text = ''
         set -u
@@ -130,6 +138,31 @@ rec {
           1) echo "FAIL: one or more checks failed (see lines above)" ;;
           *) echo "TIMEOUT: no overall sentinel after ''${TIMEOUT}s — last 40 log lines:"; tail -n 40 "$LOG" ;;
         esac
+        ${if scrapeCoverage then ''
+        # Coverage scrape: extract the base64+gzip+tar blob between markers
+        # and unpack into $XTCP2_COVERDIR. Wait briefly for the dump to
+        # complete before scraping (the VM may still be flushing).
+        COVERDIR="''${XTCP2_COVERDIR:-/tmp/xtcp2cov}"
+        mkdir -p "$COVERDIR"
+        for _ in $(seq 1 30); do
+          if grep -q 'XTCP2_COVERAGE_DUMP_END' "$LOG"; then
+            break
+          fi
+          sleep 1
+        done
+        if grep -q 'XTCP2_COVERAGE_DUMP_START' "$LOG" \
+          && grep -q 'XTCP2_COVERAGE_DUMP_END' "$LOG"; then
+          awk '/XTCP2_COVERAGE_DUMP_START/{flag=1;next} /XTCP2_COVERAGE_DUMP_END/{flag=0} flag' "$LOG" \
+            | tr -d '\r\n ' \
+            | base64 -d 2>/dev/null \
+            | gzip -dc 2>/dev/null \
+            | tar x -C "$COVERDIR" 2>/dev/null || true
+          n=$(find "$COVERDIR" -type f | wc -l)
+          echo "coverage: extracted $n file(s) into $COVERDIR"
+        else
+          echo "coverage: no XTCP2_COVERAGE_DUMP block found in transcript"
+        fi
+        '' else ""}
         exit "$rc"
       '';
     };
