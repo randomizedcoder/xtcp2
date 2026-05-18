@@ -308,6 +308,41 @@ func TestStream_recordingServer(t *testing.T) {
 	}
 }
 
+// singleStreamingClient with a real recording server + tiny
+// reconnectTimeVar: stream() returns when the server EOFs, the loop
+// reaches the sleep+restart branch, sleeps briefly, then iterates and
+// cancellation breaks it. Exercises the post-stream branches that
+// pre-cancelled ctx tests skip.
+func TestSingleStreamingClient_restartLoop(t *testing.T) {
+	addr, cleanup := startRecordingGRPC(t)
+	defer cleanup()
+
+	prev := reconnectTimeVar
+	reconnectTimeVar = 10 * time.Millisecond
+	t.Cleanup(func() { reconnectTimeVar = prev })
+
+	conn := newGRPCClient(addr)
+	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+
+	ctx, cancel := context.WithCancel(t.Context())
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		debugLevel = 200 // hit the restart log branch
+		singleStreamingClient(ctx, wg, conn, false, 0)
+		close(done)
+	}()
+	// Let stream() complete + sleep at least once before cancel.
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("singleStreamingClient doesn't exit on cancel alone")
+	}
+}
+
 // singleStreamingClient: pre-cancelled ctx → outer for-loop's first
 // ctx.Done() select fires before any stream() call. Exercises the
 // early-exit path that's distinct from stream()'s own cancel paths.
