@@ -67,25 +67,24 @@ func (d *unixDest) Send(ctx context.Context, b *[]byte) (int, error) {
 		return 1, nil
 	}
 
+	// Write the varint length prefix + payload as a single writev so a
+	// partial-write (kernel buffer full mid-record, or conn breaking
+	// between the two Writes) can't leave the receiver mis-framed.
+	// net.Buffers.WriteTo passes both slices straight to writev(2)
+	// without copying.
 	var hdr [binary.MaxVarintLen64]byte
 	hdrLen := binary.PutUvarint(hdr[:], uint64(len(*b)))
-	if _, err := d.conn.Write(hdr[:hdrLen]); err != nil {
-		d.x.pC.WithLabelValues("destUnix", "Write", "error").Inc()
-		if d.x.debugLevel > 100 {
-			log.Printf("destUnix header Write err:%v", err)
-		}
-		return 0, err
-	}
-	written, err := d.conn.Write(*b)
+	bufs := net.Buffers{hdr[:hdrLen], *b}
+	written, err := bufs.WriteTo(d.conn)
 	if err != nil {
 		d.x.pC.WithLabelValues("destUnix", "Write", "error").Inc()
 		if d.x.debugLevel > 100 {
-			log.Printf("destUnix payload Write err:%v", err)
+			log.Printf("destUnix Writev err:%v", err)
 		}
 		return 0, err
 	}
 	d.x.pC.WithLabelValues("destUnix", "Writes", "count").Inc()
-	d.x.pC.WithLabelValues("destUnix", "WriteBytes", "count").Add(float64(hdrLen + written))
+	d.x.pC.WithLabelValues("destUnix", "WriteBytes", "count").Add(float64(written))
 	return 1, nil
 }
 
