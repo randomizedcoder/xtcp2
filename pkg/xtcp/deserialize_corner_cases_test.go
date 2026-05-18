@@ -448,6 +448,40 @@ func TestDeserializeAdversarialNlh(t *testing.T) {
 	}
 }
 
+// FuzzDeserialize feeds arbitrary byte sequences through the full
+// xtcp2 netlink parser. The contract under test: no matter what the
+// kernel (or an attacker via a crafted netlink reply) puts on the wire,
+// Deserialize returns in bounded time without panicking. Result errors
+// are allowed and counted via the parser's metrics.
+//
+// Seed corpus: the smallest shapes the bounds tests rely on, plus an
+// empty input and a 1-byte input. The fuzzer mutates from there.
+//
+// Run locally:
+//   go test -fuzz=FuzzDeserialize -fuzztime=30s ./pkg/xtcp/...
+func FuzzDeserialize(f *testing.F) {
+	f.Add([]byte{})
+	f.Add([]byte{0x00})
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 16, 16))
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+		uint32(xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst),
+		xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst))
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeDoneCst, 16, 16))
+	f.Add(mkNlMsg(0x42, 0, 16))            // unknown type, len=0
+	f.Add(mkNlMsg(0x42, ^uint32(0), 32))   // unknown, max len in small buffer
+	f.Add(loadRealMultipart(f))            // real netlink dump
+
+	f.Fuzz(func(t *testing.T, buf []byte) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Deserialize panicked on %d-byte input: %v\nhex=%x", len(buf), r, buf)
+			}
+		}()
+		x := newTestDeserializeXTCP(t)
+		_, _, _ = runDeserialize(t, x, buf)
+	})
+}
+
 // TestDeserializeInetDiagAdversarialAttrs builds full inet-diag messages
 // (header + body) whose attribute bodies (the RTAttr/NLA sequence after
 // InetDiagMsgSizeCst) contain adversarial sizes — bogus rta.Len smaller
