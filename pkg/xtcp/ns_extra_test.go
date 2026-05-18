@@ -8,6 +8,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/sys/unix"
+
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
 // ───────────────────────────────────────────────────────────────────────
@@ -49,4 +52,63 @@ func TestCreateNetlinkers_zero(t *testing.T) {
 	name := "test-ns"
 	x.createNetlinkers(context.Background(), wg, &name, -1, 0)
 	wg.Wait() // should complete instantly since netlinkers=0
+}
+
+// createNetlinkersAndStore: setSocketTimeoutViaSyscall on a socketpair fd
+// + store the netNSitem with netlinkers=0 (no goroutines spawn). Verifies
+// the store path + counter increments fire end-to-end.
+func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		t.Skipf("socketpair: %v", err)
+	}
+	defer func() {
+		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+	}()
+
+	x := newNsExtraFixture(t)
+	x.config = &xtcp_config.XtcpConfig{
+		NlTimeoutMilliseconds: 100,
+		Netlinkers:            0,
+	}
+	// Netlinker function pointer is required by createNetlinkers; even
+	// with netlinkers=0 the field must be set (the loop body never runs
+	// so any signature works).
+	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
+	x.debugLevel = 11 // hit the log branch
+	nsName := "test-ns"
+	x.createNetlinkersAndStore(context.Background(), &nsName, fds[0])
+
+	if _, ok := x.nsMap.Load(nsName); !ok {
+		t.Error("nsMap should contain the new ns entry")
+	}
+	if _, ok := x.fdToNsMap.Load(fds[0]); !ok {
+		t.Error("fdToNsMap should contain the new fd entry")
+	}
+	if x.storeCount.Load() != 1 || x.generation.Load() != 1 {
+		t.Errorf("counters: storeCount=%d generation=%d, want 1/1", x.storeCount.Load(), x.generation.Load())
+	}
+}
+
+func newNsExtraFixture(t *testing.T) *XTCP {
+	t.Helper()
+	reg := prometheus.NewRegistry()
+	x := &XTCP{
+		nsMap:     &sync.Map{},
+		fdToNsMap: &sync.Map{},
+	}
+	x.pC = promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{Subsystem: "xtcp_nsstore_test",
+			Name: promNameCounts, Help: "test counts"},
+		promLabels,
+	)
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{Subsystem: "xtcp_nsstore_test",
+			Name: promNameHistograms, Help: "test",
+			Objectives: map[float64]float64{0.5: quantileError},
+			MaxAge:     summaryVecMaxAge},
+		promLabels,
+	)
+	return x
 }
