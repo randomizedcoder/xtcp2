@@ -85,7 +85,7 @@ func TestRunMain_invalidFlag(t *testing.T) {
 
 func TestRunMain_listenModeCancellable(t *testing.T) {
 	// listenMode dials gRPC against the default target then spawns workers
-	// that loop until ctx is cancelled. workers=0 makes wg.Wait return
+	// that loop until ctx is canceled. workers=0 makes wg.Wait return
 	// immediately without any active streams.
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // listenMode's loop will still fan out workers; with workers=0 wg.Wait is a no-op.
@@ -312,7 +312,7 @@ func TestStream_recordingServer(t *testing.T) {
 // reconnectTimeVar: stream() returns when the server EOFs, the loop
 // reaches the sleep+restart branch, sleeps briefly, then iterates and
 // cancellation breaks it. Exercises the post-stream branches that
-// pre-cancelled ctx tests skip.
+// pre-canceled ctx tests skip.
 func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	addr, cleanup := startRecordingGRPC(t)
 	defer cleanup()
@@ -343,7 +343,7 @@ func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	}
 }
 
-// singleStreamingClient: pre-cancelled ctx → outer for-loop's first
+// singleStreamingClient: pre-canceled ctx → outer for-loop's first
 // ctx.Done() select fires before any stream() call. Exercises the
 // early-exit path that's distinct from stream()'s own cancel paths.
 func TestSingleStreamingClient_preCancelled(t *testing.T) {
@@ -365,7 +365,7 @@ func TestSingleStreamingClient_preCancelled(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("singleStreamingClient did not exit on pre-cancelled ctx")
+		t.Fatal("singleStreamingClient did not exit on pre-canceled ctx")
 	}
 }
 

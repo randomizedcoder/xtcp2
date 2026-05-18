@@ -64,7 +64,7 @@ func TestConfigService_Get(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Set — always returns Unimplemented (current behaviour)
+// Set — always returns Unimplemented (current behavior)
 // ───────────────────────────────────────────────────────────────────────
 
 func TestConfigService_Set(t *testing.T) {
@@ -171,6 +171,6 @@ func TestConfigService_SetPollFrequency_happy(t *testing.T) {
 			t.Errorf("channel got %v, want 7s", d)
 		}
 	default:
-		t.Error("SetPollFrequency should have signalled on changePollFrequencyCh")
+		t.Error("SetPollFrequency should have signaled on changePollFrequencyCh")
 	}
 }

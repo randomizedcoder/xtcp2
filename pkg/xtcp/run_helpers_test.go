@@ -38,7 +38,7 @@ func newRunFixture(t *testing.T) *XTCP {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// checkDoneNonBlocking — branch on whether ctx is cancelled
+// checkDoneNonBlocking — branch on whether ctx is canceled
 // ───────────────────────────────────────────────────────────────────────
 
 func TestCheckDoneNonBlocking_open(t *testing.T) {
@@ -49,12 +49,12 @@ func TestCheckDoneNonBlocking_open(t *testing.T) {
 	}
 }
 
-func TestCheckDoneNonBlocking_cancelled(t *testing.T) {
+func TestCheckDoneNonBlocking_canceled(t *testing.T) {
 	x := &XTCP{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if !x.checkDoneNonBlocking(ctx) {
-		t.Error("cancelled ctx should report done")
+		t.Error("canceled ctx should report done")
 	}
 }
 

@@ -70,7 +70,7 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 // I/O errors.
 var ErrDecode = errors.New("proto decode")
 
-// runReceiver loops Read+proto.Unmarshal on conn until ctx is cancelled or
+// runReceiver loops Read+proto.Unmarshal on conn until ctx is canceled or
 // the conn is closed. Each successfully-decoded record is printed; decode
 // errors are returned (matching the original panic-on-decode behavior more
 // gracefully). Extracted from main() so tests can drive it with a pair of

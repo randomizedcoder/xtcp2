@@ -240,7 +240,7 @@ func TestRunReceiver_readError(t *testing.T) {
 		_ = srv.Close() //nolint:errcheck // test plumbing
 	}()
 	err := runReceiver(t.Context(), srv)
-	// Either ctx wasn't cancelled (=> err non-nil) or the cancel-race made
+	// Either ctx wasn't canceled (=> err non-nil) or the cancel-race made
 	// it nil; both branches are valid. Just exercise the path.
 	_ = err
 }

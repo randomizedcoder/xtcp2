@@ -17,7 +17,7 @@ func writeGo(t *testing.T, dir, name, src string) {
 }
 
 func TestIsByteSliceExpr(t *testing.T) {
-	// Behavioural: a function body that indexes `b` should be flagged
+	// Behavioral: a function body that indexes `b` should be flagged
 	// when no len() guard exists. Tests below cover both branches.
 }
 

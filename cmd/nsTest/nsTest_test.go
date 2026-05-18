@@ -47,7 +47,7 @@ func TestRunMain_invalidFlag(t *testing.T) {
 }
 
 func TestRunMain_cancelDuringInitial(t *testing.T) {
-	// Pre-cancelled ctx + initial=5: the initial-fill loop checks
+	// Pre-canceled ctx + initial=5: the initial-fill loop checks
 	// ctx.Err() at the top of each iter and exits without calling
 	// createNamespace 5 times — verifying the cancel hook fires.
 	ctx, cancel := context.WithCancel(t.Context())
