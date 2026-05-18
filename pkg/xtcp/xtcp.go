@@ -130,6 +130,14 @@ type netlinkerDone struct {
 	t  time.Time
 }
 
+// constructorRegistry is the prometheus.Registerer the NewXTCP /
+// NewNsTestingXTCP constructors install on the returned XTCP before
+// calling Init. Defaults to prometheus.DefaultRegisterer (production
+// behavior). Tests swap this in for a fresh prometheus.NewRegistry()
+// so the constructors are re-runnable in one process without panicking
+// from duplicate metrics collector registration.
+var constructorRegistry prometheus.Registerer = prometheus.DefaultRegisterer
+
 func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config.XtcpConfig) *XTCP {
 
 	x := new(XTCP)
@@ -140,7 +148,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 	x.config = config
 	x.debugLevel = x.config.DebugLevel
 	x.fatalf = log.Fatalf
-	x.registry = prometheus.DefaultRegisterer
+	x.registry = constructorRegistry
 
 	x.Init(ctx)
 
@@ -154,12 +162,12 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 	x.ctx = ctx
 	x.cancel = cancel
 	x.fatalf = log.Fatalf
-	x.registry = prometheus.DefaultRegisterer
+	x.registry = constructorRegistry
 
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
 		Dest:                  schemeNull,
-		MarshalTo:             "proto",
+		MarshalTo:             MarshallerProtobufSingle, // was "proto" which is not in validMarshallersMap — latent bug
 		Topic:                 "not-a-topic",
 		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
 			Enabled: make(map[string]bool),
