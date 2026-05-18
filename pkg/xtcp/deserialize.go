@@ -124,6 +124,12 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 // into xtcpRecord, fans the populated record out to the gRPC stream
 // service, and ships it through the configured destination. Returns
 // the new offset after consuming the message body.
+//
+// All slice operations on d.NLPacket are bounded against len(*d.NLPacket)
+// and against nlh.Len. A malformed (or adversarial) netlink message that
+// claims a larger body than the buffer holds — or claims a body smaller
+// than InetDiagMsgSizeCst — must produce a clean error return rather
+// than a slice-bounds-out-of-range panic that would crash the daemon.
 func (x *XTCP) processInetDiagRecord(
 	ctx context.Context,
 	d DeserializeArgs,
@@ -132,13 +138,31 @@ func (x *XTCP) processInetDiagRecord(
 	offset int,
 	n uint64,
 ) int {
+	bufEnd := len(*d.NLPacket)
 	length := xtcpnl.InetDiagMsgSizeCst
+	if offset+length > bufEnd {
+		// Truncated inet-diag header — skip the rest of the buffer
+		// instead of panicking on the slice expression below.
+		d.pC.WithLabelValues("Deserialize", "truncatedInetDiagMsg", "error").Inc()
+		return bufEnd
+	}
 	if ierr := xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord); ierr != nil {
 		d.pC.WithLabelValues("Deserialize", "DeserializeInetDiagMsgXTCP", "error").Inc()
 	}
 	offset += length
 
-	length = int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
+	// nlh.Len <= NlMsgHdrSizeCst+InetDiagMsgSizeCst → no attributes.
+	// nlh.Len lying about a larger length than the buffer holds →
+	// clamp to the buffer end so DeserializeAttributes can't read OOB.
+	attrLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
+	if attrLen < 0 {
+		d.pC.WithLabelValues("Deserialize", "inetDiagNlhLenTooSmall", "error").Inc()
+		attrLen = 0
+	}
+	if offset+attrLen > bufEnd {
+		d.pC.WithLabelValues("Deserialize", "inetDiagNlhLenOverflow", "error").Inc()
+		attrLen = bufEnd - offset
+	}
 	x.DeserializeAttributes(DeserializeAttributesArgs{
 		NLPacket:   d.NLPacket,
 		xtcpRecord: xtcpRecord,
@@ -147,9 +171,9 @@ func (x *XTCP) processInetDiagRecord(
 		pH:         d.pH,
 		id:         d.id,
 		offset:     offset,
-		end:        offset + length,
+		end:        offset + attrLen,
 	})
-	offset += length
+	offset += attrLen
 
 	if x.debugLevel > 1000 {
 		log.Printf("Deserialize n:%d x.dest.Send(ctx, x.Marshaler(xtcpRecord))", n)
