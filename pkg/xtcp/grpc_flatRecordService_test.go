@@ -220,6 +220,60 @@ func TestPollFlatRecords_bufconnDebugLog(t *testing.T) {
 	time.Sleep(80 * time.Millisecond)
 }
 
+// flatRecordServiceSend pfrClients>0 path: open a PollFlatRecords
+// bufconn stream so PollFlatRecordsClients has a registered entry,
+// then fire flatRecordServiceSend. Exercises the previously-untested
+// pfr send loop (which had a type-assertion bug that would have
+// panicked — fixed in the same commit).
+func TestFlatRecordServiceSend_pfrStream(t *testing.T) {
+	srvSvc := newFlatRecordServiceFixture(t)
+	srvSvc.debugLevel = 2000 // hit the pfrSend debug branch too
+	conn, cleanup := setupBufconnServer(t, srvSvc)
+	defer cleanup()
+
+	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.PollFlatRecords(ctx)
+	if err != nil {
+		t.Fatalf("PollFlatRecords: %v", err)
+	}
+	if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	time.Sleep(80 * time.Millisecond) // let the server-side Store complete
+	if got := srvSvc.pfrMapCount(); got != 1 {
+		t.Errorf("pfrMapCount = %d, want 1 after open stream", got)
+	}
+
+	// Drive flatRecordServiceSend; the pfrClients>0 branch fires and
+	// wraps the record in a PollFlatRecordsResponse before sending.
+	reg := prometheus.NewRegistry()
+	x := &XTCP{flatRecordService: srvSvc}
+	x.pC = promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{Subsystem: "xtcp_send_pfr_test",
+			Name: promNameCounts, Help: "test"},
+		promLabels,
+	)
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{Subsystem: "xtcp_send_pfr_test",
+			Name: promNameHistograms, Help: "test",
+			Objectives: map[float64]float64{0.5: quantileError},
+			MaxAge:     summaryVecMaxAge},
+		promLabels,
+	)
+	x.debugLevel = 2000
+	x.flatRecordServiceSend(&xtcp_flat_record.XtcpFlatRecord{Hostname: "pfr-test"})
+
+	// Verify the client receives the record on the stream.
+	resp, rerr := stream.Recv()
+	if rerr != nil {
+		t.Errorf("Recv: %v", rerr)
+	} else if resp.GetXtcpFlatRecord().GetHostname() != "pfr-test" {
+		t.Errorf("hostname = %q, want pfr-test", resp.GetXtcpFlatRecord().GetHostname())
+	}
+}
+
 // frMapCount + pfrMapCount debugLevel>1000 branches are gated by an
 // extreme debug threshold; bumping s.debugLevel triggers them.
 func TestFlatRecordService_mapCountDebugLog(t *testing.T) {
