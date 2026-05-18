@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist"
@@ -51,5 +53,56 @@ func TestWriteDataToFile(t *testing.T) {
 func TestWriteDataToFile_badPath(t *testing.T) {
 	if err := writeDataToFile("/no/such/dir/out.bin", []byte("x")); err == nil {
 		t.Error("missing dir should produce error")
+	}
+}
+
+func TestRunMain_version(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain([]string{"-v"}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if !strings.Contains(stdout.String(), "commit:") {
+		t.Errorf("stdout = %q, want commit prefix", stdout.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	if rc := runMain([]string{"-not-a-flag"}, &bytes.Buffer{}, &bytes.Buffer{}); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_noEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	rc := runMain([]string{"-filename", out, "-value", "42"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Errorf("output file not written: %v", err)
+	}
+}
+
+func TestRunMain_envelope(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	rc := runMain([]string{"-filename", out, "-value", "7", "-envelope"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+func TestRunMain_writeError(t *testing.T) {
+	rc := runMain([]string{"-filename", "/no/such/dir/out.bin"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1", rc)
+	}
+}
+
+func TestRunMain_writeEnvelopeError(t *testing.T) {
+	rc := runMain([]string{"-filename", "/no/such/dir/out.bin", "-envelope"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1", rc)
 	}
 }
