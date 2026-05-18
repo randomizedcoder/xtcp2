@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T02:01:30Z
+Generated: 2026-05-18T02:05:47Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -33,17 +33,17 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 193 | 5s |
 | golangci-lint (standard) | findings | 91 | 5s |
-| golangci-lint (quick) | findings | 87 | 15s |
+| golangci-lint (quick) | findings | 87 | 14s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
 | gofmt | findings | 7 | 0s |
-| nixfmt | clean | 0 | 1s |
-| netlink-audit | clean | 0 | 0s |
+| nixfmt | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | clean | 0 | 4s |
-| go test -cover | findings | 13 | 1s |
+| go test -cover | findings | 12 | 1s |
 
 
 ---
@@ -159,10 +159,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 578 |
+| Pass | 577 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 3 |
+| Skip | 5 |
 
 
 
@@ -217,7 +217,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 72.1% of statements (target: 90% per package).
+**Overall:** 72.4% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -233,7 +233,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 32.9% | 🔴 below 90% |
 | `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 82.5% | 🔴 below 90% |
-| `pkg/xtcp` | 52.5% | 🔴 below 90% |
+| `pkg/xtcp` | 53.3% | 🔴 below 90% |
 | `pkg/xtcpnl` | 87.9% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 71.4% | 🔴 below 90% |
@@ -241,7 +241,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 96.7% | 🟢 OK |
 | `tools/proto-field-audit` | 96.6% | 🟢 OK |
 | `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 88.6% | 🔴 below 90% |
+| `tools/tcp_client` | 91.4% | 🟢 OK |
 | `tools/tcp_server` | 91.4% | 🟢 OK |
 | `tools/udp_receiver_server` | 92.9% | 🟢 OK |
 
