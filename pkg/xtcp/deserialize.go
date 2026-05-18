@@ -91,6 +91,11 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		length = xtcpnl.NlMsgHdrSizeCst
 		if _, errD := xtcpnl.DeserializeNlMsgHdr((*d.NLPacket)[offset:offset+length], nlh); errD != nil {
 			d.pC.WithLabelValues("Deserialize", "DeserializeNlMsgHdr", "error").Inc()
+			// Both pool buffers were Get'd above; return them before
+			// bailing out so a long-running daemon doesn't slowly drain
+			// the pools on every malformed-packet recovery.
+			d.nlhPool.Put(nlh)
+			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, ErrParseDeserializeNlMsgHdr
 		}
 		offset += length
