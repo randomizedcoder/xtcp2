@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T01:41:57Z
+Generated: 2026-05-18T02:01:30Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,8 +15,8 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 198 |
-| Findings (Tier 0) | 71 |
+| Total findings | 202 |
+| Findings (Tier 0) | 75 |
 | Findings (Tier 1) | 15 |
 | Findings (Tier 2) | 103 |
 | Findings (non-tiered) | 9 |
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 189 | 5s |
-| golangci-lint (standard) | findings | 87 | 5s |
-| golangci-lint (quick) | findings | 87 | 13s |
+| golangci-lint (comprehensive) | findings | 193 | 5s |
+| golangci-lint (standard) | findings | 91 | 5s |
+| golangci-lint (quick) | findings | 87 | 15s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | findings | 7 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
-| proto-field-audit | clean | 0 | 1s |
-| go test | clean | 0 | 3s |
+| proto-field-audit | clean | 0 | 0s |
+| go test | clean | 0 | 4s |
 | go test -cover | findings | 13 | 1s |
 
 
@@ -52,7 +52,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 71 | 13 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 75 | 13 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 15 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 103 | 30 |
 
@@ -71,7 +71,7 @@ between commits reveals exactly what changed.
 | `pkg/xtcp/deserializers.go` | 7 | goconst×7 |
 | `tools/proto-field-audit/main.go` | 7 | errcheck×6, G122×1 |
 | `tools/quality-report/main_test.go` | 7 | goconst×7 |
-| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, gofmt×1, format×1 |
+| `tools/tcp_client/tcp_client_test.go` | 7 | noctx×5, format×1, gofmt×1 |
 | `cmd/register_schema/register_schema.go` | 6 | errcheck×4, govet×2 |
 | `pkg/xtcp/netlinker_test.go` | 6 | goconst×3, misspell×3 |
 
@@ -98,7 +98,7 @@ between commits reveals exactly what changed.
 - `cmd/ns/ns_test.go:41`: `signalled` is a misspelling of `signaled`
 - `cmd/xtcp2/xtcp2_test.go:324`: `signalled` is a misspelling of `signaled`
 
-### golangci-lint / govet — 11
+### golangci-lint / govet — 15
 
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:91`: shadow: declaration of "err" shadows declaration at line 84
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist.go:103`: shadow: declaration of "err" shadows declaration at line 84
@@ -159,7 +159,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 562 |
+| Pass | 578 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 3 |
@@ -207,7 +207,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/goconst** with 67 findings (34% of total). Concentrate effort here for the biggest quality win.
+- Top contributor: **golangci-lint/goconst** with 67 findings (33% of total). Concentrate effort here for the biggest quality win.
 - Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~43 quick-fixable findings before manual review.
 - Hotspot file: `tools/quality-report/extra_test.go` carries 11 findings (goconst×10, format×1). Refactor here before touching adjacent code.
 - Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
@@ -217,7 +217,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 70.2% of statements (target: 90% per package).
+**Overall:** 72.1% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -233,8 +233,8 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 32.9% | 🔴 below 90% |
 | `pkg/io_uring` | 89.3% | 🔴 below 90% |
 | `pkg/misc` | 82.5% | 🔴 below 90% |
-| `pkg/xtcp` | 47.0% | 🔴 below 90% |
-| `pkg/xtcpnl` | 87.1% | 🔴 below 90% |
+| `pkg/xtcp` | 52.5% | 🔴 below 90% |
+| `pkg/xtcpnl` | 87.9% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 71.4% | 🔴 below 90% |
 | `tools/metrics-audit` | 95.3% | 🟢 OK |
