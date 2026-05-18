@@ -447,3 +447,66 @@ func TestDeserializeAdversarialNlh(t *testing.T) {
 		})
 	}
 }
+
+// TestDeserializeInetDiagAdversarialNlh: same idea as the unknown-type
+// adversarial cases, but with nlh.Type = NlMsgHdrTypeInetDiagCst so the
+// parser routes into processInetDiagRecord — which slices
+// (*d.NLPacket)[offset : offset+InetDiagMsgSizeCst] and computes a
+// body-length from nlh.Len that can go negative. The parser must reject
+// the truncated/lying input cleanly instead of panicking with a slice
+// bounds violation.
+func TestDeserializeInetDiagAdversarialNlh(t *testing.T) {
+	cases := []struct {
+		name     string
+		buildBuf func() []byte
+	}{
+		{
+			// nlh.Len == header size, no body. offset+InetDiagMsgSizeCst
+			// would slice past end-of-buffer.
+			name: "inet_diag_len_equals_header_no_body",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 16, 16)
+			},
+		},
+		{
+			// nlh.Len == header + half an InetDiagMsg. The 72-byte
+			// inet-diag slice would extend past the buffer's end.
+			name: "inet_diag_len_partial_body",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+					uint32(xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst/2),
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst/2)
+			},
+		},
+		{
+			// nlh.Len < InetDiagMsgSizeCst+NlMsgHdrSizeCst → attributes
+			// length goes negative in processInetDiagRecord.
+			name: "inet_diag_len_below_msg_size",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 20,
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst)
+			},
+		},
+		{
+			// nlh.Len lies about a huge message in a small buffer.
+			name: "inet_diag_len_beyond_buffer",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 4096,
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("Deserialize panicked on adversarial input %q: %v", tc.name, r)
+				}
+			}()
+			x := newTestDeserializeXTCP(t)
+			_, _, _ = runDeserialize(t, x, tc.buildBuf())
+		})
+	}
+}
