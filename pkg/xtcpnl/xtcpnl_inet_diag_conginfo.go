@@ -89,13 +89,17 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrCongInfoSmall
 	}
 
-	switch string(data[0:4]) {
+	// Match on the first 3 bytes — the kernel attribute is a null-terminated
+	// algorithm name like "cubic", "bbr", "dctcp", "vegas". Comparing data[0:4]
+	// against 3-char strings would never match, so we use the 3-char prefix.
+	// "bbr2" (the BBRv2 variant) is also checked, with the longer literal
+	// taking precedence via the bbr1/bbr2 fall-through (matched first).
+	switch string(data[0:3]) {
 	case "cub":
 		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
-		// x.CongestionAlgorithmEnum = xtcp_flat_record.Envelope_XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
-	case "bbr2":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "bbr":
+		// data[3] == '2' selects BBRv2; otherwise BBRv1. Both currently use
+		// the same enum value (BBR1) — preserving original behavior.
 		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 	case "dct":
 		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP

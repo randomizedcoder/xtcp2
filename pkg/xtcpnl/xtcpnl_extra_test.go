@@ -134,3 +134,80 @@ func TestDeserializeInetDiagMsgXTCPWG(t *testing.T) {
 	_ = DeserializeInetDiagMsgXTCPWG(wg, make([]byte, InetDiagMsgSizeCst), x) //nolint:errcheck // test plumbing
 	wg.Wait()
 }
+
+// DeserializeCongInfoXTCP: 4-byte prefix dispatches to one of 5 congestion
+// algorithm enums.
+func TestDeserializeCongInfoXTCP_short(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	if err := DeserializeCongInfoXTCP([]byte{0x01}, x); err != ErrCongInfoSmall {
+		t.Errorf("err = %v, want ErrCongInfoSmall", err)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_cubic(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("cub\x00")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC {
+		t.Errorf("alg = %v, want CUBIC", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_bbr(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("bbr\x00")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1 {
+		t.Errorf("alg = %v, want BBR1", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_dctcp(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("dct\x00")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP {
+		t.Errorf("alg = %v, want DCTCP", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_vegas(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("veg\x00")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS {
+		t.Errorf("alg = %v, want VEGAS", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_bbr2(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	// "bbr2" — 3-byte prefix "bbr" matches the bbr branch
+	data := []byte("bbr2")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1 {
+		t.Errorf("alg = %v, want BBR1", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_unknown(t *testing.T) {
+	// Unknown prefix: switch falls through to no-op (enum stays zero).
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("xxxx")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != 0 {
+		t.Errorf("unknown prefix should leave enum at 0; got %v", x.CongestionAlgorithmEnum)
+	}
+}
