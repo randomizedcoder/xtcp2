@@ -87,6 +87,38 @@ func TestPollLoop_cancelledCtx(t *testing.T) {
 	}
 }
 
+// PollLoop with an active (uncancelled) ctx + an unreachable broker:
+// PollFetches returns a fetch error each loop iteration; the loop logs
+// + continues. Cancel ctx after a few iterations so the loop exits via
+// the ctx.Err()-after-Err branch.
+func TestPollLoop_fetchErrorThenCancel(t *testing.T) {
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.ConsumerGroup("test-group"),
+		kgo.ConsumeTopics("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, client, 50*time.Millisecond)
+		close(done)
+	}()
+	// Let a few fetch errors happen before cancellation triggers the
+	// ctx.Err()-after-fetch-err branch.
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after cancel")
+	}
+}
+
 func TestHandleRecord_emptyValue(t *testing.T) {
 	rec := &kgo.Record{Topic: "xtcp", Value: nil}
 	dst := &xtcp_flat_record.Envelope_XtcpFlatRecord{}
