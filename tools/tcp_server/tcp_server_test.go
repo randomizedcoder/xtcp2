@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -69,6 +70,41 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 func TestRunServer_bindError(t *testing.T) {
 	if err := runServer(t.Context(), "bad-host-:-:bind", 4000); err == nil {
 		t.Error("malformed bind should error")
+	}
+}
+
+func TestRunMain_zeroCount(t *testing.T) {
+	// count=0 → no goroutines spawned, wg.Wait returns immediately.
+	var stderr strings.Builder
+	if rc := runMain(t.Context(), []string{"-count", "0", "-bind", "127.0.0.1"}, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	var stderr strings.Builder
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &stderr); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_cancellable(t *testing.T) {
+	// count=1 but bind to a guaranteed-conflicting addr (port 0 isn't valid
+	// for our startPort+i math, but the listener will succeed; cancel to break).
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan int, 1)
+	go func() {
+		done <- runMain(ctx, []string{"-count", "1", "-bind", "127.0.0.1"}, &strings.Builder{})
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("runMain did not exit on cancel")
 	}
 }
 
