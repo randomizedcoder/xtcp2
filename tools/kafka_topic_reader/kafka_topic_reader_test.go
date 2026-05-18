@@ -127,3 +127,43 @@ func TestHandleRecord_emptyValue(t *testing.T) {
 	// Empty bytes are a valid empty proto message; nothing to assert beyond
 	// no-panic.
 }
+
+// runMain with debugLevel=0 (-d 0) skips the verbose stdout dump so the
+// `if debugLevel > 10` branch's false-arm is covered.
+func TestRunMain_quiet(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var stdout, stderr strings.Builder
+	rc := runMain(ctx, []string{"-d", "0", "-broker", "localhost:0", "-consumeTimeout", "50ms"}, &stdout, &stderr)
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "*broker:") {
+		t.Errorf("verbose output should be suppressed; got %q", stdout.String())
+	}
+}
+
+// pollLoop driven by a kgo client that successfully fetches records.
+// Without a real broker we can't deliver records, but we can exercise
+// the loop's iteration index increment + empty-fetch path. Combined
+// with the existing fetch-error coverage, this fills the gap.
+func TestPollLoop_emptyFetches(t *testing.T) {
+	client, err := kgo.NewClient(kgo.SeedBrokers("localhost:0"))
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, client, 25*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after ctx timeout")
+	}
+}
