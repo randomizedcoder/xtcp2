@@ -527,6 +527,27 @@ func TestUDPDest_SendAfterClose(t *testing.T) {
 	}
 }
 
+// udpDest.Send io_uring branch with no ring in ctx returns errNoRingInCtx
+// without trying to enqueue.
+func TestUDPDest_SendIoUringNoRing(t *testing.T) {
+	res := setupUDPDest(t, "")
+	defer res.cleanup()
+
+	x := newTestXTCP(t, res.dest)
+	x.config.IoUring = true
+	d, err := newUDPDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newUDPDest: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+
+	buf := []byte("ioring")
+	// Pass a bare ctx (no ring stashed) → expect errNoRingInCtx.
+	if _, err := d.Send(context.Background(), &buf); err == nil {
+		t.Error("expected errNoRingInCtx when no ring in context")
+	}
+}
+
 // unixGramDest.Send error path.
 func TestUnixGramDest_SendAfterClose(t *testing.T) {
 	dir := t.TempDir()
@@ -545,6 +566,26 @@ func TestUnixGramDest_SendAfterClose(t *testing.T) {
 	buf := []byte("after-close")
 	if _, err := d.Send(context.Background(), &buf); err == nil {
 		t.Error("expected error sending after Close")
+	}
+}
+
+// unixGramDest.Send io_uring branch with no ring in ctx.
+func TestUnixGramDest_SendIoUringNoRing(t *testing.T) {
+	dir := t.TempDir()
+	res := setupUnixGramDest(t, dir)
+	defer res.cleanup()
+
+	x := newTestXTCP(t, res.dest)
+	x.config.IoUring = true
+	d, err := newUnixGramDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newUnixGramDest: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+
+	buf := []byte("ioring")
+	if _, err := d.Send(context.Background(), &buf); err == nil {
+		t.Error("expected errNoRingInCtx when no ring in context")
 	}
 }
 
