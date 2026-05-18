@@ -186,6 +186,37 @@ func countBelowThreshold(cov Coverage) int {
 	return n
 }
 
+// coverageFindings emits one Finding per package below CoverageThreshold
+// so the per-package gaps surface in the executive summary's tier
+// rollup. Each finding lands in tier 0 with severity warning — the
+// linter set chose tier 0 for coverage gaps because they're widely
+// considered must-fix and the tooling already aggregates tier 0 in the
+// top-line counts.
+func coverageFindings(cov Coverage) []Finding {
+	if !cov.Available {
+		return nil
+	}
+	var findings []Finding
+	for pkg, pct := range cov.PerPackage {
+		if pct >= CoverageThreshold {
+			continue
+		}
+		findings = append(findings, Finding{
+			Tool:     "go-test-cover",
+			Rule:     "below-90pct",
+			Severity: severityWarning,
+			File:     pkg,
+			Message:  fmtSprintf("package coverage %.1f%% < %.0f%%", pct, CoverageThreshold),
+		})
+	}
+	return findings
+}
+
+// fmtSprintf is a tiny indirection so the import set stays tight.
+func fmtSprintf(format string, args ...any) string {
+	return fmt.Sprintf(format, args...)
+}
+
 func main() {
 	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -433,6 +464,9 @@ func runMain(args []string, stdout, stderr io.Writer) int {
 			RuntimeS:  runtimes["coverage"],
 			Available: true,
 		})
+		// Surface each below-threshold package as a tier-0 Finding so it
+		// shows up in the executive summary's tier rollup.
+		in.Findings = append(in.Findings, coverageFindings(in.Coverage)...)
 	}
 
 	// Configuration audit — parse the .golangci*.yml exclusion sections.
