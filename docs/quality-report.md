@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-18T02:38:19Z
+Generated: 2026-05-18T03:26:40Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,10 +15,10 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 203 |
-| Findings (Tier 0) | 75 |
+| Total findings | 206 |
+| Findings (Tier 0) | 76 |
 | Findings (Tier 1) | 16 |
-| Findings (Tier 2) | 103 |
+| Findings (Tier 2) | 105 |
 | Findings (non-tiered) | 9 |
 | Files with at least one finding | 59 |
 | Test failures (new) | 0 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 194 | 5s |
-| golangci-lint (standard) | findings | 92 | 5s |
-| golangci-lint (quick) | findings | 87 | 14s |
+| golangci-lint (comprehensive) | findings | 197 | 5s |
+| golangci-lint (standard) | findings | 93 | 4s |
+| golangci-lint (quick) | findings | 88 | 15s |
 | gosec | findings | 2 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 7 | 0s |
-| nixfmt | clean | 0 | 1s |
-| netlink-audit | clean | 0 | 0s |
+| gofmt | findings | 7 | 1s |
+| nixfmt | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
 | go test | clean | 0 | 10s |
-| go test -cover | findings | 11 | 0s |
+| go test -cover | findings | 12 | 0s |
 
 
 ---
@@ -52,9 +52,9 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 75 | 13 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 76 | 13 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 16 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 103 | 30 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 105 | 30 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -80,13 +80,13 @@ between commits reveals exactly what changed.
 
 ## 5. Findings by linter
 
-### golangci-lint / goconst — 67
+### golangci-lint / goconst — 69
 
 - `cmd/clickhouse_protobuflist/clickhouse_protobuflist_test.go:78`: string `-filename` has 4 occurrences, make it a constant
-- `cmd/register_schema/register_schema_test.go:120`: string `-filename` has 5 occurrences, make it a constant
-- `cmd/xtcp2/xtcp2_test.go:256`: string `:9000` has 4 occurrences, make it a constant
+- `cmd/ns/ns.go:175`: string `cpu` has 5 occurrences, make it a constant
+- `cmd/ns/ns_test.go:104`: string `-profile.mode` has 3 occurrences, make it a constant
 
-### golangci-lint / errcheck — 54
+### golangci-lint / errcheck — 55
 
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:73`: Error return value of `fmt.Fprintf` is not checked
 - `cmd/clickhouse_http_insert_protobuflist/clickhouse_http_insert_protobuflist.go:82`: Error return value of `fmt.Fprintf` is not checked
@@ -95,7 +95,7 @@ between commits reveals exactly what changed.
 ### golangci-lint / misspell — 30
 
 - `cmd/kafka_to_clickhouse/kafka_to_clickhouse_test.go:122`: `cancelled` is a misspelling of `canceled`
-- `cmd/ns/ns_test.go:41`: `signalled` is a misspelling of `signaled`
+- `cmd/ns/ns_test.go:44`: `signalled` is a misspelling of `signaled`
 - `cmd/xtcp2/xtcp2_test.go:324`: `signalled` is a misspelling of `signaled`
 
 ### golangci-lint / govet — 15
@@ -136,7 +136,7 @@ between commits reveals exactly what changed.
 
 ### golangci-lint / gocritic — 2
 
-- `cmd/ns/ns.go:175`: exitAfterDefer: os.Exit will exit, and `defer timer.Stop()` will not run
+- `cmd/ns/ns.go:247`: exitAfterDefer: os.Exit will exit, and `defer timer.Stop()` will not run
 - `cmd/xtcp2/xtcp2.go:429`: exitAfterDefer: os.Exit will exit, and `defer timer.Stop()` will not run
 
 ---
@@ -159,10 +159,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 590 |
+| Pass | 606 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 9 |
+| Skip | 8 |
 
 
 
@@ -207,7 +207,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **golangci-lint/goconst** with 67 findings (33% of total). Concentrate effort here for the biggest quality win.
+- Top contributor: **golangci-lint/goconst** with 69 findings (33% of total). Concentrate effort here for the biggest quality win.
 - Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~43 quick-fixable findings before manual review.
 - Hotspot file: `tools/quality-report/extra_test.go` carries 11 findings (goconst×10, format×1). Refactor here before touching adjacent code.
 - Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
@@ -217,7 +217,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 74.9% of statements (target: 90% per package).
+**Overall:** 76.0% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -225,7 +225,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/clickhouse_protobuflist` | 86.4% | 🔴 below 90% |
 | `cmd/clickhouse_protobuflist_db` | 93.3% | 🟢 OK |
 | `cmd/kafka_to_clickhouse` | 62.9% | 🔴 below 90% |
-| `cmd/ns` | 14.9% | 🔴 below 90% |
+| `cmd/ns` | 86.6% | 🔴 below 90% |
 | `cmd/nsTest` | 39.1% | 🔴 below 90% |
 | `cmd/register_schema` | 92.9% | 🟢 OK |
 | `cmd/xtcp2` | 81.6% | 🔴 below 90% |
@@ -241,7 +241,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 96.7% | 🟢 OK |
 | `tools/proto-field-audit` | 96.6% | 🟢 OK |
 | `tools/quality-report` | 90.5% | 🟢 OK |
-| `tools/tcp_client` | 91.4% | 🟢 OK |
+| `tools/tcp_client` | 88.6% | 🔴 below 90% |
 | `tools/tcp_server` | 91.4% | 🟢 OK |
 | `tools/udp_receiver_server` | 92.9% | 🟢 OK |
 
