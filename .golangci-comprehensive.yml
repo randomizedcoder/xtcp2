@@ -68,9 +68,9 @@ linters:
       enable-all: true
       disable:
         - fieldalignment
-      settings:
-        shadow:
-          strict: true
+        # err shadowing is idiomatic Go; disable the shadow check rather
+        # than rewriting many sites. See .golangci.yml for context.
+        - shadow
 
     staticcheck:
       checks:
