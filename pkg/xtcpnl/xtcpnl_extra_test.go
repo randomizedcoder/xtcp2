@@ -35,6 +35,37 @@ func TestReadfile_missing(t *testing.T) {
 	}
 }
 
+// Readfile previously used a bufio.Reader and called .Read(buf) ONCE,
+// which returns at most bufio's internal buffer (4096 bytes). Any file
+// larger than that produced n=4096, the n!=size check tripped, and
+// the function returned an error. The contract — "read the whole file"
+// — was silently broken for inputs over 4 KB.
+func TestReadfile_largeFile(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "big.bin")
+	// 32 KB — well over the bufio default of 4 KB.
+	want := make([]byte, 32*1024)
+	for i := range want {
+		want[i] = byte(i & 0xff)
+	}
+	if err := os.WriteFile(p, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Readfile(p)
+	if err != nil {
+		t.Fatalf("err = %v (the bufio.Read short-read bug fires here)", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d bytes, want %d (bufio.Read returned a single 4 KB chunk pre-fix)", len(got), len(want))
+	}
+	for i, b := range got {
+		if b != want[i] {
+			t.Fatalf("byte %d: got %#x want %#x", i, b, want[i])
+			break
+		}
+	}
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // DeserializeNlMsgHdrRelection / DeserializeInetDiagReqV2Relection
 // + DeserializeInetDiagSockIDReflection — happy paths via fixtures
