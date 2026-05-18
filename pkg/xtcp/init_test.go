@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"syscall"
 	"testing"
@@ -12,9 +13,118 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
-// initSyncMaps + initHostname: skipped — initSyncMaps log.Fatals when
-// neither /run/netns nor /run/docker/netns exists (which is the default
-// case in test sandboxes). Covered by the microvm harness.
+// initSyncMaps + initHostname: previously log.Fatal'd unrecoverably; the
+// fatalf-injection refactor routes both through x.fatalf so they can run
+// to completion under test (with x.fatalf as a capture).
+
+func TestInitSyncMaps_fatalfCapture(t *testing.T) {
+	x := &XTCP{}
+	var captured string
+	x.fatalf = func(format string, args ...any) {
+		captured = fmt.Sprintf(format, args...)
+	}
+	x.initSyncMaps()
+	if x.nsMap == nil || x.fdToNsMap == nil || x.netNsDirs == nil {
+		t.Error("initSyncMaps should allocate all three sync.Maps before fataling")
+	}
+	// On hosts WITHOUT /run/netns + /run/docker/netns, the fatal path
+	// fires and we get a captured message. On hosts WITH those dirs,
+	// captured stays empty. Both outcomes are valid.
+	if captured != "" && !stringContains(captured, "network namespace") {
+		t.Errorf("fatalf message mismatch: %q", captured)
+	}
+}
+
+func TestInitSyncMaps_debugLog(t *testing.T) {
+	x := &XTCP{debugLevel: 11}
+	x.fatalf = func(string, ...any) {} // swallow if it fires
+	x.initSyncMaps()
+}
+
+func TestInitSyncMaps_realDir(t *testing.T) {
+	// Prepend a real tempdir to netNsCandidateDirs so the function
+	// stores at least one entry and the fatal path is skipped.
+	prev := netNsCandidateDirs
+	t.Cleanup(func() { netNsCandidateDirs = prev })
+	netNsCandidateDirs = append([]string{t.TempDir()}, prev...)
+
+	x := &XTCP{}
+	called := false
+	x.fatalf = func(string, ...any) { called = true }
+	x.initSyncMaps()
+	if called {
+		t.Error("fatalf should not fire when a candidate dir exists")
+	}
+	count := 0
+	x.netNsDirs.Range(func(_, _ any) bool {
+		count++
+		return true
+	})
+	if count < 1 {
+		t.Error("netNsDirs should have at least one entry")
+	}
+}
+
+func TestInitSyncMaps_realDir_debugLog(t *testing.T) {
+	prev := netNsCandidateDirs
+	t.Cleanup(func() { netNsCandidateDirs = prev })
+	netNsCandidateDirs = append([]string{t.TempDir()}, prev...)
+
+	x := &XTCP{debugLevel: 11}
+	x.fatalf = func(string, ...any) {}
+	x.initSyncMaps()
+}
+
+func TestInitHostname_happy(t *testing.T) {
+	x := &XTCP{}
+	x.initHostname()
+	if x.hostname == "" {
+		t.Error("hostname should be non-empty")
+	}
+}
+
+func TestInitHostname_error(t *testing.T) {
+	prev := hostnameLookup
+	hostnameLookup = func() (string, error) { return "", fmt.Errorf("synthetic") }
+	t.Cleanup(func() { hostnameLookup = prev })
+
+	x := &XTCP{}
+	var captured string
+	x.fatalf = func(format string, args ...any) {
+		captured = fmt.Sprintf(format, args...)
+	}
+	x.initHostname()
+	if x.hostname != "" {
+		t.Errorf("hostname should remain empty on error; got %q", x.hostname)
+	}
+	if !stringContains(captured, "os.Hostname() error") {
+		t.Errorf("fatalf not invoked with expected message; got %q", captured)
+	}
+}
+
+// callFatalf: with x.fatalf swapped, the swap takes effect.
+func TestCallFatalf_routes(t *testing.T) {
+	x := &XTCP{}
+	called := false
+	x.fatalf = func(string, ...any) { called = true }
+	x.callFatalf("oops")
+	if !called {
+		t.Error("x.fatalf swap was not invoked")
+	}
+}
+
+// stringContains is a tiny substring helper kept local to this test file.
+func stringContains(s, substr string) bool {
+	if len(substr) == 0 {
+		return true
+	}
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
 
 // newInitFixture returns an XTCP shaped for the various Init* tests:
 // fresh Prometheus registry, fatalf wired to t.Fatalf, ready channels
