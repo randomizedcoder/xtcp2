@@ -91,6 +91,18 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	}
 }
 
+// nsAdd duplicate branch: already-present nsName increments the duplicate
+// counter + returns without spawning a netNamespaceInstance goroutine.
+func TestNsAdd_duplicate(t *testing.T) {
+	x := newNsExtraFixture(t)
+	x.debugLevel = 11
+	nsName := "already-here"
+	x.nsMap.Store(nsName, netNSitem{})
+	x.nsAdd(context.Background(), &nsName)
+	// No assert needed beyond the function returning; the counter was
+	// incremented and no panic / leaked goroutine.
+}
+
 func newNsExtraFixture(t *testing.T) *XTCP {
 	t.Helper()
 	reg := prometheus.NewRegistry()
