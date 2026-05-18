@@ -48,6 +48,11 @@ var (
 
 	kClient       *kgo.Client
 	kgoRecordPool sync.Pool
+
+	// fatalf is the package-level abort handler. Defaults to log.Fatalf;
+	// tests swap this in for a capture so the dump-file write error
+	// branch in prepareBinary is exercisable.
+	fatalf = log.Fatalf
 )
 
 type config struct {
@@ -222,7 +227,7 @@ func prepareBinary(_ context.Context, c config, id int) (binaryData []byte) {
 		if c.debugDump {
 			errW := os.WriteFile(c.dumpFilename+".envelope", binaryData, 0600) // gosec G306
 			if errW != nil {
-				log.Fatalf("Failed to write protobuf envelope data: %v", errW)
+				fatalf("Failed to write protobuf envelope data: %v", errW)
 			}
 		}
 
