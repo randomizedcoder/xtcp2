@@ -122,15 +122,15 @@ func TestRunMain_withSomeRaws(t *testing.T) {
 
 func TestSeverityOrder_allBuckets(t *testing.T) {
 	cases := map[string]int{
-		"high":              0,
-		severityError:       0,
-		"HIGH":              0,
-		"medium":            1,
-		severityWarning:     1,
-		"low":               2,
-		severityInfo:        2,
-		"unknown-severity":  3,
-		"":                  3,
+		"high":             0,
+		severityError:      0,
+		"HIGH":             0,
+		"medium":           1,
+		severityWarning:    1,
+		"low":              2,
+		severityInfo:       2,
+		"unknown-severity": 3,
+		"":                 3,
 	}
 	for s, want := range cases {
 		if got := severityOrder(s); got != want {

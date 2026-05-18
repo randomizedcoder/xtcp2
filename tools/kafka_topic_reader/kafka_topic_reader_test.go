@@ -62,7 +62,6 @@ func TestRunMain_cancellable(t *testing.T) {
 	}
 }
 
-
 func TestPollLoop_cancelledCtx(t *testing.T) {
 	// kgo.NewClient on a deferred-resolution broker succeeds without actually
 	// connecting; PollFetches with a cancelled ctx returns an err. Loop

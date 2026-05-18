@@ -243,7 +243,6 @@ func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
 }
 
-
 func TestIouringWaitWithTimeout_etime(t *testing.T) {
 	ring, err := xioRingNew(t)
 	if err != nil {

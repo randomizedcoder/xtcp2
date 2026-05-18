@@ -21,11 +21,11 @@ import (
 var ErrRecordTooShort = errors.New("kafka record too short for Confluent header")
 
 const (
-	brokerCst            = "localhost:19092"
-	topicCst             = "xtcp"
-	groupID              = "xtcp-consumer-group"
-	debugLevelCst        = 11
-	KafkaHeaderSizeCst   = 6
+	brokerCst          = "localhost:19092"
+	topicCst           = "xtcp"
+	groupID            = "xtcp-consumer-group"
+	debugLevelCst      = 11
+	KafkaHeaderSizeCst = 6
 )
 
 var (
@@ -123,4 +123,3 @@ func processRecord(value []byte, debugLvl uint) error {
 	}
 	return nil
 }
-

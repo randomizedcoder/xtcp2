@@ -11,7 +11,7 @@ import (
 // happy-path buffer + a too-short buffer.
 type xtcpWriterCase struct {
 	name   string
-	min    int                                                      // minimum acceptable len
+	min    int // minimum acceptable len
 	parse  func(data []byte, x *xtcp_flat_record.XtcpFlatRecord) error
 	verify func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord)
 }

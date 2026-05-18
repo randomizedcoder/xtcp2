@@ -71,7 +71,7 @@ func TestClientOnce_happy(t *testing.T) {
 	// Echo server side.
 	go func() {
 		buf := make([]byte, 64)
-		n, _ := b.Read(buf) //nolint:errcheck // test plumbing
+		n, _ := b.Read(buf)     //nolint:errcheck // test plumbing
 		_, _ = b.Write(buf[:n]) //nolint:errcheck // test plumbing
 	}()
 

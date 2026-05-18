@@ -91,9 +91,9 @@ func TestDeserializeTCPInfoXTCP_realFixture_4_19(t *testing.T) {
 // internal guard returns early. Exercise that branch directly.
 func TestDeserializeTCPInfoXTCPTail_shortReturnsEarly(t *testing.T) {
 	x := &xtcp_flat_record.XtcpFlatRecord{}
-	deserializeTCPInfoXTCPBase(make([]byte, 10), x)         // < TCPInfoMinSizeCst → no-op
-	deserializeTCPInfoXTCPTail4_19(make([]byte, 10), x)     // < tail size → no-op
-	deserializeTCPInfoXTCPTail5_4(make([]byte, 10), x)      // < tail size → no-op
-	deserializeTCPInfoXTCPTail6_6(make([]byte, 10), x)      // < tail size → no-op
-	deserializeTCPInfoXTCPTail6_10(make([]byte, 10), x)     // < tail size → no-op
+	deserializeTCPInfoXTCPBase(make([]byte, 10), x)     // < TCPInfoMinSizeCst → no-op
+	deserializeTCPInfoXTCPTail4_19(make([]byte, 10), x) // < tail size → no-op
+	deserializeTCPInfoXTCPTail5_4(make([]byte, 10), x)  // < tail size → no-op
+	deserializeTCPInfoXTCPTail6_6(make([]byte, 10), x)  // < tail size → no-op
+	deserializeTCPInfoXTCPTail6_10(make([]byte, 10), x) // < tail size → no-op
 }

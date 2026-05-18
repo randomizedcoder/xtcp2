@@ -444,4 +444,3 @@ func printPollFlatRecordsResponse(pollFlatRecordsResponse *xtcp_flat_record.Poll
 		log.Printf("id:%d, %s", id, pollFlatRecordsResponse.GetXtcpFlatRecord())
 	}
 }
-
