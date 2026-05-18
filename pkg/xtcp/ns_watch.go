@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 
@@ -112,8 +113,19 @@ func checkDirectoryExists(dir string) bool {
 
 // createNetworkNamespace creates a Linux network namespace
 // and binds it to a name in /run/netns
-// this is a pure go implmentation
-// this is essentially what "ip netnsd add ns1" does under the hood
+// this is a pure go implementation
+// this is essentially what "ip netns add ns1" does under the hood
+//
+// Threading: unix.Unshare(CLONE_NEWNET) changes the calling OS THREAD's
+// network namespace, but Go's scheduler can migrate the goroutine to a
+// different thread at any syscall yield point. If migration happens
+// between Unshare and the subsequent bind-mount, /proc/self/ns/net
+// resolves to the wrong thread's namespace — silently creating a
+// bind-mount pointing into the original (host) netns rather than the
+// freshly-unshared one. Lock the OS thread for the duration so the
+// goroutine can't migrate mid-sequence. We restore the original netns
+// before returning so the caller's subsequent syscalls execute in the
+// host's namespace, not the new one.
 func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) error {
 
 	// #nosec G301 -- /run/netns is a system-managed namespace dir; 0755 is the standard `ip netns add` permission
@@ -121,7 +133,32 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 		return fmt.Errorf("failed to create directory %s: %w", netnsDir, err)
 	}
 
-	// Create the network namespace using CLONE_NEWNET
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// Snapshot the calling thread's current netns so we can restore
+	// after the unshare+bind-mount. Otherwise this goroutine's thread
+	// stays in the new netns and the caller (watchNsNamespace) ends up
+	// running its fsnotify loop in a different network namespace.
+	origNs, errOrig := os.Open("/proc/thread-self/ns/net")
+	if errOrig != nil {
+		return fmt.Errorf("failed to snapshot original netns: %w", errOrig)
+	}
+	defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
+	defer func() {
+		// Restore on the way out; if Setns fails the goroutine is
+		// already pinned to this (modified) thread, so the failure
+		// surfaces in the surrounding LockOSThread scope. We log
+		// instead of returning because the primary work is done.
+		if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+			if x.debugLevel > 10 {
+				log.Printf("createNetworkNamespace restore-netns err: %v", rerr)
+			}
+		}
+	}()
+
+	// Create the network namespace using CLONE_NEWNET. Affects the
+	// pinned thread only.
 	if err := unix.Unshare(unix.CLONE_NEWNET); err != nil {
 		return fmt.Errorf("failed to create network namespace: %w", err)
 	}
@@ -133,8 +170,12 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	}
 	defer fd.Close()
 
-	// Use syscall to bind the namespace to the file
-	if err = syscall.Mount("/proc/self/ns/net", fd.Name(), "none", syscall.MS_BIND, ""); err != nil {
+	// Bind-mount /proc/thread-self/ns/net (NOT /proc/self/ns/net) so
+	// we explicitly reference the thread we unshared, not whichever
+	// thread the runtime happens to schedule us on. The LockOSThread
+	// above guarantees they are the same, but using thread-self makes
+	// that assumption explicit at the syscall level.
+	if err = syscall.Mount("/proc/thread-self/ns/net", fd.Name(), "none", syscall.MS_BIND, ""); err != nil {
 		return fmt.Errorf("failed to bind namespace: %w", err)
 	}
 
