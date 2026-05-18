@@ -601,6 +601,52 @@ func TestUnixGramDest_SendAfterClose(t *testing.T) {
 	}
 }
 
+// Close on a destination whose conn was never assigned: nil-conn early
+// return path. All three stream/unix-style destinations share the same
+// shape so cover them in one test each.
+func TestUDPDest_CloseNilConn(t *testing.T) {
+	d := &udpDest{}
+	if err := d.Close(); err != nil {
+		t.Errorf("Close on nil-conn = %v, want nil", err)
+	}
+}
+
+func TestUnixDest_CloseNilConn(t *testing.T) {
+	d := &unixDest{}
+	if err := d.Close(); err != nil {
+		t.Errorf("Close on nil-conn = %v, want nil", err)
+	}
+}
+
+func TestUnixGramDest_CloseNilConn(t *testing.T) {
+	d := &unixgramDest{}
+	if err := d.Close(); err != nil {
+		t.Errorf("Close on nil-conn = %v, want nil", err)
+	}
+}
+
+// fakeBareConn implements only net.Conn without exposing File() so
+// extractFD's fileGetter type assertion fails.
+type fakeBareConn struct{}
+
+func (fakeBareConn) Read([]byte) (int, error)         { return 0, nil }
+func (fakeBareConn) Write([]byte) (int, error)        { return 0, nil }
+func (fakeBareConn) Close() error                     { return nil }
+func (fakeBareConn) LocalAddr() net.Addr              { return nil }
+func (fakeBareConn) RemoteAddr() net.Addr             { return nil }
+func (fakeBareConn) SetDeadline(time.Time) error      { return nil }
+func (fakeBareConn) SetReadDeadline(time.Time) error  { return nil }
+func (fakeBareConn) SetWriteDeadline(time.Time) error { return nil }
+
+// extractFD: pass a net.Conn type that doesn't expose File() — the
+// fileGetter type assertion fails and the function returns its "type
+// does not expose File()" error.
+func TestExtractFD_typeMismatch(t *testing.T) {
+	if _, err := extractFD(fakeBareConn{}); err == nil {
+		t.Error("expected error for net.Conn without File()")
+	}
+}
+
 // unixDest.Send error path: Close the conn then attempt to Send. The
 // hdr write fails first, exercising the err branch + debugLevel>100 log.
 func TestUnixDest_SendAfterClose(t *testing.T) {
