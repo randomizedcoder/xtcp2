@@ -448,6 +448,85 @@ func TestDeserializeAdversarialNlh(t *testing.T) {
 	}
 }
 
+// TestDeserializeInetDiagAdversarialAttrs builds full inet-diag messages
+// (header + body) whose attribute bodies (the RTAttr/NLA sequence after
+// InetDiagMsgSizeCst) contain adversarial sizes — bogus rta.Len smaller
+// than RTAttrSizeCst, larger than the buffer, etc. DeserializeAttributes
+// must not panic on these.
+func TestDeserializeInetDiagAdversarialAttrs(t *testing.T) {
+	const (
+		hdrSize = xtcpnl.NlMsgHdrSizeCst        // 16
+		idmSize = xtcpnl.InetDiagMsgSizeCst     // 72
+		rtaSize = xtcpnl.RTAttrSizeCst          // 4
+	)
+
+	// buildInetDiagWithAttrBody returns a netlink message of type
+	// NlMsgHdrTypeInetDiagCst, nlh.Len set so the attributes section
+	// is exactly len(attrBody) bytes, and the body filled with attrBody.
+	buildInetDiagWithAttrBody := func(attrBody []byte) []byte {
+		bufSize := hdrSize + idmSize + len(attrBody)
+		buf := mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+			uint32(bufSize), bufSize)
+		copy(buf[hdrSize+idmSize:], attrBody)
+		return buf
+	}
+
+	cases := []struct {
+		name     string
+		attrBody []byte
+	}{
+		{
+			// Only 2 bytes of attribute body — less than RTAttrSizeCst.
+			// DeserializeRTAttr slice would panic on [offset:offset+4].
+			name:     "attr_body_shorter_than_rta_header",
+			attrBody: []byte{0x00, 0x00},
+		},
+		{
+			// rta.Len = 0 — negative attribute length after subtraction.
+			name: "rta_len_zero",
+			attrBody: func() []byte {
+				b := make([]byte, 32)
+				binary.LittleEndian.PutUint16(b[0:2], 0) // rta.Len
+				binary.LittleEndian.PutUint16(b[2:4], 1) // rta.Type
+				return b
+			}(),
+		},
+		{
+			// rta.Len = 2 — smaller than RTAttrSizeCst (4). Negative.
+			name: "rta_len_below_header_size",
+			attrBody: func() []byte {
+				b := make([]byte, 32)
+				binary.LittleEndian.PutUint16(b[0:2], 2)
+				return b
+			}(),
+		},
+		{
+			// rta.Len lies about a huge attribute (claims 1024 bytes
+			// in an 8-byte body). Slice would extend past the buffer.
+			name: "rta_len_beyond_buffer",
+			attrBody: func() []byte {
+				b := make([]byte, 8)
+				binary.LittleEndian.PutUint16(b[0:2], 1024)
+				binary.LittleEndian.PutUint16(b[2:4], 1)
+				return b
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("DeserializeAttributes panicked on adversarial input %q: %v", tc.name, r)
+				}
+			}()
+			x := newTestDeserializeXTCP(t)
+			_, _, _ = runDeserialize(t, x, buildInetDiagWithAttrBody(tc.attrBody))
+		})
+	}
+}
+
 // TestDeserializeInetDiagAdversarialNlh: same idea as the unknown-type
 // adversarial cases, but with nlh.Type = NlMsgHdrTypeInetDiagCst so the
 // parser routes into processInetDiagRecord — which slices

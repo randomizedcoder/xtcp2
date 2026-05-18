@@ -256,27 +256,65 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 	// }()
 	// d.pC.WithLabelValues("Deserialize", "start", "count").Inc()
 
+	bufEnd := len(*d.NLPacket)
 	for j := 0; d.offset < d.end; j++ {
+
+		// Each RTAttr is at least RTAttrSizeCst (4) bytes. If less than
+		// that remains in this attributes section — or in the buffer
+		// generally — the next slice would panic. Stop the loop and
+		// count the truncation so it's visible in metrics.
+		if d.offset+xtcpnl.RTAttrSizeCst > d.end ||
+			d.offset+xtcpnl.RTAttrSizeCst > bufEnd {
+			d.pC.WithLabelValues("DeserializeAttributes", "truncatedRTAttrHeader", "error").Inc()
+			return
+		}
 
 		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr) //nolint:errcheck // pool.New returns *RTAttr
 
 		length := xtcpnl.RTAttrSizeCst
 		_, errD := xtcpnl.DeserializeRTAttr((*d.NLPacket)[d.offset:d.offset+length], rta)
 		if errD != nil {
-			log.Fatal("Test Failed DeserializeRTAttr errD", errD)
+			// Don't log.Fatal — that would crash the daemon on a single
+			// malformed attribute. Count the error and stop parsing
+			// this attribute block; the next inet-diag record can still
+			// proceed cleanly.
+			d.pC.WithLabelValues("DeserializeAttributes", "DeserializeRTAttr", "error").Inc()
+			d.rtaPool.Put(rta)
+			return
 		}
 		d.offset += length
 
-		length = int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
+		// rta.Len lying about a payload smaller than the 4-byte RTAttr
+		// header → negative attribute body length. Stop here rather
+		// than slicing with a negative bound.
+		bodyLen := int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
+		if bodyLen < 0 {
+			d.pC.WithLabelValues("DeserializeAttributes", "rtaLenTooSmall", "error").Inc()
+			d.rtaPool.Put(rta)
+			return
+		}
+		// rta.Len lying about a payload larger than the buffer holds →
+		// the slice would extend OOB. Clamp to the buffer end.
+		end := d.offset + bodyLen
+		if end > d.end || end > bufEnd {
+			d.pC.WithLabelValues("DeserializeAttributes", "rtaLenOverflow", "error").Inc()
+			if d.end < bufEnd {
+				end = d.end
+			} else {
+				end = bufEnd
+			}
+		}
 		_ = x.DeserializeAttribute(DeserializeAttributeArgs{ //nolint:errcheck // always returns nil today; signature reserves the option
 			Type:       int(rta.Type),
-			buf:        (*d.NLPacket)[d.offset : d.offset+length],
+			buf:        (*d.NLPacket)[d.offset:end],
 			xtcpRecord: d.xtcpRecord,
 			pC:         d.pC,
 			pH:         d.pH,
 		})
 
-		d.offset += length
+		d.offset += bodyLen
+		// Same overflow could push d.offset past d.end on the next
+		// iteration's slice; loop condition catches that.
 
 		d.rtaPool.Put(rta)
 	}
