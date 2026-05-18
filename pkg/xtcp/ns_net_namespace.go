@@ -160,7 +160,11 @@ func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	found, err := x.checkMountInfoWithRetries(nsName)
 	if err != nil || !found {
-		return fd
+		// fd is the named return — zero-valued = 0 = stdin. Returning
+		// that would let the caller's closeFD(fd) close stdin on the
+		// next line. Return -1 (invalid-fd sentinel) so closeFD errors
+		// out cleanly via EBADF instead.
+		return -1
 	}
 
 	for attempt := 0; attempt < maxRetriesCst; attempt++ {
@@ -219,7 +223,14 @@ func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 	if x.debugLevel > 10 {
 		log.Printf("openAndSetNSWithRetries unable to Setns:%s", *nsName)
 	}
-	return fd
+	// At this point the most recent Setns attempt's fd has already been
+	// closed inside the loop (line 193). Returning that fd would let
+	// the caller's deferred closeFD double-close it — and since Linux
+	// reuses fd numbers, the second close could land on whatever
+	// unrelated socket got that number in the meantime. Return -1 so
+	// closeFD's Close errors out cleanly via EBADF + its counter, but
+	// no real fd gets clobbered.
+	return -1
 }
 
 // checkMountInfoWithRetries is a retry look with exponential backoff around checkMountInfo
