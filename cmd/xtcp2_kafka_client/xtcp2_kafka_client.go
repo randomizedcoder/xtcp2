@@ -86,7 +86,7 @@ func pollLoop(ctx context.Context, cl *kgo.Client) {
 			continue
 		}
 		fetches.EachRecord(func(record *kgo.Record) {
-			_ = processRecord(record.Value, debugLevel)
+			_ = processRecord(record.Value, debugLevel) //nolint:errcheck // processRecord logs internally; nothing actionable here
 		})
 	}
 }

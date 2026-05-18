@@ -54,6 +54,15 @@ linters:
       exclude-functions:
         - (io.Closer).Close
         - (*os.File).Close
+        # fmt.Fprintf/Fprintln to stdout/stderr writers can't fail in
+        # practice (writes to *os.File-backed tty fail only on EBADF or
+        # disk-full for regular files, neither of which we recover from).
+        # The runMain refactors made these explicit instead of fmt.Printf
+        # so checking the err here adds noise without protecting against
+        # a real failure mode.
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
 
     govet:
       enable-all: true
