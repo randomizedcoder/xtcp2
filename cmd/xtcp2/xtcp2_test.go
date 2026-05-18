@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -317,6 +319,35 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 	if !cancelCalled {
 		t.Error("cancel() was not called")
 	}
+}
+
+// servePromHandler error path with an invalid address forces
+// ListenAndServe to fail; fatalf captures the message.
+func TestServePromHandler_bindError(t *testing.T) {
+	prev := fatalf
+	var captured string
+	fatalf = func(format string, args ...any) {
+		captured = fmt.Sprintf(format, args...)
+	}
+	t.Cleanup(func() { fatalf = prev })
+
+	servePromHandler("invalid-host:-1")
+	if !strings.Contains(captured, "prometheus error") {
+		t.Errorf("fatalf not invoked; got %q", captured)
+	}
+}
+
+func TestInitPromHandler_smoke(t *testing.T) {
+	prevMux := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	t.Cleanup(func() { http.DefaultServeMux = prevMux })
+
+	prevFatalf := fatalf
+	fatalf = func(string, ...any) {} // swallow
+	t.Cleanup(func() { fatalf = prevFatalf })
+
+	initPromHandler("/metrics", ":0")
+	time.Sleep(10 * time.Millisecond)
 }
 
 func TestAwaitSignalAndShutdown_timeoutPath(t *testing.T) {
