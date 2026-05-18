@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,23 @@ func writeGo(t *testing.T, dir, name, src string) {
 func TestIsByteSliceExpr(t *testing.T) {
 	// Behavioural: a function body that indexes `b` should be flagged
 	// when no len() guard exists. Tests below cover both branches.
+}
+
+func TestIsByteSliceExpr_unitDispatch(t *testing.T) {
+	// Direct calls cover all branches of isByteSliceExpr.
+	for _, name := range []string{"b", "buf", "buffer", "data", "msg", "raw", "p", "payload"} {
+		if !isByteSliceExpr(&ast.Ident{Name: name}) {
+			t.Errorf("Ident(%q) should be byte-slice", name)
+		}
+	}
+	// Ident with unknown name → false
+	if isByteSliceExpr(&ast.Ident{Name: "x"}) {
+		t.Error("Ident('x') should NOT be byte-slice")
+	}
+	// Non-Ident → false
+	if isByteSliceExpr(&ast.BasicLit{Value: "1"}) {
+		t.Error("BasicLit should NOT be byte-slice")
+	}
 }
 
 func TestAuditTree_lenGuardedIsClean(t *testing.T) {
