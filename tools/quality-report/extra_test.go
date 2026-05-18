@@ -41,6 +41,47 @@ func TestRunMain_emptyRawDir(t *testing.T) {
 	}
 }
 
+func TestCoverageFindings_unavailable(t *testing.T) {
+	if got := coverageFindings(Coverage{}); got != nil {
+		t.Errorf("unavailable coverage should yield no findings; got %d", len(got))
+	}
+}
+
+func TestCoverageFindings_emitsBelowThreshold(t *testing.T) {
+	cov := Coverage{
+		Available: true,
+		PerPackage: map[string]float64{
+			"pkg/at-target":     92.0,
+			"pkg/below":         60.0,
+			"pkg/right-at":      90.0, // 90 is the boundary; >=90 is OK
+			"pkg/another-below": 12.0,
+		},
+	}
+	got := coverageFindings(cov)
+	if len(got) != 2 {
+		t.Errorf("got %d findings, want 2 (only below-threshold packages)", len(got))
+	}
+	seen := map[string]bool{}
+	for _, f := range got {
+		if f.Severity != severityWarning {
+			t.Errorf("severity = %q, want %q", f.Severity, severityWarning)
+		}
+		if f.Tool != "go-test-cover" {
+			t.Errorf("tool = %q, want go-test-cover", f.Tool)
+		}
+		if f.Rule != "below-90pct" {
+			t.Errorf("rule = %q, want below-90pct", f.Rule)
+		}
+		seen[f.File] = true
+	}
+	if !seen["pkg/below"] || !seen["pkg/another-below"] {
+		t.Errorf("expected pkg/below + pkg/another-below in findings; got %v", seen)
+	}
+	if seen["pkg/at-target"] || seen["pkg/right-at"] {
+		t.Errorf("at-target packages should not emit findings; got %v", seen)
+	}
+}
+
 func TestRunMain_withSomeRaws(t *testing.T) {
 	rawDir := t.TempDir()
 	// Sprinkle minimal-but-valid raw files. Each parser should succeed.
