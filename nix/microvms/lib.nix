@@ -152,7 +152,11 @@ rec {
         done
         if grep -q 'XTCP2_COVERAGE_DUMP_START' "$LOG" \
           && grep -q 'XTCP2_COVERAGE_DUMP_END' "$LOG"; then
+          # systemd routes the self-test's StandardOutput=journal+console
+          # which prefixes every line with `[TIME] xtcp2-self-test[PID]: `.
+          # Strip that prefix before base64-decoding.
           awk '/XTCP2_COVERAGE_DUMP_START/{flag=1;next} /XTCP2_COVERAGE_DUMP_END/{flag=0} flag' "$LOG" \
+            | sed -E 's/^\[[^]]*\] xtcp2-self-test\[[0-9]+\]: //' \
             | tr -d '\r\n ' \
             | base64 -d 2>/dev/null \
             | gzip -dc 2>/dev/null \

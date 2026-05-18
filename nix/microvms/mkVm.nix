@@ -84,6 +84,19 @@ let
     "-timeout"
     "1s"
   ];
+
+  # Coverage flavor uses `-dest null` so the kafka destination factory
+  # doesn't try to open /xtcp_flat_record.proto (which lives only in the
+  # source tree, not in the VM's stripped binary). Same goal as the
+  # plan's wave-10-step-5 fix for the basic VM.
+  xtcp2CoverageArgs = [
+    "-dest"
+    "null"
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -220,7 +233,13 @@ in
           enable = true;
           package = xtcp2Package;
           configFile = vmConfig;
-          extraArgs = if isVector then xtcp2VectorArgs else [ ];
+          extraArgs =
+            if isVector then
+              xtcp2VectorArgs
+            else if isCoverage then
+              xtcp2CoverageArgs
+            else
+              [ ];
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
