@@ -31,21 +31,33 @@ linters:
     errcheck:
       # io.Closer / *os.File Close() are routinely unchecked; flagging them
       # here is noise. Closer-failure on a read-only handle is not actionable.
+      # fmt.Fprintf/Fprintln are explicit-writer variants of fmt.Printf
+      # whose err returns can't fail in practice for tty/stdout/stderr.
       exclude-functions:
         - (io.Closer).Close
         - (*os.File).Close
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
 
     govet:
       enable-all: true
       disable:
         # Struct alignment suggestions are noisy and not bugs.
         - fieldalignment
+        # err shadowing is idiomatic Go; matches the other tier configs.
+        - shadow
 
     staticcheck:
       checks:
         - "all"
         # SA1019 = deprecated symbols. Allow during migration windows.
         - "-SA1019"
+        # ST1003 (underscore / camelCase): protobuf-generated identifiers
+        # and kernel-uapi-mirroring constants legitimately use names that
+        # violate Go style. Disable globally; the comprehensive tier has a
+        # more granular pkg/xtcpnl override.
+        - "-ST1003"
 
   exclusions:
     warn-unused: true

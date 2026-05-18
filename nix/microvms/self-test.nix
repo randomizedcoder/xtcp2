@@ -231,21 +231,21 @@ pkgs.writeShellApplication {
     fi
 
     ${lib.optionalString coverageEnabled ''
-    # ─── Coverage dump (coverage flavor only) ────────────────────────────
-    # systemctl stop sends SIGTERM, xtcp2's runtime flushes -cover counters
-    # to $GOCOVERDIR on clean exit. Wait a beat for the flush, then tar +
-    # base64 the directory between marker lines so the host can scrape it.
-    echo "--- coverage: stopping xtcp2 so -cover data flushes ---"
-    systemctl stop xtcp2 || true
-    sleep 2
-    if [ -d "${coverDir}" ] && [ -n "$(ls -A "${coverDir}" 2>/dev/null)" ]; then
-      echo "XTCP2_COVERAGE_DUMP_START"
-      tar c -C "${coverDir}" . | gzip -n | base64 -w0
-      echo
-      echo "XTCP2_COVERAGE_DUMP_END"
-    else
-      echo "XTCP2_COVERAGE_DUMP_EMPTY (${coverDir} is missing or empty)"
-    fi
+      # ─── Coverage dump (coverage flavor only) ────────────────────────────
+      # systemctl stop sends SIGTERM, xtcp2's runtime flushes -cover counters
+      # to $GOCOVERDIR on clean exit. Wait a beat for the flush, then tar +
+      # base64 the directory between marker lines so the host can scrape it.
+      echo "--- coverage: stopping xtcp2 so -cover data flushes ---"
+      systemctl stop xtcp2 || true
+      sleep 2
+      if [ -d "${coverDir}" ] && [ -n "$(ls -A "${coverDir}" 2>/dev/null)" ]; then
+        echo "XTCP2_COVERAGE_DUMP_START"
+        tar c -C "${coverDir}" . | gzip -n | base64 -w0
+        echo
+        echo "XTCP2_COVERAGE_DUMP_END"
+      else
+        echo "XTCP2_COVERAGE_DUMP_EMPTY (${coverDir} is missing or empty)"
+      fi
     ''}
 
     exit "$overall_rc"
