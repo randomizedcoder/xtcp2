@@ -126,6 +126,12 @@ let
   # to the in-scope namespace. Writes Go coverage data to $GOCOVERDIR on
   # clean exit. Consumed by the wave 10 microvm coverage harness; not
   # exposed by default for production use.
+  #
+  # `destinations = [ ]` builds the stdlib-only flavor (null/udp/unix/
+  # unixgram) — same as host `go test ./...` without dest_kafka/dest_nats/
+  # dest_nsq/dest_valkey build tags. Keeping the block universe in sync
+  # with host tests lets the VM profile merge cleanly with host coverage
+  # without introducing build-tag-gated blocks that drag the total down.
   xtcp2-cover = mkGoBinary {
     name = "xtcp2";
     inherit
@@ -135,6 +141,7 @@ let
       version
       ;
     variant = "default";
+    destinations = [ ];
     coverage = true;
     coverPkg = "github.com/randomizedcoder/xtcp2/...";
   };
