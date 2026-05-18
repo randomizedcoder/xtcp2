@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -13,7 +14,6 @@ import (
 const (
 	schemaRegistryURLCst = "http://localhost:18081" // Update to your Redpanda schema registry URL
 	topicCst             = "protobuf_list"          // Subject name for schema
-	protoFilePathCst     = "my_proto.proto"         // File path to your .proto file
 )
 
 // SchemaRequest represents the payload to send to the schema registry
@@ -28,10 +28,6 @@ func readProtobufFromFile(filePath string) (string, error) {
 		return "", fmt.Errorf("failed to read proto file: %w", err)
 	}
 	return string(data), nil
-}
-
-func registerProtobufSchema(subject string, schema string) error {
-	return registerProtobufSchemaAt(http.DefaultClient, schemaRegistryURLCst, subject, schema)
 }
 
 // registerProtobufSchemaAt POSTs the schema document to <baseURL>/subjects/<subject>/versions
@@ -61,10 +57,6 @@ func registerProtobufSchemaAt(client *http.Client, baseURL, subject, schema stri
 	return nil
 }
 
-func getLatestSchemaID(subject string) (int, error) {
-	return getLatestSchemaIDAt(http.DefaultClient, schemaRegistryURLCst, subject)
-}
-
 // getLatestSchemaIDAt fetches the latest schema ID for `subject` via the
 // supplied HTTP client. Same extraction pattern as registerProtobufSchemaAt.
 func getLatestSchemaIDAt(client *http.Client, baseURL, subject string) (int, error) {
@@ -88,40 +80,45 @@ func getLatestSchemaIDAt(client *http.Client, baseURL, subject string) (int, err
 }
 
 func main() {
+	os.Exit(runMain(os.Args[1:], schemaRegistryURLCst, http.DefaultClient, os.Stdout, os.Stderr))
+}
 
-	filename := flag.String("filename", "my_proto.proto", "filename")
-	topic := flag.String("topic", topicCst, "topic")
-
-	register := flag.Bool("register", false, "register")
-	get := flag.Bool("get", true, "get")
-
-	flag.Parse()
+// runMain wires flag parsing + the two HTTP calls. Extracted so tests can
+// drive it with synthetic args, a fake baseURL, and an httptest.Server's
+// client. Returns the process exit code.
+func runMain(args []string, baseURL string, client *http.Client, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("register_schema", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	filename := fs.String("filename", "my_proto.proto", "filename")
+	topic := fs.String("topic", topicCst, "topic")
+	register := fs.Bool("register", false, "register")
+	get := fs.Bool("get", true, "get")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	schema, err := readProtobufFromFile(*filename)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading schema: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error reading schema: %v\n", err)
+		return 1
 	}
 
 	subject := fmt.Sprintf("%s-value", *topic)
 
 	if *register {
-		err = registerProtobufSchema(subject, schema)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error registering schema: %v\n", err)
-			os.Exit(1)
+		if err := registerProtobufSchemaAt(client, baseURL, subject, schema); err != nil {
+			fmt.Fprintf(stderr, "Error registering schema: %v\n", err)
+			return 1
 		}
 	}
 
 	if *get {
-		var id int
-		id, err = getLatestSchemaID(subject)
+		id, err := getLatestSchemaIDAt(client, baseURL, subject)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error registering schema: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "Error registering schema: %v\n", err)
+			return 1
 		}
-
-		fmt.Printf("id:%d", id)
-
+		fmt.Fprintf(stdout, "id:%d", id)
 	}
+	return 0
 }
