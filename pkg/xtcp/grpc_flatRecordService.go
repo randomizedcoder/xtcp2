@@ -255,10 +255,21 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	}
 
 	if pfrClientCount > 0 {
+		// PollFlatRecords stores its streams as the bidi server type whose
+		// SECOND type param is PollFlatRecordsResponse (not FlatRecordsResponse
+		// — that's what the regular FlatRecords stream takes). Asserting on
+		// the wrong type produced nil + a nil-deref panic on send; nothing
+		// caught it earlier because no test or production run had ever held
+		// a pfr stream open AND fired flatRecordServiceSend at the same time.
+		// PollFlatRecordsResponse.XtcpFlatRecord mirrors FlatRecordsResponse,
+		// so we reuse the xtcpRecord pointer and wrap it.
+		pollResp := &xtcp_flat_record.PollFlatRecordsResponse{
+			XtcpFlatRecord: xtcpRecord,
+		}
 		x.flatRecordService.PollFlatRecordsClients.Range(func(k, v interface{}) bool {
 
-			stream, _ := k.(*grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.FlatRecordsResponse]) //nolint:errcheck // sync.Map Store sites all use this type
-			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil {                                                           // <<------------------------- Send
+			stream, _ := k.(*grpc.BidiStreamingServer[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.PollFlatRecordsResponse]) //nolint:errcheck // sync.Map Store sites all use this type
+			if err := (*stream).Send(pollResp); err != nil {                                                                              // <<------------------------- Send
 				x.pC.WithLabelValues("flatRecordServiceSend", "pfrSend", "error").Inc()
 			}
 			x.pC.WithLabelValues("flatRecordServiceSend", "pfrSent", "count").Inc()
