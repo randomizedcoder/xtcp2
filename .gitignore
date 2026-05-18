@@ -1,5 +1,28 @@
+# Nix
 result
-xtcp2client
-xtcp2_kafka_client
 
-quality-report
+# cmd/* binaries built at repo root by `go build ./cmd/<name>`
+/clickhouse_http_insert_protobuflist
+/clickhouse_protobuflist
+/clickhouse_protobuflist_db
+/kafka_to_clickhouse
+/ns
+/nsTest
+/register_schema
+/xtcp2
+/xtcp2client
+/xtcp2_kafka_client
+
+# tools/* binaries built at repo root
+/iouring-audit
+/kafka_topic_reader
+/metrics-audit
+/netlink-audit
+/proto-field-audit
+/quality-report
+/tcp_client
+/tcp_server
+/udp_receiver_server
+
+# Claude Code session artifacts
+.claude/
