@@ -113,6 +113,35 @@ func TestCallFatalf_routes(t *testing.T) {
 	}
 }
 
+// SetConstructorRegistry + SetNetNsCandidateDirs: round-trip the swap +
+// restore-via-returned-value contract.
+func TestSetConstructorRegistry_swapAndRestore(t *testing.T) {
+	newReg := prometheus.NewRegistry()
+	prev := SetConstructorRegistry(newReg)
+	if constructorRegistry != newReg {
+		t.Error("constructorRegistry not updated")
+	}
+	restored := SetConstructorRegistry(prev)
+	if restored != newReg {
+		t.Errorf("restore returned %v, want the swapped-in value", restored)
+	}
+	if constructorRegistry != prev {
+		t.Error("constructorRegistry not restored")
+	}
+}
+
+func TestSetNetNsCandidateDirs_swapAndRestore(t *testing.T) {
+	newDirs := []string{"/tmp/test-only"}
+	prev := SetNetNsCandidateDirs(newDirs)
+	if &netNsCandidateDirs[0] != &newDirs[0] {
+		t.Error("netNsCandidateDirs not updated")
+	}
+	restored := SetNetNsCandidateDirs(prev)
+	if restored[0] != newDirs[0] {
+		t.Errorf("restore returned %v, want the swapped-in value", restored)
+	}
+}
+
 // NewXTCP via constructorRegistry swap + netNsCandidateDirs override.
 // Pass a minimal valid config (null dest + valid marshaller + non-empty
 // topic) so InputValidation passes.
