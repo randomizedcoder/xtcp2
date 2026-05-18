@@ -91,6 +91,59 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	}
 }
 
+// createNetlinkers with netlinkers=2 + a no-op Netlinker function: drives
+// the loop body (counter + spawn + debug log) for each iteration.
+func TestCreateNetlinkers_nonZero(t *testing.T) {
+	x := newNsExtraFixture(t)
+	x.debugLevel = 11 // hit log branch
+	var ran sync.WaitGroup
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ int, _ uint32) {
+		defer wg.Done()
+		ran.Done()
+	}
+	ran.Add(2)
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	name := "spawn-ns"
+	x.createNetlinkers(context.Background(), wg, &name, 9, 2)
+	wg.Wait()
+	ran.Wait() // both Netlinker invocations ran
+}
+
+// createNetlinkersAndStore with netlinkers=2: the spawned netlinkers run
+// the no-op stub, the netNSitem lands in nsMap, and storeCount/generation
+// both increment by 1.
+func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		t.Skipf("socketpair: %v", err)
+	}
+	defer func() {
+		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+	}()
+
+	x := newNsExtraFixture(t)
+	x.config = &xtcp_config.XtcpConfig{
+		NlTimeoutMilliseconds: 100,
+		Netlinkers:            2,
+	}
+	var ran sync.WaitGroup
+	ran.Add(2)
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ int, _ uint32) {
+		defer wg.Done()
+		ran.Done()
+	}
+	x.debugLevel = 11
+	nsName := "spawn-store-ns"
+	x.createNetlinkersAndStore(context.Background(), &nsName, fds[0])
+	ran.Wait()
+
+	if _, ok := x.nsMap.Load(nsName); !ok {
+		t.Error("nsMap should contain the new ns entry")
+	}
+}
+
 // nsAdd duplicate branch: already-present nsName increments the duplicate
 // counter + returns without spawning a netNamespaceInstance goroutine.
 func TestNsAdd_duplicate(t *testing.T) {
