@@ -185,6 +185,34 @@ func TestFileOrKafka_writeError(t *testing.T) {
 	fileOrKafka(t.Context(), config{filename: "/no/such/dir/x", kafka: false}, &data)
 }
 
+// fileOrKafka with kafka=true: drives the destKafka path via the in-process
+// kgo client fixture (the broker is unreachable so Produce's callback fires
+// with an error, but fileOrKafka swallows + logs it).
+func TestFileOrKafka_kafkaMode(t *testing.T) {
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.DefaultProduceTopic("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+	prevClient := kClient
+	prevPoolNew := kgoRecordPool.New
+	kClient = cl
+	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	t.Cleanup(func() {
+		kClient = prevClient
+		kgoRecordPool.New = prevPoolNew
+	})
+
+	data := []byte("payload")
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	fileOrKafka(ctx, config{topic: "test-topic", kafka: true, debugLevel: 11}, &data)
+	// No assert beyond no-panic — destKafka's callback handles the error.
+}
+
 // destKafka against an unreachable broker: kgo.NewClient succeeds (lazy),
 // then Produce's callback fires with an error after ctx cancellation.
 // Drives the destKafka body without needing a real broker.
