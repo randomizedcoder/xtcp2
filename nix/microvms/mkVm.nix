@@ -229,6 +229,25 @@ in
           environment.GOCOVERDIR = coverDir;
         };
 
+        # Pre-create a test network namespace before xtcp2 starts. This
+        # makes the fsnotify-watch path fire a Create event for an actual
+        # namespace, which spawns netNamespaceInstance →
+        # openAndSetNSWithRetries → openDefaultNetLinkSocket inside that
+        # namespace. Otherwise those code paths stay at 0% even with
+        # coverage instrumentation.
+        systemd.services.create-test-netns = lib.mkIf isCoverage {
+          description = "Create a test network namespace for xtcp2 coverage";
+          wantedBy = [ "xtcp2.service" ];
+          before = [ "xtcp2.service" ];
+          after = [ "local-fs.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${pkgs.iproute2}/bin/ip netns add xtcpcovns";
+            ExecStop = "${pkgs.iproute2}/bin/ip netns delete xtcpcovns";
+          };
+        };
+
         services.getty.autologinUser = "root";
         systemd.enableEmergencyMode = false;
 
