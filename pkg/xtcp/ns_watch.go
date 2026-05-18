@@ -116,7 +116,7 @@ func checkDirectoryExists(dir string) bool {
 // this is essentially what "ip netnsd add ns1" does under the hood
 func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) error {
 
-	if err := os.MkdirAll(netnsDir, 0755); err != nil { //nolint:gosec // G301: /run/netns is a system-managed namespace dir; 0755 is the standard `ip netns add` permission
+	if err := os.MkdirAll(netnsDir, 0755); err != nil { //nolint:gosec // G301: /run/netns is a system-managed namespace dir; 0755 is the standard `ip netns add` permission // #nosec G301
 		return fmt.Errorf("failed to create directory %s: %w", netnsDir, err)
 	}
 
