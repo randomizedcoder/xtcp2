@@ -103,6 +103,35 @@ func TestReconcileMaps(t *testing.T) {
 
 	var x XTCP
 
+	// In production, discoverAllNamespaces builds srcMap with nil
+	// values (see pkg/xtcp/ns_discover.go: nsMap.Store(nsName, nil)).
+	// Without the !srcValue==nil short-circuit, reconcileMaps treats
+	// nil != netNSitem as drift and deletes every entry every cycle,
+	// causing nsAdd to spawn a new netNamespaceInstance goroutine
+	// while the existing one (still holding a netlink socketFD) is
+	// orphaned. This regression test asserts that nil src values
+	// don't trigger a delete.
+	t.Run("production_nil_src_values_preserve_dest", func(t *testing.T) {
+		srcMap := &sync.Map{}
+		srcMap.Store("/run/netns/foo", nil) // discover's actual shape
+		srcMap.Store("/run/netns/bar", nil)
+		destMap := &sync.Map{}
+		destMap.Store("/run/netns/foo", "netNSitem-foo") // simulates netNSitem
+		destMap.Store("/run/netns/bar", "netNSitem-bar")
+
+		dels, stores := x.reconcileMaps(context.Background(), srcMap, destMap, true)
+		if dels != 0 {
+			t.Errorf("expected 0 deletes (nil src values must not count as drift); got %d", dels)
+		}
+		if stores != 0 {
+			t.Errorf("expected 0 stores (dest already has these keys); got %d", stores)
+		}
+		// destMap should still have the original netNSitem values.
+		if v, ok := destMap.Load("/run/netns/foo"); !ok || v != "netNSitem-foo" {
+			t.Errorf("destMap[foo] = (%v, %v); want netNSitem-foo, true", v, ok)
+		}
+	})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			srcMap := &sync.Map{}
