@@ -158,3 +158,41 @@ func TestCheckMountInfoWithRetries_neverFound(t *testing.T) {
 		t.Error("expected not-found for synthetic nsName")
 	}
 }
+
+// checkMountInfo with mountInfoDir pointed at a missing path: os.Open
+// fails → the err branch returns the wrapped error.
+func TestCheckMountInfo_openErr(t *testing.T) {
+	prev := mountInfoDir
+	t.Cleanup(func() { mountInfoDir = prev })
+	mountInfoDir = "/no/such/dir/probably/mountinfo"
+
+	x := newCloseFixture(t)
+	x.debugLevel = 11 // hit the log.Printf branch on error
+	nsName := "anything"
+	if _, err := x.checkMountInfo(&nsName); err == nil {
+		t.Error("missing mountInfoDir should produce error")
+	}
+}
+
+// checkMountInfoWithRetries observes a persistent open-err from
+// checkMountInfo (mountInfoDir missing) → returns (false, err) without
+// finding the namespace. Drives the errC continue branch.
+func TestCheckMountInfoWithRetries_openErrEachAttempt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("retries with exponential backoff take seconds")
+	}
+	prev := mountInfoDir
+	t.Cleanup(func() { mountInfoDir = prev })
+	mountInfoDir = "/no/such/dir/probably/mountinfo"
+
+	x := newCloseFixture(t)
+	x.debugLevel = 11
+	nsName := "anything"
+	found, err := x.checkMountInfoWithRetries(&nsName)
+	if found {
+		t.Error("found should be false when every attempt errored")
+	}
+	if err == nil {
+		t.Error("err should be non-nil after retry exhaustion")
+	}
+}

@@ -15,9 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	mountInfoDir = "/proc/self/mountinfo"
-)
+// mountInfoDir is the path checkMountInfo scans for a namespace's bind
+// mount. Made a var (was const) so tests can redirect to a tempfile and
+// drive the os.Open error branch.
+var mountInfoDir = "/proc/self/mountinfo"
 
 // netNamespaceInstance runs as a goroutine, and moves the thread
 // into a network namespace, opens a netlink socket, and passes

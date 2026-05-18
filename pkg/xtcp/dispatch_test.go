@@ -156,6 +156,32 @@ func TestInitDeserializers_dispatch(t *testing.T) {
 	}
 }
 
+// TestInitDeserializers_allEnabled enables every supported deserializer
+// key so each per-key branch (meminfo, cong, tos, tc, classid, sockopt,
+// etc.) gets exercised.
+func TestInitDeserializers_allEnabled(t *testing.T) {
+	x := &XTCP{
+		config: &xtcp_config.XtcpConfig{
+			EnabledDeserializers: &xtcp_config.EnabledDeserializers{
+				Enabled: map[string]bool{
+					"meminfo": true, "info": true, "vegas": true,
+					"cong": true, "tos": true, "tc": true,
+					"skmem": true, "shut": true, "dctcp": true,
+					"bbr": true, "classid": true, "cgroup": true,
+					"sockopt": true,
+				},
+			},
+		},
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitDeserializers(&wg)
+	wg.Wait()
+	if len(x.RTATypeDeserializer) < 12 {
+		t.Errorf("expected ≥12 dispatch entries with all keys enabled; got %d", len(x.RTATypeDeserializer))
+	}
+}
+
 func TestInitDeserializers_emptyEnabled(t *testing.T) {
 	x := &XTCP{
 		config: &xtcp_config.XtcpConfig{
