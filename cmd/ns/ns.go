@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -41,100 +43,170 @@ var (
 	version string
 
 	debugLevel uint
+
+	// fatalf is the package-level abort handler. Defaults to log.Fatalf
+	// (which prints + os.Exit(1)). Tests swap this in for a capture so
+	// the error branches of initPromHandler can be exercised without
+	// terminating the test process.
+	fatalf = log.Fatalf
+
+	// daemonRunner builds + runs the underlying xtcp.NewNsTestingXTCP
+	// instance. The default impl wires up production behavior; tests
+	// replace it with a stub that returns without touching real netlink
+	// or /run/netns. Injected as a var (not a parameter) so the cmd's
+	// existing main() stays a 1-liner.
+	daemonRunner = runDaemonDefault
+
+	// promHandlerStarter wraps go-routine launch of the Prometheus HTTP
+	// handler. Tests swap it for a no-op so runMain doesn't try to bind
+	// a real port.
+	promHandlerStarter = func(promPath, promListen string) {
+		go initPromHandler(promPath, promListen)
+	}
 )
 
 func main() {
-
 	misc.DieIfNotLinux()
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
+// nsFlags is the parsed flag set used by runMain.
+type nsFlags struct {
+	promListen   string
+	promPath     string
+	profileMode  string
+	v            bool
+	d            uint
+	enablePprof  bool
+	startPpprof  bool // pprof handlers actually registered
+	startPromSrv bool // prom HTTP server actually started
+}
 
+// parseNsFlags is split out so tests can drive flag parsing and assert
+// the resulting struct without needing the rest of runMain to fire.
+func parseNsFlags(args []string, stderr io.Writer) (*nsFlags, int) {
+	fs := flag.NewFlagSet("ns", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	promListen := fs.String("promListen", promListenCst, "Prometheus http listening socket")
+	promPath := fs.String("promPath", promPathCst, "Prometheus http path")
+	profileMode := fs.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
+	v := fs.Bool("v", false, "show version")
+	d := fs.Uint("d", debugLevelCst, "debug level")
+	enablePprof := fs.Bool("pprof", false, "expose /debug/pprof on the prometheus listener (off by default; was unconditional, gosec G108)")
+	if err := fs.Parse(args); err != nil {
+		return nil, 2
+	}
+	return &nsFlags{
+		promListen:   *promListen,
+		promPath:     *promPath,
+		profileMode:  *profileMode,
+		v:            *v,
+		d:            *d,
+		enablePprof:  *enablePprof,
+		startPpprof:  true,
+		startPromSrv: true,
+	}, 0
+}
+
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	f, rc := parseNsFlags(args, stderr)
+	if f == nil {
+		return rc
+	}
+
+	if f.v {
+		fmt.Fprintf(stdout, "xtcp commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
+	}
+
+	debugLevel = f.d
+	if f.enablePprof && f.startPpprof {
+		registerPprof(f.promListen)
+	}
+
+	if f.d > 10 {
+		log.Println("*profileMode:", f.profileMode)
+	}
+	if stopper := startProfile(f.profileMode, f.d); stopper != nil {
+		defer stopper()
+	}
+
+	if f.startPromSrv {
+		promHandlerStarter(f.promPath, f.promListen)
+	}
+	if f.d > 10 {
+		log.Println("Prometheus http listener started on:", f.promListen, f.promPath)
+	}
+
+	dctx, cancel := context.WithCancel(ctx)
 	complete := make(chan struct{}, signalChannelSizeCst)
 	go initSignalHandler(cancel, complete)
 
-	promListen := flag.String("promListen", promListenCst, "Prometheus http listening socket")
-	promPath := flag.String("promPath", promPathCst, "Prometheus http path")
-	// curl -s http://[::1]:9000/metrics 2>&1 | grep -v "#"
-	// curl -s http://127.0.0.1:9000/metrics 2>&1 | grep -v "#"
+	daemonRunner(dctx, cancel, debugLevel)
 
-	// ./ns --profile.mode cpu
-	// timeout 1h ./ns --profile.mode cpu
-	profileMode := flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
-
-	v := flag.Bool("v", false, "show version")
-
-	d := flag.Uint("d", debugLevelCst, "debug level")
-
-	enablePprof := flag.Bool("pprof", false, "expose /debug/pprof on the prometheus listener (off by default; was unconditional, gosec G108)")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
-	if *v {
-		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
-	}
-
-	debugLevel = *d
-
-	if *enablePprof {
-		// pprof handlers are normally registered by the `net/http/pprof`
-		// init function; we register them by hand here so they're only
-		// exposed when the operator asks for them. gosec G108.
-		http.HandleFunc("/debug/pprof/", pprof.Index)
-		http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		http.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		http.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		log.Println("pprof endpoints registered at /debug/pprof on", *promListen)
-	}
-
-	if *d > 10 {
-		log.Println("*profileMode:", *profileMode)
-	}
-	switch *profileMode {
-	case "cpu":
-		defer profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop()
-	case "mem":
-		defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
-	case "memheap":
-		defer profile.Start(profile.MemProfileHeap, profile.ProfilePath(".")).Stop()
-	case "mutex":
-		defer profile.Start(profile.MutexProfile, profile.ProfilePath(".")).Stop()
-	case "block":
-		defer profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop()
-	case "trace":
-		defer profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop()
-	case "goroutine":
-		defer profile.Start(profile.GoroutineProfile, profile.ProfilePath(".")).Stop()
+	select {
+	case complete <- struct{}{}:
 	default:
-		if *d > 10 {
-			log.Println("No profiling")
-		}
 	}
-
-	go initPromHandler(*promPath, *promListen)
-	if *d > 10 {
-		log.Println("Prometheus http listener started on:", *promListen, *promPath)
-	}
-
-	xNS := xtcp.NewNsTestingXTCP(ctx, cancel, uint32(debugLevel))
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go xNS.RunNoPoller(ctx, &wg)
-
-	if debugLevel > 10 {
-		log.Println("xNS.RunNSOnly(ctx, &wg) complete. wg.Wait()")
-	}
-
-	wg.Wait()
-	complete <- struct{}{}
 
 	if debugLevel > 10 {
 		log.Println("ns.go Main complete - farewell")
 	}
+	return 0
+}
+
+// registerPprof installs the pprof handlers on http.DefaultServeMux. Split
+// out so tests can call it once (or not at all) — registering twice on the
+// default mux would panic.
+func registerPprof(promListen string) {
+	http.HandleFunc("/debug/pprof/", pprof.Index)
+	http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	log.Println("pprof endpoints registered at /debug/pprof on", promListen)
+}
+
+// startProfile starts the optional profiler matching `mode` and returns
+// its Stop closure (or nil if no profiling). Extracted so tests can
+// exercise the switch's branches without holding a deferred profiler.
+func startProfile(mode string, d uint) func() {
+	switch mode {
+	case "cpu":
+		return profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop
+	case "mem":
+		return profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop
+	case "memheap":
+		return profile.Start(profile.MemProfileHeap, profile.ProfilePath(".")).Stop
+	case "mutex":
+		return profile.Start(profile.MutexProfile, profile.ProfilePath(".")).Stop
+	case "block":
+		return profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop
+	case "trace":
+		return profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop
+	case "goroutine":
+		return profile.Start(profile.GoroutineProfile, profile.ProfilePath(".")).Stop
+	}
+	if d > 10 {
+		log.Println("No profiling")
+	}
+	return nil
+}
+
+// runDaemonDefault is the production daemon body: build an xtcp instance
+// and run the NoPoller variant until the wg is released by ctx cancel.
+// Tests substitute this via the daemonRunner package var.
+func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, debugLvl uint) {
+	xNS := xtcp.NewNsTestingXTCP(ctx, cancel, uint32(debugLvl))
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go xNS.RunNoPoller(ctx, &wg)
+
+	if debugLvl > 10 {
+		log.Println("xNS.RunNSOnly(ctx, &wg) complete. wg.Wait()")
+	}
+	wg.Wait()
 }
 
 // initSignalHandler sets up signal handling for the process, and
@@ -177,7 +249,7 @@ func awaitSignalAndShutdown(
 }
 
 // initPromHandler starts the prom handler with error checking
-// https: //pkg.go.dev/github.com/prometheus/client_golang/prometheus/promhttp?tab=doc#HandlerOpts
+// https://pkg.go.dev/github.com/prometheus/client_golang/prometheus/promhttp?tab=doc#HandlerOpts
 func initPromHandler(promPath string, promListen string) {
 	http.Handle(promPath, promhttp.HandlerFor(
 		prometheus.DefaultGatherer,
@@ -186,17 +258,22 @@ func initPromHandler(promPath string, promListen string) {
 			MaxRequestsInFlight: promMaxRequestsInFlight,
 		},
 	))
-	go func() {
-		srv := &http.Server{
-			Addr:              promListen,
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       10 * time.Second,
-			WriteTimeout:      10 * time.Second,
-			IdleTimeout:       30 * time.Second,
-		}
-		err := srv.ListenAndServe()
-		if err != nil {
-			log.Fatal("prometheus error", err)
-		}
-	}()
+	go servePromHandler(promListen)
+}
+
+// servePromHandler runs the prom HTTP server on `promListen`. On
+// ListenAndServe failure it calls fatalf (default log.Fatalf in
+// production; swapped to a capture by tests). Extracted from
+// initPromHandler so tests can drive it with an unavailable port.
+func servePromHandler(promListen string) {
+	srv := &http.Server{
+		Addr:              promListen,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		fatalf("prometheus error: %v", err)
+	}
 }
