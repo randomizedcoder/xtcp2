@@ -154,9 +154,15 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	}
 
 	// INET_DIAG_SOCKOPT 22
+	// Previously registered DeserializeCGroupIDXTCP here as a workaround
+	// because DeserializeSockOptXTCP had the wrong target type
+	// (*Envelope_XtcpFlatRecord). With the sockopt deserializer's
+	// signature corrected, register the actual SockOpt parser — the
+	// CGroupID one was decoding 8 bytes against the 2-byte SOCKOPT
+	// payload, silently erroring out and leaving SockOpt unpopulated.
 	key = dsKeySockopt
 	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.SockOptEnumValueCst] = xtcpnl.DeserializeCGroupIDXTCP
+		x.RTATypeDeserializer[xtcpnl.SockOptEnumValueCst] = xtcpnl.DeserializeSockOptXTCP
 		x.RTATypeDeserializerStr[xtcpnl.SockOptEnumValueCst] = key
 	}
 
