@@ -363,8 +363,13 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		_ = conn.Close()                                      //nolint:errcheck // close explicitly; log.Fatal skips the deferred conn.Close
-		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
+		// Demoted from log.Fatal: the surrounding singleStreamingClient
+		// loop is a "reconnect after sleep" loop (bug 65). A Fatal here
+		// killed the whole client every time FlatRecords creation
+		// failed (e.g., server briefly unreachable), defeating the
+		// retry. Log + return so the caller's sleep+restart fires.
+		log.Printf("Error making gRPC request: %v", err)
+		return
 	}
 
 breakPoint:
