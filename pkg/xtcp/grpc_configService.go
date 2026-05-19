@@ -148,7 +148,24 @@ func (c *xtcpConfigService) SetPollFrequency(
 	c.config.PollFrequency = in.PollFrequency
 	c.config.PollTimeout = in.PollTimeout
 
-	*c.changePollFrequencyCh <- c.config.PollFrequency.AsDuration()
+	// Send the new poll frequency to the poller. The channel is buffered
+	// (size 2), so two sends can succeed without a reader; the third
+	// would block forever — pegging the gRPC handler goroutine — if the
+	// poller stopped reading (mid-shutdown, paused, etc.). Use ctx-aware
+	// select with a non-blocking default fallback so a coalesced
+	// frequency-change is dropped (the next caller will resend) rather
+	// than wedging the RPC.
+	select {
+	case *c.changePollFrequencyCh <- c.config.PollFrequency.AsDuration():
+	case <-ctx.Done():
+		c.pC.WithLabelValues("SetPollFrequency", "ctxDone", "count").Inc()
+		return nil, status.Error(codes.Canceled, ctx.Err().Error())
+	case <-c.ctx.Done():
+		c.pC.WithLabelValues("SetPollFrequency", "serverCtxDone", "count").Inc()
+		return nil, status.Error(codes.Unavailable, "server shutting down")
+	default:
+		c.pC.WithLabelValues("SetPollFrequency", "chFull", "count").Inc()
+	}
 
 	if c.debugLevel > 10 {
 		log.Printf("SetPollFrequency c.config.PollFrequency:%0.2f c.config.PollTimeout:%0.2f",
