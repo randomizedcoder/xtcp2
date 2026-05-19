@@ -153,9 +153,85 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 }
 
 const (
-	maxRetriesCst    = 10
-	backoffFactorCst = 10 * time.Millisecond
+	maxRetriesCst = 10
 )
+
+// backoffFactorCst is the base unit for the exponential backoff in
+// openAndSetNSWithRetries / checkMountInfoWithRetries. var (was const)
+// so tests can shrink it to microseconds and drive the retry-exhaust
+// path without wall-clocking ~10 seconds. Production code never
+// mutates it.
+var backoffFactorCst = 10 * time.Millisecond
+
+// openAndSetnsSyscalls is the seam that the test suite swaps for a
+// fake. Default points at the real unix.* calls. NOT for production
+// reconfiguration — only init_test.go (build-tag _test) flips it.
+var openAndSetnsSyscalls = openAndSetnsSyscallsT{
+	open:  unix.Open,
+	setns: unix.Setns,
+	close: unix.Close,
+}
+
+type openAndSetnsSyscallsT struct {
+	open  func(path string, flag int, perm uint32) (int, error)
+	setns func(fd int, nstype int) error
+	close func(fd int) error
+}
+
+// attemptOpenAndSetns is one iteration of the retry loop. Returns:
+//   - fd: the fd returned by Open. -1 on Open failure. On Setns failure
+//     the fd has already been closed inside this helper, so the caller
+//     must not close it again (Linux reuses fd numbers under load —
+//     double-close lands on an unrelated socket).
+//   - errOpen, errSetns: at most one is non-nil. errOpen != nil means
+//     the iteration failed before any state was created. errSetns != nil
+//     means the fd existed briefly and was closed.
+func (x *XTCP) attemptOpenAndSetns(nsName *string) (fd int, errOpen, errSetns error) {
+	fd, errOpen = openAndSetnsSyscalls.open(*nsName, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if errOpen != nil {
+		x.pC.WithLabelValues("openAndSetNSWithRetries", "open", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("openAndSetNSWithRetries unix.Open err: %v", errOpen)
+		}
+		return fd, errOpen, nil
+	}
+	if x.debugLevel > 10 {
+		log.Printf("openAndSetNSWithRetries after unix.Open: %s", *nsName)
+	}
+
+	// https://pkg.go.dev/golang.org/x/sys/unix#Setns
+	// https://www.man7.org/linux/man-pages/man2/setns.2.html
+	errSetns = openAndSetnsSyscalls.setns(fd, unix.CLONE_NEWNET)
+	if errSetns == nil {
+		return fd, nil, nil
+	}
+	x.pC.WithLabelValues("openAndSetNSWithRetries", "Setns", "error").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("openAndSetNSWithRetries unix.Setns err: %v", errSetns)
+	}
+	if errC := openAndSetnsSyscalls.close(fd); errC != nil {
+		x.pC.WithLabelValues("openAndSetNSWithRetries", "close", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("openAndSetNSWithRetries unix.Close errC: %v", errC)
+		}
+	}
+	return fd, nil, errSetns
+}
+
+// backoffSleep sleeps 2^attempt * backoffFactorCst between Setns retries.
+// Skips attempt<=0 (no point sleeping before the first retry) and
+// attempt>=maxRetriesCst (loop is about to terminate). Public visibility
+// to allow benchmarks to drive it directly without the surrounding loop.
+func (x *XTCP) backoffSleep(attempt int) {
+	if attempt <= 0 || attempt >= maxRetriesCst {
+		return
+	}
+	backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactorCst
+	if x.debugLevel > 10 {
+		log.Printf("openAndSetNSWithRetries  %d < %d, sleeping: %0.3f", attempt, maxRetriesCst, backoffDuration.Seconds())
+	}
+	time.Sleep(backoffDuration)
+}
 
 // openAndSetNSWithRetries
 // opens the /run/netns/X directory, and then tries to run
@@ -166,73 +242,39 @@ const (
 // beware of bugs:
 // https://github.com/iproute2/iproute2/blob/413cf4f03a9b6a219c94b86f41d67992b0a14b82/ip/ipnetns.c#L801
 // https://bugs.debiax.org/cgi-bin/bugreport.cgi?bug=949235
+//
+// The body was previously a 17-cyclo retry loop that mixed Open + Setns +
+// close-on-fail + backoff inline. The Open+Setns+close-on-fail step is
+// now attemptOpenAndSetns; the backoff is backoffSleep. The remaining
+// shell (gocyclo 6) is the orchestration: mount-info check, retry loop,
+// success/exhaust return.
 func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	// https://www.man7.org/linux/man-pages/man2/opex.2.html
-	// nsFullName := netnsDir + *ns.name
 	if x.debugLevel > 10 {
 		log.Printf("openAndSetNSWithRetries nsFullName: %s", *nsName)
 	}
 
 	found, err := x.checkMountInfoWithRetries(nsName)
 	if err != nil || !found {
-		// fd is the named return — zero-valued = 0 = stdin. Returning
-		// that would let the caller's closeFD(fd) close stdin on the
-		// next line. Return -1 (invalid-fd sentinel) so closeFD errors
-		// out cleanly via EBADF instead.
+		// Named return fd is zero-valued = 0 = stdin. Returning that
+		// would let the caller's closeFD(fd) close stdin on the next
+		// line. Return -1 (invalid-fd sentinel) so closeFD errors out
+		// cleanly via EBADF instead.
 		return -1
 	}
 
 	for attempt := 0; attempt < maxRetriesCst; attempt++ {
-
-		fd, err = unix.Open(*nsName, unix.O_RDONLY|unix.O_CLOEXEC, 0)
-		if err != nil {
-			x.pC.WithLabelValues("openAndSetNSWithRetries", "open", "error").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("openAndSetNSWithRetries unix.Open err: %v", err)
-			}
-			return fd
+		attemptFD, errOpen, errSetns := x.attemptOpenAndSetns(nsName)
+		if errOpen != nil {
+			// attemptFD is -1 on Open failure on Linux; pass it
+			// through so the caller's closeFD path stays consistent.
+			return attemptFD
 		}
-
-		if x.debugLevel > 10 {
-			log.Printf("openAndSetNSWithRetries after unix.Open: %s", *nsName)
+		if errSetns == nil {
+			return attemptFD
 		}
-
-		// https://pkg.go.dev/golang.org/x/sys/unix#Setns
-		// https://cs.opensource.google/go/x/sys/+/refs/tags/v0.28.0:unix/zsyscall_linux.go;l=1533
-		// https://www.man7.org/linux/man-pages/man2/setns.2.html
-		errS := unix.Setns(fd, unix.CLONE_NEWNET)
-
-		if errS != nil {
-
-			x.pC.WithLabelValues("openAndSetNSWithRetries", "Setns", "error").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("openAndSetNSWithRetries unix.Setns err: %v", errS)
-			}
-
-			errC := unix.Close(fd)
-			if errC != nil {
-				x.pC.WithLabelValues("openAndSetNSWithRetries", "close", "error").Inc()
-				if x.debugLevel > 10 {
-					log.Printf("openAndSetNSWithRetries unix.Close errC: %v", errC)
-				}
-			}
-
-			if attempt > 0 {
-				if attempt < maxRetriesCst {
-					backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactorCst
-					if x.debugLevel > 10 {
-						log.Printf("openAndSetNSWithRetries  %d < %d, sleeping: %0.3f", attempt, maxRetriesCst, backoffDuration.Seconds())
-					}
-					time.Sleep(backoffDuration)
-				}
-			}
-		}
-
-		// SUCCESS PATH
-		if errS == nil {
-			return fd
-		}
+		x.backoffSleep(attempt)
 	}
 
 	x.pC.WithLabelValues("openAndSetNSWithRetries", "SetnsAfterRetries", "error").Inc()
@@ -240,7 +282,7 @@ func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 		log.Printf("openAndSetNSWithRetries unable to Setns:%s", *nsName)
 	}
 	// At this point the most recent Setns attempt's fd has already been
-	// closed inside the loop (line 193). Returning that fd would let
+	// closed inside attemptOpenAndSetns. Returning that fd would let
 	// the caller's deferred closeFD double-close it — and since Linux
 	// reuses fd numbers, the second close could land on whatever
 	// unrelated socket got that number in the meantime. Return -1 so
