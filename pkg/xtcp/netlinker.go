@@ -145,7 +145,11 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 			}
 		}
 
-		if packets%forceGCModulesCst == 0 {
+		// packets starts at 0; the previous `packets%forceGCModulesCst ==
+		// 0` fired on the very first iteration, forcing an unneeded GC
+		// before any work was done. Skip the zero case so the periodic
+		// GC fires every Nth iteration AFTER the first, not on startup.
+		if packets > 0 && packets%forceGCModulesCst == 0 {
 			x.pC.WithLabelValues("Netlinker", "runtime.GC()", "count").Inc()
 			runtime.GC()
 		}
