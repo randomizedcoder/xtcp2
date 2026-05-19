@@ -135,7 +135,7 @@ func TestInsertIntoCHAt_success(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
-	if err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload")); err != nil {
+	if err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload"), true); err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
 }
@@ -146,7 +146,7 @@ func TestInsertIntoCHAt_serverError(t *testing.T) {
 		_, _ = w.Write([]byte("oops")) //nolint:errcheck // test plumbing
 	}))
 	defer srv.Close()
-	err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload"))
+	err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload"), true)
 	if err == nil {
 		t.Error("500 should produce error")
 	}
@@ -159,15 +159,41 @@ func TestInsertIntoCHAt_connRefused(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	url := srv.URL
 	srv.Close()
-	if err := insertIntoCHAt(t.Context(), http.DefaultClient, url, []byte("payload")); err == nil {
+	if err := insertIntoCHAt(t.Context(), http.DefaultClient, url, []byte("payload"), true); err == nil {
 		t.Error("conn-refused should produce error")
 	}
 }
 
 func TestInsertIntoCHAt_badURL(t *testing.T) {
 	// Malformed URL forces http.NewRequestWithContext to fail.
-	err := insertIntoCHAt(t.Context(), http.DefaultClient, "://not a url", []byte("p"))
+	err := insertIntoCHAt(t.Context(), http.DefaultClient, "://not a url", []byte("p"), true)
 	if err == nil {
 		t.Error("malformed URL should produce error")
+	}
+}
+
+// Verify the URL contains FORMAT ProtobufList when useEnvelope is true,
+// and FORMAT Protobuf when false — the bug under fix.
+func TestInsertIntoCHAt_formatSelection(t *testing.T) {
+	cases := []struct {
+		useEnvelope bool
+		wantFormat  string
+	}{
+		{true, "ProtobufList"},
+		{false, "Protobuf&"},
+	}
+	for _, tc := range cases {
+		var gotURL string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotURL = r.URL.String()
+			w.WriteHeader(http.StatusOK)
+		}))
+		if err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("p"), tc.useEnvelope); err != nil {
+			t.Errorf("useEnvelope=%v: err = %v", tc.useEnvelope, err)
+		}
+		if !strings.Contains(gotURL, "FORMAT%20"+tc.wantFormat) {
+			t.Errorf("useEnvelope=%v: URL = %s, want FORMAT %s", tc.useEnvelope, gotURL, tc.wantFormat)
+		}
+		srv.Close()
 	}
 }
