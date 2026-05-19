@@ -252,8 +252,16 @@ func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatReco
 	x.InetDiagMsgSocketSourcePort = uint32(binary.BigEndian.Uint16(data[0:2]))
 	x.InetDiagMsgSocketDestinationPort = uint32(binary.BigEndian.Uint16(data[2:4]))
 
-	// Keep in mind the IPv4 bits are at the start/left
-	x.InetDiagMsgSocketSource = data[4:40]
+	// Keep in mind the IPv4 bits are at the start/left.
+	// SrcIP is 16 bytes at offset 4-19; DstIP is 16 bytes at offset 20-35.
+	// The Source slice was previously data[4:40] (36 bytes) which packed
+	// SrcIP + DstIP + Interface into the proto's source-ip field — wire
+	// format was leaking the destination + interface into every record's
+	// source-ip column. (Compare DeserializeInetDiagSockID just above,
+	// which uses (*[16]byte)(data[4:40]) — that conversion implicitly
+	// truncates to the first 16 bytes; the XTCP variant assigns a slice
+	// directly so the full 36 bytes flowed through.)
+	x.InetDiagMsgSocketSource = data[4:20]
 	x.InetDiagMsgSocketDestination = data[20:36]
 
 	x.InetDiagMsgSocketInterface = binary.LittleEndian.Uint32(data[36:40])
