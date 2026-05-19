@@ -41,7 +41,14 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 	if s, ok := x.pollTime.Load(d.fd); ok {
 		startPollTime, _ = s.(time.Time) //nolint:errcheck // sync.Map Store sites all use time.Time
 	} else {
+		// pollTime entry missing — typically a race after nsDelete
+		// (bug 68 cleans up pollTime on delete; an in-flight netlinker
+		// can still hand a final packet to Deserialize). Fall back to
+		// time.Now() rather than the zero value of time.Time, whose
+		// UnixNano() is ~-6.2e19 ns (year 1 AD) and produces records
+		// with a HUGE negative timestamp.
 		d.pC.WithLabelValues("Deserialize", "pollTime", "error").Inc()
+		startPollTime = time.Now()
 	}
 
 	timestampNs := float64(startPollTime.UnixNano()) / 1e9
