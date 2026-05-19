@@ -226,6 +226,15 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	x.pC.WithLabelValues("NetlinkerIoUring", "packets", "count").Inc()
 	x.pC.WithLabelValues("NetlinkerIoUring", "n", "count").Add(float64(n))
 
+	// If drainOnce couldn't match the CQE to an in-flight entry (e.g.
+	// post-Close stragglers, or — at >2^32 SQEs — a request-ID wrap
+	// collision), res.Buf is nil. Dereferencing it would panic. Count
+	// the orphan and skip; the buffer was never ours to return.
+	if res.Buf == nil {
+		x.pC.WithLabelValues("NetlinkerIoUring", "OrphanCQE", "error").Inc()
+		return
+	}
+
 	b := (*res.Buf)[:n]
 	_, errD := x.Deserialize(ctx, DeserializeArgs{
 		ns:             nsName,
