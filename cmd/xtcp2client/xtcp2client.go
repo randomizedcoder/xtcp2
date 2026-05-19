@@ -222,11 +222,15 @@ breakPoint:
 				log.Printf("pollStreamRecv err:%v", err)
 			}
 
+			// A broken stream typically returns the same error immediately
+			// on every subsequent Recv (e.g. "rpc error: stream closed").
+			// The previous code looped without backoff, pegging a CPU core
+			// at 100% until ctx was canceled. Sleep briefly between
+			// retries so the loop is ctx-cancellable AND non-spinny.
 			select {
 			case <-ctx.Done():
 				break breakPoint
-			default:
-				// non-blocking
+			case <-time.After(100 * time.Millisecond):
 			}
 			continue
 		}
