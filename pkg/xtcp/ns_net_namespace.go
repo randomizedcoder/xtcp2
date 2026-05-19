@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -156,12 +157,24 @@ const (
 	maxRetriesCst = 10
 )
 
-// backoffFactorCst is the base unit for the exponential backoff in
-// openAndSetNSWithRetries / checkMountInfoWithRetries. var (was const)
-// so tests can shrink it to microseconds and drive the retry-exhaust
-// path without wall-clocking ~10 seconds. Production code never
-// mutates it.
-var backoffFactorCst = 10 * time.Millisecond
+// backoffFactorNs is the base unit for the exponential backoff in
+// openAndSetNSWithRetries / checkMountInfoWithRetries, stored as
+// nanoseconds in an atomic so tests can shrink it without racing with
+// concurrently running production-path tests (nsAdd → checkMountInfo
+// reads this while a test mutates it; the previous plain-var version
+// tripped the race detector). Production code never mutates it.
+var backoffFactorNs atomic.Int64
+
+func init() {
+	backoffFactorNs.Store(int64(10 * time.Millisecond))
+}
+
+// backoffFactor returns the current backoff base duration. Wraps the
+// atomic load so callers don't need to convert ns → time.Duration each
+// time they need the value.
+func backoffFactor() time.Duration {
+	return time.Duration(backoffFactorNs.Load())
+}
 
 // openAndSetnsSyscalls is the seam that the test suite swaps for a
 // fake. Default points at the real unix.* calls. NOT for production
@@ -218,7 +231,7 @@ func (x *XTCP) attemptOpenAndSetns(nsName *string) (fd int, errOpen, errSetns er
 	return fd, nil, errSetns
 }
 
-// backoffSleep sleeps 2^attempt * backoffFactorCst between Setns retries.
+// backoffSleep sleeps 2^attempt * backoffFactor() between Setns retries.
 // Skips attempt<=0 (no point sleeping before the first retry) and
 // attempt>=maxRetriesCst (loop is about to terminate). Public visibility
 // to allow benchmarks to drive it directly without the surrounding loop.
@@ -226,7 +239,7 @@ func (x *XTCP) backoffSleep(attempt int) {
 	if attempt <= 0 || attempt >= maxRetriesCst {
 		return
 	}
-	backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactorCst
+	backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactor()
 	if x.debugLevel > 10 {
 		log.Printf("openAndSetNSWithRetries  %d < %d, sleeping: %0.3f", attempt, maxRetriesCst, backoffDuration.Seconds())
 	}
@@ -307,7 +320,7 @@ func (x *XTCP) checkMountInfoWithRetries(nsName *string) (found bool, err error)
 			break
 		}
 
-		backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactorCst
+		backoffDuration := time.Duration(math.Pow(2, float64(attempt))) * backoffFactor()
 		if x.debugLevel > 10 {
 			log.Printf("openAndSetNSWithRetries  %d < %d, sleeping: %0.3f", attempt, maxRetriesCst, backoffDuration.Seconds())
 		}
