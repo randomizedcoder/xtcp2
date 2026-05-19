@@ -53,33 +53,28 @@ func TestRingFromContext_present(t *testing.T) {
 // isETimeError: ETIME / wrapped-errno-62 / nil / other
 // ───────────────────────────────────────────────────────────────────────
 
-func TestIsETimeError_nil(t *testing.T) {
-	if isETimeError(nil) {
-		t.Error("nil should not be ETIME")
+func TestIsETimeError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"syscall_ETIME", syscall.ETIME, true},
+		{"syscall_EAGAIN_not_ETIME", syscall.EAGAIN, false},
+		{"non_errno_error", errors.New("not an errno"), false},
+		// String-fallback branch: errors that wrap an ETIME but whose
+		// As-cast to syscall.Errno fails should still classify via the
+		// "errno 62" string compare.
+		{"errno_62_string_fallback", errors.New("errno 62"), true},
+		{"errno_other_string", errors.New("errno 11"), false},
 	}
-}
-
-func TestIsETimeError_etime(t *testing.T) {
-	if !isETimeError(syscall.ETIME) {
-		t.Error("syscall.ETIME should classify as ETIME")
-	}
-}
-
-func TestIsETimeError_other(t *testing.T) {
-	if isETimeError(syscall.EAGAIN) {
-		t.Error("EAGAIN should not classify as ETIME")
-	}
-	if isETimeError(errors.New("not an errno")) {
-		t.Error("non-errno error should not classify as ETIME")
-	}
-}
-
-// String-fallback branch: errors that wrap an ETIME but whose As-cast
-// to syscall.Errno fails should still classify via the "errno 62"
-// string compare.
-func TestIsETimeError_stringFallback(t *testing.T) {
-	if !isETimeError(errors.New("errno 62")) {
-		t.Error("wrapped 'errno 62' string should classify as ETIME")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isETimeError(tc.err); got != tc.want {
+				t.Errorf("isETimeError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -87,21 +82,29 @@ func TestIsETimeError_stringFallback(t *testing.T) {
 // isTimeoutErrno: EAGAIN/EWOULDBLOCK/ETIME → true; else false
 // ───────────────────────────────────────────────────────────────────────
 
-func TestIsTimeoutErrno_matches(t *testing.T) {
-	for _, e := range []syscall.Errno{syscall.EAGAIN, syscall.EWOULDBLOCK, syscall.ETIME} {
-		if !isTimeoutErrno(e) {
-			t.Errorf("errno %v should be timeout", e)
-		}
+// Table-driven combination of the previous matches/misses pair.
+func TestIsTimeoutErrno(t *testing.T) {
+	cases := []struct {
+		name string
+		e    syscall.Errno
+		want bool
+	}{
+		{"EAGAIN", syscall.EAGAIN, true},
+		{"EWOULDBLOCK", syscall.EWOULDBLOCK, true},
+		{"ETIME", syscall.ETIME, true},
+		{"EINVAL", syscall.EINVAL, false},
+		{"EPERM", syscall.EPERM, false},
+		{"zero", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isTimeoutErrno(tc.e); got != tc.want {
+				t.Errorf("isTimeoutErrno(%v) = %v, want %v", tc.e, got, tc.want)
+			}
+		})
 	}
 }
 
-func TestIsTimeoutErrno_misses(t *testing.T) {
-	for _, e := range []syscall.Errno{syscall.EINVAL, syscall.EPERM, 0} {
-		if isTimeoutErrno(e) {
-			t.Errorf("errno %v should NOT be timeout", e)
-		}
-	}
-}
 
 // ───────────────────────────────────────────────────────────────────────
 // opLabel: per-op string mapping
