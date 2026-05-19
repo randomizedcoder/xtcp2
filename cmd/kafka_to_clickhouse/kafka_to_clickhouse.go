@@ -442,6 +442,14 @@ func getLatestSchemaIDAt(ctx context.Context, client *http.Client, baseURL, subj
 	}
 	defer resp.Body.Close()
 
+	// Schema Registries return a JSON error body on 4xx/5xx; decoding it
+	// into the {id int} struct silently yields id:0. Reject non-2xx
+	// upfront so kafka_to_clickhouse's downstream Produce path doesn't
+	// stamp every Kafka record with a bogus schemaID:0 magic header.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("getLatestSchemaIDAt %s: unexpected status:%d", url, resp.StatusCode)
+	}
+
 	var result struct {
 		ID int `json:"id"`
 	}
