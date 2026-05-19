@@ -328,14 +328,13 @@ func (x *XTCP) setSocketTimeoutViaSyscall(timeout int64, socketFD int) {
 		return
 	}
 
+	// timeout is in milliseconds. Decompose into seconds + leftover
+	// microseconds so any value works. Previously the >=1000 branch
+	// set only tv.Sec = timeout/1000 (dropping sub-second remainders:
+	// 1500ms → 1s, 2500ms → 2s, etc). Match the matching xtcpnl helper.
 	var tv syscall.Timeval
-	if timeout >= 1000 {
-		// seconds
-		tv.Sec = timeout / 1000
-	} else {
-		// milliseconds
-		tv.Usec = timeout * 1000 // microsecond or 1 millionth of a second.  1 milliseconds = 1000 micro
-	}
+	tv.Sec = timeout / 1000
+	tv.Usec = (timeout % 1000) * 1000
 
 	// https://godoc.org/golang.org/x/sys/unix#SetsockoptTimeval
 	err := syscall.SetsockoptTimeval(socketFD, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
