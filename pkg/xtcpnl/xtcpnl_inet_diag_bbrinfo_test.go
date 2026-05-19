@@ -142,6 +142,25 @@ var (
 	resultBBRInfo BBRInfo
 )
 
+// TestDeserializeBBRInfo_shortBuf: BBRInfo reads data[0:20] in 5 chunks.
+// Pre-fix the length check was `< MemInfoSizeCst` (16), so a 16-19 byte
+// buffer passed validation and then panicked on data[16:20]. The check
+// is now `< BBRInfoSizeCst` (20) — these inputs reject cleanly.
+func TestDeserializeBBRInfo_shortBuf(t *testing.T) {
+	for n := 0; n < BBRInfoSizeCst; n++ {
+		buf := make([]byte, n)
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("DeserializeBBRInfo panicked on %d-byte input: %v", n, r)
+			}
+		}()
+		b := new(BBRInfo)
+		if _, err := DeserializeBBRInfo(buf, b); err == nil {
+			t.Errorf("len=%d should return ErrBBRInfoSmall", n)
+		}
+	}
+}
+
 // go test -bench=BenchmarkDeserializeMemInfo
 
 func BenchmarkDeserializeBBRInfo(b *testing.B) {
