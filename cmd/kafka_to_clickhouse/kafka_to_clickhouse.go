@@ -172,7 +172,14 @@ func primaryFunction(ctx context.Context, c config) {
 			log.Printf("primaryFunction i:%d", i)
 		}
 		fileOrKafka(ctx, c, &binaryData)
-		time.Sleep(c.loopsSleep)
+		// Bug fix: time.Sleep ignored ctx, so SIGTERM took up to
+		// loopsSleep (default 10s) to be observed. Use a ctx-aware
+		// wait so shutdown is prompt.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(c.loopsSleep):
+		}
 	}
 }
 
