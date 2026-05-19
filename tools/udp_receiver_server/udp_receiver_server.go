@@ -124,6 +124,10 @@ func runReceiver(ctx context.Context, conn *net.UDPConn) error {
 			return err
 		}
 
+		// proto.Unmarshal merges; without Reset, fields set on record N
+		// linger into record N+1 because xtcpRecord is reused across the
+		// loop (pool entry). Reset before each Unmarshal.
+		proto.Reset(xtcpRecord)
 		if uerr := proto.Unmarshal((*packetBuffer)[:n], xtcpRecord); uerr != nil {
 			return fmt.Errorf("%w: %v", ErrDecode, uerr)
 		}
