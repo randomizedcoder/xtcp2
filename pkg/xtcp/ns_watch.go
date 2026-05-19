@@ -182,6 +182,13 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	// above guarantees they are the same, but using thread-self makes
 	// that assumption explicit at the syscall level.
 	if err = syscall.Mount("/proc/thread-self/ns/net", fd.Name(), "none", syscall.MS_BIND, ""); err != nil {
+		// Mount failed → the os.Create above leaves an empty,
+		// non-bind-mounted file at fd.Name() that another process /
+		// later retry would observe as "namespace exists but isn't a
+		// real netns bind". Best-effort remove so the next attempt
+		// starts clean. We're already on the error path; Remove err is
+		// non-actionable.
+		_ = os.Remove(fd.Name()) //nolint:errcheck // cleanup on Mount failure
 		return fmt.Errorf("failed to bind namespace: %w", err)
 	}
 
