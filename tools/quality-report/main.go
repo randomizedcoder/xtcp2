@@ -224,49 +224,85 @@ func main() {
 // runMain wires flag parsing + report assembly + emit. Extracted from main
 // so tests can drive it with synthetic args + capture buffers (instead of
 // subprocessing). Returns the process exit code.
+// ingestCtx bundles the read-only inputs shared by every per-tool
+// ingestion step in runMain. Passing one struct instead of 5 params
+// per helper keeps the call sites short.
+type ingestCtx struct {
+	rawDir    string
+	repoRoot  string
+	runtimes  map[string]int
+	exitCodes map[string]int
+	known     map[string]bool
+}
+
 func runMain(args []string, stdout, stderr io.Writer) int {
+	rawDir, repoRoot, knownFile, parseErr := parseRunMainFlags(args, stderr)
+	if parseErr != 0 {
+		return parseErr
+	}
+
+	ctx := &ingestCtx{
+		rawDir:    rawDir,
+		repoRoot:  repoRoot,
+		runtimes:  readRuntimes(filepath.Join(rawDir, "runtimes.txt")),
+		exitCodes: readExitCodes(filepath.Join(rawDir, "exit-codes.txt")),
+		known:     loadKnownFailures(knownFile),
+	}
+
+	in := reportInput{
+		Generated:     time.Now().UTC(),
+		Versions:      readKVFile(filepath.Join(rawDir, "versions.txt")),
+		CommitSHA:     strings.TrimSpace(readFile(filepath.Join(rawDir, "commit.txt"))),
+		Branch:        strings.TrimSpace(readFile(filepath.Join(rawDir, "branch.txt"))),
+		KnownFailures: ctx.known,
+	}
+
+	ctx.ingestGolangciTiers(&in)
+	ctx.ingestGosec(&in)
+	ctx.ingestGoVet(&in)
+	ctx.ingestFormatter(&in, toolGofmt, "gofmt.out", toolGofmt, &in.GofmtFiles)
+	ctx.ingestFormatter(&in, "nix-fmt", "nix-fmt.out", "nixfmt", &in.NixfmtFiles)
+	ctx.ingestCustomAudits(&in)
+	ctx.ingestGoTest(&in)
+	ctx.ingestCliHelpSmoke(&in)
+	ctx.ingestCoverage(&in)
+
+	// Configuration audit — parse the .golangci*.yml exclusion sections.
+	in.Exclusions = parseExclusions(repoRoot)
+
+	if err := emit(stdout, in); err != nil {
+		fmt.Fprintf(stderr, "quality-report: emit: %v\n", err)
+		return 2
+	}
+	return 0
+}
+
+// parseRunMainFlags isolates the flag-parsing block from the rest of
+// runMain so the orchestration is easier to test. Returns (rawDir,
+// repoRoot, knownFailuresFile, exitCode). exitCode==0 means continue;
+// otherwise caller returns it.
+func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string, int) {
 	fset := flag.NewFlagSet("quality-report", flag.ContinueOnError)
 	fset.SetOutput(stderr)
 	rawDir := fset.String("raw-dir", "", "directory with per-tool raw outputs")
 	repoRoot := fset.String("repo-root", ".", "repo root (used to relativise paths)")
 	knownFile := fset.String("known-failures", "", "file listing pre-existing test failures (Package/Test per line)")
 	if err := fset.Parse(args); err != nil {
-		return 2
+		return "", "", "", 2
 	}
-
 	if *rawDir == "" {
 		fmt.Fprintln(stderr, "quality-report: -raw-dir is required")
-		return 2
+		return "", "", "", 2
 	}
+	return *rawDir, *repoRoot, *knownFile, 0
+}
 
-	known := loadKnownFailures(*knownFile)
-
-	in := reportInput{
-		Generated:     time.Now().UTC(),
-		Versions:      readKVFile(filepath.Join(*rawDir, "versions.txt")),
-		CommitSHA:     strings.TrimSpace(readFile(filepath.Join(*rawDir, "commit.txt"))),
-		Branch:        strings.TrimSpace(readFile(filepath.Join(*rawDir, "branch.txt"))),
-		KnownFailures: known,
-	}
-
-	runtimes := readRuntimes(filepath.Join(*rawDir, "runtimes.txt"))
-	exitCodes := readExitCodes(filepath.Join(*rawDir, "exit-codes.txt"))
-
-	// golangci-lint × 3 tiers.
-	//
-	// We ingest findings ONLY from the comprehensive tier — its linter set
-	// is a strict superset of the standard tier, which is a superset of
-	// quick — so every finding the quick/standard tiers would report also
-	// appears in comprehensive. Ingesting all three would double- or
-	// triple-count the same finding (a single `govet` shadow warning would
-	// land in 0, 1, AND 2). Each finding's Tier is then set to the LOWEST
-	// tier whose linter set includes it (see linterTier below).
-	//
-	// We still record runtime + exit code per tier so the Tool Status
-	// table shows that all three ran. If the comprehensive tier failed
-	// to produce output (e.g. timeout, OOM), fall back to standard, then
-	// quick.
-	var golangciTiers = []struct {
+// ingestGolangciTiers ingests findings from the comprehensive tier
+// (strict superset of standard ⊇ quick, so we never count one finding
+// in two tiers). Records runtime + exit code per tier so the Tool
+// Status table reflects that all three ran.
+func (c *ingestCtx) ingestGolangciTiers(in *reportInput) {
+	tiers := []struct {
 		name string
 		t    int
 	}{
@@ -276,207 +312,174 @@ func runMain(args []string, stdout, stderr io.Writer) int {
 	}
 	var golangciFindings []Finding
 	var golangciSource string
-	for _, tier := range golangciTiers {
-		path := filepath.Join(*rawDir, tier.name+".json")
-		fs, ok := parseGolangci(path, "golangci-lint", tier.t, *repoRoot)
+	for _, tier := range tiers {
+		path := filepath.Join(c.rawDir, tier.name+".json")
+		fs, ok := parseGolangci(path, "golangci-lint", tier.t, c.repoRoot)
 		if ok && len(fs) > 0 && golangciSource == "" {
 			golangciFindings = fs
 			golangciSource = tier.name
 		}
 		in.Status = append(in.Status, ToolStatus{
 			Name:      "golangci-lint (" + strings.TrimPrefix(tier.name, "golangci-") + ")",
-			ExitCode:  exitCodes[tier.name],
+			ExitCode:  c.exitCodes[tier.name],
 			Findings:  len(fs),
-			RuntimeS:  runtimes[tier.name],
+			RuntimeS:  c.runtimes[tier.name],
 			Available: ok,
 		})
 	}
-	// Attribute each finding to its lowest tier via the linter→tier table.
 	for i := range golangciFindings {
 		if t, ok := linterTier[golangciFindings[i].Rule]; ok {
 			golangciFindings[i].Tier = t
 		}
 	}
 	in.Findings = append(in.Findings, golangciFindings...)
+}
 
-	// gosec
-	{
-		path := filepath.Join(*rawDir, "gosec.json")
-		fs, ok := parseGosec(path, *repoRoot)
-		in.Findings = append(in.Findings, fs...)
-		in.Status = append(in.Status, ToolStatus{
-			Name:      toolGosec,
-			ExitCode:  exitCodes[toolGosec],
-			Findings:  len(fs),
-			RuntimeS:  runtimes[toolGosec],
-			Available: ok,
+// ingestGosec ingests the single gosec.json report.
+func (c *ingestCtx) ingestGosec(in *reportInput) {
+	path := filepath.Join(c.rawDir, "gosec.json")
+	fs, ok := parseGosec(path, c.repoRoot)
+	in.Findings = append(in.Findings, fs...)
+	in.Status = append(in.Status, ToolStatus{
+		Name:      toolGosec,
+		ExitCode:  c.exitCodes[toolGosec],
+		Findings:  len(fs),
+		RuntimeS:  c.runtimes[toolGosec],
+		Available: ok,
+	})
+}
+
+// ingestGoVet ingests govet.out (line-per-finding output).
+func (c *ingestCtx) ingestGoVet(in *reportInput) {
+	path := filepath.Join(c.rawDir, "govet.out")
+	fs, ok := parseLineFindings(path, "go-vet", 0, "")
+	in.Findings = append(in.Findings, fs...)
+	in.Status = append(in.Status, ToolStatus{
+		Name:      "go vet",
+		ExitCode:  c.exitCodes["govet"],
+		Findings:  len(fs),
+		RuntimeS:  c.runtimes["govet"],
+		Available: ok,
+	})
+}
+
+// ingestFormatter ingests one of the formatter file-list reports
+// (gofmt / nix-fmt). exitCodeKey + statusName are split so gofmt can
+// reuse the toolGofmt const and nix-fmt can use exitCodes["nix-fmt"]
+// + status name "nixfmt".
+func (c *ingestCtx) ingestFormatter(in *reportInput, exitCodeKey, fileName, statusName string, kept *[]string) {
+	files := readLines(filepath.Join(c.rawDir, fileName))
+	var rows []string
+	for _, f := range files {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			rows = append(rows, f)
+		}
+	}
+	*kept = rows
+	for _, f := range rows {
+		in.Findings = append(in.Findings, Finding{
+			Tool:     statusName,
+			Rule:     ruleFormat,
+			Severity: severityWarning,
+			File:     f,
+			Message:  "file not formatted",
 		})
 	}
+	in.Status = append(in.Status, ToolStatus{
+		Name:      statusName,
+		ExitCode:  c.exitCodes[exitCodeKey],
+		Findings:  len(rows),
+		RuntimeS:  c.runtimes[exitCodeKey],
+		Available: fileExists(filepath.Join(c.rawDir, fileName)),
+	})
+}
 
-	// go vet
-	{
-		path := filepath.Join(*rawDir, "govet.out")
-		fs, ok := parseLineFindings(path, "go-vet", 0, "")
-		in.Findings = append(in.Findings, fs...)
-		in.Status = append(in.Status, ToolStatus{
-			Name:      "go vet",
-			ExitCode:  exitCodes["govet"],
-			Findings:  len(fs),
-			RuntimeS:  runtimes["govet"],
-			Available: ok,
-		})
-	}
-
-	// gofmt — list of files
-	{
-		files := readLines(filepath.Join(*rawDir, "gofmt.out"))
-		// Skip the trailing empty line
-		var kept []string
-		for _, f := range files {
-			f = strings.TrimSpace(f)
-			if f != "" {
-				kept = append(kept, f)
-			}
-		}
-		in.GofmtFiles = kept
-		for _, f := range kept {
-			in.Findings = append(in.Findings, Finding{
-				Tool:     toolGofmt,
-				Rule:     ruleFormat,
-				Severity: severityWarning,
-				File:     f,
-				Message:  "file not formatted",
-			})
-		}
-		in.Status = append(in.Status, ToolStatus{
-			Name:      toolGofmt,
-			ExitCode:  exitCodes[toolGofmt],
-			Findings:  len(kept),
-			RuntimeS:  runtimes[toolGofmt],
-			Available: fileExists(filepath.Join(*rawDir, "gofmt.out")),
-		})
-	}
-
-	// nix-fmt — list of files
-	{
-		files := readLines(filepath.Join(*rawDir, "nix-fmt.out"))
-		var kept []string
-		for _, f := range files {
-			f = strings.TrimSpace(f)
-			if f != "" {
-				kept = append(kept, f)
-			}
-		}
-		in.NixfmtFiles = kept
-		for _, f := range kept {
-			in.Findings = append(in.Findings, Finding{
-				Tool:     "nixfmt",
-				Rule:     ruleFormat,
-				Severity: severityWarning,
-				File:     f,
-				Message:  "file not formatted",
-			})
-		}
-		in.Status = append(in.Status, ToolStatus{
-			Name:      "nixfmt",
-			ExitCode:  exitCodes["nix-fmt"],
-			Findings:  len(kept),
-			RuntimeS:  runtimes["nix-fmt"],
-			Available: fileExists(filepath.Join(*rawDir, "nix-fmt.out")),
-		})
-	}
-
-	// Custom audits
+// ingestCustomAudits ingests the four xtcp2-specific AST audits.
+func (c *ingestCtx) ingestCustomAudits(in *reportInput) {
 	for _, a := range []string{"netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit"} {
-		path := filepath.Join(*rawDir, a+".out")
+		path := filepath.Join(c.rawDir, a+".out")
 		fs, ok := parseAuditOutput(path, a)
 		in.Findings = append(in.Findings, fs...)
 		in.Status = append(in.Status, ToolStatus{
 			Name:      a,
-			ExitCode:  exitCodes[a],
+			ExitCode:  c.exitCodes[a],
 			Findings:  len(fs),
-			RuntimeS:  runtimes[a],
+			RuntimeS:  c.runtimes[a],
 			Available: ok,
 		})
 	}
+}
 
-	// go test
-	{
-		path := filepath.Join(*rawDir, "gotest.json")
-		results, ok := parseGoTest(path, known)
-		in.Tests = results
-		failing := 0
-		preexist := 0
-		for _, r := range results {
-			if r.Action == testActionFail {
-				if r.Preexist {
-					preexist++
-				} else {
-					failing++
-				}
-			}
+// ingestGoTest ingests the JSON test results + buckets failures into
+// "new" vs "pre-existing" per the known-failures allowlist.
+func (c *ingestCtx) ingestGoTest(in *reportInput) {
+	path := filepath.Join(c.rawDir, "gotest.json")
+	results, ok := parseGoTest(path, c.known)
+	in.Tests = results
+	failing := 0
+	preexist := 0
+	for _, r := range results {
+		if r.Action != testActionFail {
+			continue
 		}
-		ec := exitCodes["gotest"]
-		in.Status = append(in.Status, ToolStatus{
-			Name:      "go test",
-			ExitCode:  ec,
-			Findings:  failing + preexist,
-			RuntimeS:  runtimes["gotest"],
-			Available: ok,
-		})
+		if r.Preexist {
+			preexist++
+			continue
+		}
+		failing++
 	}
+	in.Status = append(in.Status, ToolStatus{
+		Name:      "go test",
+		ExitCode:  c.exitCodes["gotest"],
+		Findings:  failing + preexist,
+		RuntimeS:  c.runtimes["gotest"],
+		Available: ok,
+	})
+}
 
-	// cli-help-smoke
-	//
-	// In the quality-report sandbox the cmd binaries aren't on PATH, so we
-	// skip the smoke matrix here. It's covered separately by `nix flake
-	// check` (see nix/checks/cli-help-smoke.nix → 10 per-binary checks).
-	// Only emit a Tool Status row if the raw file actually contains
-	// results.
-	{
-		path := filepath.Join(*rawDir, "cli-help-smoke.out")
-		results, ok := parseCliHelpSmoke(path)
-		if ok && len(results) > 0 {
-			in.CliHelpResults = results
-			failing := 0
-			for _, r := range results {
-				if !r.OK {
-					failing++
-				}
-			}
-			in.Status = append(in.Status, ToolStatus{
-				Name:      "cli-help-smoke",
-				ExitCode:  exitCodes["cli-help-smoke"],
-				Findings:  failing,
-				RuntimeS:  runtimes["cli-help-smoke"],
-				Available: true,
-			})
+// ingestCliHelpSmoke ingests the per-binary -h smoke matrix when one
+// exists. In the quality-report sandbox the cmd binaries aren't on
+// PATH, so this is usually empty; the matrix is covered separately by
+// `nix flake check`.
+func (c *ingestCtx) ingestCliHelpSmoke(in *reportInput) {
+	path := filepath.Join(c.rawDir, "cli-help-smoke.out")
+	results, ok := parseCliHelpSmoke(path)
+	if !ok || len(results) == 0 {
+		return
+	}
+	in.CliHelpResults = results
+	failing := 0
+	for _, r := range results {
+		if !r.OK {
+			failing++
 		}
 	}
+	in.Status = append(in.Status, ToolStatus{
+		Name:      "cli-help-smoke",
+		ExitCode:  c.exitCodes["cli-help-smoke"],
+		Findings:  failing,
+		RuntimeS:  c.runtimes["cli-help-smoke"],
+		Available: true,
+	})
+}
 
-	// go test coverage — parsed from coverage-func.out + coverage-per-package.tsv.
-	in.Coverage = parseCoverage(*rawDir)
-	if in.Coverage.Available {
-		in.Status = append(in.Status, ToolStatus{
-			Name:      "go test -cover",
-			ExitCode:  exitCodes["coverage"],
-			Findings:  countBelowThreshold(in.Coverage),
-			RuntimeS:  runtimes["coverage"],
-			Available: true,
-		})
-		// Surface each below-threshold package as a tier-0 Finding so it
-		// shows up in the executive summary's tier rollup.
-		in.Findings = append(in.Findings, coverageFindings(in.Coverage)...)
+// ingestCoverage parses coverage-func.out + coverage-per-package.tsv
+// (when present) and surfaces each below-90% package as a tier-0
+// Finding so it bubbles up in the executive summary's tier rollup.
+func (c *ingestCtx) ingestCoverage(in *reportInput) {
+	in.Coverage = parseCoverage(c.rawDir)
+	if !in.Coverage.Available {
+		return
 	}
-
-	// Configuration audit — parse the .golangci*.yml exclusion sections.
-	in.Exclusions = parseExclusions(*repoRoot)
-
-	if err := emit(stdout, in); err != nil {
-		fmt.Fprintf(stderr, "quality-report: emit: %v\n", err)
-		return 2
-	}
-	return 0
+	in.Status = append(in.Status, ToolStatus{
+		Name:      "go test -cover",
+		ExitCode:  c.exitCodes["coverage"],
+		Findings:  countBelowThreshold(in.Coverage),
+		RuntimeS:  c.runtimes["coverage"],
+		Available: true,
+	})
+	in.Findings = append(in.Findings, coverageFindings(in.Coverage)...)
 }
 
 // ─── parsers ───────────────────────────────────────────────────────────────
