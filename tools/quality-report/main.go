@@ -688,60 +688,65 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 }
 
 // parseGoTest reads the `go test -json` event stream.
-func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, false
+// goTestEvent mirrors the JSON record `go test -json` emits per state
+// transition. Lifted to package scope so the per-event helpers don't
+// need a copy of the anonymous struct.
+type goTestEvent struct {
+	Action  string  `json:"Action"`
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Elapsed float64 `json:"Elapsed"`
+	Output  string  `json:"Output"`
+}
+
+// applyTestEvent mutates results/failOutput based on one event from
+// `go test -json`. Each `go test` Action ends up as one transition on
+// either the per-test TestResult or its accumulated output buffer.
+// Extracted so the surrounding decoder loop becomes flat.
+func applyTestEvent(results map[string]*TestResult, failOutput map[string]string, e goTestEvent, known map[string]bool) {
+	if e.Action == "" {
+		return
 	}
-	defer f.Close()
-	type event struct {
-		Action  string  `json:"Action"`
-		Package string  `json:"Package"`
-		Test    string  `json:"Test"`
-		Elapsed float64 `json:"Elapsed"`
-		Output  string  `json:"Output"`
+	key := e.Package + "/" + e.Test
+	switch e.Action {
+	case "run":
+		results[key] = &TestResult{Package: e.Package, Test: e.Test}
+	case "output":
+		if e.Test != "" {
+			failOutput[key] += e.Output
+		}
+	case testActionPass, testActionFail, testActionSkip:
+		recordTerminalAction(results, failOutput, key, e, known)
 	}
-	failOutput := map[string]string{} // pkg/test -> accumulated output
-	results := map[string]*TestResult{}
-	dec := json.NewDecoder(f)
-	for {
-		var e event
-		if derr := dec.Decode(&e); derr != nil {
-			if derr == io.EOF {
-				break
-			}
-			// Some Go test output mixes JSON with stderr; skip non-JSON tokens.
-			continue
-		}
-		if e.Action == "" {
-			continue
-		}
-		key := e.Package + "/" + e.Test
-		switch e.Action {
-		case "run":
-			results[key] = &TestResult{Package: e.Package, Test: e.Test}
-		case "output":
-			if e.Test != "" {
-				failOutput[key] += e.Output
-			}
-		case testActionPass, testActionFail, testActionSkip:
-			r := results[key]
-			if r == nil {
-				r = &TestResult{Package: e.Package, Test: e.Test}
-				results[key] = r
-			}
-			r.Action = e.Action
-			r.Elapsed = e.Elapsed
-			if e.Action == testActionFail {
-				r.Output = failOutput[key]
-				name := e.Package
-				if e.Test != "" {
-					name += "." + e.Test
-				}
-				r.Preexist = known[name] || known[e.Test]
-			}
-		}
+}
+
+// recordTerminalAction sets the Action/Elapsed on the per-test entry
+// and (for failures) attaches accumulated output + the known-failures
+// classification. Pulled out of applyTestEvent so each helper is
+// linear top-to-bottom.
+func recordTerminalAction(results map[string]*TestResult, failOutput map[string]string, key string, e goTestEvent, known map[string]bool) {
+	r := results[key]
+	if r == nil {
+		r = &TestResult{Package: e.Package, Test: e.Test}
+		results[key] = r
 	}
+	r.Action = e.Action
+	r.Elapsed = e.Elapsed
+	if e.Action != testActionFail {
+		return
+	}
+	r.Output = failOutput[key]
+	name := e.Package
+	if e.Test != "" {
+		name += "." + e.Test
+	}
+	r.Preexist = known[name] || known[e.Test]
+}
+
+// finalizeTestResults converts the per-key map into a sorted slice for
+// the template. Sorted by (Package, Test) ascending so the report's
+// failing-tests list is deterministic across runs.
+func finalizeTestResults(results map[string]*TestResult) []TestResult {
 	out := make([]TestResult, 0, len(results))
 	for _, r := range results {
 		out = append(out, *r)
@@ -752,7 +757,32 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 		}
 		return out[i].Test < out[j].Test
 	})
-	return out, true
+	return out
+}
+
+func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
+	f, err := os.Open(path) //nolint:gosec // test report path is operator-supplied via -raw-dir flag
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = f.Close() }() //nolint:errcheck // read-only file; close error is non-actionable
+
+	failOutput := map[string]string{} // pkg/test -> accumulated output
+	results := map[string]*TestResult{}
+	dec := json.NewDecoder(f)
+	for {
+		var e goTestEvent
+		derr := dec.Decode(&e)
+		if derr == io.EOF {
+			break
+		}
+		if derr != nil {
+			// Some Go test output mixes JSON with stderr; skip non-JSON tokens.
+			continue
+		}
+		applyTestEvent(results, failOutput, e, known)
+	}
+	return finalizeTestResults(results), true
 }
 
 func parseCliHelpSmoke(path string) ([]CliHelpResult, bool) {
