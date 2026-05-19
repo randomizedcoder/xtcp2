@@ -85,6 +85,59 @@ type field struct {
 	where string
 }
 
+// updateProtoMessageDepth steps the message-depth state machine for one
+// line. Returns (newDepth, skipLine). When skipLine is true the caller
+// must continue to the next line — either the line declared a new
+// `message` block, or it contained a closing `}` that consumed the
+// trailing-brace bookkeeping.
+//
+// Preserves the original semantics: a line containing only `{` (without
+// `message ` prefix) increments depth when already inside one message,
+// then falls through; a line containing only `}` decrements + returns
+// skip=true. Lines outside any message block always return skip=false.
+func updateProtoMessageDepth(trimmed string, inMessage int) (int, bool) {
+	if strings.HasPrefix(trimmed, "message ") {
+		return inMessage + 1, true
+	}
+	if inMessage > 0 && strings.Contains(trimmed, "{") {
+		inMessage++
+	}
+	if inMessage > 0 && strings.Contains(trimmed, "}") {
+		return inMessage - 1, true
+	}
+	return inMessage, false
+}
+
+// extractFieldsFromProto parses one proto file's contents into a slice
+// of field declarations. Pure function — no I/O — so it's directly
+// table-testable. The previous body was inlined inside collectProtoFields
+// alongside WalkDir + ReadFile, contributing most of its gocyclo 15.
+func extractFieldsFromProto(path string, contents []byte) []field {
+	var fields []field
+	inMessage := 0
+	for i, line := range strings.Split(string(contents), "\n") {
+		trimmed := strings.TrimSpace(line)
+		var skip bool
+		inMessage, skip = updateProtoMessageDepth(trimmed, inMessage)
+		if skip {
+			continue
+		}
+		if inMessage == 0 {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "//") || trimmed == "" {
+			continue
+		}
+		if m := fieldRE.FindStringSubmatch(trimmed); m != nil {
+			fields = append(fields, field{
+				name:  m[1],
+				where: fmt.Sprintf("%s:%d", path, i+1),
+			})
+		}
+	}
+	return fields
+}
+
 func collectProtoFields(root string) ([]field, error) {
 	var fields []field
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -99,35 +152,7 @@ func collectProtoFields(root string) ([]field, error) {
 		if readErr != nil {
 			return readErr
 		}
-		inMessage := 0
-		for i, line := range strings.Split(string(b), "\n") {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "message ") {
-				inMessage++
-				continue
-			}
-			if inMessage > 0 && strings.Contains(trimmed, "{") {
-				inMessage++
-			}
-			if inMessage > 0 && strings.Contains(trimmed, "}") {
-				inMessage--
-				continue
-			}
-			if inMessage == 0 {
-				continue
-			}
-			if strings.HasPrefix(trimmed, "//") || trimmed == "" {
-				continue
-			}
-			m := fieldRE.FindStringSubmatch(trimmed)
-			if m == nil {
-				continue
-			}
-			fields = append(fields, field{
-				name:  m[1],
-				where: fmt.Sprintf("%s:%d", path, i+1),
-			})
-		}
+		fields = append(fields, extractFieldsFromProto(path, b)...)
 		return nil
 	})
 	return fields, err
