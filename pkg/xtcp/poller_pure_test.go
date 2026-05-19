@@ -71,18 +71,37 @@ func TestPollAllNetlinkSockets_emptyFDs(t *testing.T) {
 	}
 }
 
-// pollAllNetlinkSockets skips the xtcpNS namespace's fd. GetNetlinkSocketFDs
-// pulls socketFD values out of nsMap (not fdToNsMap), so we have to seed
-// both: nsMap gives the fd; fdToNsMap gives the ns name lookup used by
-// the skip check.
+// pollAllNetlinkSockets skips the xtcpNS namespace's fd AND excludes it
+// from the returned count. GetNetlinkSocketFDs pulls socketFD values out
+// of nsMap (not fdToNsMap), so we have to seed both: nsMap gives the fd;
+// fdToNsMap gives the ns name lookup used by the skip check.
+//
+// The returned count must equal the number of fds actually polled, not
+// len(socketFDs). Counting the skipped xtcpNS fd would make Poller wait
+// for one extra "done" signal that never arrives, forcing every poll
+// cycle to fall back to the PollTimeoutTimer.
 func TestPollAllNetlinkSockets_skipsXtcpNS(t *testing.T) {
 	x := newPollerFixture(t)
 	x.nsMap.Store(linuxNetNSDirCst+xtcpNSName, netNSitem{socketFD: 42})
 	x.fdToNsMap.Store(42, linuxNetNSDirCst+xtcpNSName)
 	x.debugLevel = 200 // hit the skip-log branch
 	got := x.pollAllNetlinkSockets(0)
-	if got != 1 { // 1 socket in nsMap, but it was skipped (not polled)
-		t.Errorf("count = %d, want 1", got)
+	if got != 0 {
+		t.Errorf("count = %d, want 0 (xtcpNS was skipped and must not count)", got)
+	}
+}
+
+// Mixed case: one xtcpNS fd (skipped) + one regular fd (polled). Count
+// should be 1 — the polled one.
+func TestPollAllNetlinkSockets_skipsXtcpNSAmongstOthers(t *testing.T) {
+	x := newPollerFixture(t)
+	x.nsMap.Store(linuxNetNSDirCst+xtcpNSName, netNSitem{socketFD: 42})
+	x.fdToNsMap.Store(42, linuxNetNSDirCst+xtcpNSName)
+	x.nsMap.Store("/run/netns/other", netNSitem{socketFD: 7})
+	x.fdToNsMap.Store(7, "/run/netns/other")
+	got := x.pollAllNetlinkSockets(0)
+	if got != 1 {
+		t.Errorf("count = %d, want 1 (one polled, one skipped)", got)
 	}
 }
 
