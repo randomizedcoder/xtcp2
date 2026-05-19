@@ -3,6 +3,7 @@ package xtcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"syscall"
 	"testing"
@@ -68,6 +69,12 @@ func TestIsETimeError(t *testing.T) {
 		// "errno 62" string compare.
 		{"errno_62_string_fallback", errors.New("errno 62"), true},
 		{"errno_other_string", errors.New("errno 11"), false},
+		// Bug 73 regression: a wrapped (fmt.Errorf %w) ETIME should
+		// classify via errors.As walking the unwrap chain. The
+		// previous direct type-assert against syscall.Errno missed
+		// every wrapped errno from upstream giouring helpers.
+		{"wrapped_ETIME_unwrap_chain", fmt.Errorf("giouring layer: %w", syscall.ETIME), true},
+		{"wrapped_EAGAIN_unwrap_chain", fmt.Errorf("layer: %w", syscall.EAGAIN), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
