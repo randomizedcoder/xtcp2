@@ -53,7 +53,7 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		return nil, err
 	}
 
-	schemaID, err := d.getLatestSchemaID()
+	schemaID, err := d.getLatestSchemaID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("newKafkaDest getLatestSchemaID: %w", err)
 	}
@@ -160,19 +160,32 @@ func (d *kafkaDest) Close() error {
 	return nil
 }
 
-func (d *kafkaDest) getLatestSchemaID() (int, error) {
+func (d *kafkaDest) getLatestSchemaID(ctx context.Context) (int, error) {
 	url := fmt.Sprintf("%s/subjects/%s-value/versions/latest",
 		d.x.config.KafkaSchemaUrl, d.x.config.Topic)
 	if d.x.debugLevel > 10 {
 		log.Printf("getLatestSchemaID url:%s\n", url)
 	}
-	resp, err := http.Get(url)
+	// http.Get used the DefaultClient which has no timeout — a hung
+	// Schema Registry would block daemon startup indefinitely. Build
+	// the request with the caller's ctx + a hard 10s ceiling so the
+	// init-time call observes shutdown and never wedges.
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		return 0, fmt.Errorf("getLatestSchemaID http.StatusNotFound url:%s", url)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("getLatestSchemaID url:%s unexpected status:%d", url, resp.StatusCode)
 	}
 	var result struct {
 		ID int `json:"id"`
