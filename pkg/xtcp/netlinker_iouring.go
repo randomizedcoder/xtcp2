@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net"
 	"runtime"
 	"sync"
 	"syscall"
@@ -232,7 +231,6 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	if res.Res < 0 {
 		// CQE result is -errno on error.
 		errno := syscall.Errno(-res.Res)
-		var nerr net.Error
 		if isTimeoutErrno(errno) {
 			x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
 		} else {
@@ -241,7 +239,6 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 				log.Printf("netlinkerIoUring %d recv err: %v", id, errno)
 			}
 		}
-		_ = nerr
 		if res.Buf != nil {
 			x.packetBufferPool.Put(res.Buf)
 		}
