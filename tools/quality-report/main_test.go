@@ -321,13 +321,40 @@ func TestIsQuickFixableRule(t *testing.T) {
 }
 
 func TestSeverityOrder(t *testing.T) {
-	// Should order: error < warning < info < other.
-	if severityOrder(severityError) >= severityOrder(severityWarning) {
-		t.Errorf("error (%d) should sort before warning (%d)",
-			severityOrder(severityError), severityOrder(severityWarning))
+	// Table covers both the canonical (error/warning/info) and gosec
+	// (high/medium/low) severity vocabularies, plus case-insensitivity
+	// and the unknown-severity default branch.
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{severityError, 0},
+		{severityWarning, 1},
+		{severityInfo, 2},
+		{"high", 0},
+		{"medium", 1},
+		{"low", 2},
+		{"HIGH", 0},   // case-insensitive
+		{"Error", 0},  // case-insensitive
+		{"unknown", 3},
+		{"", 3},
 	}
-	if severityOrder(severityWarning) >= severityOrder(severityInfo) {
-		t.Errorf("warning should sort before info")
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			if got := severityOrder(tc.in); got != tc.want {
+				t.Errorf("severityOrder(%q) = %d, want %d", tc.in, got, tc.want)
+			}
+		})
+	}
+	// Ordering invariants: a sort-stable comparator must yield
+	// error < warning < info, regardless of which vocabulary the
+	// upstream linter uses.
+	if !(severityOrder(severityError) < severityOrder(severityWarning) &&
+		severityOrder(severityWarning) < severityOrder(severityInfo) &&
+		severityOrder(severityInfo) < severityOrder("unknown")) {
+		t.Errorf("severity ordering invariant broken: error/warning/info/unknown = %d/%d/%d/%d",
+			severityOrder(severityError), severityOrder(severityWarning),
+			severityOrder(severityInfo), severityOrder("unknown"))
 	}
 }
 
