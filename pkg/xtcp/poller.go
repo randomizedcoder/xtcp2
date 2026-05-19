@@ -32,12 +32,8 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	defer x.pollTimeoutTimer.Stop()
 
 	count := x.pollAllNetlinkSockets(0)
-
-	// wf := x.config.DestWriteFiles
-
 	lastPollTime := time.Now()
 
-breakPoint:
 	for pollingLoops := uint64(1); misc.MaxLoopsOrForEver(pollingLoops, x.config.MaxLoops); pollingLoops++ {
 
 		x.pC.WithLabelValues("Poller", "pollingLoops", "count").Inc()
@@ -46,23 +42,11 @@ breakPoint:
 		}
 
 		select {
-
 		case <-ctx.Done():
-			break breakPoint
-
+			x.pC.WithLabelValues("Poller", "complete", "count").Inc()
+			return
 		case <-ticker.C:
-			x.pC.WithLabelValues("Poller", "ticker", "count").Inc()
-
-			if x.debugLevel > 10 {
-				log.Printf("Poller <-ticker.C pollingLoops:%d count:%d", pollingLoops, count)
-			}
-
-			select {
-			case x.pollRequestCh <- struct{}{}:
-			default:
-				// non-blocking
-			}
-
+			x.handlePollerTick(pollingLoops, count)
 		case <-x.pollRequestCh:
 			next, polled := x.handlePollRequest(pollingLoops, count, lastPollTime)
 			if !polled {
@@ -70,40 +54,79 @@ breakPoint:
 			}
 			count = next
 			lastPollTime = time.Now()
-
 		case d := <-x.changePollFrequencyCh:
-			ticker.Reset(d)
-			x.pC.WithLabelValues("Poller", "ticker.Reset", "count").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("Poller pollingLoops:%d count:%d ticker.Reset:%s", pollingLoops, count, d.Round(time.Millisecond).String())
-			}
-
+			x.handleChangePollFrequency(d, ticker, pollingLoops, count)
 		case doneReceived := <-x.netlinkerDoneCh:
-			x.observeNetlinkerDone(doneReceived, count)
-			count--
-			if x.debugLevel > 1000 {
-				log.Printf("Poller <-x.netlinkerDoneCh, count:%d", count)
-			}
-
+			count = x.handleNetlinkerDone(doneReceived, count)
 		case <-x.pollTimeoutTimer.C:
-			x.pC.WithLabelValues("Poller", "PollTimeout", "count").Inc()
-			count = 0
-			if x.debugLevel > 10 {
-				log.Println("Poller <-time.After(*x.config.PollTimeout)")
-			}
-
+			count = x.handlePollTimeout()
 		}
 
-		pollDuration := time.Since(x.pollStartTime)
-		x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
-
-		if x.debugLevel > 10 {
-			log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms",
-				pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds())
-		}
+		x.recordPollerCycleDuration(pollingLoops)
 	}
 
 	x.pC.WithLabelValues("Poller", "complete", "count").Inc()
+}
+
+// handlePollerTick reacts to the periodic Ticker.C signal: bumps the
+// ticker counter, optionally logs, and non-blocking-sends one pollReq
+// to the pollRequestCh (default-arm drops the send if a poll is already
+// queued — back-pressure prevents tick storms during long dumps).
+func (x *XTCP) handlePollerTick(pollingLoops uint64, count int) {
+	x.pC.WithLabelValues("Poller", "ticker", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("Poller <-ticker.C pollingLoops:%d count:%d", pollingLoops, count)
+	}
+	select {
+	case x.pollRequestCh <- struct{}{}:
+	default:
+		// non-blocking
+	}
+}
+
+// handleChangePollFrequency reacts to the gRPC-driven poll-frequency
+// change: resets the ticker to the new duration and counts the reset.
+func (x *XTCP) handleChangePollFrequency(d time.Duration, ticker *time.Ticker, pollingLoops uint64, count int) {
+	ticker.Reset(d)
+	x.pC.WithLabelValues("Poller", "ticker.Reset", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("Poller pollingLoops:%d count:%d ticker.Reset:%s", pollingLoops, count, d.Round(time.Millisecond).String())
+	}
+}
+
+// handleNetlinkerDone reacts to a per-fd "I'm done draining" signal
+// from a Netlinker. Bumps the histogram via observeNetlinkerDone and
+// returns count-1; caller assigns into its own count variable.
+func (x *XTCP) handleNetlinkerDone(d netlinkerDone, count int) int {
+	x.observeNetlinkerDone(d, count)
+	count--
+	if x.debugLevel > 1000 {
+		log.Printf("Poller <-x.netlinkerDoneCh, count:%d", count)
+	}
+	return count
+}
+
+// handlePollTimeout reacts to the per-cycle PollTimeoutTimer firing:
+// zeroes count so the next tick triggers a fresh dump, regardless of
+// whether netlinkers reported done.
+func (x *XTCP) handlePollTimeout() int {
+	x.pC.WithLabelValues("Poller", "PollTimeout", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Println("Poller <-time.After(*x.config.PollTimeout)")
+	}
+	return 0
+}
+
+// recordPollerCycleDuration observes the per-iteration duration since
+// pollStartTime. Extracted from the loop tail for symmetry with the
+// case-handlers above.
+func (x *XTCP) recordPollerCycleDuration(pollingLoops uint64) {
+	pollDuration := time.Since(x.pollStartTime)
+	x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
+	if x.debugLevel > 10 {
+		log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms",
+			pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds())
+	}
 }
 
 // handlePollRequest reacts to a poll-request tick. Returns (newCount, true)
