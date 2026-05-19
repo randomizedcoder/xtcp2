@@ -78,6 +78,17 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
+	// Stop the gRPC server when ctx fires. grpcServer.Serve blocks
+	// indefinitely on lis.Accept and is NOT ctx-aware on its own —
+	// without this goroutine the gRPC server outlives Run() and would
+	// leak in any embedded / test caller that runs the daemon more
+	// than once in a process. GracefulStop drains in-flight RPCs
+	// before closing the listener.
+	go func() {
+		<-ctx.Done()
+		grpcServer.GracefulStop()
+	}()
+
 	if serveErr := grpcServer.Serve(lis); serveErr != nil {
 		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
 	}
