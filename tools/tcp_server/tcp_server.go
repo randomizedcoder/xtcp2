@@ -62,9 +62,19 @@ func runServer(ctx context.Context, bind string, port int) error {
 	defer func() { _ = ln.Close() }() //nolint:errcheck // demo server teardown
 
 	// Close the listener on ctx cancel so the blocking Accept returns.
+	// The stopCloseWatcher channel lets the watcher goroutine exit if
+	// runServer returns early (Accept produced a non-ctx error) —
+	// without it, the watcher stayed parked on <-ctx.Done() forever,
+	// leaking one goroutine per runServer invocation. The test harness
+	// invokes runServer in a fan-out loop, so the leak adds up.
+	stopCloseWatcher := make(chan struct{})
+	defer close(stopCloseWatcher)
 	go func() {
-		<-ctx.Done()
-		_ = ln.Close() //nolint:errcheck // shutdown path
+		select {
+		case <-ctx.Done():
+			_ = ln.Close() //nolint:errcheck // shutdown path
+		case <-stopCloseWatcher:
+		}
 	}()
 
 	for {
