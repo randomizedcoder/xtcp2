@@ -105,9 +105,20 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 }
 
 func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
+	// Reset the pooled record to zero before re-populating. kgo.Record
+	// has many fields beyond {Topic,Value} — Partition, Timestamp,
+	// Attrs, ProducerEpoch/ID, LeaderEpoch, Offset, Headers, Key — and
+	// the franz-go producer sets several of these (notably Partition
+	// and Timestamp) during Produce. Without the reset, a recycled
+	// record's previous Partition stayed assigned → every reused record
+	// pinned to one partition; previous Timestamp stayed → every
+	// reused record claimed the time of the first send. Topic/Value
+	// overwrite below preserves the original intent.
 	rec := d.recordPool.Get().(*kgo.Record)
-	rec.Topic = d.x.config.Topic
-	rec.Value = *b
+	*rec = kgo.Record{
+		Topic: d.x.config.Topic,
+		Value: *b,
+	}
 	n := len(rec.Value)
 
 	var (
