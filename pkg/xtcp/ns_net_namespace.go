@@ -340,6 +340,17 @@ func (x *XTCP) setSocketTimeoutViaSyscall(timeout int64, socketFD int) {
 	// https://godoc.org/golang.org/x/sys/unix#SetsockoptTimeval
 	err := syscall.SetsockoptTimeval(socketFD, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
 	if err != nil {
-		log.Fatalf("SetSocketTimeoutViaSyscall SetsockopttimeSpec %s", err)
+		// Demoted from log.Fatalf: this is called per-namespace from
+		// createNetlinkersAndStore. A SO_RCVTIMEO setsockopt failure on
+		// one namespace's fd shouldn't tear down the whole daemon (every
+		// gRPC service, every other namespace's netlinkers, the poller).
+		// Without the timeout the netlinker can't observe ctx
+		// cancellation between recv calls — record that in a counter so
+		// the operator can see the affected namespace can't shut down
+		// cleanly, but keep the rest of the daemon running.
+		x.pC.WithLabelValues("setSocketTimeoutViaSyscall", "SetsockoptTimeval", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("setSocketTimeoutViaSyscall SetsockoptTimeval err: %v", err)
+		}
 	}
 }
