@@ -65,6 +65,19 @@ func (d *natsDest) Send(_ context.Context, b *[]byte) (int, error) {
 
 func (d *natsDest) Close() error {
 	if d.client != nil {
+		// NATS Publish is fire-and-forget — bytes are buffered in the
+		// client and sent asynchronously. Close drains the buffer but
+		// does NOT wait for the broker to confirm receipt. FlushTimeout
+		// performs a round-trip to the server and returns when the
+		// internal reply arrives, ensuring buffered publishes have
+		// actually crossed the wire before we tear the connection down.
+		// Mirrors the destKafka Close fix in bug 28.
+		if err := d.client.FlushTimeout(5 * time.Second); err != nil {
+			d.x.pC.WithLabelValues("destNATS", "FlushOnClose", "error").Inc()
+			if d.x.debugLevel > 10 {
+				log.Printf("destNATS Flush on Close: %v", err)
+			}
+		}
 		d.client.Close()
 	}
 	return nil
