@@ -123,7 +123,10 @@ func runMain(args []string, baseURL string, client *http.Client, stdout, stderr 
 	if *get {
 		id, err := getLatestSchemaIDAt(client, baseURL, subject)
 		if err != nil {
-			fmt.Fprintf(stderr, "Error registering schema: %v\n", err)
+			// Previously said "Error registering schema" — copy-paste from
+			// the register branch above. This path is the GET, so misleading
+			// for operators trying to figure out which call failed.
+			fmt.Fprintf(stderr, "Error getting schema: %v\n", err)
 			return 1
 		}
 		fmt.Fprintf(stdout, "id:%d", id)
