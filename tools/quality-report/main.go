@@ -1302,112 +1302,30 @@ type coverageRow struct {
 	Below bool
 }
 
+// emit assembles the renderInput from in (counts, splits, sort, test
+// stats, coverage rows, recommendations) and renders the markdown
+// template to w.
+//
+// Previously a single 100+ line function with cyclo 27 mixing all of
+// the above concerns inline. Each phase is now a helper below; emit
+// is the orchestrator (cyclo 3).
 func emit(w io.Writer, in reportInput) error {
 	r := renderInput{reportInput: in}
 	r.TotalFindings = len(in.Findings)
-	files := map[string]bool{}
-	for _, f := range in.Findings {
-		if f.File != "" {
-			files[f.File] = true
-		}
-		switch f.Tier {
-		case 0:
-			if isTieredTool(f.Tool) {
-				r.TierCounts.T0++
-			} else {
-				r.TierCounts.NT++
-			}
-		case 1:
-			r.TierCounts.T1++
-		case 2:
-			r.TierCounts.T2++
-		}
-		if f.Severity == severityError {
-			r.HasErrSeverity = true
-		}
-		if isQuickFixableRule(f.Rule) {
-			switch f.Tier {
-			case 0:
-				r.QuickFixable.T0++
-			case 1:
-				r.QuickFixable.T1++
-			case 2:
-				r.QuickFixable.T2++
-			}
-		}
-	}
-	r.FilesAffected = len(files)
-	r.Hotspots = aggregateByFile(in.Findings)
-	if len(r.Hotspots) > 10 {
-		r.Hotspots = r.Hotspots[:10]
-	}
 
-	// Split linter findings vs custom audits in the linter section.
-	var linterFindings []Finding
-	var auditFindings []Finding
-	var gosecFindings []Finding
-	for _, f := range in.Findings {
-		switch f.Tool {
-		case "netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit":
-			auditFindings = append(auditFindings, f)
-		case toolGosec:
-			gosecFindings = append(gosecFindings, f)
-		default:
-			linterFindings = append(linterFindings, f)
-		}
-	}
-	r.ByLinter = aggregateByLinter(linterFindings)
-	r.Audits = aggregateByLinter(auditFindings)
-	r.Gosec = gosecFindings
-	sort.Slice(r.Gosec, func(i, j int) bool {
-		if r.Gosec[i].Severity != r.Gosec[j].Severity {
-			return severityOrder(r.Gosec[i].Severity) < severityOrder(r.Gosec[j].Severity)
-		}
-		if r.Gosec[i].File != r.Gosec[j].File {
-			return r.Gosec[i].File < r.Gosec[j].File
-		}
-		return r.Gosec[i].Line < r.Gosec[j].Line
-	})
+	r.FilesAffected = accumulateFindingCounts(&r, in.Findings)
+	r.Hotspots = topHotspots(in.Findings, 10)
 
-	// Test stats.
-	for _, t := range in.Tests {
-		r.TestStats.Total++
-		switch t.Action {
-		case testActionPass:
-			r.TestStats.Pass++
-		case testActionFail:
-			if t.Preexist {
-				r.TestStats.FailPre++
-				r.PreexistTestFails++
-			} else {
-				r.TestStats.FailNew++
-				r.NewTestFails++
-			}
-			if t.Test != "" {
-				r.FailingTests = append(r.FailingTests, t)
-			}
-		case testActionSkip:
-			r.TestStats.Skip++
-		}
-	}
+	linter, audit, gosec := splitFindingsByTool(in.Findings)
+	r.ByLinter = aggregateByLinter(linter)
+	r.Audits = aggregateByLinter(audit)
+	r.Gosec = gosec
+	sortGosecBySeverityFileLine(r.Gosec)
 
-	// Coverage rows (sorted by package path) + threshold for the template.
+	accumulateTestStats(&r, in.Tests)
+
 	r.CoverageThreshold = CoverageThreshold
-	if in.Coverage.Available {
-		pkgs := make([]string, 0, len(in.Coverage.PerPackage))
-		for p := range in.Coverage.PerPackage {
-			pkgs = append(pkgs, p)
-		}
-		sort.Strings(pkgs)
-		for _, p := range pkgs {
-			pct := in.Coverage.PerPackage[p]
-			r.CoverageRows = append(r.CoverageRows, coverageRow{
-				Pkg:   p,
-				Pct:   pct,
-				Below: pct < CoverageThreshold,
-			})
-		}
-	}
+	r.CoverageRows = buildCoverageRows(in.Coverage)
 
 	r.Recommendations = synthRecommendations(r)
 
@@ -1418,6 +1336,162 @@ func emit(w io.Writer, in reportInput) error {
 		}).
 		Parse(tmpl))
 	return t.Execute(w, r)
+}
+
+// accumulateFindingCounts walks findings once and increments the
+// per-tier counts + the quick-fixable per-tier counts on r, sets
+// HasErrSeverity, and returns the number of distinct files touched.
+// Single pass; replaces a nested-switch monolith inside emit.
+func accumulateFindingCounts(r *renderInput, findings []Finding) int {
+	files := map[string]bool{}
+	for _, f := range findings {
+		if f.File != "" {
+			files[f.File] = true
+		}
+		bumpTierCount(&r.TierCounts, f)
+		if f.Severity == severityError {
+			r.HasErrSeverity = true
+		}
+		if isQuickFixableRule(f.Rule) {
+			bumpQuickFixable(&r.QuickFixable, f.Tier)
+		}
+	}
+	return len(files)
+}
+
+// bumpTierCount increments the appropriate tier counter for a single
+// finding. Tier 0 splits into T0 (golangci) vs NT (non-tiered tool).
+func bumpTierCount(tc *tierCounts, f Finding) {
+	switch f.Tier {
+	case 0:
+		if isTieredTool(f.Tool) {
+			tc.T0++
+			return
+		}
+		tc.NT++
+	case 1:
+		tc.T1++
+	case 2:
+		tc.T2++
+	}
+}
+
+// bumpQuickFixable increments the per-tier quick-fixable counter.
+// Takes *quickFixableCounts (not *tierCounts) because the QuickFixable
+// counter is a distinct type — they share field names but distinct
+// types prevent accidentally passing one where the other is expected.
+func bumpQuickFixable(qf *quickFixableCounts, tier int) {
+	switch tier {
+	case 0:
+		qf.T0++
+	case 1:
+		qf.T1++
+	case 2:
+		qf.T2++
+	}
+}
+
+// topHotspots returns the top-N file-aggregated entries from
+// aggregateByFile. Always returns at most n elements.
+func topHotspots(findings []Finding, n int) []fileAgg {
+	out := aggregateByFile(findings)
+	if len(out) > n {
+		return out[:n]
+	}
+	return out
+}
+
+// splitFindingsByTool buckets findings into (linter, audit, gosec) for
+// the corresponding sections of the markdown report. Audit tool names
+// are hard-coded here so a future audit must be added to both this
+// switch and the ingestCustomAudits loop — the symmetry is intentional.
+func splitFindingsByTool(findings []Finding) (linter, audit, gosec []Finding) {
+	for _, f := range findings {
+		switch f.Tool {
+		case "netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit":
+			audit = append(audit, f)
+		case toolGosec:
+			gosec = append(gosec, f)
+		default:
+			linter = append(linter, f)
+		}
+	}
+	return linter, audit, gosec
+}
+
+// sortGosecBySeverityFileLine sorts gosec findings by (severity rank
+// asc, file asc, line asc). Mutates the slice in place — same semantics
+// as the previous inline sort.Slice.
+func sortGosecBySeverityFileLine(gosec []Finding) {
+	sort.Slice(gosec, func(i, j int) bool {
+		if gosec[i].Severity != gosec[j].Severity {
+			return severityOrder(gosec[i].Severity) < severityOrder(gosec[j].Severity)
+		}
+		if gosec[i].File != gosec[j].File {
+			return gosec[i].File < gosec[j].File
+		}
+		return gosec[i].Line < gosec[j].Line
+	})
+}
+
+// accumulateTestStats walks tests once and increments Pass/Fail/Skip
+// counters on r.TestStats + appends per-test failures with a non-empty
+// test name to r.FailingTests. PreexistTestFails + NewTestFails are
+// the flat counters surfaced in the executive summary.
+func accumulateTestStats(r *renderInput, tests []TestResult) {
+	for _, t := range tests {
+		r.TestStats.Total++
+		switch t.Action {
+		case testActionPass:
+			r.TestStats.Pass++
+		case testActionFail:
+			recordTestFailure(r, t)
+		case testActionSkip:
+			r.TestStats.Skip++
+		}
+	}
+}
+
+// recordTestFailure splits one failing test into pre-existing vs new
+// and appends to FailingTests when the entry is at test (not package)
+// granularity. Extracted from the nested switch in accumulateTestStats
+// so the surrounding switch reads top-to-bottom.
+func recordTestFailure(r *renderInput, t TestResult) {
+	if t.Preexist {
+		r.TestStats.FailPre++
+		r.PreexistTestFails++
+	} else {
+		r.TestStats.FailNew++
+		r.NewTestFails++
+	}
+	if t.Test != "" {
+		r.FailingTests = append(r.FailingTests, t)
+	}
+}
+
+// buildCoverageRows turns the (unordered) per-package coverage map into
+// a sorted slice of coverageRow records. Marks each row Below=true when
+// the percentage is under CoverageThreshold. Returns nil when coverage
+// data isn't available.
+func buildCoverageRows(cov Coverage) []coverageRow {
+	if !cov.Available {
+		return nil
+	}
+	pkgs := make([]string, 0, len(cov.PerPackage))
+	for p := range cov.PerPackage {
+		pkgs = append(pkgs, p)
+	}
+	sort.Strings(pkgs)
+	rows := make([]coverageRow, 0, len(pkgs))
+	for _, p := range pkgs {
+		pct := cov.PerPackage[p]
+		rows = append(rows, coverageRow{
+			Pkg:   p,
+			Pct:   pct,
+			Below: pct < CoverageThreshold,
+		})
+	}
+	return rows
 }
 
 func statusLabel(s ToolStatus) string {
