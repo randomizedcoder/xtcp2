@@ -70,6 +70,36 @@ func TestSetSocketTimeoutViaSyscall_invalidFD(t *testing.T) {
 	}
 }
 
+// Bug 66 regression: SO_RCVTIMEO timeout in milliseconds must decompose
+// into BOTH whole seconds AND sub-second microseconds. The previous
+// >=1000 branch dropped the modulo, so 1500ms set tv to 1s + 0us.
+func TestMillisToTimeval_table(t *testing.T) {
+	cases := []struct {
+		name    string
+		millis  int64
+		wantSec int64
+		wantUs  int64
+	}{
+		{"zero", 0, 0, 0},
+		{"sub_second_500ms", 500, 0, 500_000},
+		{"exactly_one_sec", 1000, 1, 0},
+		{"one_and_half_sec_bug66", 1500, 1, 500_000},
+		{"two_and_half_sec_bug66", 2500, 2, 500_000},
+		{"five_seconds_exact", 5000, 5, 0},
+		{"odd_remainder_9999ms", 9999, 9, 999_000},
+		{"one_microsecond_floor_1ms", 1, 0, 1_000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tv := millisToTimeval(tc.millis)
+			if int64(tv.Sec) != tc.wantSec || int64(tv.Usec) != tc.wantUs {
+				t.Errorf("millisToTimeval(%d) = {Sec:%d, Usec:%d}; want {Sec:%d, Usec:%d}",
+					tc.millis, tv.Sec, tv.Usec, tc.wantSec, tc.wantUs)
+			}
+		})
+	}
+}
+
 // SendNetlinkDumpRequest: invalid fd → Sendto error → fatalf fires.
 func TestSendNetlinkDumpRequest_invalidFD(t *testing.T) {
 	captured := withFatalf(t)
