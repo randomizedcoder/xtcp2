@@ -26,7 +26,14 @@ func encodeLengthDelimitedProtobufList(r *clickhouse_protolist.Envelope_Record) 
 	}
 
 	log.Printf("AppendVarint of length:%d", len(recordBytes))
-	protowire.AppendVarint(result, uint64(len(recordBytes)))
+	// protowire.AppendVarint returns the appended slice — the previous
+	// code dropped the return value, so the length prefix was never
+	// actually written. Non-envelope mode emitted raw record bytes
+	// without the length-delim wrapper its name advertises (ClickHouse
+	// readers expecting LengthDelimited misparsed the file). Use the
+	// return value the way encodeLengthDelimitedEnvelope below already
+	// does.
+	result = protowire.AppendVarint(result, uint64(len(recordBytes)))
 
 	result = append(result, recordBytes...)
 
