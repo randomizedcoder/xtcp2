@@ -6,15 +6,20 @@ import (
 	"sync"
 )
 
-func (x *XTCP) createNetlinkersAndStore(ctx context.Context, nsName *string, fd int) {
+// createNetlinkersAndStore takes the per-ns context/cancel from the caller
+// (netNamespaceInstance) so that nsDelete's cancel() reaches BOTH the
+// netlinkers AND netNamespaceInstance's blocking <-nsCtx.Done(). Previously
+// the cancel was created locally here and only reached the netlinkers,
+// leaving netNamespaceInstance blocked on the parent (daemon-lifetime)
+// context — its deferred closeSocket(fd) never fired on a delete, leaking
+// one netlink fd + one goroutine per namespace removed.
+func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.CancelFunc, nsName *string, fd int) {
 
 	x.pC.WithLabelValues("createWorksAndStore", "start", "counter").Inc()
 
 	if x.config.NlTimeoutMilliseconds > 0 {
 		x.setSocketTimeoutViaSyscall(int64(x.config.NlTimeoutMilliseconds), fd)
 	}
-
-	nsCtx, nsCancel := context.WithCancel(ctx)
 
 	wg := new(sync.WaitGroup)
 	nsi := netNSitem{
