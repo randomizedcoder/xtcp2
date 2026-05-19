@@ -33,13 +33,15 @@ func withFakeSyscalls(t *testing.T, fake openAndSetnsSyscallsT, fn func()) {
 	fn()
 }
 
-// withShortBackoff swaps backoffFactorCst to a microsecond so the
+// withShortBackoff swaps backoffFactorNs to a microsecond so the
 // retry-exhaust path doesn't wall-clock ~10s. Restores on cleanup.
+// Uses the atomic backoffFactorNs so the swap doesn't race with
+// concurrently-running ns-add code paths in other tests.
 func withShortBackoff(t *testing.T) {
 	t.Helper()
-	orig := backoffFactorCst
-	backoffFactorCst = 1 * time.Microsecond
-	t.Cleanup(func() { backoffFactorCst = orig })
+	orig := backoffFactorNs.Load()
+	backoffFactorNs.Store(int64(1 * time.Microsecond))
+	t.Cleanup(func() { backoffFactorNs.Store(orig) })
 }
 
 // withSeededMountInfo points mountInfoDir at a temp file containing a
@@ -232,9 +234,10 @@ func TestBackoffSleep_table(t *testing.T) {
 	}
 	// All rows must share the shrunken backoff factor; can't t.Parallel
 	// inside individual rows because they all read/write the same var.
-	orig := backoffFactorCst
-	backoffFactorCst = 1 * time.Microsecond
-	defer func() { backoffFactorCst = orig }()
+	// Use atomic to avoid racing with concurrent ns-add code paths.
+	orig := backoffFactorNs.Load()
+	backoffFactorNs.Store(int64(1 * time.Microsecond))
+	defer func() { backoffFactorNs.Store(orig) }()
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
@@ -400,9 +403,9 @@ func TestOpenAndSetNSWithRetries_missingMountInfo(t *testing.T) {
 // ───────────────────────────────────────────────────────────────────────
 
 func TestBackoffSleep_concurrent(t *testing.T) {
-	orig := backoffFactorCst
-	backoffFactorCst = 1 * time.Microsecond
-	defer func() { backoffFactorCst = orig }()
+	orig := backoffFactorNs.Load()
+	backoffFactorNs.Store(int64(1 * time.Microsecond))
+	defer func() { backoffFactorNs.Store(orig) }()
 
 	const goroutines = 16
 	x := newTestXTCP(t, "null:")
