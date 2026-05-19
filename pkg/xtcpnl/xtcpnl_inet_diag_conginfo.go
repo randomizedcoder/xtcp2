@@ -92,15 +92,24 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 	// Match on the first 3 bytes — the kernel attribute is a null-terminated
 	// algorithm name like "cubic", "bbr", "dctcp", "vegas". Comparing data[0:4]
 	// against 3-char strings would never match, so we use the 3-char prefix.
-	// "bbr2" (the BBRv2 variant) is also checked, with the longer literal
-	// taking precedence via the bbr1/bbr2 fall-through (matched first).
 	switch string(data[0:3]) {
 	case "cub":
 		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
 	case "bbr":
-		// data[3] == '2' selects BBRv2; otherwise BBRv1. Both currently use
-		// the same enum value (BBR1) — preserving original behavior.
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
+		// Distinguish bbr1 / bbr2 / bbr3 via the 4th byte. The XtcpFlatRecord
+		// proto defines BBR1/BBR2/BBR3 as separate enum values — previously
+		// every "bbr*" prefix was bucketed into BBR1, so operators couldn't
+		// tell BBRv2/v3 connections apart from BBRv1 in their dashboards.
+		// CongInfoSizeCst is 4 (sizeof "bbr\0"); only inspect data[3] when
+		// the buffer is long enough.
+		switch {
+		case len(data) >= 4 && data[3] == '3':
+			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3
+		case len(data) >= 4 && data[3] == '2':
+			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2
+		default:
+			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
+		}
 	case "dct":
 		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
 	case "veg":
