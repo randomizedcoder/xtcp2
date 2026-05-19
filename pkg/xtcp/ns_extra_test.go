@@ -78,7 +78,9 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
 	x.debugLevel = 11 // hit the log branch
 	nsName := "test-ns"
-	x.createNetlinkersAndStore(context.Background(), &nsName, fds[0])
+	nsCtx, nsCancel := context.WithCancel(context.Background())
+	defer nsCancel()
+	x.createNetlinkersAndStore(nsCtx, nsCancel, &nsName, fds[0])
 
 	if _, ok := x.nsMap.Load(nsName); !ok {
 		t.Error("nsMap should contain the new ns entry")
@@ -136,7 +138,9 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 	}
 	x.debugLevel = 11
 	nsName := "spawn-store-ns"
-	x.createNetlinkersAndStore(context.Background(), &nsName, fds[0])
+	nsCtx, nsCancel := context.WithCancel(context.Background())
+	defer nsCancel()
+	x.createNetlinkersAndStore(nsCtx, nsCancel, &nsName, fds[0])
 	ran.Wait()
 
 	if _, ok := x.nsMap.Load(nsName); !ok {
