@@ -370,7 +370,12 @@ breakPoint:
 		var flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse
 		flatRecordsResponse, err = stream.Recv()
 		if err == io.EOF {
-			continue
+			// End of stream — the server closed cleanly. Subsequent
+			// Recv calls keep returning io.EOF, so `continue` here
+			// pegged a CPU core. Break out of the loop so the
+			// reconnect-with-sleep path in singleStreamingClient
+			// re-establishes a fresh stream.
+			break breakPoint
 		}
 
 		if err != nil {
