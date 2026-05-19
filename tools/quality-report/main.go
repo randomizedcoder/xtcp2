@@ -1462,7 +1462,14 @@ func synthRecommendations(r renderInput) []string {
 	// Top linter
 	if len(r.ByLinter) > 0 && r.ByLinter[0].Count > 0 {
 		top := r.ByLinter[0]
-		share := float64(top.Count) / float64(r.TotalFindings) * 100
+		// Guard against div-by-zero / Inf. r.TotalFindings should always
+		// be >= top.Count when ByLinter is populated, but a defensive
+		// check keeps the report from rendering "+Inf%% of total" if a
+		// future caller passes inconsistent aggregates.
+		var share float64
+		if r.TotalFindings > 0 {
+			share = float64(top.Count) / float64(r.TotalFindings) * 100
+		}
 		recs = append(recs, fmt.Sprintf("Top contributor: **%s/%s** with %d findings (%.0f%% of total). Concentrate effort here for the biggest quality win.", top.Tool, top.Linter, top.Count, share))
 	}
 	// Quick-fix call out
