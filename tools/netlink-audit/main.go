@@ -69,8 +69,95 @@ func runAudit(root string, stdout, stderr io.Writer) int {
 	return 1
 }
 
+// shouldSkipFile filters non-Go, test, and generated-proto sources.
+// Same predicate as metrics-audit; kept inline here so this binary
+// stays single-file (no shared internal/ dependency).
+func shouldSkipFile(path string) bool {
+	if !strings.HasSuffix(path, ".go") {
+		return true
+	}
+	if strings.HasSuffix(path, "_test.go") {
+		return true
+	}
+	if strings.Contains(path, ".pb.go") {
+		return true
+	}
+	return false
+}
+
+// hasLenGuard returns true if body contains at least one call to the
+// built-in len(). Conservative heuristic: any `len(x)` call anywhere in
+// the function body silences the audit for the whole function, even if
+// the call does not guard this specific access. This intentionally
+// trades false negatives for low review noise in xtcpnl, where every
+// safe parser already has at least one len() check.
+func hasLenGuard(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(m ast.Node) bool {
+		call, ok := m.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if id, okIdent := call.Fun.(*ast.Ident); okIdent && id.Name == "len" {
+			found = true
+			return false // short-circuit further descent
+		}
+		return true
+	})
+	return found
+}
+
+// findUnguardedAccesses appends one finding per IndexExpr / SliceExpr
+// whose operand is a known byte-slice identifier (b, buf, data, …).
+// Caller must have already confirmed fn has no len() guard.
+func findUnguardedAccesses(fset *token.FileSet, fn *ast.FuncDecl, findings *[]finding) {
+	ast.Inspect(fn.Body, func(m ast.Node) bool {
+		switch e := m.(type) {
+		case *ast.IndexExpr:
+			if isByteSliceExpr(e.X) {
+				*findings = append(*findings, finding{
+					pos: fset.Position(e.Pos()),
+					fn:  fn.Name.Name,
+					msg: "index access without prior len() guard in function",
+				})
+			}
+		case *ast.SliceExpr:
+			if isByteSliceExpr(e.X) {
+				*findings = append(*findings, finding{
+					pos: fset.Position(e.Pos()),
+					fn:  fn.Name.Name,
+					msg: "slice expression without prior len() guard in function",
+				})
+			}
+		}
+		return true
+	})
+}
+
+// auditFuncDecls walks every top-level FuncDecl in the file, skips those
+// without a body or with at least one len() call, and appends findings
+// for the rest.
+func auditFuncDecls(fset *token.FileSet, file *ast.File, findings *[]finding) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			return true
+		}
+		if hasLenGuard(fn.Body) {
+			return true
+		}
+		findUnguardedAccesses(fset, fn, findings)
+		return true
+	})
+}
+
 // auditTree walks `root` once and produces the full list of unguarded
 // byte-slice access findings.
+//
+// The body was previously a 17-cyclo monolith of three nested ast.Inspect
+// closures + WalkDir filtering. The skip filter is shouldSkipFile; the
+// len()-guard probe is hasLenGuard; the per-function finding pass is
+// auditFuncDecls. Resulting auditTree complexity: 5.
 func auditTree(root string) ([]finding, error) {
 	fset := token.NewFileSet()
 	var findings []finding
@@ -78,58 +165,17 @@ func auditTree(root string) ([]finding, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if d.IsDir() {
 			return nil
 		}
-		if strings.Contains(path, ".pb.go") {
+		if shouldSkipFile(path) {
 			return nil
 		}
 		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if parseErr != nil {
 			return parseErr
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			fn, ok := n.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				return true
-			}
-			hasLenGuard := false
-			ast.Inspect(fn.Body, func(m ast.Node) bool {
-				call, okCall := m.(*ast.CallExpr)
-				if !okCall {
-					return true
-				}
-				if id, okIdent := call.Fun.(*ast.Ident); okIdent && id.Name == "len" {
-					hasLenGuard = true
-				}
-				return true
-			})
-			if hasLenGuard {
-				return true
-			}
-			ast.Inspect(fn.Body, func(m ast.Node) bool {
-				switch e := m.(type) {
-				case *ast.IndexExpr:
-					if isByteSliceExpr(e.X) {
-						findings = append(findings, finding{
-							pos: fset.Position(e.Pos()),
-							fn:  fn.Name.Name,
-							msg: "index access without prior len() guard in function",
-						})
-					}
-				case *ast.SliceExpr:
-					if isByteSliceExpr(e.X) {
-						findings = append(findings, finding{
-							pos: fset.Position(e.Pos()),
-							fn:  fn.Name.Name,
-							msg: "slice expression without prior len() guard in function",
-						})
-					}
-				}
-				return true
-			})
-			return true
-		})
+		auditFuncDecls(fset, file, &findings)
 		return nil
 	})
 	return findings, err
