@@ -144,6 +144,84 @@ func requireProbe() error {
 // Close drains pending CQEs (best-effort, up to drainTimeout), releases
 // any in-flight pool buffers back to the caller's drain callback, then
 // unmaps the ring. Safe to call multiple times.
+// closeDrainStepMs caps each blocking WaitCQETimeout call inside the
+// Close drain loop. Kept small so a sluggish kernel can't stall ring
+// teardown past the caller's overall deadline.
+const closeDrainStepMs = 50 * time.Millisecond
+
+// waitForNextDrainCQE blocks for one CQE up to `step` (or `deadline`,
+// whichever is shorter). Returns drainContinue when the caller should
+// loop again (CQE arrived OR ETIME timeout), drainAbort when a non-
+// timeout error means we should stop trying.
+type drainOutcome int
+
+const (
+	drainContinue drainOutcome = iota
+	drainAbort
+)
+
+// waitForNextDrainCQE handles the "no CQE waiting; block for one"
+// branch of the Close drain loop. Returns (results, outcome) where
+// results may be empty (timeout) — caller checks outcome before doing
+// anything.
+func (r *Ring) waitForNextDrainCQE(deadline time.Time) ([]Result, drainOutcome) {
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return nil, drainAbort
+	}
+	step := remaining
+	if step > closeDrainStepMs {
+		step = closeDrainStepMs
+	}
+	ts := syscall.NsecToTimespec(int64(step))
+	if _, err := r.r.WaitCQETimeout(&ts); err != nil {
+		// ETIME (timeout) is expected; anything else stops the drain.
+		if !errors.Is(err, syscall.ETIME) && err.Error() != "errno 62" {
+			return nil, drainAbort
+		}
+		// Timeout — nothing to drain this pass; caller continues.
+		return nil, drainContinue
+	}
+	results, _ := r.drainOnce()
+	return results, drainContinue
+}
+
+// dispatchDrainResults invokes onDrain for each result, if onDrain is
+// non-nil. Skipped entirely when callers don't care about the bytes.
+func dispatchDrainResults(results []Result, onDrain func(Result)) {
+	if onDrain == nil {
+		return
+	}
+	for _, res := range results {
+		onDrain(res)
+	}
+}
+
+// dispatchAbandonedInFlight hands every still-in-flight entry to the
+// onDrain callback with a synthetic ETIME-style Res, then clears the
+// inFlight map. MUST be called AFTER QueueExit so the kernel no
+// longer references those buffers — otherwise a late CQE could write
+// into a buffer that's already been returned to the pool.
+func (r *Ring) dispatchAbandonedInFlight(onDrain func(Result)) {
+	if onDrain == nil {
+		// No callback → just clear so a future Close call doesn't
+		// see stale entries.
+		for reqID := range r.inFlight {
+			delete(r.inFlight, reqID)
+		}
+		return
+	}
+	for reqID, entry := range r.inFlight {
+		onDrain(Result{
+			Op:       entry.op,
+			Res:      -int32(syscall.ETIME),
+			Buf:      entry.buf,
+			HdrBytes: entry.wvHdr,
+		})
+		delete(r.inFlight, reqID)
+	}
+}
+
 func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 	if r == nil || r.r == nil {
 		return
@@ -153,30 +231,13 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 		// First reap anything already arrived (non-blocking).
 		results, _ := r.drainOnce()
 		if len(results) == 0 {
-			// Nothing yet — block for one CQE with a short timeout.
-			remaining := time.Until(deadline)
-			if remaining <= 0 {
+			var outcome drainOutcome
+			results, outcome = r.waitForNextDrainCQE(deadline)
+			if outcome == drainAbort {
 				break
 			}
-			step := remaining
-			if step > 50*time.Millisecond {
-				step = 50 * time.Millisecond
-			}
-			ts := syscall.NsecToTimespec(int64(step))
-			if _, err := r.r.WaitCQETimeout(&ts); err != nil {
-				// ETIME (timeout) is expected; anything else stops us.
-				if !errors.Is(err, syscall.ETIME) && err.Error() != "errno 62" {
-					break
-				}
-				continue
-			}
-			results, _ = r.drainOnce()
 		}
-		if onDrain != nil {
-			for _, res := range results {
-				onDrain(res)
-			}
-		}
+		dispatchDrainResults(results, onDrain)
 	}
 	// QueueExit BEFORE handing in-flight buffers back: the kernel still
 	// owns those buffers until the ring is torn down. Releasing them to
@@ -189,17 +250,7 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 	// apart "normal CQE with bytes" from "abandoned at teardown".
 	r.r.QueueExit()
 	r.r = nil
-	if onDrain != nil {
-		for reqID, entry := range r.inFlight {
-			onDrain(Result{
-				Op:       entry.op,
-				Res:      -int32(syscall.ETIME),
-				Buf:      entry.buf,
-				HdrBytes: entry.wvHdr,
-			})
-			delete(r.inFlight, reqID)
-		}
-	}
+	r.dispatchAbandonedInFlight(onDrain)
 }
 
 // NextRequestID returns a fresh per-ring monotonic counter value.
