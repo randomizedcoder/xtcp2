@@ -79,6 +79,19 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 		// discoverNamespaces stores all its values as nil.
 		srcValue, ok := srcMap.Load(key)
 		if !ok || (srcValue != nil && srcValue != value) {
+			// In production, destMap values are netNSitem structs that
+			// own a cancel func + an in-flight netNamespaceInstance
+			// goroutine + open netlink socketFD. Just deleting the map
+			// entry leaves all of that orphaned. Cancel first so the
+			// per-ns ctx fires, the netlinkers exit, and the deferred
+			// closeSocket in netNamespaceInstance runs. testing=true
+			// callers may pass arbitrary value types; only invoke
+			// cancel when the value is actually a netNSitem.
+			if !testing {
+				if item, isItem := value.(netNSitem); isItem && item.cancel != nil {
+					item.cancel()
+				}
+			}
 			destMap.Delete(key)
 			deleteCount++
 		}
