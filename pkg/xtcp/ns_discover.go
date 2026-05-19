@@ -24,6 +24,17 @@ func (x *XTCP) discoverAllNamespaces() (nsMap *sync.Map) {
 		return true
 	})
 
+	// Empty netNsDirs (no Range iterations) used to fall through every
+	// branch below — nsMap stayed at its zero value (a nil *sync.Map),
+	// and the next reconcileMaps call would nil-deref on srcMap.Load /
+	// srcMap.Range. initSyncMaps callFatalfs in production when neither
+	// netns directory exists, so this only fires in tests with a fresh
+	// XTCP{} fixture — but a defensive "return an empty map" is cheap
+	// and stops the panic.
+	if len(nsMaps) == 0 {
+		return &sync.Map{}
+	}
+
 	// if x.debugLevel > 1000 {
 	// 	for _, n := range nsMaps {
 	// 		n.Range(func(key, value interface{}) bool {
