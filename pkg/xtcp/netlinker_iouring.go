@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"runtime"
@@ -206,7 +207,12 @@ func isETimeError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errno, ok := err.(syscall.Errno); ok {
+	// errors.As walks the unwrap chain (e.g. fmt.Errorf("...: %w", err)
+	// → syscall.Errno), which the previous direct type-assert missed.
+	// Keep the existing string fallback for libraries that stringify
+	// errno without exposing the typed unwrap path.
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
 		return errno == syscall.ETIME
 	}
 	// Fallback: match by string for wrapped errors.
