@@ -166,6 +166,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	x.updateNetlinkRequestSequenceNumber(pollingLoops)
 
 	socketFDs := x.GetNetlinkSocketFDs()
+	polled := 0
 	for i, socketFD := range socketFDs {
 		if ns, ok := x.fdToNsMap.Load(socketFD); ok {
 			nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap values are strings
@@ -177,6 +178,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 				continue
 			}
 			x.poll(socketFD)
+			polled++
 			if x.debugLevel > 10 {
 				log.Printf("pollAllNetlinkSockets Poll i:%d fd:%d", i, socketFD)
 			}
@@ -186,7 +188,13 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	// restart the timeout timer
 	x.pollTimeoutTimer.Reset(x.config.PollTimeout.AsDuration())
 
-	return len(socketFDs)
+	// Return the count of fds we actually issued a poll against, NOT
+	// len(socketFDs). The xtcpNS fd is in socketFDs but is skipped above
+	// — counting it would tell Poller to expect one more done signal
+	// than will ever arrive, so count never drops to 0 and every cycle
+	// waits for the PollTimeoutTimer to fire instead of advancing on
+	// the natural netlinker-done signals.
+	return polled
 }
 
 func (x *XTCP) updateNetlinkRequestSequenceNumber(pollingLoops uint64) {
