@@ -102,10 +102,16 @@ breakPoint:
 	return nil
 }
 
-// checkDirectoryExists checks if a directory exists
+// checkDirectoryExists checks if a directory exists.
+//
+// The previous body only special-cased ErrNotExist, then unconditionally
+// dereferenced info — a non-not-exist Stat error (EACCES on a permission-
+// restricted mount, EIO on a flaky filesystem) leaves info==nil and the
+// info.IsDir() call panics. Treat any Stat error as "no" and only
+// dereference info on the success path.
 func checkDirectoryExists(dir string) bool {
 	info, err := os.Stat(dir)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 	return info.IsDir()
