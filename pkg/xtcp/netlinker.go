@@ -90,9 +90,14 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if wf > 0 {
 			now := time.Now()
+			// Capture only the n bytes Recvfrom actually filled. Writing the
+			// raw *packetBuffer here used to dump the full pool-buffer size
+			// (e.g. 8 KiB), trailing the real packet with stale bytes from a
+			// previous Recvfrom — pcap-like consumers parsed garbage past
+			// the real end of the message.
 			err = os.WriteFile(
 				x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
-				*(packetBuffer),
+				(*packetBuffer)[:n],
 				writeFilesPermissionsCst)
 			if err != nil {
 				// Diagnostic capture-to-file is a side feature; a disk-
@@ -146,7 +151,14 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 		}
 	}
 
-	*packetBuffer = (*packetBuffer)[:0]
+	// Restore the slice header to full capacity before returning it to
+	// the pool. (*packetBuffer)[:0] would Put a zero-length slice — a
+	// later Get from a fresh netlinker would call syscall.Recvfrom on
+	// it, which panics on &p[0] when len(p)==0. iouringPrefillRecvs
+	// (netlinker_iouring.go) already restores cap on Get as a defensive
+	// measure, but the syscall path is the producer of these buffers
+	// and must Put them in usable shape.
+	*packetBuffer = (*packetBuffer)[:cap(*packetBuffer)]
 	x.packetBufferPool.Put(packetBuffer)
 
 	x.pC.WithLabelValues("Netlinker", "complete", "count").Inc()
