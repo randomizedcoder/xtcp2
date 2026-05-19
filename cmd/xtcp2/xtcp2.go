@@ -508,27 +508,33 @@ func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 	}
 }
 
-// environmentOverrideDebugLevel MUTATES d if env var is set
+// environmentOverrideDebugLevel MUTATES d if env var is set.
+//
+// Atoi+uint(i) wraps negative values to MaxUint (the bug 11 trap from
+// the prior envUint{32,64} fix); ParseUint rejects "-1" up front so
+// DEBUG_LEVEL=-5 doesn't silently turn every debug check into "yes".
 func environmentOverrideDebugLevel(d *uint, debugLevel uint) {
 	key := "DEBUG_LEVEL"
 	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
+		if i, err := strconv.ParseUint(value, base10, sixtyFour); err == nil {
 			*d = uint(i)
 			if debugLevel > 10 {
-				log.Printf("key:%s, d:%d", key, d)
+				log.Printf("key:%s, d:%d", key, *d)
 			}
 		}
 	}
 }
 
-// environmentOverrideGoMaxProcs MUTATES goMaxProcs if env var is set
+// environmentOverrideGoMaxProcs MUTATES goMaxProcs if env var is set.
+// Same fix shape as environmentOverrideDebugLevel above — ParseUint
+// rejects negative values that previously wrapped via Atoi + uint(i).
 func environmentOverrideGoMaxProcs(goMaxProcs *uint, debugLevel uint) {
 	key := "GOMAXPROCS"
 	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
+		if i, err := strconv.ParseUint(value, base10, sixtyFour); err == nil {
 			*goMaxProcs = uint(i)
 			if debugLevel > 10 {
-				log.Printf("key:%s, goMaxProcs:%d", key, goMaxProcs)
+				log.Printf("key:%s, goMaxProcs:%d", key, *goMaxProcs)
 			}
 		}
 	}
