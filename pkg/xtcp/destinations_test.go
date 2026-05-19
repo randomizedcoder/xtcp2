@@ -642,7 +642,7 @@ func (fakeBareConn) SetWriteDeadline(time.Time) error { return nil }
 // fileGetter type assertion fails and the function returns its "type
 // does not expose File()" error.
 func TestExtractFD_typeMismatch(t *testing.T) {
-	if _, err := extractFD(fakeBareConn{}); err == nil {
+	if _, _, err := extractFD(fakeBareConn{}); err == nil {
 		t.Error("expected error for net.Conn without File()")
 	}
 }

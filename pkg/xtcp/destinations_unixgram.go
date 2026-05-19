@@ -17,9 +17,10 @@ import (
 // (~208 KB on Linux by default) fail with EMSGSIZE; xtcp records today
 // are well below that.
 type unixgramDest struct {
-	x    *XTCP
-	conn net.Conn
-	fd   int
+	x      *XTCP
+	conn   net.Conn
+	fd     int
+	fdFile *os.File // see extractFD docs — keeps the dup'd fd's File alive
 }
 
 func newUnixGramDest(ctx context.Context, x *XTCP) (Destination, error) {
@@ -39,12 +40,12 @@ func newUnixGramDest(ctx context.Context, x *XTCP) (Destination, error) {
 	}
 	d := &unixgramDest{x: x, conn: conn}
 	if x.config.IoUring {
-		var fd int
-		fd, err = extractFD(conn)
-		if err != nil {
-			return nil, fmt.Errorf("InitDestUnixGram extractFD: %w", err)
+		fd, f, eerr := extractFD(conn)
+		if eerr != nil {
+			return nil, fmt.Errorf("InitDestUnixGram extractFD: %w", eerr)
 		}
 		d.fd = fd
+		d.fdFile = f
 	}
 	return d, nil
 }
@@ -80,6 +81,10 @@ func (d *unixgramDest) Send(ctx context.Context, b *[]byte) (int, error) {
 }
 
 func (d *unixgramDest) Close() error {
+	if d.fdFile != nil {
+		_ = d.fdFile.Close() //nolint:errcheck // teardown
+		d.fdFile = nil
+	}
 	if d.conn != nil {
 		return d.conn.Close()
 	}
