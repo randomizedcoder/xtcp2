@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -18,9 +19,10 @@ import (
 // Daemon-side: read the varint via binary.ReadUvarint, then exactly that
 // many payload bytes via io.ReadFull.
 type unixDest struct {
-	x    *XTCP
-	conn net.Conn
-	fd   int
+	x      *XTCP
+	conn   net.Conn
+	fd     int
+	fdFile *os.File // see extractFD docs — keeps the dup'd fd's File alive
 }
 
 func newUnixDest(ctx context.Context, x *XTCP) (Destination, error) {
@@ -35,12 +37,12 @@ func newUnixDest(ctx context.Context, x *XTCP) (Destination, error) {
 	}
 	d := &unixDest{x: x, conn: conn}
 	if x.config.IoUring {
-		var fd int
-		fd, err = extractFD(conn)
-		if err != nil {
-			return nil, fmt.Errorf("InitDestUnix extractFD: %w", err)
+		fd, f, eerr := extractFD(conn)
+		if eerr != nil {
+			return nil, fmt.Errorf("InitDestUnix extractFD: %w", eerr)
 		}
 		d.fd = fd
+		d.fdFile = f
 	}
 	return d, nil
 }
@@ -89,6 +91,10 @@ func (d *unixDest) Send(ctx context.Context, b *[]byte) (int, error) {
 }
 
 func (d *unixDest) Close() error {
+	if d.fdFile != nil {
+		_ = d.fdFile.Close() //nolint:errcheck // teardown
+		d.fdFile = nil
+	}
 	if d.conn != nil {
 		return d.conn.Close()
 	}
