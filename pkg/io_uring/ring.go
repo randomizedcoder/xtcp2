@@ -297,12 +297,21 @@ func (r *Ring) EnqueueWritevUnix(fd int, header []byte, payload *[]byte) (uint32
 	hdrCopy := make([]byte, len(header))
 	copy(hdrCopy, header)
 	iov[0] = syscall.Iovec{Base: &hdrCopy[0], Len: uint64(len(hdrCopy))}
+
+	// When the payload is empty (proto.Marshal of a zero-valued message
+	// can return an empty slice), passing iov[1]={Base:nil, Len:0} with
+	// iovcnt=2 is undefined per writev(2): the kernel may EFAULT on the
+	// nil Base even though Len is 0. Submit iovcnt=1 in that case so the
+	// kernel only sees the header iovec.
+	iovCount := uint32(2)
 	if len(*payload) > 0 {
 		iov[1] = syscall.Iovec{Base: &(*payload)[0], Len: uint64(len(*payload))}
+	} else {
+		iovCount = 1
 	}
 
 	iovPtr := uintptr(unsafe.Pointer(&iov[0]))
-	sqe.PrepareWritev(fd, iovPtr, 2, 0)
+	sqe.PrepareWritev(fd, iovPtr, iovCount, 0)
 	reqID := r.NextRequestID()
 	sqe.SetData64(serialize(EncodedRequest{Operation: OpSendUnix, RequestID: reqID}))
 
