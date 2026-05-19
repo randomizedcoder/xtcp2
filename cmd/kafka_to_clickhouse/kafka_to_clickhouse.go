@@ -280,8 +280,16 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 	kgoRecord, _ := kgoRecordPool.Get().(*kgo.Record) //nolint:errcheck // pool.New returns *kgo.Record
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
-	kgoRecord.Topic = c.topic
-	kgoRecord.Value = *xtcpRecordBinary
+	// Reset the pooled record to zero before re-populating. Without this
+	// the previous send's Partition / Timestamp / etc fields persisted
+	// (set internally by franz-go's Produce), pinning every recycled
+	// record to one partition + freezing the timestamp. See bug 55 in
+	// pkg/xtcp/destinations_kafka.go for the longer write-up — same
+	// fix shape in this binary.
+	*kgoRecord = kgo.Record{
+		Topic: c.topic,
+		Value: *xtcpRecordBinary,
+	}
 	binaryLen := len(*xtcpRecordBinary)
 
 	// Propagate the caller's context to kClient.Produce so cancellation
