@@ -146,6 +146,19 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "InitDestKafka: %v\n", err)
 			return 1
 		}
+		// Flush + Close the producer on the way out. Without this the
+		// final batch of records in franz-go's send buffer was dropped
+		// on process exit (same shape as bug 28 in pkg/xtcp). Flush is
+		// bounded by a 5s timeout so a wedged broker doesn't block
+		// shutdown indefinitely.
+		defer func() {
+			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := kClient.Flush(flushCtx); err != nil {
+				fmt.Fprintf(stderr, "kgo Flush on exit: %v\n", err)
+			}
+			kClient.Close()
+		}()
 	}
 	primaryFunction(ctx, c)
 	return 0
