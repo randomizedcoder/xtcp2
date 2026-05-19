@@ -141,10 +141,16 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 	}
 
 	conn := newGRPCClient(addr)
+	// Close the conn + Stop the ticker on the way out. Previously
+	// pollMode returned with both leaked — fine in a one-shot CLI run
+	// but the daemon-embedded usage (and the test harness) leaked one
+	// conn + one *time.Ticker per pollMode invocation.
+	defer func() { _ = conn.Close() }() //nolint:errcheck // already on the way out; Close err is non-actionable
 
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
 
 	ticker := time.NewTicker(pollFrequency)
+	defer ticker.Stop()
 
 	// shortCtx, cancel := context.WithTimeout(ctx, pollFrequency-time.Duration(10*time.Millisecond))
 	// defer cancel()
