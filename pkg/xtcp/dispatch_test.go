@@ -202,6 +202,30 @@ func TestInitDeserializers_emptyEnabled(t *testing.T) {
 	}
 }
 
+// Bug 77 regression: a fresh XTCP{} fixture with nil EnabledDeserializers
+// would nil-deref on the first `x.config.EnabledDeserializers.Enabled[key]`
+// lookup. InitDeserializers must short-circuit safely.
+func TestInitDeserializers_nilEnabledDeserializers(t *testing.T) {
+	x := &XTCP{
+		config: &xtcp_config.XtcpConfig{}, // EnabledDeserializers left nil
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("InitDeserializers panicked on nil EnabledDeserializers: %v", r)
+		}
+	}()
+	x.InitDeserializers(&wg)
+	wg.Wait()
+	if x.RTATypeDeserializer == nil {
+		t.Error("RTATypeDeserializer map should be initialized")
+	}
+	if len(x.RTATypeDeserializer) != 0 {
+		t.Errorf("expected 0 deserializers with nil config; got %d", len(x.RTATypeDeserializer))
+	}
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // zeroizers dispatch — InitZeroizers + ZeroXTCPCongRecord
 // ───────────────────────────────────────────────────────────────────────
