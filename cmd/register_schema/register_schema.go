@@ -70,6 +70,14 @@ func getLatestSchemaIDAt(client *http.Client, baseURL, subject string) (int, err
 		return 0, err
 	}
 	defer resp.Body.Close()
+	// Schema Registries return a JSON error body on 4xx/5xx (e.g.
+	// {"error_code":40402,"message":"Subject not found."}). The previous
+	// code skipped the status check and decoded the error body straight
+	// into the {id int} struct, producing a silent id:0 success — the
+	// CLI printed "id:0" for a missing subject. Reject non-2xx upfront.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("getLatestSchemaIDAt %s: unexpected status:%d", url, resp.StatusCode)
+	}
 	var result struct {
 		ID int `json:"id"`
 	}
