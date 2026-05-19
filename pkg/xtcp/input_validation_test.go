@@ -73,6 +73,20 @@ func TestValidateInput_happyPaths(t *testing.T) {
 				Topic:     strings.Repeat("a", 80),
 			},
 		},
+		{
+			// Bug 52 regression: "null:" (with the documented
+			// schemeNullPrefix colon) used to fail validation as
+			// "must contain x2 colons" because the switch only listed
+			// unix/unixgram in the path-style case. "null" passed
+			// because of the schemeNull early-return; the colon
+			// variant should be symmetric.
+			name: "null dest with trailing colon",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtobufSingle,
+				Dest:      "null:",
+				Topic:     "xtcp",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
