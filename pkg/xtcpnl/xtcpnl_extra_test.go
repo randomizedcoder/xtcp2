@@ -221,8 +221,32 @@ func TestDeserializeCongInfoXTCP_vegas(t *testing.T) {
 
 func TestDeserializeCongInfoXTCP_bbr2(t *testing.T) {
 	x := &xtcp_flat_record.XtcpFlatRecord{}
-	// "bbr2" — 3-byte prefix "bbr" matches the bbr branch
+	// "bbr2" — 3-byte prefix "bbr" matches the bbr branch, and data[3]=='2'
+	// selects the BBR2 enum variant (previously bucketed into BBR1 — bug 50).
 	data := []byte("bbr2")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2 {
+		t.Errorf("alg = %v, want BBR2", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_bbr3(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	data := []byte("bbr3")
+	if err := DeserializeCongInfoXTCP(data, x); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if x.CongestionAlgorithmEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3 {
+		t.Errorf("alg = %v, want BBR3", x.CongestionAlgorithmEnum)
+	}
+}
+
+func TestDeserializeCongInfoXTCP_bbr1(t *testing.T) {
+	x := &xtcp_flat_record.XtcpFlatRecord{}
+	// "bbr\0" — bbr1 (no '2' / '3' in data[3]).
+	data := []byte{'b', 'b', 'r', 0}
 	if err := DeserializeCongInfoXTCP(data, x); err != nil {
 		t.Fatalf("err = %v", err)
 	}
