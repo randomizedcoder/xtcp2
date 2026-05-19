@@ -94,7 +94,14 @@ func DeserializeSockOptReflection(data []byte, c *SockOpt) (n int, err error) {
 	return n, err
 }
 
-func DeserializeSockOptXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
+// DeserializeSockOptXTCP reads an INET_DIAG_SOCKOPT (22) attribute into
+// XtcpFlatRecord.SockOpt. Previously typed against the wrong target
+// (*Envelope_XtcpFlatRecord), which didn't match the runtime dispatch
+// map signature in pkg/xtcp/deserializers.go — the dispatch entry had
+// to be filled with DeserializeCGroupIDXTCP as a placeholder, so the
+// SockOpt field was never populated in production (and the CGroupID
+// parser silently errored on the 2-byte payload).
+func DeserializeSockOptXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 
 	if len(data) < SockOptSizeCst {
 		return ErrSockOptSmall
