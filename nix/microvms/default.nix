@@ -96,6 +96,21 @@ let
       sink = "coverage-iouring";
     };
 
+  mkOneSoak =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "soak";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
@@ -109,6 +124,8 @@ let
   vmsCoverageIoUring = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs mkOneCoverageIoUring
   );
+
+  vmsSoak = lib.genAttrs constants.supportedArchs mkOneSoak;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -162,6 +179,13 @@ let
     })
   );
 
+  soak = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkSoakRunner {
+      inherit arch;
+      vm = vmsSoak.${arch};
+    };
+  });
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -195,10 +219,12 @@ in
     vmsVector
     vmsCoverage
     vmsCoverageIoUring
+    vmsSoak
     lifecycle
     lifecycleVector
     lifecycleCoverage
     lifecycleCoverageIoUring
+    soak
     checks
     checksVector
     ;
