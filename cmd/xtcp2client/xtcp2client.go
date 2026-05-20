@@ -42,7 +42,12 @@ const (
 	signalChannelSizeCst = 10
 
 	tagertHostnameCst = "localhost"
-	grpcPortCst       = "8888"
+	// grpcPortCst MUST match the xtcp2 daemon's default in cmd/xtcp2
+	// (currently 8889). Keeping these in sync is a footgun — a future
+	// CLAUDE: the daemon's port is exposed via a const in cmd/xtcp2,
+	// and shipping them out-of-step turns every gRPC roundtrip into a
+	// silent connection refused.
+	grpcPortCst = "8889"
 
 	pollFrequencyCst = 10 * time.Second
 
@@ -116,6 +121,7 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("xtcp2client", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	target := fs.String("target", tagertHostnameCst, "Target hostanme")
+	port := fs.String("port", grpcPortCst, "Target gRPC port (must match the xtcp2 daemon's -grpcPort flag)")
 	poll := fs.Bool("poll", false, "poll mode means the client will trigger polling via the PollFlatRecords service")
 	pollFrequency := fs.Duration("pollFrequency", pollFrequencyCst, "poll mode frequency")
 	workers := fs.Int("workers", 10, "workers")
@@ -133,7 +139,7 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	debugLevel = *d
 
 	complete := make(chan struct{}, signalChannelSizeCst)
-	addr := *target + ":" + grpcPortCst
+	addr := *target + ":" + *port
 	if *poll {
 		pollMode(ctx, addr, &complete, *pollFrequency, *json, debugLevel)
 	} else {
