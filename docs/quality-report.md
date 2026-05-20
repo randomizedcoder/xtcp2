@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T15:15:33Z
+Generated: 2026-05-20T15:24:56Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -33,16 +33,16 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 1 | 5s |
 | golangci-lint (standard) | clean | 0 | 5s |
-| golangci-lint (quick) | findings | 1 | 14s |
+| golangci-lint (quick) | findings | 1 | 15s |
 | gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 2 | 1s |
-| nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
+| gofmt | findings | 2 | 0s |
+| nixfmt | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 9s |
+| go test | clean | 0 | 8s |
 | go test -cover | findings | 1 | 0s |
 
 
@@ -81,7 +81,7 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 84.2% < 90%
+- `pkg/xtcp`: package coverage 85.2% < 90%
 
 ### golangci-lint / unconvert — 1
 
@@ -107,7 +107,7 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 1281 |
+| Pass | 1284 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 7 |
@@ -160,7 +160,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 89.8% of statements (target: 90% per package).
+**Overall:** 90.3% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -176,7 +176,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 84.2% | 🔴 below 90% |
+| `pkg/xtcp` | 85.2% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.4% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
@@ -186,6 +186,6 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/quality-report` | 94.5% | 🟢 OK |
 | `tools/tcp_client` | 90.3% | 🟢 OK |
 | `tools/tcp_server` | 94.6% | 🟢 OK |
-| `tools/udp_receiver_server` | 93.8% | 🟢 OK |
+| `tools/udp_receiver_server` | 97.9% | 🟢 OK |
 
 
