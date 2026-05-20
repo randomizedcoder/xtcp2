@@ -6,11 +6,13 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	nats "github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -301,5 +303,61 @@ func TestNATSDest_Close_debugLog(t *testing.T) {
 	fake := &fakeNATSPublisher{flushErr: errors.New("err")}
 	d := newNATSDestForTest(t, fake)
 	d.x.debugLevel = 11
+	_ = d.Close()
+}
+
+// TestNewNATSDest_happy drives the full constructor path via the
+// newNATSConnFn factory seam.
+func TestNewNATSDest_happy(t *testing.T) {
+	fake := &fakeNATSPublisher{}
+	orig := newNATSConnFn
+	newNATSConnFn = func(_ nats.Options) (natsPublisher, error) { return fake, nil }
+	defer func() { newNATSConnFn = orig }()
+
+	x := newTestXTCP(t, "nats:127.0.0.1:4222")
+	d, err := newNATSDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newNATSDest err = %v", err)
+	}
+	if d == nil {
+		t.Fatal("dest nil")
+	}
+	_ = d.Close()
+}
+
+// TestNewNATSDest_factoryErr drives the constructor's error-wrap path.
+func TestNewNATSDest_factoryErr(t *testing.T) {
+	orig := newNATSConnFn
+	newNATSConnFn = func(_ nats.Options) (natsPublisher, error) {
+		return nil, errors.New("synthetic")
+	}
+	defer func() { newNATSConnFn = orig }()
+
+	x := newTestXTCP(t, "nats:127.0.0.1:4222")
+	d, err := newNATSDest(context.Background(), x)
+	if err == nil {
+		t.Error("expected err")
+	}
+	if d != nil {
+		t.Error("dest should be nil")
+	}
+	if !strings.Contains(err.Error(), "opts.Connect") {
+		t.Errorf("err = %q, want substring 'opts.Connect'", err)
+	}
+}
+
+// TestNewNATSDest_debugLog covers the debug-log gate in newNATSDest.
+func TestNewNATSDest_debugLog(t *testing.T) {
+	fake := &fakeNATSPublisher{}
+	orig := newNATSConnFn
+	newNATSConnFn = func(_ nats.Options) (natsPublisher, error) { return fake, nil }
+	defer func() { newNATSConnFn = orig }()
+
+	x := newTestXTCP(t, "nats:127.0.0.1:4222")
+	x.debugLevel = 11
+	d, err := newNATSDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newNATSDest err = %v", err)
+	}
 	_ = d.Close()
 }

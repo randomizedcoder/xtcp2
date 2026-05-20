@@ -34,6 +34,17 @@ type natsDest struct {
 	client natsPublisher
 }
 
+// newNATSConnFn is the factory tests swap to inject a fake
+// natsPublisher without dialing a real NATS server. Production
+// callers leave this at the default (newNATSConnReal).
+var newNATSConnFn = newNATSConnReal
+
+// newNATSConnReal is the production factory: opens a real *nats.Conn
+// via nats.Options.Connect with the canonical retry config.
+func newNATSConnReal(opts nats.Options) (natsPublisher, error) {
+	return opts.Connect()
+}
+
 func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
 	addr := strings.Replace(x.config.Dest, "nats:", "", 1)
 	if x.debugLevel > 10 {
@@ -50,7 +61,7 @@ func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
 		RetryOnFailedConnect: true,
 		Timeout:              natsTimeoutCst,
 	}
-	client, err := opts.Connect()
+	client, err := newNATSConnFn(opts)
 	if err != nil {
 		return nil, fmt.Errorf("newNATSDest opts.Connect: %w", err)
 	}
