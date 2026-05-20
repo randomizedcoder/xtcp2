@@ -123,12 +123,85 @@ func TestResourceExhaustedSleep_ctxCancelReturnsTrue(t *testing.T) {
 	}
 }
 
-// (No live-sleep test here: the production sleep is 30-40s and gating
-// it behind an env var is anti-pattern per project convention. The
-// cancel-path test above + the live-ctx benchmark below are
-// sufficient deterministic coverage; the full-sleep behavior is
-// exercised by the production reconnect loop in singleStreamingClient,
-// which already has integration coverage in xtcp2client_test.go.)
+// TestResourceExhaustedSleep_liveCtxRunsFullSleep exercises the
+// time.After branch (returns false) by shrinking the base sleep
+// duration to a microsecond. ResourceExhaustedSleepTime is a var
+// (not a const) precisely so this test can shrink it without
+// wall-clocking 30+ seconds; production code never mutates it.
+func TestResourceExhaustedSleep_liveCtxRunsFullSleep(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	start := time.Now()
+	got := resourceExhaustedSleep(ctx, errors.New("RE"))
+	if got {
+		t.Error("uncancelled ctx with shrunken sleep should return false")
+	}
+	if elapsed := time.Since(start); elapsed > 1*time.Second {
+		t.Errorf("sleep took %v with shrunken base+jitter; should be sub-second", elapsed)
+	}
+}
+
+// TestResourceExhaustedSleep_debugLogPath covers the debug-log branch
+// (debugLevel > 10) on the same shrunken-sleep path.
+// TestHandleRecvContinueErr_resourceExhaustedLiveCtxContinues covers
+// the recvContinue path where the sleep runs to completion: ctx stays
+// live → resourceExhaustedSleep returns false → handleRecvContinueErr
+// also returns false. Shrunken globals keep the test fast.
+func TestHandleRecvContinueErr_resourceExhaustedLiveCtxContinues(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	got := handleRecvContinueErr(ctx, "client",
+		status.Error(codes.ResourceExhausted, "x"))
+	if got {
+		t.Error("live ctx + shrunken sleep should return false (continue)")
+	}
+}
+
+// TestHandleRecvContinueErr_debugLogPath drives the debug-log gate.
+func TestHandleRecvContinueErr_debugLogPath(t *testing.T) {
+	origDebug := debugLevel
+	debugLevel = 11
+	defer func() { debugLevel = origDebug }()
+	got := handleRecvContinueErr(context.Background(), "client",
+		errors.New("non-retryable"))
+	if got {
+		t.Error("non-ResourceExhausted err with live ctx should return false")
+	}
+}
+
+func TestResourceExhaustedSleep_debugLogPath(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	origDebug := debugLevel
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	debugLevel = 11
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+		debugLevel = origDebug
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_ = resourceExhaustedSleep(ctx, errors.New("RE"))
+}
 
 // ───────────────────────────────────────────────────────────────────────
 // handleRecvContinueErr

@@ -83,6 +83,28 @@ func TestRunMain_invalidFlag(t *testing.T) {
 	}
 }
 
+func TestRunMain_pollModeCancellable(t *testing.T) {
+	// runMain's poll-mode branch dials gRPC and enters pollMode.
+	// With an already-canceled ctx + a very long poll frequency,
+	// pollMode's ticker never fires and the ctx.Done case wins
+	// immediately. Confirms the `if *poll { pollMode(...) }` branch
+	// gets coverage.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	done := make(chan int, 1)
+	go func() {
+		done <- runMain(ctx, []string{"-poll", "-pollFrequency", "1h"}, &bytes.Buffer{}, &bytes.Buffer{})
+	}()
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("runMain did not exit on cancel in poll mode")
+	}
+}
+
 func TestRunMain_listenModeCancellable(t *testing.T) {
 	// listenMode dials gRPC against the default target then spawns workers
 	// that loop until ctx is canceled. workers=0 makes wg.Wait return

@@ -52,8 +52,6 @@ const (
 	// default 20s
 	keepaliveTimeout = 20 * time.Second
 
-	ResourceExhaustedSleepTime = 30 * time.Second
-	JitterSleepMaxMs           = 10000
 
 	reconnectTime = 10 * time.Second
 
@@ -91,6 +89,19 @@ var (
 	version string
 
 	debugLevel uint
+
+	// ResourceExhaustedSleepTime is the base backoff duration the
+	// stream loop waits before retrying after a ResourceExhausted
+	// gRPC error. var (was const) so tests can shrink it to
+	// microseconds and exercise the full-sleep branch of
+	// resourceExhaustedSleep without wall-clocking 30+ seconds.
+	// Production code never mutates it.
+	ResourceExhaustedSleepTime = 30 * time.Second
+
+	// JitterSleepMaxMs caps the random jitter added on top of
+	// ResourceExhaustedSleepTime (and reconnectTime). var (was const)
+	// so tests can shrink it to 1ms.
+	JitterSleepMaxMs uint32 = 10000
 )
 
 func main() {
