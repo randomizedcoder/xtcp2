@@ -14,7 +14,7 @@ import (
 // single underlying read can return a short count, and Readfile
 // would error spuriously. Test fixtures stayed under 4 KB so the bug
 // never tripped, but Readfile's name implies a "give me the whole
-// file" contract that the bufio approach can't honour.
+// file" contract that the bufio approach can't honor.
 //
 // io.ReadFull loops over the underlying Read until the buffer is full
 // or an error / EOF is hit, which is what we actually want.

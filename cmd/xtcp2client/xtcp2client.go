@@ -381,9 +381,9 @@ func classifyRecvErr(err error) recvAction {
 }
 
 // resourceExhaustedSleep waits jittered ResourceExhaustedSleepTime or
-// until ctx is cancelled, whichever comes first. Returns true if the
-// caller should break the loop (ctx cancelled during the wait).
-func resourceExhaustedSleep(ctx context.Context, err error) (cancelled bool) {
+// until ctx is canceled, whichever comes first. Returns true if the
+// caller should break the loop (ctx canceled during the wait).
+func resourceExhaustedSleep(ctx context.Context, err error) (canceled bool) {
 	sleepTime := ResourceExhaustedSleepTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
 	if debugLevel > 10 {
 		log.Printf("Received ResourceExhausted error: %v, so sleeping:%0.3f before retry", err, sleepTime.Seconds())

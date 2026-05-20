@@ -11,7 +11,7 @@ import (
 // from runMain in the gocyclo-25 → 3 refactor. Each helper has a
 // positive / negative / boundary / corner / adversarial table.
 // Pre-existing main_test.go drives parsers; this file pins the
-// ingestion-layer behaviour around them.
+// ingestion-layer behavior around them.
 
 // writeRaw seeds a file under rawDir for one ingestion test.
 func writeRaw(t *testing.T, rawDir, name, contents string) {
