@@ -12,6 +12,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// marshalFn is the proto-marshaller seam encodeLengthDelimitedProtobufList
+// uses. Defaults to proto.Marshal; tests can swap in a deliberately
+// failing marshaller to exercise the error-return branch (which is
+// unreachable with proto.Marshal on a valid struct). Production code
+// never mutates this.
+var marshalFn = proto.Marshal
+
 func encodeLengthDelimitedProtobufList(r *clickhouse_protolist.Envelope_Record) (result []byte, err error) {
 
 	// for _, record := range e.Rows {
@@ -20,7 +27,7 @@ func encodeLengthDelimitedProtobufList(r *clickhouse_protolist.Envelope_Record) 
 	// 		return nil, fmt.Errorf("error marshaling Record: %v", err)
 	// 	}
 
-	recordBytes, err := proto.Marshal(r)
+	recordBytes, err := marshalFn(r)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling Record: %v", err)
 	}

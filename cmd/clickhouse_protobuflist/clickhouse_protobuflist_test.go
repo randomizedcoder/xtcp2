@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestEncodeLengthDelimitedProtobufList(t *testing.T) {
@@ -104,5 +106,47 @@ func TestRunMain_writeEnvelopeError(t *testing.T) {
 	rc := runMain([]string{"-filename", "/no/such/dir/out.bin", "-envelope"}, &bytes.Buffer{}, &bytes.Buffer{})
 	if rc != 1 {
 		t.Errorf("rc = %d, want 1", rc)
+	}
+}
+
+// TestEncodeLengthDelimitedProtobufList_marshalErr swaps the
+// marshalFn seam for a failing fake to cover the proto-marshal
+// error-return branch (unreachable from production where proto.Marshal
+// can't fail on this struct).
+func TestEncodeLengthDelimitedProtobufList_marshalErr(t *testing.T) {
+	orig := marshalFn
+	marshalFn = func(_ proto.Message) ([]byte, error) {
+		return nil, fmt.Errorf("synthetic marshal err")
+	}
+	defer func() { marshalFn = orig }()
+
+	_, err := encodeLengthDelimitedProtobufList(&clickhouse_protolist.Envelope_Record{MyUint32: 1})
+	if err == nil {
+		t.Fatal("expected err from failing marshaller")
+	}
+	if !strings.Contains(err.Error(), "error marshaling Record") {
+		t.Errorf("err = %q, want substring 'error marshaling Record'", err)
+	}
+}
+
+// TestRunMain_encodeError exercises runMain's error-handling branch
+// when encodeLengthDelimitedProtobufList fails. rc=1 means the
+// encode-error branch fired.
+func TestRunMain_encodeError(t *testing.T) {
+	orig := marshalFn
+	marshalFn = func(_ proto.Message) ([]byte, error) {
+		return nil, fmt.Errorf("synthetic")
+	}
+	defer func() { marshalFn = orig }()
+
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	var stderr bytes.Buffer
+	rc := runMain([]string{"-filename", out}, &bytes.Buffer{}, &stderr)
+	if rc != 1 {
+		t.Errorf("rc = %d, want 1 (encode error)", rc)
+	}
+	if !strings.Contains(stderr.String(), "Error encoding") {
+		t.Errorf("stderr = %q, want substring 'Error encoding'", stderr.String())
 	}
 }
