@@ -220,6 +220,7 @@ in
       # `nix build .#test-go-unit`, etc.
       test-go-unit = tests.go-unit;
       test-go-bench = tests.go-bench;
+      test-go-race = tests.go-race;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
@@ -228,17 +229,32 @@ in
 
       # Pedantic code-quality report — aggregates every tool's findings.
       quality-report = qualityReport;
-    };
+    }
+    # Per-flavor + per-package test targets. The two imports above each
+    # return an attrset whose keys already start with `test-` so they
+    # merge straight into the flake's packages namespace.
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-" n) tests);
 
   devShells = {
     default = devshell;
   };
 
-  checks = checks // {
-    # Microvm lifecycle per arch shows up alongside the rest of the checks.
-    microvm-lifecycle-x86_64 = microvms.checks.x86_64;
-    microvm-lifecycle-x86_64-vector = microvms.checksVector.x86_64;
-  };
+  checks =
+    checks
+    // {
+      # Microvm lifecycle per arch shows up alongside the rest of the checks.
+      microvm-lifecycle-x86_64 = microvms.checks.x86_64;
+      microvm-lifecycle-x86_64-vector = microvms.checksVector.x86_64;
+
+      # Race-detector + per-flavor builds. These run as part of
+      # `nix flake check` so a flavor-tag regression (e.g. dest_kafka
+      # stops compiling because of a new import cycle) or a fresh
+      # data race fails CI immediately. The per-package targets are
+      # NOT here — quality-report already runs the all-default-tags
+      # case, so per-package would be duplicate work.
+      test-go-race = tests.go-race;
+    }
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-go-flavor-" n) tests);
 
   apps = {
     regen-protos = {
