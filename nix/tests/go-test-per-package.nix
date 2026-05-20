@@ -32,17 +32,17 @@ let
   # binaries that already get coverage via their existing
   # `_test.go` files are listed too.
   packages = {
-    "pkg-xtcp"             = "./pkg/xtcp/...";
-    "pkg-xtcpnl"           = "./pkg/xtcpnl/...";
-    "pkg-io-uring"         = "./pkg/io_uring/...";
-    "pkg-misc"             = "./pkg/misc/...";
+    "pkg-xtcp" = "./pkg/xtcp/...";
+    "pkg-xtcpnl" = "./pkg/xtcpnl/...";
+    "pkg-io-uring" = "./pkg/io_uring/...";
+    "pkg-misc" = "./pkg/misc/...";
     "tools-quality-report" = "./tools/quality-report/...";
-    "tools-netlink-audit"  = "./tools/netlink-audit/...";
-    "tools-iouring-audit"  = "./tools/iouring-audit/...";
-    "tools-metrics-audit"  = "./tools/metrics-audit/...";
+    "tools-netlink-audit" = "./tools/netlink-audit/...";
+    "tools-iouring-audit" = "./tools/iouring-audit/...";
+    "tools-metrics-audit" = "./tools/metrics-audit/...";
     "tools-proto-field-audit" = "./tools/proto-field-audit/...";
-    "cmd-xtcp2"            = "./cmd/xtcp2/...";
-    "cmd-xtcp2client"      = "./cmd/xtcp2client/...";
+    "cmd-xtcp2" = "./cmd/xtcp2/...";
+    "cmd-xtcp2client" = "./cmd/xtcp2client/...";
   };
 
   mkPkgTest =

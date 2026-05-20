@@ -30,15 +30,26 @@ let
   # binary so cross-flavor symbols (registry init order, marshaller
   # dispatch) get exercised.
   flavors = {
-    kafka  = { tags = "dest_kafka";  };
-    nats   = { tags = "dest_nats";   };
-    nsq    = { tags = "dest_nsq";    };
-    valkey = { tags = "dest_valkey"; };
-    all    = { tags = "dest_kafka dest_nats dest_nsq dest_valkey"; };
+    kafka = {
+      tags = "dest_kafka";
+    };
+    nats = {
+      tags = "dest_nats";
+    };
+    nsq = {
+      tags = "dest_nsq";
+    };
+    valkey = {
+      tags = "dest_valkey";
+    };
+    all = {
+      tags = "dest_kafka dest_nats dest_nsq dest_valkey";
+    };
   };
 
   mkFlavorTest =
-    name: { tags }:
+    name:
+    { tags }:
     pkgs.runCommand "xtcp2-test-go-flavor-${name}"
       {
         nativeBuildInputs = [ versions.go ];
