@@ -22,8 +22,8 @@ import (
 func TestReadCoverageBaseline_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		category string
+		name      string
+		category  string
 		writeBody string
 		writeFile bool
 		path      string // override (e.g. "" for empty-path corner)
@@ -73,8 +73,8 @@ func TestReadCoverageBaseline_table(t *testing.T) {
 func TestEvaluateCoverageRatchet_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name        string
-		category    string
+		name         string
+		category     string
 		baselineBody string
 		writeFile    bool
 		baselinePath string
