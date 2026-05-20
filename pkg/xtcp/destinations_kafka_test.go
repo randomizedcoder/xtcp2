@@ -5,6 +5,7 @@ package xtcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // destinations_kafka_test.go exercises pkg/xtcp/destinations_kafka.go
@@ -401,4 +407,246 @@ func BenchmarkGetLatestSchemaID(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = d.getLatestSchemaID(ctx)
 	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// fakeKafkaProducer — implements the kafkaProducer interface so Send /
+// Close / pingKafkaWithRetries run without a real broker.
+// ───────────────────────────────────────────────────────────────────────
+
+type fakeKafkaProducer struct {
+	produceErr   error
+	pingErr      error
+	flushErr     error
+	produces     atomic.Int64
+	flushes      atomic.Int64
+	closes       atomic.Int64
+	pings        atomic.Int64
+	allowRebals  atomic.Int64
+	// failFirstNPings makes the first N Ping calls return pingErr,
+	// then subsequent calls succeed. Lets tests drive the
+	// pingKafkaWithRetries retry path then recovery.
+	failFirstNPings int
+}
+
+func (f *fakeKafkaProducer) Produce(_ context.Context, r *kgo.Record, cb func(*kgo.Record, error)) {
+	f.produces.Add(1)
+	if cb != nil {
+		cb(r, f.produceErr)
+	}
+}
+func (f *fakeKafkaProducer) Flush(_ context.Context) error { f.flushes.Add(1); return f.flushErr }
+func (f *fakeKafkaProducer) Close()                        { f.closes.Add(1) }
+func (f *fakeKafkaProducer) Ping(_ context.Context) error {
+	n := f.pings.Add(1)
+	if f.failFirstNPings > 0 && int(n) <= f.failFirstNPings {
+		return f.pingErr
+	}
+	return nil
+}
+func (f *fakeKafkaProducer) AllowRebalance() { f.allowRebals.Add(1) }
+
+// newKafkaDestForTest assembles a kafkaDest with the fake producer +
+// a sync.Pool of kgo.Record and a populated x.destBytesPool so Send's
+// pool-return path runs cleanly.
+func newKafkaDestForTest(t *testing.T, fake *fakeKafkaProducer) *kafkaDest {
+	t.Helper()
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	x.config.Topic = "xtcp-test"
+	x.destBytesPool = sync.Pool{New: func() any { b := make([]byte, 0, 128); return &b }}
+	d := &kafkaDest{
+		x:      x,
+		client: fake,
+		recordPool: sync.Pool{
+			New: func() any { return new(kgo.Record) },
+		},
+	}
+	return d
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Send
+// ───────────────────────────────────────────────────────────────────────
+
+func TestKafkaDest_Send_table(t *testing.T) {
+	cases := []struct {
+		name              string
+		category          string
+		produceErr        error
+		produceTimeout    time.Duration
+		wantOKCounter     float64
+		wantErrCounter    float64
+	}{
+		{"positive_clean_produce", "positive", nil, 0, 1, 0},
+		{"positive_with_produce_timeout", "positive", nil, 100 * time.Millisecond, 1, 0},
+		{"negative_produce_err_bumps_error", "negative", errors.New("broker EOF"), 0, 0, 1},
+		{"boundary_zero_timeout_uses_ctx_directly", "boundary", nil, 0, 1, 0},
+		{"corner_long_produce_timeout", "corner", nil, 24 * time.Hour, 1, 0},
+		{"adversarial_huge_produce_error_string", "adversarial",
+			errors.New(strings.Repeat("e", 1<<16)), 0, 0, 1},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			fake := &fakeKafkaProducer{produceErr: tc.produceErr}
+			d := newKafkaDestForTest(t, fake)
+			if tc.produceTimeout > 0 {
+				d.x.config.KafkaProduceTimeout = durationpb.New(tc.produceTimeout)
+			}
+			// destBytesPool.Put requires the caller to pass a *[]byte;
+			// allocate one here so Send's pool-return path runs.
+			buf := d.x.destBytesPool.Get().(*[]byte)
+			*buf = append((*buf)[:0], []byte("payload")...)
+			n, err := d.Send(context.Background(), buf)
+			if err != nil {
+				t.Fatalf("Send err = %v (Send itself never errors; only the callback does)", err)
+			}
+			if n != 1 {
+				t.Errorf("n = %d, want 1", n)
+			}
+			if fake.produces.Load() != 1 {
+				t.Errorf("Produce calls = %d, want 1", fake.produces.Load())
+			}
+			gotOK := testutil.ToFloat64(d.x.pC.WithLabelValues("destKafka", "Produce", "count"))
+			gotErr := testutil.ToFloat64(d.x.pC.WithLabelValues("destKafka", "Produce", "error"))
+			if gotOK != tc.wantOKCounter {
+				t.Errorf("OK counter = %v, want %v", gotOK, tc.wantOKCounter)
+			}
+			if gotErr != tc.wantErrCounter {
+				t.Errorf("Err counter = %v, want %v", gotErr, tc.wantErrCounter)
+			}
+		})
+	}
+}
+
+// TestKafkaDest_Send_debugLog covers the debugLevel>10 branch.
+func TestKafkaDest_Send_debugLog(t *testing.T) {
+	fake := &fakeKafkaProducer{produceErr: errors.New("err")}
+	d := newKafkaDestForTest(t, fake)
+	d.x.debugLevel = 11
+	buf := d.x.destBytesPool.Get().(*[]byte)
+	*buf = append((*buf)[:0], []byte("x")...)
+	_, _ = d.Send(context.Background(), buf)
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Close
+// ───────────────────────────────────────────────────────────────────────
+
+func TestKafkaDest_Close_table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		category string
+		flushErr error
+	}{
+		{"positive_clean_close_flushes_then_closes", "positive", nil},
+		{"negative_flush_err_still_closes", "negative", errors.New("flush failed")},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			fake := &fakeKafkaProducer{flushErr: tc.flushErr}
+			d := newKafkaDestForTest(t, fake)
+			if err := d.Close(); err != nil {
+				t.Errorf("Close err = %v, want nil", err)
+			}
+			if fake.flushes.Load() != 1 {
+				t.Errorf("Flush calls = %d, want 1", fake.flushes.Load())
+			}
+			if fake.closes.Load() != 1 {
+				t.Errorf("Close calls = %d, want 1", fake.closes.Load())
+			}
+		})
+	}
+}
+
+// TestKafkaDest_CloseNilClient pins the safety check (d.client != nil).
+func TestKafkaDest_CloseNilClient(t *testing.T) {
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	d := &kafkaDest{x: x, client: nil}
+	if err := d.Close(); err != nil {
+		t.Errorf("Close on nil client should be nil; got %v", err)
+	}
+}
+
+// TestKafkaDest_Close_debugLog covers the debugLevel>10 branch in
+// the FlushOnClose error path.
+func TestKafkaDest_Close_debugLog(t *testing.T) {
+	fake := &fakeKafkaProducer{flushErr: errors.New("flush")}
+	d := newKafkaDestForTest(t, fake)
+	d.x.debugLevel = 11
+	_ = d.Close()
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// pingKafkaWithRetries — drives the retry loop via failFirstNPings.
+// ───────────────────────────────────────────────────────────────────────
+
+func TestPingKafkaWithRetries_table(t *testing.T) {
+	cases := []struct {
+		name           string
+		category       string
+		failFirstN     int
+		retries        int
+		wantErr        bool
+		wantTotalPings int
+	}{
+		{"positive_first_ping_succeeds", "positive", 0, 3, false, 1},
+		{"positive_third_ping_recovers", "positive", 2, 5, false, 3},
+		{"negative_all_pings_fail", "negative", 5, 3, true, 3},
+		{"boundary_retries_zero", "boundary", 0, 0, false, 0},
+		{"corner_exact_match_recovers", "corner", 2, 3, false, 3},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			fake := &fakeKafkaProducer{
+				pingErr:         errors.New("connection refused"),
+				failFirstNPings: tc.failFirstN,
+			}
+			d := newKafkaDestForTest(t, fake)
+			err := d.pingKafkaWithRetries(context.Background(), tc.retries, 1*time.Microsecond)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if int(fake.pings.Load()) != tc.wantTotalPings {
+				t.Errorf("ping calls = %d, want %d", fake.pings.Load(), tc.wantTotalPings)
+			}
+		})
+	}
+}
+
+// TestPingKafkaWithRetries_ctxCancelAbortsSleep verifies the
+// ctx-cancel-during-sleep branch.
+func TestPingKafkaWithRetries_ctxCancelAbortsSleep(t *testing.T) {
+	fake := &fakeKafkaProducer{
+		pingErr:         errors.New("refused"),
+		failFirstNPings: 100, // always fail
+	}
+	d := newKafkaDestForTest(t, fake)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // pre-cancelled → first sleep aborts
+	err := d.pingKafkaWithRetries(ctx, 10, 100*time.Millisecond)
+	if err == nil {
+		t.Error("expected ctx-cancel err")
+	}
+	// First ping fired, then ctx-cancel aborted the sleep before the
+	// next ping. Want pings ≤ 2 (some implementations might let the
+	// second ping run before checking ctx).
+	if got := fake.pings.Load(); got > 2 {
+		t.Errorf("pings = %d, want ≤ 2 (ctx-cancel should abort retries)", got)
+	}
+}
+
+// TestPingKafkaWithRetries_debugLog covers the debug-log branch.
+func TestPingKafkaWithRetries_debugLog(t *testing.T) {
+	fake := &fakeKafkaProducer{
+		pingErr:         errors.New("refused"),
+		failFirstNPings: 2,
+	}
+	d := newKafkaDestForTest(t, fake)
+	d.x.debugLevel = 11
+	_ = d.pingKafkaWithRetries(context.Background(), 3, 1*time.Microsecond)
 }

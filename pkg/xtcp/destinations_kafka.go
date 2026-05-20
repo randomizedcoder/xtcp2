@@ -29,13 +29,27 @@ const (
 	KafkaHeaderSizeCst = 6
 )
 
+// kafkaProducer captures the surface of *kgo.Client that kafkaDest
+// actually calls. Lifting it to an interface lets the destination's
+// Send/Close/pingKafkaWithRetries paths run against an in-process
+// fake without a real broker — see destinations_kafka_test.go.
+// Production uses *kgo.Client which satisfies this interface via its
+// concrete methods.
+type kafkaProducer interface {
+	Produce(ctx context.Context, r *kgo.Record, promise func(*kgo.Record, error))
+	Flush(ctx context.Context) error
+	Close()
+	Ping(ctx context.Context) error
+	AllowRebalance()
+}
+
 // kafkaDest produces each marshalled record to a Kafka topic via franz-go.
 // Construction registers the proto schema with the Schema Registry, dials
 // the broker, and primes a sync.Pool of kgo.Record so each send avoids
 // allocation.
 type kafkaDest struct {
 	x          *XTCP
-	client     *kgo.Client
+	client     kafkaProducer
 	regClient  *sr.Client
 	schemaID   int
 	recordPool sync.Pool
