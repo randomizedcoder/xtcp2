@@ -267,18 +267,22 @@ pkgs.writeShellApplication {
     echo "--- check 8: ns lifecycle (ip netns add/delete) ---"
     check8=1
     if command -v ip >/dev/null 2>&1; then
-      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
-      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",task="start"')
+      # The label keys are function/variable/type (see promLabels in
+      # pkg/xtcp/prometheus.go). watchNamespaces emits multiple variable
+      # values per call site; we filter on variable="event" to count
+      # fsnotify-Create+Remove events specifically.
+      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
+      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
       ip netns add xtcp_test_ns_a 2>&1 || true
       # Bring lo up so a subsequent socket inside the ns is meaningful.
       ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 || true
       # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
       sleep 3
-      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
-      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",task="start"')
+      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
+      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
       ip netns delete xtcp_test_ns_a 2>&1 || true
       sleep 3
-      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
+      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
 
       if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
         echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
@@ -300,7 +304,7 @@ pkgs.writeShellApplication {
     echo "--- check 9: TCP socket inside netns drives netlinker traffic ---"
     check9=1
     if command -v ip >/dev/null 2>&1 && command -v nc >/dev/null 2>&1; then
-      before_packets=$(metric_value "xtcp_counts" 'function="Netlinker",task="packets"')
+      before_packets=$(metric_value "xtcp_counts" 'function="Netlinker",variable="packets"')
       ip netns add xtcp_test_ns_b 2>&1 || true
       ip netns exec xtcp_test_ns_b ip link set lo up 2>&1 || true
       # Listener in the ns. timeout bounds wall-clock so we don't leak
@@ -314,7 +318,7 @@ pkgs.writeShellApplication {
 
       # xtcp2 polls every 2s; give it two cycles to see the socket(s).
       sleep 5
-      after_packets=$(metric_value "xtcp_counts" 'function="Netlinker",task="packets"')
+      after_packets=$(metric_value "xtcp_counts" 'function="Netlinker",variable="packets"')
 
       # Tear down the listener + client and the ns itself.
       kill "$ns_listener" "$ns_client" 2>/dev/null || true
