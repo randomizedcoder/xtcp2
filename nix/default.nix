@@ -188,19 +188,33 @@ let
         exit 2
       fi
 
-      # Step 1: optionally run the microvm-coverage lifecycle.
-      VMDIR=""
+      # Step 1: optionally run both microvm-coverage lifecycles
+      # (stdlib + iouring) and collect their coverage scrape dirs.
+      # Each variant exercises different code paths inside the daemon
+      # — the iouring one is the only way to reach the netlinkerIoUring
+      # body without a real io_uring-capable kernel.
+      VMDIR_STD=""
+      VMDIR_IOU=""
       if [ "$WITH_MICROVM" = "1" ]; then
-        VMDIR="$(mktemp -d -t xtcp2cov-XXXXXX)"
-        echo "==> running .#microvm-x86_64-lifecycle-coverage"
-        echo "    scrape dir: $VMDIR"
-        XTCP2_COVERDIR="$VMDIR" \
+        VMDIR_STD="$(mktemp -d -t xtcp2cov-std-XXXXXX)"
+        echo "==> running .#microvm-x86_64-lifecycle-coverage (stdlib)"
+        echo "    scrape dir: $VMDIR_STD"
+        XTCP2_COVERDIR="$VMDIR_STD" \
           nix run --accept-flake-config .#microvm-x86_64-lifecycle-coverage \
-          || echo "WARNING: microvm lifecycle exited non-zero; coverage may be partial"
-        n_cov=$(find "$VMDIR" -type f 2>/dev/null | wc -l)
-        echo "==> microvm coverage files: $n_cov"
-        if [ "$n_cov" -eq 0 ]; then
-          echo "WARNING: no coverage files scraped; falling back to host-only"
+          || echo "WARNING: stdlib microvm lifecycle exited non-zero; coverage may be partial"
+
+        VMDIR_IOU="$(mktemp -d -t xtcp2cov-iou-XXXXXX)"
+        echo "==> running .#microvm-x86_64-lifecycle-coverage-iouring"
+        echo "    scrape dir: $VMDIR_IOU"
+        XTCP2_COVERDIR="$VMDIR_IOU" \
+          nix run --accept-flake-config .#microvm-x86_64-lifecycle-coverage-iouring \
+          || echo "WARNING: iouring microvm lifecycle exited non-zero; coverage may be partial"
+
+        n_std=$(find "$VMDIR_STD" -type f 2>/dev/null | wc -l)
+        n_iou=$(find "$VMDIR_IOU" -type f 2>/dev/null | wc -l)
+        echo "==> microvm coverage files: stdlib=$n_std iouring=$n_iou"
+        if [ "$n_std" -eq 0 ] && [ "$n_iou" -eq 0 ]; then
+          echo "WARNING: no coverage files scraped from either VM; falling back to host-only"
           WITH_MICROVM=0
         fi
       fi
@@ -211,16 +225,19 @@ let
 
       mkdir -p docs
 
-      if [ "$WITH_MICROVM" = "1" ] && [ -d "$VMDIR" ]; then
+      if [ "$WITH_MICROVM" = "1" ]; then
         echo "==> merging host + microvm coverage profiles"
         MERGED=$(mktemp -t merged-cov-XXXXXX.out)
         # nix run .#coverage-merge handles host+VM merge: produces a
         # mode-set profile keyed on the host's block universe with
-        # counts upgraded where the VM run also covered the block.
-        nix run --accept-flake-config .#coverage-merge -- \
-          --host "$result/raw/coverage.out" \
-          --vm-dir "$VMDIR" \
-          --out "$MERGED" >&2
+        # counts upgraded where any VM run also covered the block.
+        # Multiple --vm-dir flags are union-merged via covdata textfmt.
+        MERGE_ARGS=(--host "$result/raw/coverage.out" --out "$MERGED")
+        n_std=$(find "$VMDIR_STD" -type f 2>/dev/null | wc -l)
+        n_iou=$(find "$VMDIR_IOU" -type f 2>/dev/null | wc -l)
+        if [ "$n_std" -gt 0 ]; then MERGE_ARGS+=(--vm-dir "$VMDIR_STD"); fi
+        if [ "$n_iou" -gt 0 ]; then MERGE_ARGS+=(--vm-dir "$VMDIR_IOU"); fi
+        nix run --accept-flake-config .#coverage-merge -- "''${MERGE_ARGS[@]}" >&2
 
         # Copy raw/ to a writable temp dir so we can re-run the
         # aggregator with the merged profile in-place. The Nix store
