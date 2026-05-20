@@ -267,20 +267,41 @@ pkgs.writeShellApplication {
     echo "--- check 8: ns lifecycle (ip netns add/delete) ---"
     check8=1
     if command -v ip >/dev/null 2>&1; then
+      # Diagnostic: what does the daemon think it's watching? Dump
+      # every xtcp_counts row whose label set mentions watchNamespaces.
+      echo "  pre: ls /run/netns/:"
+      ls -la /run/netns/ 2>&1 | sed 's/^/    /'
+      echo "  pre: watchNamespaces metric rows:"
+      curl --silent --fail --max-time 2 \
+           "http://127.0.0.1:${toString promPort}/metrics" \
+        | grep -E 'watchNamespaces|netNamespaceInstance|nsAdd' \
+        | sed 's/^/    /' || true
+
       # The label keys are function/variable/type (see promLabels in
       # pkg/xtcp/prometheus.go). watchNamespaces emits multiple variable
       # values per call site; we filter on variable="event" to count
       # fsnotify-Create+Remove events specifically.
       before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
       before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
-      ip netns add xtcp_test_ns_a 2>&1 || true
+
+      add_out=$(ip netns add xtcp_test_ns_a 2>&1) ; add_rc=$?
+      echo "  ip netns add xtcp_test_ns_a rc=$add_rc out=''${add_out:-(empty)}"
       # Bring lo up so a subsequent socket inside the ns is meaningful.
-      ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 || true
+      ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 | sed 's/^/    /' || true
+      echo "  post-add: ls /run/netns/:"
+      ls -la /run/netns/ 2>&1 | sed 's/^/    /'
       # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
       sleep 3
       after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
       after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
-      ip netns delete xtcp_test_ns_a 2>&1 || true
+
+      echo "  post-add: watchNamespaces metric rows:"
+      curl --silent --fail --max-time 2 \
+           "http://127.0.0.1:${toString promPort}/metrics" \
+        | grep -E 'watchNamespaces|netNamespaceInstance|nsAdd' \
+        | sed 's/^/    /' || true
+
+      ip netns delete xtcp_test_ns_a 2>&1 | sed 's/^/    /' || true
       sleep 3
       after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
 
@@ -304,7 +325,9 @@ pkgs.writeShellApplication {
     echo "--- check 9: TCP socket inside netns drives netlinker traffic ---"
     check9=1
     if command -v ip >/dev/null 2>&1 && command -v nc >/dev/null 2>&1; then
-      before_packets=$(metric_value "xtcp_counts" 'function="Netlinker",variable="packets"')
+      # Match both Netlinker (syscall) and NetlinkerIoUring (io_uring) packet
+      # counters so this check works in both coverage VM flavors.
+      before_packets=$(metric_value "xtcp_counts" 'variable="packets"')
       ip netns add xtcp_test_ns_b 2>&1 || true
       ip netns exec xtcp_test_ns_b ip link set lo up 2>&1 || true
       # Listener in the ns. timeout bounds wall-clock so we don't leak
@@ -318,7 +341,7 @@ pkgs.writeShellApplication {
 
       # xtcp2 polls every 2s; give it two cycles to see the socket(s).
       sleep 5
-      after_packets=$(metric_value "xtcp_counts" 'function="Netlinker",variable="packets"')
+      after_packets=$(metric_value "xtcp_counts" 'variable="packets"')
 
       # Tear down the listener + client and the ns itself.
       kill "$ns_listener" "$ns_client" 2>/dev/null || true
