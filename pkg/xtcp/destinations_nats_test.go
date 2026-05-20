@@ -4,11 +4,14 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // destinations_nats_test.go exercises pkg/xtcp/destinations_nats.go
@@ -164,4 +167,139 @@ func BenchmarkNATSDest_CloseNilClient(b *testing.B) {
 		d := &natsDest{x: x, client: nil}
 		_ = d.Close()
 	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// fakeNATSPublisher + Send/Close tests via the natsPublisher interface
+// seam. Same shape as fakeKafkaProducer in destinations_kafka_test.go.
+// ───────────────────────────────────────────────────────────────────────
+
+type fakeNATSPublisher struct {
+	publishErr error
+	flushErr   error
+	publishes  atomic.Int64
+	flushes    atomic.Int64
+	closes     atomic.Int64
+	lastSubj   string
+	lastData   []byte
+}
+
+func (f *fakeNATSPublisher) Publish(subj string, data []byte) error {
+	f.publishes.Add(1)
+	f.lastSubj = subj
+	f.lastData = append(f.lastData[:0], data...)
+	return f.publishErr
+}
+func (f *fakeNATSPublisher) FlushTimeout(_ time.Duration) error {
+	f.flushes.Add(1)
+	return f.flushErr
+}
+func (f *fakeNATSPublisher) Close() { f.closes.Add(1) }
+
+func newNATSDestForTest(t *testing.T, fake *fakeNATSPublisher) *natsDest {
+	t.Helper()
+	x := newTestXTCP(t, "nats:127.0.0.1:4222")
+	x.config.Topic = "xtcp-test"
+	return &natsDest{x: x, client: fake}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Send
+// ───────────────────────────────────────────────────────────────────────
+
+func TestNATSDest_Send_table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name           string
+		category       string
+		publishErr     error
+		wantN          int
+		wantErr        bool
+		wantOKCounter  float64
+		wantErrCounter float64
+	}{
+		{"positive_clean_publish", "positive", nil, 1, false, 1, 0},
+		{"negative_publish_err", "negative", errors.New("no servers"), 0, true, 0, 1},
+		{"boundary_publish_returns_eof", "boundary", errors.New("EOF"), 0, true, 0, 1},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			fake := &fakeNATSPublisher{publishErr: tc.publishErr}
+			d := newNATSDestForTest(t, fake)
+			payload := []byte("payload")
+			n, err := d.Send(context.Background(), &payload)
+			if n != tc.wantN {
+				t.Errorf("n = %d, want %d", n, tc.wantN)
+			}
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if fake.publishes.Load() != 1 {
+				t.Errorf("Publish calls = %d, want 1", fake.publishes.Load())
+			}
+			if fake.lastSubj != "xtcp-test" {
+				t.Errorf("subj = %q, want xtcp-test", fake.lastSubj)
+			}
+			gotOK := testutil.ToFloat64(d.x.pC.WithLabelValues("destNATS", "Publish", "count"))
+			gotErr := testutil.ToFloat64(d.x.pC.WithLabelValues("destNATS", "Publish", "error"))
+			if gotOK != tc.wantOKCounter {
+				t.Errorf("OK counter = %v, want %v", gotOK, tc.wantOKCounter)
+			}
+			if gotErr != tc.wantErrCounter {
+				t.Errorf("Err counter = %v, want %v", gotErr, tc.wantErrCounter)
+			}
+		})
+	}
+}
+
+// TestNATSDest_Send_debugLog covers the debugLevel>10 branch.
+func TestNATSDest_Send_debugLog(t *testing.T) {
+	fake := &fakeNATSPublisher{}
+	d := newNATSDestForTest(t, fake)
+	d.x.debugLevel = 11
+	payload := []byte("x")
+	_, _ = d.Send(context.Background(), &payload)
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Close
+// ───────────────────────────────────────────────────────────────────────
+
+func TestNATSDest_Close_table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		category string
+		flushErr error
+	}{
+		{"positive_clean_close", "positive", nil},
+		{"negative_flush_err_still_closes", "negative", errors.New("flush timeout")},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			fake := &fakeNATSPublisher{flushErr: tc.flushErr}
+			d := newNATSDestForTest(t, fake)
+			if err := d.Close(); err != nil {
+				t.Errorf("Close err = %v, want nil", err)
+			}
+			if fake.flushes.Load() != 1 {
+				t.Errorf("FlushTimeout calls = %d, want 1", fake.flushes.Load())
+			}
+			if fake.closes.Load() != 1 {
+				t.Errorf("Close calls = %d, want 1", fake.closes.Load())
+			}
+		})
+	}
+}
+
+// TestNATSDest_Close_debugLog covers the debug-log branch on flush err.
+func TestNATSDest_Close_debugLog(t *testing.T) {
+	fake := &fakeNATSPublisher{flushErr: errors.New("err")}
+	d := newNATSDestForTest(t, fake)
+	d.x.debugLevel = 11
+	_ = d.Close()
 }

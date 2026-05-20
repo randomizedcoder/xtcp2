@@ -17,10 +17,21 @@ const (
 	natsTimeoutCst    = 1 * time.Second
 )
 
+// natsPublisher captures the surface of *nats.Conn that natsDest
+// actually calls. Lifting it to an interface lets the destination's
+// Send/Close paths run against an in-process fake without a real
+// NATS server — see destinations_nats_test.go. *nats.Conn satisfies
+// this interface via its concrete methods.
+type natsPublisher interface {
+	Publish(subj string, data []byte) error
+	FlushTimeout(timeout time.Duration) error
+	Close()
+}
+
 // natsDest publishes each marshalled record to a NATS subject.
 type natsDest struct {
 	x      *XTCP
-	client *nats.Conn
+	client natsPublisher
 }
 
 func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
