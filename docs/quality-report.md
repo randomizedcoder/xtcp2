@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T15:02:02Z
+Generated: 2026-05-20T15:15:33Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 1 | 6s |
-| golangci-lint (standard) | clean | 0 | 4s |
-| golangci-lint (quick) | findings | 1 | 15s |
+| golangci-lint (comprehensive) | findings | 1 | 5s |
+| golangci-lint (standard) | clean | 0 | 5s |
+| golangci-lint (quick) | findings | 1 | 14s |
 | gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 2 | 0s |
-| nixfmt | clean | 0 | 1s |
-| netlink-audit | clean | 0 | 0s |
+| gofmt | findings | 2 | 1s |
+| nixfmt | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 10s |
+| go test | clean | 0 | 9s |
 | go test -cover | findings | 1 | 0s |
 
 
@@ -81,7 +81,7 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 82.4% < 90%
+- `pkg/xtcp`: package coverage 84.2% < 90%
 
 ### golangci-lint / unconvert — 1
 
@@ -107,10 +107,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 1280 |
+| Pass | 1281 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 8 |
+| Skip | 7 |
 
 
 
@@ -160,7 +160,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 89.3% of statements (target: 90% per package).
+**Overall:** 89.8% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -176,7 +176,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 82.4% | 🔴 below 90% |
+| `pkg/xtcp` | 84.2% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.4% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
@@ -184,8 +184,8 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 95.8% | 🟢 OK |
 | `tools/proto-field-audit` | 96.7% | 🟢 OK |
 | `tools/quality-report` | 94.5% | 🟢 OK |
-| `tools/tcp_client` | 93.1% | 🟢 OK |
+| `tools/tcp_client` | 90.3% | 🟢 OK |
 | `tools/tcp_server` | 94.6% | 🟢 OK |
-| `tools/udp_receiver_server` | 97.9% | 🟢 OK |
+| `tools/udp_receiver_server` | 93.8% | 🟢 OK |
 
 
