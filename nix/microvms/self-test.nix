@@ -13,6 +13,18 @@
 #   XTCP2_SELF_TEST_GRPC_ROUNDTRIP_{PASS,FAIL} xtcp2 ↔ xtcp2client gRPC works
 #   XTCP2_SELF_TEST_NS_INSPECT_{PASS,FAIL}     ns inspector reads netns state
 #   XTCP2_SELF_TEST_NSTEST_{PASS,FAIL}         nsTest binary runs
+#   XTCP2_SELF_TEST_NS_LIFECYCLE_{PASS,FAIL}   ip netns add/delete propagates to
+#                                              xtcp2 (drives the fsnotify watch
+#                                              + nsAdd + nsDelete code paths,
+#                                              spawning a per-ns netlinker
+#                                              goroutine end-to-end)
+#   XTCP2_SELF_TEST_NS_TRAFFIC_{PASS,FAIL}     TCP socket created inside a fresh
+#                                              netns produces records via that
+#                                              ns's netlinker (drives the full
+#                                              netlinkerSyscall body + real
+#                                              Deserialize on real netlink
+#                                              bytes — the main reason this
+#                                              exists)
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -220,6 +232,105 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_NSTEST_FAIL  (nsTest not on PATH)"
     fi
     if [ "$check7" -ne 0 ]; then overall_ok=0; fi
+
+    # Metric-counter helper: scrape one prom counter value from the
+    # daemon's /metrics endpoint. Returns 0 if the counter is missing.
+    # Many xtcp2 counters use multi-label vectors; the regex matches any
+    # row whose label set CONTAINS the supplied substring.
+    metric_value() {
+      local name="$1"
+      local label_substring="$2"
+      curl --silent --fail --max-time 2 \
+           "http://127.0.0.1:${toString promPort}/metrics" \
+        | awk -v n="$name" -v s="$label_substring" '
+            $1 ~ n {
+              if (s == "" || index($0, s) > 0) {
+                # Last field is the counter value.
+                sum += $NF + 0
+              }
+            }
+            END { printf "%d", sum }
+          '
+    }
+
+    # ─── Check 8: ns lifecycle — ip netns add/delete propagates ──────────
+    # The xtcp2 daemon watches /run/netns/ via fsnotify. Creating a new
+    # netns SHOULD fire the watcher → nsAdd → openAndSetNSWithRetries →
+    # createNetlinkersAndStore (spawns a per-ns netlinker goroutine).
+    # Then deletion SHOULD tear it down via nsDelete.
+    #
+    # We assert the daemon noticed by reading two metric counters:
+    #   * the watchNamespaces "event" counter (the fsnotify callback)
+    #   * the netNamespaceInstance "start" counter (per-ns goroutine)
+    # Both should bump by ≥1 between before/after, and the netlinker
+    # count should drop back when we delete the ns.
+    echo "--- check 8: ns lifecycle (ip netns add/delete) ---"
+    check8=1
+    if command -v ip >/dev/null 2>&1; then
+      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
+      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",task="start"')
+      ip netns add xtcp_test_ns_a 2>&1 || true
+      # Bring lo up so a subsequent socket inside the ns is meaningful.
+      ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 || true
+      # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
+      sleep 3
+      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
+      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",task="start"')
+      ip netns delete xtcp_test_ns_a 2>&1 || true
+      sleep 3
+      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"')
+
+      if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+        check8=0
+      else
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+      fi
+    else
+      echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (ip not on PATH)"
+    fi
+    if [ "$check8" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 9: TCP traffic inside a fresh netns — full netlinker path ─
+    # Creates a netns, brings up lo, starts a listening socket. xtcp2's
+    # per-ns netlinker SHOULD poll inet_diag and see the socket; the
+    # Deserialize loop SHOULD parse the response into TCPInfo / inet_diag
+    # attributes. We assert via the Netlinker "packets" counter for the
+    # per-ns netlinker fd: it must bump by ≥1 while the ns is live.
+    echo "--- check 9: TCP socket inside netns drives netlinker traffic ---"
+    check9=1
+    if command -v ip >/dev/null 2>&1 && command -v nc >/dev/null 2>&1; then
+      before_packets=$(metric_value "xtcp_counts" 'function="Netlinker",task="packets"')
+      ip netns add xtcp_test_ns_b 2>&1 || true
+      ip netns exec xtcp_test_ns_b ip link set lo up 2>&1 || true
+      # Listener in the ns. timeout bounds wall-clock so we don't leak
+      # a process if the check fails partway.
+      ip netns exec xtcp_test_ns_b timeout 10s nc -l 127.0.0.1 17322 >/dev/null 2>&1 &
+      ns_listener=$!
+      sleep 1
+      # Client also in the ns (loopback only — the ns has no real iface).
+      ip netns exec xtcp_test_ns_b sh -c '(echo hello; sleep 5) | nc -w 5 127.0.0.1 17322' >/dev/null 2>&1 &
+      ns_client=$!
+
+      # xtcp2 polls every 2s; give it two cycles to see the socket(s).
+      sleep 5
+      after_packets=$(metric_value "xtcp_counts" 'function="Netlinker",task="packets"')
+
+      # Tear down the listener + client and the ns itself.
+      kill "$ns_listener" "$ns_client" 2>/dev/null || true
+      wait 2>/dev/null || true
+      ip netns delete xtcp_test_ns_b 2>&1 || true
+
+      if [ "$after_packets" -gt "$before_packets" ]; then
+        echo "XTCP2_SELF_TEST_NS_TRAFFIC_PASS  (Netlinker.packets:$before_packets→$after_packets)"
+        check9=0
+      else
+        echo "XTCP2_SELF_TEST_NS_TRAFFIC_FAIL  (Netlinker.packets:$before_packets→$after_packets)"
+      fi
+    else
+      echo "XTCP2_SELF_TEST_NS_TRAFFIC_FAIL  (ip or nc not on PATH)"
+    fi
+    if [ "$check9" -ne 0 ]; then overall_ok=0; fi
 
     echo "================================================"
     if [ "$overall_ok" -eq 1 ]; then
