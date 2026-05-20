@@ -52,7 +52,6 @@ const (
 	// default 20s
 	keepaliveTimeout = 20 * time.Second
 
-
 	reconnectTime = 10 * time.Second
 
 	servicePolicyString = `

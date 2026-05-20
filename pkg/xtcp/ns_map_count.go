@@ -13,8 +13,6 @@ import (
 
 const (
 	xtcpNSName = "xtcpNS"
-
-	goRoutineReporterFrequency = 1 * time.Minute
 )
 
 // guageUpdateFrequency + reconcileFrequency are var (not const) so tests
