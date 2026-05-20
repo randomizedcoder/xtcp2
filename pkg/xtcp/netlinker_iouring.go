@@ -305,7 +305,7 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	}
 
 	b := (*res.Buf)[:n]
-	_, errD := x.Deserialize(ctx, DeserializeArgs{
+	p, errD := x.Deserialize(ctx, DeserializeArgs{
 		ns:             nsName,
 		fd:             fd,
 		NLPacket:       &b,
@@ -319,6 +319,10 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	if errD != nil {
 		x.pC.WithLabelValues("NetlinkerIoUring", "ParseNLPacket", "error").Inc()
 	}
+	// Match the syscall netlinker (netlinker.go) — emit the parsed-socket
+	// count so dashboards + the self-test see iouring activity, not just
+	// the per-recv `packets` counter.
+	x.pC.WithLabelValues("NetlinkerIoUring", "p", "count").Add(float64(p))
 	*res.Buf = (*res.Buf)[:cap(*res.Buf)]
 	x.packetBufferPool.Put(res.Buf)
 }
