@@ -259,12 +259,66 @@ func TestValkeyDest_Close_table(t *testing.T) {
 // TestValkeyDest_RedisClientAdapter pins the production adapter wraps
 // a real *redis.Client through the interface. The adapter itself
 // can't deeply exercise the real client without a server, but the
-// constructor path + Close should still work cleanly.
-func TestValkeyDest_RedisClientAdapter_Close(t *testing.T) {
-	// Build the adapter directly with a fresh *redis.Client and
-	// invoke Close — go-redis Close is local-only (no broker round
-	// trip), so this succeeds without a server.
+// type check + factory call should still work.
+func TestValkeyDest_RedisClientAdapter_satisfiesIface(t *testing.T) {
 	adapter := &redisClientAdapter{c: nil}
-	// Test that the adapter methods exist on the interface.
 	var _ valkeyPublisher = adapter
+}
+
+// TestNewValKeyDest_happy drives the constructor end-to-end via the
+// newValkeyClientFn factory seam. Fake Ping succeeds so the
+// constructor returns a fully-built dest.
+func TestNewValKeyDest_happy(t *testing.T) {
+	fake := &fakeValkeyPublisher{}
+	orig := newValkeyClientFn
+	newValkeyClientFn = func(_ string) valkeyPublisher { return fake }
+	defer func() { newValkeyClientFn = orig }()
+
+	x := newTestXTCP(t, "valkey:127.0.0.1:6379")
+	d, err := newValKeyDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newValKeyDest err = %v", err)
+	}
+	if d == nil {
+		t.Fatal("dest nil")
+	}
+	if fake.pings.Load() != 1 {
+		t.Errorf("pings = %d, want 1", fake.pings.Load())
+	}
+	_ = d.Close()
+}
+
+// TestNewValKeyDest_pingErr drives the constructor's ping-fails-→
+// return-err branch.
+func TestNewValKeyDest_pingErr(t *testing.T) {
+	fake := &fakeValkeyPublisher{pingErr: errors.New("refused")}
+	orig := newValkeyClientFn
+	newValkeyClientFn = func(_ string) valkeyPublisher { return fake }
+	defer func() { newValkeyClientFn = orig }()
+
+	x := newTestXTCP(t, "valkey:127.0.0.1:6379")
+	d, err := newValKeyDest(context.Background(), x)
+	if err == nil {
+		t.Error("expected ping err")
+	}
+	if d != nil {
+		t.Error("dest should be nil on ping err")
+	}
+}
+
+// TestNewValKeyDest_debugLog covers the debug-log gate during
+// successful construction.
+func TestNewValKeyDest_debugLog(t *testing.T) {
+	fake := &fakeValkeyPublisher{}
+	orig := newValkeyClientFn
+	newValkeyClientFn = func(_ string) valkeyPublisher { return fake }
+	defer func() { newValkeyClientFn = orig }()
+
+	x := newTestXTCP(t, "valkey:127.0.0.1:6379")
+	x.debugLevel = 11
+	d, err := newValKeyDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newValKeyDest err = %v", err)
+	}
+	_ = d.Close()
 }
