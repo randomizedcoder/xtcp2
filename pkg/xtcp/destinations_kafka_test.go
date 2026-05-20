@@ -713,7 +713,6 @@ func TestNewKafkaDest_debugLog(t *testing.T) {
 	_ = d.Close()
 }
 
-
 // TestNewKafkaDest_factoryErr drives the `newKafkaProducerFn err →
 // fmt.Errorf("newKafkaDest kgo.NewClient: ...")` branch.
 func TestNewKafkaDest_factoryErr(t *testing.T) {

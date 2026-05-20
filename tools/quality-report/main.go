@@ -19,9 +19,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
-	"context"
 	"fmt"
 	"io"
 	"os"
