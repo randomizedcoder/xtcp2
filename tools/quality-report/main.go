@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -378,7 +379,9 @@ func regenerateCoverageArtifacts(rawDir, profile string) error {
 	}
 	// Run `go tool cover -func=<profile>` and capture stdout into
 	// <rawDir>/coverage-func.out.
-	funcOut, err := exec.Command("go", "tool", "cover", "-func="+profile).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	funcOut, err := exec.CommandContext(ctx, "go", "tool", "cover", "-func="+profile).Output()
 	if err != nil {
 		return fmt.Errorf("go tool cover -func: %w", err)
 	}
@@ -411,9 +414,6 @@ func buildPerPackageTSV(profile string) (string, error) {
 	defer func() { _ = f.Close() }()
 
 	const modulePrefix = "github.com/randomizedcoder/xtcp2/"
-	type blockKey struct {
-		key string // path:range
-	}
 	seenStmt := map[string]int{} // key → numStmt
 	seenMaxCount := map[string]int{}
 

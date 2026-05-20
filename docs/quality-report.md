@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T16:31:41Z
+Generated: 2026-05-20T18:55:30Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -31,18 +31,18 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 3 | 6s |
+| golangci-lint (comprehensive) | findings | 3 | 5s |
 | golangci-lint (standard) | findings | 2 | 5s |
-| golangci-lint (quick) | findings | 2 | 14s |
-| gosec | clean | 0 | 2s |
+| golangci-lint (quick) | findings | 2 | 13s |
+| gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
 | gofmt | findings | 2 | 0s |
-| nixfmt | clean | 0 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 9s |
+| go test | clean | 0 | 10s |
 | go test -cover | findings | 1 | 0s |
 
 
@@ -82,7 +82,7 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 89.1% < 90%
+- `pkg/xtcp`: package coverage 89.2% < 90%
 
 ### golangci-lint / noctx — 1
 
@@ -116,10 +116,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 1291 |
+| Pass | 1290 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 8 |
+| Skip | 9 |
 
 
 
@@ -169,7 +169,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 91.7% of statements (target: 90% per package).
+**Overall:** 91.9% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -185,7 +185,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 89.1% | 🔴 below 90% |
+| `pkg/xtcp` | 89.2% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.8% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
@@ -193,8 +193,8 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 95.8% | 🟢 OK |
 | `tools/proto-field-audit` | 96.7% | 🟢 OK |
 | `tools/quality-report` | 92.8% | 🟢 OK |
-| `tools/tcp_client` | 90.3% | 🟢 OK |
+| `tools/tcp_client` | 93.1% | 🟢 OK |
 | `tools/tcp_server` | 94.6% | 🟢 OK |
-| `tools/udp_receiver_server` | 93.8% | 🟢 OK |
+| `tools/udp_receiver_server` | 97.9% | 🟢 OK |
 
 

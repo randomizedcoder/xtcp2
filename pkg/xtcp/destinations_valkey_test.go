@@ -169,7 +169,7 @@ func (f *fakeValkeyPublisher) Publish(_ context.Context, channel string, msg []b
 	return f.publishErr
 }
 func (f *fakeValkeyPublisher) Ping(_ context.Context) error { f.pings.Add(1); return f.pingErr }
-func (f *fakeValkeyPublisher) Close() error                  { f.closes.Add(1); return f.closeErr }
+func (f *fakeValkeyPublisher) Close() error                 { f.closes.Add(1); return f.closeErr }
 
 func newValkeyDestForTest(t *testing.T, fake *fakeValkeyPublisher) *valkeyDest {
 	t.Helper()
