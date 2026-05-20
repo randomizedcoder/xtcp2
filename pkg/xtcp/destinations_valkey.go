@@ -53,6 +53,23 @@ type valkeyDest struct {
 	client valkeyPublisher
 }
 
+// newValkeyClientFn is the factory tests swap to inject a fake
+// valkeyPublisher without spinning up a real *redis.Client. Production
+// callers leave this at the default (newValkeyClientReal).
+var newValkeyClientFn = newValkeyClientReal
+
+// newValkeyClientReal is the production factory: builds a real
+// *redis.Client wrapped in redisClientAdapter so it satisfies
+// valkeyPublisher.
+func newValkeyClientReal(addr string) valkeyPublisher {
+	return &redisClientAdapter{c: redis.NewClient(&redis.Options{
+		Addr:         addr,
+		Password:     "",
+		DB:           0,
+		MaxIdleConns: valkeyMaxIdleConnsCst,
+	})}
+}
+
 func newValKeyDest(ctx context.Context, x *XTCP) (Destination, error) {
 	addr := strings.Replace(x.config.Dest, "valkey:", "", 1)
 	if x.debugLevel > 10 {
@@ -60,12 +77,7 @@ func newValKeyDest(ctx context.Context, x *XTCP) (Destination, error) {
 		log.Println("config.Dest:", x.config.Dest)
 		log.Println("valkey addr:", addr)
 	}
-	client := &redisClientAdapter{c: redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     "",
-		DB:           0,
-		MaxIdleConns: valkeyMaxIdleConnsCst,
-	})}
+	client := newValkeyClientFn(addr)
 
 	pCtx, cancel := context.WithTimeout(ctx, valkeyPingTimeoutCst)
 	defer cancel()
