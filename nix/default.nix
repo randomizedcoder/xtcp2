@@ -148,18 +148,61 @@ let
 
   # User-facing wrapper that refreshes docs/quality-report.md from the
   # current source tree. Invoked via `nix run .#update-quality-report`.
+  #
+  # With --with-microvm, additionally:
+  #   1. Boot the coverage-instrumented microvm via
+  #      `nix run .#microvm-x86_64-lifecycle-coverage` and scrape the
+  #      Go coverage data dump from its serial console.
+  #   2. Merge the VM profile with the host-only profile produced by
+  #      .#quality-report via `nix run .#coverage-merge`.
+  #   3. Re-run the quality-report aggregator binary with the merged
+  #      profile through the new -coverage-out flag (no Nix rebuild
+  #      needed for the merge step).
+  # Result: the headline coverage % in docs/quality-report.md
+  # reflects io_uring + real netlink + namespace paths the host
+  # sandbox can't exercise.
   updateQualityReport = pkgs.writeShellApplication {
     name = "xtcp2-update-quality-report";
     runtimeInputs = with pkgs; [
       coreutils
       git
+      versions.go
     ];
     text = ''
       set -eu
 
+      WITH_MICROVM=0
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --with-microvm) WITH_MICROVM=1; shift ;;
+          -h|--help)
+            echo "usage: update-quality-report [--with-microvm]"
+            exit 0
+            ;;
+          *) echo "unknown arg: $1" >&2; exit 2 ;;
+        esac
+      done
+
       if [ ! -f flake.nix ]; then
         echo "update-quality-report: must be run from the xtcp2 repo root" >&2
         exit 2
+      fi
+
+      # Step 1: optionally run the microvm-coverage lifecycle.
+      VMDIR=""
+      if [ "$WITH_MICROVM" = "1" ]; then
+        VMDIR="$(mktemp -d -t xtcp2cov-XXXXXX)"
+        echo "==> running .#microvm-x86_64-lifecycle-coverage"
+        echo "    scrape dir: $VMDIR"
+        XTCP2_COVERDIR="$VMDIR" \
+          nix run --accept-flake-config .#microvm-x86_64-lifecycle-coverage \
+          || echo "WARNING: microvm lifecycle exited non-zero; coverage may be partial"
+        n_cov=$(find "$VMDIR" -type f 2>/dev/null | wc -l)
+        echo "==> microvm coverage files: $n_cov"
+        if [ "$n_cov" -eq 0 ]; then
+          echo "WARNING: no coverage files scraped; falling back to host-only"
+          WITH_MICROVM=0
+        fi
       fi
 
       echo "==> building .#quality-report (Tier 2 takes ~10 min on a cold cache;"
@@ -167,9 +210,41 @@ let
       result=$(nix build --no-link --print-out-paths --accept-flake-config .#quality-report)
 
       mkdir -p docs
-      cp "$result/quality-report.md" docs/quality-report.md
-      chmod +w docs/quality-report.md
 
+      if [ "$WITH_MICROVM" = "1" ] && [ -d "$VMDIR" ]; then
+        echo "==> merging host + microvm coverage profiles"
+        MERGED=$(mktemp -t merged-cov-XXXXXX.out)
+        # nix run .#coverage-merge handles host+VM merge: produces a
+        # mode-set profile keyed on the host's block universe with
+        # counts upgraded where the VM run also covered the block.
+        nix run --accept-flake-config .#coverage-merge -- \
+          --host "$result/raw/coverage.out" \
+          --vm-dir "$VMDIR" \
+          --out "$MERGED" >&2
+
+        # Copy raw/ to a writable temp dir so we can re-run the
+        # aggregator with the merged profile in-place. The Nix store
+        # path is read-only; we need a writable rawDir for the
+        # -coverage-out regeneration step.
+        MERGED_RAW=$(mktemp -d -t merged-raw-XXXXXX)
+        cp -r "$result/raw/." "$MERGED_RAW/"
+        chmod -R +w "$MERGED_RAW"
+
+        echo "==> re-running quality-report with merged profile"
+        go run ./tools/quality-report \
+          -raw-dir "$MERGED_RAW" \
+          -repo-root . \
+          -known-failures ./tools/quality-report/known-failures.txt \
+          -coverage-baseline ./docs/coverage-baseline.txt \
+          -coverage-max-drop 0.5 \
+          -coverage-out "$MERGED" \
+          > docs/quality-report.md \
+          || echo "WARNING: aggregator exited non-zero; report may be incomplete"
+      else
+        cp "$result/quality-report.md" docs/quality-report.md
+      fi
+
+      chmod +w docs/quality-report.md
       echo
       echo "==> wrote docs/quality-report.md"
 
