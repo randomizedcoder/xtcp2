@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	nsq "github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -287,4 +288,57 @@ func TestNSQDest_Close_stopsProducer(t *testing.T) {
 	if fake.stops.Load() != 1 {
 		t.Errorf("Stop calls = %d, want 1", fake.stops.Load())
 	}
+}
+
+// TestNewNSQDest_happy drives the constructor via the newNSQProducerFn
+// factory seam.
+func TestNewNSQDest_happy(t *testing.T) {
+	fake := &fakeNSQProducer{}
+	orig := newNSQProducerFn
+	newNSQProducerFn = func(_ string, _ *nsq.Config) (nsqProducer, error) { return fake, nil }
+	defer func() { newNSQProducerFn = orig }()
+
+	x := newTestXTCP(t, "nsq:127.0.0.1:4150")
+	d, err := newNSQDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newNSQDest err = %v", err)
+	}
+	if d == nil {
+		t.Fatal("dest nil")
+	}
+	_ = d.Close()
+}
+
+// TestNewNSQDest_factoryErr drives the error-wrap branch.
+func TestNewNSQDest_factoryErr(t *testing.T) {
+	orig := newNSQProducerFn
+	newNSQProducerFn = func(_ string, _ *nsq.Config) (nsqProducer, error) {
+		return nil, errors.New("synthetic")
+	}
+	defer func() { newNSQProducerFn = orig }()
+
+	x := newTestXTCP(t, "nsq:127.0.0.1:4150")
+	d, err := newNSQDest(context.Background(), x)
+	if err == nil {
+		t.Error("expected err")
+	}
+	if d != nil {
+		t.Error("dest should be nil")
+	}
+}
+
+// TestNewNSQDest_debugLog covers the debug-log gate.
+func TestNewNSQDest_debugLog(t *testing.T) {
+	fake := &fakeNSQProducer{}
+	orig := newNSQProducerFn
+	newNSQProducerFn = func(_ string, _ *nsq.Config) (nsqProducer, error) { return fake, nil }
+	defer func() { newNSQProducerFn = orig }()
+
+	x := newTestXTCP(t, "nsq:127.0.0.1:4150")
+	x.debugLevel = 11
+	d, err := newNSQDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newNSQDest err = %v", err)
+	}
+	_ = d.Close()
 }

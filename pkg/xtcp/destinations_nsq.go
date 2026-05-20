@@ -28,6 +28,17 @@ type nsqDest struct {
 	producer nsqProducer
 }
 
+// newNSQProducerFn is the factory tests swap to inject a fake
+// nsqProducer without spinning up an nsqd. Production callers leave
+// this at the default (newNSQProducerReal).
+var newNSQProducerFn = newNSQProducerReal
+
+// newNSQProducerReal is the production factory: nsq.NewProducer is
+// lazy (no dial at construction), so this is a pure wrapper.
+func newNSQProducerReal(addr string, cfg *nsq.Config) (nsqProducer, error) {
+	return nsq.NewProducer(addr, cfg)
+}
+
 func newNSQDest(_ context.Context, x *XTCP) (Destination, error) {
 	addr := strings.Replace(x.config.Dest, "nsq:", "", 1)
 	if x.debugLevel > 10 {
@@ -36,7 +47,7 @@ func newNSQDest(_ context.Context, x *XTCP) (Destination, error) {
 		log.Println("nsq addr:", addr)
 	}
 	cfg := nsq.NewConfig()
-	producer, err := nsq.NewProducer(addr, cfg)
+	producer, err := newNSQProducerFn(addr, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("newNSQDest nsq.NewProducer: %w", err)
 	}
