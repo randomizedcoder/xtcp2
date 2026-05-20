@@ -15,7 +15,7 @@ import (
 //
 // gocyclo took InitDeserializers from 17 → 5 by replacing 13 repeated
 // `if _, exists := Enabled[key]; exists { ... }` blocks with a single
-// walk over dispatchTable. These tests pin the resulting behaviour
+// walk over dispatchTable. These tests pin the resulting behavior
 // from every direction so a future refactor cannot silently regress.
 
 // allKnownDispatchKeys is the canonical key list the production
@@ -357,7 +357,7 @@ func TestInitDeserializers_idempotent(t *testing.T) {
 }
 
 // TestInitDeserializers_concurrentDifferentInstances exercises the
-// race detector. Two goroutines initialising *separate* XTCP fixtures
+// race detector. Two goroutines initializing *separate* XTCP fixtures
 // should never race — they only share the read-only dispatchTable.
 // Run with `go test -race`.
 func TestInitDeserializers_concurrentDifferentInstances(t *testing.T) {

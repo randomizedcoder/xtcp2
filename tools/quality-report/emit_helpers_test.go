@@ -7,7 +7,7 @@ import (
 
 // emit_helpers_test.go covers the eight helpers extracted from emit in
 // the gocyclo-27 → 1 refactor. Each helper has a positive / negative /
-// boundary / corner / adversarial table where the behaviour is
+// boundary / corner / adversarial table where the behavior is
 // meaningfully bounded, plus race + benchmarks.
 
 // ───────────────────────────────────────────────────────────────────────

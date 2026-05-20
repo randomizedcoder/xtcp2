@@ -166,7 +166,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 		//     wg.Done already touched.
 		// Just log + return; the deferred wg.Done and UnlockOSThread
 		// handle cleanup once, and a mocked fatalf no longer leaves the
-		// function half-initialised.
+		// function half-initialized.
 		log.Printf("netlinkerIoUring %d ring init: %v", id, err)
 		return
 	}

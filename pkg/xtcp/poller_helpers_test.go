@@ -92,7 +92,7 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 			// ticker.Reset panics on d <= 0. Wrap so panics convert to
 			// test-pass + counter-skip; the production poller doesn't
 			// validate the duration either, so this codifies the
-			// behaviour.
+			// behavior.
 			func() {
 				defer func() {
 					if r := recover(); r != nil {

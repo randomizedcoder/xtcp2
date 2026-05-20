@@ -181,7 +181,7 @@ message Foo {
 			// Documented limitation: the regex's `[\w.<>,]+` set does
 			// not include space, so `map<string, int32>` (with space
 			// after the comma) doesn't match. `map<string,int32>` would.
-			// Pin the current behaviour so a future regex tweak surfaces
+			// Pin the current behavior so a future regex tweak surfaces
 			// this case.
 			src: `message M {
   map<string, int32> m = 1;
