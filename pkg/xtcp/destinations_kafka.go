@@ -3,7 +3,6 @@
 package xtcp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -267,40 +266,6 @@ func (d *kafkaDest) registerProtobufSchema(ctx context.Context) error {
 	d.schemaID = s.ID
 	if d.x.debugLevel > 10 {
 		log.Printf("registerProtobufSchema schema registered, d.schemaID:%d\n", d.schemaID)
-	}
-	return nil
-}
-
-// registerProtobufSchemaRestful is the original direct-HTTP implementation,
-// preserved for reference. Not used.
-//
-//lint:ignore U1000 historical reference; not called
-func (d *kafkaDest) registerProtobufSchemaRestful() error {
-	url := fmt.Sprintf("%s/subjects/%s-value/versions",
-		d.x.config.KafkaSchemaUrl, d.x.config.Topic)
-	data, err := os.ReadFile(d.x.config.XtcpProtoFile)
-	if err != nil {
-		return err
-	}
-	type SchemaRequest struct {
-		Schema     string `json:"schema"`
-		SchemaType string `json:"schemaType"`
-	}
-	reqBody := SchemaRequest{
-		Schema:     string(data),
-		SchemaType: "PROTOBUF",
-	}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-	resp, err := http.Post(url, "application/vnd.schemaregistry.v1+json", bytes.NewReader(bodyBytes))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("registerProtobufSchemaRestful status:%d", resp.StatusCode)
 	}
 	return nil
 }
