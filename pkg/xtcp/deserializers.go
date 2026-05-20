@@ -55,19 +55,19 @@ type deserializerEntry struct {
 // punctuate the registration code lives in the trailing comment per row.
 // Keep the order matching the kernel header for grep-ability.
 var dispatchTable = []deserializerEntry{
-	{dsKeyMemInfo, xtcpnl.MemInfoEmumValueCst, xtcpnl.DeserializeMemInfoXTCP},               // 1  MEMINFO
-	{dsKeyInfo, xtcpnl.TCPInfoEmumValueCst, xtcpnl.DeserializeTCPInfoXTCP},                  // 2  INFO
-	{dsKeyVegas, xtcpnl.VegasInfoEnumValueCst, xtcpnl.DeserializeVegasInfoXTCP},             // 3  VEGASINFO
-	{dsKeyCong, xtcpnl.CongInfoEmumValueCst, xtcpnl.DeserializeCongInfoXTCP},                // 4  CONG
-	{dsKeyTos, xtcpnl.TypeOfServiceEmumValueCst, xtcpnl.DeserializeTypeOfServiceXTCP},       // 5  TOS
-	{dsKeyTc, xtcpnl.TrafficClassEmumValueCst, xtcpnl.DeserializeTrafficClassXTCP},          // 6  TCLASS
-	{dsKeySkmem, xtcpnl.SkMemInfoEnumValueCst, xtcpnl.DeserializeSkMemInfoXTCP},             // 7  SKMEMINFO
-	{dsKeyShut, xtcpnl.ShutdownEmumValueCst, xtcpnl.DeserializeShutdownXTCP},                // 8  SHUTDOWN
-	{dsKeyDctcp, xtcpnl.DCTCPInfoEnumValueCst, xtcpnl.DeserializeDCTCPInfoXTCP},             // 9  DCTCPINFO
-	{dsKeyBbr, xtcpnl.BBRInfoEnumValueCst, xtcpnl.DeserializeBBRInfoXTCP},                   // 16 BBRINFO
-	{dsKeyClassID, xtcpnl.ClassIDEnumValueCst, xtcpnl.DeserializeClassIDXTCP},               // 17 CLASS_ID
-	{dsKeyCgroup, xtcpnl.CGroupIDEnumValueCst, xtcpnl.DeserializeCGroupIDXTCP},              // 21 CGROUP_ID
-	{dsKeySockopt, xtcpnl.SockOptEnumValueCst, xtcpnl.DeserializeSockOptXTCP},               // 22 SOCKOPT (bug 39: was incorrectly DeserializeCGroupIDXTCP before)
+	{dsKeyMemInfo, xtcpnl.MemInfoEmumValueCst, xtcpnl.DeserializeMemInfoXTCP},         // 1  MEMINFO
+	{dsKeyInfo, xtcpnl.TCPInfoEmumValueCst, xtcpnl.DeserializeTCPInfoXTCP},            // 2  INFO
+	{dsKeyVegas, xtcpnl.VegasInfoEnumValueCst, xtcpnl.DeserializeVegasInfoXTCP},       // 3  VEGASINFO
+	{dsKeyCong, xtcpnl.CongInfoEmumValueCst, xtcpnl.DeserializeCongInfoXTCP},          // 4  CONG
+	{dsKeyTos, xtcpnl.TypeOfServiceEmumValueCst, xtcpnl.DeserializeTypeOfServiceXTCP}, // 5  TOS
+	{dsKeyTc, xtcpnl.TrafficClassEmumValueCst, xtcpnl.DeserializeTrafficClassXTCP},    // 6  TCLASS
+	{dsKeySkmem, xtcpnl.SkMemInfoEnumValueCst, xtcpnl.DeserializeSkMemInfoXTCP},       // 7  SKMEMINFO
+	{dsKeyShut, xtcpnl.ShutdownEmumValueCst, xtcpnl.DeserializeShutdownXTCP},          // 8  SHUTDOWN
+	{dsKeyDctcp, xtcpnl.DCTCPInfoEnumValueCst, xtcpnl.DeserializeDCTCPInfoXTCP},       // 9  DCTCPINFO
+	{dsKeyBbr, xtcpnl.BBRInfoEnumValueCst, xtcpnl.DeserializeBBRInfoXTCP},             // 16 BBRINFO
+	{dsKeyClassID, xtcpnl.ClassIDEnumValueCst, xtcpnl.DeserializeClassIDXTCP},         // 17 CLASS_ID
+	{dsKeyCgroup, xtcpnl.CGroupIDEnumValueCst, xtcpnl.DeserializeCGroupIDXTCP},        // 21 CGROUP_ID
+	{dsKeySockopt, xtcpnl.SockOptEnumValueCst, xtcpnl.DeserializeSockOptXTCP},         // 22 SOCKOPT (bug 39: was incorrectly DeserializeCGroupIDXTCP before)
 }
 
 func GetAllDeserializers() (deserializers []string) {

@@ -226,9 +226,11 @@ func TestGetLatestSchemaID_ctxCancel(t *testing.T) {
 
 // schemaRegistryHandler returns a path-aware HTTP handler that mimics
 // the three endpoints franz-go's sr.CreateSchema touches:
-//   POST /subjects/<sub>/versions          → returns {"id": N}
-//   GET  /schemas/ids/<N>/versions         → returns [{subject, version}]
-//   GET  /subjects/<sub>/versions/<ver>    → returns full SubjectSchema
+//
+//	POST /subjects/<sub>/versions          → returns {"id": N}
+//	GET  /schemas/ids/<N>/versions         → returns [{subject, version}]
+//	GET  /subjects/<sub>/versions/<ver>    → returns full SubjectSchema
+//
 // The `createStatus` arg lets a test override the POST response code
 // to drive error paths; the GET endpoints stay well-formed so the
 // happy-path tests see exactly the failure surface they're aiming at.

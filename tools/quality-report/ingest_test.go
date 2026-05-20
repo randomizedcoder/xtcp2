@@ -153,14 +153,14 @@ func TestIngestGosec_table(t *testing.T) {
 
 func TestIngestFormatter_table(t *testing.T) {
 	cases := []struct {
-		name           string
-		category       string
-		statusName     string
-		exitCodeKey    string
-		fileName       string
-		fileContents   string
-		writeFile      bool
-		wantFiles      int
+		name         string
+		category     string
+		statusName   string
+		exitCodeKey  string
+		fileName     string
+		fileContents string
+		writeFile    bool
+		wantFiles    int
 	}{
 		{"positive_two_unformatted_files_gofmt", "positive", toolGofmt, toolGofmt, "gofmt.out", "a.go\nb.go\n", true, 2},
 		{"positive_two_unformatted_files_nixfmt", "positive", "nixfmt", "nix-fmt", "nix-fmt.out", "x.nix\ny.nix\n", true, 2},
@@ -224,12 +224,12 @@ func TestIngestCustomAudits_iteratesAllFour(t *testing.T) {
 
 func TestIngestCliHelpSmoke_table(t *testing.T) {
 	cases := []struct {
-		name            string
-		category        string
-		contents        string
-		writeFile       bool
-		wantStatusRows  int
-		wantCliResults  int
+		name           string
+		category       string
+		contents       string
+		writeFile      bool
+		wantStatusRows int
+		wantCliResults int
 	}{
 		{
 			name:           "negative_no_file_no_row",

@@ -136,11 +136,11 @@ func TestMaybeForceGCIoUring_table(t *testing.T) {
 func TestIouringRecordWaitErr_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name         string
-		category     string
-		err          error
-		wantTimeout  float64
-		wantWaitErr  float64
+		name        string
+		category    string
+		err         error
+		wantTimeout float64
+		wantWaitErr float64
 	}{
 		{"positive_etime_increments_timeout", "positive", syscall.ETIME, 1, 0},
 		{"positive_wrapped_etime", "positive", fmt.Errorf("wait failed: %w", syscall.ETIME), 1, 0},

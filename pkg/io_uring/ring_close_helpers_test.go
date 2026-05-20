@@ -22,10 +22,10 @@ import (
 func TestDispatchDrainResults_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		category string
-		results  []Result
-		nilCb    bool
+		name      string
+		category  string
+		results   []Result
+		nilCb     bool
 		wantCalls int
 	}{
 		{"positive_two_results_two_calls", "positive",

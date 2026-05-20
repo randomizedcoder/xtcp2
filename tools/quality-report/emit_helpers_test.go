@@ -55,9 +55,9 @@ func TestBumpTierCount_table(t *testing.T) {
 func TestBumpQuickFixable_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name             string
-		category         string
-		tier             int
+		name                   string
+		category               string
+		tier                   int
 		wantT0, wantT1, wantT2 int
 	}{
 		{"positive_tier0", "positive", 0, 1, 0, 0},
@@ -103,11 +103,11 @@ func TestAccumulateFindingCounts_table(t *testing.T) {
 			wantTierTotal: 3,
 		},
 		{
-			name:       "positive_error_severity_sets_flag",
-			category:   "positive",
-			findings:   []Finding{{File: "a.go", Severity: severityError, Tier: 1}},
-			wantFiles:  1,
-			wantHasErr: true,
+			name:          "positive_error_severity_sets_flag",
+			category:      "positive",
+			findings:      []Finding{{File: "a.go", Severity: severityError, Tier: 1}},
+			wantFiles:     1,
+			wantHasErr:    true,
 			wantTierTotal: 1,
 		},
 		{
@@ -166,12 +166,12 @@ func TestAccumulateFindingCounts_table(t *testing.T) {
 func TestSplitFindingsByTool_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name      string
-		category  string
-		findings  []Finding
-		wantL     int
-		wantA     int
-		wantG     int
+		name     string
+		category string
+		findings []Finding
+		wantL    int
+		wantA    int
+		wantG    int
 	}{
 		{"positive_mixed_three_tools", "positive",
 			[]Finding{{Tool: "golangci-lint"}, {Tool: "netlink-audit"}, {Tool: toolGosec}},
@@ -289,14 +289,14 @@ func TestSortGosecBySeverityFileLine_table(t *testing.T) {
 func TestAccumulateTestStats_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		category string
-		tests    []TestResult
-		wantTot  int
-		wantPass int
-		wantFailNew int
-		wantFailPre int
-		wantSkip int
+		name            string
+		category        string
+		tests           []TestResult
+		wantTot         int
+		wantPass        int
+		wantFailNew     int
+		wantFailPre     int
+		wantSkip        int
 		wantFailingList int
 	}{
 		{
@@ -326,8 +326,8 @@ func TestAccumulateTestStats_table(t *testing.T) {
 		{
 			name:     "boundary_package_level_failure_no_test_name",
 			category: "boundary",
-			tests: []TestResult{{Action: testActionFail, Test: ""}},
-			wantTot: 1, wantFailNew: 1, wantFailingList: 0, // empty test name → not appended
+			tests:    []TestResult{{Action: testActionFail, Test: ""}},
+			wantTot:  1, wantFailNew: 1, wantFailingList: 0, // empty test name → not appended
 		},
 		{
 			name:     "corner_unknown_action_only_increments_total",
@@ -339,7 +339,7 @@ func TestAccumulateTestStats_table(t *testing.T) {
 			name:     "adversarial_hundred_pass",
 			category: "adversarial",
 			tests:    manyTests(100, testActionPass),
-			wantTot: 100, wantPass: 100,
+			wantTot:  100, wantPass: 100,
 		},
 	}
 	for _, tc := range cases {
@@ -377,14 +377,14 @@ func TestAccumulateTestStats_table(t *testing.T) {
 func TestBuildCoverageRows_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		category string
-		cov      Coverage
-		wantLen  int
+		name      string
+		category  string
+		cov       Coverage
+		wantLen   int
 		wantBelow int // count of rows with Below=true
 	}{
 		{
-			name: "positive_two_packages_one_below",
+			name:     "positive_two_packages_one_below",
 			category: "positive",
 			cov: Coverage{
 				Available:  true,
@@ -393,13 +393,13 @@ func TestBuildCoverageRows_table(t *testing.T) {
 			wantLen: 2, wantBelow: 1,
 		},
 		{
-			name: "negative_unavailable_returns_nil",
+			name:     "negative_unavailable_returns_nil",
 			category: "negative",
-			cov: Coverage{Available: false, PerPackage: map[string]float64{"a": 95.0}},
-			wantLen: 0,
+			cov:      Coverage{Available: false, PerPackage: map[string]float64{"a": 95.0}},
+			wantLen:  0,
 		},
 		{
-			name: "boundary_at_threshold_not_below",
+			name:     "boundary_at_threshold_not_below",
 			category: "boundary",
 			cov: Coverage{
 				Available:  true,
@@ -408,7 +408,7 @@ func TestBuildCoverageRows_table(t *testing.T) {
 			wantLen: 1, wantBelow: 0,
 		},
 		{
-			name: "boundary_just_under_threshold",
+			name:     "boundary_just_under_threshold",
 			category: "boundary",
 			cov: Coverage{
 				Available:  true,
@@ -417,7 +417,7 @@ func TestBuildCoverageRows_table(t *testing.T) {
 			wantLen: 1, wantBelow: 1,
 		},
 		{
-			name: "corner_zero_pct_package",
+			name:     "corner_zero_pct_package",
 			category: "corner",
 			cov: Coverage{
 				Available:  true,
@@ -426,7 +426,7 @@ func TestBuildCoverageRows_table(t *testing.T) {
 			wantLen: 1, wantBelow: 1,
 		},
 		{
-			name: "adversarial_many_packages_sorted",
+			name:     "adversarial_many_packages_sorted",
 			category: "adversarial",
 			cov: Coverage{
 				Available:  true,
@@ -472,7 +472,7 @@ func TestTopHotspots_truncation(t *testing.T) {
 	// 15 unique files → only top 10 should survive.
 	findings := make([]Finding, 0, 15)
 	for i := 0; i < 15; i++ {
-		findings = append(findings, Finding{File: string(rune('a' + i)) + ".go"})
+		findings = append(findings, Finding{File: string(rune('a'+i)) + ".go"})
 	}
 	got := topHotspots(findings, 10)
 	if len(got) > 10 {

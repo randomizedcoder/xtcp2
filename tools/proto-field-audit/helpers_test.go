@@ -19,12 +19,12 @@ import (
 func TestUpdateProtoMessageDepth_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name        string
-		category    string
-		line        string
-		inDepth     int
-		wantDepth   int
-		wantSkip    bool
+		name      string
+		category  string
+		line      string
+		inDepth   int
+		wantDepth int
+		wantSkip  bool
 	}{
 		{"positive_message_decl_increments", "positive", "message Foo {", 0, 1, true},
 		{"positive_message_one_level_nested", "positive", "message Inner {", 1, 2, true},
@@ -197,9 +197,9 @@ message Foo {
 			wantNames: []string{"m"},
 		},
 		{
-			name:     "adversarial_huge_file_many_fields",
-			category: "adversarial",
-			src:      bigProtoMessage(500),
+			name:      "adversarial_huge_file_many_fields",
+			category:  "adversarial",
+			src:       bigProtoMessage(500),
 			wantNames: bigProtoFieldNames(500),
 		},
 	}

@@ -466,10 +466,10 @@ func TestEnvironmentOverrideProm_unset(t *testing.T) {
 
 func TestEnvironmentOverrideDebugLevel(t *testing.T) {
 	cases := []struct {
-		name       string
-		envValue   string
-		initial    uint
-		want       uint
+		name        string
+		envValue    string
+		initial     uint
+		want        uint
 		description string
 	}{
 		{"set_to_20", "20", 5, 20, "valid value overwrites"},
