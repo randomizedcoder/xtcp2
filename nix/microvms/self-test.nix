@@ -236,18 +236,23 @@ pkgs.writeShellApplication {
     # Metric-counter helper: scrape one prom counter value from the
     # daemon's /metrics endpoint. Returns 0 if the counter is missing.
     # Many xtcp2 counters use multi-label vectors; the regex matches any
-    # row whose label set CONTAINS the supplied substring.
+    # row whose label set CONTAINS each supplied substring.
+    #
+    # Prometheus prints labels in lexicographic order: function, then
+    # type, then variable. So a single substring like
+    # 'function="X",variable="Y"' will never match — labels are separated
+    # by `,type="..."`. Pass two separate substrings instead.
     metric_value() {
       local name="$1"
-      local label_substring="$2"
+      local label_a="$2"
+      local label_b="''${3:-}"
       curl --silent --fail --max-time 2 \
            "http://127.0.0.1:${toString promPort}/metrics" \
-        | awk -v n="$name" -v s="$label_substring" '
+        | awk -v n="$name" -v sa="$label_a" -v sb="$label_b" '
             $1 ~ n {
-              if (s == "" || index($0, s) > 0) {
-                # Last field is the counter value.
-                sum += $NF + 0
-              }
+              if (sa != "" && index($0, sa) == 0) next
+              if (sb != "" && index($0, sb) == 0) next
+              sum += $NF + 0
             }
             END { printf "%d", sum }
           '
@@ -267,45 +272,22 @@ pkgs.writeShellApplication {
     echo "--- check 8: ns lifecycle (ip netns add/delete) ---"
     check8=1
     if command -v ip >/dev/null 2>&1; then
-      # Diagnostic: what does the daemon think it's watching? Dump
-      # every xtcp_counts row whose label set mentions watchNamespaces.
-      echo "  pre: ls /run/netns/:"
-      # shellcheck disable=SC2012 # diagnostic ls is fine here
-      ls -la /run/netns/ 2>&1 | sed 's/^/    /'
-      echo "  pre: watchNamespaces metric rows:"
-      curl --silent --fail --max-time 2 \
-           "http://127.0.0.1:${toString promPort}/metrics" \
-        | grep -E 'watchNamespaces|netNamespaceInstance|nsAdd' \
-        | sed 's/^/    /' || true
-
       # The label keys are function/variable/type (see promLabels in
-      # pkg/xtcp/prometheus.go). watchNamespaces emits multiple variable
-      # values per call site; we filter on variable="event" to count
-      # fsnotify-Create+Remove events specifically.
-      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
-      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
-
-      add_out=$(ip netns add xtcp_test_ns_a 2>&1) ; add_rc=$?
-      echo "  ip netns add xtcp_test_ns_a rc=$add_rc out=''${add_out:-(empty)}"
+      # pkg/xtcp/prometheus.go). Prometheus prints labels alphabetically
+      # (function, type, variable), so the helper takes the function/
+      # variable filters as separate args.
+      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      ip netns add xtcp_test_ns_a 2>&1 || true
       # Bring lo up so a subsequent socket inside the ns is meaningful.
-      ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 | sed 's/^/    /' || true
-      echo "  post-add: ls /run/netns/:"
-      # shellcheck disable=SC2012 # diagnostic ls is fine here
-      ls -la /run/netns/ 2>&1 | sed 's/^/    /'
+      ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 || true
       # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
       sleep 3
-      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
-      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance",variable="start"')
-
-      echo "  post-add: watchNamespaces metric rows:"
-      curl --silent --fail --max-time 2 \
-           "http://127.0.0.1:${toString promPort}/metrics" \
-        | grep -E 'watchNamespaces|netNamespaceInstance|nsAdd' \
-        | sed 's/^/    /' || true
-
-      ip netns delete xtcp_test_ns_a 2>&1 | sed 's/^/    /' || true
+      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      ip netns delete xtcp_test_ns_a 2>&1 || true
       sleep 3
-      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces",variable="event"')
+      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
 
       if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
         echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
