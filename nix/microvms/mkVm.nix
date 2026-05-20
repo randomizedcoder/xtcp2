@@ -86,18 +86,23 @@ let
     "1s"
   ];
 
-  # Coverage flavor uses `-dest null` so the kafka destination factory
-  # doesn't try to open /xtcp_flat_record.proto (which lives only in the
-  # source tree, not in the VM's stripped binary). Same goal as the
-  # plan's wave-10-step-5 fix for the basic VM.
-  xtcp2CoverageArgs = [
+  # Both the basic and coverage flavors override the default dest. The
+  # default in cmd/xtcp2 is `kafka:redpanda-0:9092` which makes the kafka
+  # destination factory read /xtcp_flat_record.proto — that file lives
+  # in the source tree, never inside the stripped VM, so the daemon
+  # crashes during init and systemd never lets the prom listener stay up
+  # long enough for the self-test to scrape it. `-dest null` sidesteps
+  # the proto read entirely.
+  xtcp2BasicArgs = [
     "-dest"
     "null"
     "-frequency"
     "2s"
     "-timeout"
     "1s"
-  ]
+  ];
+
+  xtcp2CoverageArgs = xtcp2BasicArgs
   # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
   # path runs (otherwise 0% covered; the syscall variant runs by default).
   ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
@@ -212,19 +217,18 @@ in
         # xtcp2 enumerates network namespaces by listing /run/netns/ and
         # /run/docker/netns/. If neither exists it fatal-exits with
         # "neither network namespace directory exists.  ??!"
-        # (pkg/xtcp/init.go:130). Pre-create the linux one so xtcp2 starts
-        # cleanly in a fresh microvm where no namespaces have been added.
-        # When sink=coverage, also create the coverage output directory
-        # the xtcp2-cover binary writes counter+meta files into AND the
-        # docker netns dir so the self-test Check 10 can exercise the
-        # second fsnotify watch path without installing docker proper.
+        # (pkg/xtcp/init.go:130). Pre-create BOTH in every flavor so the
+        # daemon watches both fsnotify paths and the self-test's
+        # Check 10 (NS_DOCKER) has a target to bind-mount into. Creating
+        # an empty /run/docker/netns/ doesn't pull docker in — the
+        # daemon just sees an empty dir and starts a watcher on it.
         systemd.tmpfiles.rules = [
           "d /run/netns 0755 root root -"
+          "d /run/docker 0755 root root -"
+          "d /run/docker/netns 0755 root root -"
         ]
         ++ lib.optionals isCoverage [
           "d ${coverDir} 0755 root root -"
-          "d /run/docker 0755 root root -"
-          "d /run/docker/netns 0755 root root -"
         ];
 
         # GOCOVERDIR for the coverage-instrumented xtcp2 build. The runtime
@@ -268,7 +272,7 @@ in
             else if isCoverage then
               xtcp2CoverageArgs
             else
-              [ ];
+              xtcp2BasicArgs;
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl

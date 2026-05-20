@@ -114,6 +114,10 @@ let
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
       vm = vms.${arch};
+      # Surface every sentinel the self-test emits so a real failure in
+      # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
+      # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
     };
   });
 
