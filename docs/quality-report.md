@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T18:55:30Z
+Generated: 2026-05-20T19:33:18Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 6 |
+| Total findings | 3 |
 | Findings (Tier 0) | 1 |
-| Findings (Tier 1) | 1 |
-| Findings (Tier 2) | 1 |
-| Findings (non-tiered) | 3 |
-| Files with at least one finding | 5 |
+| Findings (Tier 1) | 0 |
+| Findings (Tier 2) | 0 |
+| Findings (non-tiered) | 2 |
+| Files with at least one finding | 2 |
 | Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 3 | 5s |
-| golangci-lint (standard) | findings | 2 | 5s |
+| golangci-lint (comprehensive) | findings | 1 | 5s |
+| golangci-lint (standard) | findings | 1 | 5s |
 | golangci-lint (quick) | findings | 2 | 13s |
 | gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 2 | 0s |
+| gofmt | findings | 1 | 0s |
 | nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 10s |
-| go test -cover | findings | 1 | 0s |
+| go test | clean | 0 | 9s |
+| go test -cover | findings | 1 | 1s |
 
 
 ---
@@ -53,8 +53,8 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 1 | 2 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 1 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 1 | 1 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 0 | 0 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
 
@@ -64,37 +64,25 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `tools/quality-report/main.go` | 2 | noctx×1, unused×1 |
+| `tools/quality-report/main.go` | 2 | gofmt×1, format×1 |
 | `pkg/xtcp` | 1 | below-90pct×1 |
-| `pkg/xtcp/destinations_kafka_test.go` | 1 | format×1 |
-| `pkg/xtcp/destinations_valkey_test.go` | 1 | format×1 |
-| `pkg/xtcpnl/xtcpnl_fatalf_test.go` | 1 | unconvert×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### gofmt / format — 2
-
-- `pkg/xtcp/destinations_kafka_test.go`: file not formatted
-- `pkg/xtcp/destinations_valkey_test.go`: file not formatted
-
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 89.2% < 90%
+- `pkg/xtcp`: package coverage 89.4% < 90%
 
-### golangci-lint / noctx — 1
+### gofmt / format — 1
 
-- `tools/quality-report/main.go:381`: os/exec.Command must not be called. use os/exec.CommandContext
+- `tools/quality-report/main.go`: file not formatted
 
-### golangci-lint / unconvert — 1
+### golangci-lint / gofmt — 1
 
-- `pkg/xtcpnl/xtcpnl_fatalf_test.go:95`: unnecessary conversion
-
-### golangci-lint / unused — 1
-
-- `tools/quality-report/main.go:414`: type blockKey is unused
+- `tools/quality-report/main.go:21`: File is not properly formatted
 
 ---
 
@@ -134,10 +122,9 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-**`gofmt` would reformat (2 files):**
+**`gofmt` would reformat (1 file):**
 
-- `pkg/xtcp/destinations_kafka_test.go`
-- `pkg/xtcp/destinations_valkey_test.go`
+- `tools/quality-report/main.go`
 `nixfmt`: clean.
 
 ---
@@ -159,9 +146,9 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **gofmt/format** with 2 findings (33% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~3 quick-fixable findings before manual review.
-- Hotspot file: `tools/quality-report/main.go` carries 2 findings (noctx×1, unused×1). Refactor here before touching adjacent code.
+- Top contributor: **go-test-cover/below-90pct** with 1 findings (33% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~2 quick-fixable findings before manual review.
+- Hotspot file: `tools/quality-report/main.go` carries 2 findings (gofmt×1, format×1). Refactor here before touching adjacent code.
 - Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
 
@@ -185,7 +172,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 89.2% | 🔴 below 90% |
+| `pkg/xtcp` | 89.4% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.8% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
