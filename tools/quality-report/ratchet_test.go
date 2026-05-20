@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -192,6 +193,120 @@ func BenchmarkEvaluateCoverageRatchet_baselineMissing(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = evaluateCoverageRatchet("/no/such/path", 75.0, 0.5)
+	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// regenerateCoverageArtifacts + buildPerPackageTSV
+// ───────────────────────────────────────────────────────────────────────
+
+func TestBuildPerPackageTSV_table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		category string
+		profile  string
+		wantPkgs map[string]string // pkg → expected pct prefix (e.g. "100.0")
+	}{
+		{
+			name:     "positive_two_packages_50pct_each",
+			category: "positive",
+			profile: `mode: atomic
+github.com/randomizedcoder/xtcp2/pkg/a/foo.go:1.1,2.2 2 1
+github.com/randomizedcoder/xtcp2/pkg/a/foo.go:3.3,4.4 2 0
+github.com/randomizedcoder/xtcp2/pkg/b/bar.go:1.1,2.2 4 0
+github.com/randomizedcoder/xtcp2/pkg/b/bar.go:3.3,4.4 4 1
+`,
+			wantPkgs: map[string]string{"pkg/a": "50.0", "pkg/b": "50.0"},
+		},
+		{
+			name:     "positive_atomic_dedup_keeps_max_count",
+			category: "positive",
+			profile: `mode: atomic
+github.com/randomizedcoder/xtcp2/pkg/a/x.go:1.1,2.2 1 0
+github.com/randomizedcoder/xtcp2/pkg/a/x.go:1.1,2.2 1 5
+`,
+			wantPkgs: map[string]string{"pkg/a": "100.0"}, // dedup → max=5, hit
+		},
+		{
+			name:     "negative_non_module_lines_ignored",
+			category: "negative",
+			profile: `mode: atomic
+some-other-module/x.go:1.1,2.2 1 1
+github.com/randomizedcoder/xtcp2/pkg/y/z.go:1.1,2.2 3 1
+`,
+			wantPkgs: map[string]string{"pkg/y": "100.0"},
+		},
+		{
+			name:     "boundary_empty_profile_apart_from_mode",
+			category: "boundary",
+			profile:  "mode: atomic\n",
+			wantPkgs: map[string]string{},
+		},
+		{
+			name:     "corner_zero_statements_in_block",
+			category: "corner",
+			profile: `mode: atomic
+github.com/randomizedcoder/xtcp2/pkg/x/x.go:1.1,2.2 0 0
+github.com/randomizedcoder/xtcp2/pkg/x/x.go:3.3,4.4 4 4
+`,
+			wantPkgs: map[string]string{"pkg/x": "100.0"},
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			path := filepath.Join(dir, "cov.out")
+			if err := os.WriteFile(path, []byte(tc.profile), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := buildPerPackageTSV(path)
+			if err != nil {
+				t.Fatalf("buildPerPackageTSV err = %v", err)
+			}
+			for pkg, wantPrefix := range tc.wantPkgs {
+				if !strings.Contains(got, pkg+"\t"+wantPrefix) {
+					t.Errorf("missing %q with prefix %q in TSV:\n%s", pkg, wantPrefix, got)
+				}
+			}
+		})
+	}
+}
+
+// TestRegenerateCoverageArtifacts_writesFiles ensures both
+// coverage-func.out and coverage-per-package.tsv land in rawDir when
+// the helper runs against a valid profile. Requires `go` on PATH.
+func TestRegenerateCoverageArtifacts_writesFiles(t *testing.T) {
+	dir := t.TempDir()
+	profile := filepath.Join(dir, "cov.out")
+	if err := os.WriteFile(profile, []byte(`mode: atomic
+github.com/randomizedcoder/xtcp2/pkg/x/x.go:1.1,2.2 1 1
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := regenerateCoverageArtifacts(dir, profile); err != nil {
+		// `go tool cover` requires Go on PATH; skip if unavailable.
+		if strings.Contains(err.Error(), "go tool cover") {
+			t.Skipf("go tool cover unavailable: %v", err)
+		}
+		t.Fatalf("regenerateCoverageArtifacts err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "coverage-func.out")); err != nil {
+		t.Errorf("coverage-func.out missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "coverage-per-package.tsv")); err != nil {
+		t.Errorf("coverage-per-package.tsv missing: %v", err)
+	}
+}
+
+// TestRegenerateCoverageArtifacts_missingProfileErrs surfaces the
+// "profile not readable" path.
+func TestRegenerateCoverageArtifacts_missingProfileErrs(t *testing.T) {
+	err := regenerateCoverageArtifacts(t.TempDir(), "/no/such/profile.out")
+	if err == nil {
+		t.Error("expected err on missing profile")
 	}
 }
 

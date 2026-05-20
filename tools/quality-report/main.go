@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -236,9 +237,21 @@ type ingestCtx struct {
 }
 
 func runMain(args []string, stdout, stderr io.Writer) int {
-	rawDir, repoRoot, knownFile, baselineFile, maxDropAbs, parseErr := parseRunMainFlags(args, stderr)
+	rawDir, repoRoot, knownFile, baselineFile, maxDropAbs, coverageOut, parseErr := parseRunMainFlags(args, stderr)
 	if parseErr != 0 {
 		return parseErr
+	}
+
+	// When -coverage-out is set, regenerate coverage-func.out +
+	// coverage-per-package.tsv inside rawDir from the supplied profile
+	// before ingestCoverage runs. This lets the update-quality-report
+	// wrapper merge host + microvm profiles into one .out and re-run
+	// the aggregator without re-building the entire Nix derivation.
+	if coverageOut != "" {
+		if err := regenerateCoverageArtifacts(rawDir, coverageOut); err != nil {
+			fmt.Fprintf(stderr, "quality-report: regen coverage artifacts: %v\n", err)
+			return 2
+		}
 	}
 
 	ctx := &ingestCtx{
@@ -329,7 +342,7 @@ func readCoverageBaseline(path string) (float64, bool) {
 // runMain so the orchestration is easier to test. Returns (rawDir,
 // repoRoot, knownFailuresFile, baselineFile, maxDropAbs, exitCode).
 // exitCode==0 means continue; otherwise caller returns it.
-func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string, string, float64, int) {
+func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string, string, float64, string, int) {
 	fset := flag.NewFlagSet("quality-report", flag.ContinueOnError)
 	fset.SetOutput(stderr)
 	rawDir := fset.String("raw-dir", "", "directory with per-tool raw outputs")
@@ -337,14 +350,148 @@ func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string,
 	knownFile := fset.String("known-failures", "", "file listing pre-existing test failures (Package/Test per line)")
 	baselineFile := fset.String("coverage-baseline", "", "path to coverage baseline file (single float, e.g. \"73.5\"); empty disables the ratchet")
 	maxDropAbs := fset.Float64("coverage-max-drop", 0.5, "max allowed absolute drop in Total coverage from baseline (percentage points)")
+	coverageOut := fset.String("coverage-out", "", "path to a Go coverage profile to use; when set, regenerates <raw-dir>/coverage-func.out + coverage-per-package.tsv from it before ingesting. Lets the update-quality-report wrapper merge host + microvm profiles.")
 	if err := fset.Parse(args); err != nil {
-		return "", "", "", "", 0, 2
+		return "", "", "", "", 0, "", 2
 	}
 	if *rawDir == "" {
 		fmt.Fprintln(stderr, "quality-report: -raw-dir is required")
-		return "", "", "", "", 0, 2
+		return "", "", "", "", 0, "", 2
 	}
-	return *rawDir, *repoRoot, *knownFile, *baselineFile, *maxDropAbs, 0
+	return *rawDir, *repoRoot, *knownFile, *baselineFile, *maxDropAbs, *coverageOut, 0
+}
+
+// regenerateCoverageArtifacts re-derives <rawDir>/coverage-func.out +
+// coverage-per-package.tsv from the supplied coverage profile. Used by
+// the update-quality-report --with-microvm path: after merging host +
+// microvm coverage into one profile, this lets the aggregator re-run
+// without rebuilding the entire Nix derivation.
+//
+// coverage-func.out is produced by shelling out to `go tool cover -func`
+// (we can't easily reimplement that without parsing the full profile
+// representation Go uses internally). The per-package TSV is built by
+// directly parsing the atomic-mode profile in Go, mirroring the awk in
+// nix/quality-report/default.nix.
+func regenerateCoverageArtifacts(rawDir, profile string) error {
+	if _, err := os.Stat(profile); err != nil {
+		return fmt.Errorf("profile %q not readable: %w", profile, err)
+	}
+	// Run `go tool cover -func=<profile>` and capture stdout into
+	// <rawDir>/coverage-func.out.
+	funcOut, err := exec.Command("go", "tool", "cover", "-func="+profile).Output()
+	if err != nil {
+		return fmt.Errorf("go tool cover -func: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(rawDir, "coverage-func.out"), funcOut, 0o600); err != nil {
+		return fmt.Errorf("write coverage-func.out: %w", err)
+	}
+	// Per-package TSV: aggregate statement coverage per package directory
+	// from the atomic-mode profile.
+	tsv, err := buildPerPackageTSV(profile)
+	if err != nil {
+		return fmt.Errorf("buildPerPackageTSV: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(rawDir, "coverage-per-package.tsv"), []byte(tsv), 0o600); err != nil {
+		return fmt.Errorf("write coverage-per-package.tsv: %w", err)
+	}
+	return nil
+}
+
+// buildPerPackageTSV parses a Go coverage profile and emits a TSV of
+// `<pkg>\t<percent>` lines, one per package directory under the repo
+// module path. Mirrors the awk in nix/quality-report/default.nix: atomic-
+// mode profiles can repeat the same block across test binaries, so we
+// dedupe per file:range and keep the max count seen, then aggregate
+// statements per package directory.
+func buildPerPackageTSV(profile string) (string, error) {
+	f, err := os.Open(profile) //nolint:gosec // operator-supplied path
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+
+	const modulePrefix = "github.com/randomizedcoder/xtcp2/"
+	type blockKey struct {
+		key string // path:range
+	}
+	seenStmt := map[string]int{} // key → numStmt
+	seenMaxCount := map[string]int{}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "mode:") {
+			continue
+		}
+		// `path:range numStmt count`
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			continue
+		}
+		if !strings.HasPrefix(fields[0], modulePrefix) {
+			continue
+		}
+		numStmt, e1 := strconv.Atoi(fields[1])
+		count, e2 := strconv.Atoi(fields[2])
+		if e1 != nil || e2 != nil {
+			continue
+		}
+		k := fields[0]
+		if _, ok := seenStmt[k]; !ok {
+			seenStmt[k] = numStmt
+		}
+		if count > seenMaxCount[k] {
+			seenMaxCount[k] = count
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	// Aggregate per package directory: derive package from "path:range"
+	// by stripping the `:range` suffix then the `/<file>.go` filename.
+	type pkgAgg struct {
+		tot int
+		hit int
+	}
+	pkgs := map[string]*pkgAgg{}
+	for k, numStmt := range seenStmt {
+		path := k
+		if i := strings.IndexByte(path, ':'); i >= 0 {
+			path = path[:i]
+		}
+		path = strings.TrimPrefix(path, modulePrefix)
+		if i := strings.LastIndexByte(path, '/'); i >= 0 {
+			path = path[:i]
+		}
+		a, ok := pkgs[path]
+		if !ok {
+			a = &pkgAgg{}
+			pkgs[path] = a
+		}
+		a.tot += numStmt
+		if seenMaxCount[k] > 0 {
+			a.hit += numStmt
+		}
+	}
+
+	// Emit sorted TSV.
+	keys := make([]string, 0, len(pkgs))
+	for p := range pkgs {
+		keys = append(keys, p)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, p := range keys {
+		a := pkgs[p]
+		pct := 0.0
+		if a.tot > 0 {
+			pct = 100.0 * float64(a.hit) / float64(a.tot)
+		}
+		fmt.Fprintf(&b, "%s\t%.1f\n", p, pct)
+	}
+	return b.String(), nil
 }
 
 // ingestGolangciTiers ingests findings from the comprehensive tier
