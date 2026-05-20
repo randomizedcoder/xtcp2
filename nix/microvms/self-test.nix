@@ -343,6 +343,49 @@ pkgs.writeShellApplication {
     fi
     if [ "$check9" -ne 0 ]; then overall_ok=0; fi
 
+    # ─── Check 10: docker netns lifecycle — /run/docker/netns/ watch path ──
+    # xtcp2 probes /run/netns/ AND /run/docker/netns/ at startup
+    # (pkg/xtcp/init.go netNsCandidateDirs). When the coverage VM pre-
+    # creates the docker dir via tmpfiles, the daemon spawns a SECOND
+    # watchNsNamespace goroutine for it. Without exercising it the docker
+    # branch in watchNsNamespace stays at 0% coverage.
+    #
+    # We mimic docker's behavior — create a netns under /run/netns/ via
+    # the kernel's normal mechanism, then bind-mount it under
+    # /run/docker/netns/ to fire fsnotify Create on the docker dir.
+    # That's all docker actually does at the filesystem level when
+    # `docker run --network=…` spawns a container.
+    echo "--- check 10: docker netns lifecycle (/run/docker/netns/) ---"
+    check10=1
+    if command -v ip >/dev/null 2>&1 && [ -d /run/docker/netns ]; then
+      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+
+      ip netns add xtcp_docker_ns 2>&1 || true
+      # mount --bind reuses the netns inode under the docker dir, so
+      # checkMountInfo can find it just like a docker-managed one.
+      mount --bind /run/netns/xtcp_docker_ns /run/docker/netns/xtcp_docker_ns 2>&1 || true
+      sleep 3
+      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+
+      umount /run/docker/netns/xtcp_docker_ns 2>&1 || true
+      rm -f /run/docker/netns/xtcp_docker_ns 2>&1 || true
+      ip netns delete xtcp_docker_ns 2>&1 || true
+      sleep 3
+      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+
+      if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
+        echo "XTCP2_SELF_TEST_NS_DOCKER_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+        check10=0
+      else
+        echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+      fi
+    else
+      echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (ip not on PATH or /run/docker/netns/ missing)"
+    fi
+    if [ "$check10" -ne 0 ]; then overall_ok=0; fi
+
     echo "================================================"
     if [ "$overall_ok" -eq 1 ]; then
       echo "XTCP2_SELF_TEST_OVERALL_PASS"

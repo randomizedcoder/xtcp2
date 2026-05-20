@@ -141,7 +141,7 @@ let
         # outcome visible. Without this the default filter hides
         # them; the checks still execute (and the daemon exercises the
         # corresponding code paths) but the harness output is misleading.
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
       };
     })
   );
@@ -153,7 +153,7 @@ let
         vm = vmsCoverageIoUring.${arch};
         suffix = "-coverage-iouring";
         scrapeCoverage = true;
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
       };
     })
   );
