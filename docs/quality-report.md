@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T19:33:18Z
+Generated: 2026-05-20T20:06:13Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -33,12 +33,12 @@ between commits reveals exactly what changed.
 |---|---|---|---|
 | golangci-lint (comprehensive) | findings | 1 | 5s |
 | golangci-lint (standard) | findings | 1 | 5s |
-| golangci-lint (quick) | findings | 2 | 13s |
+| golangci-lint (quick) | findings | 2 | 14s |
 | gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
 | gofmt | findings | 1 | 0s |
-| nixfmt | clean | 0 | 1s |
-| netlink-audit | clean | 0 | 0s |
+| nixfmt | clean | 0 | 0s |
+| netlink-audit | clean | 0 | 1s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
@@ -169,7 +169,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/register_schema` | 91.4% | 🟢 OK |
 | `cmd/xtcp2` | 95.9% | 🟢 OK |
 | `cmd/xtcp2_kafka_client` | 93.0% | 🟢 OK |
-| `cmd/xtcp2client` | 91.5% | 🟢 OK |
+| `cmd/xtcp2client` | 91.6% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
 | `pkg/xtcp` | 89.4% | 🔴 below 90% |
