@@ -236,7 +236,7 @@ type ingestCtx struct {
 }
 
 func runMain(args []string, stdout, stderr io.Writer) int {
-	rawDir, repoRoot, knownFile, parseErr := parseRunMainFlags(args, stderr)
+	rawDir, repoRoot, knownFile, baselineFile, maxDropAbs, parseErr := parseRunMainFlags(args, stderr)
 	if parseErr != 0 {
 		return parseErr
 	}
@@ -274,27 +274,77 @@ func runMain(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "quality-report: emit: %v\n", err)
 		return 2
 	}
+
+	// Coverage ratchet: refuse to land a report whose Total has dropped
+	// by more than maxDropAbs absolute points from the operator-set
+	// baseline in baselineFile. Skipped when the baseline file is
+	// missing (first run on a new branch) or coverage data is absent.
+	if baselineFile != "" && in.Coverage.Available {
+		if msg, breached := evaluateCoverageRatchet(baselineFile, in.Coverage.Total, maxDropAbs); breached {
+			fmt.Fprintf(stderr, "quality-report: coverage ratchet: %s\n", msg)
+			return 3
+		}
+	}
 	return 0
+}
+
+// evaluateCoverageRatchet reads the recorded baseline from baselineFile
+// and compares it to current. Returns (msg, true) when the absolute
+// drop exceeds maxDropAbs; (string, false) otherwise. Missing or
+// unparseable baseline is treated as "no baseline" → pass.
+func evaluateCoverageRatchet(baselineFile string, current, maxDropAbs float64) (string, bool) {
+	baseline, ok := readCoverageBaseline(baselineFile)
+	if !ok {
+		return "", false
+	}
+	drop := baseline - current
+	if drop <= maxDropAbs {
+		return "", false
+	}
+	return fmt.Sprintf("coverage dropped from %.2f%% (baseline %s) to %.2f%% (current); drop %.2f%% > allowed %.2f%%",
+		baseline, baselineFile, current, drop, maxDropAbs), true
+}
+
+// readCoverageBaseline reads a single float from baselineFile,
+// tolerating whitespace and a trailing percent sign. Returns ok=false
+// on read or parse error so the caller can skip the check.
+func readCoverageBaseline(path string) (float64, bool) {
+	if path == "" {
+		return 0, false
+	}
+	b, err := os.ReadFile(path) //nolint:gosec // operator-supplied path
+	if err != nil {
+		return 0, false
+	}
+	s := strings.TrimSpace(string(b))
+	s = strings.TrimSuffix(s, "%")
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
 }
 
 // parseRunMainFlags isolates the flag-parsing block from the rest of
 // runMain so the orchestration is easier to test. Returns (rawDir,
-// repoRoot, knownFailuresFile, exitCode). exitCode==0 means continue;
-// otherwise caller returns it.
-func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string, int) {
+// repoRoot, knownFailuresFile, baselineFile, maxDropAbs, exitCode).
+// exitCode==0 means continue; otherwise caller returns it.
+func parseRunMainFlags(args []string, stderr io.Writer) (string, string, string, string, float64, int) {
 	fset := flag.NewFlagSet("quality-report", flag.ContinueOnError)
 	fset.SetOutput(stderr)
 	rawDir := fset.String("raw-dir", "", "directory with per-tool raw outputs")
 	repoRoot := fset.String("repo-root", ".", "repo root (used to relativise paths)")
 	knownFile := fset.String("known-failures", "", "file listing pre-existing test failures (Package/Test per line)")
+	baselineFile := fset.String("coverage-baseline", "", "path to coverage baseline file (single float, e.g. \"73.5\"); empty disables the ratchet")
+	maxDropAbs := fset.Float64("coverage-max-drop", 0.5, "max allowed absolute drop in Total coverage from baseline (percentage points)")
 	if err := fset.Parse(args); err != nil {
-		return "", "", "", 2
+		return "", "", "", "", 0, 2
 	}
 	if *rawDir == "" {
 		fmt.Fprintln(stderr, "quality-report: -raw-dir is required")
-		return "", "", "", 2
+		return "", "", "", "", 0, 2
 	}
-	return *rawDir, *repoRoot, *knownFile, 0
+	return *rawDir, *repoRoot, *knownFile, *baselineFile, *maxDropAbs, 0
 }
 
 // ingestGolangciTiers ingests findings from the comprehensive tier

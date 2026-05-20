@@ -285,12 +285,30 @@ pkgs.runCommand "xtcp2-quality-report"
     : > "$RAW/cli-help-smoke.out"
 
     # ── Aggregate ─────────────────────────────────────────────────────
+    # Coverage ratchet: if the total falls below
+    # docs/coverage-baseline.txt by more than coverage-max-drop points,
+    # quality-report exits with code 3. The orchestrator below treats
+    # that as a non-fatal report — the markdown is still produced —
+    # but the non-zero exit propagates up to CI so the regression is
+    # surfaced. Operator manually bumps the baseline file when they
+    # intentionally raise the floor.
     mkdir -p $out
+    set +e
     go run ./tools/quality-report \
       -raw-dir "$RAW" \
       -repo-root . \
       -known-failures ./tools/quality-report/known-failures.txt \
+      -coverage-baseline ./docs/coverage-baseline.txt \
+      -coverage-max-drop 0.5 \
       > $out/quality-report.md 2>>"$RAW/stderr.log"
+    qr_rc=$?
+    set -e
+    if [ "$qr_rc" -eq 3 ]; then
+      echo "WARNING: coverage ratchet breach (see stderr above); report still emitted" >&2
+    elif [ "$qr_rc" -ne 0 ]; then
+      cat "$RAW/stderr.log" >&2
+      exit "$qr_rc"
+    fi
 
     mkdir -p $out/raw
     cp -r "$RAW"/. $out/raw/ || true
