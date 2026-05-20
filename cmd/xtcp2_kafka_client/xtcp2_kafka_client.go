@@ -65,9 +65,17 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 	return 0
 }
 
+// kafkaFetcher is the surface pollLoop needs from a Kafka consumer
+// client. Lifting it to an interface lets tests drive pollLoop's
+// happy-path EachRecord closure without a real broker. *kgo.Client
+// satisfies this interface.
+type kafkaFetcher interface {
+	PollFetches(ctx context.Context) kgo.Fetches
+}
+
 // pollLoop is the Kafka consume body. Extracted so test code can call it
 // against a fake client (with a pre-canceled ctx for a quick exit).
-func pollLoop(ctx context.Context, cl *kgo.Client) {
+func pollLoop(ctx context.Context, cl kafkaFetcher) {
 	for i := 0; ; i++ {
 		select {
 		case <-ctx.Done():
