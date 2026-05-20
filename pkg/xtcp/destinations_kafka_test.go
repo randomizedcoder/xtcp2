@@ -748,6 +748,22 @@ func TestNewKafkaDest_pingFailExhaustsRetries(t *testing.T) {
 	}
 }
 
+// TestNewKafkaProducerReal_returnsKgoClient pins that the production
+// factory returns a usable *kgo.Client. kgo.NewClient is lazy (no
+// dial at construction) so this runs without a broker. The return
+// value satisfies the kafkaProducer interface via *kgo.Client's
+// concrete methods.
+func TestNewKafkaProducerReal_returnsKgoClient(t *testing.T) {
+	p, err := newKafkaProducerReal(kgo.SeedBrokers("127.0.0.1:9092"))
+	if err != nil {
+		t.Fatalf("newKafkaProducerReal err = %v", err)
+	}
+	if p == nil {
+		t.Fatal("producer nil")
+	}
+	defer p.Close()
+}
+
 // TestPingKafkaWithRetries_debugLog covers the debug-log branch.
 func TestPingKafkaWithRetries_debugLog(t *testing.T) {
 	fake := &fakeKafkaProducer{
