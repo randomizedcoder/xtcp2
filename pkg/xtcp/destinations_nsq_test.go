@@ -4,6 +4,7 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -196,5 +197,94 @@ func BenchmarkNSQDest_NewAndClose(b *testing.B) {
 		if d != nil {
 			_ = d.Close()
 		}
+	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// fakeNSQProducer + Send/Close tests via the nsqProducer interface seam.
+// ───────────────────────────────────────────────────────────────────────
+
+type fakeNSQProducer struct {
+	publishErr error
+	publishes  atomic.Int64
+	stops      atomic.Int64
+	lastTopic  string
+	lastBody   []byte
+}
+
+func (f *fakeNSQProducer) Publish(topic string, body []byte) error {
+	f.publishes.Add(1)
+	f.lastTopic = topic
+	f.lastBody = append(f.lastBody[:0], body...)
+	return f.publishErr
+}
+func (f *fakeNSQProducer) Stop() { f.stops.Add(1) }
+
+func newNSQDestForTest(t *testing.T, fake *fakeNSQProducer) *nsqDest {
+	t.Helper()
+	x := newTestXTCP(t, "nsq:127.0.0.1:4150")
+	x.config.Topic = "xtcp-test"
+	return &nsqDest{x: x, producer: fake}
+}
+
+func TestNSQDest_Send_table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name           string
+		category       string
+		publishErr     error
+		wantN          int
+		wantErr        bool
+		wantOKCounter  float64
+		wantErrCounter float64
+	}{
+		{"positive_clean_publish", "positive", nil, 1, false, 1, 0},
+		{"negative_publish_err", "negative", errors.New("broker EOF"), 0, true, 0, 1},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			fake := &fakeNSQProducer{publishErr: tc.publishErr}
+			d := newNSQDestForTest(t, fake)
+			payload := []byte("payload")
+			n, err := d.Send(context.Background(), &payload)
+			if n != tc.wantN {
+				t.Errorf("n = %d, want %d", n, tc.wantN)
+			}
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if fake.lastTopic != "xtcp-test" {
+				t.Errorf("topic = %q, want xtcp-test", fake.lastTopic)
+			}
+			gotOK := testutil.ToFloat64(d.x.pC.WithLabelValues("destNSQ", "Publish", "count"))
+			gotErr := testutil.ToFloat64(d.x.pC.WithLabelValues("destNSQ", "Publish", "error"))
+			if gotOK != tc.wantOKCounter {
+				t.Errorf("OK counter = %v, want %v", gotOK, tc.wantOKCounter)
+			}
+			if gotErr != tc.wantErrCounter {
+				t.Errorf("Err counter = %v, want %v", gotErr, tc.wantErrCounter)
+			}
+		})
+	}
+}
+
+func TestNSQDest_Send_debugLog(t *testing.T) {
+	fake := &fakeNSQProducer{}
+	d := newNSQDestForTest(t, fake)
+	d.x.debugLevel = 11
+	payload := []byte("x")
+	_, _ = d.Send(context.Background(), &payload)
+}
+
+func TestNSQDest_Close_stopsProducer(t *testing.T) {
+	fake := &fakeNSQProducer{}
+	d := newNSQDestForTest(t, fake)
+	if err := d.Close(); err != nil {
+		t.Errorf("Close err = %v, want nil", err)
+	}
+	if fake.stops.Load() != 1 {
+		t.Errorf("Stop calls = %d, want 1", fake.stops.Load())
 	}
 }
