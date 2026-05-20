@@ -55,6 +55,19 @@ type kafkaDest struct {
 	recordPool sync.Pool
 }
 
+// newKafkaProducerFn is the factory tests swap to inject a fake
+// kafkaProducer without standing up a real kgo.Client. Production
+// callers leave this at the default (newKafkaProducerReal).
+var newKafkaProducerFn = newKafkaProducerReal
+
+// newKafkaProducerReal is the production factory: it constructs a real
+// kgo.Client wired with the production options. Extracted so the test
+// suite can substitute newKafkaProducerFn with a fake-returning
+// closure and exercise newKafkaDest without a broker.
+func newKafkaProducerReal(opts ...kgo.Opt) (kafkaProducer, error) {
+	return kgo.NewClient(opts...)
+}
+
 func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 	d := &kafkaDest{
 		x: x,
@@ -106,7 +119,7 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		})),
 	}
 
-	d.client, err = kgo.NewClient(opts...)
+	d.client, err = newKafkaProducerFn(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("newKafkaDest kgo.NewClient: %w", err)
 	}

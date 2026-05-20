@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T07:36:43Z
+Generated: 2026-05-20T15:02:02Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -21,7 +21,7 @@ between commits reveals exactly what changed.
 | Findings (Tier 2) | 1 |
 | Findings (non-tiered) | 3 |
 | Files with at least one finding | 4 |
-| Test failures (new) | 2 |
+| Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
 
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 1 | 5s |
-| golangci-lint (standard) | clean | 0 | 5s |
-| golangci-lint (quick) | findings | 1 | 14s |
+| golangci-lint (comprehensive) | findings | 1 | 6s |
+| golangci-lint (standard) | clean | 0 | 4s |
+| golangci-lint (quick) | findings | 1 | 15s |
 | gosec | clean | 0 | 1s |
 | go vet | clean | 0 | 2s |
-| gofmt | clean | 0 | 1s |
-| nixfmt | clean | 0 | 0s |
+| gofmt | findings | 2 | 0s |
+| nixfmt | clean | 0 | 1s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
-| proto-field-audit | clean | 0 | 1s |
-| go test | findings | 2 | 8s |
-| go test -cover | findings | 3 | 0s |
+| proto-field-audit | clean | 0 | 0s |
+| go test | clean | 0 | 10s |
+| go test -cover | findings | 1 | 0s |
 
 
 ---
@@ -52,7 +52,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 2 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 1 | 1 |
 
@@ -64,21 +64,24 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `cmd/xtcp2_kafka_client` | 1 | below-90pct×1 |
 | `pkg/xtcp` | 1 | below-90pct×1 |
+| `pkg/xtcp/destinations_kafka_test.go` | 1 | format×1 |
+| `pkg/xtcp/destinations_valkey_test.go` | 1 | format×1 |
 | `pkg/xtcpnl/xtcpnl_fatalf_test.go` | 1 | unconvert×1 |
-| `tools/kafka_topic_reader` | 1 | below-90pct×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### go-test-cover / below-90pct — 3
+### gofmt / format — 2
 
-- `cmd/xtcp2_kafka_client`: package coverage 81.4% < 90%
-- `pkg/xtcp`: package coverage 77.3% < 90%
-- `tools/kafka_topic_reader`: package coverage 86.0% < 90%
+- `pkg/xtcp/destinations_kafka_test.go`: file not formatted
+- `pkg/xtcp/destinations_valkey_test.go`: file not formatted
+
+### go-test-cover / below-90pct — 1
+
+- `pkg/xtcp`: package coverage 82.4% < 90%
 
 ### golangci-lint / unconvert — 1
 
@@ -104,14 +107,11 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 1275 |
-| Fail (new) | 2 |
+| Pass | 1280 |
+| Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
 | Skip | 8 |
 
-**Failures:**
-
-- 🔴 `github.com/randomizedcoder/xtcp2/pkg/io_uring` / `TestWaitOneTimeout_zeroTimeoutDelegatesToWaitOne`
 
 
 ---
@@ -125,8 +125,10 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-`gofmt`: clean.
+**`gofmt` would reformat (2 files):**
 
+- `pkg/xtcp/destinations_kafka_test.go`
+- `pkg/xtcp/destinations_valkey_test.go`
 `nixfmt`: clean.
 
 ---
@@ -148,16 +150,17 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **go-test-cover/below-90pct** with 3 findings (75% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~1 quick-fixable findings before manual review.
-- Hotspot file: `cmd/xtcp2_kafka_client` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
+- Top contributor: **gofmt/format** with 2 findings (50% of total). Concentrate effort here for the biggest quality win.
+- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~3 quick-fixable findings before manual review.
+- Hotspot file: `pkg/xtcp` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
+- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
 
 ---
 
 ## 13. Test coverage
 
-**Overall:** 87.2% of statements (target: 90% per package).
+**Overall:** 89.3% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -169,14 +172,14 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/nsTest` | 94.1% | 🟢 OK |
 | `cmd/register_schema` | 91.4% | 🟢 OK |
 | `cmd/xtcp2` | 92.4% | 🟢 OK |
-| `cmd/xtcp2_kafka_client` | 81.4% | 🔴 below 90% |
+| `cmd/xtcp2_kafka_client` | 93.0% | 🟢 OK |
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
-| `pkg/io_uring` | 91.9% | 🟢 OK |
+| `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 77.3% | 🔴 below 90% |
+| `pkg/xtcp` | 82.4% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.4% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
-| `tools/kafka_topic_reader` | 86.0% | 🔴 below 90% |
+| `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
 | `tools/metrics-audit` | 97.2% | 🟢 OK |
 | `tools/netlink-audit` | 95.8% | 🟢 OK |
 | `tools/proto-field-audit` | 96.7% | 🟢 OK |
