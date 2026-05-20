@@ -303,6 +303,7 @@ in
       microvm-x86_64-vector = microvms.vmsVector.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
+      microvm-x86_64-soak = microvms.vmsSoak.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -368,6 +369,13 @@ in
     microvm-x86_64-lifecycle-coverage-iouring = {
       type = "app";
       program = "${microvms.lifecycleCoverageIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-coverage-iouring";
+    };
+    # On-demand long-running soak. Default 1h; pass --duration 24h (or
+    # 5m for a smoke run) to override. Not wired into `nix flake check`
+    # because it holds a KVM slot for the full duration.
+    microvm-x86_64-soak = {
+      type = "app";
+      program = "${microvms.soak.x86_64.runner}/bin/xtcp2-soak-x86_64";
     };
     quality-report = {
       type = "app";

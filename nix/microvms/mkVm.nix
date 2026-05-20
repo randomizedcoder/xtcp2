@@ -38,6 +38,7 @@ let
   isVector = sink == "vector";
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
+  isSoak = sink == "soak";
   effectiveMem = if isVector then cfg.memVector else cfg.mem;
 
   coverDir = "/var/lib/xtcp2cov";
@@ -57,6 +58,68 @@ let
         coverageEnabled = isCoverage;
         inherit coverDir;
       };
+
+  # nsTest churn parameters tuned for soak runs. Production nsTest defaults
+  # are 1000 initial namespaces + 100ms sleep — which inside a microvm
+  # creates an explosive boot-time spike (1000 × `ip netns add` back-to-back
+  # before any churn). Soak runs benefit from a smaller initial fill and a
+  # bit more breathing room between iterations so the daemon's fsnotify
+  # watcher + nsAdd path runs continuously without ever being completely
+  # idle. Sized empirically — increase if you want harsher loading.
+  soakInitialNs = 50;
+  soakChurnSleep = "250ms";
+  # Period (seconds) between /metrics scrapes. 60s lines up with most
+  # default Prometheus scrape intervals.
+  soakScrapePeriodSec = 60;
+  soakMetricsLog = "/var/log/xtcp2-soak-metrics.log";
+
+  soakChurnScript = pkgs.writeShellApplication {
+    name = "xtcp2-soak-churn";
+    runtimeInputs = with pkgs; [
+      coreutils
+      iproute2
+    ];
+    text = ''
+      # Run nsTest with reduced initial-fill + slightly longer churn sleep
+      # so a 1h / 24h run doesn't drown the journal in `ip netns add` lines
+      # before any actual churn happens.
+      exec ${xtcp2AllPackage}/bin/nsTest -initial ${toString soakInitialNs} -sleep ${soakChurnSleep}
+    '';
+  };
+
+  soakScrapeScript = pkgs.writeShellApplication {
+    name = "xtcp2-soak-scrape";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+    ];
+    text = ''
+      # Scrape /metrics on a fixed cadence so the soak run leaves a
+      # historical trail of every xtcp_counts / xtcp_histograms value.
+      # Each scrape is a JSON-shaped record so jq can post-process later.
+      while true; do
+        ts=$(date -u +%FT%TZ)
+        body=$(curl --silent --fail --max-time 5 \
+          "http://127.0.0.1:${toString cfg.promPort}/metrics" \
+          | grep '^xtcp_' || true)
+        if [ -z "$body" ]; then
+          echo "{\"t\":\"$ts\",\"err\":\"scrape_empty\"}"
+        else
+          # Wrap the raw text in a JSON envelope keyed on the scrape ts.
+          printf '{"t":"%s","metrics":' "$ts"
+          # Encode the prom text exposition as a JSON string array so the
+          # whole record is one valid JSON line per scrape — easy to tail
+          # with jq, easy to split.
+          printf '%s' "$body" | awk '
+            BEGIN { printf "[" }
+            { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf (NR>1?",":"") "\"" $0 "\"" }
+            END { print "]}" }
+          '
+        fi
+        sleep ${toString soakScrapePeriodSec}
+      done
+    '';
+  };
 
   vmConfig = ./xtcp2-vm-config.json;
 
@@ -272,14 +335,18 @@ in
             else if isCoverage then
               xtcp2CoverageArgs
             else
+              # Soak reuses the basic args (`-dest null`, fast frequency).
+              # The point of soak is namespace + netlink churn, not
+              # downstream destination throughput.
               xtcp2BasicArgs;
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
         # is-active xtcp2` for 30 s, so it is robust to xtcp2 starting via
         # the systemd.path gate (vector flavor) vs. directly at boot
-        # (minimal flavor).
-        systemd.services.xtcp2-self-test = {
+        # (minimal flavor). Skipped on the soak flavor (long-running churn
+        # + metric scrape services replace it).
+        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak) {
           description = "xtcp2 microvm self-test";
           after = [
             "xtcp2.service"
@@ -292,6 +359,53 @@ in
             RemainAfterExit = true;
             ExecStart = "${selfTest}/bin/xtcp2-self-test";
             StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Soak flavor: long-running services that churn namespaces + scrape
+        # /metrics into a file inside the VM. The host-side soak runner
+        # (see nix/microvms/lib.nix mkSoakRunner) boots the VM, sleeps for
+        # the configured -duration, then powers it off and inspects the
+        # metric log + journal for crashes/restarts.
+        systemd.services.xtcp2-soak-churn = lib.mkIf isSoak {
+          description = "xtcp2 soak — nsTest namespace churn driver";
+          after = [
+            "xtcp2.service"
+            "multi-user.target"
+          ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${soakChurnScript}/bin/xtcp2-soak-churn";
+            # Soak runs are open-ended. If nsTest itself crashes we want
+            # systemd to restart it so the soak workload keeps generating
+            # load even across an `ip netns` blip.
+            Restart = "on-failure";
+            RestartSec = "2s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        systemd.services.xtcp2-soak-scrape = lib.mkIf isSoak {
+          description = "xtcp2 soak — periodic /metrics scraper";
+          after = [
+            "xtcp2.service"
+            "multi-user.target"
+          ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            # Use shell redirect so each line is JSON. /var/log is tmpfs in
+            # microvm — the host runner tar-scrapes this path before the
+            # poweroff completes.
+            ExecStart = "${pkgs.bash}/bin/bash -c '${soakScrapeScript}/bin/xtcp2-soak-scrape >> ${soakMetricsLog}'";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            StandardOutput = "journal";
             StandardError = "journal+console";
           };
         };
