@@ -61,7 +61,7 @@ func TestParseRunMainFlags_table(t *testing.T) {
 		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stderr trapWriter
-			raw, _, _, ec := parseRunMainFlags(tc.args, &stderr)
+			raw, _, _, _, _, ec := parseRunMainFlags(tc.args, &stderr)
 			if ec != tc.wantExit {
 				t.Errorf("exit = %d, want %d", ec, tc.wantExit)
 			}
@@ -325,7 +325,7 @@ func BenchmarkParseRunMainFlags(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, _ = parseRunMainFlags(args, &w)
+		_, _, _, _, _, _ = parseRunMainFlags(args, &w)
 	}
 }
 
