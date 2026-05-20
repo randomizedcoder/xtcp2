@@ -148,7 +148,7 @@ func TestHandleRecvContinueErr_table(t *testing.T) {
 		{
 			name:      "positive_ctx_live_non_resource_exhausted_continues",
 			category:  "positive",
-			ctxBuild:  func() context.Context { return context.Background() },
+			ctxBuild:  context.Background,
 			err:       errors.New("Unavailable"),
 			wantBreak: false,
 		},
@@ -180,7 +180,7 @@ func TestHandleRecvContinueErr_table(t *testing.T) {
 			// Caller invariant: handleRecvContinueErr is only entered
 			// for the recvContinue case (i.e. err != nil and not EOF).
 			// But the function itself should still be robust.
-			ctxBuild:  func() context.Context { return context.Background() },
+			ctxBuild:  context.Background,
 			err:       nil,
 			wantBreak: false,
 		},

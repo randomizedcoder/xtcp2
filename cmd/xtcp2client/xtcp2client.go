@@ -157,7 +157,11 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 
 	stream, err := client.PollFlatRecords(ctx)
 	if err != nil {
-		log.Fatalf("client.PollFlatRecords(shortCtx) err:%v", err)
+		// Demoted from log.Fatalf: Fatalf calls os.Exit so the deferred
+		// ticker.Stop() above would never run. Log + return so the
+		// defers fire and the caller can decide what to do next.
+		log.Printf("pollMode: client.PollFlatRecords err: %v", err)
+		return
 	}
 
 	// recvCh := make(chan *xtcp_flat_record.FlatRecordsResponse)
@@ -459,8 +463,9 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 		case recvPrint:
 			printFlatRecordsResponse(resp, id, json, debugLevel)
 			continue
+		case recvContinue:
+			// fall through to handleRecvContinueErr below
 		}
-		// recvContinue: classify the err further, optionally backoff.
 		if handleRecvContinueErr(ctx, client, rerr) {
 			break
 		}

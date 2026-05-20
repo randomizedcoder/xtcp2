@@ -144,10 +144,10 @@ func requireProbe() error {
 // Close drains pending CQEs (best-effort, up to drainTimeout), releases
 // any in-flight pool buffers back to the caller's drain callback, then
 // unmaps the ring. Safe to call multiple times.
-// closeDrainStepMs caps each blocking WaitCQETimeout call inside the
+// closeDrainStep caps each blocking WaitCQETimeout call inside the
 // Close drain loop. Kept small so a sluggish kernel can't stall ring
 // teardown past the caller's overall deadline.
-const closeDrainStepMs = 50 * time.Millisecond
+const closeDrainStep = 50 * time.Millisecond
 
 // waitForNextDrainCQE blocks for one CQE up to `step` (or `deadline`,
 // whichever is shorter). Returns drainContinue when the caller should
@@ -170,8 +170,8 @@ func (r *Ring) waitForNextDrainCQE(deadline time.Time) ([]Result, drainOutcome) 
 		return nil, drainAbort
 	}
 	step := remaining
-	if step > closeDrainStepMs {
-		step = closeDrainStepMs
+	if step > closeDrainStep {
+		step = closeDrainStep
 	}
 	ts := syscall.NsecToTimespec(int64(step))
 	if _, err := r.r.WaitCQETimeout(&ts); err != nil {

@@ -349,9 +349,9 @@ func TestSeverityOrder(t *testing.T) {
 	// Ordering invariants: a sort-stable comparator must yield
 	// error < warning < info, regardless of which vocabulary the
 	// upstream linter uses.
-	if !(severityOrder(severityError) < severityOrder(severityWarning) &&
-		severityOrder(severityWarning) < severityOrder(severityInfo) &&
-		severityOrder(severityInfo) < severityOrder("unknown")) {
+	if severityOrder(severityError) >= severityOrder(severityWarning) ||
+		severityOrder(severityWarning) >= severityOrder(severityInfo) ||
+		severityOrder(severityInfo) >= severityOrder("unknown") {
 		t.Errorf("severity ordering invariant broken: error/warning/info/unknown = %d/%d/%d/%d",
 			severityOrder(severityError), severityOrder(severityWarning),
 			severityOrder(severityInfo), severityOrder("unknown"))
