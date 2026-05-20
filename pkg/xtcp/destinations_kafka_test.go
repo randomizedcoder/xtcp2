@@ -640,6 +640,114 @@ func TestPingKafkaWithRetries_ctxCancelAbortsSleep(t *testing.T) {
 	}
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// newKafkaDest end-to-end — registers schema, looks up id, builds the
+// (fake) producer via newKafkaProducerFn, then pingKafkaWithRetries
+// succeeds against the fake. Exercises the constructor's full happy
+// path without a real broker.
+// ───────────────────────────────────────────────────────────────────────
+
+func TestNewKafkaDest_happy(t *testing.T) {
+	const protoSrc = `syntax = "proto3"; package t; message M {}`
+	srv := httptest.NewServer(schemaRegistryHandler(7, 0))
+	defer srv.Close()
+
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	x.config.Topic = "xtcp-test"
+	x.config.KafkaSchemaUrl = srv.URL
+	tmp := filepath.Join(t.TempDir(), "x.proto")
+	if err := os.WriteFile(tmp, []byte(protoSrc), 0o600); err != nil {
+		t.Fatalf("write tmp proto: %v", err)
+	}
+	x.config.XtcpProtoFile = tmp
+
+	fake := &fakeKafkaProducer{}
+	origFactory := newKafkaProducerFn
+	newKafkaProducerFn = func(_ ...kgo.Opt) (kafkaProducer, error) { return fake, nil }
+	defer func() { newKafkaProducerFn = origFactory }()
+
+	d, err := newKafkaDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newKafkaDest err = %v", err)
+	}
+	if d == nil {
+		t.Fatal("dest is nil")
+	}
+	if fake.allowRebals.Load() != 1 {
+		t.Errorf("AllowRebalance calls = %d, want 1", fake.allowRebals.Load())
+	}
+	if fake.pings.Load() < 1 {
+		t.Errorf("pings = %d, want ≥1", fake.pings.Load())
+	}
+	_ = d.Close()
+}
+
+// TestNewKafkaDest_factoryErr drives the `newKafkaProducerFn err →
+// fmt.Errorf("newKafkaDest kgo.NewClient: ...")` branch.
+func TestNewKafkaDest_factoryErr(t *testing.T) {
+	srv := httptest.NewServer(schemaRegistryHandler(1, 0))
+	defer srv.Close()
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	x.config.Topic = "xtcp-test"
+	x.config.KafkaSchemaUrl = srv.URL
+	tmp := filepath.Join(t.TempDir(), "x.proto")
+	_ = os.WriteFile(tmp, []byte(`syntax = "proto3";`), 0o600)
+	x.config.XtcpProtoFile = tmp
+
+	origFactory := newKafkaProducerFn
+	newKafkaProducerFn = func(_ ...kgo.Opt) (kafkaProducer, error) {
+		return nil, errors.New("factory failed")
+	}
+	defer func() { newKafkaProducerFn = origFactory }()
+
+	d, err := newKafkaDest(context.Background(), x)
+	if err == nil {
+		t.Fatal("expected err on factory failure")
+	}
+	if d != nil {
+		t.Error("dest should be nil on factory err")
+	}
+	if !strings.Contains(err.Error(), "kgo.NewClient") {
+		t.Errorf("err = %q, want substring 'kgo.NewClient'", err)
+	}
+}
+
+// TestNewKafkaDest_pingFailExhaustsRetries drives the
+// pingKafkaWithRetries-exhausted branch via a fake that fails every
+// ping. Shrinks pingRetrySleep via stubbed retry count.
+func TestNewKafkaDest_pingFailExhaustsRetries(t *testing.T) {
+	srv := httptest.NewServer(schemaRegistryHandler(1, 0))
+	defer srv.Close()
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	x.config.Topic = "xtcp-test"
+	x.config.KafkaSchemaUrl = srv.URL
+	tmp := filepath.Join(t.TempDir(), "x.proto")
+	_ = os.WriteFile(tmp, []byte(`syntax = "proto3";`), 0o600)
+	x.config.XtcpProtoFile = tmp
+
+	fake := &fakeKafkaProducer{
+		pingErr:         errors.New("refused"),
+		failFirstNPings: 100, // always fail
+	}
+	origFactory := newKafkaProducerFn
+	newKafkaProducerFn = func(_ ...kgo.Opt) (kafkaProducer, error) { return fake, nil }
+	defer func() { newKafkaProducerFn = origFactory }()
+
+	// The constructor uses kafkaPingRetriesCst (5) + kafkaPingRetrySleepCst (1s).
+	// With 5 retries + 1s sleep + jitter, the test wall-clocks ~10s.
+	// That's acceptable for one focused test.
+	d, err := newKafkaDest(context.Background(), x)
+	if err == nil {
+		t.Fatal("expected ping-exhaust err")
+	}
+	if d != nil {
+		t.Error("dest should be nil on ping exhaust")
+	}
+	if !strings.Contains(err.Error(), "pingKafka") {
+		t.Errorf("err = %q, want substring 'pingKafka'", err)
+	}
+}
+
 // TestPingKafkaWithRetries_debugLog covers the debug-log branch.
 func TestPingKafkaWithRetries_debugLog(t *testing.T) {
 	fake := &fakeKafkaProducer{
