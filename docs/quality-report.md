@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T16:23:09Z
+Generated: 2026-05-20T16:31:41Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -31,13 +31,13 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 3 | 5s |
+| golangci-lint (comprehensive) | findings | 3 | 6s |
 | golangci-lint (standard) | findings | 2 | 5s |
 | golangci-lint (quick) | findings | 2 | 14s |
-| gosec | clean | 0 | 1s |
-| go vet | clean | 0 | 3s |
+| gosec | clean | 0 | 2s |
+| go vet | clean | 0 | 2s |
 | gofmt | findings | 2 | 0s |
-| nixfmt | clean | 0 | 1s |
+| nixfmt | clean | 0 | 0s |
 | netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
@@ -64,7 +64,7 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `tools/quality-report/main.go` | 2 | unused×1, noctx×1 |
+| `tools/quality-report/main.go` | 2 | noctx×1, unused×1 |
 | `pkg/xtcp` | 1 | below-90pct×1 |
 | `pkg/xtcp/destinations_kafka_test.go` | 1 | format×1 |
 | `pkg/xtcp/destinations_valkey_test.go` | 1 | format×1 |
@@ -82,7 +82,7 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 87.1% < 90%
+- `pkg/xtcp`: package coverage 89.1% < 90%
 
 ### golangci-lint / noctx — 1
 
@@ -116,10 +116,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 1290 |
+| Pass | 1291 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 9 |
+| Skip | 8 |
 
 
 
@@ -161,7 +161,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 - Top contributor: **gofmt/format** with 2 findings (33% of total). Concentrate effort here for the biggest quality win.
 - Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~3 quick-fixable findings before manual review.
-- Hotspot file: `tools/quality-report/main.go` carries 2 findings (unused×1, noctx×1). Refactor here before touching adjacent code.
+- Hotspot file: `tools/quality-report/main.go` carries 2 findings (noctx×1, unused×1). Refactor here before touching adjacent code.
 - Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
 
 
@@ -169,7 +169,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 13. Test coverage
 
-**Overall:** 91.1% of statements (target: 90% per package).
+**Overall:** 91.7% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -185,7 +185,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2client` | 91.5% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 87.1% | 🔴 below 90% |
+| `pkg/xtcp` | 89.1% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.8% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
@@ -193,8 +193,8 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 95.8% | 🟢 OK |
 | `tools/proto-field-audit` | 96.7% | 🟢 OK |
 | `tools/quality-report` | 92.8% | 🟢 OK |
-| `tools/tcp_client` | 93.1% | 🟢 OK |
+| `tools/tcp_client` | 90.3% | 🟢 OK |
 | `tools/tcp_server` | 94.6% | 🟢 OK |
-| `tools/udp_receiver_server` | 97.9% | 🟢 OK |
+| `tools/udp_receiver_server` | 93.8% | 🟢 OK |
 
 
