@@ -12,10 +12,20 @@ import (
 	nsq "github.com/nsqio/go-nsq"
 )
 
+// nsqProducer captures the surface of *nsq.Producer that nsqDest
+// actually calls. Lifting it to an interface lets the destination's
+// Send/Close paths run against an in-process fake without a real
+// nsqd — see destinations_nsq_test.go. *nsq.Producer satisfies this
+// interface via its concrete methods.
+type nsqProducer interface {
+	Publish(topic string, body []byte) error
+	Stop()
+}
+
 // nsqDest publishes each marshalled record to an NSQ topic.
 type nsqDest struct {
 	x        *XTCP
-	producer *nsq.Producer
+	producer nsqProducer
 }
 
 func newNSQDest(_ context.Context, x *XTCP) (Destination, error) {
