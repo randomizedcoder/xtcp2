@@ -76,6 +76,31 @@ pkgs.writeShellApplication {
     echo " host:   $(uname -n)"
     echo "================================================"
 
+    # Metric-counter helper: scrape one prom counter value from the
+    # daemon's /metrics endpoint. Returns 0 if the counter is missing.
+    # Many xtcp2 counters use multi-label vectors; the regex matches any
+    # row whose label set CONTAINS each supplied substring.
+    #
+    # Prometheus prints labels in lexicographic order: function, then
+    # type, then variable. So a single substring like
+    # 'function="X",variable="Y"' will never match — labels are separated
+    # by `,type="..."`. Pass two separate substrings instead.
+    metric_value() {
+      local name="$1"
+      local label_a="$2"
+      local label_b="''${3:-}"
+      curl --silent --fail --max-time 2 \
+           "http://127.0.0.1:${toString promPort}/metrics" \
+        | awk -v n="$name" -v sa="$label_a" -v sb="$label_b" '
+            $1 ~ n {
+              if (sa != "" && index($0, sa) == 0) next
+              if (sb != "" && index($0, sb) == 0) next
+              sum += $NF + 0
+            }
+            END { printf "%d", sum }
+          '
+    }
+
     # ─── Check 1: systemd unit active ──────────────────────────────────────
     echo "--- check 1: systemctl is-active xtcp2 ---"
     check1=1
@@ -111,27 +136,38 @@ pkgs.writeShellApplication {
       overall_ok=0
     fi
 
-    # ─── Check 3: netlink readout — open a loopback TCP conn, see it in jsonl ─
-    echo "--- check 3: netlink readout of loopback TCP socket ---"
-    check3=1
+    # ─── Check 3: netlink readout — daemon parses TCP sockets via inet_diag ─
+    # xtcp2 has no file destination type (the daemon is configured with
+    # `-dest null` in coverage / `-dest kafka:…` in the basic flavor), so
+    # there's no /var/log/xtcp2.jsonl to grep — that file was always a
+    # mirage. The right assertion is metric-based: the daemon's
+    # `Netlinker.p` (or `NetlinkerIoUring.p`) counter accumulates the
+    # number of inet_diag sockets parsed per recv. Open a TCP listener
+    # on the host, then wait for ANY Netlinker `p` counter to reach >0
+    # (the default-ns netlinker takes ~10s to come online after
+    # openAndSetNSWithRetries returns, so a tight before/after window
+    # straight after METRICS_PASS is racy). Aborting on after_p>0 is
+    # enough — it means the daemon's inet_diag → Deserialize pipeline
+    # ran end-to-end at least once.
+    echo "--- check 3: daemon parses TCP sockets via inet_diag ---"
     nc -l 127.0.0.1 17321 >/dev/null 2>&1 &
     listener_pid=$!
     sleep 1
-    ( echo "hi" | nc -w 2 127.0.0.1 17321 >/dev/null 2>&1 ) &
+    ( echo "hi" | nc -w 8 127.0.0.1 17321 >/dev/null 2>&1 ) &
     client_pid=$!
+    netlink_seen=0
     for _ in $(seq 1 20); do
-      if [ -f /var/log/xtcp2.jsonl ] && \
-         grep -E -q '"(d_?port|dst_port|remote_port)"[^,}]*17321' /var/log/xtcp2.jsonl; then
-        echo "XTCP2_SELF_TEST_NETLINK_PASS  (4-tuple :17321 found in jsonl)"
-        check3=0
+      sample=$(metric_value "xtcp_counts" 'variable="p"' 'type="count"')
+      if [ "$sample" -gt 0 ]; then
+        netlink_seen=$sample
         break
       fi
       sleep 1
     done
-    if [ "$check3" -ne 0 ]; then
-      echo "XTCP2_SELF_TEST_NETLINK_FAIL  (no record matching :17321 in /var/log/xtcp2.jsonl)"
-      echo "--- last 20 lines of jsonl sink ---"
-      tail -n 20 /var/log/xtcp2.jsonl 2>/dev/null || echo "(file missing)"
+    if [ "$netlink_seen" -gt 0 ]; then
+      echo "XTCP2_SELF_TEST_NETLINK_PASS  (Netlinker parsed $netlink_seen sockets via inet_diag)"
+    else
+      echo "XTCP2_SELF_TEST_NETLINK_FAIL  (no inet_diag socket parsed in 20s)"
       overall_ok=0
     fi
     kill "$listener_pid" "$client_pid" 2>/dev/null || true
@@ -181,7 +217,8 @@ pkgs.writeShellApplication {
     if command -v xtcp2client >/dev/null 2>&1; then
       # Run xtcp2client briefly. Exit code 0 or 124 (timeout) both acceptable
       # for "it connected"; anything else is a wire/handshake failure.
-      timeout 3s xtcp2client -addr "127.0.0.1:${toString grpcPort}" >/tmp/xtcp2client.log 2>&1
+      # xtcp2client takes -target (host) + -port (numeric), not -addr.
+      timeout 3s xtcp2client -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2client.log 2>&1
       rc=$?
       if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; then
         if [ -s /tmp/xtcp2client.log ]; then
@@ -232,31 +269,6 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_NSTEST_FAIL  (nsTest not on PATH)"
     fi
     if [ "$check7" -ne 0 ]; then overall_ok=0; fi
-
-    # Metric-counter helper: scrape one prom counter value from the
-    # daemon's /metrics endpoint. Returns 0 if the counter is missing.
-    # Many xtcp2 counters use multi-label vectors; the regex matches any
-    # row whose label set CONTAINS each supplied substring.
-    #
-    # Prometheus prints labels in lexicographic order: function, then
-    # type, then variable. So a single substring like
-    # 'function="X",variable="Y"' will never match — labels are separated
-    # by `,type="..."`. Pass two separate substrings instead.
-    metric_value() {
-      local name="$1"
-      local label_a="$2"
-      local label_b="''${3:-}"
-      curl --silent --fail --max-time 2 \
-           "http://127.0.0.1:${toString promPort}/metrics" \
-        | awk -v n="$name" -v sa="$label_a" -v sb="$label_b" '
-            $1 ~ n {
-              if (sa != "" && index($0, sa) == 0) next
-              if (sb != "" && index($0, sb) == 0) next
-              sum += $NF + 0
-            }
-            END { printf "%d", sum }
-          '
-    }
 
     # ─── Check 8: ns lifecycle — ip netns add/delete propagates ──────────
     # The xtcp2 daemon watches /run/netns/ via fsnotify. Creating a new
