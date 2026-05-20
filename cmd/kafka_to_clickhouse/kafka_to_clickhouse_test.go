@@ -160,6 +160,37 @@ func TestRunMain_fileMode(t *testing.T) {
 	}
 }
 
+// TestRunMain_kafkaMode drives runMain through the kafka=true branch
+// using a bogus broker + a short-lived ctx so destKafka's wg.Wait
+// (which blocks on Produce's callback) is unblocked by ctx
+// cancellation rather than waiting for franz-go's connection retries.
+// Covers the `if c.kafka { InitDestKafka + defer flush+close }` block
+// inside runMain that the file-mode test skips.
+func TestRunMain_kafkaMode(t *testing.T) {
+	prevClient := kClient
+	t.Cleanup(func() {
+		if kClient != prevClient && kClient != nil {
+			kClient.Close()
+		}
+		kClient = prevClient
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.bin")
+	var stderr bytes.Buffer
+	rc := runMain(ctx, []string{
+		"-filename", out, "-values", "1",
+		"-kafka=true", "-broker", "127.0.0.1:1", // refused
+		"-loops", "1", "-loopsSleep", "1ms",
+	}, &bytes.Buffer{}, &stderr)
+	// rc=0 — runMain swallows broker errors; the assertion is just
+	// "does not hang, returns cleanly".
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0 (kafka mode w/ unreachable broker)", rc)
+	}
+}
+
 func TestInitDestKafka_noopWhenDisabled(t *testing.T) {
 	// kafka=false → InitDestKafka short-circuits without trying to create
 	// a client.
