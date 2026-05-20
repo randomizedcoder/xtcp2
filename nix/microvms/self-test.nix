@@ -270,6 +270,7 @@ pkgs.writeShellApplication {
       # Diagnostic: what does the daemon think it's watching? Dump
       # every xtcp_counts row whose label set mentions watchNamespaces.
       echo "  pre: ls /run/netns/:"
+      # shellcheck disable=SC2012 # diagnostic ls is fine here
       ls -la /run/netns/ 2>&1 | sed 's/^/    /'
       echo "  pre: watchNamespaces metric rows:"
       curl --silent --fail --max-time 2 \
@@ -289,6 +290,7 @@ pkgs.writeShellApplication {
       # Bring lo up so a subsequent socket inside the ns is meaningful.
       ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 | sed 's/^/    /' || true
       echo "  post-add: ls /run/netns/:"
+      # shellcheck disable=SC2012 # diagnostic ls is fine here
       ls -la /run/netns/ 2>&1 | sed 's/^/    /'
       # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
       sleep 3
