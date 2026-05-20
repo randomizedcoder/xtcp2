@@ -94,11 +94,10 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 			// validate the duration either, so this codifies the
 			// behavior.
 			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						// expected for non-positive durations
-					}
-				}()
+				// Non-positive durations cause ticker.Reset to panic; the
+				// production poller doesn't validate so this codifies the
+				// behavior. recover() swallows it intentionally.
+				defer func() { _ = recover() }()
 				x.handleChangePollFrequency(tc.newD, ticker, 1, 0)
 			}()
 

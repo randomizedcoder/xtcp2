@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-05-20T20:06:13Z
+Generated: 2026-05-20T20:28:13Z
 
 Tool versions: go=go1.25.10; golangci-lint=2.12.2; gosec=2.26.1; nixfmt=1.2.0; 
 
@@ -15,11 +15,11 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 3 |
+| Total findings | 2 |
 | Findings (Tier 0) | 1 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 0 |
-| Findings (non-tiered) | 2 |
+| Findings (non-tiered) | 1 |
 | Files with at least one finding | 2 |
 | Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | findings | 1 | 5s |
-| golangci-lint (standard) | findings | 1 | 5s |
-| golangci-lint (quick) | findings | 2 | 14s |
-| gosec | clean | 0 | 1s |
+| golangci-lint (comprehensive) | clean | 0 | 5s |
+| golangci-lint (standard) | clean | 0 | 5s |
+| golangci-lint (quick) | findings | 1 | 14s |
+| gosec | clean | 0 | 2s |
 | go vet | clean | 0 | 2s |
-| gofmt | findings | 1 | 0s |
+| gofmt | clean | 0 | 0s |
 | nixfmt | clean | 0 | 0s |
-| netlink-audit | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
 | metrics-audit | clean | 0 | 0s |
 | proto-field-audit | clean | 0 | 0s |
-| go test | clean | 0 | 9s |
-| go test -cover | findings | 1 | 1s |
+| go test | clean | 0 | 10s |
+| go test -cover | findings | 1 | 0s |
 
 
 ---
@@ -52,7 +52,7 @@ between commits reveals exactly what changed.
 
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
-| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 1 | 2 |
+| 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 1 | 0 |
 | 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | 0 | 0 |
 | 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | 0 | 0 |
 
@@ -64,8 +64,8 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
-| `tools/quality-report/main.go` | 2 | gofmt×1, format×1 |
 | `pkg/xtcp` | 1 | below-90pct×1 |
+| `pkg/xtcp/poller_helpers_test.go` | 1 | staticcheck×1 |
 
 
 ---
@@ -74,15 +74,11 @@ between commits reveals exactly what changed.
 
 ### go-test-cover / below-90pct — 1
 
-- `pkg/xtcp`: package coverage 89.4% < 90%
+- `pkg/xtcp`: package coverage 86.6% < 90%
 
-### gofmt / format — 1
+### golangci-lint / staticcheck — 1
 
-- `tools/quality-report/main.go`: file not formatted
-
-### golangci-lint / gofmt — 1
-
-- `tools/quality-report/main.go:21`: File is not properly formatted
+- `pkg/xtcp/poller_helpers_test.go:98`: SA9003: empty branch
 
 ---
 
@@ -122,9 +118,8 @@ between commits reveals exactly what changed.
 
 ## 10. Format checks
 
-**`gofmt` would reformat (1 file):**
+`gofmt`: clean.
 
-- `tools/quality-report/main.go`
 `nixfmt`: clean.
 
 ---
@@ -146,17 +141,15 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **go-test-cover/below-90pct** with 1 findings (33% of total). Concentrate effort here for the biggest quality win.
-- Run `lint-fix` (or `golangci-lint run --fix`) to auto-resolve ~2 quick-fixable findings before manual review.
-- Hotspot file: `tools/quality-report/main.go` carries 2 findings (gofmt×1, format×1). Refactor here before touching adjacent code.
-- Format files are out of sync — run `gofmt -w .` and `nixfmt **/*.nix` to bring formatting back to baseline.
+- Top contributor: **go-test-cover/below-90pct** with 1 findings (50% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `pkg/xtcp` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
 
 
 ---
 
 ## 13. Test coverage
 
-**Overall:** 91.9% of statements (target: 90% per package).
+**Overall:** 90.7% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
@@ -167,13 +160,13 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/ns` | 93.9% | 🟢 OK |
 | `cmd/nsTest` | 94.1% | 🟢 OK |
 | `cmd/register_schema` | 91.4% | 🟢 OK |
-| `cmd/xtcp2` | 95.9% | 🟢 OK |
+| `cmd/xtcp2` | 92.4% | 🟢 OK |
 | `cmd/xtcp2_kafka_client` | 93.0% | 🟢 OK |
 | `cmd/xtcp2client` | 91.6% | 🟢 OK |
 | `pkg/io_uring` | 92.6% | 🟢 OK |
 | `pkg/misc` | 93.8% | 🟢 OK |
-| `pkg/xtcp` | 89.4% | 🔴 below 90% |
-| `pkg/xtcpnl` | 91.8% | 🟢 OK |
+| `pkg/xtcp` | 86.6% | 🔴 below 90% |
+| `pkg/xtcpnl` | 91.4% | 🟢 OK |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
 | `tools/metrics-audit` | 97.2% | 🟢 OK |
