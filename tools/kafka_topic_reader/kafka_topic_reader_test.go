@@ -166,3 +166,66 @@ func TestPollLoop_emptyFetches(t *testing.T) {
 		t.Fatal("pollLoop did not exit after ctx timeout")
 	}
 }
+
+// fakeFetcher implements the kafkaFetcher interface so pollLoop can be
+// driven with synthetic Fetches — exercises the EachRecord closure
+// body (j++; records++; handleRecord(...)) that broker-bound tests
+// couldn't reach.
+type fakeFetcher struct {
+	fetches  []kgo.Fetches
+	calls    int
+	onCancel context.CancelFunc
+}
+
+func (f *fakeFetcher) PollFetches(_ context.Context) kgo.Fetches {
+	f.calls++
+	if f.calls > len(f.fetches) {
+		if f.onCancel != nil {
+			f.onCancel()
+		}
+		return kgo.Fetches{}
+	}
+	return f.fetches[f.calls-1]
+}
+
+func makeFetchWithRecord(value []byte) kgo.Fetches {
+	return kgo.Fetches{
+		{
+			Topics: []kgo.FetchTopic{
+				{
+					Topic: "test-topic",
+					Partitions: []kgo.FetchPartition{
+						{Records: []*kgo.Record{{Value: value}}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestPollLoop_eachRecordClosureFires drives pollLoop with a synthetic
+// Fetch containing a single record. handleRecord will fail to unmarshal
+// the random bytes but that's fine — it returns nil and the closure
+// completes. After the fake exhausts its fetches it cancels ctx.
+func TestPollLoop_eachRecordClosureFires(t *testing.T) {
+	value := []byte{0x00, 0x01, 0x02}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	fake := &fakeFetcher{
+		fetches:  []kgo.Fetches{makeFetchWithRecord(value)},
+		onCancel: cancel,
+	}
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, fake, 50*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after fake fetcher exhausted")
+	}
+	if fake.calls < 1 {
+		t.Errorf("expected ≥1 PollFetches call; got %d", fake.calls)
+	}
+}
