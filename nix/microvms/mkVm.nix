@@ -576,6 +576,105 @@ in
           enableOnBoot = true;
         };
 
+        # Phase D: Prometheus server inside the tcp-stress VM, scraping
+        # xtcp2's /metrics endpoint every 15s. Lets us run a long-form
+        # session (300s smoke → 12h) and inspect what counters did over
+        # time: per-ns Netlinker.p / .packets / start, watchNamespaces
+        # event/for, GC behaviour, etc. The server listens on
+        # 127.0.0.1:9090; the runner also includes a periodic snapshot
+        # service that curls Prometheus and writes per-query JSON lines
+        # to a file so the user sees concrete data even if they don't
+        # log into the VM to browse the web UI.
+        services.prometheus = lib.mkIf isTcpStress {
+          enable = true;
+          port = 9090;
+          listenAddress = "0.0.0.0";
+          globalConfig = {
+            scrape_interval = "15s";
+            evaluation_interval = "15s";
+          };
+          scrapeConfigs = [
+            {
+              job_name = "xtcp2";
+              static_configs = [
+                {
+                  targets = [ "127.0.0.1:${toString cfg.promPort}" ];
+                  labels.instance = "xtcp2-vm";
+                }
+              ];
+            }
+            {
+              job_name = "prometheus-self";
+              static_configs = [
+                {
+                  targets = [ "127.0.0.1:9090" ];
+                  labels.instance = "prometheus-vm";
+                }
+              ];
+            }
+          ];
+          # Keep retention well above the longest planned soak (12h).
+          # Storage lives in /var/lib/prometheus2 which is tmpfs in this
+          # VM — a 12h run with 15s scrape ≈ 2880 samples per series,
+          # well under the default ~16 GiB block budget.
+          retentionTime = "48h";
+        };
+
+        # Snapshot service: every 30s, query Prometheus for a handful of
+        # key xtcp2 metrics and append a JSON line to a tmpfs log file.
+        # On exit the runner prints the last few lines so the user has
+        # concrete evidence Prometheus collected data without needing
+        # to log into the VM.
+        systemd.services.xtcp2-prom-snapshot = lib.mkIf isTcpStress {
+          description = "xtcp2 tcp-stress — periodic Prometheus query snapshots";
+          after = [ "prometheus.service" ];
+          wants = [ "prometheus.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = pkgs.writeShellScript "xtcp2-prom-snapshot" ''
+              set -u
+              log=/var/log/xtcp2-prom-snapshot.jsonl
+              # Wait for Prometheus to come up.
+              for _ in $(seq 1 30); do
+                if ${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
+                    http://127.0.0.1:9090/-/ready >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 1
+              done
+              while true; do
+                ts=$(date -u +%FT%TZ)
+                # Use Prometheus's instant-query API. Each query gives
+                # the current value of one summable counter.
+                {
+                  printf '{"t":"%s"' "$ts"
+                  for q in \
+                    'sum(xtcp_counts{variable="p"})' \
+                    'sum(xtcp_counts{variable="packets"})' \
+                    'sum(xtcp_counts{function="netNamespaceInstance",variable="start"})' \
+                    'sum(xtcp_counts{function="watchNamespaces",variable="event"})' \
+                    'sum(xtcp_counts{function="nsAdd",variable="store"})' \
+                    'sum(xtcp_counts{variable="OrphanCQE"})' ; do
+                    v=$(${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
+                      --data-urlencode "query=$q" \
+                      http://127.0.0.1:9090/api/v1/query 2>/dev/null \
+                      | ${pkgs.jq}/bin/jq -r '.data.result[0].value[1] // "0"' 2>/dev/null \
+                      || echo "0")
+                    printf ',"%s":%s' "$q" "$v"
+                  done
+                  printf '}\n'
+                } >> "$log"
+                sleep 30
+              done
+            '';
+            Restart = "on-failure";
+            RestartSec = "5s";
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
         systemd.services.xtcp2-tcp-stress-load = lib.mkIf isTcpStress {
           description = "xtcp2 tcp-stress — load OCI image into docker";
           after = [ "docker.service" ];

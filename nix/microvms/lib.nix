@@ -42,6 +42,7 @@ rec {
 
         DURATION_SEC=180  # default 3 minutes — enough for boot + container
                           # spawn + a few netlinker polling cycles
+        KEEP_ALIVE=0
         while [ $# -gt 0 ]; do
           case "$1" in
             --duration)
@@ -59,8 +60,16 @@ rec {
                 }
               ')
               shift 2 ;;
+            --keep-alive)
+              KEEP_ALIVE=1; shift ;;
             -h|--help)
-              echo "usage: $0 [--duration <Nh|Nm|Ns>] (default 180s)"
+              echo "usage: $0 [--duration <Nh|Nm|Ns>] [--keep-alive]"
+              echo "  --duration   how long to sleep before printing the summary"
+              echo "               (default 180s, accepts s/m/h suffix)"
+              echo "  --keep-alive don't power off after the summary — leave the"
+              echo "               VM running so you can serial-in (\`nc 127.0.0.1"
+              echo "               12055\`) and poke Prometheus etc. Ctrl-C the"
+              echo "               runner to terminate the VM."
               exit 0 ;;
             *) echo "unknown arg: $1" >&2; exit 1 ;;
           esac
@@ -99,6 +108,9 @@ rec {
           sleep 1
         done
 
+        # Cleanup trap: only kicks in when the runner actually exits.
+        # With --keep-alive, the runner sleeps forever after the summary
+        # so this trap never fires until Ctrl-C / SIGTERM.
         trap '
           if kill -0 "$vm_pid" 2>/dev/null; then
             ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
@@ -118,7 +130,21 @@ rec {
         # needs time for: dockerd to come up (~5-10s), xtcp2 to come up
         # (~2s), image load (~5-10s), N containers to start (~10-30s),
         # plus a few polling cycles for xtcp2 to discover the netns.
-        sleep "$DURATION_SEC"
+        # On long runs (12h soak), print a heartbeat every ~5 min so
+        # the operator sees the runner is alive and accumulating data.
+        elapsed=0
+        heartbeat_period=300
+        if [ "$DURATION_SEC" -lt 600 ]; then heartbeat_period=$DURATION_SEC; fi
+        while [ "$elapsed" -lt "$DURATION_SEC" ]; do
+          remaining=$((DURATION_SEC - elapsed))
+          step=$heartbeat_period
+          if [ "$step" -gt "$remaining" ]; then step=$remaining; fi
+          sleep "$step"
+          elapsed=$((elapsed + step))
+          if [ "$elapsed" -lt "$DURATION_SEC" ]; then
+            echo "  [t=$(printf %6d "$elapsed")s/$DURATION_SEC] tcp-stress in flight"
+          fi
+        done
 
         echo ""
         echo "================================================"
@@ -157,7 +183,39 @@ rec {
           echo "PASS: $spawned containers, xtcp2 discovered all $ns_discovered per-container netns"
         fi
         echo ""
+
+        # Pull the last few Prometheus snapshot lines off the VM via the
+        # serial console. xtcp2-prom-snapshot.service writes one JSON
+        # line per 30s to /var/log/xtcp2-prom-snapshot.jsonl inside the
+        # VM. Use the existing serial getty to `tail` the file.
+        echo "================================================"
+        echo " Prometheus snapshots (latest 3, from in-VM)"
+        echo "================================================"
+        (
+          # Send a tail command + a marker we can grep for. The getty
+          # is at hvc0 (virtio-console). Use the serial port login shell
+          # — that's the one wired to SERIAL_PORT in mkVm.nix.
+          printf "tail -n 3 /var/log/xtcp2-prom-snapshot.jsonl ; echo ---END-PROM---\n" \
+            | nc -q 5 127.0.0.1 "$SERIAL_PORT"
+        ) 2>/dev/null \
+          | awk '/---END-PROM---/{flag=0} flag; /xtcp2-prom-snapshot.jsonl/{flag=1}' \
+          | head -n 10 \
+          || echo "(no snapshot dump captured)"
+        echo ""
+
         echo "Full transcript kept at: $LOG"
+
+        if [ "$KEEP_ALIVE" -eq 1 ]; then
+          echo ""
+          echo "================================================"
+          echo " --keep-alive: VM is still running."
+          echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
+          echo "   Prometheus (in-VM): curl 127.0.0.1:9090/api/v1/query?query=..."
+          echo "   Ctrl-C this runner to power the VM off."
+          echo "================================================"
+          wait "$vm_pid"
+        fi
+
         exit "$rc"
       '';
     };

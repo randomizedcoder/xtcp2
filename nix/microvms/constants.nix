@@ -29,12 +29,11 @@
       # is exactly 2 GiB. 2304 (2.25 GiB) sidesteps that and leaves slack.
       memVector = 2304;
       # memTcpStress is used by sink="tcp-stress". The flavor runs
-      # dockerd + N container instances of oci-xtcp2-tcp-stress + xtcp2.
-      # 20 containers × tcp_server/client ≈ ~250 MiB of container working
-      # set, plus dockerd ~100 MiB and xtcp2 ~50 MiB — pick 2304 (same as
-      # Vector) so there's clear headroom. Lower if you're tuning down
-      # numContainers.
-      memTcpStress = 2304;
+      # dockerd + N container instances of oci-xtcp2-tcp-stress + xtcp2
+      # + an in-VM Prometheus server scraping xtcp2's /metrics. With
+      # 20 containers + Prometheus's ~150 MiB RSS + 12h of TSDB working
+      # set, 3072 MiB leaves clear headroom for a long-running session.
+      memTcpStress = 3072;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
