@@ -104,6 +104,13 @@ let
   # Phase E clickhouse-pipeline tunables. Image tags are deliberately
   # exposed here so a future tag bump doesn't require touching the
   # ExecStart strings deep in the systemd unit defs.
+  # ClickHouse 25.x disables network access for the `default` user
+  # when no password is configured (returns code 194 REQUIRED_PASSWORD).
+  # Set a known password so host-side queries via the forwarded :18123
+  # work without further setup. Override at deploy time if you don't
+  # want a hardcoded local-dev password.
+  clickPipeChPassword = "xtcp";
+
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
   # numeric tag for the LTS 25.x line at any given point is hard to
@@ -389,6 +396,17 @@ let
       # Done in-place because the source dir is a writable copy now.
       find "$initdbRw" -type f -name '*.sh' -exec \
         sed -i 's/rm --recursive --force/rm -rf/g' {} +
+      # The initdb shell scripts invoke `clickhouse-client` without a
+      # --password. With CLICKHOUSE_PASSWORD set on the container, the
+      # default user requires auth even over the local TCP loopback, so
+      # the bare invocations fail with code 194 and the container exits.
+      # Patch the variable definition to include the password.
+      find "$initdbRw" -type f -name '*.sh' -exec \
+        sed -i 's|CLICKHOUSE_CLIENT="clickhouse-client";|CLICKHOUSE_CLIENT="clickhouse-client --password ${clickPipeChPassword}";|g' {} +
+      # The 020 script uses a heredoc into `clickhouse-client -n` rather
+      # than the CLICKHOUSE_CLIENT variable — patch that directly too.
+      find "$initdbRw" -type f -name '*.sh' -exec \
+        sed -i 's|clickhouse-client -n <<-EOSQL|clickhouse-client --password ${clickPipeChPassword} -n <<-EOSQL|g' {} +
       # Same writable-copy pattern for format_schemas: clickhouse's
       # entrypoint chowns the mountpoint, which fails on a read-only
       # /nix/store bind. tmpfs the .proto file so the chown succeeds.
@@ -407,6 +425,7 @@ let
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
+        --env CLICKHOUSE_PASSWORD=${clickPipeChPassword} \
         -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
@@ -417,7 +436,7 @@ let
       # 6) Wait for clickhouse to accept queries (~10-20s on first boot
       # because the initdb scripts run synchronously before HTTP comes up).
       for _ in $(seq 1 60); do
-        if docker exec clickhouse clickhouse-client -q 'SELECT 1' >/dev/null 2>&1; then
+        if docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} -q 'SELECT 1' >/dev/null 2>&1; then
           break
         fi
         sleep 1
@@ -444,7 +463,7 @@ let
       # Wait for the table to exist (initdb runs async during clickhouse
       # first start).
       for _ in $(seq 1 60); do
-        if docker exec clickhouse clickhouse-client \
+        if docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
             -q 'EXISTS TABLE xtcp.xtcp_flat_records' 2>/dev/null \
             | grep -q '^1$'; then
           break
@@ -454,7 +473,7 @@ let
       # Periodic snapshot — sentinel prefix lets the host runner grep
       # without ambiguity.
       while true; do
-        rows=$(docker exec clickhouse clickhouse-client \
+        rows=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
           -q 'SELECT count() FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
         echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows"
         sleep 30
