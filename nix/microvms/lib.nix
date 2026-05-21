@@ -13,6 +13,155 @@
 }:
 
 rec {
+  # Build the tcp-stress smoke runner for a given arch. Boots the
+  # docker-in-VM flavor, tails its serial console for `--duration`
+  # seconds, then powers off. Reports key signals scraped from the
+  # transcript: docker.service start, xtcp2-tcp-stress-load completion,
+  # how many stress-N containers came up, and a final xtcp2 metric
+  # snapshot showing the per-container ns counters.
+  mkTcpStressRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-tcp-stress-runner-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        gawk
+        netcat-gnu
+        procps
+        curl
+      ];
+      text = ''
+        set -u
+
+        DURATION_SEC=180  # default 3 minutes — enough for boot + container
+                          # spawn + a few netlinker polling cycles
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --duration)
+              # Convert <N>{s,m,h} → seconds
+              d="$2"
+              DURATION_SEC=$(awk -v d="$d" '
+                BEGIN {
+                  n = d + 0
+                  u = d; sub(/^[0-9.]+/, "", u)
+                  mul = (u == "s" || u == "") ? 1 :
+                        (u == "m") ? 60 :
+                        (u == "h") ? 3600 : -1
+                  if (mul < 0) exit 1
+                  printf "%d", n * mul
+                }
+              ')
+              shift 2 ;;
+            -h|--help)
+              echo "usage: $0 [--duration <Nh|Nm|Ns>] (default 180s)"
+              exit 0 ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-tcp-stress-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 tcp-stress smoke — arch=${arch}"
+        echo " duration: ''${DURATION_SEC}s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # Sleep the full duration regardless of boot speed — the VM
+        # needs time for: dockerd to come up (~5-10s), xtcp2 to come up
+        # (~2s), image load (~5-10s), N containers to start (~10-30s),
+        # plus a few polling cycles for xtcp2 to discover the netns.
+        sleep "$DURATION_SEC"
+
+        echo ""
+        echo "================================================"
+        echo " tcp-stress smoke summary"
+        echo "================================================"
+        started_xtcp2=$(grep -c 'Started.*xtcp2 — TCP socket' "$LOG" 2>/dev/null || true)
+        # Match `dockerd[…]: Starting up` — NixOS docker.service doesn't
+        # use a "Started Docker" line, the dockerd binary just logs its
+        # own startup banner.
+        started_docker=$(grep -cE 'dockerd\[[0-9]+\]:.*Starting up' "$LOG" 2>/dev/null || true)
+        loaded_image=$(grep -c 'Loaded image: xtcp2-tcp-stress' "$LOG" 2>/dev/null || true)
+        spawned=$(grep -cE 'stress-[0-9]+: started' "$LOG" 2>/dev/null || true)
+        failed=$(grep -cE 'stress-[0-9]+: FAILED' "$LOG" 2>/dev/null || true)
+        panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+        # Per-container netns discovery — count how many distinct
+        # /run/docker/netns/<container-id> CREATE events fired in xtcp2.
+        ns_discovered=$(grep -cE 'watchNamespaces /run/docker/netns/.*Op\.String: CREATE' "$LOG" 2>/dev/null || true)
+
+        echo "  xtcp2.service started:        $started_xtcp2"
+        echo "  docker.service started:       $started_docker"
+        echo "  oci image loaded:             $loaded_image"
+        echo "  containers spawned OK:        $spawned"
+        echo "  containers FAILED to start:   $failed"
+        echo "  per-container ns discovered:  $ns_discovered"
+        echo "  panics in transcript:         $panics"
+
+        rc=0
+        [ "$started_xtcp2" -lt 1 ] && { echo "FAIL: xtcp2 didn't start"; rc=1; }
+        [ "$started_docker" -lt 1 ] && { echo "FAIL: docker didn't start"; rc=1; }
+        [ "$loaded_image" -lt 1 ] && { echo "FAIL: oci image never loaded"; rc=1; }
+        [ "$spawned" -lt 1 ] && { echo "FAIL: no containers spawned"; rc=1; }
+        [ "$ns_discovered" -lt "$spawned" ] && { echo "FAIL: xtcp2 saw $ns_discovered ns CREATE events but $spawned containers spawned"; rc=1; }
+        [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s)"; rc=1; }
+
+        if [ "$rc" -eq 0 ]; then
+          echo "PASS: $spawned containers, xtcp2 discovered all $ns_discovered per-container netns"
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        exit "$rc"
+      '';
+    };
+
   # Build the soak runner for a given arch. Long-running on-demand test:
   # boots the soak microvm (xtcp2 + nsTest churn + /metrics scraper),
   # waits for --duration to elapse, then powers off and prints a summary

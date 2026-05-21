@@ -211,6 +211,15 @@ let
     };
   });
 
+  tcpStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkTcpStressRunner {
+        inherit arch;
+        vm = vmsTcpStress.${arch};
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -251,6 +260,7 @@ in
     lifecycleCoverage
     lifecycleCoverageIoUring
     soak
+    tcpStress
     checks
     checksVector
     ;
