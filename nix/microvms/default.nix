@@ -23,6 +23,11 @@
   # null, the Vector flavor attrs are not exposed (so callers that don't
   # have the descriptor set built yet still get the minimal flavor).
   protoDescPackage ? null,
+  # Optional: the streamLayeredImage script for oci-xtcp2-tcp-stress.
+  # Phase C ("tcp-stress" sink) loads this into the in-VM docker daemon
+  # at boot and spawns N containers from it. When null, the tcp-stress
+  # flavor attrs are not exposed.
+  tcpStressImage ? null,
   # Optional: a coverage-instrumented xtcp2 build (see nix/binaries.nix
   # xtcp2-cover). When non-null, the coverage flavor is exposed. The
   # microvm runs the cover binary with GOCOVERDIR set to a tmpfs path,
@@ -111,6 +116,22 @@ let
       sink = "soak";
     };
 
+  mkOneTcpStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "tcp-stress";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
@@ -126,6 +147,10 @@ let
   );
 
   vmsSoak = lib.genAttrs constants.supportedArchs mkOneSoak;
+
+  vmsTcpStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneTcpStress
+  );
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -220,6 +245,7 @@ in
     vmsCoverage
     vmsCoverageIoUring
     vmsSoak
+    vmsTcpStress
     lifecycle
     lifecycleVector
     lifecycleCoverage

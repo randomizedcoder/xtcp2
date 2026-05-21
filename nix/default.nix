@@ -68,6 +68,7 @@ let
     xtcp2AllPackage = binaries.xtcp2-all;
     xtcp2CoverPackage = binaries.xtcp2-cover;
     protoDescPackage = xtcpFlatRecordDescPackage;
+    tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
 
   # Static analysis + audit checks
@@ -309,6 +310,7 @@ in
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
+      microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -381,6 +383,17 @@ in
     microvm-x86_64-soak = {
       type = "app";
       program = "${microvms.soak.x86_64.runner}/bin/xtcp2-soak-x86_64";
+    };
+    # Phase C: docker-in-VM tcp-stress harness. Boots a microvm with
+    # dockerd, loads oci-xtcp2-tcp-stress, and spawns N containers
+    # (default 5, configurable via tcpStressNumContainers in mkVm.nix)
+    # each running tcp_server + tcp_client. Each container's sockets
+    # live in their own /run/docker/netns/ entry — xtcp2 watches that
+    # directory and discovers all of them. Just `nix run` it; the VM
+    # boots, runs the workload, and tails the journal until stopped.
+    microvm-x86_64-tcp-stress = {
+      type = "app";
+      program = "${microvms.vmsTcpStress.x86_64}/bin/microvm-run";
     };
     quality-report = {
       type = "app";

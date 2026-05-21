@@ -207,6 +207,5 @@ defaultBinaries
     joins
     xtcp2ByFlavor
     xtcp2OnlyByFlavor
-    toolBinaries
     ;
 }

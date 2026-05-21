@@ -29,6 +29,9 @@
   # Required when sink == "vector". A derivation that provides
   # share/xtcp2/xtcp_flat_record.desc. See nix/lib/mkProtoDescSet.nix.
   protoDescPackage ? null,
+  # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
+  # script) that the in-VM container spawn unit loads via `docker load`.
+  tcpStressImage ? null,
 }:
 
 let
@@ -39,7 +42,14 @@ let
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
-  effectiveMem = if isVector then cfg.memVector else cfg.mem;
+  isTcpStress = sink == "tcp-stress";
+  effectiveMem =
+    if isVector then
+      cfg.memVector
+    else if isTcpStress then
+      cfg.memTcpStress
+    else
+      cfg.mem;
 
   coverDir = "/var/lib/xtcp2cov";
 
@@ -70,6 +80,19 @@ let
   soakTcpClientSleep = "5s";
   soakTcpPads = 2048;
   soakTcpConnect = "127.0.0.1";
+
+  # Phase C tcp-stress tunables. N containers each running TCP_MODE=both
+  # (server + client) with M sockets, so the total visible-to-xtcp2
+  # socket count is roughly numContainers * socketsPerContainer * 2
+  # (server + accepted-conn pair per port). Each container gets its
+  # own netns courtesy of docker's bridge network, exercising xtcp2's
+  # /run/docker/netns/ fsnotify watch under real socket load. Start
+  # small (numContainers=5 default) so the per-VM resource budget
+  # stays sane; bump up to 20+ once you've validated end-to-end.
+  tcpStressNumContainers = 5;
+  tcpStressSocketsPerContainer = 20;
+  tcpStressClientSleep = "5s";
+  tcpStressPads = 1024;
 
   # nsTest churn parameters tuned for soak runs. Production nsTest defaults
   # are 1000 initial namespaces + 100ms sleep — which inside a microvm
@@ -134,6 +157,74 @@ let
   };
 
   vmConfig = ./xtcp2-vm-config.json;
+
+  # Phase C scripts: load the OCI image into the VM's docker daemon at
+  # boot, then spin up N containers each running tcp_server + tcp_client.
+  # The image arrives as a streamLayeredImage script — pipe it into
+  # docker load to materialize it inside the daemon.
+  tcpStressLoadScript = pkgs.writeShellApplication {
+    name = "xtcp2-tcp-stress-load";
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+    ];
+    text = ''
+      # Wait for dockerd's socket to be ready. NixOS' docker.service
+      # ordering should already gate us, but a brief readiness loop
+      # keeps the boot ordering robust if Type=notify isn't honored.
+      for _ in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then break; fi
+        sleep 1
+      done
+      docker info >/dev/null 2>&1 || { echo "FATAL: docker not ready"; exit 1; }
+
+      # The image is a streamLayeredImage script in the nix store. Run
+      # it; it streams a tar of the image to stdout, which `docker load`
+      # consumes directly.
+      ${if tcpStressImage != null then "${tcpStressImage} | docker load" else "echo 'no image provided'; exit 1"}
+    '';
+  };
+
+  tcpStressSpawnScript = pkgs.writeShellApplication {
+    name = "xtcp2-tcp-stress-spawn";
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+    ];
+    text = ''
+      # Spawn N containers, each running TCP_MODE=both with M sockets.
+      # No port publishing — each container has its own bridge netns,
+      # so the in-container client just dials 127.0.0.1 inside that ns.
+      # The point is for xtcp2 to discover each container's netns via
+      # /run/docker/netns/ fsnotify and observe its sockets via inet_diag.
+      n=${toString tcpStressNumContainers}
+      m=${toString tcpStressSocketsPerContainer}
+      sleep_dur=${tcpStressClientSleep}
+      pads=${toString tcpStressPads}
+
+      echo "spawning $n containers, each with TCP_MODE=both TCP_COUNT=$m"
+      for i in $(seq 1 "$n"); do
+        # --detach because we want them all live concurrently. Reusing
+        # the same image name from `docker load` (xtcp2-tcp-stress:latest).
+        # Names stress-1, stress-2, … so cleanup is scriptable.
+        if docker run --detach \
+            --name "stress-$i" \
+            --restart on-failure \
+            --env TCP_MODE=both \
+            --env "TCP_COUNT=$m" \
+            --env "TCP_SLEEP=$sleep_dur" \
+            --env "TCP_PADS=$pads" \
+            xtcp2-tcp-stress:latest >/dev/null 2>&1; then
+          echo "  stress-$i: started"
+        else
+          echo "  stress-$i: FAILED to start"
+        fi
+      done
+      # Keep the unit alive — it's Type=simple. Tail the logs of one
+      # representative container so this service's journal has signal.
+      sleep infinity
+    '';
+  };
 
   vectorModules =
     assert lib.assertMsg (
@@ -474,6 +565,49 @@ in
           };
         };
 
+        # Phase C: enable docker daemon for the tcp-stress sink. Adds
+        # ~150 MiB to the VM image (dockerd + containerd) but keeps the
+        # rest of the surface minimal — no docker-buildx, no compose.
+        virtualisation.docker = lib.mkIf isTcpStress {
+          enable = true;
+          # Disable docker's bridge auto-configuration via iptables to
+          # avoid microvm-vs-host iptables-version drift. Containers
+          # still get bridge networking via dockerd's default bridge.
+          enableOnBoot = true;
+        };
+
+        systemd.services.xtcp2-tcp-stress-load = lib.mkIf isTcpStress {
+          description = "xtcp2 tcp-stress — load OCI image into docker";
+          after = [ "docker.service" ];
+          requires = [ "docker.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${tcpStressLoadScript}/bin/xtcp2-tcp-stress-load";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        systemd.services.xtcp2-tcp-stress-spawn = lib.mkIf isTcpStress {
+          description = "xtcp2 tcp-stress — spawn N stress containers";
+          after = [
+            "xtcp2-tcp-stress-load.service"
+            "xtcp2.service"
+          ];
+          requires = [ "xtcp2-tcp-stress-load.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${tcpStressSpawnScript}/bin/xtcp2-tcp-stress-spawn";
+            Restart = "on-failure";
+            RestartSec = "5s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
         environment.systemPackages =
           (with pkgs; [
             coreutils
@@ -495,6 +629,7 @@ in
               duckdb
             ]
           )
+          ++ lib.optionals isTcpStress (with pkgs; [ docker ])
           ++ [ xtcp2AllPackage ];
       }
     )
