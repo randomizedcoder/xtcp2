@@ -565,6 +565,26 @@ in
           "ext4"
         ];
 
+        # When microvm.forwardPorts maps host → guest, the NixOS
+        # firewall on the guest still has to allow the inbound packet.
+        # Open the same set of ports that forwardPorts above covers,
+        # gated by the same flavor predicates. Default firewall in
+        # NixOS is enabled and blocks everything but ssh, so without
+        # these `curl 127.0.0.1:18123` from the host gets a TCP RST.
+        networking.firewall.allowedTCPPorts =
+          lib.optionals (isTcpStress || isClickPipe) [
+            9088 # xtcp2 prometheus
+            8889 # xtcp2 grpc
+          ]
+          ++ lib.optional isTcpStress 9090 # in-VM Prometheus
+          ++ lib.optionals isClickPipe [
+            18123 # clickhouse HTTP
+            19001 # clickhouse native
+            19092 # redpanda kafka external
+            19644 # redpanda admin
+            18081 # schema registry
+          ];
+
         microvm = {
           hypervisor = "qemu";
           mem = effectiveMem;
@@ -578,6 +598,68 @@ in
               mac = "02:00:00:00:10:01";
             }
           ];
+          # Host → guest port forwards via qemu's SLiRP hostfwd. Only
+          # applies when the interface is `type = "user"` (which it is
+          # for every flavor here). Each entry maps a host port to the
+          # SAME guest port — so e.g. `curl 127.0.0.1:18123` on the
+          # host hits clickhouse's HTTP endpoint inside the VM, which
+          # the docker `-p 18123:8123` mapping then routes into the
+          # clickhouse container.
+          forwardPorts =
+            lib.optionals (isTcpStress || isClickPipe) [
+              # xtcp2 daemon's prometheus + grpc endpoints — same on
+              # every docker-enabled flavor.
+              {
+                from = "host";
+                host.port = 9088;
+                guest.port = 9088;
+              }
+              {
+                from = "host";
+                host.port = 8889;
+                guest.port = 8889;
+              }
+            ]
+            ++ lib.optionals isTcpStress [
+              # in-VM Prometheus server for the tcp-stress flavor.
+              {
+                from = "host";
+                host.port = 9090;
+                guest.port = 9090;
+              }
+            ]
+            ++ lib.optionals isClickPipe [
+              # ClickHouse HTTP (clickhouse-client uses it via 8123,
+              # native via 9000; the docker run publishes them on 18123
+              # and 19001 respectively to avoid clashing with anything
+              # else on the VM).
+              {
+                from = "host";
+                host.port = 18123;
+                guest.port = 18123;
+              }
+              {
+                from = "host";
+                host.port = 19001;
+                guest.port = 19001;
+              }
+              # Redpanda external Kafka API + admin + schema registry.
+              {
+                from = "host";
+                host.port = 19092;
+                guest.port = 19092;
+              }
+              {
+                from = "host";
+                host.port = 19644;
+                guest.port = 19644;
+              }
+              {
+                from = "host";
+                host.port = 18081;
+                guest.port = 18081;
+              }
+            ];
           shares = [
             {
               source = "/nix/store";
