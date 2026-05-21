@@ -603,7 +603,9 @@ in
             19644 # redpanda admin
             18081 # schema registry
             3000  # grafana
-            9090  # prometheus
+            # 9090 (prometheus) intentionally not in forwardPorts —
+            # see comment in microvm.forwardPorts.
+            9090  # still open the firewall so grafana's internal call works
           ];
 
         microvm = {
@@ -680,17 +682,18 @@ in
                 host.port = 18081;
                 guest.port = 18081;
               }
-              # Grafana + Prometheus running on the VM host (not in
-              # docker). Browse http://127.0.0.1:3000 for dashboards.
+              # Grafana running on the VM host (not in docker). Browse
+              # http://127.0.0.1:3000 for dashboards. Prometheus inside
+              # the VM is reachable to Grafana via 127.0.0.1:9090
+              # internally — no host forward needed, and bind clashes
+              # with whatever already binds 9090 on the host (a common
+              # default for local Prometheus / kube-state-metrics).
+              # If you want host-side Prometheus access, add a forward
+              # entry using e.g. host.port = 19090.
               {
                 from = "host";
                 host.port = 3000;
                 guest.port = 3000;
-              }
-              {
-                from = "host";
-                host.port = 9090;
-                guest.port = 9090;
               }
             ];
           shares = [
