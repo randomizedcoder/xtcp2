@@ -303,6 +303,14 @@ let
       # 1) shared network so redpanda + clickhouse see each other by name
       docker network create xtcp --subnet 10.20.0.0/24 2>/dev/null || true
 
+      # 1b) Named volumes — mirror the compose stack so the dirs that
+      # the entrypoint chowns are docker-managed (and thus writable
+      # with the right ownership from the start). Survives container
+      # restarts inside one VM boot; gets wiped on VM reboot because
+      # /var/lib/docker is tmpfs-backed in this microvm.
+      docker volume create redpanda-0  2>/dev/null || true
+      docker volume create clickhouse_db 2>/dev/null || true
+
       # 2) Pull both images. First boot needs internet (qemu user-mode
       # NAT). After the layers are cached in /var/lib/docker the runner
       # comes up offline.
@@ -322,6 +330,7 @@ let
         --network xtcp \
         --hostname redpanda-0 \
         -p 19092:19092 -p 19644:9644 -p 18081:8081 \
+        -v redpanda-0:/var/lib/redpanda/data \
         --restart on-failure \
         ${clickPipeRedpandaImage} \
         redpanda start \
@@ -398,6 +407,7 @@ let
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
+        -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
         --restart on-failure \
