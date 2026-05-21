@@ -184,23 +184,16 @@ rec {
         fi
         echo ""
 
-        # Pull the last few Prometheus snapshot lines off the VM via the
-        # serial console. xtcp2-prom-snapshot.service writes one JSON
-        # line per 30s to /var/log/xtcp2-prom-snapshot.jsonl inside the
-        # VM. Use the existing serial getty to `tail` the file.
+        # Pull the last few Prometheus snapshot lines straight out of the
+        # serial transcript. xtcp2-prom-snapshot.service streams each
+        # query result as one `XTCP2_PROM_SNAPSHOT {...}` line per 30s.
         echo "================================================"
-        echo " Prometheus snapshots (latest 3, from in-VM)"
+        echo " Prometheus snapshots (latest 5)"
         echo "================================================"
-        (
-          # Send a tail command + a marker we can grep for. The getty
-          # is at hvc0 (virtio-console). Use the serial port login shell
-          # — that's the one wired to SERIAL_PORT in mkVm.nix.
-          printf "tail -n 3 /var/log/xtcp2-prom-snapshot.jsonl ; echo ---END-PROM---\n" \
-            | nc -q 5 127.0.0.1 "$SERIAL_PORT"
-        ) 2>/dev/null \
-          | awk '/---END-PROM---/{flag=0} flag; /xtcp2-prom-snapshot.jsonl/{flag=1}' \
-          | head -n 10 \
-          || echo "(no snapshot dump captured)"
+        grep -E 'XTCP2_PROM_SNAPSHOT \{' "$LOG" 2>/dev/null \
+          | tail -n 5 \
+          | sed -E 's/^.*XTCP2_PROM_SNAPSHOT //' \
+          || echo "(no snapshot lines in transcript — Prometheus may not have started)"
         echo ""
 
         echo "Full transcript kept at: $LOG"

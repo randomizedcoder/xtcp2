@@ -634,7 +634,6 @@ in
             Type = "simple";
             ExecStart = pkgs.writeShellScript "xtcp2-prom-snapshot" ''
               set -u
-              log=/var/log/xtcp2-prom-snapshot.jsonl
               # Wait for Prometheus to come up.
               for _ in $(seq 1 30); do
                 if ${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
@@ -646,9 +645,11 @@ in
               while true; do
                 ts=$(date -u +%FT%TZ)
                 # Use Prometheus's instant-query API. Each query gives
-                # the current value of one summable counter.
+                # the current value of one summable counter. Prefix each
+                # line with a sentinel so the host runner can grep it
+                # out of the serial transcript without ambiguity.
                 {
-                  printf '{"t":"%s"' "$ts"
+                  printf 'XTCP2_PROM_SNAPSHOT {"t":"%s"' "$ts"
                   for q in \
                     'sum(xtcp_counts{variable="p"})' \
                     'sum(xtcp_counts{variable="packets"})' \
@@ -664,13 +665,15 @@ in
                     printf ',"%s":%s' "$q" "$v"
                   done
                   printf '}\n'
-                } >> "$log"
+                }
                 sleep 30
               done
             '';
             Restart = "on-failure";
             RestartSec = "5s";
-            StandardOutput = "journal";
+            # journal+console so the lines also stream out the serial
+            # console — the host runner greps them from the transcript.
+            StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
         };
