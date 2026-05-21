@@ -602,6 +602,8 @@ in
             19092 # redpanda kafka external
             19644 # redpanda admin
             18081 # schema registry
+            3000  # grafana
+            9090  # prometheus
           ];
 
         microvm = {
@@ -677,6 +679,18 @@ in
                 from = "host";
                 host.port = 18081;
                 guest.port = 18081;
+              }
+              # Grafana + Prometheus running on the VM host (not in
+              # docker). Browse http://127.0.0.1:3000 for dashboards.
+              {
+                from = "host";
+                host.port = 3000;
+                guest.port = 3000;
+              }
+              {
+                from = "host";
+                host.port = 9090;
+                guest.port = 9090;
               }
             ];
           shares = [
@@ -948,7 +962,7 @@ in
         # service that curls Prometheus and writes per-query JSON lines
         # to a file so the user sees concrete data even if they don't
         # log into the VM to browse the web UI.
-        services.prometheus = lib.mkIf isTcpStress {
+        services.prometheus = lib.mkIf (isTcpStress || isClickPipe) {
           enable = true;
           port = 9090;
           listenAddress = "0.0.0.0";
@@ -981,6 +995,76 @@ in
           # VM — a 12h run with 15s scrape ≈ 2880 samples per series,
           # well under the default ~16 GiB block budget.
           retentionTime = "48h";
+        };
+
+        # Phase F: Grafana on the clickhouse-pipeline flavor. Browses
+        # both data sources we already have inside the VM:
+        #   1. ClickHouse @ localhost:19001 (docker bridge maps 9000 of
+        #      the container → host port 19001). The grafana-clickhouse-
+        #      datasource plugin from nixpkgs handles wire protocol.
+        #   2. Prometheus @ localhost:9090 (in-VM TSDB scraping xtcp2:9088).
+        # Grafana itself listens on 0.0.0.0:3000; microvm.forwardPorts
+        # (below) opens that to the host so the operator can browse
+        # http://127.0.0.1:3000 directly. Default admin/admin login —
+        # change via grafana UI on first browse, or set a password via
+        # services.grafana.settings.security.admin_password.
+        services.grafana = lib.mkIf isClickPipe {
+          enable = true;
+          declarativePlugins = with pkgs.grafanaPlugins; [
+            grafana-clickhouse-datasource
+          ];
+          settings = {
+            server = {
+              http_addr = "0.0.0.0";
+              http_port = 3000;
+              root_url = "http://127.0.0.1:3000/";
+            };
+            "auth.anonymous" = {
+              enabled = true;
+              org_role = "Viewer";
+            };
+            analytics.reporting_enabled = false;
+            # NixOS module asserts secret_key is set explicitly so a
+            # silent upgrade can't lose access to encrypted secrets in
+            # the DB. This is a local-dev microvm so a hardcoded key
+            # is fine — change for production deployments.
+            security.secret_key = "xtcp2-local-dev-microvm-secret-key";
+          };
+          provision = {
+            enable = true;
+            datasources.settings = {
+              apiVersion = 1;
+              datasources = [
+                {
+                  name = "xtcp2-clickhouse";
+                  type = "grafana-clickhouse-datasource";
+                  uid = "xtcp2-clickhouse";
+                  access = "proxy";
+                  # Docker -p 19001:9000 exposes ClickHouse native protocol
+                  # on the VM host's localhost. Grafana runs on the VM
+                  # host (not in docker) so it connects there.
+                  jsonData = {
+                    host = "127.0.0.1";
+                    port = 19001;
+                    username = "default";
+                    protocol = "native";
+                    defaultDatabase = "xtcp";
+                    secure = false;
+                  };
+                  secureJsonData.password = clickPipeChPassword;
+                  isDefault = true;
+                }
+                {
+                  name = "xtcp2-prometheus";
+                  type = "prometheus";
+                  uid = "xtcp2-prometheus";
+                  access = "proxy";
+                  url = "http://127.0.0.1:9090";
+                  isDefault = false;
+                }
+              ];
+            };
+          };
         };
 
         # Snapshot service: every 30s, query Prometheus for a handful of
