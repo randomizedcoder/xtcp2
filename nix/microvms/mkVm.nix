@@ -682,19 +682,23 @@ in
                 host.port = 18081;
                 guest.port = 18081;
               }
-              # Grafana running on the VM host (not in docker). Browse
-              # http://127.0.0.1:3000 for dashboards. Prometheus inside
-              # the VM is reachable to Grafana via 127.0.0.1:9090
-              # internally — no host forward needed, and bind clashes
-              # with whatever already binds 9090 on the host (a common
-              # default for local Prometheus / kube-state-metrics).
-              # If you want host-side Prometheus access, add a forward
-              # entry using e.g. host.port = 19090.
+              # Grafana on the VM host (not in docker). Use host:13000
+              # (instead of :3000) because :3000 is a popular dev-server
+              # default that often clashes — your host may have its
+              # own Grafana / next.js / etc. already there.
               {
                 from = "host";
-                host.port = 3000;
+                host.port = 13000;
                 guest.port = 3000;
               }
+              # Prometheus inside the VM is reachable to Grafana via
+              # 127.0.0.1:9090 internally — no host forward by default,
+              # and :9090 frequently clashes. Use host:19090 if you
+              # want host-side browsing (commented out — uncomment +
+              # add 19090 to firewall list).
+              # {
+              #   from = "host"; host.port = 19090; guest.port = 9090;
+              # }
             ];
           shares = [
             {
