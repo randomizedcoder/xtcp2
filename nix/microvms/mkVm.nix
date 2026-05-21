@@ -105,7 +105,12 @@ let
   # exposed here so a future tag bump doesn't require touching the
   # ExecStart strings deep in the systemd unit defs.
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
-  clickPipeClickhouseImage = "clickhouse/clickhouse-server:25.3.5.34-alpine";
+  # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
+  # numeric tag for the LTS 25.x line at any given point is hard to
+  # predict, so we use the floating "25.3-alpine" tag which Docker Hub
+  # repoints at the latest 25.3 LTS patch. Pin to a precise tag for
+  # reproducibility once you've validated which patch works.
+  clickPipeClickhouseImage = "clickhouse/clickhouse-server:25.3-alpine";
   clickPipeKafkaTopic = "xtcp";
   # Bind the SQL initdb scripts from the repo into a nix-store path that
   # the clickhouse container can mount read-only. Anchored to the build/
@@ -265,6 +270,7 @@ let
     name = "xtcp2-clickpipe-up";
     runtimeInputs = with pkgs; [
       coreutils
+      curl
       docker
     ];
     text = ''
@@ -324,6 +330,20 @@ let
         --partitions 1 --replicas 1 2>/dev/null || true
       echo "topic ${clickPipeKafkaTopic}: ready"
 
+      # Wait for the schema registry to start listening too — xtcp2's
+      # newKafkaDest calls registerProtobufSchema during init, which
+      # POSTs to the schema registry. If it isn't up yet the daemon
+      # crashes and systemd restart-loops it. Schema registry binds on
+      # localhost:18081 via the docker run -p mapping.
+      for _ in $(seq 1 30); do
+        if curl --silent --fail --max-time 2 \
+            http://localhost:18081/subjects >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+      echo "schema-registry: ready"
+
       # 5) Start clickhouse with the initdb scripts mounted from
       # clickPipeInitdb. CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true so
       # the scripts re-run on every boot (cheap, makes the flavor
@@ -353,8 +373,35 @@ let
       done
       echo "clickhouse: ready"
 
-      # Keep the unit alive — it's Type=simple. Periodically print the
-      # row count from the table so we see records flowing.
+      # All ready — exit so the next oneshot/service ordered After=us
+      # can start. The monitor service tails the row count after xtcp2
+      # has had a chance to produce.
+      echo "clickpipe-up: complete"
+    '';
+  };
+
+  # Companion service that tails the row count every 30s once xtcp2 +
+  # the clickpipe stack are up. Decoupled from clickpipe-up so the
+  # oneshot can exit cleanly and let xtcp2.service start.
+  clickPipeMonitorScript = pkgs.writeShellApplication {
+    name = "xtcp2-clickpipe-monitor";
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+    ];
+    text = ''
+      # Wait for the table to exist (initdb runs async during clickhouse
+      # first start).
+      for _ in $(seq 1 60); do
+        if docker exec clickhouse clickhouse-client \
+            -q 'EXISTS TABLE xtcp.xtcp_flat_records' 2>/dev/null \
+            | grep -q '^1$'; then
+          break
+        fi
+        sleep 2
+      done
+      # Periodic snapshot — sentinel prefix lets the host runner grep
+      # without ambiguity.
       while true; do
         rows=$(docker exec clickhouse clickhouse-client \
           -q 'SELECT count() FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
@@ -408,7 +455,10 @@ let
 
   # Phase E: xtcp2 produces directly into the in-VM redpanda. external
   # advertise addr is localhost:19092 so we dial that. -topic matches
-  # the clickhouse kafka-engine table's kafka_topic_list.
+  # the clickhouse kafka-engine table's kafka_topic_list. -xtcpProtoFile
+  # overrides the hardcoded /xtcp_flat_record.proto default so we can
+  # point at the proto NixOS dropped under /etc (see environment.etc
+  # block below).
   xtcp2ClickPipeArgs = [
     "-dest"
     "kafka:localhost:19092"
@@ -416,10 +466,14 @@ let
     clickPipeKafkaTopic
     "-marshal"
     "protobufSingle"
+    "-xtcpProtoFile"
+    "/etc/xtcp2/xtcp_flat_record.proto"
     "-frequency"
     "5s"
     "-timeout"
     "2s"
+    "-kafkaSchemaUrl"
+    "http://localhost:18081"
   ];
 
   xtcp2CoverageArgs = xtcp2BasicArgs
@@ -878,22 +932,57 @@ in
           description = "xtcp2 clickhouse-pipeline — redpanda + clickhouse + topic + initdb";
           after = [ "docker.service" ];
           requires = [ "docker.service" ];
+          # before xtcp2.service so the kafka broker + topic + schema
+          # registry are all live by the time newKafkaDest tries to
+          # registerProtobufSchema.
           before = [ "xtcp2.service" ];
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
-            Type = "simple";
+            # oneshot + RemainAfterExit so units ordered After=us can
+            # start only after the script returns 0. Type=simple would
+            # let xtcp2.service kick in immediately and crash-loop while
+            # the docker pulls were still going.
+            Type = "oneshot";
+            RemainAfterExit = true;
             ExecStart = "${clickPipeUpScript}/bin/xtcp2-clickpipe-up";
-            # Keep restarting if any one of the two image pulls fails
-            # (likely on first boot with slow network); subsequent boots
-            # are offline.
-            Restart = "on-failure";
-            RestartSec = "10s";
             # First-boot image pulls can be slow; give the up-script up
             # to 10 min to settle before systemd considers it a failure.
             TimeoutStartSec = "600";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
+        };
+
+        # Companion monitor: tail row count from xtcp.xtcp_flat_records
+        # every 30s so the operator can see records arriving without
+        # logging in.
+        systemd.services.xtcp2-clickpipe-monitor = lib.mkIf isClickPipe {
+          description = "xtcp2 clickhouse-pipeline — periodic row count monitor";
+          after = [
+            "xtcp2-clickpipe-up.service"
+            "xtcp2.service"
+          ];
+          requires = [ "xtcp2-clickpipe-up.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${clickPipeMonitorScript}/bin/xtcp2-clickpipe-monitor";
+            Restart = "on-failure";
+            RestartSec = "10s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Phase E: ship the xtcp_flat_record.proto so the kafka destination
+        # factory can read it (registerProtobufSchema is the first thing
+        # newKafkaDest does — without the file the daemon crashes during
+        # init, restart-loops, and never gets the prom listener up long
+        # enough to scrape). NixOS drops it at /etc/xtcp2/xtcp_flat_record.proto
+        # and the -xtcpProtoFile arg in xtcp2ClickPipeArgs points at that
+        # path.
+        environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isClickPipe {
+          source = ../../proto/xtcp_flat_record/v1/xtcp_flat_record.proto;
         };
 
         environment.systemPackages =
