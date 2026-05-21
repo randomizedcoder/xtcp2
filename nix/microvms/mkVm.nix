@@ -380,6 +380,14 @@ let
       # Done in-place because the source dir is a writable copy now.
       find "$initdbRw" -type f -name '*.sh' -exec \
         sed -i 's/rm --recursive --force/rm -rf/g' {} +
+      # Same writable-copy pattern for format_schemas: clickhouse's
+      # entrypoint chowns the mountpoint, which fails on a read-only
+      # /nix/store bind. tmpfs the .proto file so the chown succeeds.
+      schemasRw=/var/lib/xtcp2-clickhouse-schemas
+      rm -rf "$schemasRw"
+      mkdir -p "$schemasRw"
+      cp ${clickPipeProtoSchemas}/* "$schemasRw"/
+      chmod -R u+w "$schemasRw"
       docker rm -f clickhouse 2>/dev/null || true
       docker run --detach \
         --name clickhouse \
@@ -391,7 +399,7 @@ let
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
-        -v ${clickPipeProtoSchemas}:/var/lib/clickhouse/format_schemas:ro \
+        -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
