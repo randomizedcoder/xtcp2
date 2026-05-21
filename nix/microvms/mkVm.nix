@@ -59,6 +59,18 @@ let
         inherit coverDir;
       };
 
+  # tcp_server/tcp_client tunables for the soak flavor. They share the
+  # same port base (cmd/tcp_server/tcp_server.go startPort = 4000), so
+  # `tcpServerCount` listeners → 4000..4000+N-1, and `tcpClientCount`
+  # clients dial those same ports. Setting client < server is fine
+  # (extra listeners stay idle); setting client > server means the
+  # excess clients fail to dial.
+  soakTcpServerCount = 100;
+  soakTcpClientCount = 100;
+  soakTcpClientSleep = "5s";
+  soakTcpPads = 2048;
+  soakTcpConnect = "127.0.0.1";
+
   # nsTest churn parameters tuned for soak runs. Production nsTest defaults
   # are 1000 initial namespaces + 100ms sleep — which inside a microvm
   # creates an explosive boot-time spike (1000 × `ip netns add` back-to-back
@@ -405,6 +417,58 @@ in
             ExecStart = "${pkgs.bash}/bin/bash -c '${soakScrapeScript}/bin/xtcp2-soak-scrape >> ${soakMetricsLog}'";
             Restart = "on-failure";
             RestartSec = "2s";
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Phase A — native TCP stress: spin up N echo-listeners + N clients
+        # in the VM's default netns. Gives xtcp2's inet_diag readout a
+        # known population of ESTABLISHED sockets with measurable RTT /
+        # bytes-sent / segs-out for the parser to chew on. The two units
+        # below run alongside the nsTest churn for the soak flavor.
+        systemd.services.xtcp2-soak-tcp-server = lib.mkIf isSoak {
+          description = "xtcp2 soak — tcp_server echo listeners";
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${xtcp2AllPackage}/bin/tcp_server -count ${toString soakTcpServerCount} -bind 0.0.0.0";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            # Need enough fd headroom for `tcpServerCount` listeners +
+            # `tcpClientCount` accepted conns. Default nofile is 1024;
+            # bump it explicitly.
+            LimitNOFILE = 65536;
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
+        systemd.services.xtcp2-soak-tcp-client = lib.mkIf isSoak {
+          description = "xtcp2 soak — tcp_client traffic generators";
+          # tcp_server takes a moment to bind all N ports — gate the
+          # clients behind its readiness so the dial-retry loop in
+          # tcp_client doesn't burn through its budget at boot.
+          after = [
+            "xtcp2-soak-tcp-server.service"
+            "network-online.target"
+          ];
+          wants = [
+            "xtcp2-soak-tcp-server.service"
+            "network-online.target"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            # Brief delay so the server's Accept loop is up. tcp_client
+            # also retries dial up to -dialr times so this is belt+suspenders.
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+            ExecStart = ''${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}'';
+            Restart = "on-failure";
+            RestartSec = "2s";
+            LimitNOFILE = 65536;
             StandardOutput = "journal";
             StandardError = "journal+console";
           };

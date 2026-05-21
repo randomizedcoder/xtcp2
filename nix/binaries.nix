@@ -104,7 +104,13 @@ let
     in
     pkgs.symlinkJoin {
       name = "xtcp2-all${suffix}-${version}";
-      paths = lib.attrValues byVariant.${variant};
+      # Include the tools/ helpers (tcp_server, tcp_client) only in the
+      # default variant join — they're test utilities, not production.
+      # Building them in every variant just for the sake of join symmetry
+      # would explode the eval surface for no benefit.
+      paths =
+        lib.attrValues byVariant.${variant}
+        ++ lib.optionals (variant == "default") (lib.attrValues toolBinaries);
     };
 
   joins = lib.genAttrs variantNames joinVariant;
@@ -118,6 +124,28 @@ let
       paths = [ drv ];
     }
   ) xtcp2ByFlavor;
+
+  # Test-utility binaries that live under tools/ rather than cmd/. Built
+  # through the same mkGoBinary machinery via the subPath override so the
+  # microvm soak / tcp-stress flavors can pull them in via xtcp2AllPackage.
+  toolBinaryNames = [
+    "tcp_server"
+    "tcp_client"
+  ];
+  toolBinaries = lib.genAttrs toolBinaryNames (
+    name:
+    mkGoBinary {
+      inherit
+        name
+        src
+        commit
+        date
+        version
+        ;
+      subPath = "tools/${name}";
+      variant = "default";
+    }
+  );
 
   # Default-variant attrs (every cmd → default-variant derivation).
   defaultBinaries = byVariant.default;
@@ -169,11 +197,16 @@ defaultBinaries
   xtcp2-all-debug = joins.debug;
   xtcp2-all-stripped = joins.stripped;
 
+  # tools/ helper binaries (test utilities, default variant only).
+  tcp_server = toolBinaries.tcp_server;
+  tcp_client = toolBinaries.tcp_client;
+
   # Internal nested sets for downstream consumers (containers/).
   inherit
     byVariant
     joins
     xtcp2ByFlavor
     xtcp2OnlyByFlavor
+    toolBinaries
     ;
 }
