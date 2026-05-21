@@ -384,16 +384,16 @@ in
       type = "app";
       program = "${microvms.soak.x86_64.runner}/bin/xtcp2-soak-x86_64";
     };
-    # Phase C: docker-in-VM tcp-stress harness. Boots a microvm with
+    # Phase C: docker-in-VM tcp-stress smoke. Boots a microvm with
     # dockerd, loads oci-xtcp2-tcp-stress, and spawns N containers
     # (default 5, configurable via tcpStressNumContainers in mkVm.nix)
     # each running tcp_server + tcp_client. Each container's sockets
     # live in their own /run/docker/netns/ entry — xtcp2 watches that
-    # directory and discovers all of them. Just `nix run` it; the VM
-    # boots, runs the workload, and tails the journal until stopped.
+    # directory and discovers all of them. The runner sleeps for
+    # `--duration` (default 180s) then powers off with a summary.
     microvm-x86_64-tcp-stress = {
       type = "app";
-      program = "${microvms.vmsTcpStress.x86_64}/bin/microvm-run";
+      program = "${microvms.tcpStress.x86_64.runner}/bin/xtcp2-tcp-stress-runner-x86_64";
     };
     quality-report = {
       type = "app";
