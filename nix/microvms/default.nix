@@ -132,6 +132,21 @@ let
       sink = "tcp-stress";
     };
 
+  mkOneClickPipe =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "clickhouse-pipeline";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
@@ -151,6 +166,8 @@ let
   vmsTcpStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs mkOneTcpStress
   );
+
+  vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -255,6 +272,7 @@ in
     vmsCoverageIoUring
     vmsSoak
     vmsTcpStress
+    vmsClickPipe
     lifecycle
     lifecycleVector
     lifecycleCoverage
