@@ -298,6 +298,11 @@ in
         oci-xtcp2-valkey
         ;
 
+      # Phase B: TCP-stress container for the multi-container test
+      # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,
+      # TCP_SLEEP, TCP_PADS, TCP_CONNECT, TCP_BIND env vars.
+      inherit (containers) oci-xtcp2-tcp-stress;
+
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-vector = microvms.vmsVector.x86_64;
