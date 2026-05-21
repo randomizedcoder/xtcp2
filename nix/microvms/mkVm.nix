@@ -43,10 +43,17 @@ let
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
   isTcpStress = sink == "tcp-stress";
+  # clickhouse-pipeline = tcp-stress + redpanda + clickhouse + kafka
+  # destination. Same docker setup but two extra containers + xtcp2
+  # configured with -dest kafka:localhost:19092 so the records flow
+  # through the same pipeline as the production compose.
+  isClickPipe = sink == "clickhouse-pipeline";
+  # Anything that needs dockerd inside the VM.
+  needsDocker = isTcpStress || isClickPipe;
   effectiveMem =
     if isVector then
       cfg.memVector
-    else if isTcpStress then
+    else if isTcpStress || isClickPipe then
       cfg.memTcpStress
     else
       cfg.mem;
@@ -93,6 +100,29 @@ let
   tcpStressSocketsPerContainer = 100;
   tcpStressClientSleep = "5s";
   tcpStressPads = 1024;
+
+  # Phase E clickhouse-pipeline tunables. Image tags are deliberately
+  # exposed here so a future tag bump doesn't require touching the
+  # ExecStart strings deep in the systemd unit defs.
+  clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
+  clickPipeClickhouseImage = "clickhouse/clickhouse-server:25.3.5.34-alpine";
+  clickPipeKafkaTopic = "xtcp";
+  # Bind the SQL initdb scripts from the repo into a nix-store path that
+  # the clickhouse container can mount read-only. Anchored to the build/
+  # tree the existing docker-compose uses, so the same SQL drives both.
+  clickPipeInitdb = pkgs.runCommand "xtcp2-clickhouse-initdb" { } ''
+    mkdir -p $out/sql
+    cp -r ${../../build/containers/clickhouse/initdb.d/sql}/. $out/sql/
+    cp ${../../build/containers/clickhouse/initdb.d/035_recreate_xtcp_xtcp_flat_records.sql.sh} \
+       $out/035_recreate_xtcp_xtcp_flat_records.sql.sh
+    cp ${../../build/containers/clickhouse/initdb.d/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh} \
+       $out/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh
+    cp ${../../build/containers/clickhouse/initdb.d/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh} \
+       $out/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh
+    # Pre-create the dirs the init scripts try to write to (out/, sql/).
+    mkdir -p $out/out
+    chmod -R a+rX $out
+  '';
 
   # nsTest churn parameters tuned for soak runs. Production nsTest defaults
   # are 1000 initial namespaces + 100ms sleep — which inside a microvm
@@ -226,6 +256,114 @@ let
     '';
   };
 
+  # Phase E clickhouse-pipeline scripts: docker pull → bring up the
+  # `xtcp` network + redpanda + clickhouse → connect them. xtcp2 (running
+  # on the microvm host, NOT in a container) connects to redpanda via
+  # the published external port (localhost:19092) so it can see netns
+  # outside the container.
+  clickPipeUpScript = pkgs.writeShellApplication {
+    name = "xtcp2-clickpipe-up";
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+    ];
+    text = ''
+      # Wait for dockerd's socket to be ready.
+      for _ in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then break; fi
+        sleep 1
+      done
+      docker info >/dev/null 2>&1 || { echo "FATAL: docker not ready"; exit 1; }
+
+      # 1) shared network so redpanda + clickhouse see each other by name
+      docker network create xtcp --subnet 10.20.0.0/24 2>/dev/null || true
+
+      # 2) Pull both images. First boot needs internet (qemu user-mode
+      # NAT). After the layers are cached in /var/lib/docker the runner
+      # comes up offline.
+      echo "pulling ${clickPipeRedpandaImage}"
+      docker pull ${clickPipeRedpandaImage} || \
+        { echo "FATAL: docker pull redpanda failed"; exit 1; }
+      echo "pulling ${clickPipeClickhouseImage}"
+      docker pull ${clickPipeClickhouseImage} || \
+        { echo "FATAL: docker pull clickhouse failed"; exit 1; }
+
+      # 3) Start redpanda. Mirrors the production compose: internal kafka
+      # addr inside the docker net, external kafka addr published as
+      # localhost:19092 on the VM host so xtcp2 can dial it.
+      docker rm -f redpanda-0 2>/dev/null || true
+      docker run --detach \
+        --name redpanda-0 \
+        --network xtcp \
+        --hostname redpanda-0 \
+        -p 19092:19092 -p 19644:9644 -p 18081:8081 \
+        --restart on-failure \
+        ${clickPipeRedpandaImage} \
+        redpanda start \
+          --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092 \
+          --advertise-kafka-addr=internal://redpanda-0:9092,external://localhost:19092 \
+          --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081 \
+          --rpc-addr=redpanda-0:33145 \
+          --advertise-rpc-addr=redpanda-0:33145 \
+          --mode=dev-container \
+          --smp=1 \
+          --default-log-level=info >/dev/null
+      echo "redpanda-0: started"
+
+      # 4) Wait for the Kafka API to be up (a few seconds), then create
+      # the topic xtcp2 will produce to. Idempotent — running it again
+      # is a noop after the first time.
+      for _ in $(seq 1 30); do
+        if docker exec redpanda-0 rpk cluster health 2>/dev/null \
+            | grep -q 'Healthy.*true'; then
+          break
+        fi
+        sleep 1
+      done
+      docker exec redpanda-0 rpk topic create ${clickPipeKafkaTopic} \
+        --partitions 1 --replicas 1 2>/dev/null || true
+      echo "topic ${clickPipeKafkaTopic}: ready"
+
+      # 5) Start clickhouse with the initdb scripts mounted from
+      # clickPipeInitdb. CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true so
+      # the scripts re-run on every boot (cheap, makes the flavor
+      # deterministic).
+      docker rm -f clickhouse 2>/dev/null || true
+      docker run --detach \
+        --name clickhouse \
+        --network xtcp \
+        --hostname clickhouse \
+        -p 18123:8123 -p 19001:9000 \
+        --ulimit nofile=262144:262144 \
+        --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
+        --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
+        --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
+        -v ${clickPipeInitdb}:/docker-entrypoint-initdb.d:ro \
+        --restart on-failure \
+        ${clickPipeClickhouseImage} >/dev/null
+      echo "clickhouse: started"
+
+      # 6) Wait for clickhouse to accept queries (~10-20s on first boot
+      # because the initdb scripts run synchronously before HTTP comes up).
+      for _ in $(seq 1 60); do
+        if docker exec clickhouse clickhouse-client -q 'SELECT 1' >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+      echo "clickhouse: ready"
+
+      # Keep the unit alive — it's Type=simple. Periodically print the
+      # row count from the table so we see records flowing.
+      while true; do
+        rows=$(docker exec clickhouse clickhouse-client \
+          -q 'SELECT count() FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
+        echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows"
+        sleep 30
+      done
+    '';
+  };
+
   vectorModules =
     assert lib.assertMsg (
       protoDescPackage != null
@@ -266,6 +404,22 @@ let
     "2s"
     "-timeout"
     "1s"
+  ];
+
+  # Phase E: xtcp2 produces directly into the in-VM redpanda. external
+  # advertise addr is localhost:19092 so we dial that. -topic matches
+  # the clickhouse kafka-engine table's kafka_topic_list.
+  xtcp2ClickPipeArgs = [
+    "-dest"
+    "kafka:localhost:19092"
+    "-topic"
+    clickPipeKafkaTopic
+    "-marshal"
+    "protobufSingle"
+    "-frequency"
+    "5s"
+    "-timeout"
+    "2s"
   ];
 
   xtcp2CoverageArgs = xtcp2BasicArgs
@@ -437,6 +591,9 @@ in
               xtcp2VectorArgs
             else if isCoverage then
               xtcp2CoverageArgs
+            else if isClickPipe then
+              # Phase E: produce to redpanda → clickhouse via kafka dest.
+              xtcp2ClickPipeArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -565,10 +722,10 @@ in
           };
         };
 
-        # Phase C: enable docker daemon for the tcp-stress sink. Adds
+        # Enable docker daemon for any flavor that needs it. Adds
         # ~150 MiB to the VM image (dockerd + containerd) but keeps the
         # rest of the surface minimal — no docker-buildx, no compose.
-        virtualisation.docker = lib.mkIf isTcpStress {
+        virtualisation.docker = lib.mkIf needsDocker {
           enable = true;
           # Disable docker's bridge auto-configuration via iptables to
           # avoid microvm-vs-host iptables-version drift. Containers
@@ -705,6 +862,35 @@ in
             ExecStart = "${tcpStressSpawnScript}/bin/xtcp2-tcp-stress-spawn";
             Restart = "on-failure";
             RestartSec = "5s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Phase E: docker network + redpanda + clickhouse + topic + initdb.
+        # The xtcp2 daemon (on the VM host) connects to redpanda's
+        # external advertised addr localhost:19092. Records flow through:
+        #   xtcp2 → kafka (redpanda) → kafka-engine-table → MV → MergeTree.
+        # The script's tail loop also prints XTCP2_CLICKPIPE_ROWS every 30s
+        # so the host runner can grep current row count out of the
+        # transcript without docker exec.
+        systemd.services.xtcp2-clickpipe-up = lib.mkIf isClickPipe {
+          description = "xtcp2 clickhouse-pipeline — redpanda + clickhouse + topic + initdb";
+          after = [ "docker.service" ];
+          requires = [ "docker.service" ];
+          before = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${clickPipeUpScript}/bin/xtcp2-clickpipe-up";
+            # Keep restarting if any one of the two image pulls fails
+            # (likely on first boot with slow network); subsequent boots
+            # are offline.
+            Restart = "on-failure";
+            RestartSec = "10s";
+            # First-boot image pulls can be slow; give the up-script up
+            # to 10 min to settle before systemd considers it a failure.
+            TimeoutStartSec = "600";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };

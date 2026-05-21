@@ -311,6 +311,7 @@ in
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -394,6 +395,16 @@ in
     microvm-x86_64-tcp-stress = {
       type = "app";
       program = "${microvms.tcpStress.x86_64.runner}/bin/xtcp2-tcp-stress-runner-x86_64";
+    };
+    # Phase E: boots a microvm that runs redpanda + clickhouse as docker
+    # containers, with xtcp2 producing inet_diag records into the kafka
+    # topic, clickhouse_kafka_engine consuming them, and a materialized
+    # view writing them into xtcp.xtcp_flat_records. The microvm exposes
+    # /bin/microvm-run directly so users can poke clickhouse via:
+    #   docker exec clickhouse clickhouse-client -q 'SELECT count() FROM xtcp.xtcp_flat_records'
+    microvm-x86_64-clickhouse-pipeline = {
+      type = "app";
+      program = "${microvms.vmsClickPipe.x86_64}/bin/microvm-run";
     };
     quality-report = {
       type = "app";
