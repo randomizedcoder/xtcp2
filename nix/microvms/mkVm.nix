@@ -89,8 +89,8 @@ let
   # /run/docker/netns/ fsnotify watch under real socket load. Start
   # small (numContainers=5 default) so the per-VM resource budget
   # stays sane; bump up to 20+ once you've validated end-to-end.
-  tcpStressNumContainers = 5;
-  tcpStressSocketsPerContainer = 20;
+  tcpStressNumContainers = 20;
+  tcpStressSocketsPerContainer = 100;
   tcpStressClientSleep = "5s";
   tcpStressPads = 1024;
 
