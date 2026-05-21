@@ -115,16 +115,23 @@ let
   # Bind the SQL initdb scripts from the repo into a nix-store path that
   # the clickhouse container can mount read-only. Anchored to the build/
   # tree the existing docker-compose uses, so the same SQL drives both.
+  # The full directory is needed — script 020 creates the xtcp database
+  # which scripts 035/040/050 depend on. Skipping it produces
+  # `Database xtcp does not exist (UNKNOWN_DATABASE)` and code 81 exit.
   clickPipeInitdb = pkgs.runCommand "xtcp2-clickhouse-initdb" { } ''
-    mkdir -p $out/sql
-    cp -r ${../../build/containers/clickhouse/initdb.d/sql}/. $out/sql/
-    cp ${../../build/containers/clickhouse/initdb.d/035_recreate_xtcp_xtcp_flat_records.sql.sh} \
-       $out/035_recreate_xtcp_xtcp_flat_records.sql.sh
-    cp ${../../build/containers/clickhouse/initdb.d/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh} \
-       $out/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh
-    cp ${../../build/containers/clickhouse/initdb.d/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh} \
-       $out/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh
-    # Pre-create the dirs the init scripts try to write to (out/, sql/).
+    mkdir -p $out
+    # Copy 005..050 plus the sql/ subdir. The README script
+    # `000_clickhouse_runs_all_dot_sh_and_dot_sql_files` is just a
+    # comment artifact, but copying everything is simpler than picking.
+    cp -r ${../../build/containers/clickhouse/initdb.d}/005_start.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/010_clear_tracking_files.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/020_drop_database_xtcp.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/035_recreate_xtcp_xtcp_flat_records.sql.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/sql $out/sql
+    # The init scripts write tracking files into out/; pre-create it
+    # so they don't fail on the first run. Same as the compose flow.
     mkdir -p $out/out
     chmod -R a+rX $out
   '';
@@ -344,10 +351,23 @@ let
       done
       echo "schema-registry: ready"
 
-      # 5) Start clickhouse with the initdb scripts mounted from
-      # clickPipeInitdb. CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true so
-      # the scripts re-run on every boot (cheap, makes the flavor
-      # deterministic).
+      # 5) Start clickhouse with the initdb scripts mounted from a
+      # writable tmpfs copy of clickPipeInitdb. The init scripts
+      # 005_start.sh / 010_clear_tracking_files.sh + the *_recreate_*
+      # ones write tracking files into out/ — they can't run from a
+      # read-only /nix/store mount. We also patch any `rm --recursive`
+      # to `rm -r` since alpine's busybox `rm` doesn't accept the long
+      # option (the original compose used the full-coreutils alpine
+      # which did).
+      initdbRw=/var/lib/xtcp2-clickhouse-initdb
+      rm -rf "$initdbRw"
+      mkdir -p "$initdbRw"
+      cp -r ${clickPipeInitdb}/. "$initdbRw"/
+      chmod -R u+w "$initdbRw"
+      # Replace long --recursive flags with -r (busybox-compatible).
+      # Done in-place because the source dir is a writable copy now.
+      find "$initdbRw" -type f -name '*.sh' -exec \
+        sed -i 's/rm --recursive --force/rm -rf/g' {} +
       docker rm -f clickhouse 2>/dev/null || true
       docker run --detach \
         --name clickhouse \
@@ -358,7 +378,7 @@ let
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
-        -v ${clickPipeInitdb}:/docker-entrypoint-initdb.d:ro \
+        -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
