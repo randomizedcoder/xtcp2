@@ -118,6 +118,18 @@ let
   # The full directory is needed — script 020 creates the xtcp database
   # which scripts 035/040/050 depend on. Skipping it produces
   # `Database xtcp does not exist (UNKNOWN_DATABASE)` and code 81 exit.
+  # ClickHouse's kafka_engine table is declared with
+  # kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord' — clickhouse
+  # looks for that file under /var/lib/clickhouse/format_schemas/. Mirror
+  # the production Dockerfile by mounting a tiny derivation containing
+  # just the .proto in there.
+  clickPipeProtoSchemas = pkgs.runCommand "xtcp2-clickhouse-format-schemas" { } ''
+    mkdir -p $out
+    cp ${../../proto/xtcp_flat_record/v1/xtcp_flat_record.proto} \
+       $out/xtcp_flat_record.proto
+    chmod -R a+rX $out
+  '';
+
   clickPipeInitdb = pkgs.runCommand "xtcp2-clickhouse-initdb" { } ''
     mkdir -p $out
     # Copy 005..050 plus the sql/ subdir. The README script
@@ -379,6 +391,7 @@ let
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
+        -v ${clickPipeProtoSchemas}:/var/lib/clickhouse/format_schemas:ro \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
