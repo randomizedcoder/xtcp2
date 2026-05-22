@@ -626,7 +626,12 @@ in
           volumes =
             lib.optionals isClickPipe [
               {
-                image = "/var/lib/xtcp2-microvm/clickhouse-pipeline-docker.img";
+                # User-writable path so microvm-run can autoCreate the
+                # image without sudo. /tmp is RAM-backed on most distros
+                # but big enough for the 8 GiB image; if you want
+                # cross-boot persistence move this to ~/.cache or a
+                # mounted disk and add `microvm.preStart` to mkdir.
+                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
                 mountPoint = "/var/lib/docker";
                 size = 8192;
                 autoCreate = true;
