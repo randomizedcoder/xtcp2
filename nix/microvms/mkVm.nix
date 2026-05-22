@@ -613,7 +613,27 @@ in
           mem = effectiveMem;
           vcpu = cfg.vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
-          volumes = [ ];
+          # Default: no disk. /var/lib/docker lives on the root tmpfs.
+          # For clickhouse-pipeline this proved a problem at hour ~1
+          # of a 12h run: clickhouse_db's MergeTree storage saturated
+          # the tmpfs cap, threw NOT_ENOUGH_SPACE 700+ times, the
+          # kafka_engine couldn't commit offsets, back-pressure froze
+          # xtcp2's producer, row count plateaued at ~18k. Fix: give
+          # docker its own ext4 disk on the host so /var/lib/docker
+          # gets real (not RAM) bytes. 8 GiB covers a 12h soak with
+          # MergeTree compression at ~3 rows/s × ~1 KiB/row + dockerd
+          # working set + redpanda topic data.
+          volumes =
+            lib.optionals isClickPipe [
+              {
+                image = "/var/lib/xtcp2-microvm/clickhouse-pipeline-docker.img";
+                mountPoint = "/var/lib/docker";
+                size = 8192;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2dock";
+              }
+            ];
           interfaces = [
             {
               type = "user";
