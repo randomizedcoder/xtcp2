@@ -346,7 +346,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? capturePath,
     $fixnum.Int64? modulus,
     $core.String? marshalTo,
-    $core.bool? protobufListLengthDelimit,
+    $core.int? envelopeFlushThresholdBytes,
+    $core.int? envelopeFlushThresholdRows,
+    $core.String? kafkaCompression,
     $core.String? dest,
     $core.int? destWriteFiles,
     $core.String? topic,
@@ -402,8 +404,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (marshalTo != null) {
       $result.marshalTo = marshalTo;
     }
-    if (protobufListLengthDelimit != null) {
-      $result.protobufListLengthDelimit = protobufListLengthDelimit;
+    if (envelopeFlushThresholdBytes != null) {
+      $result.envelopeFlushThresholdBytes = envelopeFlushThresholdBytes;
+    }
+    if (envelopeFlushThresholdRows != null) {
+      $result.envelopeFlushThresholdRows = envelopeFlushThresholdRows;
+    }
+    if (kafkaCompression != null) {
+      $result.kafkaCompression = kafkaCompression;
     }
     if (dest != null) {
       $result.dest = dest;
@@ -467,7 +475,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(100, _omitFieldNames ? '' : 'capturePath')
     ..a<$fixnum.Int64>(110, _omitFieldNames ? '' : 'modulus', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(120, _omitFieldNames ? '' : 'marshalTo')
-    ..aOB(121, _omitFieldNames ? '' : 'protobufListLengthDelimit')
+    ..a<$core.int>(122, _omitFieldNames ? '' : 'envelopeFlushThresholdBytes', $pb.PbFieldType.OU3)
+    ..a<$core.int>(123, _omitFieldNames ? '' : 'envelopeFlushThresholdRows', $pb.PbFieldType.OU3)
+    ..aOS(124, _omitFieldNames ? '' : 'kafkaCompression')
     ..aOS(130, _omitFieldNames ? '' : 'dest')
     ..a<$core.int>(135, _omitFieldNames ? '' : 'destWriteFiles', $pb.PbFieldType.OU3)
     ..aOS(140, _omitFieldNames ? '' : 'topic')
@@ -653,15 +663,72 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(120)
   void clearMarshalTo() => clearField(120);
 
-  /// protobufListMarshal can optionally not length delimit
-  @$pb.TagNumber(121)
-  $core.bool get protobufListLengthDelimit => $_getBF(13);
-  @$pb.TagNumber(121)
-  set protobufListLengthDelimit($core.bool v) { $_setBool(13, v); }
-  @$pb.TagNumber(121)
-  $core.bool hasProtobufListLengthDelimit() => $_has(13);
-  @$pb.TagNumber(121)
-  void clearProtobufListLengthDelimit() => clearField(121);
+  ///  Soft cap on the in-flight envelope's marshalled size, in bytes.
+  ///  Measured via proto.Size — i.e. the UNCOMPRESSED serialized size.
+  ///  franz-go applies ZSTD/LZ4/Snappy compression after handoff, so the
+  ///  actual on-wire Kafka message is typically 3-8x smaller than the
+  ///  proto.Size we measure here. Treat this as a conservative upper
+  ///  bound, not the wire size.
+  ///
+  ///  0 = use the daemon's compile-time default (768 KiB; see
+  ///  EnvelopeFlushThresholdBytesCst in pkg/xtcp/marshallers.go).
+  ///  Useful primarily as a safety net against records with huge
+  ///  `bytes` fields. For everyday batch sizing, prefer the row-count
+  ///  cap (envelope_flush_threshold_rows) below.
+  @$pb.TagNumber(122)
+  $core.int get envelopeFlushThresholdBytes => $_getIZ(13);
+  @$pb.TagNumber(122)
+  set envelopeFlushThresholdBytes($core.int v) { $_setUnsignedInt32(13, v); }
+  @$pb.TagNumber(122)
+  $core.bool hasEnvelopeFlushThresholdBytes() => $_has(13);
+  @$pb.TagNumber(122)
+  void clearEnvelopeFlushThresholdBytes() => clearField(122);
+
+  ///  Soft cap on the in-flight envelope's row count. When the envelope
+  ///  reaches this many rows, deserialize.go triggers an early mid-poll
+  ///  flush. Cheaper than the byte cap (no proto.Size walk on the hot
+  ///  path) and more predictable for operators reasoning about batch
+  ///  size directly.
+  ///
+  ///  0 = use the daemon's compile-time default
+  ///  (EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align
+  ///  with the ClickHouse kafka_max_rows_per_message setting so a
+  ///  produced envelope never forces the consumer to split it).
+  @$pb.TagNumber(123)
+  $core.int get envelopeFlushThresholdRows => $_getIZ(14);
+  @$pb.TagNumber(123)
+  set envelopeFlushThresholdRows($core.int v) { $_setUnsignedInt32(14, v); }
+  @$pb.TagNumber(123)
+  $core.bool hasEnvelopeFlushThresholdRows() => $_has(14);
+  @$pb.TagNumber(123)
+  void clearEnvelopeFlushThresholdRows() => clearField(123);
+
+  ///  Kafka producer-batch compression codec. franz-go picks one codec
+  ///  from the supplied preference list that the broker advertises.
+  ///  Both Redpanda and ClickHouse (via librdkafka on its Kafka engine)
+  ///  decompress all standard codecs transparently — no consumer-side
+  ///  config is needed regardless of which codec is chosen here.
+  ///
+  ///  Valid values:
+  ///    "" or "auto" → preference list [zstd, lz4, snappy, none] —
+  ///                   modern brokers (Redpanda, Kafka 2.1+) end up
+  ///                   on zstd; older brokers fall back through the list
+  ///    "zstd"       → force ZStandard (best ratio, modern default)
+  ///    "lz4"        → force LZ4 (fast, low CPU)
+  ///    "snappy"     → force Snappy (legacy, broad compat)
+  ///    "gzip"       → force Gzip (highest CPU; legacy clients)
+  ///    "none"       → no compression on the wire
+  ///
+  ///  Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
+  ///  "zstd" (the default) if Kafka throughput / disk usage matters more.
+  @$pb.TagNumber(124)
+  $core.String get kafkaCompression => $_getSZ(15);
+  @$pb.TagNumber(124)
+  set kafkaCompression($core.String v) { $_setString(15, v); }
+  @$pb.TagNumber(124)
+  $core.bool hasKafkaCompression() => $_has(15);
+  @$pb.TagNumber(124)
+  void clearKafkaCompression() => clearField(124);
 
   /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
   /// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
@@ -669,11 +736,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
   /// max_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes).
   @$pb.TagNumber(130)
-  $core.String get dest => $_getSZ(14);
+  $core.String get dest => $_getSZ(16);
   @$pb.TagNumber(130)
-  set dest($core.String v) { $_setString(14, v); }
+  set dest($core.String v) { $_setString(16, v); }
   @$pb.TagNumber(130)
-  $core.bool hasDest() => $_has(14);
+  $core.bool hasDest() => $_has(16);
   @$pb.TagNumber(130)
   void clearDest() => clearField(130);
 
@@ -681,41 +748,41 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// xtcp will capture this many examples of the marshalled data
   /// This is PER poller
   @$pb.TagNumber(135)
-  $core.int get destWriteFiles => $_getIZ(15);
+  $core.int get destWriteFiles => $_getIZ(17);
   @$pb.TagNumber(135)
-  set destWriteFiles($core.int v) { $_setUnsignedInt32(15, v); }
+  set destWriteFiles($core.int v) { $_setUnsignedInt32(17, v); }
   @$pb.TagNumber(135)
-  $core.bool hasDestWriteFiles() => $_has(15);
+  $core.bool hasDestWriteFiles() => $_has(17);
   @$pb.TagNumber(135)
   void clearDestWriteFiles() => clearField(135);
 
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(16);
+  $core.String get topic => $_getSZ(18);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(16, v); }
+  set topic($core.String v) { $_setString(18, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(16);
+  $core.bool hasTopic() => $_has(18);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
   /// XtcpProtoFile
   @$pb.TagNumber(143)
-  $core.String get xtcpProtoFile => $_getSZ(17);
+  $core.String get xtcpProtoFile => $_getSZ(19);
   @$pb.TagNumber(143)
-  set xtcpProtoFile($core.String v) { $_setString(17, v); }
+  set xtcpProtoFile($core.String v) { $_setString(19, v); }
   @$pb.TagNumber(143)
-  $core.bool hasXtcpProtoFile() => $_has(17);
+  $core.bool hasXtcpProtoFile() => $_has(19);
   @$pb.TagNumber(143)
   void clearXtcpProtoFile() => clearField(143);
 
   /// Kafka schema registry url
   @$pb.TagNumber(145)
-  $core.String get kafkaSchemaUrl => $_getSZ(18);
+  $core.String get kafkaSchemaUrl => $_getSZ(20);
   @$pb.TagNumber(145)
-  set kafkaSchemaUrl($core.String v) { $_setString(18, v); }
+  set kafkaSchemaUrl($core.String v) { $_setString(20, v); }
   @$pb.TagNumber(145)
-  $core.bool hasKafkaSchemaUrl() => $_has(18);
+  $core.bool hasKafkaSchemaUrl() => $_has(20);
   @$pb.TagNumber(145)
   void clearKafkaSchemaUrl() => clearField(145);
 
@@ -723,77 +790,77 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(19);
+  $2.Duration get kafkaProduceTimeout => $_getN(21);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(19);
+  $core.bool hasKafkaProduceTimeout() => $_has(21);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(19);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(21);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(20);
+  $core.int get debugLevel => $_getIZ(22);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(20, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(22, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(20);
+  $core.bool hasDebugLevel() => $_has(22);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(21);
+  $core.String get label => $_getSZ(23);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(21, v); }
+  set label($core.String v) { $_setString(23, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(21);
+  $core.bool hasLabel() => $_has(23);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(22);
+  $core.String get tag => $_getSZ(24);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(22, v); }
+  set tag($core.String v) { $_setString(24, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(22);
+  $core.bool hasTag() => $_has(24);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(23);
+  $core.int get grpcPort => $_getIZ(25);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(23, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(25, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(23);
+  $core.bool hasGrpcPort() => $_has(25);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(24);
+  EnabledDeserializers get enabledDeserializers => $_getN(26);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(24);
+  $core.bool hasEnabledDeserializers() => $_has(26);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(24);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(26);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(25);
+  $core.bool get ioUring => $_getBF(27);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(25, v); }
+  set ioUring($core.bool v) { $_setBool(27, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(25);
+  $core.bool hasIoUring() => $_has(27);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -802,11 +869,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(26);
+  $core.int get ioUringRecvBatchSize => $_getIZ(28);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(26, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(28, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(26);
+  $core.bool hasIoUringRecvBatchSize() => $_has(28);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -814,11 +881,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(27);
+  $core.int get ioUringCqeBatchSize => $_getIZ(29);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(27, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(29, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(27);
+  $core.bool hasIoUringCqeBatchSize() => $_has(29);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 }

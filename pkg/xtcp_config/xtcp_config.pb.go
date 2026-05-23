@@ -346,8 +346,50 @@ type XtcpConfig struct {
 	Modulus uint64 `protobuf:"varint,110,opt,name=modulus,proto3" json:"modulus,omitempty"`
 	// Marshalling of the exported data (protobufList,json,prototext)
 	MarshalTo string `protobuf:"bytes,120,opt,name=marshal_to,json=marshalTo,proto3" json:"marshal_to,omitempty"`
-	// protobufListMarshal can optionally not length delimit
-	ProtobufListLengthDelimit bool `protobuf:"varint,121,opt,name=protobuf_list_length_delimit,json=protobufListLengthDelimit,proto3" json:"protobuf_list_length_delimit,omitempty"`
+	// Soft cap on the in-flight envelope's marshalled size, in bytes.
+	// Measured via proto.Size — i.e. the UNCOMPRESSED serialized size.
+	// franz-go applies ZSTD/LZ4/Snappy compression after handoff, so the
+	// actual on-wire Kafka message is typically 3-8x smaller than the
+	// proto.Size we measure here. Treat this as a conservative upper
+	// bound, not the wire size.
+	//
+	// 0 = use the daemon's compile-time default (768 KiB; see
+	// EnvelopeFlushThresholdBytesCst in pkg/xtcp/marshallers.go).
+	// Useful primarily as a safety net against records with huge
+	// `bytes` fields. For everyday batch sizing, prefer the row-count
+	// cap (envelope_flush_threshold_rows) below.
+	EnvelopeFlushThresholdBytes uint32 `protobuf:"varint,122,opt,name=envelope_flush_threshold_bytes,json=envelopeFlushThresholdBytes,proto3" json:"envelope_flush_threshold_bytes,omitempty"`
+	// Soft cap on the in-flight envelope's row count. When the envelope
+	// reaches this many rows, deserialize.go triggers an early mid-poll
+	// flush. Cheaper than the byte cap (no proto.Size walk on the hot
+	// path) and more predictable for operators reasoning about batch
+	// size directly.
+	//
+	// 0 = use the daemon's compile-time default
+	// (EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align
+	// with the ClickHouse kafka_max_rows_per_message setting so a
+	// produced envelope never forces the consumer to split it).
+	EnvelopeFlushThresholdRows uint32 `protobuf:"varint,123,opt,name=envelope_flush_threshold_rows,json=envelopeFlushThresholdRows,proto3" json:"envelope_flush_threshold_rows,omitempty"`
+	// Kafka producer-batch compression codec. franz-go picks one codec
+	// from the supplied preference list that the broker advertises.
+	// Both Redpanda and ClickHouse (via librdkafka on its Kafka engine)
+	// decompress all standard codecs transparently — no consumer-side
+	// config is needed regardless of which codec is chosen here.
+	//
+	// Valid values:
+	//
+	//	"" or "auto" → preference list [zstd, lz4, snappy, none] —
+	//	               modern brokers (Redpanda, Kafka 2.1+) end up
+	//	               on zstd; older brokers fall back through the list
+	//	"zstd"       → force ZStandard (best ratio, modern default)
+	//	"lz4"        → force LZ4 (fast, low CPU)
+	//	"snappy"     → force Snappy (legacy, broad compat)
+	//	"gzip"       → force Gzip (highest CPU; legacy clients)
+	//	"none"       → no compression on the wire
+	//
+	// Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
+	// "zstd" (the default) if Kafka throughput / disk usage matters more.
+	KafkaCompression string `protobuf:"bytes,124,opt,name=kafka_compression,json=kafkaCompression,proto3" json:"kafka_compression,omitempty"`
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
 	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
 	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
@@ -516,11 +558,25 @@ func (x *XtcpConfig) GetMarshalTo() string {
 	return ""
 }
 
-func (x *XtcpConfig) GetProtobufListLengthDelimit() bool {
+func (x *XtcpConfig) GetEnvelopeFlushThresholdBytes() uint32 {
 	if x != nil {
-		return x.ProtobufListLengthDelimit
+		return x.EnvelopeFlushThresholdBytes
 	}
-	return false
+	return 0
+}
+
+func (x *XtcpConfig) GetEnvelopeFlushThresholdRows() uint32 {
+	if x != nil {
+		return x.EnvelopeFlushThresholdRows
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetKafkaCompression() string {
+	if x != nil {
+		return x.KafkaCompression
+	}
+	return ""
 }
 
 func (x *XtcpConfig) GetDest() string {
@@ -684,7 +740,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb6\r\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xba\x0e\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -708,8 +764,10 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fcapture_path\x18d \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\vcapturePath\x12(\n" +
 	"\amodulus\x18n \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xc0\x84=(\x01R\amodulus\x12+\n" +
 	"\n" +
-	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x04\x18(R\tmarshalTo\x12G\n" +
-	"\x1cprotobuf_list_length_delimit\x18y \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x19protobufListLengthDelimit\x12\"\n" +
+	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x04\x18(R\tmarshalTo\x12K\n" +
+	"\x1eenvelope_flush_threshold_bytes\x18z \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
+	"\x1denvelope_flush_threshold_rows\x18{ \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows\x123\n" +
+	"\x11kafka_compression\x18| \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12\"\n" +
 	"\x04dest\x18\x82\x01 \x01(\tB\r\xbaH\n" +
 	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x01R\x04dest\x128\n" +
 	"\x10dest_write_files\x18\x87\x01 \x01(\rB\r\xbaH\n" +
