@@ -52,17 +52,43 @@ func TestKafkaDest_initRegistersScheme(t *testing.T) {
 	}
 }
 
-// ───────────────────────────────────────────────────────────────────────
-// KafkaHeaderSizeCst — constant that the wire-format depends on. Pin
-// against accidental tweaks.
-// ───────────────────────────────────────────────────────────────────────
-
-func TestKafkaHeaderSizeCst(t *testing.T) {
-	// Confluent's protobuf wire format prefixes records with a 1-byte
-	// magic + 4-byte schema ID + 1-byte first-message-index varint = 6.
-	// See https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
-	if KafkaHeaderSizeCst != 6 {
-		t.Errorf("KafkaHeaderSizeCst = %d, want 6", KafkaHeaderSizeCst)
+// resolveKafkaCompression maps a config string to a franz-go codec list.
+// "" / "auto" → 4-codec preference list; named codecs → single-element
+// list; unknown → error. Pin the lengths so a future codec rename in
+// franz-go that silently drops a codec from "auto" gets caught.
+func TestResolveKafkaCompression(t *testing.T) {
+	cases := []struct {
+		in      string
+		wantLen int
+		wantErr bool
+	}{
+		{"", 4, false},
+		{"auto", 4, false},
+		{"zstd", 1, false},
+		{"lz4", 1, false},
+		{"snappy", 1, false},
+		{"gzip", 1, false},
+		{"none", 1, false},
+		{"deflate", 0, true},
+		{"ZSTD", 0, true}, // case-sensitive: typo defense
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.in, func(t *testing.T) {
+			got, err := resolveKafkaCompression(tc.in)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("resolveKafkaCompression(%q) err = nil, want non-nil", tc.in)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("resolveKafkaCompression(%q) err = %v, want nil", tc.in, err)
+			}
+			if len(got) != tc.wantLen {
+				t.Errorf("resolveKafkaCompression(%q) len = %d, want %d", tc.in, len(got), tc.wantLen)
+			}
+		})
 	}
 }
 

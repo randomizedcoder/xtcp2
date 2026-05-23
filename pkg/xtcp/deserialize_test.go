@@ -52,13 +52,16 @@ func getTestFlatRecordService(pollRequestCh *chan struct{}) *xtcpFlatRecordServi
 // what the production path would produce.
 //
 // Destination is destNull (records flow through but aren't captured);
-// Marshaller is protobufSingleMarshal — the default production wiring.
+// Marshaller is protoJsonMarshal. Production uses MarshalTo=protobufList
+// via the envelope path (poller.flushEnvelope) which doesn't invoke
+// x.Marshaller; x.Marshaller is wired here so test paths that still
+// reference it stay non-nil.
 func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	tb.Helper()
 	x := new(XTCP)
 	x.config = &xtcp_config.XtcpConfig{
 		Modulus:    1,
-		MarshalTo:  MarshallerProtobufSingle,
+		MarshalTo:  MarshallerProtoJSON,
 		Dest:       schemeNullPrefix,
 		DebugLevel: 0,
 	}
@@ -93,7 +96,7 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	x.flatRecordService = getTestFlatRecordService(&x.pollRequestCh)
 
 	x.Marshaller = func(r *xtcp_flat_record.XtcpFlatRecord) *[]byte {
-		return x.protobufSingleMarshal(r)
+		return x.protoJsonMarshal(r)
 	}
 	// Build the null destination directly. Bypasses the InitDests path so
 	// the test doesn't need a goroutine + waitgroup just to plumb dest in.

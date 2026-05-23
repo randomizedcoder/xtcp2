@@ -7,29 +7,50 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	msgpack "github.com/vmihailenco/msgpack/v5"
+	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 )
 
 // Canonical Marshaller names — referenced by tests and config-validation
 // alike, kept here so a typo in any one site is a compile error.
 const (
-	MarshallerProtobufSingle = "protobufSingle"
-	MarshallerProtoJSON      = "protoJson"
-	MarshallerProtoText      = "protoText"
-	MarshallerMsgPack        = "msgpack"
+	MarshallerProtobufList = "protobufList"
+	MarshallerProtoJSON    = "protoJson"
+	MarshallerProtoText    = "protoText"
+	MarshallerMsgPack      = "msgpack"
+)
+
+// Envelope-size safety valves. Two independent thresholds — the
+// first to trip wins. Row count is the primary knob: cheap (O(1) per
+// append) and predictable. proto.Size is a secondary safety net for
+// pathological per-record sizes (a record with a huge bytes field)
+// because the row count alone won't catch those.
+//
+// Note: proto.Size measures the UNCOMPRESSED serialized bytes.
+// franz-go applies ZSTD/LZ4/Snappy after handoff, so the actual
+// on-wire Kafka message is typically 3-8x smaller. Treat the bytes
+// cap as a conservative upper bound, not the wire size.
+//
+// proto.Size is O(message size) so we only call it every Nth append,
+// mirroring the `Modulus` pattern used elsewhere in this package.
+const (
+	EnvelopeFlushThresholdBytesCst = 768 * 1024
+	EnvelopeFlushThresholdRowsCst  = 10000
+	envelopeSizeCheckModulus       = 64
 )
 
 var (
-	// protoSingle, protoDelim, protoJson, protoText, msgpack
+	// validMarshallersMap is the union of per-record (protoJson,
+	// protoText, msgpack — debug formats) and per-envelope (protobufList
+	// — production wire format) marshaller names. InitMarshallers and
+	// InitEnvelopeMarshallers each only populate their own registry; the
+	// per-record map will miss the protobufList key on purpose.
 	validMarshallersMap = map[string]bool{
-		// "protobuf":       true, // https://clickhouse.com/docs/en/interfaces/formats/Protobuf
-		MarshallerProtobufSingle: true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufSingle
-		// "protobufList":   true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
-		MarshallerProtoJSON: true,
-		MarshallerProtoText: true,
-		MarshallerMsgPack:   true,
+		MarshallerProtobufList: true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
+		MarshallerProtoJSON:    true,
+		MarshallerProtoText:    true,
+		MarshallerMsgPack:      true,
 	}
 )
 
@@ -49,10 +70,6 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 		return
 	}
 
-	x.Marshallers.Store(MarshallerProtobufSingle, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-		return x.protobufSingleMarshal(r)
-	})
-
 	x.Marshallers.Store(MarshallerProtoJSON, func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
 		return x.protoJsonMarshal(r)
 	})
@@ -65,56 +82,55 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 		return x.protoMsgPackMarshal(r)
 	})
 
+	// protobufList is per-envelope, handled in InitEnvelopeMarshallers.
+	// A lookup miss here is expected and not an error.
 	if f, ok := x.Marshallers.Load(x.config.MarshalTo); ok {
 		x.Marshaller, _ = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)) //nolint:errcheck // Marshallers.Store sites all use this signature
-		return
 	}
-	x.callFatalf("InitMarshalers XTCP Marshal must be one of protoSingle, protoDelim, protoJson, protoText, msgpack:%s", x.config.MarshalTo)
 }
 
-// // protobufMarshal marshals to protobuf and does error handling
-// // this is the length delimited protobuf
-// // https://clickhouse.com/docs/en/interfaces/formats#protobuf
-// // https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-// func (x *XTCP) protobufMarshal(e *xtcp_flat_record.Envelope) (bufPtr *[]byte) {
+// InitEnvelopeMarshallers registers per-Envelope marshallers and stores
+// the chosen function in x.EnvelopeMarshaller. Currently the only entry
+// is protobufList — additional batched formats would register here.
+//
+// Any destination is permitted: kafka receives the bytes via Produce,
+// null discards them (used in tests and -dest null deployments), other
+// destinations get the length-delimited Envelope as one record. A
+// downstream consumer that expects per-record bytes won't decode this
+// correctly, but that's a deployment choice, not a daemon-side guard.
+func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 
-// 	buf := x.destBytesPool.Get().([]byte)
+	defer wg.Done()
 
-// 	writer := &ByteSliceWriter{Buf: &buf}
+	x.EnvelopeMarshallers.Store(MarshallerProtobufList, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		return x.protobufListMarshal(e)
+	})
 
-// 	// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
-// 	n, err := protodelim.MarshalTo(writer, e)
-// 	if err != nil {
-// 		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-// 		if x.debugLevel > 10 {
-// 			log.Println("protodelim.MarshalTo() err: ", err)
-// 		}
-// 	}
+	if f, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); ok {
+		x.EnvelopeMarshaller, _ = f.(func(e *xtcp_flat_record.Envelope) (buf *[]byte)) //nolint:errcheck // EnvelopeMarshallers.Store sites all use this signature
+	}
+}
 
-// 	if x.debugLevel > 10 {
-// 		log.Printf("protodelim.MarshalTo() n:%d", n)
-// 	}
+// protobufListMarshal marshals an Envelope as length-delimited protobuf:
+// varint(envelope_size) || envelope_bytes. ClickHouse's
+// kafka_format='ProtobufList' expects exactly this on the wire. No
+// Confluent schema-registry header is prepended; schema-registry
+// registration in destinations_kafka is informational only (ClickHouse
+// does not consult the registry to decode messages).
+// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
-// 	bufPtr = writer.Buf
+	got, _ := x.destBytesPool.Get().(*[]byte) //nolint:errcheck // pool.New returns *[]byte
+	buf = got
+	*buf = (*buf)[:0]
 
-// 	return bufPtr
-// }
-
-// protobufSingleMarshal marshals to protobuf and does error handling
-// this does NOT have the length varint in front
-// https://clickhouse.com/docs/en/interfaces/formats#protobufsingle
-// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-func (x *XTCP) protobufSingleMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	// func (x *XTCP) protobufSingleMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-
-	b, err := proto.Marshal(r)
-	if err != nil {
-		x.pC.WithLabelValues("protoMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 1000 {
-			log.Println("proto.Marshal(x) err: ", err)
+	writer := &ByteSliceWriter{Buf: buf}
+	if _, err := protodelim.MarshalTo(writer, e); err != nil {
+		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Println("protodelim.MarshalTo(envelope) err: ", err)
 		}
 	}
-	buf = &b
 
 	return buf
 }
@@ -128,148 +144,26 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-// protobufListMarshal marshals the protobuf to binary, does NOT include
-// the confluent header
-// func (x *XTCP) protobufListMarshalNoHeader(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-// 	//func (x *XTCP) protobufListMarshalNoHeader(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-
-// 	buf = x.destBytesPool.Get().(*[]byte)
-
-// 	*buf = (*buf)[:0]
-
-// 	if x.debugLevel > 10 {
-// 		log.Printf("protobufListMarshal protodelim.MarshalTo() x.schemaID:%d x.schemaID:%x", x.schemaID, x.schemaID)
-// 		log.Printf("protobufListMarshal header bytes: % X", (*buf)[:KafkaHeaderSizeCst])
-// 	}
-
-// 	if x.config.ProtobufListLengthDelimit {
-
-// 		// writer will append from end of buf
-// 		writer := &ByteSliceWriter{Buf: buf}
-
-// 		// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
-// 		n, err := protodelim.MarshalTo(writer, e)
-// 		if err != nil {
-// 			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-// 			if x.debugLevel > 10 {
-// 				log.Println("protodelim.MarshalTo() err: ", err)
-// 			}
-// 		}
-
-// 		if x.debugLevel > 10 {
-// 			log.Printf("protobufListMarshal: After MarshalTo, n: %d, len(*buf): %d, *buf: % X", n, len(*buf), (*buf)[:KafkaHeaderSizeCst])
-// 			//log.Printf("protobufListMarshal: After MarshalTo, len(writer.Buf): %d, writer.Buf: % X", len(*writer.Buf), *writer.Buf)
-// 			log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
-// 		}
-
-// 	} else {
-
-// 		// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-// 		b, err := proto.Marshal(e)
-// 		if err != nil {
-// 			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-// 			if x.debugLevel > 10 {
-// 				log.Println("protodelim.MarshalTo() err: ", err)
-// 			}
-// 		}
-
-// 		*buf = append(*buf, b...)
-
-// 	}
-
-// 	// bufPtr = writer.Buf
-
-// 	return buf
-// }
-
-// protobufListMarshal marshals the protobuf to binary, and includes
-// the confluent header
-// func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-
-// 	buf = x.destBytesPool.Get().(*[]byte)
-
-// 	// Add the Confluent header for protobuf, which is not length 5
-// 	// https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
-// 	*buf = (*buf)[:KafkaHeaderSizeCst]
-// 	(*buf)[0] = 0x00                                           // Magic byte
-// 	binary.BigEndian.PutUint32((*buf)[1:], uint32(x.schemaID)) // Sc
-// 	(*buf)[5] = 0x00                                           // the first message
-// 	// most of the time the actual message type will be just the first message
-// 	// type (which is the array [0]), which would normally be encoded as 1,0 (1
-// 	// for length), this special case is optimized to just 0. So in the most common
-// 	//  case of the first message type being used, a single 0 is encoded as
-// 	// the message-indexes.
-
-// 	if x.debugLevel > 10 {
-// 		log.Printf("protobufListMarshal protodelim.MarshalTo() x.schemaID:%d x.schemaID:%x", x.schemaID, x.schemaID)
-// 		log.Printf("protobufListMarshal header bytes: % X", (*buf)[:KafkaHeaderSizeCst])
-// 	}
-
-// 	if x.config.ProtobufListLengthDelimit {
-
-// 		// writer will append from end of buf
-// 		writer := &ByteSliceWriter{Buf: buf}
-
-// 		// https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim#MarshalTo
-// 		n, err := protodelim.MarshalTo(writer, e)
-// 		if err != nil {
-// 			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-// 			if x.debugLevel > 10 {
-// 				log.Println("protodelim.MarshalTo() err: ", err)
-// 			}
-// 		}
-
-// 		if x.debugLevel > 10 {
-// 			log.Printf("protobufListMarshal: After MarshalTo, n: %d, len(*buf): %d, *buf: % X", n, len(*buf), (*buf)[:KafkaHeaderSizeCst])
-// 			//log.Printf("protobufListMarshal: After MarshalTo, len(writer.Buf): %d, writer.Buf: % X", len(*writer.Buf), *writer.Buf)
-// 			log.Printf("protobufListMarshal protodelim.MarshalTo() n:%d", n)
-// 		}
-
-// 	} else {
-
-// 		// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
-// 		b, err := proto.Marshal(e)
-// 		if err != nil {
-// 			x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-// 			if x.debugLevel > 10 {
-// 				log.Println("protodelim.MarshalTo() err: ", err)
-// 			}
-// 		}
-
-// 		*buf = append(*buf, b...)
-
-// 	}
-
-// 	// bufPtr = writer.Buf
-
-// 	return buf
-// }
-
-// protoJsonMarshal marshals to json and does error handling
-// https://pkg.go.dev/google.golang.org/protobuf/proto?tab=doc#Marshal
+// protoJsonMarshal marshals to JSON.
+// https://pkg.go.dev/google.golang.org/protobuf/encoding/protojson
 func (x *XTCP) protoJsonMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	// func (x *XTCP) protoJsonMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b := []byte(protojson.Format(r))
 	buf = &b
 	return buf
 }
 
-// protoTextMarshal marshals to json and does error handling
-// https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext#Marshal
+// protoTextMarshal marshals to prototext.
+// https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext
 func (x *XTCP) protoTextMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	// func (x *XTCP) protoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b := []byte(prototext.Format(r))
 	buf = &b
 	return buf
 }
 
-// protoMsgPackMarshal marshals to MsgPack and does error handling
-// Please note this uses reflection and so is likely to be pretty slow...
+// protoMsgPackMarshal marshals to MsgPack via reflection.
 // https://msgpack.uptrace.dev/
-// https://github.com/msgpack/msgpack
-// TODO look at https://github.com/shamaton/msgpackgen for high performance msgpack
+// TODO consider https://github.com/shamaton/msgpackgen for codegen-based throughput.
 func (x *XTCP) protoMsgPackMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	// func (x *XTCP) protoMsgPackMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b, err := msgpack.Marshal(r)
 	if err != nil {
 		x.pC.WithLabelValues("protoMsgPackMarshal", "Marshal", "error").Inc()

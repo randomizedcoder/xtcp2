@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -41,6 +42,20 @@ func (d *recordingDest) Count() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return len(d.records)
+}
+
+// EnvelopeRows returns the count of records appended to the in-flight
+// envelope by Deserialize. With the ProtobufList path, records aren't
+// sent via dest.Send per-record any more — they accumulate in
+// x.currentEnvelope until flushEnvelope at cycle end. The corner-case
+// tests assert on this directly to verify deserialise produced output.
+func (d *recordingDest) EnvelopeRows() int {
+	d.x.envelopeMu.Lock()
+	defer d.x.envelopeMu.Unlock()
+	if d.x.currentEnvelope == nil {
+		return 0
+	}
+	return len(d.x.currentEnvelope.Row)
 }
 
 // mkNlMsg builds a synthetic netlink message whose on-wire `Len` field is
@@ -116,6 +131,12 @@ func runDeserialize(t *testing.T, x *XTCP, buf []byte) (rec *recordingDest, n ui
 	t.Helper()
 	rec = newRecordingDest(x)
 	x.dest = rec
+
+	// Phase 1 ProtobufList: processInetDiagRecord appends to
+	// x.currentEnvelope under envelopeMu instead of calling dest.Send
+	// per-record. Initialise a fresh envelope so the append path has
+	// somewhere to write; the test then asserts on rec.EnvelopeRows().
+	x.currentEnvelope = &xtcp_flat_record.Envelope{}
 
 	nsName := "corner-case-ns"
 	args := DeserializeArgs{
@@ -307,13 +328,14 @@ func TestDeserializeBaselineProducesRecords(t *testing.T) {
 	if n == 0 {
 		t.Fatal("n = 0; testdata should contain records")
 	}
-	// The recording dest receives one Send per real (non-skipped) record.
-	// The DONE iteration increments n but doesn't Send.
-	if rec.Count() == 0 {
-		t.Fatalf("recording dest captured 0 records, n=%d", n)
+	// ProtobufList: every real (non-skipped) record is appended to the
+	// in-flight envelope. The DONE iteration increments n but doesn't
+	// append. So envelope rows ∈ [1, n].
+	if rec.EnvelopeRows() == 0 {
+		t.Fatalf("envelope captured 0 rows, n=%d", n)
 	}
-	if rec.Count() > int(n) {
-		t.Errorf("recording dest captured %d records but n=%d", rec.Count(), n)
+	if rec.EnvelopeRows() > int(n) {
+		t.Errorf("envelope captured %d rows but n=%d", rec.EnvelopeRows(), n)
 	}
 }
 
@@ -330,8 +352,8 @@ func TestDeserializeEarlyDone(t *testing.T) {
 	if n != 0 {
 		t.Errorf("n = %d want 0", n)
 	}
-	if rec.Count() != 0 {
-		t.Errorf("recording dest got %d records, want 0", rec.Count())
+	if rec.EnvelopeRows() != 0 {
+		t.Errorf("envelope got %d rows, want 0", rec.EnvelopeRows())
 	}
 }
 

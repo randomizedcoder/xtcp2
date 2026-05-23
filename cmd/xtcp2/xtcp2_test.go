@@ -205,11 +205,10 @@ func TestEnvOverridePacket(t *testing.T) {
 func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	c := &xtcp_config.XtcpConfig{}
 	t.Setenv("MARSHAL", "protoJson")
-	t.Setenv("PROTOBUF_LIST_LENGTH_DELIMIT", "yes")
 	t.Setenv("DEST", "null")
 	t.Setenv("DEST_WRITE_FILES", "3")
 	envOverrideMarshalAndDest(c, 0)
-	if c.MarshalTo != "protoJson" || !c.ProtobufListLengthDelimit ||
+	if c.MarshalTo != "protoJson" ||
 		c.Dest != "null" || c.DestWriteFiles != 3 {
 		t.Errorf("envOverrideMarshalAndDest mismatch: %+v", c)
 	}
@@ -571,7 +570,7 @@ func TestGetDeserializers(t *testing.T) {
 
 func TestPrintConfig(t *testing.T) {
 	c := &xtcp_config.XtcpConfig{
-		MarshalTo: "protobufSingle",
+		MarshalTo: "protobufList",
 		Dest:      "null",
 	}
 	r, w, _ := os.Pipe()
@@ -587,7 +586,7 @@ func TestPrintConfig(t *testing.T) {
 	printConfig(c, "test snapshot")
 	_ = w.Close() //nolint:errcheck // test plumbing
 	<-done
-	if !strings.Contains(out.String(), "test snapshot") || !strings.Contains(out.String(), "protobufSingle") {
+	if !strings.Contains(out.String(), "test snapshot") || !strings.Contains(out.String(), "protobufList") {
 		t.Errorf("printConfig should include comment + fields; got %q", out.String())
 	}
 }
@@ -615,7 +614,9 @@ func TestPrintFlags(t *testing.T) {
 	f.capturePath = &s
 	f.modulus = &n64
 	f.marshal = &s
-	f.protobufListLengthDelimit = &b
+	f.envelopeFlushBytes = &n
+	f.envelopeFlushRows = &n
+	f.kafkaCompression = &s
 	f.dest = &s
 	f.destWriteFiles = &n
 	f.topic = &s
@@ -673,7 +674,6 @@ func TestBuildConfig(t *testing.T) {
 	cp := "/tmp/cap/"
 	mod := uint64(13)
 	mar := "protoText"
-	pld := true
 	dst := "udp:127.0.0.1:13000"
 	dwf := uint(4)
 	topic := "topic1"
@@ -698,7 +698,9 @@ func TestBuildConfig(t *testing.T) {
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
 		writeFiles: &wf, capturePath: &cp, modulus: &mod, marshal: &mar,
-		protobufListLengthDelimit: &pld, dest: &dst, destWriteFiles: &dwf,
+		envelopeFlushBytes: &wf, envelopeFlushRows: &wf,
+		kafkaCompression: &mar,
+		dest: &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
 		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,

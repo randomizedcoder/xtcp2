@@ -20,8 +20,10 @@ func (x *XTCP) InputValidation() {
 // the legacy log.Fatalf behavior for the init-time call site.
 func (x *XTCP) validateInput() error {
 	if _, ok := x.Marshallers.Load(x.config.MarshalTo); !ok {
-		return fmt.Errorf("XTCP Marshal must be one of:%s MarshalTo:%s",
-			validMarshallers(), x.config.MarshalTo)
+		if _, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); !ok {
+			return fmt.Errorf("XTCP Marshal must be one of:%s MarshalTo:%s",
+				validMarshallers(), x.config.MarshalTo)
+		}
 	}
 
 	if x.config.Dest != schemeNull {

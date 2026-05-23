@@ -13,7 +13,7 @@ import (
 
 func TestInputValidation_happy(t *testing.T) {
 	x := newValidationFixture(t, &xtcp_config.XtcpConfig{
-		Topic: "x", Dest: schemeNull, MarshalTo: MarshallerProtobufSingle,
+		Topic: "x", Dest: schemeNull, MarshalTo: MarshallerProtoJSON,
 	})
 	called := false
 	x.fatalf = func(string, ...any) { called = true }
