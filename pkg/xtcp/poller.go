@@ -16,6 +16,12 @@ import (
 func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
+	// Detached context for the final flush: by the time this defer runs,
+	// the parent ctx may already be Done (shutdown is what caused us to
+	// return), and a canceled ctx would short-circuit Send and lose the
+	// in-flight envelope. The destination's own Close() drains pending
+	// produces with a 5s flush window.
+	defer x.flushEnvelope(context.Background(), "shutdown")
 
 	if x.debugLevel > 10 {
 		log.Printf("Poller started")
@@ -58,14 +64,66 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 			x.handleChangePollFrequency(d, ticker, pollingLoops, count)
 		case doneReceived := <-x.netlinkerDoneCh:
 			count = x.handleNetlinkerDone(doneReceived, count)
+			if count == 0 {
+				x.flushEnvelope(ctx, "poll_end")
+			}
 		case <-x.pollTimeoutTimer.C:
 			count = x.handlePollTimeout()
+			x.flushEnvelope(ctx, "poll_timeout")
 		}
 
 		x.recordPollerCycleDuration(pollingLoops)
 	}
 
 	x.pC.WithLabelValues("Poller", "complete", "count").Inc()
+}
+
+// flushEnvelope drains x.currentEnvelope: marshals the accumulated rows,
+// hands the bytes to the destination, then returns each *XtcpFlatRecord
+// and the Envelope itself to their sync.Pools. After this returns,
+// x.currentEnvelope is nil; the next pollAllNetlinkSockets re-acquires
+// a fresh envelope from the pool. Concurrent appends in deserialize.go
+// (processInetDiagRecord) take envelopeMu and tolerate nil by dropping
+// the record (no-op + counter bump) — that path only fires for in-flight
+// netlinkers during shutdown after the final flush.
+func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
+	x.envelopeMu.Lock()
+	e := x.currentEnvelope
+	x.currentEnvelope = nil
+	x.envelopeMu.Unlock()
+
+	if e == nil {
+		return
+	}
+	if len(e.Row) == 0 {
+		x.xtcpEnvelopePool.Put(e)
+		return
+	}
+
+	rows := len(e.Row)
+	buf := x.EnvelopeMarshaller(e)
+	_, err := x.dest.Send(ctx, buf)
+
+	// type label tracks the trigger: poll_end (all netlinkers done),
+	// poll_timeout (timer fired first), size_cap (mid-poll early flush),
+	// shutdown (final defer). Dashboards filter by this to spot whether
+	// production is hitting size_cap excessively (envelope sizes too
+	// large) or poll_timeout excessively (slow netns / dropped DONE).
+	x.pC.WithLabelValues("Poller", "envelopeFlush", reason).Inc()
+	x.pC.WithLabelValues("Poller", "envelopeRows", "count").Add(float64(rows))
+	if err != nil {
+		x.pC.WithLabelValues("Poller", "envelopeFlush", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("flushEnvelope reason=%s dest.Send err:%v rows:%d", reason, err, rows)
+		}
+	}
+
+	for _, r := range e.Row {
+		r.Reset()
+		x.xtcpRecordPool.Put(r)
+	}
+	x.EnvelopeZero(e)
+	x.xtcpEnvelopePool.Put(e)
 }
 
 // handlePollerTick reacts to the periodic Ticker.C signal: bumps the

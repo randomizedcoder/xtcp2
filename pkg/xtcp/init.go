@@ -47,6 +47,8 @@ func (x *XTCP) Init(ctx context.Context) {
 	wg.Add(1)
 	go x.InitMarshallers(wg)
 	wg.Add(1)
+	go x.InitEnvelopeMarshallers(wg)
+	wg.Add(1)
 	go x.InitDests(ctx, wg)
 	wg.Add(1)
 	go x.InitNetlinkers(ctx, wg)

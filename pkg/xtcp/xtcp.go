@@ -70,6 +70,9 @@ type XTCP struct {
 	Marshallers sync.Map
 	Marshaller  func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)
 
+	EnvelopeMarshallers sync.Map
+	EnvelopeMarshaller  func(e *xtcp_flat_record.Envelope) (buf *[]byte)
+
 	// dest is the chosen Destination for this process. Built once at startup
 	// in InitDests by looking up x.config.Dest's scheme in the package-level
 	// destRegistry. Per-destination state (clients, conns, fds, pools) lives
@@ -188,7 +191,7 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
 		Dest:                  schemeNull,
-		MarshalTo:             MarshallerProtobufSingle, // was "proto" which is not in validMarshallersMap — latent bug
+		MarshalTo:             MarshallerProtobufList,
 		Topic:                 "not-a-topic",
 		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
 			Enabled: make(map[string]bool),

@@ -55,9 +55,32 @@ const (
 
 	modulusCst = 1 // 2000
 
-	// protobufList, protobufSingle, protoDelim, protoJson, protoText, msgpack
-	marshalCst                   = "protobufSingle"
-	protobufListLengthDelimitCst = false
+	// protobufList (Kafka path, length-delimited Envelope), protoJson,
+	// protoText, msgpack (per-record debug formats).
+	marshalCst = "protobufList"
+
+	// envelopeFlushBytesCst caps the in-flight protobufList Envelope's
+	// uncompressed marshalled byte size before deserialize.go triggers
+	// an early mid-poll flush. Use as a safety net against pathological
+	// per-record sizes; for everyday batch sizing prefer the row cap
+	// below. 0 = use daemon's compile-time default
+	// (EnvelopeFlushThresholdBytesCst, currently 768 KiB).
+	envelopeFlushBytesCst = 0
+
+	// envelopeFlushRowsCst caps the in-flight Envelope's row count
+	// before deserialize.go triggers an early mid-poll flush. Cheap
+	// (O(1) per append) and predictable. Whichever cap (rows or bytes)
+	// trips first wins. 0 = use daemon's compile-time default
+	// (EnvelopeFlushThresholdRowsCst, currently 10000 — aligned with
+	// ClickHouse's kafka_max_rows_per_message).
+	envelopeFlushRowsCst = 0
+
+	// kafkaCompressionCst chooses the producer-batch compression codec.
+	// Default "" → franz-go's broker-negotiated preference list (zstd
+	// preferred). Explicit codec name pins one. See xtcp_config.proto
+	// for the full menu; resolveKafkaCompression in destinations_kafka.go
+	// validates the value at startup.
+	kafkaCompressionCst = ""
 
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
@@ -126,7 +149,9 @@ type mainFlags struct {
 	capturePath               *string
 	modulus                   *uint64
 	marshal                   *string
-	protobufListLengthDelimit *bool
+	envelopeFlushBytes        *uint
+	envelopeFlushRows         *uint
+	kafkaCompression          *string
 	dest                      *string
 	destWriteFiles            *uint
 	topic                     *string
@@ -165,7 +190,9 @@ func defineFlags() *mainFlags {
 	f.capturePath = flag.String("capturePath", capturePathCst, "Write files path")
 	f.modulus = flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
 	f.marshal = flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack)")
-	f.protobufListLengthDelimit = flag.Bool("protobufListLengthDelimit", protobufListLengthDelimitCst, "protobufListLengthDelimit")
+	f.envelopeFlushBytes = flag.Uint("envelopeFlushBytes", envelopeFlushBytesCst, "Safety-net cap on the in-flight protobufList Envelope's UNCOMPRESSED proto size in bytes (franz-go compresses post-flush, so wire size is typically 3-8x smaller). 0 = use daemon default (768 KiB). Whichever cap (bytes/rows) trips first wins.")
+	f.envelopeFlushRows = flag.Uint("envelopeFlushRows", envelopeFlushRowsCst, "Primary cap on the in-flight protobufList Envelope's row count. 0 = use daemon default (10000). Cheap, predictable; pairs with -envelopeFlushBytes as a safety net.")
+	f.kafkaCompression = flag.String("kafkaCompression", kafkaCompressionCst, "Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.")
 	f.dest = flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
@@ -210,7 +237,9 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*capturePath:", *f.capturePath)
 	fmt.Println("*modulus:", *f.modulus)
 	fmt.Println("*marshal:", *f.marshal)
-	fmt.Println("*protobufListLengthDelimit:", *f.protobufListLengthDelimit)
+	fmt.Println("*envelopeFlushBytes:", *f.envelopeFlushBytes)
+	fmt.Println("*envelopeFlushRows:", *f.envelopeFlushRows)
+	fmt.Println("*kafkaCompression:", *f.kafkaCompression)
 	fmt.Println("*dest:", *f.dest)
 	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
 	fmt.Println("*topic:", *f.topic)
@@ -237,8 +266,11 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		WriteFiles:             uint32(*f.writeFiles),
 		CapturePath:            *f.capturePath,
 		Modulus:                *f.modulus,
-		MarshalTo:              *f.marshal,
-		Dest:                   *f.dest,
+		MarshalTo:                   *f.marshal,
+		EnvelopeFlushThresholdBytes: uint32(*f.envelopeFlushBytes),
+		EnvelopeFlushThresholdRows:  uint32(*f.envelopeFlushRows),
+		KafkaCompression:            *f.kafkaCompression,
+		Dest:                        *f.dest,
 		DestWriteFiles:         uint32(*f.destWriteFiles),
 		Topic:                  *f.topic,
 		XtcpProtoFile:          *f.xtcpProtoFile,
@@ -700,9 +732,17 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.MarshalTo = v
 		logEnv("MARSHAL", fmt.Sprintf("c.Marshal:%s", v), debugLevel)
 	}
-	if _, ok := os.LookupEnv("PROTOBUF_LIST_LENGTH_DELIMIT"); ok {
-		c.ProtobufListLengthDelimit = true
-		logEnv("PROTOBUF_LIST_LENGTH_DELIMIT", fmt.Sprintf("c.ProtobufListLengthDelimit:%t", c.ProtobufListLengthDelimit), debugLevel)
+	if v, ok := envUint32("ENVELOPE_FLUSH_BYTES"); ok {
+		c.EnvelopeFlushThresholdBytes = v
+		logEnv("ENVELOPE_FLUSH_BYTES", fmt.Sprintf("c.EnvelopeFlushThresholdBytes:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("ENVELOPE_FLUSH_ROWS"); ok {
+		c.EnvelopeFlushThresholdRows = v
+		logEnv("ENVELOPE_FLUSH_ROWS", fmt.Sprintf("c.EnvelopeFlushThresholdRows:%d", v), debugLevel)
+	}
+	if v, ok := envString("KAFKA_COMPRESSION"); ok {
+		c.KafkaCompression = v
+		logEnv("KAFKA_COMPRESSION", fmt.Sprintf("c.KafkaCompression:%s", v), debugLevel)
 	}
 	if v, ok := envString("DEST"); ok {
 		c.Dest = v
@@ -762,7 +802,9 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.CapturePath:", c.CapturePath)
 	fmt.Println("c.Modulus:", c.Modulus)
 	fmt.Println("c.MarshalTo:", c.MarshalTo)
-	fmt.Println("c.ProtobufListLengthDelimit:", c.ProtobufListLengthDelimit)
+	fmt.Println("c.EnvelopeFlushThresholdBytes:", c.EnvelopeFlushThresholdBytes)
+	fmt.Println("c.EnvelopeFlushThresholdRows:", c.EnvelopeFlushThresholdRows)
+	fmt.Println("c.KafkaCompression:", c.KafkaCompression)
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)
