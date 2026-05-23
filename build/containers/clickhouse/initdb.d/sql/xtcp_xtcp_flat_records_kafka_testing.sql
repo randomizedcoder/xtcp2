@@ -9,7 +9,7 @@ ENGINE = Kafka
 SETTINGS
   kafka_broker_list = 'redpanda-0:9092',
   kafka_topic_list = 'xtcp',
-  kafka_schema = 'xtcp_flat_record_repeated.proto:XtcpFlatRecord',
+  kafka_schema = 'xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord',
   kafka_max_rows_per_message = 10000,
   kafka_format = 'ProtobufList',
   kafka_num_consumers = 1,
