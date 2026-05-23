@@ -102,10 +102,10 @@ func pollLoop(ctx context.Context, client kafkaFetcher, consumeTimeout time.Dura
 
 	xtcpRecordPool := sync.Pool{
 		New: func() any {
-			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
+			return new(xtcp_flat_record.XtcpFlatRecord)
 		},
 	}
-	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
+	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0
@@ -139,7 +139,7 @@ func pollLoop(ctx context.Context, client kafkaFetcher, consumeTimeout time.Dura
 // handleRecord logs receipt metadata and attempts to decode the record's
 // value into xtcpRecord. Extracted from the EachRecord callback so tests
 // can exercise the decode happy + bad-proto paths without a Kafka client.
-func handleRecord(i, j, records int, record *kgo.Record, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
+func handleRecord(i, j, records int, record *kgo.Record, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 	fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
 		i, j, records, record.Topic, record.Partition, record.Offset)
 

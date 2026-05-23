@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,20 +12,18 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protodelim"
 )
 
 // ErrRecordTooShort is returned by processRecord when a Kafka record value is
-// shorter than the Confluent wire format header (1 magic byte + 4 schema ID
-// bytes + 1 length prefix).
-var ErrRecordTooShort = errors.New("kafka record too short for Confluent header")
+// too short to contain a length-delimited Envelope.
+var ErrRecordTooShort = errors.New("kafka record too short for length-delimited envelope")
 
 const (
-	brokerCst          = "localhost:19092"
-	topicCst           = "xtcp"
-	groupID            = "xtcp-consumer-group"
-	debugLevelCst      = 11
-	KafkaHeaderSizeCst = 6
+	brokerCst     = "localhost:19092"
+	topicCst      = "xtcp"
+	groupID       = "xtcp-consumer-group"
+	debugLevelCst = 11
 )
 
 var (
@@ -99,30 +97,35 @@ func pollLoop(ctx context.Context, cl kafkaFetcher) {
 	}
 }
 
-// processRecord parses one Confluent-framed Kafka record value: 1 magic byte +
-// 4-byte schema ID + length-prefixed envelope. Returns ErrRecordTooShort if
-// the value doesn't even contain the Confluent header, or the proto.Unmarshal
-// error if the payload isn't a valid Envelope. The decoded envelope is logged
-// at debugLevel>10. Extracted from main so tests can drive it with synthetic
-// records (no broker needed).
+// processRecord parses one length-delimited Envelope Kafka record value:
+// varint(envelope_size) || encoded_Envelope. The xtcp daemon produces
+// this exact shape (see pkg/xtcp/marshallers.go protobufListMarshal +
+// pkg/xtcp/poller.go flushEnvelope) and ClickHouse's
+// kafka_format='ProtobufList' decodes it on the consumer side. No
+// Confluent schema-registry header is prepended on the wire; the
+// schema registry registration in xtcp's destinations_kafka is
+// informational only.
+//
+// Returns ErrRecordTooShort if the value can't contain even an empty
+// envelope (varint of 0 = 1 byte) or the protodelim error if the
+// length-delimited frame is malformed.
 func processRecord(value []byte, debugLvl uint) error {
-	if len(value) < KafkaHeaderSizeCst {
-		log.Println("Skipping record: Value too short to contain Confluent header")
+	if len(value) < 1 {
+		log.Println("Skipping record: empty value")
 		return ErrRecordTooShort
 	}
 
 	if debugLvl > 10 {
-		log.Printf("record.Value header: % X", value[:KafkaHeaderSizeCst])
-	}
-
-	schemaID := binary.BigEndian.Uint32(value[1:5])
-	if debugLvl > 10 {
-		log.Printf("schemaID:%d", schemaID)
+		head := len(value)
+		if head > 16 {
+			head = 16
+		}
+		log.Printf("record.Value head:% X (%d bytes total)", value[:head], len(value))
 	}
 
 	var envelope xtcp_flat_record.Envelope
-	if err := proto.Unmarshal(value[KafkaHeaderSizeCst:], &envelope); err != nil {
-		log.Printf("Failed to unmarshal protobuf: %v", err)
+	if err := protodelim.UnmarshalFrom(bytes.NewReader(value), &envelope); err != nil {
+		log.Printf("Failed to unmarshal length-delimited envelope: %v", err)
 		return err
 	}
 
