@@ -36,7 +36,7 @@ func TestRunReceiver_happy(t *testing.T) {
 	defer func() { _ = srv.Close() }() //nolint:errcheck // test plumbing
 	defer func() { _ = cli.Close() }() //nolint:errcheck // test plumbing
 
-	rec := &xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "udp-test"}
+	rec := &xtcp_flat_record.XtcpFlatRecord{Hostname: "udp-test"}
 	encoded, err := proto.Marshal(rec)
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 	// the next iter takes the ctx.Done branch.
 	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if derr == nil {
-		buf, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h"}) //nolint:errcheck // test plumbing
+		buf, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h"}) //nolint:errcheck // test plumbing
 		_, _ = cli.Write(buf)                                                             //nolint:errcheck // test plumbing
 		_ = cli.Close()                                                                   //nolint:errcheck // test plumbing
 	}
@@ -213,7 +213,7 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 	// Send a second valid record + close the socket via SetReadDeadline
 	// so ReadFromUDP returns and the loop observes ctx.Done().
 	if cli2, _ := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}); cli2 != nil { //nolint:errcheck // test plumbing
-		buf2, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h2"}) //nolint:errcheck // test plumbing
+		buf2, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h2"}) //nolint:errcheck // test plumbing
 		_, _ = cli2.Write(buf2)                                                             //nolint:errcheck // test plumbing
 		_ = cli2.Close()                                                                    //nolint:errcheck // test plumbing
 	}

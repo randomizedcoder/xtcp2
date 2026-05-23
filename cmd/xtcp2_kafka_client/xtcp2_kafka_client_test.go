@@ -3,57 +3,62 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protodelim"
 )
 
+// marshalEnvelopeForTest produces the on-wire bytes the daemon would
+// emit for a given Envelope: varint(envelope_size) || envelope_bytes.
+// Used by the happy-path / debug-log / pollLoop tests to construct
+// fake Kafka records.
+func marshalEnvelopeForTest(t *testing.T, env *xtcp_flat_record.Envelope) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if _, err := protodelim.MarshalTo(&buf, env); err != nil {
+		t.Fatalf("protodelim.MarshalTo: %v", err)
+	}
+	return buf.Bytes()
+}
+
 func TestProcessRecord_tooShort(t *testing.T) {
-	cases := [][]byte{nil, {}, {0x00}, {0x00, 0x00, 0x00, 0x00, 0x00}}
-	for i, value := range cases {
-		if err := processRecord(value, 0); !errors.Is(err, ErrRecordTooShort) {
-			t.Errorf("case %d (%d bytes): err = %v, want ErrRecordTooShort", i, len(value), err)
-		}
+	// Only a fully empty record value is too short for the new wire
+	// format — even one varint byte represents an empty envelope and
+	// parses cleanly.
+	if err := processRecord(nil, 0); !errors.Is(err, ErrRecordTooShort) {
+		t.Errorf("nil value: err = %v, want ErrRecordTooShort", err)
+	}
+	if err := processRecord([]byte{}, 0); !errors.Is(err, ErrRecordTooShort) {
+		t.Errorf("empty value: err = %v, want ErrRecordTooShort", err)
 	}
 }
 
 func TestProcessRecord_badProto(t *testing.T) {
-	// 1 magic + 4 schema ID + 1 length byte. Length byte == 0 makes proto.Unmarshal
-	// receive an empty buffer which IS valid (empty envelope), so use 0xFF to force
-	// a malformed varint instead.
-	value := []byte{0x00, 0x00, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFF}
+	// Length-delimited frame claiming 1000 bytes follows but only a
+	// handful are present — protodelim returns an io.ErrUnexpectedEOF.
+	value := []byte{0xE8, 0x07, 0xFF, 0xFF, 0xFF}
 	if err := processRecord(value, 0); err == nil {
-		t.Error("malformed protobuf should produce error")
+		t.Error("truncated length-delimited frame should produce error")
 	}
 }
 
 func TestProcessRecord_happy(t *testing.T) {
 	envelope := &xtcp_flat_record.Envelope{
-		Row: []*xtcp_flat_record.Envelope_XtcpFlatRecord{{Hostname: "test-host"}},
+		Row: []*xtcp_flat_record.XtcpFlatRecord{{Hostname: "test-host"}},
 	}
-	envBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	value := make([]byte, KafkaHeaderSizeCst+len(envBytes))
-	value[0] = 0x00 // magic
-	binary.BigEndian.PutUint32(value[1:5], 42)
-	value[5] = 0x00 // unused length prefix
-	copy(value[KafkaHeaderSizeCst:], envBytes)
+	value := marshalEnvelopeForTest(t, envelope)
 	if err := processRecord(value, 0); err != nil {
 		t.Errorf("happy path: err = %v", err)
 	}
 }
 
 func TestProcessRecord_debugLogging(t *testing.T) {
-	// debugLvl > 10 triggers the schemaID + header log paths.
-	envBytes, _ := proto.Marshal(&xtcp_flat_record.Envelope{}) //nolint:errcheck // test plumbing
-	value := append([]byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x00}, envBytes...)
+	// debugLvl > 10 triggers the head-bytes log path.
+	value := marshalEnvelopeForTest(t, &xtcp_flat_record.Envelope{})
 	if err := processRecord(value, 11); err != nil {
 		t.Errorf("debug-level processRecord err: %v", err)
 	}
@@ -199,14 +204,12 @@ func makeFetchWithRecord(value []byte) kgo.Fetches {
 }
 
 // TestPollLoop_eachRecordClosureFires drives pollLoop with one
-// synthetic Fetch containing a single valid Confluent-framed record.
+// synthetic Fetch containing a single valid length-delimited Envelope
+// record (the shape the xtcp daemon emits via protobufListMarshal).
 // The EachRecord closure (processRecord call) fires, then the second
 // PollFetches call signals the fake to cancel ctx.
 func TestPollLoop_eachRecordClosureFires(t *testing.T) {
-	value := make([]byte, KafkaHeaderSizeCst+1)
-	value[0] = 0x00 // magic
-	// schemaID bytes [1:5] = 0; length byte [5] = 0 → empty proto
-	// envelope; processRecord parses it successfully.
+	value := marshalEnvelopeForTest(t, &xtcp_flat_record.Envelope{})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
