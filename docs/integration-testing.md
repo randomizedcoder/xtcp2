@@ -248,10 +248,55 @@ Schema (all under database `xtcp`):
 xtcp_flat_records_kafka       ENGINE = Kafka     ← consumes redpanda topic
 xtcp_flat_records_mv          ENGINE = MaterializedView  ← bridge
 xtcp_flat_records             ENGINE = MergeTree ← queryable storage
+xtcp_flat_records_errors_mv   ENGINE = MaterializedView  ← parse-failure capture
+xtcp_flat_records_errors      ENGINE = MergeTree ← _error rows (1d TTL)
 ```
 
 SQL DDL lives in `build/containers/clickhouse/initdb.d/sql/` —
 shared between this microvm and the production docker-compose stack.
+
+#### ProtobufList wire format
+
+The xtcp daemon writes batched records as a length-delimited
+`Envelope` per Kafka message (see `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`):
+
+```
+Kafka message body = varint(envelope_size) || serialized_Envelope
+```
+
+where `Envelope { repeated XtcpFlatRecord row = 10 }` carries all records
+from one poll cycle (or a chunk if the size-cap safety valve flushes
+mid-cycle — see `EnvelopeFlushThresholdBytesCst` in
+`pkg/xtcp/marshallers.go`, default 768 KiB).
+
+No Confluent schema-registry header is prepended on the wire. xtcp's
+schema-registry registration (`registerProtobufSchema` in
+`pkg/xtcp/destinations_kafka.go`) is informational only — ClickHouse
+does not consult the registry to decode messages; it loads the
+`xtcp_flat_record.proto` schema from `/var/lib/clickhouse/format_schemas/`
+via its `kafka_schema` setting.
+
+ClickHouse decodes the wire format via:
+
+```sql
+ENGINE = Kafka SETTINGS
+  kafka_format = 'ProtobufList',
+  kafka_schema = 'xtcp_flat_record.proto:xtcp_flat_record.v1.Envelope',
+  ...
+```
+
+Reference encoders (one Kafka, one HTTP) live at:
+
+- `cmd/clickhouse_http_insert_protobuflist/` — produces the wire format
+  and POSTs to ClickHouse's HTTP `?format=ProtobufList` endpoint. The
+  minimal byte-by-byte reproduction of what the daemon's marshaller
+  emits.
+- `cmd/kafka_to_clickhouse/` — same bytes, but sent via Kafka to
+  exercise the engine table path end-to-end.
+
+The `cmd/xtcp2_kafka_client/` tool decodes records from the topic via
+`protodelim.UnmarshalFrom` and logs each `Envelope.row`; useful for
+debugging the producer end without ClickHouse in the loop.
 
 ### Prometheus
 
