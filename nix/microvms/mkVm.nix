@@ -53,7 +53,9 @@ let
   effectiveMem =
     if isVector then
       cfg.memVector
-    else if isTcpStress || isClickPipe then
+    else if isClickPipe then
+      cfg.memClickPipe
+    else if isTcpStress then
       cfg.memTcpStress
     else
       cfg.mem;
@@ -74,6 +76,8 @@ let
         grpcPort = cfg.grpcPort;
         coverageEnabled = isCoverage;
         inherit coverDir;
+        runClickhouseCheck = isClickPipe;
+        clickhousePassword = clickPipeChPassword;
       };
 
   # tcp_server/tcp_client tunables for the soak flavor. They share the
@@ -148,6 +152,7 @@ let
     cp -r ${../../build/containers/clickhouse/initdb.d}/035_recreate_xtcp_xtcp_flat_records.sql.sh $out/
     cp -r ${../../build/containers/clickhouse/initdb.d}/040_recreate_xtcp_xtcp_flat_records_kafka.sql.sh $out/
     cp -r ${../../build/containers/clickhouse/initdb.d}/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh $out/
+    cp -r ${../../build/containers/clickhouse/initdb.d}/055_recreate_xtcp_xtcp_flat_records_errors_mv.sql.sh $out/
     cp -r ${../../build/containers/clickhouse/initdb.d}/sql $out/sql
     # The init scripts write tracking files into out/; pre-create it
     # so they don't fail on the first run. Same as the compose flow.
@@ -427,6 +432,7 @@ let
         --hostname clickhouse \
         -p 18123:8123 -p 19001:9000 \
         --ulimit nofile=262144:262144 \
+        --memory=3500m \
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
@@ -502,7 +508,7 @@ let
     "-dest"
     "unixgram:/run/xtcp2/output.sock"
     "-marshal"
-    "protobufSingle"
+    "protobufList"
     "-frequency"
     "2s"
     # xtcp2 requires `-timeout < -frequency`; defaults are 5 s / 10 s. With
@@ -540,7 +546,7 @@ let
     "-topic"
     clickPipeKafkaTopic
     "-marshal"
-    "protobufSingle"
+    "protobufList"
     "-xtcpProtoFile"
     "/etc/xtcp2/xtcp_flat_record.proto"
     "-frequency"

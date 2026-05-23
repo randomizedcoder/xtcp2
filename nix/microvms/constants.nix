@@ -34,6 +34,14 @@
       # 20 containers + Prometheus's ~150 MiB RSS + 12h of TSDB working
       # set, 3072 MiB leaves clear headroom for a long-running session.
       memTcpStress = 3072;
+      # memClickPipe is used by sink="clickhouse-pipeline". ClickHouse
+      # 25.x easily consumes 2 GiB just to handle the kafka-engine
+      # consume + parse + materialize-view path during a soak. With
+      # 3 GiB total (the tcp-stress budget) ClickHouse gets OOM-killed
+      # within a few minutes. 6144 MiB gives headroom for: ClickHouse
+      # (~2.5 GiB peak), Redpanda (~700 MiB), dockerd (~150 MiB),
+      # xtcp2 (~150 MiB), and the kernel/page cache.
+      memClickPipe = 6144;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
