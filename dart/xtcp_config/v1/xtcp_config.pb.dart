@@ -358,6 +358,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? s3ParquetFlushThresholdBytes,
     $core.String? s3Region,
     $core.int? destWriteFiles,
+    $core.String? pyroscopeUrl,
+    $core.String? pyroscopeAppName,
+    $core.int? pyroscopeSampleHz,
+    $core.int? pyroscopeUploadIntervalSec,
     $core.String? topic,
     $core.String? xtcpProtoFile,
     $core.String? kafkaSchemaUrl,
@@ -447,6 +451,18 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (destWriteFiles != null) {
       $result.destWriteFiles = destWriteFiles;
     }
+    if (pyroscopeUrl != null) {
+      $result.pyroscopeUrl = pyroscopeUrl;
+    }
+    if (pyroscopeAppName != null) {
+      $result.pyroscopeAppName = pyroscopeAppName;
+    }
+    if (pyroscopeSampleHz != null) {
+      $result.pyroscopeSampleHz = pyroscopeSampleHz;
+    }
+    if (pyroscopeUploadIntervalSec != null) {
+      $result.pyroscopeUploadIntervalSec = pyroscopeUploadIntervalSec;
+    }
     if (topic != null) {
       $result.topic = topic;
     }
@@ -515,6 +531,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..a<$core.int>(132, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes', $pb.PbFieldType.OU3)
     ..aOS(133, _omitFieldNames ? '' : 's3Region')
     ..a<$core.int>(135, _omitFieldNames ? '' : 'destWriteFiles', $pb.PbFieldType.OU3)
+    ..aOS(136, _omitFieldNames ? '' : 'pyroscopeUrl')
+    ..aOS(137, _omitFieldNames ? '' : 'pyroscopeAppName')
+    ..a<$core.int>(138, _omitFieldNames ? '' : 'pyroscopeSampleHz', $pb.PbFieldType.OU3)
+    ..a<$core.int>(139, _omitFieldNames ? '' : 'pyroscopeUploadIntervalSec', $pb.PbFieldType.OU3)
     ..aOS(140, _omitFieldNames ? '' : 'topic')
     ..aOS(143, _omitFieldNames ? '' : 'xtcpProtoFile')
     ..aOS(145, _omitFieldNames ? '' : 'kafkaSchemaUrl')
@@ -874,33 +894,84 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(135)
   void clearDestWriteFiles() => clearField(135);
 
+  /// Pyroscope continuous-profiling server URL (e.g.
+  /// http://127.0.0.1:4040). When set, the daemon streams CPU,
+  /// memory, goroutine, mutex, and block profiles to that endpoint.
+  /// Empty disables the agent — no overhead in production runs that
+  /// don't need it. Operators bring up a Pyroscope OSS server (or
+  /// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
+  /// data without restarts.
+  @$pb.TagNumber(136)
+  $core.String get pyroscopeUrl => $_getSZ(25);
+  @$pb.TagNumber(136)
+  set pyroscopeUrl($core.String v) { $_setString(25, v); }
+  @$pb.TagNumber(136)
+  $core.bool hasPyroscopeUrl() => $_has(25);
+  @$pb.TagNumber(136)
+  void clearPyroscopeUrl() => clearField(136);
+
+  /// Application name registered with the Pyroscope server (the
+  /// "application" facet in the Pyroscope UI). Empty → "xtcp2".
+  /// Set per fleet/role for multi-host environments
+  /// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
+  @$pb.TagNumber(137)
+  $core.String get pyroscopeAppName => $_getSZ(26);
+  @$pb.TagNumber(137)
+  set pyroscopeAppName($core.String v) { $_setString(26, v); }
+  @$pb.TagNumber(137)
+  $core.bool hasPyroscopeAppName() => $_has(26);
+  @$pb.TagNumber(137)
+  void clearPyroscopeAppName() => clearField(137);
+
+  /// CPU profile sampling rate in Hz. Default 100. The Pyroscope
+  /// agent uses this to call runtime.SetCPUProfileRate at startup.
+  @$pb.TagNumber(138)
+  $core.int get pyroscopeSampleHz => $_getIZ(27);
+  @$pb.TagNumber(138)
+  set pyroscopeSampleHz($core.int v) { $_setUnsignedInt32(27, v); }
+  @$pb.TagNumber(138)
+  $core.bool hasPyroscopeSampleHz() => $_has(27);
+  @$pb.TagNumber(138)
+  void clearPyroscopeSampleHz() => clearField(138);
+
+  /// Profile upload interval (seconds between batched profile
+  /// pushes). Default 15 s.
+  @$pb.TagNumber(139)
+  $core.int get pyroscopeUploadIntervalSec => $_getIZ(28);
+  @$pb.TagNumber(139)
+  set pyroscopeUploadIntervalSec($core.int v) { $_setUnsignedInt32(28, v); }
+  @$pb.TagNumber(139)
+  $core.bool hasPyroscopeUploadIntervalSec() => $_has(28);
+  @$pb.TagNumber(139)
+  void clearPyroscopeUploadIntervalSec() => clearField(139);
+
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(25);
+  $core.String get topic => $_getSZ(29);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(25, v); }
+  set topic($core.String v) { $_setString(29, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(25);
+  $core.bool hasTopic() => $_has(29);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
   /// XtcpProtoFile
   @$pb.TagNumber(143)
-  $core.String get xtcpProtoFile => $_getSZ(26);
+  $core.String get xtcpProtoFile => $_getSZ(30);
   @$pb.TagNumber(143)
-  set xtcpProtoFile($core.String v) { $_setString(26, v); }
+  set xtcpProtoFile($core.String v) { $_setString(30, v); }
   @$pb.TagNumber(143)
-  $core.bool hasXtcpProtoFile() => $_has(26);
+  $core.bool hasXtcpProtoFile() => $_has(30);
   @$pb.TagNumber(143)
   void clearXtcpProtoFile() => clearField(143);
 
   /// Kafka schema registry url
   @$pb.TagNumber(145)
-  $core.String get kafkaSchemaUrl => $_getSZ(27);
+  $core.String get kafkaSchemaUrl => $_getSZ(31);
   @$pb.TagNumber(145)
-  set kafkaSchemaUrl($core.String v) { $_setString(27, v); }
+  set kafkaSchemaUrl($core.String v) { $_setString(31, v); }
   @$pb.TagNumber(145)
-  $core.bool hasKafkaSchemaUrl() => $_has(27);
+  $core.bool hasKafkaSchemaUrl() => $_has(31);
   @$pb.TagNumber(145)
   void clearKafkaSchemaUrl() => clearField(145);
 
@@ -908,77 +979,77 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(28);
+  $2.Duration get kafkaProduceTimeout => $_getN(32);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(28);
+  $core.bool hasKafkaProduceTimeout() => $_has(32);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(28);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(32);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(29);
+  $core.int get debugLevel => $_getIZ(33);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(29, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(33, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(29);
+  $core.bool hasDebugLevel() => $_has(33);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(30);
+  $core.String get label => $_getSZ(34);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(30, v); }
+  set label($core.String v) { $_setString(34, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(30);
+  $core.bool hasLabel() => $_has(34);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(31);
+  $core.String get tag => $_getSZ(35);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(31, v); }
+  set tag($core.String v) { $_setString(35, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(31);
+  $core.bool hasTag() => $_has(35);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(32);
+  $core.int get grpcPort => $_getIZ(36);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(32, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(36, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(32);
+  $core.bool hasGrpcPort() => $_has(36);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(33);
+  EnabledDeserializers get enabledDeserializers => $_getN(37);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(33);
+  $core.bool hasEnabledDeserializers() => $_has(37);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(33);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(37);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(34);
+  $core.bool get ioUring => $_getBF(38);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(34, v); }
+  set ioUring($core.bool v) { $_setBool(38, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(34);
+  $core.bool hasIoUring() => $_has(38);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -987,11 +1058,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(35);
+  $core.int get ioUringRecvBatchSize => $_getIZ(39);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(35, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(39, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(35);
+  $core.bool hasIoUringRecvBatchSize() => $_has(39);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -999,11 +1070,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(36);
+  $core.int get ioUringCqeBatchSize => $_getIZ(40);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(36, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(40, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(36);
+  $core.bool hasIoUringCqeBatchSize() => $_has(40);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 }

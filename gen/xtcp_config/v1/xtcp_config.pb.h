@@ -853,6 +853,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kS3SecretKeyFieldNumber = 129,
     kDestFieldNumber = 130,
     kS3RegionFieldNumber = 133,
+    kPyroscopeUrlFieldNumber = 136,
+    kPyroscopeAppNameFieldNumber = 137,
     kTopicFieldNumber = 140,
     kXtcpProtoFileFieldNumber = 143,
     kKafkaSchemaUrlFieldNumber = 145,
@@ -875,6 +877,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kEnvelopeFlushThresholdRowsFieldNumber = 123,
     kS3ParquetFlushThresholdBytesFieldNumber = 132,
     kDestWriteFilesFieldNumber = 135,
+    kPyroscopeSampleHzFieldNumber = 138,
+    kPyroscopeUploadIntervalSecFieldNumber = 139,
     kDebugLevelFieldNumber = 160,
     kGrpcPortFieldNumber = 190,
     kIoUringFieldNumber = 210,
@@ -1039,6 +1043,38 @@ class XtcpConfig final : public ::google::protobuf::Message
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_region(
       const std::string& value);
   std::string* _internal_mutable_s3_region();
+
+  public:
+  // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+  void clear_pyroscope_url() ;
+  const std::string& pyroscope_url() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_pyroscope_url(Arg_&& arg, Args_... args);
+  std::string* mutable_pyroscope_url();
+  PROTOBUF_NODISCARD std::string* release_pyroscope_url();
+  void set_allocated_pyroscope_url(std::string* value);
+
+  private:
+  const std::string& _internal_pyroscope_url() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_url(
+      const std::string& value);
+  std::string* _internal_mutable_pyroscope_url();
+
+  public:
+  // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+  void clear_pyroscope_app_name() ;
+  const std::string& pyroscope_app_name() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_pyroscope_app_name(Arg_&& arg, Args_... args);
+  std::string* mutable_pyroscope_app_name();
+  PROTOBUF_NODISCARD std::string* release_pyroscope_app_name();
+  void set_allocated_pyroscope_app_name(std::string* value);
+
+  private:
+  const std::string& _internal_pyroscope_app_name() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_app_name(
+      const std::string& value);
+  std::string* _internal_mutable_pyroscope_app_name();
 
   public:
   // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
@@ -1311,6 +1347,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_dest_write_files(::uint32_t value);
 
   public:
+  // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+  void clear_pyroscope_sample_hz() ;
+  ::uint32_t pyroscope_sample_hz() const;
+  void set_pyroscope_sample_hz(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_sample_hz() const;
+  void _internal_set_pyroscope_sample_hz(::uint32_t value);
+
+  public:
+  // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+  void clear_pyroscope_upload_interval_sec() ;
+  ::uint32_t pyroscope_upload_interval_sec() const;
+  void set_pyroscope_upload_interval_sec(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_upload_interval_sec() const;
+  void _internal_set_pyroscope_upload_interval_sec(::uint32_t value);
+
+  public:
   // uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
   void clear_debug_level() ;
   ::uint32_t debug_level() const;
@@ -1366,8 +1422,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 37, 4,
-      217, 27>
+      5, 41, 4,
+      256, 27>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1396,6 +1452,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr s3_secret_key_;
     ::google::protobuf::internal::ArenaStringPtr dest_;
     ::google::protobuf::internal::ArenaStringPtr s3_region_;
+    ::google::protobuf::internal::ArenaStringPtr pyroscope_url_;
+    ::google::protobuf::internal::ArenaStringPtr pyroscope_app_name_;
     ::google::protobuf::internal::ArenaStringPtr topic_;
     ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
     ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
@@ -1418,6 +1476,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t envelope_flush_threshold_rows_;
     ::uint32_t s3_parquet_flush_threshold_bytes_;
     ::uint32_t dest_write_files_;
+    ::uint32_t pyroscope_sample_hz_;
+    ::uint32_t pyroscope_upload_interval_sec_;
     ::uint32_t debug_level_;
     ::uint32_t grpc_port_;
     bool io_uring_;
@@ -3695,6 +3755,146 @@ inline void XtcpConfig::set_allocated_s3_region(std::string* value) {
     _impl_.s3_region_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_region)
+}
+
+// string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::pyroscope_url() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _internal_pyroscope_url();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_url(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_url)
+}
+inline std::string* XtcpConfig::mutable_pyroscope_url() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_pyroscope_url();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_pyroscope_url() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_url_.Get();
+}
+inline void XtcpConfig::_internal_set_pyroscope_url(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.pyroscope_url_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _impl_.pyroscope_url_.Release();
+}
+inline void XtcpConfig::set_allocated_pyroscope_url(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_url_.IsDefault()) {
+    _impl_.pyroscope_url_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_url)
+}
+
+// string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::pyroscope_app_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _internal_pyroscope_app_name();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_app_name(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+}
+inline std::string* XtcpConfig::mutable_pyroscope_app_name() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_pyroscope_app_name();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_pyroscope_app_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_app_name_.Get();
+}
+inline void XtcpConfig::_internal_set_pyroscope_app_name(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.pyroscope_app_name_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _impl_.pyroscope_app_name_.Release();
+}
+inline void XtcpConfig::set_allocated_pyroscope_app_name(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_app_name_.IsDefault()) {
+    _impl_.pyroscope_app_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+}
+
+// uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_sample_hz() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_sample_hz_ = 0u;
+}
+inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
+  return _internal_pyroscope_sample_hz();
+}
+inline void XtcpConfig::set_pyroscope_sample_hz(::uint32_t value) {
+  _internal_set_pyroscope_sample_hz(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
+}
+inline ::uint32_t XtcpConfig::_internal_pyroscope_sample_hz() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_sample_hz_;
+}
+inline void XtcpConfig::_internal_set_pyroscope_sample_hz(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_sample_hz_ = value;
+}
+
+// uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_upload_interval_sec() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_upload_interval_sec_ = 0u;
+}
+inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
+  return _internal_pyroscope_upload_interval_sec();
+}
+inline void XtcpConfig::set_pyroscope_upload_interval_sec(::uint32_t value) {
+  _internal_set_pyroscope_upload_interval_sec(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
+}
+inline ::uint32_t XtcpConfig::_internal_pyroscope_upload_interval_sec() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_upload_interval_sec_;
+}
+inline void XtcpConfig::_internal_set_pyroscope_upload_interval_sec(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_upload_interval_sec_ = value;
 }
 
 // string dest = 130 [json_name = "dest", (.buf.validate.field) = {

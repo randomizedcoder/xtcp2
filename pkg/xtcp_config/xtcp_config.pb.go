@@ -417,6 +417,25 @@ type XtcpConfig struct {
 	// S3 region. Required by some S3 implementations even when talking
 	// to a single-region MinIO. Default "us-east-1" when blank.
 	S3Region string `protobuf:"bytes,133,opt,name=s3_region,json=s3Region,proto3" json:"s3_region,omitempty"`
+	// Pyroscope continuous-profiling server URL (e.g.
+	// http://127.0.0.1:4040). When set, the daemon streams CPU,
+	// memory, goroutine, mutex, and block profiles to that endpoint.
+	// Empty disables the agent — no overhead in production runs that
+	// don't need it. Operators bring up a Pyroscope OSS server (or
+	// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
+	// data without restarts.
+	PyroscopeUrl string `protobuf:"bytes,136,opt,name=pyroscope_url,json=pyroscopeUrl,proto3" json:"pyroscope_url,omitempty"`
+	// Application name registered with the Pyroscope server (the
+	// "application" facet in the Pyroscope UI). Empty → "xtcp2".
+	// Set per fleet/role for multi-host environments
+	// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
+	PyroscopeAppName string `protobuf:"bytes,137,opt,name=pyroscope_app_name,json=pyroscopeAppName,proto3" json:"pyroscope_app_name,omitempty"`
+	// CPU profile sampling rate in Hz. Default 100. The Pyroscope
+	// agent uses this to call runtime.SetCPUProfileRate at startup.
+	PyroscopeSampleHz uint32 `protobuf:"varint,138,opt,name=pyroscope_sample_hz,json=pyroscopeSampleHz,proto3" json:"pyroscope_sample_hz,omitempty"`
+	// Profile upload interval (seconds between batched profile
+	// pushes). Default 15 s.
+	PyroscopeUploadIntervalSec uint32 `protobuf:"varint,139,opt,name=pyroscope_upload_interval_sec,json=pyroscopeUploadIntervalSec,proto3" json:"pyroscope_upload_interval_sec,omitempty"`
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
 	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
 	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
@@ -655,6 +674,34 @@ func (x *XtcpConfig) GetS3Region() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetPyroscopeUrl() string {
+	if x != nil {
+		return x.PyroscopeUrl
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetPyroscopeAppName() string {
+	if x != nil {
+		return x.PyroscopeAppName
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetPyroscopeSampleHz() uint32 {
+	if x != nil {
+		return x.PyroscopeSampleHz
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetPyroscopeUploadIntervalSec() uint32 {
+	if x != nil {
+		return x.PyroscopeUploadIntervalSec
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetDest() string {
 	if x != nil {
 		return x.Dest
@@ -816,7 +863,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xfe\x10\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xe8\x12\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -851,7 +898,11 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\rs3_access_key\x18\x80\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12+\n" +
 	"\rs3_secret_key\x18\x81\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x12O\n" +
 	" s3_parquet_flush_threshold_bytes\x18\x84\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12$\n" +
-	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x12\"\n" +
+	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x12,\n" +
+	"\rpyroscope_url\x18\x88\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\fpyroscopeUrl\x125\n" +
+	"\x12pyroscope_app_name\x18\x89\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10pyroscopeAppName\x127\n" +
+	"\x13pyroscope_sample_hz\x18\x8a\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +
+	"\x1dpyroscope_upload_interval_sec\x18\x8b\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1apyroscopeUploadIntervalSec\x12\"\n" +
 	"\x04dest\x18\x82\x01 \x01(\tB\r\xbaH\n" +
 	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x01R\x04dest\x128\n" +
 	"\x10dest_write_files\x18\x87\x01 \x01(\rB\r\xbaH\n" +

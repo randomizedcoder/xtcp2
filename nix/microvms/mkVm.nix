@@ -501,10 +501,14 @@ let
 
   # s3parquet flavor: in-VM MinIO + bucket bootstrap. The xtcp2 daemon
   # talks to MinIO directly via the minio-go client; no proto-desc file
-  # or unixgram socket required.
-  s3ParquetModules = [
-    (import ../modules/minio-bucket-bootstrap.nix { })
-  ];
+  # or unixgram socket required. The long-soak variant additionally
+  # brings up a local Pyroscope server so xtcp2 can stream profiles
+  # for goroutine/thread-leak diagnosis without an external dependency.
+  s3ParquetModules =
+    [ (import ../modules/minio-bucket-bootstrap.nix { }) ]
+    ++ lib.optionals isS3ParquetLong [
+      (import ../modules/pyroscope-server.nix { })
+    ];
 
   # Long-soak monitor: emit one sentinel line per
   # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
@@ -546,6 +550,16 @@ let
           | head -n1
       }
 
+      # Pull the simple Go runtime metrics by their bare name (no
+      # label prefix). Used for goroutine / thread leak diagnosis.
+      get_simple() {
+        local metrics="$1" name="$2"
+        echo "$metrics" \
+          | grep -E "^''${name}[[:space:]]" \
+          | sed -nE 's/[^[:space:]]+[[:space:]]+([0-9.+e-]+).*/\1/p' \
+          | head -n1
+      }
+
       while true; do
         sleep "$interval"
         metrics=$(curl --silent --fail --max-time 5 \
@@ -553,7 +567,9 @@ let
         files=$(get_counter "$metrics" 'variable="upload"')
         bytes=$(get_counter "$metrics" 'variable="uploadBytes"')
         rows=$(get_counter "$metrics" 'variable="uploadRows"')
-        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}"
+        gor=$(get_simple "$metrics" 'go_goroutines')
+        thr=$(get_simple "$metrics" 'go_threads')
+        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}" "''${gor:=0}" "''${thr:=0}"
         # Prometheus client may print "5.4e+07"; convert through awk so
         # the sentinel shows the integer rather than the scientific-
         # notation prefix (a previous attempt used "''${var%.*}" which
@@ -561,7 +577,9 @@ let
         files=$(awk -v n="$files" 'BEGIN { printf "%.0f", n+0 }')
         bytes=$(awk -v n="$bytes" 'BEGIN { printf "%.0f", n+0 }')
         rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
-        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows}"
+        gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
+        thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr}"
       done
     '';
   };
@@ -589,6 +607,13 @@ let
     "xtcp2testsecret"
     "-s3ParquetFlushBytes"
     "67108864"
+    # Stream profile data to the in-VM Pyroscope server. Empty value
+    # would disable the agent — kept on for long soaks because that's
+    # where leak diagnosis lives.
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-long"
   ];
 
   # Both the basic and coverage flavors override the default dest. The
@@ -787,6 +812,19 @@ in
                 from = "host";
                 host.port = 9001;
                 guest.port = 9001;
+              }
+            ]
+            ++ lib.optionals isS3ParquetLong [
+              # Pyroscope UI on the long-soak flavor so operators can
+              # open http://127.0.0.1:14040 from the host and inspect
+              # the live profile. Port shifted off the canonical 4040
+              # because pyroscope was failing to bind it inside the
+              # VM (still investigating; alternate port lets the run
+              # proceed).
+              {
+                from = "host";
+                host.port = 14040;
+                guest.port = 14040;
               }
             ]
             ++ lib.optionals isTcpStress [
