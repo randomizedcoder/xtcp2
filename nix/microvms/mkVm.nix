@@ -56,9 +56,14 @@ let
   # s3parquet-long = same destination, no self-test, monitor service emits
   # hourly file-count sentinels. Long-soak runner consumes them.
   isS3ParquetLong = sink == "s3parquet-long";
+  # capcheck-fail = a deliberately-misconfigured s3parquet-long VM that
+  # drops CAP_SYS_ADMIN from the service. xtcp2's startup capability
+  # check should refuse to start; the lifecycle test verifies the
+  # expected error appears on the serial console.
+  isCapCheckFail = sink == "capcheck-fail";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
-  isAnyS3Parquet = isS3Parquet || isS3ParquetLong;
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail;
   # Anything that needs dockerd inside the VM.
   needsDocker = isTcpStress || isClickPipe;
   effectiveMem =
@@ -540,24 +545,32 @@ let
       echo "XTCP2_S3PARQUET_MONITOR_START interval=''${interval}s"
 
       # Extract a single Prometheus counter value by full label match.
-      # Returns 0 when the counter hasn't been emitted yet (e.g. before
-      # the first finalize), so smoke runs see a clean files=0 line.
+      # Returns "0" when the counter hasn't been emitted yet (e.g.
+      # before the first finalize), so smoke runs see a clean
+      # files=0 line. The `|| true` swallows pipefail when grep
+      # finds nothing — without it set -e (from
+      # writeShellApplication) kills the whole monitor on the first
+      # cold-start scrape, causing a systemd restart loop.
       get_counter() {
         local metrics="$1" pattern="$2"
-        echo "$metrics" \
-          | grep -E "^xtcp_counts\\{[^}]*''${pattern}[^}]*\\}" \
-          | sed -nE 's/.*\}[[:space:]]+([0-9.+e-]+).*/\1/p' \
-          | head -n1
+        local out
+        out=$( { echo "$metrics" \
+                 | grep -E "^xtcp_counts\\{[^}]*''${pattern}[^}]*\\}" \
+                 | sed -nE 's/.*\}[[:space:]]+([0-9.+e-]+).*/\1/p' \
+                 | head -n1; } || true )
+        echo "''${out:-0}"
       }
 
       # Pull the simple Go runtime metrics by their bare name (no
       # label prefix). Used for goroutine / thread leak diagnosis.
       get_simple() {
         local metrics="$1" name="$2"
-        echo "$metrics" \
-          | grep -E "^''${name}[[:space:]]" \
-          | sed -nE 's/[^[:space:]]+[[:space:]]+([0-9.+e-]+).*/\1/p' \
-          | head -n1
+        local out
+        out=$( { echo "$metrics" \
+                 | grep -E "^''${name}[[:space:]]" \
+                 | sed -nE 's/[^[:space:]]+[[:space:]]+([0-9.+e-]+).*/\1/p' \
+                 | head -n1; } || true )
+        echo "''${out:-0}"
       }
 
       while true; do
@@ -1014,15 +1027,27 @@ in
               # s3parquet lifecycle flavor: 1 MiB flush threshold so the
               # 90 s boot exercise triggers a finalize+upload.
               xtcp2S3ParquetArgs
-            else if isS3ParquetLong then
+            else if isS3ParquetLong || isCapCheckFail then
               # s3parquet-long flavor: production 63 MiB flush threshold,
               # 10 s polling. Pairs with mkS3ParquetRunner.
+              # capcheck-fail reuses the same args (so the daemon's
+              # config is otherwise valid; the capability check is the
+              # only thing that fails).
               xtcp2S3ParquetLongArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
               # downstream destination throughput.
               xtcp2BasicArgs;
+          # capcheck-fail intentionally drops CAP_SYS_ADMIN. Anything
+          # else gets the default full set.
+          capabilities = lib.mkIf isCapCheckFail [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+            "CAP_SYS_RESOURCE"
+            # CAP_SYS_ADMIN omitted on purpose — startup capability
+            # check should refuse to start with a clear diagnostic.
+          ];
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
