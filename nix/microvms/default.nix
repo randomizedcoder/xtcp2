@@ -154,6 +154,24 @@ let
       sink = "s3parquet-long";
     };
 
+  # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
+  # capability set so the startup capability check refuses to start
+  # the daemon. Used to validate the fail-early diagnostic.
+  mkOneCapCheckFail =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "capcheck-fail";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
@@ -173,6 +191,8 @@ let
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
   vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
+
+  vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
 
   vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
 
@@ -277,6 +297,7 @@ in
     vmsClickPipe
     vmsS3Parquet
     vmsS3ParquetLong
+    vmsCapCheckFail
     s3parquetLong
     lifecycle
     lifecycleS3Parquet

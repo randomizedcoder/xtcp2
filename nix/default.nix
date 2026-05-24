@@ -312,6 +312,7 @@ in
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
+      microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
