@@ -18,6 +18,7 @@ import (
 
 	// protovalidate "github.com/bufbuild/protovalidate-go"
 	"github.com/bufbuild/protovalidate-go"
+	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -94,6 +95,14 @@ const (
 	s3SecretKeyCst                 = ""
 	s3RegionCst                    = ""
 	s3ParquetFlushThresholdBytesCst uint = 0
+
+	// Pyroscope continuous-profiling defaults. Agent disabled when
+	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
+	// PYROSCOPE_URL env, see environmentOverride).
+	pyroscopeUrlCst             = ""
+	pyroscopeAppNameCst         = "xtcp2"
+	pyroscopeSampleHzCst   uint = 100
+	pyroscopeUploadSecCst  uint = 15
 
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
@@ -187,6 +196,10 @@ type mainFlags struct {
 	goMaxProcs                *uint
 	maxThreads                *int
 	profileMode               *string
+	pyroscopeUrl              *string
+	pyroscopeAppName          *string
+	pyroscopeSampleHz         *uint
+	pyroscopeUploadSec        *uint
 	v                         *bool
 	conf                      *bool
 	d                         *uint
@@ -242,6 +255,13 @@ func defineFlags() *mainFlags {
 	// ./xtcp2 --profile.mode cpu
 	// timeout 1h ./xtcp2 --profile.mode cpu
 	f.profileMode = flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
+	// Pyroscope continuous profiling. Empty -pyroscopeUrl disables
+	// the agent (zero overhead). Set per-environment via env vars or
+	// the systemd drop-in; we never ship credentials in argv.
+	f.pyroscopeUrl = flag.String("pyroscopeUrl", pyroscopeUrlCst, "Pyroscope server URL (e.g. http://127.0.0.1:4040). Empty disables the agent. Falls back to PYROSCOPE_URL env.")
+	f.pyroscopeAppName = flag.String("pyroscopeAppName", pyroscopeAppNameCst, "Application name registered with Pyroscope. Falls back to PYROSCOPE_APP_NAME env.")
+	f.pyroscopeSampleHz = flag.Uint("pyroscopeSampleHz", pyroscopeSampleHzCst, "CPU sampling rate in Hz fed to runtime.SetCPUProfileRate.")
+	f.pyroscopeUploadSec = flag.Uint("pyroscopeUploadSec", pyroscopeUploadSecCst, "Seconds between batched profile uploads to Pyroscope.")
 	f.v = flag.Bool("v", false, "show version")
 	f.conf = flag.Bool("conf", false, "show config")
 	f.d = flag.Uint("d", debugLevelCst, "debug level")
@@ -274,6 +294,10 @@ func printFlags(f *mainFlags) {
 	// they would leak via console logs, lifecycle test scrapers, etc.
 	fmt.Println("*s3Region:", *f.s3Region)
 	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
+	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
+	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
+	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
+	fmt.Println("*pyroscopeUploadSec:", *f.pyroscopeUploadSec)
 	fmt.Println("*dest:", *f.dest)
 	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
 	fmt.Println("*topic:", *f.topic)
@@ -311,6 +335,10 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3SecretKey:                 *f.s3SecretKey,
 		S3Region:                    *f.s3Region,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
+		PyroscopeUrl:                *f.pyroscopeUrl,
+		PyroscopeAppName:            *f.pyroscopeAppName,
+		PyroscopeSampleHz:           uint32(*f.pyroscopeSampleHz),
+		PyroscopeUploadIntervalSec:  uint32(*f.pyroscopeUploadSec),
 		Dest:                        *f.dest,
 		DestWriteFiles:         uint32(*f.destWriteFiles),
 		Topic:                  *f.topic,
@@ -362,6 +390,63 @@ func startProfile(mode string, debugLevel uint) func() {
 		return func() {}
 	}
 	return p.Stop
+}
+
+// startPyroscope starts the Pyroscope continuous-profiling agent if a
+// server URL is configured. Returns a stop function (no-op when the
+// agent is disabled). All five profile types are enabled so a single
+// scrape gives operators CPU, memory, goroutine, mutex, and block data
+// — essential for diagnosing the kind of OS-thread accumulation that
+// killed the first 12 h soak.
+func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel uint) func() {
+	if url == "" {
+		if debugLevel > 1000 {
+			log.Println("Pyroscope disabled (empty -pyroscopeUrl)")
+		}
+		return func() {}
+	}
+	if appName == "" {
+		appName = "xtcp2"
+	}
+	if sampleHz == 0 {
+		sampleHz = 100
+	}
+	if uploadSec == 0 {
+		uploadSec = 15
+	}
+	cfg := pyroscope.Config{
+		ApplicationName: appName,
+		ServerAddress:   url,
+		UploadRate:      time.Duration(uploadSec) * time.Second,
+		SampleRate:      uint32(sampleHz),
+		ProfileTypes: []pyroscope.ProfileType{
+			pyroscope.ProfileCPU,
+			pyroscope.ProfileAllocObjects,
+			pyroscope.ProfileAllocSpace,
+			pyroscope.ProfileInuseObjects,
+			pyroscope.ProfileInuseSpace,
+			pyroscope.ProfileGoroutines,
+			pyroscope.ProfileMutexCount,
+			pyroscope.ProfileMutexDuration,
+			pyroscope.ProfileBlockCount,
+			pyroscope.ProfileBlockDuration,
+		},
+	}
+	p, err := pyroscope.Start(cfg)
+	if err != nil {
+		// Profiling is observability, never block startup on it.
+		log.Printf("pyroscope agent disabled: %v", err)
+		return func() {}
+	}
+	if debugLevel > 10 {
+		log.Printf("Pyroscope agent started: server=%s app=%s sampleHz=%d uploadInterval=%ds",
+			url, appName, sampleHz, uploadSec)
+	}
+	return func() {
+		if err := p.Stop(); err != nil {
+			log.Printf("pyroscope stop: %v", err)
+		}
+	}
 }
 
 // versionString builds the -v output line. Exposed (lowercase but in the
@@ -462,6 +547,9 @@ func runMain(parentCtx context.Context) int {
 	}
 
 	defer startProfile(*f.profileMode, debugLevel)()
+	defer startPyroscope(c.PyroscopeUrl, c.PyroscopeAppName,
+		uint(c.PyroscopeSampleHz), uint(c.PyroscopeUploadIntervalSec),
+		debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
 	promHandlerStarter(*f.promPath, *f.promListen)

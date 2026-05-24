@@ -309,6 +309,24 @@
           "type": "string",
           "description": "S3 region. Required by some S3 implementations even when talking\nto a single-region MinIO. Default \"us-east-1\" when blank."
         },
+        "pyroscopeUrl": {
+          "type": "string",
+          "description": "Pyroscope continuous-profiling server URL (e.g.\nhttp://127.0.0.1:4040). When set, the daemon streams CPU,\nmemory, goroutine, mutex, and block profiles to that endpoint.\nEmpty disables the agent — no overhead in production runs that\ndon't need it. Operators bring up a Pyroscope OSS server (or\nGrafana Cloud Pyroscope) and point xtcp2 at it for live profile\ndata without restarts."
+        },
+        "pyroscopeAppName": {
+          "type": "string",
+          "description": "Application name registered with the Pyroscope server (the\n\"application\" facet in the Pyroscope UI). Empty → \"xtcp2\".\nSet per fleet/role for multi-host environments\n(e.g. \"xtcp2.prod.iad\", \"xtcp2.staging.fra\")."
+        },
+        "pyroscopeSampleHz": {
+          "type": "integer",
+          "format": "int64",
+          "description": "CPU profile sampling rate in Hz. Default 100. The Pyroscope\nagent uses this to call runtime.SetCPUProfileRate at startup."
+        },
+        "pyroscopeUploadIntervalSec": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Profile upload interval (seconds between batched profile\npushes). Default 15 s."
+        },
         "dest": {
           "type": "string",
           "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes)."

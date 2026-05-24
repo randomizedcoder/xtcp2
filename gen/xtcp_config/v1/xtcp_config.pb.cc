@@ -147,6 +147,12 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         s3_region_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        pyroscope_url_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        pyroscope_app_name_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         topic_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
@@ -179,6 +185,8 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         envelope_flush_threshold_rows_{0u},
         s3_parquet_flush_threshold_bytes_{0u},
         dest_write_files_{0u},
+        pyroscope_sample_hz_{0u},
+        pyroscope_upload_interval_sec_{0u},
         debug_level_{0u},
         grpc_port_{0u},
         io_uring_{false},
@@ -404,6 +412,10 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_secret_key_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_parquet_flush_threshold_bytes_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_region_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_url_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_app_name_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_sample_hz_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_upload_interval_sec_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_write_files_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.topic_),
@@ -421,6 +433,10 @@ const ::uint32_t
         ~0u,
         0,
         1,
+        ~0u,
+        ~0u,
+        ~0u,
+        ~0u,
         ~0u,
         ~0u,
         ~0u,
@@ -486,9 +502,9 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 105, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {142, 152, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {154, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, 109, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {150, 160, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {162, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -521,7 +537,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\376\020\n\nXtcpConfi"
+    "nfig.v1.XtcpConfigR\006config\"\350\022\n\nXtcpConfi"
     "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
     "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
     "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
@@ -553,46 +569,52 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "\201\001 \001(\tB\006\272H\003\310\001\000R\013s3SecretKey\022O\n s3_parque"
     "t_flush_threshold_bytes\030\204\001 \001(\rB\006\272H\003\310\001\000R\034"
     "s3ParquetFlushThresholdBytes\022$\n\ts3_regio"
-    "n\030\205\001 \001(\tB\006\272H\003\310\001\000R\010s3Region\022\"\n\004dest\030\202\001 \001("
-    "\tB\r\272H\nr\005\020\004\030\200\001\310\001\001R\004dest\0228\n\020dest_write_fil"
-    "es\030\207\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles"
-    "\022#\n\005topic\030\214\001 \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005topic\0225\n"
-    "\017xtcp_proto_file\030\217\001 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\rx"
-    "tcpProtoFile\0227\n\020kafka_schema_url\030\221\001 \001(\tB"
-    "\014\272H\tr\004\020\001\030<\310\001\000R\016kafkaSchemaUrl\022`\n\025kafka_p"
-    "roduce_timeout\030\226\001 \001(\0132\031.google.protobuf."
-    "DurationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduce"
-    "Timeout\022/\n\013debug_level\030\240\001 \001(\rB\r\272H\n*\005\030\350\007("
-    "\000\310\001\001R\ndebugLevel\022!\n\005label\030\252\001 \001(\tB\n\272H\007r\002\030"
-    "(\310\001\000R\005label\022\035\n\003tag\030\264\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003t"
-    "ag\022,\n\tgrpc_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010"
-    "grpcPort\022b\n\025enabled_deserializers\030\310\001 \001(\013"
-    "2$.xtcp_config.v1.EnabledDeserializersB\006"
-    "\272H\003\310\001\000R\024enabledDeserializers\022\"\n\010io_uring"
-    "\030\322\001 \001(\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030io_uring_rec"
-    "v_batch_size\030\323\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\024ioUr"
-    "ingRecvBatchSize\022D\n\027io_uring_cqe_batch_s"
-    "ize\030\324\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUringCqeBat"
-    "chSize:s\272Hp\032n\n\017XtcpConfig.poll\0222Poll tim"
-    "eout must be less than poll poll_frequen"
-    "cy\032\'this.poll_frequency > this.poll_time"
-    "out\"\237\001\n\024EnabledDeserializers\022K\n\007enabled\030"
-    "\001 \003(\01321.xtcp_config.v1.EnabledDeserializ"
-    "ers.EnabledEntryR\007enabled\032:\n\014EnabledEntr"
-    "y\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005valu"
-    "e:\0028\0012\341\002\n\rConfigService\022]\n\003Get\022\032.xtcp_co"
-    "nfig.v1.GetRequest\032\033.xtcp_config.v1.GetR"
-    "esponse\"\035\202\323\344\223\002\027\032\022/ConfigService/Get:\001*\022]"
-    "\n\003Set\022\032.xtcp_config.v1.SetRequest\032\033.xtcp"
-    "_config.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/ConfigS"
-    "ervice/Set:\001*\022\221\001\n\020SetPollFrequency\022\'.xtc"
-    "p_config.v1.SetPollFrequencyRequest\032(.xt"
-    "cp_config.v1.SetPollFrequencyResponse\"*\202"
-    "\323\344\223\002$\032\037/ConfigService/SetPollFrequency:\001"
-    "*B\215\001\n\022com.xtcp_config.v1B\017XtcpConfigProt"
-    "oP\001Z\021./pkg/xtcp_config\242\002\003XXX\252\002\rXtcpConfi"
-    "g.V1\312\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPB"
-    "Metadata\352\002\016XtcpConfig::V1b\006proto3"
+    "n\030\205\001 \001(\tB\006\272H\003\310\001\000R\010s3Region\022,\n\rpyroscope_"
+    "url\030\210\001 \001(\tB\006\272H\003\310\001\000R\014pyroscopeUrl\0225\n\022pyro"
+    "scope_app_name\030\211\001 \001(\tB\006\272H\003\310\001\000R\020pyroscope"
+    "AppName\0227\n\023pyroscope_sample_hz\030\212\001 \001(\rB\006\272"
+    "H\003\310\001\000R\021pyroscopeSampleHz\022J\n\035pyroscope_up"
+    "load_interval_sec\030\213\001 \001(\rB\006\272H\003\310\001\000R\032pyrosc"
+    "opeUploadIntervalSec\022\"\n\004dest\030\202\001 \001(\tB\r\272H\n"
+    "r\005\020\004\030\200\001\310\001\001R\004dest\0228\n\020dest_write_files\030\207\001 "
+    "\001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022#\n\005to"
+    "pic\030\214\001 \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005topic\0225\n\017xtcp_"
+    "proto_file\030\217\001 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\rxtcpPro"
+    "toFile\0227\n\020kafka_schema_url\030\221\001 \001(\tB\014\272H\tr\004"
+    "\020\001\030<\310\001\000R\016kafkaSchemaUrl\022`\n\025kafka_produce"
+    "_timeout\030\226\001 \001(\0132\031.google.protobuf.Durati"
+    "onB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTimeou"
+    "t\022/\n\013debug_level\030\240\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\n"
+    "debugLevel\022!\n\005label\030\252\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\005"
+    "label\022\035\n\003tag\030\264\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag\022,\n\t"
+    "grpc_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPo"
+    "rt\022b\n\025enabled_deserializers\030\310\001 \001(\0132$.xtc"
+    "p_config.v1.EnabledDeserializersB\006\272H\003\310\001\000"
+    "R\024enabledDeserializers\022\"\n\010io_uring\030\322\001 \001("
+    "\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030io_uring_recv_batc"
+    "h_size\030\323\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\024ioUringRec"
+    "vBatchSize\022D\n\027io_uring_cqe_batch_size\030\324\001"
+    " \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUringCqeBatchSize"
+    ":s\272Hp\032n\n\017XtcpConfig.poll\0222Poll timeout m"
+    "ust be less than poll poll_frequency\032\'th"
+    "is.poll_frequency > this.poll_timeout\"\237\001"
+    "\n\024EnabledDeserializers\022K\n\007enabled\030\001 \003(\0132"
+    "1.xtcp_config.v1.EnabledDeserializers.En"
+    "abledEntryR\007enabled\032:\n\014EnabledEntry\022\020\n\003k"
+    "ey\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\0012"
+    "\341\002\n\rConfigService\022]\n\003Get\022\032.xtcp_config.v"
+    "1.GetRequest\032\033.xtcp_config.v1.GetRespons"
+    "e\"\035\202\323\344\223\002\027\032\022/ConfigService/Get:\001*\022]\n\003Set\022"
+    "\032.xtcp_config.v1.SetRequest\032\033.xtcp_confi"
+    "g.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/ConfigService"
+    "/Set:\001*\022\221\001\n\020SetPollFrequency\022\'.xtcp_conf"
+    "ig.v1.SetPollFrequencyRequest\032(.xtcp_con"
+    "fig.v1.SetPollFrequencyResponse\"*\202\323\344\223\002$\032"
+    "\037/ConfigService/SetPollFrequency:\001*B\215\001\n\022"
+    "com.xtcp_config.v1B\017XtcpConfigProtoP\001Z\021."
+    "/pkg/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002"
+    "\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetada"
+    "ta\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -604,7 +626,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    3593,
+    3827,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -2084,6 +2106,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         s3_secret_key_(arena, from.s3_secret_key_),
         dest_(arena, from.dest_),
         s3_region_(arena, from.s3_region_),
+        pyroscope_url_(arena, from.pyroscope_url_),
+        pyroscope_app_name_(arena, from.pyroscope_app_name_),
         topic_(arena, from.topic_),
         xtcp_proto_file_(arena, from.xtcp_proto_file_),
         kafka_schema_url_(arena, from.kafka_schema_url_),
@@ -2140,6 +2164,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         s3_secret_key_(arena),
         dest_(arena),
         s3_region_(arena),
+        pyroscope_url_(arena),
+        pyroscope_app_name_(arena),
         topic_(arena),
         xtcp_proto_file_(arena),
         kafka_schema_url_(arena),
@@ -2173,6 +2199,8 @@ inline void XtcpConfig::SharedDtor(MessageLite& self) {
   this_._impl_.s3_secret_key_.Destroy();
   this_._impl_.dest_.Destroy();
   this_._impl_.s3_region_.Destroy();
+  this_._impl_.pyroscope_url_.Destroy();
+  this_._impl_.pyroscope_app_name_.Destroy();
   this_._impl_.topic_.Destroy();
   this_._impl_.xtcp_proto_file_.Destroy();
   this_._impl_.kafka_schema_url_.Destroy();
@@ -2221,7 +2249,7 @@ const ::google::protobuf::internal::ClassData* XtcpConfig::GetClassData() const 
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
+const ::_pbi::TcParseTable<5, 41, 4, 256, 27> XtcpConfig::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_._has_bits_),
     0, // no _extensions_
@@ -2229,7 +2257,7 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
     offsetof(decltype(_table_), field_lookup_table),
     3757571583,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    37,  // num_field_entries
+    41,  // num_field_entries
     4,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     _class_data_.base(),
@@ -2284,7 +2312,9 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
     // uint64 max_loops = 40 [json_name = "maxLoops", (.buf.validate.field) = {
     {::_pbi::TcParser::FastV64S2,
      {704, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.max_loops_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastUS2,
+     {2250, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_app_name_)}},
     // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
     {::_pbi::TcParser::FastV32S2,
      {1488, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.write_files_)}},
@@ -2306,7 +2336,7 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
   }}, {{
     40, 0, 11,
     62462, 3, 49135, 6, 65279, 8, 61435, 9, 65471, 11, 18434, 12,
-    48495, 25, 65279, 29, 61435, 30, 65471, 32, 58366, 33,
+    48480, 25, 65279, 33, 61435, 34, 65471, 36, 58366, 37,
     65535, 65535
   }}, {{
     // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2384,6 +2414,18 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
     // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_write_files_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_url_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_app_name_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_sample_hz_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_upload_interval_sec_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
     // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.topic_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
@@ -2426,7 +2468,7 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::xtcp_config::v1::EnabledDeserializers>()},
   }}, {{
-    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\0\0\21\13\11\11\15\15\4\0\11\0\5\17\20\0\0\5\3\0\0\0\0\0\0\0"
+    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\0\0\21\13\11\11\15\15\4\0\11\0\15\22\0\0\5\17\20\0\0\5\3\0\0\0\0\0\0\0\0\0\0\0"
     "xtcp_config.v1.XtcpConfig"
     "capture_path"
     "marshal_to"
@@ -2438,6 +2480,8 @@ const ::_pbi::TcParseTable<5, 37, 4, 217, 27> XtcpConfig::_table_ = {
     "s3_secret_key"
     "dest"
     "s3_region"
+    "pyroscope_url"
+    "pyroscope_app_name"
     "topic"
     "xtcp_proto_file"
     "kafka_schema_url"
@@ -2463,6 +2507,8 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   _impl_.s3_secret_key_.ClearToEmpty();
   _impl_.dest_.ClearToEmpty();
   _impl_.s3_region_.ClearToEmpty();
+  _impl_.pyroscope_url_.ClearToEmpty();
+  _impl_.pyroscope_app_name_.ClearToEmpty();
   _impl_.topic_.ClearToEmpty();
   _impl_.xtcp_proto_file_.ClearToEmpty();
   _impl_.kafka_schema_url_.ClearToEmpty();
@@ -2695,6 +2741,36 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
                 135, this_._internal_dest_write_files(), target);
           }
 
+          // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+          if (!this_._internal_pyroscope_url().empty()) {
+            const std::string& _s = this_._internal_pyroscope_url();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.pyroscope_url");
+            target = stream->WriteStringMaybeAliased(136, _s, target);
+          }
+
+          // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+          if (!this_._internal_pyroscope_app_name().empty()) {
+            const std::string& _s = this_._internal_pyroscope_app_name();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.pyroscope_app_name");
+            target = stream->WriteStringMaybeAliased(137, _s, target);
+          }
+
+          // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+          if (this_._internal_pyroscope_sample_hz() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                138, this_._internal_pyroscope_sample_hz(), target);
+          }
+
+          // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+          if (this_._internal_pyroscope_upload_interval_sec() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                139, this_._internal_pyroscope_upload_interval_sec(), target);
+          }
+
           // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
           if (!this_._internal_topic().empty()) {
             const std::string& _s = this_._internal_topic();
@@ -2859,6 +2935,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                               this_._internal_s3_region());
             }
+            // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+            if (!this_._internal_pyroscope_url().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_pyroscope_url());
+            }
+            // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+            if (!this_._internal_pyroscope_app_name().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_pyroscope_app_name());
+            }
             // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
             if (!this_._internal_topic().empty()) {
               total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
@@ -2974,6 +3060,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                               this_._internal_dest_write_files());
             }
+            // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+            if (this_._internal_pyroscope_sample_hz() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_pyroscope_sample_hz());
+            }
+            // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+            if (this_._internal_pyroscope_upload_interval_sec() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_pyroscope_upload_interval_sec());
+            }
             // uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
             if (this_._internal_debug_level() != 0) {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
@@ -3041,6 +3137,12 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   }
   if (!from._internal_s3_region().empty()) {
     _this->_internal_set_s3_region(from._internal_s3_region());
+  }
+  if (!from._internal_pyroscope_url().empty()) {
+    _this->_internal_set_pyroscope_url(from._internal_pyroscope_url());
+  }
+  if (!from._internal_pyroscope_app_name().empty()) {
+    _this->_internal_set_pyroscope_app_name(from._internal_pyroscope_app_name());
   }
   if (!from._internal_topic().empty()) {
     _this->_internal_set_topic(from._internal_topic());
@@ -3135,6 +3237,12 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (from._internal_dest_write_files() != 0) {
     _this->_impl_.dest_write_files_ = from._impl_.dest_write_files_;
   }
+  if (from._internal_pyroscope_sample_hz() != 0) {
+    _this->_impl_.pyroscope_sample_hz_ = from._impl_.pyroscope_sample_hz_;
+  }
+  if (from._internal_pyroscope_upload_interval_sec() != 0) {
+    _this->_impl_.pyroscope_upload_interval_sec_ = from._impl_.pyroscope_upload_interval_sec_;
+  }
   if (from._internal_debug_level() != 0) {
     _this->_impl_.debug_level_ = from._impl_.debug_level_;
   }
@@ -3178,6 +3286,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.s3_secret_key_, &other->_impl_.s3_secret_key_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.dest_, &other->_impl_.dest_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.s3_region_, &other->_impl_.s3_region_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pyroscope_url_, &other->_impl_.pyroscope_url_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pyroscope_app_name_, &other->_impl_.pyroscope_app_name_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.topic_, &other->_impl_.topic_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.xtcp_proto_file_, &other->_impl_.xtcp_proto_file_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.kafka_schema_url_, &other->_impl_.kafka_schema_url_, arena);

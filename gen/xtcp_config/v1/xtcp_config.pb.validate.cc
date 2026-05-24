@@ -971,6 +971,74 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -1014,7 +1082,7 @@ return false;
 		}
 	}
 	
-// no validation rules for max_loops// no validation rules for netlinkers// no validation rules for netlinkers_done_chan_size// no validation rules for nlmsg_seq// no validation rules for packet_size// no validation rules for packet_size_mply// no validation rules for write_files// no validation rules for capture_path// no validation rules for modulus// no validation rules for marshal_to// no validation rules for envelope_flush_threshold_bytes// no validation rules for envelope_flush_threshold_rows// no validation rules for kafka_compression// no validation rules for s3_endpoint// no validation rules for s3_bucket// no validation rules for s3_prefix// no validation rules for s3_access_key// no validation rules for s3_secret_key// no validation rules for s3_parquet_flush_threshold_bytes// no validation rules for s3_region// no validation rules for dest// no validation rules for dest_write_files// no validation rules for topic// no validation rules for xtcp_proto_file// no validation rules for kafka_schema_url
+// no validation rules for max_loops// no validation rules for netlinkers// no validation rules for netlinkers_done_chan_size// no validation rules for nlmsg_seq// no validation rules for packet_size// no validation rules for packet_size_mply// no validation rules for write_files// no validation rules for capture_path// no validation rules for modulus// no validation rules for marshal_to// no validation rules for envelope_flush_threshold_bytes// no validation rules for envelope_flush_threshold_rows// no validation rules for kafka_compression// no validation rules for s3_endpoint// no validation rules for s3_bucket// no validation rules for s3_prefix// no validation rules for s3_access_key// no validation rules for s3_secret_key// no validation rules for s3_parquet_flush_threshold_bytes// no validation rules for s3_region// no validation rules for pyroscope_url// no validation rules for pyroscope_app_name// no validation rules for pyroscope_sample_hz// no validation rules for pyroscope_upload_interval_sec// no validation rules for dest// no validation rules for dest_write_files// no validation rules for topic// no validation rules for xtcp_proto_file// no validation rules for kafka_schema_url
 	
 	
 	
