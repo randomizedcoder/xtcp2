@@ -17,6 +17,15 @@ import (
 	"time"
 
 	// protovalidate "github.com/bufbuild/protovalidate-go"
+	// Side-effect import: registers /debug/pprof/* handlers on
+	// http.DefaultServeMux. promHandlerStarter listens on
+	// /metrics via the same mux, so /debug/pprof/goroutine etc.
+	// are reachable on the prom port — handy when forensic stack
+	// snapshots are needed without standing up a separate
+	// debug-only HTTP server. Pyroscope provides continuous
+	// profiles; pprof here is the on-demand /debug/pprof endpoints
+	// the Go stdlib registers.
+	_ "net/http/pprof" //nolint:gosec // /metrics port is bound to lo / VM-only in deployments
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
