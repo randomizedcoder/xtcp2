@@ -566,13 +566,11 @@ let
     '';
   };
 
-  # Args for the long-soak flavor. The flush threshold is 1 MiB, not the
-  # 63 MiB production default — picked so a 5–30 min smoke run actually
-  # produces parquet files (and a 12 h run produces ~100 files for clear
-  # hourly delta evidence), rather than spending most of the run
-  # accumulating in memory toward a single threshold trigger. To exercise
-  # the production-sized object path specifically, edit this back to
-  # 67108864 (or omit -s3ParquetFlushBytes to use the compile default).
+  # Args for the long-soak flavor. Production-sized 63 MiB flush
+  # threshold — at the steady ~1 MB/min raw-row rate seen in the 30 min
+  # smoke, a 12 h run produces ~12 finalized objects (multiple files in
+  # 12 h, matching the user's stated expectation). Drop to 1048576 for
+  # smoke runs that need a visible file count growing every minute.
   # Poll rate 10 s keeps the daemon CPU-cheap over multi-hour runs.
   xtcp2S3ParquetLongArgs = [
     "-dest"
@@ -590,7 +588,7 @@ let
     "-s3SecretKey"
     "xtcp2testsecret"
     "-s3ParquetFlushBytes"
-    "1048576"
+    "67108864"
   ];
 
   # Both the basic and coverage flavors override the default dest. The
