@@ -723,11 +723,18 @@ in
         # NixOS is enabled and blocks everything but ssh, so without
         # these `curl 127.0.0.1:18123` from the host gets a TCP RST.
         networking.firewall.allowedTCPPorts =
-          lib.optionals (isTcpStress || isClickPipe) [
+          lib.optionals (isTcpStress || isClickPipe || isAnyS3Parquet) [
             9088 # xtcp2 prometheus
             8889 # xtcp2 grpc
           ]
           ++ lib.optional isTcpStress 9090 # in-VM Prometheus
+          ++ lib.optionals isAnyS3Parquet [
+            9000 # MinIO API
+            9001 # MinIO console
+          ]
+          ++ lib.optionals isS3ParquetLong [
+            14040 # Pyroscope OSS UI + ingest
+          ]
           ++ lib.optionals isClickPipe [
             18123 # clickhouse HTTP
             19001 # clickhouse native
