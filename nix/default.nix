@@ -311,6 +311,7 @@ in
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
+      microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -413,6 +414,16 @@ in
     microvm-x86_64-s3parquet-pipeline = {
       type = "app";
       program = "${microvms.vmsS3Parquet.x86_64}/bin/microvm-run";
+    };
+
+    # On-demand long soak for the s3parquet path. Default 1h with hourly
+    # XTCP2_S3PARQUET_HOURLY sentinels; pass `--duration 12h` for the
+    # production soak or `--report-interval 60 --duration 5m` for a
+    # wiring smoke. Not in `nix flake check` — runs out-of-band like
+    # the soak / tcp-stress / clickhouse-pipeline flavors.
+    microvm-x86_64-s3parquet-runner = {
+      type = "app";
+      program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
     };
 
     quality-report = {

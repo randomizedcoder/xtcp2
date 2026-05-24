@@ -139,6 +139,21 @@ let
       sink = "s3parquet";
     };
 
+  mkOneS3ParquetLong =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "s3parquet-long";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
@@ -156,6 +171,8 @@ let
   );
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
+
+  vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
 
   vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
 
@@ -219,6 +236,13 @@ let
     };
   });
 
+  s3parquetLong = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkS3ParquetRunner {
+      inherit arch;
+      vm = vmsS3ParquetLong.${arch};
+    };
+  });
+
   tcpStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs (arch: {
       runner = microvmLib.mkTcpStressRunner {
@@ -252,6 +276,8 @@ in
     vmsTcpStress
     vmsClickPipe
     vmsS3Parquet
+    vmsS3ParquetLong
+    s3parquetLong
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage

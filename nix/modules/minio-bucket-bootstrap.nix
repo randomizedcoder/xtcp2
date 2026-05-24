@@ -94,8 +94,13 @@ in
     rootCredentialsFile = "${credentialsFile}";
     region = "us-east-1";
     browser = false;
-    listenAddress = "127.0.0.1:9000";
-    consoleAddress = "127.0.0.1:9001";
+    # Bind on all interfaces, not 127.0.0.1, so QEMU usermode hostfwd
+    # (which routes host:9000 → VM eth0:9000) can reach MinIO. Inside
+    # the VM, xtcp2 still talks to MinIO via 127.0.0.1 (the loopback
+    # path is identical regardless of bind address); the wider bind
+    # only adds the eth0 path that hostfwd needs.
+    listenAddress = "0.0.0.0:9000";
+    consoleAddress = "0.0.0.0:9001";
     dataDir = [ "/var/lib/minio/data" ];
   };
 

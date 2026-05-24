@@ -15,7 +15,13 @@
 #   - "s3parquet":         xtcp2 → MinIO Parquet upload, all inside the VM.
 #                          Reuses the minio-bucket-bootstrap module; the xtcp2
 #                          daemon talks to MinIO directly via the minio-go
-#                          client (no Vector intermediate).
+#                          client. Self-test scrapes a single .parquet object
+#                          and exits. Lifecycle smoke for CI.
+#   - "s3parquet-long":    Same plumbing as "s3parquet" but no self-test
+#                          oneshot. A monitor service emits a heartbeat
+#                          sentinel each `S3PARQUET_REPORT_INTERVAL` seconds
+#                          (default 3600). Pairs with mkS3ParquetRunner for
+#                          multi-hour soak runs.
 #   - "clickhouse-pipeline", "soak", "tcp-stress", "coverage[-iouring]".
 #
 {
@@ -45,14 +51,20 @@ let
   # configured with -dest kafka:localhost:19092 so the records flow
   # through the same pipeline as the production compose.
   isClickPipe = sink == "clickhouse-pipeline";
-  # s3parquet = MinIO + xtcp2 writing Parquet directly to S3.
+  # s3parquet = MinIO + xtcp2 writing Parquet directly to S3 (lifecycle).
   isS3Parquet = sink == "s3parquet";
+  # s3parquet-long = same destination, no self-test, monitor service emits
+  # hourly file-count sentinels. Long-soak runner consumes them.
+  isS3ParquetLong = sink == "s3parquet-long";
+  # Convenience predicate — most plumbing (minio module, port forwards,
+  # mem budget, daemon args base) is shared.
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong;
   # Anything that needs dockerd inside the VM.
   needsDocker = isTcpStress || isClickPipe;
   effectiveMem =
     if isClickPipe then
       cfg.memClickPipe
-    else if isS3Parquet then
+    else if isAnyS3Parquet then
       cfg.memClickPipe
     else if isTcpStress then
       cfg.memTcpStress
@@ -71,6 +83,14 @@ let
     clickhousePassword = clickPipeChPassword;
     runS3ParquetCheck = isS3Parquet;
   };
+
+  # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
+  # enough for short smoke runs to see file growth, and the host-side
+  # runner aggregates the per-minute sentinels into hourly summaries for
+  # long-running tests. Override via the systemd env at boot if you want
+  # genuine hourly cadence (e.g. for a 12 h soak that doesn't need
+  # per-minute resolution).
+  s3ParquetReportIntervalDefault = 60;
 
   # tcp_server/tcp_client tunables for the soak flavor. They share the
   # same port base (cmd/tcp_server/tcp_server.go startPort = 4000), so
@@ -486,6 +506,93 @@ let
     (import ../modules/minio-bucket-bootstrap.nix { })
   ];
 
+  # Long-soak monitor: emit one sentinel line per
+  # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
+  # own Prometheus counters (destS3Parquet/upload + uploadBytes)
+  # rather than `mc find` — under nsTest load the mc commands are too
+  # slow to complete inside the cadence window.
+  s3ParquetMonitorScript = pkgs.writeShellApplication {
+    name = "xtcp2-s3parquet-monitor";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      gawk
+      gnugrep
+      gnused
+    ];
+    text = ''
+      # Wait for xtcp2's /metrics endpoint to come up before reporting.
+      # No mc/MinIO probe — xtcp2 itself owns the upload counter we
+      # rely on, so the metrics endpoint is the right readiness gate.
+      for _ in $(seq 1 60); do
+        if curl --silent --fail --max-time 2 \
+             http://127.0.0.1:9088/metrics >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+
+      interval="''${S3PARQUET_REPORT_INTERVAL:-3600}"
+      echo "XTCP2_S3PARQUET_MONITOR_START interval=''${interval}s"
+
+      # Extract a single Prometheus counter value by full label match.
+      # Returns 0 when the counter hasn't been emitted yet (e.g. before
+      # the first finalize), so smoke runs see a clean files=0 line.
+      get_counter() {
+        local metrics="$1" pattern="$2"
+        echo "$metrics" \
+          | grep -E "^xtcp_counts\\{[^}]*''${pattern}[^}]*\\}" \
+          | sed -nE 's/.*\}[[:space:]]+([0-9.+e-]+).*/\1/p' \
+          | head -n1
+      }
+
+      while true; do
+        sleep "$interval"
+        metrics=$(curl --silent --fail --max-time 5 \
+                       http://127.0.0.1:9088/metrics 2>/dev/null || echo "")
+        files=$(get_counter "$metrics" 'variable="upload"')
+        bytes=$(get_counter "$metrics" 'variable="uploadBytes"')
+        rows=$(get_counter "$metrics" 'variable="uploadRows"')
+        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}"
+        # Prometheus client may print "5.4e+07"; convert through awk so
+        # the sentinel shows the integer rather than the scientific-
+        # notation prefix (a previous attempt used "''${var%.*}" which
+        # strips after the last `.` and turned "5.4e+07" into "5").
+        files=$(awk -v n="$files" 'BEGIN { printf "%.0f", n+0 }')
+        bytes=$(awk -v n="$bytes" 'BEGIN { printf "%.0f", n+0 }')
+        rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows}"
+      done
+    '';
+  };
+
+  # Args for the long-soak flavor. The flush threshold is 1 MiB, not the
+  # 63 MiB production default — picked so a 5–30 min smoke run actually
+  # produces parquet files (and a 12 h run produces ~100 files for clear
+  # hourly delta evidence), rather than spending most of the run
+  # accumulating in memory toward a single threshold trigger. To exercise
+  # the production-sized object path specifically, edit this back to
+  # 67108864 (or omit -s3ParquetFlushBytes to use the compile default).
+  # Poll rate 10 s keeps the daemon CPU-cheap over multi-hour runs.
+  xtcp2S3ParquetLongArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "10s"
+    "-timeout"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "1048576"
+  ];
+
   # Both the basic and coverage flavors override the default dest. The
   # default in cmd/xtcp2 is `kafka:redpanda-0:9092` which makes the kafka
   # destination factory read /xtcp_flat_record.proto — that file lives
@@ -560,7 +667,7 @@ in
     microvm.nixosModules.microvm
     ../modules/xtcp2-service.nix
   ]
-  ++ lib.optionals isS3Parquet s3ParquetModules
+  ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ [
     (
       { config, ... }:
@@ -656,7 +763,7 @@ in
           # the docker `-p 18123:8123` mapping then routes into the
           # clickhouse container.
           forwardPorts =
-            lib.optionals (isTcpStress || isClickPipe || isS3Parquet) [
+            lib.optionals (isTcpStress || isClickPipe || isAnyS3Parquet) [
               # xtcp2 daemon's prometheus + grpc endpoints — same on
               # every flavor that runs xtcp2 with networking surface.
               {
@@ -670,7 +777,7 @@ in
                 guest.port = 8889;
               }
             ]
-            ++ lib.optionals isS3Parquet [
+            ++ lib.optionals isAnyS3Parquet [
               # MinIO API (9000) and console (9001) — lets host-side
               # `mc ls` and a browser hit the in-VM MinIO from the dev box.
               {
@@ -861,8 +968,13 @@ in
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               xtcp2ClickPipeArgs
             else if isS3Parquet then
-              # s3parquet flavor: direct Parquet → MinIO.
+              # s3parquet lifecycle flavor: 1 MiB flush threshold so the
+              # 90 s boot exercise triggers a finalize+upload.
               xtcp2S3ParquetArgs
+            else if isS3ParquetLong then
+              # s3parquet-long flavor: production 63 MiB flush threshold,
+              # 10 s polling. Pairs with mkS3ParquetRunner.
+              xtcp2S3ParquetLongArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -872,10 +984,9 @@ in
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
         # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
-        # boot or via a systemd.path gate. Skipped on the soak flavor
-        # (long-running churn
-        # + metric scrape services replace it).
-        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak) {
+        # boot or via a systemd.path gate. Skipped on long-running flavors
+        # (soak / s3parquet-long), which run heartbeat services instead.
+        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak && !isS3ParquetLong) {
           description = "xtcp2 microvm self-test";
           after = [
             "xtcp2.service"
@@ -897,7 +1008,7 @@ in
         # (see nix/microvms/lib.nix mkSoakRunner) boots the VM, sleeps for
         # the configured -duration, then powers it off and inspects the
         # metric log + journal for crashes/restarts.
-        systemd.services.xtcp2-soak-churn = lib.mkIf isSoak {
+        systemd.services.xtcp2-soak-churn = lib.mkIf (isSoak || isS3ParquetLong) {
           description = "xtcp2 soak — nsTest namespace churn driver";
           after = [
             "xtcp2.service"
@@ -913,6 +1024,32 @@ in
             # load even across an `ip netns` blip.
             Restart = "on-failure";
             RestartSec = "2s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # s3parquet-long: hourly file-count monitor. Sentinel format
+        # mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
+        # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
+        # (seconds) — the runner overrides per phase.
+        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf isS3ParquetLong {
+          description = "xtcp2 s3parquet-long — hourly MinIO file-count reporter";
+          after = [
+            "xtcp2.service"
+            "multi-user.target"
+          ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          environment.S3PARQUET_REPORT_INTERVAL = toString s3ParquetReportIntervalDefault;
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${s3ParquetMonitorScript}/bin/xtcp2-s3parquet-monitor";
+            # Crash-loop here would silently hide xtcp2's progress; restart
+            # so a brief mc/MinIO blip doesn't permanently silence the
+            # sentinel stream.
+            Restart = "on-failure";
+            RestartSec = "5s";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -944,7 +1081,7 @@ in
         # known population of ESTABLISHED sockets with measurable RTT /
         # bytes-sent / segs-out for the parser to chew on. The two units
         # below run alongside the nsTest churn for the soak flavor.
-        systemd.services.xtcp2-soak-tcp-server = lib.mkIf isSoak {
+        systemd.services.xtcp2-soak-tcp-server = lib.mkIf (isSoak || isS3ParquetLong) {
           description = "xtcp2 soak — tcp_server echo listeners";
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
@@ -963,7 +1100,7 @@ in
           };
         };
 
-        systemd.services.xtcp2-soak-tcp-client = lib.mkIf isSoak {
+        systemd.services.xtcp2-soak-tcp-client = lib.mkIf (isSoak || isS3ParquetLong) {
           description = "xtcp2 soak — tcp_client traffic generators";
           # tcp_server takes a moment to bind all N ports — gate the
           # clients behind its readiness so the dial-retry loop in
