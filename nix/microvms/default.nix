@@ -4,11 +4,8 @@
 #
 # Exports per-arch attribute sets:
 #   vms.${arch}                          the runnable minimal microvm
-#   vmsVector.${arch}                    the runnable Vector-flavor microvm
 #   lifecycle.${arch}.fullTest           host-side launcher (minimal)
-#   lifecycleVector.${arch}.fullTest     host-side launcher (vector)
 #   checks.${arch}.lifecycle             flake-check-compatible (minimal)
-#   checksVector.${arch}.lifecycle       flake-check-compatible (vector)
 #
 # Currently supportedArchs = [ "x86_64" ]. To add another, edit constants.nix.
 #
@@ -19,10 +16,6 @@
   nixpkgs,
   xtcp2Package,
   xtcp2AllPackage,
-  # Optional: descriptor-set derivation needed by the Vector flavor. When
-  # null, the Vector flavor attrs are not exposed (so callers that don't
-  # have the descriptor set built yet still get the minimal flavor).
-  protoDescPackage ? null,
   # Optional: the streamLayeredImage script for oci-xtcp2-tcp-stress.
   # Phase C ("tcp-stress" sink) loads this into the in-VM docker daemon
   # at boot and spawns N containers from it. When null, the tcp-stress
@@ -53,22 +46,6 @@ let
         xtcp2AllPackage
         ;
       sink = "minimal";
-    };
-
-  mkOneVector =
-    arch:
-    import ./mkVm.nix {
-      inherit
-        pkgs
-        lib
-        microvm
-        nixpkgs
-        arch
-        xtcp2Package
-        xtcp2AllPackage
-        protoDescPackage
-        ;
-      sink = "vector";
     };
 
   mkOneCoverage =
@@ -147,11 +124,22 @@ let
       sink = "clickhouse-pipeline";
     };
 
-  vms = lib.genAttrs constants.supportedArchs mkOne;
+  mkOneS3Parquet =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "s3parquet";
+    };
 
-  vmsVector = lib.optionalAttrs (protoDescPackage != null) (
-    lib.genAttrs constants.supportedArchs mkOneVector
-  );
+  vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs mkOneCoverage
@@ -169,6 +157,8 @@ let
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
+  vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
+
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
@@ -180,17 +170,18 @@ let
     };
   });
 
-  lifecycleVector = lib.optionalAttrs (protoDescPackage != null) (
-    lib.genAttrs constants.supportedArchs (arch: {
-      fullTest = microvmLib.mkLifecycleFullTest {
-        inherit arch;
-        vm = vmsVector.${arch};
-        suffix = "-vector";
-        sentinelRe = "SYSTEMD|METRICS|VECTOR|MINIO|PARQUET|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|OVERALL";
-        timeoutSec = 240;
-      };
-    })
-  );
+  lifecycleS3Parquet = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsS3Parquet.${arch};
+      suffix = "-s3parquet";
+      # The two s3parquet-specific sentinels alongside the baseline set.
+      # 240 s timeout because the worker accumulates rows for several
+      # poll cycles before triggering the 1 MiB-threshold finalize.
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
+      timeoutSec = 240;
+    };
+  });
 
   lifecycleCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs (arch: {
@@ -251,35 +242,22 @@ let
       ''
   );
 
-  checksVector = lib.optionalAttrs (protoDescPackage != null) (
-    lib.genAttrs constants.supportedArchs (
-      arch:
-      pkgs.runCommand "xtcp2-microvm-lifecycle-${arch}-vector"
-        {
-          nativeBuildInputs = [ lifecycleVector.${arch}.fullTest ];
-        }
-        ''
-          xtcp2-lifecycle-full-test-${arch}-vector > $out 2>&1 || (cat $out && exit 1)
-        ''
-    )
-  );
 in
 {
   inherit
     vms
-    vmsVector
     vmsCoverage
     vmsCoverageIoUring
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsS3Parquet
     lifecycle
-    lifecycleVector
+    lifecycleS3Parquet
     lifecycleCoverage
     lifecycleCoverageIoUring
     soak
     tcpStress
     checks
-    checksVector
     ;
 }
