@@ -80,7 +80,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 	} else {
 		defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
 		defer func() {
-			if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+			if rerr := restoreNsSetns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
 				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "error").Inc()
 				if x.debugLevel > 10 {
 					log.Printf("netNamespaceInstance restore-netns err: %v (keeping thread locked → runtime will terminate it)", rerr)
@@ -91,7 +91,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 				return
 			}
 			x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "count").Inc()
-			runtime.UnlockOSThread()
+			runtime.UnlockOSThread() //nolint:forbidigo // safe: only called after Setns restore returned nil; tainted-M case takes the early `return` above.
 		}()
 	}
 
@@ -238,6 +238,12 @@ type openAndSetnsSyscallsT struct {
 	setns func(fd int, nstype int) error
 	close func(fd int) error
 }
+
+// restoreNsSetns is the seam used by netNamespaceInstance's deferred
+// restore. Same signature as unix.Setns; tests swap it to force
+// restore failures and exercise the tainted-M code path without
+// needing real CAP_SYS_ADMIN or live network namespaces.
+var restoreNsSetns = unix.Setns
 
 // attemptOpenAndSetns is one iteration of the retry loop. Returns:
 //   - fd: the fd returned by Open. -1 on Open failure. On Setns failure

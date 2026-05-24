@@ -156,7 +156,13 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	}
 
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	// NB: NO `defer runtime.UnlockOSThread()` here on purpose. See the
+	// matching pattern in netNamespaceInstance: if the deferred
+	// restore-Setns fails, we *must not* unlock — handing a tainted M
+	// back to Go's scheduler leaks OS threads up to SetMaxThreads. On
+	// restore failure the goroutine exits with the lock still held;
+	// Go's runtime then terminates the OS thread (documented
+	// LockOSThread behaviour) rather than recycling a tainted M.
 
 	// Snapshot the calling thread's current netns so we can restore
 	// after the unshare+bind-mount. Otherwise this goroutine's thread
@@ -164,19 +170,23 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	// running its fsnotify loop in a different network namespace.
 	origNs, errOrig := os.Open("/proc/thread-self/ns/net")
 	if errOrig != nil {
+		// snapshotOrigNs failed → can't restore → leave the lock held
+		// so the runtime terminates this thread on goroutine exit
+		// rather than recycling a thread that's about to be unshared
+		// into a new netns with no way back.
 		return fmt.Errorf("failed to snapshot original netns: %w", errOrig)
 	}
 	defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
 	defer func() {
-		// Restore on the way out; if Setns fails the goroutine is
-		// already pinned to this (modified) thread, so the failure
-		// surfaces in the surrounding LockOSThread scope. We log
-		// instead of returning because the primary work is done.
-		if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+		// Restore on the way out; conditionally unlock only if the
+		// restore actually succeeded.
+		if rerr := restoreNsSetns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
 			if x.debugLevel > 10 {
-				log.Printf("createNetworkNamespace restore-netns err: %v", rerr)
+				log.Printf("createNetworkNamespace restore-netns err: %v (keeping thread locked → runtime will terminate it)", rerr)
 			}
+			return // skip UnlockOSThread → runtime terminates the OS thread
 		}
+		runtime.UnlockOSThread() //nolint:forbidigo // safe: only fires after Setns restore returned nil.
 	}()
 
 	// Create the network namespace using CLONE_NEWNET. Affects the

@@ -16,16 +16,15 @@ import (
 	"syscall"
 	"time"
 
-	// protovalidate "github.com/bufbuild/protovalidate-go"
 	// Side-effect import: registers /debug/pprof/* handlers on
-	// http.DefaultServeMux. promHandlerStarter listens on
-	// /metrics via the same mux, so /debug/pprof/goroutine etc.
-	// are reachable on the prom port — handy when forensic stack
-	// snapshots are needed without standing up a separate
-	// debug-only HTTP server. Pyroscope provides continuous
-	// profiles; pprof here is the on-demand /debug/pprof endpoints
-	// the Go stdlib registers.
+	// http.DefaultServeMux. promHandlerStarter listens on /metrics
+	// via the same mux, so /debug/pprof/goroutine etc. are reachable
+	// on the prom port — handy when forensic stack snapshots are
+	// needed without standing up a separate debug-only HTTP server.
+	// Pyroscope provides continuous profiles; pprof here is the
+	// on-demand /debug/pprof endpoints the Go stdlib registers.
 	_ "net/http/pprof" //nolint:gosec // /metrics port is bound to lo / VM-only in deployments
+
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
@@ -97,21 +96,21 @@ const (
 	// via flag or env. Picked up by the dest_s3parquet build-tagged
 	// destination; on a binary built without -tags dest_s3parquet
 	// these fields are wired through harmlessly.
-	s3EndpointCst                  = ""
-	s3BucketCst                    = ""
-	s3PrefixCst                    = ""
-	s3AccessKeyCst                 = ""
-	s3SecretKeyCst                 = ""
-	s3RegionCst                    = ""
+	s3EndpointCst                        = ""
+	s3BucketCst                          = ""
+	s3PrefixCst                          = ""
+	s3AccessKeyCst                       = ""
+	s3SecretKeyCst                       = ""
+	s3RegionCst                          = ""
 	s3ParquetFlushThresholdBytesCst uint = 0
 
 	// Pyroscope continuous-profiling defaults. Agent disabled when
 	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
 	// PYROSCOPE_URL env, see environmentOverride).
-	pyroscopeUrlCst             = ""
-	pyroscopeAppNameCst         = "xtcp2"
-	pyroscopeSampleHzCst   uint = 100
-	pyroscopeUploadSecCst  uint = 15
+	pyroscopeUrlCst            = ""
+	pyroscopeAppNameCst        = "xtcp2"
+	pyroscopeSampleHzCst  uint = 100
+	pyroscopeUploadSecCst uint = 15
 
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
@@ -168,53 +167,53 @@ var (
 // short and lets the per-section helpers (printFlags, buildConfig,
 // startProfile) take a single argument instead of 30 positional ones.
 type mainFlags struct {
-	nltimeout                 *uint64
-	pollFrequency             *time.Duration
-	pollTimeout               *time.Duration
-	maxLoops                  *uint64
-	netlinkers                *uint
-	nlmsgSeq                  *uint
-	packetSize                *uint64
-	packetSizeMply            *uint
-	writeFiles                *uint
-	capturePath               *string
-	modulus                   *uint64
-	marshal                   *string
-	envelopeFlushBytes        *uint
-	envelopeFlushRows         *uint
-	kafkaCompression          *string
-	s3Endpoint                *string
-	s3Bucket                  *string
-	s3Prefix                  *string
-	s3AccessKey               *string
-	s3SecretKey               *string
-	s3Region                  *string
-	s3ParquetFlushBytes       *uint
-	dest                      *string
-	destWriteFiles            *uint
-	topic                     *string
-	xtcpProtoFile             *string
-	kafkaSchemaUrl            *string
-	produceTimeout            *time.Duration
-	label                     *string
-	tag                       *string
-	grpcPort                  *uint
-	deserializers             *string
-	promListen                *string
-	promPath                  *string
-	goMaxProcs                *uint
-	maxThreads                *int
-	profileMode               *string
-	pyroscopeUrl              *string
-	pyroscopeAppName          *string
-	pyroscopeSampleHz         *uint
-	pyroscopeUploadSec        *uint
-	v                         *bool
-	conf                      *bool
-	d                         *uint
-	ioUring                   *bool
-	ioUringRecvBatch          *uint
-	ioUringCqeBatch           *uint
+	nltimeout           *uint64
+	pollFrequency       *time.Duration
+	pollTimeout         *time.Duration
+	maxLoops            *uint64
+	netlinkers          *uint
+	nlmsgSeq            *uint
+	packetSize          *uint64
+	packetSizeMply      *uint
+	writeFiles          *uint
+	capturePath         *string
+	modulus             *uint64
+	marshal             *string
+	envelopeFlushBytes  *uint
+	envelopeFlushRows   *uint
+	kafkaCompression    *string
+	s3Endpoint          *string
+	s3Bucket            *string
+	s3Prefix            *string
+	s3AccessKey         *string
+	s3SecretKey         *string
+	s3Region            *string
+	s3ParquetFlushBytes *uint
+	dest                *string
+	destWriteFiles      *uint
+	topic               *string
+	xtcpProtoFile       *string
+	kafkaSchemaUrl      *string
+	produceTimeout      *time.Duration
+	label               *string
+	tag                 *string
+	grpcPort            *uint
+	deserializers       *string
+	promListen          *string
+	promPath            *string
+	goMaxProcs          *uint
+	maxThreads          *int
+	profileMode         *string
+	pyroscopeUrl        *string
+	pyroscopeAppName    *string
+	pyroscopeSampleHz   *uint
+	pyroscopeUploadSec  *uint
+	v                   *bool
+	conf                *bool
+	d                   *uint
+	ioUring             *bool
+	ioUringRecvBatch    *uint
+	ioUringCqeBatch     *uint
 }
 
 func defineFlags() *mainFlags {
@@ -321,44 +320,44 @@ func printFlags(f *mainFlags) {
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
 	return &xtcp_config.XtcpConfig{
-		NlTimeoutMilliseconds:  *f.nltimeout,
-		PollFrequency:          durationpb.New(*f.pollFrequency),
-		PollTimeout:            durationpb.New(*f.pollTimeout),
-		MaxLoops:               *f.maxLoops,
-		Netlinkers:             uint32(*f.netlinkers),
-		NetlinkersDoneChanSize: netlinkerDoneChSizeCst,
-		NlmsgSeq:               uint32(*f.nlmsgSeq),
-		PacketSize:             *f.packetSize,
-		PacketSizeMply:         uint32(*f.packetSizeMply),
-		WriteFiles:             uint32(*f.writeFiles),
-		CapturePath:            *f.capturePath,
-		Modulus:                *f.modulus,
-		MarshalTo:                   *f.marshal,
-		EnvelopeFlushThresholdBytes: uint32(*f.envelopeFlushBytes),
-		EnvelopeFlushThresholdRows:  uint32(*f.envelopeFlushRows),
-		KafkaCompression:            *f.kafkaCompression,
-		S3Endpoint:                  *f.s3Endpoint,
-		S3Bucket:                    *f.s3Bucket,
-		S3Prefix:                    *f.s3Prefix,
-		S3AccessKey:                 *f.s3AccessKey,
-		S3SecretKey:                 *f.s3SecretKey,
-		S3Region:                    *f.s3Region,
+		NlTimeoutMilliseconds:        *f.nltimeout,
+		PollFrequency:                durationpb.New(*f.pollFrequency),
+		PollTimeout:                  durationpb.New(*f.pollTimeout),
+		MaxLoops:                     *f.maxLoops,
+		Netlinkers:                   uint32(*f.netlinkers),
+		NetlinkersDoneChanSize:       netlinkerDoneChSizeCst,
+		NlmsgSeq:                     uint32(*f.nlmsgSeq),
+		PacketSize:                   *f.packetSize,
+		PacketSizeMply:               uint32(*f.packetSizeMply),
+		WriteFiles:                   uint32(*f.writeFiles),
+		CapturePath:                  *f.capturePath,
+		Modulus:                      *f.modulus,
+		MarshalTo:                    *f.marshal,
+		EnvelopeFlushThresholdBytes:  uint32(*f.envelopeFlushBytes),
+		EnvelopeFlushThresholdRows:   uint32(*f.envelopeFlushRows),
+		KafkaCompression:             *f.kafkaCompression,
+		S3Endpoint:                   *f.s3Endpoint,
+		S3Bucket:                     *f.s3Bucket,
+		S3Prefix:                     *f.s3Prefix,
+		S3AccessKey:                  *f.s3AccessKey,
+		S3SecretKey:                  *f.s3SecretKey,
+		S3Region:                     *f.s3Region,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
-		PyroscopeUrl:                *f.pyroscopeUrl,
-		PyroscopeAppName:            *f.pyroscopeAppName,
-		PyroscopeSampleHz:           uint32(*f.pyroscopeSampleHz),
-		PyroscopeUploadIntervalSec:  uint32(*f.pyroscopeUploadSec),
-		Dest:                        *f.dest,
-		DestWriteFiles:         uint32(*f.destWriteFiles),
-		Topic:                  *f.topic,
-		XtcpProtoFile:          *f.xtcpProtoFile,
-		KafkaSchemaUrl:         *f.kafkaSchemaUrl,
-		KafkaProduceTimeout:    durationpb.New(*f.produceTimeout),
-		DebugLevel:             uint32(*f.d),
-		Label:                  *f.label,
-		Tag:                    *f.tag,
-		GrpcPort:               uint32(*f.grpcPort),
-		EnabledDeserializers:   des,
+		PyroscopeUrl:                 *f.pyroscopeUrl,
+		PyroscopeAppName:             *f.pyroscopeAppName,
+		PyroscopeSampleHz:            uint32(*f.pyroscopeSampleHz),
+		PyroscopeUploadIntervalSec:   uint32(*f.pyroscopeUploadSec),
+		Dest:                         *f.dest,
+		DestWriteFiles:               uint32(*f.destWriteFiles),
+		Topic:                        *f.topic,
+		XtcpProtoFile:                *f.xtcpProtoFile,
+		KafkaSchemaUrl:               *f.kafkaSchemaUrl,
+		KafkaProduceTimeout:          durationpb.New(*f.produceTimeout),
+		DebugLevel:                   uint32(*f.d),
+		Label:                        *f.label,
+		Tag:                          *f.tag,
+		GrpcPort:                     uint32(*f.grpcPort),
+		EnabledDeserializers:         des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
