@@ -145,7 +145,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	// associates io_uring fds with the netns of the creating task; the
 	// fd we recv from must be in the same netns.
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: this goroutine never modifies thread-global namespace state — io_uring rings just need a stable kernel-task identity for the ring's lifetime, so unlock-on-return is safe.
 
 	batch, cqeBatch := iouringResolveBatchSizes(x.config.IoUringRecvBatchSize, x.config.IoUringCqeBatchSize)
 

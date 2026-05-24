@@ -50,7 +50,7 @@ func allocBuf(n int) *[]byte {
 
 func TestRecvSingleDatagram(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r := newTestRing(t, 4)
 	srv, cli := socketpair(t)
@@ -95,7 +95,7 @@ func TestRecvSingleDatagram(t *testing.T) {
 
 func TestRecvMultipleDatagrams(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r := newTestRing(t, 16)
 	srv, cli := socketpair(t)
@@ -160,7 +160,7 @@ func TestRecvMultipleDatagrams(t *testing.T) {
 
 func TestSendSingle(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r := newTestRing(t, 4)
 	srv, cli := socketpair(t)
@@ -200,7 +200,7 @@ func TestSendSingle(t *testing.T) {
 
 func TestSendBatch(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r := newTestRing(t, 256)
 	srv, cli := socketpair(t)
@@ -262,7 +262,7 @@ func TestSendBatch(t *testing.T) {
 
 func TestWritevUnixStream(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	// Need SOCK_STREAM for writev semantics; socketpair() above is DGRAM.
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
@@ -314,7 +314,7 @@ func TestWritevUnixStream(t *testing.T) {
 
 func TestInFlightCapEnforced(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r := newTestRing(t, 4) // sqEntries clamped to 256, in-flight cap = 512
 	_, cli := socketpair(t)
@@ -334,7 +334,7 @@ func TestInFlightCapEnforced(t *testing.T) {
 
 func TestTeardownDrainsCleanly(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r, err := New(Config{RecvBatchSize: 4, CQEBatchSize: 8})
 	if err != nil {
@@ -366,7 +366,7 @@ func TestTeardownDrainsCleanly(t *testing.T) {
 // buffer per outstanding recvmsg SQE.
 func TestTeardownReleasesUnacknowledgedBuffers(t *testing.T) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
 
 	r, err := New(Config{RecvBatchSize: 4, CQEBatchSize: 8})
 	if err != nil {
