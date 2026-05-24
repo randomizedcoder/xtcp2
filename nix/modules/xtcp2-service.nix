@@ -70,16 +70,27 @@ in
         Restart = "on-failure";
         RestartSec = "2s";
         User = cfg.user;
-        # netlink inet_diag and io_uring need elevated capabilities
+        # netlink inet_diag needs CAP_NET_ADMIN; io_uring needs
+        # CAP_SYS_RESOURCE for the locked-memory budget; and CAP_SYS_ADMIN
+        # is required for setns(CLONE_NEWNET) into per-namespace netlink
+        # sockets. Without CAP_SYS_ADMIN every setns into AND restore-out-of
+        # a non-default netns fails with EPERM, the openAndSetNSWithRetries
+        # retry loop spins through all 10 attempts holding a locked OS
+        # thread, and a heavy nsTest churn workload (4 evts/sec) hits the
+        # SetMaxThreads ceiling in 1-2 hours. Same ambient set + bounding
+        # set so the daemon can elevate to use it (ambient) and child
+        # processes inherit (bounding).
         AmbientCapabilities = [
           "CAP_NET_ADMIN"
           "CAP_NET_RAW"
           "CAP_SYS_RESOURCE"
+          "CAP_SYS_ADMIN"
         ];
         CapabilityBoundingSet = [
           "CAP_NET_ADMIN"
           "CAP_NET_RAW"
           "CAP_SYS_RESOURCE"
+          "CAP_SYS_ADMIN"
         ];
         # Default systemd TasksMax is 15% of kernel.pid_max which in a
         # microvm works out to ~1100. The 1h soak with 4-per-sec ns churn
