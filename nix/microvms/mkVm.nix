@@ -8,14 +8,15 @@
 #   - bundles the self-test as a oneshot service triggered after xtcp2
 #   - shares /nix/store with the host via 9p
 #
-# Two flavors selected by `sink`:
+# Flavors selected by `sink`:
 #   - "minimal" (default): xtcp2 alone, JSONL configFile (currently a no-op
 #                          stub; the netlink-readout check tolerates a missing
 #                          file). Cheap CI smoke.
-#   - "vector":            xtcp2 → unixgram UDS → Vector → parquet → MinIO,
-#                          all inside the VM. Uses memVector budget. Self-test
-#                          checks VECTOR/MINIO/PARQUET sentinels in addition
-#                          to the rest of the suite.
+#   - "s3parquet":         xtcp2 → MinIO Parquet upload, all inside the VM.
+#                          Reuses the minio-bucket-bootstrap module; the xtcp2
+#                          daemon talks to MinIO directly via the minio-go
+#                          client (no Vector intermediate).
+#   - "clickhouse-pipeline", "soak", "tcp-stress", "coverage[-iouring]".
 #
 {
   pkgs,
@@ -26,9 +27,6 @@
   xtcp2Package,
   xtcp2AllPackage,
   sink ? "minimal",
-  # Required when sink == "vector". A derivation that provides
-  # share/xtcp2/xtcp_flat_record.desc. See nix/lib/mkProtoDescSet.nix.
-  protoDescPackage ? null,
   # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
   # script) that the in-VM container spawn unit loads via `docker load`.
   tcpStressImage ? null,
@@ -38,7 +36,6 @@ let
   constants = import ./constants.nix;
   cfg = constants.architectures.${arch};
 
-  isVector = sink == "vector";
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
@@ -48,12 +45,14 @@ let
   # configured with -dest kafka:localhost:19092 so the records flow
   # through the same pipeline as the production compose.
   isClickPipe = sink == "clickhouse-pipeline";
+  # s3parquet = MinIO + xtcp2 writing Parquet directly to S3.
+  isS3Parquet = sink == "s3parquet";
   # Anything that needs dockerd inside the VM.
   needsDocker = isTcpStress || isClickPipe;
   effectiveMem =
-    if isVector then
-      cfg.memVector
-    else if isClickPipe then
+    if isClickPipe then
+      cfg.memClickPipe
+    else if isS3Parquet then
       cfg.memClickPipe
     else if isTcpStress then
       cfg.memTcpStress
@@ -62,23 +61,16 @@ let
 
   coverDir = "/var/lib/xtcp2cov";
 
-  selfTest =
-    if isVector then
-      import ./self-test-vector.nix {
-        inherit pkgs;
-        promPort = cfg.promPort;
-        grpcPort = cfg.grpcPort;
-      }
-    else
-      import ./self-test.nix {
-        inherit pkgs lib;
-        promPort = cfg.promPort;
-        grpcPort = cfg.grpcPort;
-        coverageEnabled = isCoverage;
-        inherit coverDir;
-        runClickhouseCheck = isClickPipe;
-        clickhousePassword = clickPipeChPassword;
-      };
+  selfTest = import ./self-test.nix {
+    inherit pkgs lib;
+    promPort = cfg.promPort;
+    grpcPort = cfg.grpcPort;
+    coverageEnabled = isCoverage;
+    inherit coverDir;
+    runClickhouseCheck = isClickPipe;
+    clickhousePassword = clickPipeChPassword;
+    runS3ParquetCheck = isS3Parquet;
+  };
 
   # tcp_server/tcp_client tunables for the soak flavor. They share the
   # same port base (cmd/tcp_server/tcp_server.go startPort = 4000), so
@@ -487,30 +479,11 @@ let
     '';
   };
 
-  vectorModules =
-    assert lib.assertMsg (
-      protoDescPackage != null
-    ) "mkVm.nix: sink=\"vector\" requires protoDescPackage";
-    [
-      (import ../modules/vector-pipeline.nix {
-        inherit protoDescPackage;
-      })
-      (import ../modules/minio-bucket-bootstrap.nix { })
-      ../modules/xtcp2-vector-path.nix
-    ];
-
-  xtcp2VectorArgs = [
-    "-dest"
-    "unixgram:/run/xtcp2/output.sock"
-    "-marshal"
-    "protobufList"
-    "-frequency"
-    "2s"
-    # xtcp2 requires `-timeout < -frequency`; defaults are 5 s / 10 s. With
-    # frequency dropped to 2 s for fast lifecycle-test cycles, timeout must
-    # come down too.
-    "-timeout"
-    "1s"
+  # s3parquet flavor: in-VM MinIO + bucket bootstrap. The xtcp2 daemon
+  # talks to MinIO directly via the minio-go client; no proto-desc file
+  # or unixgram socket required.
+  s3ParquetModules = [
+    (import ../modules/minio-bucket-bootstrap.nix { })
   ];
 
   # Both the basic and coverage flavors override the default dest. The
@@ -556,6 +529,29 @@ let
   # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
   # path runs (otherwise 0% covered; the syscall variant runs by default).
   ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
+
+  # s3parquet flavor: write Parquet straight to MinIO. Lifecycle-test
+  # threshold dropped to 1 MiB so a 90 s boot exercise actually triggers
+  # a finalize+upload; production default (set via
+  # S3_PARQUET_FLUSH_BYTES=0) is 63 MiB.
+  xtcp2S3ParquetArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "1048576"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -564,7 +560,7 @@ in
     microvm.nixosModules.microvm
     ../modules/xtcp2-service.nix
   ]
-  ++ lib.optionals isVector vectorModules
+  ++ lib.optionals isS3Parquet s3ParquetModules
   ++ [
     (
       { config, ... }:
@@ -660,9 +656,9 @@ in
           # the docker `-p 18123:8123` mapping then routes into the
           # clickhouse container.
           forwardPorts =
-            lib.optionals (isTcpStress || isClickPipe) [
+            lib.optionals (isTcpStress || isClickPipe || isS3Parquet) [
               # xtcp2 daemon's prometheus + grpc endpoints — same on
-              # every docker-enabled flavor.
+              # every flavor that runs xtcp2 with networking surface.
               {
                 from = "host";
                 host.port = 9088;
@@ -672,6 +668,20 @@ in
                 from = "host";
                 host.port = 8889;
                 guest.port = 8889;
+              }
+            ]
+            ++ lib.optionals isS3Parquet [
+              # MinIO API (9000) and console (9001) — lets host-side
+              # `mc ls` and a browser hit the in-VM MinIO from the dev box.
+              {
+                from = "host";
+                host.port = 9000;
+                guest.port = 9000;
+              }
+              {
+                from = "host";
+                host.port = 9001;
+                guest.port = 9001;
               }
             ]
             ++ lib.optionals isTcpStress [
@@ -845,13 +855,14 @@ in
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
-            if isVector then
-              xtcp2VectorArgs
-            else if isCoverage then
+            if isCoverage then
               xtcp2CoverageArgs
             else if isClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               xtcp2ClickPipeArgs
+            else if isS3Parquet then
+              # s3parquet flavor: direct Parquet → MinIO.
+              xtcp2S3ParquetArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -860,9 +871,9 @@ in
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
-        # is-active xtcp2` for 30 s, so it is robust to xtcp2 starting via
-        # the systemd.path gate (vector flavor) vs. directly at boot
-        # (minimal flavor). Skipped on the soak flavor (long-running churn
+        # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
+        # boot or via a systemd.path gate. Skipped on the soak flavor
+        # (long-running churn
         # + metric scrape services replace it).
         systemd.services.xtcp2-self-test = lib.mkIf (!isSoak) {
           description = "xtcp2 microvm self-test";
@@ -1271,15 +1282,6 @@ in
             util-linux
             systemd
           ])
-          ++ lib.optionals isVector (
-            with pkgs;
-            [
-              vector
-              minio
-              minio-client
-              duckdb
-            ]
-          )
           ++ lib.optionals isTcpStress (with pkgs; [ docker ])
           ++ [ xtcp2AllPackage ];
       }

@@ -29,14 +29,15 @@ type DestinationFactory func(ctx context.Context, x *XTCP) (Destination, error)
 // <scheme>:<addr>` and (for unix/unixgram/udp) as the corresponding net
 // package network name accepted by net.Dial / net.Listen.
 const (
-	schemeNull     = "null"
-	schemeUDP      = "udp"
-	schemeUnix     = "unix"
-	schemeUnixgram = "unixgram"
-	schemeKafka    = "kafka"
-	schemeNats     = "nats"
-	schemeNsq      = "nsq"
-	schemeValkey   = "valkey"
+	schemeNull      = "null"
+	schemeUDP       = "udp"
+	schemeUnix      = "unix"
+	schemeUnixgram  = "unixgram"
+	schemeKafka     = "kafka"
+	schemeNats      = "nats"
+	schemeNsq       = "nsq"
+	schemeValkey    = "valkey"
+	schemeS3Parquet = "s3parquet"
 
 	// schemeNullPrefix is the `-dest` value that selects the null sink
 	// without an address payload. Used as a no-op destination in tests.
@@ -51,6 +52,7 @@ const (
 var knownSchemes = []string{
 	schemeNull, schemeUDP, schemeUnix, schemeUnixgram,
 	schemeKafka, schemeNats, schemeNsq, schemeValkey,
+	schemeS3Parquet,
 }
 
 var (

@@ -82,6 +82,19 @@ const (
 	// validates the value at startup.
 	kafkaCompressionCst = ""
 
+	// s3parquet destination defaults. All empty/zero by default — only
+	// kick in when -dest is s3parquet:... and the operator sets these
+	// via flag or env. Picked up by the dest_s3parquet build-tagged
+	// destination; on a binary built without -tags dest_s3parquet
+	// these fields are wired through harmlessly.
+	s3EndpointCst                  = ""
+	s3BucketCst                    = ""
+	s3PrefixCst                    = ""
+	s3AccessKeyCst                 = ""
+	s3SecretKeyCst                 = ""
+	s3RegionCst                    = ""
+	s3ParquetFlushThresholdBytesCst uint = 0
+
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
 	// destCst = "udp:127.0.0.1:13000"
@@ -152,6 +165,13 @@ type mainFlags struct {
 	envelopeFlushBytes        *uint
 	envelopeFlushRows         *uint
 	kafkaCompression          *string
+	s3Endpoint                *string
+	s3Bucket                  *string
+	s3Prefix                  *string
+	s3AccessKey               *string
+	s3SecretKey               *string
+	s3Region                  *string
+	s3ParquetFlushBytes       *uint
 	dest                      *string
 	destWriteFiles            *uint
 	topic                     *string
@@ -193,6 +213,13 @@ func defineFlags() *mainFlags {
 	f.envelopeFlushBytes = flag.Uint("envelopeFlushBytes", envelopeFlushBytesCst, "Safety-net cap on the in-flight protobufList Envelope's UNCOMPRESSED proto size in bytes (franz-go compresses post-flush, so wire size is typically 3-8x smaller). 0 = use daemon default (768 KiB). Whichever cap (bytes/rows) trips first wins.")
 	f.envelopeFlushRows = flag.Uint("envelopeFlushRows", envelopeFlushRowsCst, "Primary cap on the in-flight protobufList Envelope's row count. 0 = use daemon default (10000). Cheap, predictable; pairs with -envelopeFlushBytes as a safety net.")
 	f.kafkaCompression = flag.String("kafkaCompression", kafkaCompressionCst, "Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.")
+	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
+	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
+	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env. Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env. Never logged.")
+	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
+	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.dest = flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
@@ -240,6 +267,13 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*envelopeFlushBytes:", *f.envelopeFlushBytes)
 	fmt.Println("*envelopeFlushRows:", *f.envelopeFlushRows)
 	fmt.Println("*kafkaCompression:", *f.kafkaCompression)
+	fmt.Println("*s3Endpoint:", *f.s3Endpoint)
+	fmt.Println("*s3Bucket:", *f.s3Bucket)
+	fmt.Println("*s3Prefix:", *f.s3Prefix)
+	// *f.s3AccessKey and *f.s3SecretKey intentionally NOT printed —
+	// they would leak via console logs, lifecycle test scrapers, etc.
+	fmt.Println("*s3Region:", *f.s3Region)
+	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
 	fmt.Println("*dest:", *f.dest)
 	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
 	fmt.Println("*topic:", *f.topic)
@@ -270,6 +304,13 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		EnvelopeFlushThresholdBytes: uint32(*f.envelopeFlushBytes),
 		EnvelopeFlushThresholdRows:  uint32(*f.envelopeFlushRows),
 		KafkaCompression:            *f.kafkaCompression,
+		S3Endpoint:                  *f.s3Endpoint,
+		S3Bucket:                    *f.s3Bucket,
+		S3Prefix:                    *f.s3Prefix,
+		S3AccessKey:                 *f.s3AccessKey,
+		S3SecretKey:                 *f.s3SecretKey,
+		S3Region:                    *f.s3Region,
+		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
 		Dest:                        *f.dest,
 		DestWriteFiles:         uint32(*f.destWriteFiles),
 		Topic:                  *f.topic,
@@ -744,6 +785,36 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.KafkaCompression = v
 		logEnv("KAFKA_COMPRESSION", fmt.Sprintf("c.KafkaCompression:%s", v), debugLevel)
 	}
+	if v, ok := envString("S3_ENDPOINT"); ok {
+		c.S3Endpoint = v
+		logEnv("S3_ENDPOINT", fmt.Sprintf("c.S3Endpoint:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_BUCKET"); ok {
+		c.S3Bucket = v
+		logEnv("S3_BUCKET", fmt.Sprintf("c.S3Bucket:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_PREFIX"); ok {
+		c.S3Prefix = v
+		logEnv("S3_PREFIX", fmt.Sprintf("c.S3Prefix:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_ACCESS_KEY"); ok {
+		c.S3AccessKey = v
+		// Intentionally NOT logging the access key value — only that
+		// the env var was set. Same for S3_SECRET_KEY below.
+		logEnv("S3_ACCESS_KEY", "set", debugLevel)
+	}
+	if v, ok := envString("S3_SECRET_KEY"); ok {
+		c.S3SecretKey = v
+		logEnv("S3_SECRET_KEY", "set", debugLevel)
+	}
+	if v, ok := envString("S3_REGION"); ok {
+		c.S3Region = v
+		logEnv("S3_REGION", fmt.Sprintf("c.S3Region:%s", v), debugLevel)
+	}
+	if v, ok := envUint32("S3_PARQUET_FLUSH_BYTES"); ok {
+		c.S3ParquetFlushThresholdBytes = v
+		logEnv("S3_PARQUET_FLUSH_BYTES", fmt.Sprintf("c.S3ParquetFlushThresholdBytes:%d", v), debugLevel)
+	}
 	if v, ok := envString("DEST"); ok {
 		c.Dest = v
 		logEnv("DEST", fmt.Sprintf("c.Dest:%s", v), debugLevel)
@@ -805,6 +876,12 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.EnvelopeFlushThresholdBytes:", c.EnvelopeFlushThresholdBytes)
 	fmt.Println("c.EnvelopeFlushThresholdRows:", c.EnvelopeFlushThresholdRows)
 	fmt.Println("c.KafkaCompression:", c.KafkaCompression)
+	fmt.Println("c.S3Endpoint:", c.S3Endpoint)
+	fmt.Println("c.S3Bucket:", c.S3Bucket)
+	fmt.Println("c.S3Prefix:", c.S3Prefix)
+	// c.S3AccessKey / c.S3SecretKey intentionally NOT printed.
+	fmt.Println("c.S3Region:", c.S3Region)
+	fmt.Println("c.S3ParquetFlushThresholdBytes:", c.S3ParquetFlushThresholdBytes)
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)

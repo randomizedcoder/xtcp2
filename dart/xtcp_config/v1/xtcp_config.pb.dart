@@ -349,7 +349,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? envelopeFlushThresholdBytes,
     $core.int? envelopeFlushThresholdRows,
     $core.String? kafkaCompression,
+    $core.String? s3Endpoint,
+    $core.String? s3Bucket,
+    $core.String? s3Prefix,
+    $core.String? s3AccessKey,
+    $core.String? s3SecretKey,
     $core.String? dest,
+    $core.int? s3ParquetFlushThresholdBytes,
+    $core.String? s3Region,
     $core.int? destWriteFiles,
     $core.String? topic,
     $core.String? xtcpProtoFile,
@@ -413,8 +420,29 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (kafkaCompression != null) {
       $result.kafkaCompression = kafkaCompression;
     }
+    if (s3Endpoint != null) {
+      $result.s3Endpoint = s3Endpoint;
+    }
+    if (s3Bucket != null) {
+      $result.s3Bucket = s3Bucket;
+    }
+    if (s3Prefix != null) {
+      $result.s3Prefix = s3Prefix;
+    }
+    if (s3AccessKey != null) {
+      $result.s3AccessKey = s3AccessKey;
+    }
+    if (s3SecretKey != null) {
+      $result.s3SecretKey = s3SecretKey;
+    }
     if (dest != null) {
       $result.dest = dest;
+    }
+    if (s3ParquetFlushThresholdBytes != null) {
+      $result.s3ParquetFlushThresholdBytes = s3ParquetFlushThresholdBytes;
+    }
+    if (s3Region != null) {
+      $result.s3Region = s3Region;
     }
     if (destWriteFiles != null) {
       $result.destWriteFiles = destWriteFiles;
@@ -478,7 +506,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..a<$core.int>(122, _omitFieldNames ? '' : 'envelopeFlushThresholdBytes', $pb.PbFieldType.OU3)
     ..a<$core.int>(123, _omitFieldNames ? '' : 'envelopeFlushThresholdRows', $pb.PbFieldType.OU3)
     ..aOS(124, _omitFieldNames ? '' : 'kafkaCompression')
+    ..aOS(125, _omitFieldNames ? '' : 's3Endpoint')
+    ..aOS(126, _omitFieldNames ? '' : 's3Bucket')
+    ..aOS(127, _omitFieldNames ? '' : 's3Prefix')
+    ..aOS(128, _omitFieldNames ? '' : 's3AccessKey')
+    ..aOS(129, _omitFieldNames ? '' : 's3SecretKey')
     ..aOS(130, _omitFieldNames ? '' : 'dest')
+    ..a<$core.int>(132, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes', $pb.PbFieldType.OU3)
+    ..aOS(133, _omitFieldNames ? '' : 's3Region')
     ..a<$core.int>(135, _omitFieldNames ? '' : 'destWriteFiles', $pb.PbFieldType.OU3)
     ..aOS(140, _omitFieldNames ? '' : 'topic')
     ..aOS(143, _omitFieldNames ? '' : 'xtcpProtoFile')
@@ -730,59 +765,142 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(124)
   void clearKafkaCompression() => clearField(124);
 
+  /// S3 endpoint URL, e.g. "http://127.0.0.1:9000" (MinIO) or
+  /// "https://s3.amazonaws.com" (AWS). May be empty if -dest carries
+  /// it via the s3parquet:<endpoint> form.
+  @$pb.TagNumber(125)
+  $core.String get s3Endpoint => $_getSZ(16);
+  @$pb.TagNumber(125)
+  set s3Endpoint($core.String v) { $_setString(16, v); }
+  @$pb.TagNumber(125)
+  $core.bool hasS3Endpoint() => $_has(16);
+  @$pb.TagNumber(125)
+  void clearS3Endpoint() => clearField(125);
+
+  /// Required when -dest s3parquet. Bucket must already exist on the
+  /// endpoint; the daemon does not auto-create.
+  @$pb.TagNumber(126)
+  $core.String get s3Bucket => $_getSZ(17);
+  @$pb.TagNumber(126)
+  set s3Bucket($core.String v) { $_setString(17, v); }
+  @$pb.TagNumber(126)
+  $core.bool hasS3Bucket() => $_has(17);
+  @$pb.TagNumber(126)
+  void clearS3Bucket() => clearField(126);
+
+  /// Optional key-prefix WITHIN the bucket. Joined with the Hive-style
+  /// partition segments (host=…/date=…/hour=…/<file>.parquet). Empty
+  /// = files land at the bucket root level.
+  @$pb.TagNumber(127)
+  $core.String get s3Prefix => $_getSZ(18);
+  @$pb.TagNumber(127)
+  set s3Prefix($core.String v) { $_setString(18, v); }
+  @$pb.TagNumber(127)
+  $core.bool hasS3Prefix() => $_has(18);
+  @$pb.TagNumber(127)
+  void clearS3Prefix() => clearField(127);
+
+  /// Required when -dest s3parquet. Picked up from AWS_ACCESS_KEY_ID
+  /// env if blank.
+  @$pb.TagNumber(128)
+  $core.String get s3AccessKey => $_getSZ(19);
+  @$pb.TagNumber(128)
+  set s3AccessKey($core.String v) { $_setString(19, v); }
+  @$pb.TagNumber(128)
+  $core.bool hasS3AccessKey() => $_has(19);
+  @$pb.TagNumber(128)
+  void clearS3AccessKey() => clearField(128);
+
+  /// Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY
+  /// env if blank. Never logged.
+  @$pb.TagNumber(129)
+  $core.String get s3SecretKey => $_getSZ(20);
+  @$pb.TagNumber(129)
+  set s3SecretKey($core.String v) { $_setString(20, v); }
+  @$pb.TagNumber(129)
+  $core.bool hasS3SecretKey() => $_has(20);
+  @$pb.TagNumber(129)
+  void clearS3SecretKey() => clearField(129);
+
   /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
   /// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
   /// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
   /// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
   /// max_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes).
   @$pb.TagNumber(130)
-  $core.String get dest => $_getSZ(16);
+  $core.String get dest => $_getSZ(21);
   @$pb.TagNumber(130)
-  set dest($core.String v) { $_setString(16, v); }
+  set dest($core.String v) { $_setString(21, v); }
   @$pb.TagNumber(130)
-  $core.bool hasDest() => $_has(16);
+  $core.bool hasDest() => $_has(21);
   @$pb.TagNumber(130)
   void clearDest() => clearField(130);
+
+  /// Soft cap on the in-memory Parquet builder's accumulated
+  /// uncompressed row bytes before the worker finalizes the file and
+  /// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
+  /// Operators tune down for faster file rotation (more S3 PUTs,
+  /// smaller per-file query latency) or up for fewer larger files
+  /// (better compression ratio, more memory).
+  @$pb.TagNumber(132)
+  $core.int get s3ParquetFlushThresholdBytes => $_getIZ(22);
+  @$pb.TagNumber(132)
+  set s3ParquetFlushThresholdBytes($core.int v) { $_setUnsignedInt32(22, v); }
+  @$pb.TagNumber(132)
+  $core.bool hasS3ParquetFlushThresholdBytes() => $_has(22);
+  @$pb.TagNumber(132)
+  void clearS3ParquetFlushThresholdBytes() => clearField(132);
+
+  /// S3 region. Required by some S3 implementations even when talking
+  /// to a single-region MinIO. Default "us-east-1" when blank.
+  @$pb.TagNumber(133)
+  $core.String get s3Region => $_getSZ(23);
+  @$pb.TagNumber(133)
+  set s3Region($core.String v) { $_setString(23, v); }
+  @$pb.TagNumber(133)
+  $core.bool hasS3Region() => $_has(23);
+  @$pb.TagNumber(133)
+  void clearS3Region() => clearField(133);
 
   /// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
   /// xtcp will capture this many examples of the marshalled data
   /// This is PER poller
   @$pb.TagNumber(135)
-  $core.int get destWriteFiles => $_getIZ(17);
+  $core.int get destWriteFiles => $_getIZ(24);
   @$pb.TagNumber(135)
-  set destWriteFiles($core.int v) { $_setUnsignedInt32(17, v); }
+  set destWriteFiles($core.int v) { $_setUnsignedInt32(24, v); }
   @$pb.TagNumber(135)
-  $core.bool hasDestWriteFiles() => $_has(17);
+  $core.bool hasDestWriteFiles() => $_has(24);
   @$pb.TagNumber(135)
   void clearDestWriteFiles() => clearField(135);
 
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(18);
+  $core.String get topic => $_getSZ(25);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(18, v); }
+  set topic($core.String v) { $_setString(25, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(18);
+  $core.bool hasTopic() => $_has(25);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
   /// XtcpProtoFile
   @$pb.TagNumber(143)
-  $core.String get xtcpProtoFile => $_getSZ(19);
+  $core.String get xtcpProtoFile => $_getSZ(26);
   @$pb.TagNumber(143)
-  set xtcpProtoFile($core.String v) { $_setString(19, v); }
+  set xtcpProtoFile($core.String v) { $_setString(26, v); }
   @$pb.TagNumber(143)
-  $core.bool hasXtcpProtoFile() => $_has(19);
+  $core.bool hasXtcpProtoFile() => $_has(26);
   @$pb.TagNumber(143)
   void clearXtcpProtoFile() => clearField(143);
 
   /// Kafka schema registry url
   @$pb.TagNumber(145)
-  $core.String get kafkaSchemaUrl => $_getSZ(20);
+  $core.String get kafkaSchemaUrl => $_getSZ(27);
   @$pb.TagNumber(145)
-  set kafkaSchemaUrl($core.String v) { $_setString(20, v); }
+  set kafkaSchemaUrl($core.String v) { $_setString(27, v); }
   @$pb.TagNumber(145)
-  $core.bool hasKafkaSchemaUrl() => $_has(20);
+  $core.bool hasKafkaSchemaUrl() => $_has(27);
   @$pb.TagNumber(145)
   void clearKafkaSchemaUrl() => clearField(145);
 
@@ -790,77 +908,77 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(21);
+  $2.Duration get kafkaProduceTimeout => $_getN(28);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(21);
+  $core.bool hasKafkaProduceTimeout() => $_has(28);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(21);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(28);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(22);
+  $core.int get debugLevel => $_getIZ(29);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(22, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(29, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(22);
+  $core.bool hasDebugLevel() => $_has(29);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(23);
+  $core.String get label => $_getSZ(30);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(23, v); }
+  set label($core.String v) { $_setString(30, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(23);
+  $core.bool hasLabel() => $_has(30);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(24);
+  $core.String get tag => $_getSZ(31);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(24, v); }
+  set tag($core.String v) { $_setString(31, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(24);
+  $core.bool hasTag() => $_has(31);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(25);
+  $core.int get grpcPort => $_getIZ(32);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(25, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(32, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(25);
+  $core.bool hasGrpcPort() => $_has(32);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(26);
+  EnabledDeserializers get enabledDeserializers => $_getN(33);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(26);
+  $core.bool hasEnabledDeserializers() => $_has(33);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(26);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(33);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(27);
+  $core.bool get ioUring => $_getBF(34);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(27, v); }
+  set ioUring($core.bool v) { $_setBool(34, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(27);
+  $core.bool hasIoUring() => $_has(34);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -869,11 +987,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(28);
+  $core.int get ioUringRecvBatchSize => $_getIZ(35);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(28, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(35, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(28);
+  $core.bool hasIoUringRecvBatchSize() => $_has(35);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -881,11 +999,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(29);
+  $core.int get ioUringCqeBatchSize => $_getIZ(36);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(29, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(36, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(29);
+  $core.bool hasIoUringCqeBatchSize() => $_has(36);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 }

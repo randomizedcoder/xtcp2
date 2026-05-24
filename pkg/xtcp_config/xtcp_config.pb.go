@@ -390,6 +390,33 @@ type XtcpConfig struct {
 	// Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
 	// "zstd" (the default) if Kafka throughput / disk usage matters more.
 	KafkaCompression string `protobuf:"bytes,124,opt,name=kafka_compression,json=kafkaCompression,proto3" json:"kafka_compression,omitempty"`
+	// S3 endpoint URL, e.g. "http://127.0.0.1:9000" (MinIO) or
+	// "https://s3.amazonaws.com" (AWS). May be empty if -dest carries
+	// it via the s3parquet:<endpoint> form.
+	S3Endpoint string `protobuf:"bytes,125,opt,name=s3_endpoint,json=s3Endpoint,proto3" json:"s3_endpoint,omitempty"`
+	// Required when -dest s3parquet. Bucket must already exist on the
+	// endpoint; the daemon does not auto-create.
+	S3Bucket string `protobuf:"bytes,126,opt,name=s3_bucket,json=s3Bucket,proto3" json:"s3_bucket,omitempty"`
+	// Optional key-prefix WITHIN the bucket. Joined with the Hive-style
+	// partition segments (host=…/date=…/hour=…/<file>.parquet). Empty
+	// = files land at the bucket root level.
+	S3Prefix string `protobuf:"bytes,127,opt,name=s3_prefix,json=s3Prefix,proto3" json:"s3_prefix,omitempty"`
+	// Required when -dest s3parquet. Picked up from AWS_ACCESS_KEY_ID
+	// env if blank.
+	S3AccessKey string `protobuf:"bytes,128,opt,name=s3_access_key,json=s3AccessKey,proto3" json:"s3_access_key,omitempty"`
+	// Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY
+	// env if blank. Never logged.
+	S3SecretKey string `protobuf:"bytes,129,opt,name=s3_secret_key,json=s3SecretKey,proto3" json:"s3_secret_key,omitempty"`
+	// Soft cap on the in-memory Parquet builder's accumulated
+	// uncompressed row bytes before the worker finalizes the file and
+	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
+	// Operators tune down for faster file rotation (more S3 PUTs,
+	// smaller per-file query latency) or up for fewer larger files
+	// (better compression ratio, more memory).
+	S3ParquetFlushThresholdBytes uint32 `protobuf:"varint,132,opt,name=s3_parquet_flush_threshold_bytes,json=s3ParquetFlushThresholdBytes,proto3" json:"s3_parquet_flush_threshold_bytes,omitempty"`
+	// S3 region. Required by some S3 implementations even when talking
+	// to a single-region MinIO. Default "us-east-1" when blank.
+	S3Region string `protobuf:"bytes,133,opt,name=s3_region,json=s3Region,proto3" json:"s3_region,omitempty"`
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
 	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
 	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
@@ -579,6 +606,55 @@ func (x *XtcpConfig) GetKafkaCompression() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetS3Endpoint() string {
+	if x != nil {
+		return x.S3Endpoint
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Bucket() string {
+	if x != nil {
+		return x.S3Bucket
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Prefix() string {
+	if x != nil {
+		return x.S3Prefix
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3AccessKey() string {
+	if x != nil {
+		return x.S3AccessKey
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3SecretKey() string {
+	if x != nil {
+		return x.S3SecretKey
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3ParquetFlushThresholdBytes() uint32 {
+	if x != nil {
+		return x.S3ParquetFlushThresholdBytes
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3Region() string {
+	if x != nil {
+		return x.S3Region
+	}
+	return ""
+}
+
 func (x *XtcpConfig) GetDest() string {
 	if x != nil {
 		return x.Dest
@@ -740,7 +816,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xba\x0e\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xfe\x10\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -767,7 +843,15 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x04\x18(R\tmarshalTo\x12K\n" +
 	"\x1eenvelope_flush_threshold_bytes\x18z \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
 	"\x1denvelope_flush_threshold_rows\x18{ \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows\x123\n" +
-	"\x11kafka_compression\x18| \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12\"\n" +
+	"\x11kafka_compression\x18| \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12'\n" +
+	"\vs3_endpoint\x18} \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
+	"s3Endpoint\x12#\n" +
+	"\ts3_bucket\x18~ \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Bucket\x12#\n" +
+	"\ts3_prefix\x18\x7f \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Prefix\x12+\n" +
+	"\rs3_access_key\x18\x80\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12+\n" +
+	"\rs3_secret_key\x18\x81\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x12O\n" +
+	" s3_parquet_flush_threshold_bytes\x18\x84\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12$\n" +
+	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x12\"\n" +
 	"\x04dest\x18\x82\x01 \x01(\tB\r\xbaH\n" +
 	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x01R\x04dest\x128\n" +
 	"\x10dest_write_files\x18\x87\x01 \x01(\rB\r\xbaH\n" +
