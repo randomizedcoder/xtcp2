@@ -184,8 +184,8 @@ let
   # bit more breathing room between iterations so the daemon's fsnotify
   # watcher + nsAdd path runs continuously without ever being completely
   # idle. Sized empirically — increase if you want harsher loading.
-  soakInitialNs = 50;
-  soakChurnSleep = "250ms";
+  soakInitialNs = 200;
+  soakChurnSleep = "100ms";
   # Period (seconds) between /metrics scrapes. 60s lines up with most
   # default Prometheus scrape intervals.
   soakScrapePeriodSec = 60;
@@ -202,6 +202,89 @@ let
       # so a 1h / 24h run doesn't drown the journal in `ip netns add` lines
       # before any actual churn happens.
       exec ${xtcp2AllPackage}/bin/nsTest -initial ${toString soakInitialNs} -sleep ${soakChurnSleep}
+    '';
+  };
+
+  # ns-traffic driver: continuously scans /run/netns/ and, for a random
+  # subset of namespaces, fires a brief loopback TCP exchange inside
+  # each one. xtcp2's per-namespace netlink poll then sees ESTABLISHED
+  # / TIME_WAIT sockets and emits envelopes, instead of empty ns
+  # responses that produce no rows.
+  #
+  # Why: under the prior 12 h soak, nsTest cycled ~17 k namespaces but
+  # only 73 rows reached the parquet writer because every nsX created
+  # by `ip netns add` is socket-empty unless something puts traffic
+  # into its loopback. This driver does that — taking the workload
+  # from "exercises namespace handler" to "exercises namespace handler
+  # AND netlink readout AND envelope build AND parquet finalize."
+  #
+  # Concurrency cap of 30 protects the host from a stampede when ns
+  # count is high (e.g. soakInitialNs=200 means 200 candidate ns;
+  # only 30 in-flight injectors at any moment).
+  soakNsTrafficScript = pkgs.writeShellApplication {
+    name = "xtcp2-soak-ns-traffic";
+    runtimeInputs = with pkgs; [
+      coreutils
+      iproute2
+      nmap # provides ncat
+      util-linux
+    ];
+    text = ''
+      # Picks a single ns and runs a quick listener+connect pair inside
+      # its loopback. The listener exits when the client disconnects
+      # (-l --recv-only --send-only style), so the function returns
+      # cleanly without leaving orphans even if a process gets stuck —
+      # the outer `timeout` is the backstop.
+      # Single-quoted heredoc-style body for `bash -c '…'`: the inner
+      # script intentionally does NOT expand $vars in the parent shell;
+      # it runs inside `ip netns exec` and only references its own
+      # locals (server_pid). Annotated so shellcheck doesn't flag it.
+      # shellcheck disable=SC2016
+      inject_one() {
+        local nsname=$1
+        timeout 2 ip netns exec "$nsname" bash -c '
+          # Bring up lo so 127.0.0.1 is routable inside the ns. (Most
+          # nsTest-created namespaces have lo DOWN by default; without
+          # this every connection would EHOSTUNREACH.)
+          ip link set lo up 2>/dev/null || true
+          # One-shot listener that accepts one connection and exits.
+          ncat -l 127.0.0.1 5000 --recv-only > /dev/null 2>&1 &
+          server_pid=$!
+          # Brief delay so the listener has socket() + bind() done.
+          sleep 0.05
+          # Fire a payload at it; this produces ESTABLISHED on both
+          # sides for ~50 ms, then TIME_WAIT — both visible to xtcp2.
+          ncat --send-only -w 1 127.0.0.1 5000 < /etc/hostname >/dev/null 2>&1 || true
+          wait "$server_pid" 2>/dev/null || true
+        ' >/dev/null 2>&1
+      }
+
+      max_inflight=30
+      while true; do
+        # Snapshot the current ns list — /run/netns/ can churn out from
+        # under a long-running loop, so re-read every cycle. Glob
+        # expansion (not ls|grep) keeps shellcheck happy.
+        namespaces=()
+        for f in /run/netns/ns*; do
+          [ -e "$f" ] || continue
+          namespaces+=("$(basename "$f")")
+        done
+        if [ "''${#namespaces[@]}" -eq 0 ]; then
+          sleep 0.5
+          continue
+        fi
+        for nsname in "''${namespaces[@]}"; do
+          # Block until we have a slot — keeps total fork pressure
+          # bounded regardless of ns population.
+          while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$max_inflight" ]; do
+            wait -n 2>/dev/null || true
+          done
+          inject_one "$nsname" &
+        done
+        wait
+        # Brief gap so we don't busy-loop when ns count is small.
+        sleep 0.2
+      done
     '';
   };
 
@@ -1162,6 +1245,37 @@ in
             # Need enough fd headroom for `tcpServerCount` listeners +
             # `tcpClientCount` accepted conns. Default nofile is 1024;
             # bump it explicitly.
+            LimitNOFILE = 65536;
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Inject brief loopback TCP traffic INSIDE each ns. The
+        # tcp_server/tcp_client pair above lives in the default ns
+        # only — without this service the per-namespace netlink reads
+        # would be empty and parquet would build nothing.
+        systemd.services.xtcp2-soak-ns-traffic = lib.mkIf (isSoak || isS3ParquetLong) {
+          description = "xtcp2 soak — in-namespace TCP loopback injector";
+          after = [
+            "network-online.target"
+            "xtcp2-soak-churn.service"
+          ];
+          wants = [
+            "network-online.target"
+            "xtcp2-soak-churn.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          # ip netns exec needs CAP_SYS_ADMIN; xtcp2's service has it,
+          # but this is a separate unit with no capabilities option
+          # — easiest to just run as root.
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${soakNsTrafficScript}/bin/xtcp2-soak-ns-traffic";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            # Lots of short-lived processes per cycle.
+            TasksMax = 8192;
             LimitNOFILE = 65536;
             StandardOutput = "journal";
             StandardError = "journal+console";
