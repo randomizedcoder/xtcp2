@@ -1257,14 +1257,14 @@ in
         # would be empty and parquet would build nothing.
         systemd.services.xtcp2-soak-ns-traffic = lib.mkIf (isSoak || isS3ParquetLong) {
           description = "xtcp2 soak — in-namespace TCP loopback injector";
-          after = [
-            "network-online.target"
-            "xtcp2-soak-churn.service"
-          ];
-          wants = [
-            "network-online.target"
-            "xtcp2-soak-churn.service"
-          ];
+          # No After/Wants on xtcp2-soak-churn — that creates a
+          # systemd ordering cycle (caught it in the first
+          # aggressive 12 h: the unit got SKIPped with
+          # "Ordering cycle found"). The driver script already
+          # idles when /run/netns/ is empty, so racing churn at
+          # boot is fine.
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
           wantedBy = [ "multi-user.target" ];
           # ip netns exec needs CAP_SYS_ADMIN; xtcp2's service has it,
           # but this is a separate unit with no capabilities option
