@@ -186,6 +186,11 @@ let
   # idle. Sized empirically — increase if you want harsher loading.
   soakInitialNs = 200;
   soakChurnSleep = "100ms";
+  # Per-ns persistent loopback connections. 100 conns × 200 ns =
+  # 20,000 ESTABLISHED sockets across the working set. With 5 payload
+  # sizes × 4 send intervals = 20 distinct io profiles, the TCPInfo
+  # readout xtcp2 sees has real spread instead of a single shape.
+  soakConnsPerNs = 100;
   # Period (seconds) between /metrics scrapes. 60s lines up with most
   # default Prometheus scrape intervals.
   soakScrapePeriodSec = 60;
@@ -202,16 +207,19 @@ let
       # sleep so a 1h / 24h run doesn't drown the journal in
       # `ip netns add` lines before any actual churn happens.
       #
-      # -traffic: after each `ip netns add`, nsTest enters the new
-      # ns + brings lo UP + opens a brief loopback TCP connection
-      # so xtcp2's per-namespace inet_diag poll has socket state to
-      # return. Without this, the namespaces nsTest creates are
-      # socket-empty and the parquet pipeline sits idle (the prior
-      # 12h soak's files=0 outcome).
+      # -conns ${toString soakConnsPerNs}: after each `ip netns add`,
+      # nsTest enters the new ns, brings lo UP, opens N persistent
+      # loopback TCP connections with varied io profiles, and keeps
+      # them running for the ns's lifetime. xtcp2 then sees 2N
+      # ESTABLISHED sockets per ns in every poll with real spread
+      # across TCPInfo segs/bytes/rtt (different payload sizes +
+      # send intervals per conn). When the churn loop deletes the
+      # ns, nsTest signals the per-ns generator to close cleanly
+      # before `ip netns del` runs.
       exec ${xtcp2AllPackage}/bin/nsTest \
         -initial ${toString soakInitialNs} \
         -sleep ${soakChurnSleep} \
-        -traffic
+        -conns ${toString soakConnsPerNs}
     '';
   };
 
