@@ -64,6 +64,12 @@
   # → _error column populated; main MV filters them out → 0 rows in
   # the destination table).
   runClickhouseCheck ? false,
+  # When true (clickhouse-pipeline-parquet flavor only), the self-test
+  # also queries the in-VM MinIO via ClickHouse's s3() table function
+  # and asserts count() > 0 against the parquet objects xtcp2 wrote.
+  # Validates the "operator queries parquet from inside ClickHouse"
+  # deployment shape side-by-side with the kafka path.
+  runClickhouseParquetCheck ? false,
   clickhousePassword ? "xtcp",
   # When true (set on the s3parquet flavor), adds Check 13 (≥1 .parquet
   # object lands in the MinIO bucket within 90 s) and Check 14 (duckdb
@@ -547,6 +553,37 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_FAIL  (prom=$promRows, ch=$chRows)"
       fi
       if [ "$check12" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runClickhouseParquetCheck ''
+      # ─── Check 15: ClickHouse can SELECT from MinIO parquet via s3() ──
+      # The mixed flavor runs a second xtcp2 instance with -dest s3parquet
+      # writing to in-VM MinIO. ClickHouse reaches the host (where MinIO
+      # listens) via the host.docker.internal alias added to its
+      # /etc/hosts. Wait up to 90s for the secondary xtcp2 to accumulate
+      # enough rows to hit the 4 MiB flush threshold and write the first
+      # parquet object.
+      echo "--- check 15: ClickHouse s3() reads MinIO parquet ---"
+      check15=1
+      parquetRows=0
+      for _ in $(seq 1 45); do
+        # The s3() URL uses host.docker.internal because we're inside
+        # the clickhouse container. Glob ** matches the Hive-style
+        # host=…/date=…/hour=… partitioning xtcp2's parquet writer uses.
+        parquetRows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+          -q "SELECT count() FROM s3('http://host.docker.internal:9000/xtcp2-records/**/*.parquet', 'xtcp2test', 'xtcp2testsecret', 'Parquet')" 2>/dev/null | tr -d '\r\n' || echo 0)
+        if [ "''${parquetRows:-0}" -gt 0 ] 2>/dev/null; then
+          break
+        fi
+        sleep 2
+      done
+      if [ "''${parquetRows:-0}" -gt 0 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_PASS  (rows=$parquetRows)"
+        check15=0
+      else
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_FAIL  (rows=$parquetRows)"
+      fi
+      if [ "$check15" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     echo "================================================"

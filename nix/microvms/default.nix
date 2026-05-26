@@ -124,6 +124,23 @@ let
       sink = "clickhouse-pipeline";
     };
 
+  # Mixed: clickhouse-pipeline + MinIO + a second xtcp2 instance
+  # writing parquet so ClickHouse can query both paths.
+  mkOneClickPipeParquet =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "clickhouse-pipeline-parquet";
+    };
+
   mkOneS3Parquet =
     arch:
     import ./mkVm.nix {
@@ -189,6 +206,8 @@ let
   );
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
+
+  vmsClickPipeParquet = lib.genAttrs constants.supportedArchs mkOneClickPipeParquet;
 
   vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
 
@@ -295,6 +314,7 @@ in
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsClickPipeParquet
     vmsS3Parquet
     vmsS3ParquetLong
     vmsCapCheckFail

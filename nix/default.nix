@@ -310,6 +310,7 @@ in
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
+      microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
@@ -405,6 +406,17 @@ in
     microvm-x86_64-clickhouse-pipeline = {
       type = "app";
       program = "${microvms.vmsClickPipe.x86_64}/bin/microvm-run";
+    };
+
+    # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a
+    # second xtcp2 instance writing parquet. ClickHouse can then query
+    # both the kafka path (xtcp.xtcp_flat_records) and the parquet
+    # path (via s3() table function against MinIO at 127.0.0.1:9000).
+    # Same boot model as clickhouse-pipeline — `nix run` boots the VM
+    # directly; no host-side runner.
+    microvm-x86_64-clickhouse-pipeline-parquet = {
+      type = "app";
+      program = "${microvms.vmsClickPipeParquet.x86_64}/bin/microvm-run";
     };
 
     # s3parquet flavor: xtcp2 produces Parquet directly into MinIO via the

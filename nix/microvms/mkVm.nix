@@ -51,6 +51,12 @@ let
   # configured with -dest kafka:localhost:19092 so the records flow
   # through the same pipeline as the production compose.
   isClickPipe = sink == "clickhouse-pipeline";
+  # clickhouse-pipeline + s3parquet mixed: existing redpanda + clickhouse
+  # stack PLUS in-VM MinIO + a second xtcp2 instance writing parquet.
+  # ClickHouse can query the parquet files via the s3() table function /
+  # an S3-engine table — same VM that runs the kafka path, validating
+  # the "operator wants both pipelines on one host" deployment shape.
+  isClickPipeParquet = sink == "clickhouse-pipeline-parquet";
   # s3parquet = MinIO + xtcp2 writing Parquet directly to S3 (lifecycle).
   isS3Parquet = sink == "s3parquet";
   # s3parquet-long = same destination, no self-test, monitor service emits
@@ -63,11 +69,13 @@ let
   isCapCheckFail = sink == "capcheck-fail";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
-  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail;
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet;
+  # All flavors that bring up the redpanda + clickhouse docker stack.
+  isAnyClickPipe = isClickPipe || isClickPipeParquet;
   # Anything that needs dockerd inside the VM.
-  needsDocker = isTcpStress || isClickPipe;
+  needsDocker = isTcpStress || isAnyClickPipe;
   effectiveMem =
-    if isClickPipe then
+    if isAnyClickPipe then
       cfg.memClickPipe
     else if isAnyS3Parquet then
       cfg.memClickPipe
@@ -84,7 +92,8 @@ let
     grpcPort = cfg.grpcPort;
     coverageEnabled = isCoverage;
     inherit coverDir;
-    runClickhouseCheck = isClickPipe;
+    runClickhouseCheck = isAnyClickPipe;
+    runClickhouseParquetCheck = isClickPipeParquet;
     clickhousePassword = clickPipeChPassword;
     runS3ParquetCheck = isS3Parquet;
   };
@@ -538,10 +547,17 @@ let
       cp ${clickPipeProtoSchemas}/* "$schemasRw"/
       chmod -R u+w "$schemasRw"
       docker rm -f clickhouse 2>/dev/null || true
+      # --add-host host.docker.internal:host-gateway gives ClickHouse a
+      # routable name for the VM host (where the in-VM MinIO listens
+      # for the mixed clickpipe-parquet flavor). The mapping is
+      # harmless for the plain clickpipe flavor too: it's just an
+      # /etc/hosts entry that nothing references unless an s3() table
+      # function asks for it.
       docker run --detach \
         --name clickhouse \
         --network xtcp \
         --hostname clickhouse \
+        --add-host host.docker.internal:host-gateway \
         -p 18123:8123 -p 19001:9000 \
         --ulimit nofile=262144:262144 \
         --memory=3500m \
@@ -729,6 +745,36 @@ let
     "xtcp2.s3parquet-long"
   ];
 
+  # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
+  # flavor. The primary instance writes to kafka (xtcp2ClickPipeArgs);
+  # this one writes parquet to the same in-VM MinIO so ClickHouse can
+  # read both paths. Different prom + grpc ports so the two instances
+  # don't clash. 4 MiB flush threshold gives reasonable parquet
+  # turnover within a 30 min smoke without dropping all the way to
+  # the 1 MiB lifecycle setting.
+  xtcp2ClickPipeParquetArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "5s"
+    "-timeout"
+    "2s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "4194304"
+    "-promListen"
+    ":9089"
+    "-grpcPort"
+    "8890"
+  ];
+
   # Both the basic and coverage flavors override the default dest. The
   # default in cmd/xtcp2 is `kafka:redpanda-0:9092` which makes the kafka
   # destination factory read /xtcp_flat_record.proto — that file lives
@@ -836,7 +882,7 @@ in
         # NixOS is enabled and blocks everything but ssh, so without
         # these `curl 127.0.0.1:18123` from the host gets a TCP RST.
         networking.firewall.allowedTCPPorts =
-          lib.optionals (isTcpStress || isClickPipe || isAnyS3Parquet) [
+          lib.optionals (isTcpStress || isAnyClickPipe || isAnyS3Parquet) [
             9088 # xtcp2 prometheus
             8889 # xtcp2 grpc
           ]
@@ -848,7 +894,7 @@ in
           ++ lib.optionals isS3ParquetLong [
             14040 # Pyroscope OSS UI + ingest
           ]
-          ++ lib.optionals isClickPipe [
+          ++ lib.optionals isAnyClickPipe [
             18123 # clickhouse HTTP
             19001 # clickhouse native
             19092 # redpanda kafka external
@@ -876,7 +922,7 @@ in
           # MergeTree compression at ~3 rows/s × ~1 KiB/row + dockerd
           # working set + redpanda topic data.
           volumes =
-            lib.optionals isClickPipe [
+            lib.optionals isAnyClickPipe [
               {
                 # User-writable path so microvm-run can autoCreate the
                 # image without sudo. /tmp is RAM-backed on most distros
@@ -906,7 +952,7 @@ in
           # the docker `-p 18123:8123` mapping then routes into the
           # clickhouse container.
           forwardPorts =
-            lib.optionals (isTcpStress || isClickPipe || isAnyS3Parquet) [
+            lib.optionals (isTcpStress || isAnyClickPipe || isAnyS3Parquet) [
               # xtcp2 daemon's prometheus + grpc endpoints — same on
               # every flavor that runs xtcp2 with networking surface.
               {
@@ -955,7 +1001,7 @@ in
                 guest.port = 9090;
               }
             ]
-            ++ lib.optionals isClickPipe [
+            ++ lib.optionals isAnyClickPipe [
               # ClickHouse HTTP (clickhouse-client uses it via 8123,
               # native via 9000; the docker run publishes them on 18123
               # and 19001 respectively to avoid clashing with anything
@@ -1120,8 +1166,11 @@ in
           extraArgs =
             if isCoverage then
               xtcp2CoverageArgs
-            else if isClickPipe then
+            else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
+              # The mixed flavor uses these args for its primary xtcp2
+              # instance (kafka path); a second instance writing parquet
+              # is declared separately below.
               xtcp2ClickPipeArgs
             else if isS3Parquet then
               # s3parquet lifecycle flavor: 1 MiB flush threshold so the
@@ -1148,6 +1197,49 @@ in
             # CAP_SYS_ADMIN omitted on purpose — startup capability
             # check should refuse to start with a clear diagnostic.
           ];
+        };
+
+        # Second xtcp2 instance for the mixed flavor: writes parquet
+        # to MinIO in parallel with the kafka-producing primary
+        # instance above. Same caps, different prom + grpc ports
+        # (encoded in xtcp2ClickPipeParquetArgs), no extra docker /
+        # MinIO setup needed (the bucket bootstrap module is already
+        # imported by s3ParquetModules under isAnyS3Parquet).
+        systemd.services.xtcp2-parquet = lib.mkIf isClickPipeParquet {
+          description = "xtcp2 — TCP socket introspection (parquet sink, secondary instance)";
+          after = [
+            "network-online.target"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wants = [
+            "network-online.target"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart =
+              "${xtcp2Package}/bin/xtcp2 ${lib.concatStringsSep " " xtcp2ClickPipeParquetArgs}";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            User = "root";
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_RESOURCE"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_RESOURCE"
+              "CAP_SYS_ADMIN"
+            ];
+            TasksMax = 8192;
+            LimitNPROC = 8192;
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
@@ -1370,7 +1462,7 @@ in
         # service that curls Prometheus and writes per-query JSON lines
         # to a file so the user sees concrete data even if they don't
         # log into the VM to browse the web UI.
-        services.prometheus = lib.mkIf (isTcpStress || isClickPipe) {
+        services.prometheus = lib.mkIf (isTcpStress || isAnyClickPipe) {
           enable = true;
           port = 9090;
           listenAddress = "0.0.0.0";
@@ -1416,7 +1508,7 @@ in
         # http://127.0.0.1:3000 directly. Default admin/admin login —
         # change via grafana UI on first browse, or set a password via
         # services.grafana.settings.security.admin_password.
-        services.grafana = lib.mkIf isClickPipe {
+        services.grafana = lib.mkIf isAnyClickPipe {
           enable = true;
           declarativePlugins = with pkgs.grafanaPlugins; [
             grafana-clickhouse-datasource
@@ -1572,7 +1664,7 @@ in
         # The script's tail loop also prints XTCP2_CLICKPIPE_ROWS every 30s
         # so the host runner can grep current row count out of the
         # transcript without docker exec.
-        systemd.services.xtcp2-clickpipe-up = lib.mkIf isClickPipe {
+        systemd.services.xtcp2-clickpipe-up = lib.mkIf isAnyClickPipe {
           description = "xtcp2 clickhouse-pipeline — redpanda + clickhouse + topic + initdb";
           after = [ "docker.service" ];
           requires = [ "docker.service" ];
@@ -1600,7 +1692,7 @@ in
         # Companion monitor: tail row count from xtcp.xtcp_flat_records
         # every 30s so the operator can see records arriving without
         # logging in.
-        systemd.services.xtcp2-clickpipe-monitor = lib.mkIf isClickPipe {
+        systemd.services.xtcp2-clickpipe-monitor = lib.mkIf isAnyClickPipe {
           description = "xtcp2 clickhouse-pipeline — periodic row count monitor";
           after = [
             "xtcp2-clickpipe-up.service"
@@ -1625,7 +1717,7 @@ in
         # enough to scrape). NixOS drops it at /etc/xtcp2/xtcp_flat_record.proto
         # and the -xtcpProtoFile arg in xtcp2ClickPipeArgs points at that
         # path.
-        environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isClickPipe {
+        environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isAnyClickPipe {
           source = ../../proto/xtcp_flat_record/v1/xtcp_flat_record.proto;
         };
 
