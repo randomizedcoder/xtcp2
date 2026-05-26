@@ -81,7 +81,7 @@ func TestRunMain_churnExitsOnCancel(t *testing.T) {
 func TestChurn_cancelImmediate(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if rc := churn(ctx, 0, time.Hour, false); rc != 0 {
+	if rc := churn(ctx, 0, time.Hour, false, 0); rc != 0 {
 		t.Errorf("rc = %d, want 0", rc)
 	}
 }
