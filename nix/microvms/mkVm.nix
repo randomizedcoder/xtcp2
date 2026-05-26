@@ -749,9 +749,9 @@ let
   # flavor. The primary instance writes to kafka (xtcp2ClickPipeArgs);
   # this one writes parquet to the same in-VM MinIO so ClickHouse can
   # read both paths. Different prom + grpc ports so the two instances
-  # don't clash. 4 MiB flush threshold gives reasonable parquet
-  # turnover within a 30 min smoke without dropping all the way to
-  # the 1 MiB lifecycle setting.
+  # don't clash. 256 KiB flush threshold gives parquet turnover within
+  # the 5-10 min boot exercise window (production deployments would
+  # raise this to the 63 MiB default).
   xtcp2ClickPipeParquetArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
@@ -768,7 +768,7 @@ let
     "-s3SecretKey"
     "xtcp2testsecret"
     "-s3ParquetFlushBytes"
-    "4194304"
+    "262144"
     "-promListen"
     ":9089"
     "-grpcPort"
@@ -904,6 +904,11 @@ in
             # 9090 (prometheus) intentionally not in forwardPorts —
             # see comment in microvm.forwardPorts.
             9090  # still open the firewall so grafana's internal call works
+          ]
+          ++ lib.optionals isClickPipeParquet [
+            # Second xtcp2 instance's prom + grpc endpoints (parquet path).
+            9089
+            8890
           ];
 
         microvm = {
@@ -1049,6 +1054,22 @@ in
               # {
               #   from = "host"; host.port = 19090; guest.port = 9090;
               # }
+            ]
+            ++ lib.optionals isClickPipeParquet [
+              # Second xtcp2 instance's prom + grpc — the secondary
+              # parquet-writing instance binds these (encoded in
+              # xtcp2ClickPipeParquetArgs). Host curl :9089/metrics
+              # shows the s3parquet upload counter directly.
+              {
+                from = "host";
+                host.port = 9089;
+                guest.port = 9089;
+              }
+              {
+                from = "host";
+                host.port = 8890;
+                guest.port = 8890;
+              }
             ];
           shares = [
             {
