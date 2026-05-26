@@ -198,32 +198,32 @@ let
       iproute2
     ];
     text = ''
-      # Run nsTest with reduced initial-fill + slightly longer churn sleep
-      # so a 1h / 24h run doesn't drown the journal in `ip netns add` lines
-      # before any actual churn happens.
-      exec ${xtcp2AllPackage}/bin/nsTest -initial ${toString soakInitialNs} -sleep ${soakChurnSleep}
+      # Run nsTest with reduced initial-fill + slightly longer churn
+      # sleep so a 1h / 24h run doesn't drown the journal in
+      # `ip netns add` lines before any actual churn happens.
+      #
+      # -traffic: after each `ip netns add`, nsTest enters the new
+      # ns + brings lo UP + opens a brief loopback TCP connection
+      # so xtcp2's per-namespace inet_diag poll has socket state to
+      # return. Without this, the namespaces nsTest creates are
+      # socket-empty and the parquet pipeline sits idle (the prior
+      # 12h soak's files=0 outcome).
+      exec ${xtcp2AllPackage}/bin/nsTest \
+        -initial ${toString soakInitialNs} \
+        -sleep ${soakChurnSleep} \
+        -traffic
     '';
   };
 
-  # ns-traffic driver: continuously scans /run/netns/ and, for a random
-  # subset of namespaces, fires a brief loopback TCP exchange inside
-  # each one. xtcp2's per-namespace netlink poll then sees ESTABLISHED
-  # / TIME_WAIT sockets and emits envelopes, instead of empty ns
-  # responses that produce no rows.
-  #
-  # Why: under the prior 12 h soak, nsTest cycled ~17 k namespaces but
-  # only 73 rows reached the parquet writer because every nsX created
-  # by `ip netns add` is socket-empty unless something puts traffic
-  # into its loopback. This driver does that — taking the workload
-  # from "exercises namespace handler" to "exercises namespace handler
-  # AND netlink readout AND envelope build AND parquet finalize."
-  #
-  # Concurrency cap of 30 protects the host from a stampede when ns
-  # count is high (e.g. soakInitialNs=200 means 200 candidate ns;
-  # only 30 in-flight injectors at any moment).
-  soakNsTrafficScript = pkgs.writeShellApplication {
+  # (Retired) Shell-based ns-traffic driver. Replaced by the
+  # in-process `-traffic` flag on nsTest (cmd/nsTest/nsTest.go),
+  # which avoids the `ip netns exec` race that left this version
+  # producing files=0 over a 12h soak. Kept around as a reference
+  # for future ad-hoc injectors but no longer wired up.
+  soakNsTrafficScript_UNUSED = pkgs.writeShellApplication {
     name = "xtcp2-soak-ns-traffic";
     runtimeInputs = with pkgs; [
+      bash # ip netns exec resolves `bash` via PATH; must be in runtimeInputs
       coreutils
       iproute2
       nmap # provides ncat
@@ -238,25 +238,34 @@ let
       # Single-quoted heredoc-style body for `bash -c '…'`: the inner
       # script intentionally does NOT expand $vars in the parent shell;
       # it runs inside `ip netns exec` and only references its own
-      # locals (server_pid). Annotated so shellcheck doesn't flag it.
+      # locals. Annotated so shellcheck doesn't flag it.
       # shellcheck disable=SC2016
       inject_one() {
         local nsname=$1
-        timeout 2 ip netns exec "$nsname" bash -c '
+        timeout 3 ip netns exec "$nsname" bash -c '
           # Bring up lo so 127.0.0.1 is routable inside the ns. (Most
           # nsTest-created namespaces have lo DOWN by default; without
-          # this every connection would EHOSTUNREACH.)
-          ip link set lo up 2>/dev/null || true
+          # this every connection would EHOSTUNREACH.) Surface errors
+          # to stderr (which is journal+console for this service) so
+          # cap/perms problems become visible.
+          if ! ip link set lo up 2>&1; then
+            echo "ns=$0 ip link set lo up FAILED"
+            exit 1
+          fi
           # One-shot listener that accepts one connection and exits.
-          ncat -l 127.0.0.1 5000 --recv-only > /dev/null 2>&1 &
+          ncat -l 127.0.0.1 5000 --recv-only --no-shutdown >/dev/null 2>&1 &
           server_pid=$!
           # Brief delay so the listener has socket() + bind() done.
-          sleep 0.05
+          sleep 0.1
           # Fire a payload at it; this produces ESTABLISHED on both
-          # sides for ~50 ms, then TIME_WAIT — both visible to xtcp2.
-          ncat --send-only -w 1 127.0.0.1 5000 < /etc/hostname >/dev/null 2>&1 || true
-          wait "$server_pid" 2>/dev/null || true
-        ' >/dev/null 2>&1
+          # sides for ~50-100 ms, then TIME_WAIT — both visible to xtcp2.
+          if ! ncat --send-only -w 1 127.0.0.1 5000 < /etc/hostname >/dev/null 2>&1; then
+            echo "ns=$0 ncat client FAILED"
+            kill $server_pid 2>/dev/null || true
+            exit 1
+          fi
+          wait $server_pid 2>/dev/null || true
+        ' "$nsname"
       }
 
       max_inflight=30
@@ -1255,7 +1264,12 @@ in
         # tcp_server/tcp_client pair above lives in the default ns
         # only — without this service the per-namespace netlink reads
         # would be empty and parquet would build nothing.
-        systemd.services.xtcp2-soak-ns-traffic = lib.mkIf (isSoak || isS3ParquetLong) {
+        #
+        # NOTE: replaced by nsTest's in-process -traffic flag (see
+        # soakChurnScript). This unit is left guarded behind `false`
+        # so callers / debug references still resolve but the broken
+        # shell-loop variant doesn't try to run.
+        systemd.services.xtcp2-soak-ns-traffic = lib.mkIf false {
           description = "xtcp2 soak — in-namespace TCP loopback injector";
           # No After/Wants on xtcp2-soak-churn — that creates a
           # systemd ordering cycle (caught it in the first
@@ -1266,18 +1280,36 @@ in
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
           wantedBy = [ "multi-user.target" ];
-          # ip netns exec needs CAP_SYS_ADMIN; xtcp2's service has it,
-          # but this is a separate unit with no capabilities option
-          # — easiest to just run as root.
+          # The first aggressive 12 h soak ran but produced
+          # files=0 / envelopeRows=72 across the whole 12 h. The
+          # `ip link set lo up` inside the entered netns was
+          # silently failing (script swallowed errors) because
+          # systemd's default service caps don't cover what
+          # `ip netns exec` needs to manipulate interfaces in the
+          # new ns. Grant the same set xtcp2 itself uses + put
+          # them in Ambient so child processes (ip, ncat) inherit.
           serviceConfig = {
             Type = "simple";
-            ExecStart = "${soakNsTrafficScript}/bin/xtcp2-soak-ns-traffic";
+            ExecStart = "${soakNsTrafficScript_UNUSED}/bin/xtcp2-soak-ns-traffic";
             Restart = "on-failure";
             RestartSec = "2s";
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_ADMIN"
+            ];
             # Lots of short-lived processes per cycle.
             TasksMax = 8192;
             LimitNOFILE = 65536;
-            StandardOutput = "journal";
+            # Errors from the inject helper must reach console so
+            # cap/perms regressions don't silently produce
+            # files=0 runs again.
+            StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
         };
