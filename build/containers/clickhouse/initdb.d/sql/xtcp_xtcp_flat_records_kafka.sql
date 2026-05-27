@@ -212,7 +212,20 @@ SETTINGS
   kafka_num_consumers = 1,
   kafka_thread_per_consumer = 0,
   kafka_skip_broken_messages = 0,
-  kafka_handle_error_mode = 'stream';
+  kafka_handle_error_mode = 'stream',
+  -- Per-poll memory ceiling. Defaults inherit max_block_size (65,505)
+  -- for BOTH kafka_max_block_size and kafka_poll_max_batch_size. With
+  -- ProtobufList input where one kafka message is an Envelope expanding
+  -- to ~100-1000 XtcpFlatRecord rows, the default kafka_poll_max_batch_size
+  -- means a single poll wants to materialize 6.5M-65M rows in memory
+  -- before flushing — trips the per-server memory cap on dense workloads
+  -- (mixed flavor: 100 ns × 25 conns = ~2500 sockets fattening envelopes).
+  -- Capping batch_size to 256 messages bounds the working set at roughly
+  -- 256 × avg-envelope-size rows; the flush still ships 64K-row blocks
+  -- to the MV, just one block at a time.
+  kafka_max_block_size = 65536,
+  kafka_poll_max_batch_size = 256,
+  kafka_flush_interval_ms = 5000;
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
 -- SELECT * FROM system.kafka_consumers FORMAT Vertical;
