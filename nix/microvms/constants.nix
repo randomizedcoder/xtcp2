@@ -42,6 +42,19 @@
       # (~2.5 GiB peak), Redpanda (~700 MiB), dockerd (~150 MiB),
       # xtcp2 (~150 MiB), and the kernel/page cache.
       memClickPipe = 6144;
+      # memClickPipeParquet is used by sink="clickhouse-pipeline-parquet"
+      # (mixed flavor). Adds to memClickPipe's footprint:
+      #   * a SECOND xtcp2 instance (~500 MiB; tracks the same ns set
+      #     as the primary independently)
+      #   * MinIO server + bucket data (~300 MiB for the 2h soak's
+      #     8 k×60 KiB working set; grows with time)
+      # The first 2h run with 6144 MiB peaked ClickHouse against its
+      # 3500 MiB container cap (222 MEMORY_LIMIT_EXCEEDED errors,
+      # kafka_engine MV blocked). 12288 MiB lets ClickHouse breathe
+      # while keeping headroom for MinIO accumulation over multi-hour
+      # runs. Pairs with a higher `--memory=` on the clickhouse
+      # container below.
+      memClickPipeParquet = 12288;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
