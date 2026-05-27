@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<!--
+  Disable ClickHouse's chatty internal observability tables.
+
+  Why: under heavy ingest (the mixed clickhouse-pipeline-parquet flavor
+  drives ~500 envelopeRows/sec through the kafka_engine MV), the periodic
+  flushes into system.latency_log + system.metric_log + system.asynchronous_metric_log
+  accumulate millions of rows. Background merges on those parts then need
+  GiBs of RAM and trip the per-server max-memory cap before the kafka MV
+  ever gets a chance.
+
+  Removing these log tables removes both the writes AND the background
+  merges. We keep query_log (low-volume, useful for debugging the kafka
+  consumer) and error_log.
+
+  Reference: docs.clickhouse.com/en/operations/server-configuration-parameters/settings
+  `<table_name remove="1"/>` removes the entry from the merged config so
+  the corresponding system table is never created.
+-->
+<clickhouse>
+  <latency_log remove="1"/>
+  <metric_log remove="1"/>
+  <asynchronous_metric_log remove="1"/>
+  <processors_profile_log remove="1"/>
+  <trace_log remove="1"/>
+</clickhouse>

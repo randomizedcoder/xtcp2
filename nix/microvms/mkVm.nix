@@ -146,10 +146,11 @@ let
   clickPipeChPassword = "xtcp";
   # ClickHouse container memory cap. Default 3500m for the plain
   # clickpipe flavor (12h-validated). The mixed flavor adds MinIO +
-  # a second xtcp2 + nsTest churn and needs more — first 2h run
-  # OOM'd 222 times against the 3500m cap. 8000m gives MV + parts
-  # merge + s3() reads room to breathe; pairs with memClickPipeParquet.
-  clickPipeClickhouseMemory = if isClickPipeParquet then "8000m" else "3500m";
+  # a second xtcp2 + nsTest churn and needs more — see constants.nix
+  # `memClickPipeParquet` for the OOM history. The real fix was
+  # disabling ClickHouse's chatty internal log tables (config.d
+  # mount); the 12000m cap is just generous headroom on top of that.
+  clickPipeClickhouseMemory = if isClickPipeParquet then "12000m" else "3500m";
 
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
@@ -193,6 +194,17 @@ let
     # The init scripts write tracking files into out/; pre-create it
     # so they don't fail on the first run. Same as the compose flow.
     mkdir -p $out/out
+    chmod -R a+rX $out
+  '';
+
+  # config.d overrides mounted into /etc/clickhouse-server/config.d/.
+  # Disables the chatty internal observability tables (latency_log,
+  # metric_log, etc.) whose background merges trip the per-server
+  # max-memory cap under heavy ingest. See the XML for details.
+  clickPipeConfigD = pkgs.runCommand "xtcp2-clickhouse-config-d" { } ''
+    mkdir -p $out
+    cp ${../../build/containers/clickhouse/config.d/disable_chatty_logs.xml} \
+       $out/disable_chatty_logs.xml
     chmod -R a+rX $out
   '';
 
@@ -565,6 +577,11 @@ let
       mkdir -p "$schemasRw"
       cp ${clickPipeProtoSchemas}/* "$schemasRw"/
       chmod -R u+w "$schemasRw"
+      # config.d mount: read-only is fine (no chown required by entrypoint).
+      configDRo=/var/lib/xtcp2-clickhouse-config-d
+      rm -rf "$configDRo"
+      mkdir -p "$configDRo"
+      cp ${clickPipeConfigD}/* "$configDRo"/
       docker rm -f clickhouse 2>/dev/null || true
       # --add-host host.docker.internal:host-gateway gives ClickHouse a
       # routable name for the VM host (where the in-VM MinIO listens
@@ -587,6 +604,7 @@ let
         -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
+        -v "$configDRo":/etc/clickhouse-server/config.d:ro \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
