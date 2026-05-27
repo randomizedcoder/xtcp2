@@ -220,11 +220,13 @@ SETTINGS
   -- means a single poll wants to materialize 6.5M-65M rows in memory
   -- before flushing — trips the per-server memory cap on dense workloads
   -- (mixed flavor: 100 ns × 25 conns = ~2500 sockets fattening envelopes).
-  -- Capping batch_size to 256 messages bounds the working set at roughly
-  -- 256 × avg-envelope-size rows; the flush still ships 64K-row blocks
-  -- to the MV, just one block at a time.
+  -- Capping batch_size to 64 messages bounds the working set at roughly
+  -- 64 × avg-envelope-size rows. Smaller batches also smooth the insert
+  -- rate into the MergeTree so background merges keep up — at 256 the
+  -- consumer drained 7.4k rows in <1 min on first boot and the resulting
+  -- parts-merge backpressure OOM'd the consumer's next poll.
   kafka_max_block_size = 65536,
-  kafka_poll_max_batch_size = 256,
+  kafka_poll_max_batch_size = 64,
   kafka_flush_interval_ms = 5000;
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
