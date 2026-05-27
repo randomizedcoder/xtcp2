@@ -619,6 +619,37 @@ let
       done
       echo "clickhouse: ready"
 
+      # 7) Schema-warm barrier. The xtcp_flat_records_kafka engine uses
+      # ProtobufList with kafka_schema pointing at the proto file under
+      # /var/lib/clickhouse/format_schemas/. The schema is loaded LAZILY
+      # on first message — and the docker entrypoint chowns the schemas
+      # dir during startup. If xtcp2 starts producing before that chown
+      # settles, the kafka consumer's first parse can throw a
+      # BAD_ARGUMENTS "Could not find message named ..." and stay stuck
+      # in a retry loop where commits stop advancing
+      # (num_messages_read keeps growing, current_offset frozen).
+      #
+      # Force the schema to load synchronously here by formatting a 0-row
+      # result through ProtobufList. LIMIT 0 produces no rows but
+      # ClickHouse still constructs the ProtobufList output object, which
+      # opens the proto file and resolves the message type. If the load
+      # works, the next-step xtcp2 producer can't trigger the race.
+      schema_ok=0
+      for _ in $(seq 1 30); do
+        if docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+             --query "SELECT * FROM xtcp.xtcp_flat_records LIMIT 0 FORMAT ProtobufList SETTINGS format_schema='xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord'" \
+             >/dev/null 2>&1; then
+          schema_ok=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$schema_ok" != "1" ]; then
+        echo "FATAL: ProtobufList schema-warm probe failed after 30s"
+        exit 1
+      fi
+      echo "clickhouse: schema warmed"
+
       # All ready — exit so the next oneshot/service ordered After=us
       # can start. The monitor service tails the row count after xtcp2
       # has had a chance to produce.
