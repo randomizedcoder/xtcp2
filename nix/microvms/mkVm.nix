@@ -75,7 +75,11 @@ let
   # Anything that needs dockerd inside the VM.
   needsDocker = isTcpStress || isAnyClickPipe;
   effectiveMem =
-    if isAnyClickPipe then
+    if isClickPipeParquet then
+      # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
+      # MinIO + Pyroscope all in one VM.
+      cfg.memClickPipeParquet
+    else if isAnyClickPipe then
       cfg.memClickPipe
     else if isAnyS3Parquet then
       cfg.memClickPipe
@@ -140,6 +144,12 @@ let
   # work without further setup. Override at deploy time if you don't
   # want a hardcoded local-dev password.
   clickPipeChPassword = "xtcp";
+  # ClickHouse container memory cap. Default 3500m for the plain
+  # clickpipe flavor (12h-validated). The mixed flavor adds MinIO +
+  # a second xtcp2 + nsTest churn and needs more — first 2h run
+  # OOM'd 222 times against the 3500m cap. 8000m gives MV + parts
+  # merge + s3() reads room to breathe; pairs with memClickPipeParquet.
+  clickPipeClickhouseMemory = if isClickPipeParquet then "8000m" else "3500m";
 
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
@@ -193,13 +203,22 @@ let
   # bit more breathing room between iterations so the daemon's fsnotify
   # watcher + nsAdd path runs continuously without ever being completely
   # idle. Sized empirically — increase if you want harsher loading.
-  soakInitialNs = 200;
-  soakChurnSleep = "100ms";
+  # Soak workload sizing. The mixed clickpipe-parquet flavor runs
+  # TWO xtcp2 instances tracking the same namespaces independently
+  # (kafka path + parquet path), so each in-flight ns handler costs
+  # ~2× the OS threads vs a single-xtcp2 flavor. Cut both knobs
+  # roughly in half to keep each instance well under its 2000-thread
+  # cap with headroom for the inevitable cleanup lag from the
+  # persistent-connection model.
+  soakInitialNs = if isClickPipeParquet then 100 else 200;
+  soakChurnSleep = if isClickPipeParquet then "250ms" else "100ms";
   # Per-ns persistent loopback connections. 100 conns × 200 ns =
   # 20,000 ESTABLISHED sockets across the working set. With 5 payload
   # sizes × 4 send intervals = 20 distinct io profiles, the TCPInfo
   # readout xtcp2 sees has real spread instead of a single shape.
-  soakConnsPerNs = 100;
+  # Mixed flavor uses 25 (matched smaller ns count + slower churn
+  # for the two-xtcp2-instance overhead).
+  soakConnsPerNs = if isClickPipeParquet then 25 else 100;
   # Period (seconds) between /metrics scrapes. 60s lines up with most
   # default Prometheus scrape intervals.
   soakScrapePeriodSec = 60;
@@ -560,7 +579,7 @@ let
         --add-host host.docker.internal:host-gateway \
         -p 18123:8123 -p 19001:9000 \
         --ulimit nofile=262144:262144 \
-        --memory=3500m \
+        --memory=${clickPipeClickhouseMemory} \
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
@@ -1289,7 +1308,7 @@ in
         # (see nix/microvms/lib.nix mkSoakRunner) boots the VM, sleeps for
         # the configured -duration, then powers it off and inspects the
         # metric log + journal for crashes/restarts.
-        systemd.services.xtcp2-soak-churn = lib.mkIf (isSoak || isS3ParquetLong) {
+        systemd.services.xtcp2-soak-churn = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
           description = "xtcp2 soak — nsTest namespace churn driver";
           after = [
             "xtcp2.service"
@@ -1362,7 +1381,7 @@ in
         # known population of ESTABLISHED sockets with measurable RTT /
         # bytes-sent / segs-out for the parser to chew on. The two units
         # below run alongside the nsTest churn for the soak flavor.
-        systemd.services.xtcp2-soak-tcp-server = lib.mkIf (isSoak || isS3ParquetLong) {
+        systemd.services.xtcp2-soak-tcp-server = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
           description = "xtcp2 soak — tcp_server echo listeners";
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
@@ -1435,7 +1454,7 @@ in
           };
         };
 
-        systemd.services.xtcp2-soak-tcp-client = lib.mkIf (isSoak || isS3ParquetLong) {
+        systemd.services.xtcp2-soak-tcp-client = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
           description = "xtcp2 soak — tcp_client traffic generators";
           # tcp_server takes a moment to bind all N ports — gate the
           # clients behind its readiness so the dial-retry loop in
