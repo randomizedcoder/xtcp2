@@ -532,3 +532,27 @@ exec into the VM and check `docker logs clickhouse`.
 **`microvm-run: Address already in use`**
 A previous run's qemu didn't clean up. `fuser -k 12055/tcp 12056/tcp`
 (serial + virtio-console ports), then re-run.
+
+**`StorageKafka: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file`**
+Harmless startup-only artifact, not a runtime bug. The official ClickHouse
+docker entrypoint runs a temporary server on 127.0.0.1 to execute
+`/docker-entrypoint-initdb.d/*` (including our DDL that creates the
+kafka_engine table). When initdb finishes the entrypoint `SIGTERM`s that
+temporary server and starts the real one. The kafka consumer that was
+attached in the temp server's view tries to load the schema during the
+shutdown window and reports BAD_ARGUMENTS. The next-server-instance
+consumer recovers and proceeds normally. Look for the second
+`Application: Starting ClickHouse` line in `clickhouse-server.log` — every
+log entry after that is the real run. `system.kafka_consumers.exceptions`
+keeps the failed-during-shutdown entry visible (the array stores the most
+recent 10) which is confusing but cosmetic.
+
+**`Pushing N rows … took 37152 ms`** in the ClickHouse log
+The kafka_engine → MV → MergeTree path is slow per-batch (tens of seconds
+for a few k rows under the mixed `clickhouse-pipeline-parquet` flavor's
+load). That's why ch_rows appears to "halt" between 30-min probe
+intervals — it's not a halt, it's a long-running flush. Confirm with
+`SELECT num_messages_read, assignments.current_offset[1], last_poll_time
+FROM system.kafka_consumers` — if `last_poll_time` is recent the consumer
+is alive; the slowness is downstream of the consumer. Profiling the
+122-column ZSTD MergeTree insert path is a known open follow-up.
