@@ -147,10 +147,14 @@ let
   # ClickHouse container memory cap. Default 3500m for the plain
   # clickpipe flavor (12h-validated). The mixed flavor adds MinIO +
   # a second xtcp2 + nsTest churn and needs more — see constants.nix
-  # `memClickPipeParquet` for the OOM history. The real fix was
-  # disabling ClickHouse's chatty internal log tables (config.d
-  # mount); the 12000m cap is just generous headroom on top of that.
-  clickPipeClickhouseMemory = if isClickPipeParquet then "12000m" else "3500m";
+  # `memClickPipeParquet` for the OOM history. Bumped 12000m → 14000m
+  # after the 4h soak showed CH parked at ~10.45 GiB MemoryTracking
+  # against the internal cap derived from the container limit (88 %
+  # of 12000m = 10.55 GiB) and the kafka_engine's per-batch 131 MiB
+  # decode buffer allocation getting rejected ~2 %/min. 14000m raises
+  # the internal cap to ~12.3 GiB; VM at 16 GiB leaves ~2 GiB headroom
+  # for the rest of the stack.
+  clickPipeClickhouseMemory = if isClickPipeParquet then "14000m" else "3500m";
 
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise

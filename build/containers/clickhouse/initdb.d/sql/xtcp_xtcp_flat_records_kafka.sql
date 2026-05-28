@@ -220,10 +220,17 @@ SETTINGS
   -- means a single poll wants to materialize 6.5M-65M rows in memory
   -- before flushing — trips the per-server memory cap on dense workloads
   -- (mixed flavor: 100 ns × 25 conns = ~2500 sockets fattening envelopes).
-  -- Capping batch_size to 64 messages bounds the working set at roughly
-  -- 64 × avg-envelope-size rows.
+  -- Per-poll buffer allocation observed in errors_mv: 131.49 MiB chunks.
+  -- At batch_size=64 with 14 GiB container (12.30 GiB internal cap), CH's
+  -- baseline MemoryTracking sits at ~12.11 GiB and the 131 MiB allocation
+  -- pushes over the cap ~2 %/min — AND the per-push processing time
+  -- exceeds max.poll.interval.ms (5 min) on memory pressure, which
+  -- triggers a rebalance kick. Consumer re-reads the same batch from the
+  -- last committed offset → death loop. Capping to 16 keeps the per-poll
+  -- buffer under ~33 MiB and the per-push time well under the poll-interval
+  -- threshold.
   kafka_max_block_size = 65536,
-  kafka_poll_max_batch_size = 64,
+  kafka_poll_max_batch_size = 16,
   kafka_flush_interval_ms = 5000;
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
