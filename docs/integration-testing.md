@@ -556,3 +556,24 @@ intervals — it's not a halt, it's a long-running flush. Confirm with
 FROM system.kafka_consumers` — if `last_poll_time` is recent the consumer
 is alive; the slowness is downstream of the consumer. Profiling the
 122-column ZSTD MergeTree insert path is a known open follow-up.
+
+**MEMORY_LIMIT_EXCEEDED while bumping container memory keeps the rate
+the same**
+Counter-intuitive but real for the mixed `clickhouse-pipeline-parquet`
+flavor: ClickHouse's `MemoryTracking` grows to fill whatever per-server
+cap you give it (~88 % of the container memory limit). At 14000m the
+tracker parks near 12.1 GiB; at 20000m it parks near 17.4 GiB; at
+28000m it climbs above 24 GiB. The 131 MiB kafka_engine per-batch
+allocation still occasionally tips the tracker over the cap, so the
+OOM rate (~2.3 / min) is essentially **workload-driven, not
+budget-driven**. Worse, past ~20000m the per-flush MV processing time
+grows sharply (8 rows took 37 s at 12000m, 197 s at 28000m) because
+the larger heap and caches take longer to manage. That blows past the
+default `max.poll.interval.ms` (5 min), the consumer leaves the group,
+and ch_rows freezes in a rebalance death loop. The validated sweet
+spot is **VM 16384 MiB / container 14000m / `kafka_poll_max_batch_size = 16`**
+(committed). Going higher buys throughput modestly until ~24/20 GB
+and regresses past that. A real fix for the residual OOMs requires
+constraining ClickHouse's discretionary memory (`mark_cache_size`,
+`uncompressed_cache_size`, etc.) so the tracker can't grow to the cap
+— a separate follow-up.
