@@ -558,22 +558,49 @@ is alive; the slowness is downstream of the consumer. Profiling the
 122-column ZSTD MergeTree insert path is a known open follow-up.
 
 **MEMORY_LIMIT_EXCEEDED while bumping container memory keeps the rate
-the same**
-Counter-intuitive but real for the mixed `clickhouse-pipeline-parquet`
-flavor: ClickHouse's `MemoryTracking` grows to fill whatever per-server
-cap you give it (~88 % of the container memory limit). At 14000m the
-tracker parks near 12.1 GiB; at 20000m it parks near 17.4 GiB; at
-28000m it climbs above 24 GiB. The 131 MiB kafka_engine per-batch
-allocation still occasionally tips the tracker over the cap, so the
-OOM rate (~2.3 / min) is essentially **workload-driven, not
-budget-driven**. Worse, past ~20000m the per-flush MV processing time
-grows sharply (8 rows took 37 s at 12000m, 197 s at 28000m) because
-the larger heap and caches take longer to manage. That blows past the
-default `max.poll.interval.ms` (5 min), the consumer leaves the group,
-and ch_rows freezes in a rebalance death loop. The validated sweet
-spot is **VM 16384 MiB / container 14000m / `kafka_poll_max_batch_size = 16`**
-(committed). Going higher buys throughput modestly until ~24/20 GB
-and regresses past that. A real fix for the residual OOMs requires
-constraining ClickHouse's discretionary memory (`mark_cache_size`,
-`uncompressed_cache_size`, etc.) so the tracker can't grow to the cap
-— a separate follow-up.
+the same** *(historical — kept for reference; the actual fix is below)*
+Earlier hypotheses chased ClickHouse's per-server memory cap. Bumping
+the container from 12000m → 14000m → 20000m → 28000m moved the cap
+but ClickHouse's `MemoryTracking` grew to fill it (10 GiB → 12 GiB →
+17 GiB → 24 GiB respectively). The OOM rate (~2.3/min) stayed flat
+because the OOMs are workload-allocation events, not free-memory
+exhaustion. Past ~20000m, MV-insert times blew up (8 rows / 197 s) and
+the consumer started getting kicked by `max.poll.interval.ms`. The
+real cause turned out to be something else entirely — see below.
+
+**The actual root cause: kafka_engine Block accumulation is redundant
+with ProtobufList batching**
+The 10 GiB MemoryTracking was empty over-allocated buffer space, not
+data. Each xtcp2 → kafka message is a `ProtobufList` envelope already
+containing 100-1000 rows; on top of that, the kafka_engine's default
+`kafka_max_block_size = 65,505` rows accumulates rows from many
+envelopes before flushing to the MV. ClickHouse pre-allocates per-column
+buffers sized for the FULL block at flush time, regardless of how few
+rows actually arrived. With 122 columns × 65K rows of pre-allocated
+buffer + ZSTD/LZ4 compression contexts + MV pipeline state, the per-flush
+peak hit ~10 GiB even though the actual data rate is only ~215 KB/sec.
+
+The fix is `kafka_max_block_size = 1024` (~1 envelope per flush) and
+`kafka_flush_interval_ms = 2000`. Each ProtobufList message effectively
+passes through to the MV directly without redundant row-level batching
+on top. Per-flush column buffers shrink ~64×.
+
+Measured before/after on a fresh 31-min smoke:
+
+| Metric | block=65,536 / flush=5s | **block=1024 / flush=2s** |
+| --- | --- | --- |
+| MemoryTracking (peak) | ~12 GiB | **246 MiB** |
+| ClickHouse container RSS | 6-9 GiB | **311 MiB** |
+| MEMORY_LIMIT_EXCEEDED | 67 / 31 min | **0** |
+| errors_mv rows | 68 | **0** |
+| Throughput | ~393 rows/min | **~27,700 rows/min** |
+| Consumer commits / messages | 2 / 426 (rebalance loop) | **367 / 367** |
+
+The throughput now matches xtcp2's actual production rate (~430 rows/sec)
+with the MV running in real-time and zero backlog. ClickHouse runs on
+~300 MiB instead of needing 14 GiB.
+
+If you see new MEMORY_LIMIT_EXCEEDED entries with a different `kafka_*`
+setup, check `SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka` and verify
+`kafka_max_block_size` is still at ~1024 — if it's reverted to the
+default 65,505 you'll see the OOM rate jump back to ~2/min.
