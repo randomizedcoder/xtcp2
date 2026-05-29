@@ -946,9 +946,7 @@ in
             19644 # redpanda admin
             18081 # schema registry
             3000  # grafana
-            # 9090 (prometheus) intentionally not in forwardPorts —
-            # see comment in microvm.forwardPorts.
-            9090  # still open the firewall so grafana's internal call works
+            9090  # prometheus (host accesses via :19090 → guest :9090)
           ]
           ++ lib.optionals isClickPipeParquet [
             # Second xtcp2 instance's prom + grpc endpoints (parquet path).
@@ -1092,13 +1090,13 @@ in
                 guest.port = 3000;
               }
               # Prometheus inside the VM is reachable to Grafana via
-              # 127.0.0.1:9090 internally — no host forward by default,
-              # and :9090 frequently clashes. Use host:19090 if you
-              # want host-side browsing (commented out — uncomment +
-              # add 19090 to firewall list).
-              # {
-              #   from = "host"; host.port = 19090; guest.port = 9090;
-              # }
+              # 127.0.0.1:9090 internally — host-side access via
+              # 19090 (avoiding the common :9090 clash).
+              {
+                from = "host";
+                host.port = 19090;
+                guest.port = 9090;
+              }
             ]
             ++ lib.optionals isClickPipeParquet [
               # Second xtcp2 instance's prom + grpc — the secondary
@@ -1542,9 +1540,16 @@ in
               static_configs = [
                 {
                   targets = [ "127.0.0.1:${toString cfg.promPort}" ];
-                  labels.instance = "xtcp2-vm";
+                  labels.instance = "xtcp2-primary";
                 }
-              ];
+              ] ++ lib.optional isClickPipeParquet {
+                # The mixed flavor runs a second xtcp2 instance for the
+                # parquet path on port 9089. Scrape both so we can
+                # compare goroutine/memory/GC trends across the two
+                # backends side-by-side in Grafana / promql.
+                targets = [ "127.0.0.1:9089" ];
+                labels.instance = "xtcp2-parquet";
+              };
             }
             {
               job_name = "prometheus-self";
