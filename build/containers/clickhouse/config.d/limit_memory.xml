@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!--
+  Constrain ClickHouse's discretionary memory use.
+
+  Why: under heavy mixed-flavor ingest, ClickHouse's MemoryTracking
+  parks just under the container-derived per-server cap regardless of
+  actual workload. The 131 MiB kafka_engine per-batch decode buffer
+  allocation then occasionally tips the tracker over and throws
+  MEMORY_LIMIT_EXCEEDED (~2/min). Bumping container memory didn't
+  fix this — CH just grew to fill the new cap. Past ~20 GiB the
+  larger heap also slowed MV inserts past max.poll.interval.ms,
+  triggering kafka consumer rebalance loops.
+
+  The real fix is to keep CH's caches small so MemoryTracking sits
+  well below the cap, leaving room for transient batch allocations.
+
+  Our working set:
+    * Main table `xtcp_flat_records`: ~55 MiB on disk total
+    * Errors table:                   ~55 MiB on disk
+    * No interactive queries; no joins; no aggregations of size
+  So the 5 GiB default mark cache is hilariously oversized.
+
+  Reference: https://clickhouse.com/docs/en/operations/server-configuration-parameters/settings
+-->
+<clickhouse>
+  <!-- Mark cache: 5 GiB default → 256 MiB. Marks for ~55 MiB of data
+       across two MergeTree tables fit easily in 256 MiB. -->
+  <mark_cache_size>268435456</mark_cache_size>
+
+  <!-- Uncompressed block cache: already 0 by default; be explicit. -->
+  <uncompressed_cache_size>0</uncompressed_cache_size>
+
+  <!-- Index-related caches: default ~5 GiB each. Same reasoning. -->
+  <index_mark_cache_size>134217728</index_mark_cache_size>
+  <index_uncompressed_cache_size>0</index_uncompressed_cache_size>
+
+  <!-- Compiled-expression cache: default 128 MiB; keep. -->
+  <compiled_expression_cache_size>134217728</compiled_expression_cache_size>
+
+  <!-- Leave max_server_memory_usage_to_ram_ratio at its 0.9 default.
+       At 14000m container that gives a ~12.3 GiB cap. With caches capped
+       above, MemoryTracking parks ~9.3 GiB, leaving ~3 GiB headroom for
+       the kafka_engine 131-256 MiB per-batch decode allocations. -->
+  <!-- max_server_memory_usage_to_ram_ratio default = 0.9 -->
+
+</clickhouse>
