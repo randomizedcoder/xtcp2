@@ -209,6 +209,8 @@ let
     mkdir -p $out
     cp ${../../build/containers/clickhouse/config.d/disable_chatty_logs.xml} \
        $out/disable_chatty_logs.xml
+    cp ${../../build/containers/clickhouse/config.d/limit_memory.xml} \
+       $out/limit_memory.xml
     chmod -R a+rX $out
   '';
 
@@ -514,6 +516,8 @@ let
           --advertise-rpc-addr=redpanda-0:33145 \
           --mode=dev-container \
           --smp=1 \
+          --memory=1G \
+          --reserve-memory=0M \
           --default-log-level=info >/dev/null
       echo "redpanda-0: started"
 
