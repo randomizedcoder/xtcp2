@@ -213,25 +213,24 @@ SETTINGS
   kafka_thread_per_consumer = 0,
   kafka_skip_broken_messages = 0,
   kafka_handle_error_mode = 'stream',
-  -- Per-poll memory ceiling. Defaults inherit max_block_size (65,505)
-  -- for BOTH kafka_max_block_size and kafka_poll_max_batch_size. With
-  -- ProtobufList input where one kafka message is an Envelope expanding
-  -- to ~100-1000 XtcpFlatRecord rows, the default kafka_poll_max_batch_size
-  -- means a single poll wants to materialize 6.5M-65M rows in memory
-  -- before flushing — trips the per-server memory cap on dense workloads
-  -- (mixed flavor: 100 ns × 25 conns = ~2500 sockets fattening envelopes).
-  -- Per-poll buffer allocation observed in errors_mv: 131.49 MiB chunks.
-  -- At batch_size=64 with 14 GiB container (12.30 GiB internal cap), CH's
-  -- baseline MemoryTracking sits at ~12.11 GiB and the 131 MiB allocation
-  -- pushes over the cap ~2 %/min — AND the per-push processing time
-  -- exceeds max.poll.interval.ms (5 min) on memory pressure, which
-  -- triggers a rebalance kick. Consumer re-reads the same batch from the
-  -- last committed offset → death loop. Capping to 16 keeps the per-poll
-  -- buffer under ~33 MiB and the per-push time well under the poll-interval
-  -- threshold.
-  kafka_max_block_size = 65536,
+  -- ProtobufList already batches: each kafka message is an Envelope
+  -- containing ~100-1000 XtcpFlatRecord rows. The kafka_engine's
+  -- own Block accumulation (kafka_max_block_size, default 65,505 rows)
+  -- is therefore mostly redundant on top — it just holds rows in memory
+  -- across many kafka messages before pushing the MV. Combined with
+  -- the per-poll batch (kafka_poll_max_batch_size, 16 messages here),
+  -- a single MV flush at 65K rows was the source of 131 MiB chunk
+  -- allocations that tipped CH's per-server memory cap.
+  -- Settings:
+  --   kafka_poll_max_batch_size = 16   ~16 kafka messages per poll
+  --   kafka_max_block_size      = 1024 ~1 envelope per flush
+  --   kafka_flush_interval_ms   = 2000 backstop: flush at most every 2 s
+  -- With ~430 envelopeRows/sec from xtcp2 the Block fills in ~2.4 s on
+  -- average, so flushes happen at the row-threshold most of the time
+  -- and the time-backstop kicks in only when the producer is quiet.
+  kafka_max_block_size = 1024,
   kafka_poll_max_batch_size = 16,
-  kafka_flush_interval_ms = 5000;
+  kafka_flush_interval_ms = 2000;
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
 -- SELECT * FROM system.kafka_consumers FORMAT Vertical;
