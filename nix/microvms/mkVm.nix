@@ -500,11 +500,18 @@ let
       # addr inside the docker net, external kafka addr published as
       # localhost:19092 on the VM host so xtcp2 can dial it.
       docker rm -f redpanda-0 2>/dev/null || true
+      # docker --memory=2G enforces a hard cgroup ceiling. The redpanda
+      # `start --memory=1G` flag below only sets the seastar data plane
+      # reservation — it does NOT bound the rest of the process. A 21h
+      # soak observed redpanda triggering the system OOM-killer with a
+      # 12.9 GiB folio_prealloc allocation, killing the unrelated CH
+      # container as collateral. The docker cgroup limit catches that.
       docker run --detach \
         --name redpanda-0 \
         --network xtcp \
         --hostname redpanda-0 \
         -p 19092:19092 -p 19644:9644 -p 18081:8081 \
+        --memory=2G \
         -v redpanda-0:/var/lib/redpanda/data \
         --restart on-failure \
         ${clickPipeRedpandaImage} \
@@ -607,7 +614,6 @@ let
         --memory=${clickPipeClickhouseMemory} \
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
-        --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
         --env CLICKHOUSE_PASSWORD=${clickPipeChPassword} \
         -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
