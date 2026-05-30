@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+  Extend the librdkafka consumer's poll-interval and session-timeout
+  windows. Defaults (5 min / 45 s respectively) are too tight for our
+  mixed-flavor workload — an occasional MV insert that takes 30-150 s
+  (memory pressure, parts merge, ZSTD batch) blows past
+  max.poll.interval.ms, the consumer is kicked from the group, rejoins
+  at the last committed offset, re-reads the same batch, fails again
+  → indefinite rebalance death loop. A 24 h soak attempt was stuck at
+  ~21 k rows after 1 h because of this; the 4 h soak earlier happened
+  to avoid the trap by luck.
+
+  Settings (librdkafka names; ClickHouse passes them through):
+    * max.poll.interval.ms     5 min → 15 min (900000)
+        Time the consumer may stay in a poll before kafka considers
+        it dead. Must comfortably exceed worst-case per-flush time.
+    * session.timeout.ms       45 s → 5 min (300000)
+        Heartbeat-loss window. Smaller is faster failure detection
+        but should be << max.poll.interval.ms to be meaningful.
+    * heartbeat.interval.ms    3 s default; explicit 10 s for clarity.
+
+  These are server-wide kafka client defaults applied to every kafka_engine
+  consumer; individual tables can override via their own settings if needed.
+-->
+<clickhouse>
+  <kafka>
+    <max_poll_interval_ms>900000</max_poll_interval_ms>
+    <session_timeout_ms>300000</session_timeout_ms>
+    <heartbeat_interval_ms>10000</heartbeat_interval_ms>
+  </kafka>
+</clickhouse>

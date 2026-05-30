@@ -211,6 +211,8 @@ let
        $out/disable_chatty_logs.xml
     cp ${../../build/containers/clickhouse/config.d/limit_memory.xml} \
        $out/limit_memory.xml
+    cp ${../../build/containers/clickhouse/config.d/kafka_client_tuning.xml} \
+       $out/kafka_client_tuning.xml
     chmod -R a+rX $out
   '';
 
