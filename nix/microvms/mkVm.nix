@@ -617,6 +617,7 @@ let
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
         --env CLICKHOUSE_PASSWORD=${clickPipeChPassword} \
+        --env "MALLOC_CONF=background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000" \
         -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
