@@ -680,7 +680,15 @@ let
   # brings up a local Pyroscope server so xtcp2 can stream profiles
   # for goroutine/thread-leak diagnosis without an external dependency.
   s3ParquetModules =
-    [ (import ../modules/minio-bucket-bootstrap.nix { }) ]
+    [
+      (import ../modules/minio-bucket-bootstrap.nix {
+        # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
+        # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
+        # tell the bootstrap module not to also declare a tmpfs there.
+        # Other s3parquet flavors keep the tmpfs (short runs only).
+        useTmpfs = !isClickPipeParquet;
+      })
+    ]
     ++ lib.optionals isS3ParquetLong [
       (import ../modules/pyroscope-server.nix { })
     ];
@@ -975,23 +983,44 @@ in
           # kafka_engine couldn't commit offsets, back-pressure froze
           # xtcp2's producer, row count plateaued at ~18k. Fix: give
           # docker its own ext4 disk on the host so /var/lib/docker
-          # gets real (not RAM) bytes. 8 GiB covers a 12h soak with
-          # MergeTree compression at ~3 rows/s × ~1 KiB/row + dockerd
-          # working set + redpanda topic data.
+          # gets real (not RAM) bytes. 16 GiB covers a 24h soak with
+          # MergeTree compression (~3.6 GiB / 24h) + dockerd working
+          # set + redpanda topic data + redpanda segment log (uncapped
+          # by default). The earlier 8 GiB hit 99 % at T+22h of a 24h
+          # soak.
           volumes =
             lib.optionals isAnyClickPipe [
               {
                 # User-writable path so microvm-run can autoCreate the
                 # image without sudo. /tmp is RAM-backed on most distros
-                # but big enough for the 8 GiB image; if you want
+                # but big enough for the 16 GiB image; if you want
                 # cross-boot persistence move this to ~/.cache or a
                 # mounted disk and add `microvm.preStart` to mkdir.
                 image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
                 mountPoint = "/var/lib/docker";
-                size = 8192;
+                size = 16384;
                 autoCreate = true;
                 fsType = "ext4";
                 label = "xtcp2dock";
+              }
+            ]
+            ++ lib.optionals isClickPipeParquet [
+              {
+                # Dedicated disk for MinIO data in the mixed
+                # clickhouse-pipeline-parquet flavor. Default
+                # minio-bucket-bootstrap.nix puts /var/lib/minio on
+                # a 512 MiB tmpfs — fine for short smokes, ran out
+                # at T+22h of a 24h soak (the parquet path uploads
+                # ~10 MiB/min sustained → 14 GiB over 24h). 16 GiB
+                # ext4 disk covers a full 24h with margin; sparse
+                # file so disk space on the host is consumed
+                # incrementally.
+                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-minio.img";
+                mountPoint = "/var/lib/minio";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2minio";
               }
             ];
           interfaces = [

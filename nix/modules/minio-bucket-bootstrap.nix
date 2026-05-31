@@ -18,6 +18,11 @@
   accessKey ? "xtcp2test",
   secretKey ? "xtcp2testsecret",
   dataSize ? "512M",
+  # When the caller provides a dedicated /var/lib/minio block device
+  # (e.g. microvm.volumes), skip the module's tmpfs declaration. The
+  # tmpfs is fine for short smokes; a 24h mixed flavor soak fills the
+  # default 512 MiB and starts losing parquet uploads.
+  useTmpfs ? true,
 }:
 
 {
@@ -80,13 +85,16 @@ in
 {
   # tmpfs for MinIO data. services.minio dataDir defaults to /var/lib/minio/data;
   # mounting the parent as tmpfs covers it and avoids fighting the module.
-  fileSystems."/var/lib/minio" = {
-    device = "tmpfs";
-    fsType = "tmpfs";
-    options = [
-      "size=${dataSize}"
-      "mode=0755"
-    ];
+  # Skipped when the caller provides a dedicated block device for /var/lib/minio.
+  fileSystems = lib.mkIf useTmpfs {
+    "/var/lib/minio" = {
+      device = "tmpfs";
+      fsType = "tmpfs";
+      options = [
+        "size=${dataSize}"
+        "mode=0755"
+      ];
+    };
   };
 
   services.minio = {
