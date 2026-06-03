@@ -648,7 +648,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(121)
   void clearProtobufListLengthDelimit() => clearField(121);
 
-  /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150, or null:
+  /// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
+  /// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
+  /// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
+  /// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
+  /// max_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes).
   @$pb.TagNumber(130)
   $core.String get dest => $_getSZ(14);
   @$pb.TagNumber(130)
