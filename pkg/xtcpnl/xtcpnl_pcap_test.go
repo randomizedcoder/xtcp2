@@ -55,6 +55,23 @@ func TestDeserializePcapHeader(t *testing.T) {
 				return DeserializePcapHeaderReflection(data, ph)
 			},
 		},
+		{
+			description: "7_0_3 sport26546 dport443",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			ph: PcapHeader{
+				Magic:        2712847316,
+				VersionMajor: 2,
+				VersionMinor: 4,
+				Reserved1:    0,
+				Reserved2:    0,
+				SnapLen:      262144,
+				FCS:          253,
+				LinkType:     0,
+			},
+			Func: func(data []byte, ph *PcapHeader) (n int, err error) {
+				return DeserializePcapHeader(data, ph)
+			},
+		},
 	}
 
 	for i, test := range tests {
@@ -132,6 +149,19 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 			},
 			Func: func(data []byte, prh *PcapRecordHeader) (n int, err error) {
 				return DeserializePcapRecordHeaderReflection(data, prh)
+			},
+		},
+		{
+			description: "7_0_3 sport26546 dport443",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			prh: PcapRecordHeader{
+				TsSec:  1778603922,
+				TsXsec: 514716,
+				CapLen: 3724,
+				Len:    3724,
+			},
+			Func: func(data []byte, prh *PcapRecordHeader) (n int, err error) {
+				return DeserializePcapRecordHeader(data, prh)
 			},
 		},
 	}

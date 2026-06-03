@@ -266,6 +266,46 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 
 			debugLevel: 11,
 		},
+		{
+			description: "7_0_3 sport26546 dport443",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+
+			Family:  2,
+			State:   1,
+			Timer:   2,
+			Retrans: 0,
+			Expires: 33874,
+			Rqueue:  0,
+			Wqueue:  0,
+			UID:     1000,
+			Inode:   98949,
+
+			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
+				return DeserializeInetDiagMsg(data, idm, s)
+			},
+
+			debugLevel: 11,
+		},
+		{
+			description: "7_0_3 sport19000 dport10156 v6",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap",
+
+			Family:  10,
+			State:   1,
+			Timer:   2,
+			Retrans: 0,
+			Expires: 5293,
+			Rqueue:  0,
+			Wqueue:  0,
+			UID:     990,
+			Inode:   100876,
+
+			Func: func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
+				return DeserializeInetDiagMsg(data, idm, s)
+			},
+
+			debugLevel: 11,
+		},
 	}
 
 	for i, test := range tests {

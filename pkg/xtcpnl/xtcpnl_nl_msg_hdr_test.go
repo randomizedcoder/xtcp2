@@ -118,6 +118,24 @@ func TestDeserializeNlMsgHdr(t *testing.T) {
 			seq:         123456,
 			pid:         1573,
 		},
+		{
+			description: "7_0_3 sport26546 dport443",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			length:      412,
+			tyype:       20,
+			flags:       2,
+			seq:         123456,
+			pid:         13275,
+		},
+		{
+			description: "7_0_3 sport19000 dport10156 v6",
+			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap",
+			length:      400,
+			tyype:       20,
+			flags:       2,
+			seq:         3775298911,
+			pid:         1722,
+		},
 	}
 	for i, test := range tests {
 
