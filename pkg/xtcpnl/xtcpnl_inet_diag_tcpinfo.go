@@ -671,6 +671,12 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 	t.Probes = data[3]
 	t.Backoff = data[4]
 	t.Options = data[5]
+	// Bitfield extraction below assumes little-endian bitfield packing, matching
+	// the kernel's `__u8 tcpi_snd_wscale:4, tcpi_rcv_wscale:4;` layout on
+	// x86/x86_64/ARM. On a big-endian host (PPC-BE, MIPS-BE) snd/rcv_wscale
+	// would swap and the delivery_rate/fastopen bits would shift; the rest of
+	// the package already uses binary.LittleEndian throughout, so this is
+	// consistent rather than a new assumption.
 	t.SndWscale = data[6] & 0x0F
 	t.RcvWscale = (data[6] >> 4) & 0x0F
 	t.DeliveryRateAppLimited = data[7] & 0x01

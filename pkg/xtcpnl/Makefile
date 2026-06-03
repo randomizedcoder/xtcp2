@@ -19,10 +19,13 @@ ben:
 # Cross-check the xtcpnl Go parser against the proto-audit Rust oracle in the
 # sibling xdp2 repo. Surfaces any netlink field present in the wire format
 # (per kernel 7.0.3 captures) that the Go parser does not yet expose.
-# Requires Nix and a /home/das/Downloads/xdp2 checkout.
+# Requires Nix and an xdp2 checkout; override the paths if your checkouts
+# don't live where the defaults assume.
+XDP2_DIR  ?= $(HOME)/Downloads/xdp2
+XTCP2_DIR ?= $(HOME)/Downloads/xtcp2
 validate-netlink-7_0_3:
-	cd /home/das/Downloads/xdp2 && nix run .#proto-audit -- validate-netlink \
+	cd $(XDP2_DIR) && nix run .#proto-audit -- validate-netlink \
 	  --proto all \
-	  --xtcp2-src   /home/das/Downloads/xtcp2 \
-	  --xtcp2-pcaps /home/das/Downloads/xtcp2/pkg/xtcpnl/testdata
+	  --xtcp2-src   $(XTCP2_DIR) \
+	  --xtcp2-pcaps $(XTCP2_DIR)/pkg/xtcpnl/testdata
 
