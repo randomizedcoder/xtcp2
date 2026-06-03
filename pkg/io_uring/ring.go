@@ -165,7 +165,9 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 			ts := syscall.NsecToTimespec(int64(step))
 			if _, err := r.r.WaitCQETimeout(&ts); err != nil {
 				// ETIME (timeout) is expected; anything else stops us.
-				if !errors.Is(err, syscall.ETIME) && err.Error() != "errno 62" {
+				// errors.Is walks the unwrap chain so this also matches
+				// ETIME wrapped by giouring helpers via fmt.Errorf %w.
+				if !errors.Is(err, syscall.ETIME) {
 					break
 				}
 				continue

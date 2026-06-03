@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"runtime"
@@ -184,19 +185,12 @@ func (x *XTCP) iouringWaitWithTimeout(ring *xio.Ring, d time.Duration) ([]xio.Re
 }
 
 // isETimeError returns true if the error is ETIME (io_uring's
-// wait-timeout signal) or its Go equivalent.
+// wait-timeout signal) — either as a bare syscall.Errno or anywhere in
+// the unwrap chain (e.g. wrapped by fmt.Errorf("...: %w", err) from a
+// downstream library). errors.Is walks Unwrap for us, so this also
+// covers the giouring helpers' future wrapping.
 func isETimeError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errno, ok := err.(syscall.Errno); ok {
-		return errno == syscall.ETIME
-	}
-	// Fallback: match by string for wrapped errors.
-	if err.Error() == "errno 62" {
-		return true
-	}
-	return false
+	return errors.Is(err, syscall.ETIME)
 }
 
 // handleRecvCQE feeds the recv'd bytes into the deserializer and returns
