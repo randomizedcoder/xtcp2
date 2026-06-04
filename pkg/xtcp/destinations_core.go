@@ -41,12 +41,20 @@ var (
 )
 
 // RegisterDestination wires a factory into the runtime dispatch map. Called
-// from `func init()` in each per-scheme file. Idempotent and order-
-// independent: redefining a scheme replaces the previous factory, but in
-// practice every scheme is registered from exactly one tagged file.
+// from `func init()` in each per-scheme file.
+//
+// Panics on duplicate registration of the same scheme. In the intended
+// usage every scheme is registered from exactly one tagged file, so a
+// duplicate registration means two files claimed the same `dest_<scheme>`
+// tag — almost certainly a build-tag bug. Failing loudly at package init
+// makes that bug impossible to ship; a silent last-writer-wins replace
+// would let it lurk until someone notices the wrong factory is chosen.
 func RegisterDestination(scheme string, f DestinationFactory) {
 	destRegistryMu.Lock()
 	defer destRegistryMu.Unlock()
+	if _, exists := destRegistry[scheme]; exists {
+		panic(fmt.Sprintf("xtcp: RegisterDestination called twice for scheme %q — duplicate //go:build tag?", scheme))
+	}
 	destRegistry[scheme] = f
 }
 
