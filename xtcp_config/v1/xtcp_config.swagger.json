@@ -315,6 +315,20 @@
         },
         "enabledDeserializers": {
           "$ref": "#/definitions/v1EnabledDeserializers"
+        },
+        "ioUring": {
+          "type": "boolean",
+          "description": "When true, route netlink reads and raw-socket destination writes\nthrough an io_uring ring per Netlinker. Requires Linux 6.1+.\nLibrary-backed destinations (kafka, nsq, nats, valkey) ignore this\nflag — they continue to use their own client sockets unchanged."
+        },
+        "ioUringRecvBatchSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Number of recvmsg SQEs kept in flight per Netlinker ring. Higher\nvalues reduce io_uring_enter syscalls per dump cycle on hosts with\nmany sockets, at the cost of more pinned buffers from packet pool.\nIgnored unless io_uring=true. Default 64."
+        },
+        "ioUringCqeBatchSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise\nuserland loop overhead but increase scheduling latency for the\nnetlinker goroutine. Ignored unless io_uring=true. Default 128."
         }
       },
       "title": "xtcp configuration"

@@ -44,6 +44,8 @@ func (x *XTCP) Init(ctx context.Context) {
 	go x.InitMarshallers(wg)
 	wg.Add(1)
 	go x.InitDests(ctx, wg)
+	wg.Add(1)
+	go x.InitNetlinkers(ctx, wg)
 
 	wg.Wait()
 
@@ -79,6 +81,7 @@ func (x *XTCP) Init(ctx context.Context) {
 func (x *XTCP) initChannels() {
 
 	x.DestinationReady = make(chan struct{}, destinationReadyChSize)
+	x.NetlinkerReady = make(chan struct{}, netlinkerReadyChSize)
 	x.netlinkerDoneCh = make(chan netlinkerDone, int(x.config.NetlinkersDoneChanSize))
 	x.changePollFrequencyCh = make(chan time.Duration, changePollFrequencyChSize)
 	x.pollRequestCh = make(chan struct{}, pollRequestChSize)

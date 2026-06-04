@@ -1,7 +1,15 @@
-// Package netlinker is the netlinker go routine of the xtcp package
+// Package netlinker is the netlinker go routine of the xtcp package.
 //
-// Netlinker recieves netlink packets from the kernel and passes
-// to the worker queue
+// Netlinker receives netlink packets from the kernel and feeds the
+// deserializer. The function-pointer x.Netlinker (registered in
+// pkg/xtcp/init_netlinkers.go) is one of:
+//
+//	netlinkerSyscall  — the original synchronous syscall.Recvfrom path.
+//	netlinkerIoUring  — opt-in io_uring path with batched recvmsg SQEs.
+//
+// Selection happens at init time from config.IoUring. Same dispatch
+// pattern as Marshaller/Destination (sync.Map of closures + chosen
+// function pointer on XTCP).
 package xtcp
 
 import (
@@ -20,7 +28,17 @@ const (
 	forceGCModulesCst        = 1000
 )
 
-func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
+// NetlinkerFunc is the signature of a per-fd netlinker goroutine. The
+// chosen variant is stored in x.Netlinker (sync.Map dispatch — see
+// init_netlinkers.go) and called from ns_createNetlinkersAndStore.go.
+type NetlinkerFunc func(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32)
+
+// netlinkerSyscall is the original synchronous path: one syscall.Recvfrom
+// per netlink response packet, inline call to Deserialize, packet buffer
+// reused from packetBufferPool. The SO_RCVTIMEO set by
+// setSocketTimeoutViaSyscall caps Recvfrom blocking time so the loop can
+// poll ctx for cancel.
+func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
 
 	defer wg.Done()
 
@@ -123,39 +141,3 @@ func (x *XTCP) Netlinker(ctx context.Context, wg *sync.WaitGroup, nsName *string
 	x.pC.WithLabelValues("Netlinker", "complete", "count").Inc()
 
 }
-
-// IOURing notes
-
-// https://pkg.go.dev/github.com/iceber/iouring-go@v0.0.0-20230403020409-002cfd2e2a90#Recv
-//prep := iouring.Recv(x.socketFD, *packetBuffer, 0)
-
-// if _, err := x.iour.SubmitRequest(prep, x.resulter); err != nil {
-// 	log.Panicf("submit read request error: %v", err)
-// }
-// var n int
-// for read := false, !read; {
-// 	result := <-resulter
-// 	switch result.Opcode() {
-
-// 	case iouring.OpRead:
-// 		x.pC.WithLabelValues("Netlinker", "resultOpRead", "count").Inc()
-// 		n := result.ReturnValue0().(int)
-// 		buf, _ := result.GetRequestBuffer()
-// 		content := buf[:num]
-
-// 	case iouring.OpWrite:
-// 		x.pC.WithLabelValues("Netlinker", "resultOpWrite", "count").Inc()
-
-// 	}
-// }
-
-// select {
-// case x.packetCh <- p:
-// 	x.pC.WithLabelValues("Netlinker", "packetsSent", "count").Inc()
-// default:
-// 	blockedStartTime := time.Now()
-// 	x.packetCh <- p
-// 	blockedEndTime := time.Now()
-// 	x.pC.WithLabelValues("Netlinker", "blockedCh", "error").Inc()
-// 	x.pH.WithLabelValues("Netlinker", "blocked", "error").Observe(blockedEndTime.Sub(blockedStartTime).Seconds())
-// }

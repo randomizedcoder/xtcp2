@@ -46,7 +46,7 @@ class SetPollFrequencyResponse(_message.Message):
     def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
 
 class XtcpConfig(_message.Message):
-    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "protobuf_list_length_delimit", "dest", "dest_write_files", "topic", "xtcp_proto_file", "kafka_schema_url", "kafka_produce_timeout", "debug_level", "label", "tag", "grpc_port", "enabled_deserializers")
+    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "protobuf_list_length_delimit", "dest", "dest_write_files", "topic", "xtcp_proto_file", "kafka_schema_url", "kafka_produce_timeout", "debug_level", "label", "tag", "grpc_port", "enabled_deserializers", "io_uring", "io_uring_recv_batch_size", "io_uring_cqe_batch_size")
     NL_TIMEOUT_MILLISECONDS_FIELD_NUMBER: _ClassVar[int]
     POLL_FREQUENCY_FIELD_NUMBER: _ClassVar[int]
     POLL_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -72,6 +72,9 @@ class XtcpConfig(_message.Message):
     TAG_FIELD_NUMBER: _ClassVar[int]
     GRPC_PORT_FIELD_NUMBER: _ClassVar[int]
     ENABLED_DESERIALIZERS_FIELD_NUMBER: _ClassVar[int]
+    IO_URING_FIELD_NUMBER: _ClassVar[int]
+    IO_URING_RECV_BATCH_SIZE_FIELD_NUMBER: _ClassVar[int]
+    IO_URING_CQE_BATCH_SIZE_FIELD_NUMBER: _ClassVar[int]
     nl_timeout_milliseconds: int
     poll_frequency: _duration_pb2.Duration
     poll_timeout: _duration_pb2.Duration
@@ -97,7 +100,10 @@ class XtcpConfig(_message.Message):
     tag: str
     grpc_port: int
     enabled_deserializers: EnabledDeserializers
-    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., protobuf_list_length_delimit: bool = ..., dest: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., topic: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ...) -> None: ...
+    io_uring: bool
+    io_uring_recv_batch_size: int
+    io_uring_cqe_batch_size: int
+    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., protobuf_list_length_delimit: bool = ..., dest: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., topic: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ..., io_uring: bool = ..., io_uring_recv_batch_size: _Optional[int] = ..., io_uring_cqe_batch_size: _Optional[int] = ...) -> None: ...
 
 class EnabledDeserializers(_message.Message):
     __slots__ = ("enabled",)

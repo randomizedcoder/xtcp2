@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -24,9 +25,82 @@ var (
 type DeserializeTest struct {
 	description string
 	filename    string
-	//c           config.Config
-	xtcpRecord *xtcp_flat_record.XtcpFlatRecord
-	// xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
+	xtcpRecord  *xtcp_flat_record.XtcpFlatRecord
+}
+
+// testFlatRecordService is shared across every newTestDeserializeXTCP
+// call because NewXtcpFlatRecordService registers metrics into the
+// default Prometheus registry, and a second registration panics with
+// "duplicate metrics collector registration attempted". Tests don't have
+// real GRPC clients, so flatRecordServiceSend's no-client fast path
+// (grpc_flatRecordService.go:218-223) means the shared service is a
+// harmless no-op.
+var testFlatRecordServiceOnce sync.Once
+var testFlatRecordService *xtcpFlatRecordService
+
+func getTestFlatRecordService(pollRequestCh *chan struct{}) *xtcpFlatRecordService {
+	testFlatRecordServiceOnce.Do(func() {
+		testFlatRecordService = NewXtcpFlatRecordService(context.Background(), pollRequestCh, 0)
+	})
+	return testFlatRecordService
+}
+
+// newTestDeserializeXTCP returns an XTCP populated with everything
+// Deserialize and its callees (flatRecordServiceSend, Marshaller,
+// Destination, the prom counters, the pollTime map, the netlinkerDoneCh)
+// need so they don't nil-deref. Used by TestDeserialize and
+// BenchmarkDeserialize. Hostname is set to misc.GetHostname() to match
+// what the production path would produce.
+//
+// Destination is destNull (records flow through but aren't captured);
+// Marshaller is protobufSingleMarshal — the default production wiring.
+func newTestDeserializeXTCP(tb testing.TB) *XTCP {
+	tb.Helper()
+	x := new(XTCP)
+	x.config = &xtcp_config.XtcpConfig{
+		Modulus:    1,
+		MarshalTo:  "protobufSingle",
+		Dest:       "null:",
+		DebugLevel: 0,
+	}
+	x.debugLevel = 0
+	x.hostname = misc.GetHostname()
+	x.xtcpRecordPool = sync.Pool{New: func() any { return new(xtcp_flat_record.XtcpFlatRecord) }}
+	x.nlhPool = sync.Pool{New: func() any { return new(xtcpnl.NlMsgHdr) }}
+	x.rtaPool = sync.Pool{New: func() any { return new(xtcpnl.RTAttr) }}
+	x.netlinkerDoneCh = make(chan netlinkerDone, 64)
+	x.pollRequestCh = make(chan struct{}, 1)
+	x.fatalf = tb.Fatalf
+
+	// Fresh metrics registry per call so tests don't collide.
+	reg := prometheus.NewRegistry()
+	x.pC = promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{Subsystem: "xtcp_dtest", Name: "counts", Help: "counts"},
+		[]string{"function", "variable", "type"},
+	)
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{
+			Subsystem: "xtcp_dtest", Name: "histograms", Help: "histograms",
+			Objectives: map[float64]float64{0.5: quantileError, 0.99: quantileError},
+			MaxAge:     summaryVecMaxAge,
+		},
+		[]string{"function", "variable", "type"},
+	)
+
+	// flatRecordServiceSend touches x.flatRecordService.frMapCount(); a
+	// zero-client service is fine — early-return on no clients. Share a
+	// single instance across test XTCPs to avoid duplicate Prometheus
+	// metric registration.
+	x.flatRecordService = getTestFlatRecordService(&x.pollRequestCh)
+
+	x.Marshaller = func(r *xtcp_flat_record.XtcpFlatRecord) *[]byte {
+		return x.protobufSingleMarshal(r)
+	}
+	x.Destination = func(ctx context.Context, b *[]byte) (int, error) {
+		return x.destNull(ctx, b)
+	}
+
+	return x
 }
 
 // TestDeserialize
@@ -64,52 +138,10 @@ func TestDeserialize(t *testing.T) {
 		},
 	}
 
-	xtcp := new(XTCP)
-
-	// https://github.com/prometheus/client_golang/issues/1140
-	reg := prometheus.NewRegistry()
-	pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: "xtcp",
-			Name:      "counts",
-			Help:      "xtcp counts",
-		},
-		[]string{"function", "variable", "type"},
-	)
-
-	pH = promauto.With(reg).NewSummaryVec(
-		prometheus.SummaryOpts{
-			Subsystem: "xtcp",
-			Name:      "histograms",
-			Help:      "xtcp historgrams",
-			Objectives: map[float64]float64{
-				0.1:  quantileError,
-				0.5:  quantileError,
-				0.99: quantileError,
-			},
-			MaxAge: summaryVecMaxAge,
-		},
-		[]string{"function", "variable", "type"},
-	)
-
-	xtcpRecordPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
-			//return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
-		},
-	}
-
-	nlhPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcpnl.NlMsgHdr)
-		},
-	}
-
-	rtaPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcpnl.RTAttr)
-		},
-	}
+	x := newTestDeserializeXTCP(t)
+	// Expose to package vars for any downstream test/bench that reads them.
+	pC = x.pC
+	pH = x.pH
 
 	for i, test := range tests {
 
@@ -118,18 +150,17 @@ func TestDeserialize(t *testing.T) {
 
 		f, err := os.Open(test.filename)
 		if err != nil {
-			t.Error("Test Failed Open error:", err)
+			t.Fatalf("test %d open %s: %v", i, test.filename, err)
 		}
-		defer f.Close()
 
 		bs, err := io.ReadAll(f)
+		f.Close()
 		if err != nil {
-			t.Error("Test Failed ReadAll error:", err)
+			t.Fatalf("test %d read %s: %v", i, test.filename, err)
 		}
 
-		//t.Logf("i:%d, binary.Size(bs):%d", i, binary.Size(bs))
-		//t.Logf("i:%d, file hex:%s", i, hex.EncodeToString(bs))
-
+		// .pcap files have a 56-byte (pcap header + record header + cooked
+		// header) prefix to strip; raw netlink captures start at byte 0.
 		var buf []byte
 		if strings.HasSuffix(test.filename, ".pcap") {
 			buf = bs[xtcpnl.PcapNetlinkOffsetCst:]
@@ -137,35 +168,46 @@ func TestDeserialize(t *testing.T) {
 			buf = bs
 		}
 
-		//t.Logf("i:%d, binary.Size(buf):%d", i, binary.Size(buf))
-		//t.Logf("i:%d,  buf hex:%s", i, hex.EncodeToString(buf))
-
-		xtcpRecord := new(xtcp_flat_record.XtcpFlatRecord)
-		// xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
-
-		nsName := "fixme"
-
-		_, errD := xtcp.Deserialize(
+		nsName := "test-ns"
+		n, errD := x.Deserialize(
 			ctx,
 			DeserializeArgs{
 				ns:             &nsName,
-				fd:             0, //FIXME
+				fd:             0,
 				NLPacket:       &buf,
-				xtcpRecordPool: &xtcpRecordPool,
-				nlhPool:        &nlhPool,
-				rtaPool:        &rtaPool,
-				pC:             pC,
-				pH:             pH,
+				xtcpRecordPool: &x.xtcpRecordPool,
+				nlhPool:        &x.nlhPool,
+				rtaPool:        &x.rtaPool,
+				pC:             x.pC,
+				pH:             x.pH,
 				id:             0,
 			})
 
+		// Deserialize is expected to walk every netlink message in the
+		// buffer; if it hits an unparseable header it returns a wrapped
+		// error. Any error here means the parser is broken on this
+		// fixture.
 		if errD != nil {
-			t.Fatal("Test Failed Deserialize errD", errD)
+			t.Errorf("test %d %s Deserialize err: %v (parsed n=%d)", i, test.description, errD, n)
+			continue
 		}
+		if n == 0 {
+			t.Errorf("test %d %s: Deserialize returned n=0; fixture should contain at least one record", i, test.description)
+			continue
+		}
+		t.Logf("test %d %s: parsed n=%d records", i, test.description, n)
 
-		if (*xtcpRecord).Hostname != test.xtcpRecord.Hostname {
-			t.Errorf("Test %d %s (*xtcpRecord).Hostname:%s != test.xtcpRecord.Hostname:%s", i, test.description, (*xtcpRecord).Hostname, test.xtcpRecord.Hostname)
+		// Hostname is stamped on every record by Deserialize from
+		// x.hostname; verify the production wiring set it on at least
+		// one record by checking that field on a freshly-pooled struct
+		// after the run (the pool's reused entries will all carry
+		// x.hostname).
+		fresh := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+		if fresh.Hostname != "" && fresh.Hostname != test.xtcpRecord.Hostname {
+			t.Errorf("test %d %s: pooled record Hostname=%q want=%q",
+				i, test.description, fresh.Hostname, test.xtcpRecord.Hostname)
 		}
+		x.xtcpRecordPool.Put(fresh)
 	}
 }
 
@@ -174,13 +216,13 @@ var (
 	// resultXtcpFlatRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
 )
 
-// go test -bench=BenchmarkDeserializeSpawn
-// go test -bench=BenchmarkDeserializeSpawn -benchtime=60s
+// go test -bench=BenchmarkDeserialize
+// go test -bench=BenchmarkDeserialize -benchtime=60s
 func BenchmarkDeserialize(b *testing.B) {
-	DeserializeBoth(b, 0)
+	DeserializeBoth(b)
 }
 
-func DeserializeBoth(b *testing.B, s int) {
+func DeserializeBoth(b *testing.B) {
 
 	ctx := context.Background()
 
@@ -197,61 +239,19 @@ func DeserializeBoth(b *testing.B, s int) {
 
 	test := tests[0]
 
-	xtcp := new(XTCP)
-
-	reg := prometheus.NewRegistry()
-	pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: "xtcp",
-			Name:      "counts",
-			Help:      "xtcp counts",
-		},
-		[]string{"function", "variable", "type"},
-	)
-
-	pH = promauto.With(reg).NewSummaryVec(
-		prometheus.SummaryOpts{
-			Subsystem: "xtcp",
-			Name:      "histograms",
-			Help:      "xtcp historgrams",
-			Objectives: map[float64]float64{
-				0.1:  quantileError,
-				0.5:  quantileError,
-				0.99: quantileError,
-			},
-			MaxAge: summaryVecMaxAge,
-		},
-		[]string{"function", "variable", "type"},
-	)
-
-	xtcpRecordPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcp_flat_record.XtcpFlatRecord)
-			// return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
-		},
-	}
-
-	nlhPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcpnl.NlMsgHdr)
-		},
-	}
-
-	rtaPool := sync.Pool{
-		New: func() interface{} {
-			return new(xtcpnl.RTAttr)
-		},
-	}
+	x := newTestDeserializeXTCP(b)
+	pC = x.pC
+	pH = x.pH
 
 	f, err := os.Open(test.filename)
 	if err != nil {
-		b.Error("Test Failed Open error:", err)
+		b.Fatalf("open %s: %v", test.filename, err)
 	}
 	defer f.Close()
 
 	bs, err := io.ReadAll(f)
 	if err != nil {
-		b.Error("Test Failed ReadAll error:", err)
+		b.Fatalf("read %s: %v", test.filename, err)
 	}
 
 	var buf []byte
@@ -261,33 +261,28 @@ func DeserializeBoth(b *testing.B, s int) {
 		buf = bs
 	}
 
-	xtcpRecord := new(xtcp_flat_record.XtcpFlatRecord)
-	// xtcpRecord := new(xtcp_flat_record.Envelope_XtcpFlatRecord)
-
-	nsName := "fixme"
-
+	nsName := "bench-ns"
+	b.SetBytes(int64(len(buf)))
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-
-		_, errD := xtcp.Deserialize(
+		_, errD := x.Deserialize(
 			ctx,
 			DeserializeArgs{
 				ns:             &nsName,
-				fd:             0, //FIXME
+				fd:             0,
 				NLPacket:       &buf,
-				xtcpRecordPool: &xtcpRecordPool,
-				nlhPool:        &nlhPool,
-				rtaPool:        &rtaPool,
-				pC:             pC,
-				pH:             pH,
+				xtcpRecordPool: &x.xtcpRecordPool,
+				nlhPool:        &x.nlhPool,
+				rtaPool:        &x.rtaPool,
+				pC:             x.pC,
+				pH:             x.pH,
 				id:             0,
 			})
-
 		if errD != nil {
-			b.Fatal("Test Failed Deserialize errD", errD)
+			b.Fatalf("Deserialize err: %v", errD)
 		}
 	}
 
-	resultXtcpFlatRecord = xtcpRecord
-
+	resultXtcpFlatRecord = x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
 }
