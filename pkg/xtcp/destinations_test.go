@@ -234,7 +234,9 @@ func (br *byteReader) ReadByte() (byte, error) {
 	return b[0], nil
 }
 
-// runDestRow exercises one row: setup → init → write payload(s) → verify.
+// runDestRow exercises one row: build the registered destination via its
+// factory, write payload(s) through dest.Send, verify what landed on the
+// receiver matches what was written.
 func runDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	t.Helper()
 
@@ -245,56 +247,31 @@ func runDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	x := newTestXTCP(t, setup.dest)
 	ctx := context.Background()
 
-	// Register both runtime closures and init closures so we can both dial
-	// and write through x.Destination — this mirrors what InitDests does in
-	// production for the relevant schemes.
-	switch c.scheme {
-	case "null":
-		x.Destinations.Store("null", func(ctx context.Context, b *[]byte) (int, error) {
-			return x.destNull(ctx, b)
-		})
-		f, _ := x.Destinations.Load("null")
-		x.Destination = f.(func(context.Context, *[]byte) (int, error))
-	case "udp":
-		x.Destinations.Store("udp", func(ctx context.Context, b *[]byte) (int, error) {
-			return x.destUDP(ctx, b)
-		})
-		x.InitDestUDP(ctx)
-		f, _ := x.Destinations.Load("udp")
-		x.Destination = f.(func(context.Context, *[]byte) (int, error))
-	case "unix":
-		x.Destinations.Store("unix", func(ctx context.Context, b *[]byte) (int, error) {
-			return x.destUnix(ctx, b)
-		})
-		x.InitDestUnix(ctx)
-		f, _ := x.Destinations.Load("unix")
-		x.Destination = f.(func(context.Context, *[]byte) (int, error))
-	case "unixgram":
-		x.Destinations.Store("unixgram", func(ctx context.Context, b *[]byte) (int, error) {
-			return x.destUnixGram(ctx, b)
-		})
-		x.InitDestUnixGram(ctx)
-		f, _ := x.Destinations.Load("unixgram")
-		x.Destination = f.(func(context.Context, *[]byte) (int, error))
-	default:
-		t.Fatalf("unknown scheme %q", c.scheme)
+	factory, status := lookupDestinationFactory(c.scheme)
+	if status != destLookupFound {
+		t.Fatalf("scheme %q not registered: status %v", c.scheme, status)
 	}
+	dest, err := factory(ctx, x)
+	if err != nil {
+		t.Fatalf("factory(%s): %v", c.scheme, err)
+	}
+	x.dest = dest
 	defer x.closeDestination()
 
 	for i, payload := range payloads {
 		buf := append([]byte(nil), payload...)
-		n, err := x.Destination(ctx, &buf)
+		n, err := dest.Send(ctx, &buf)
 		if err != nil {
-			t.Fatalf("payload[%d] Destination err: %v", i, err)
+			t.Fatalf("payload[%d] Send err: %v", i, err)
 		}
 		if c.scheme == "null" {
 			if n != len(payload) {
-				t.Errorf("payload[%d] destNull n=%d want=%d", i, n, len(payload))
+				t.Errorf("payload[%d] null n=%d want=%d", i, n, len(payload))
 			}
 			continue
 		}
 		if n != 1 {
-			t.Errorf("payload[%d] Destination n=%d want=1", i, n)
+			t.Errorf("payload[%d] Send n=%d want=1", i, n)
 		}
 
 		got, err := setup.recv()
@@ -405,32 +382,19 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	x.config.IoUring = true
 	ctx := context.Background()
 
-	// Dial + extract fd. The init helpers do this when config.IoUring is
-	// true; calling them here mirrors production wiring.
-	var (
-		destFn func(context.Context, *[]byte) (int, error)
-		fdPtr  *int
-	)
-	switch c.scheme {
-	case "udp":
-		x.InitDestUDP(ctx)
-		fdPtr = &x.udpFD
-		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUDPIoUring(ctx, b) }
-	case "unix":
-		x.InitDestUnix(ctx)
-		fdPtr = &x.unixFD
-		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUnixIoUring(ctx, b) }
-	case "unixgram":
-		x.InitDestUnixGram(ctx)
-		fdPtr = &x.unixGramFD
-		destFn = func(ctx context.Context, b *[]byte) (int, error) { return x.destUnixGramIoUring(ctx, b) }
-	default:
-		t.Fatalf("unknown scheme %q", c.scheme)
+	// Build the destination via its factory. The udp/unix/unixgram factories
+	// dial the socket and (because config.IoUring is true) extract the fd
+	// internally so Send takes the io_uring branch.
+	factory, status := lookupDestinationFactory(c.scheme)
+	if status != destLookupFound {
+		t.Fatalf("scheme %q not registered: status %v", c.scheme, status)
 	}
+	dest, err := factory(ctx, x)
+	if err != nil {
+		t.Fatalf("factory(%s): %v", c.scheme, err)
+	}
+	x.dest = dest
 	defer x.closeDestination()
-	if *fdPtr <= 0 {
-		t.Fatalf("scheme %q: expected positive dup'd fd, got %d", c.scheme, *fdPtr)
-	}
 
 	// One ring covers the whole row. Sized small so test exits quickly.
 	ring, err := xioRingNew(t)
@@ -442,12 +406,12 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 
 	for i, payload := range payloads {
 		buf := append([]byte(nil), payload...)
-		n, err := destFn(ringCtx, &buf)
+		n, err := dest.Send(ringCtx, &buf)
 		if err != nil {
-			t.Fatalf("payload[%d] dest err: %v", i, err)
+			t.Fatalf("payload[%d] Send err: %v", i, err)
 		}
 		if n != 1 {
-			t.Errorf("payload[%d] dest n=%d want=1", i, n)
+			t.Errorf("payload[%d] Send n=%d want=1", i, n)
 		}
 		// Submit + drain the CQE so the receiver can read.
 		if _, err := ring.Submit(); err != nil {
@@ -488,11 +452,12 @@ func TestDestUnix_StreamFraming(t *testing.T) {
 
 	x := newTestXTCP(t, setup.dest)
 	ctx := context.Background()
-	x.InitDestUnix(ctx)
+	dest, err := newUnixDest(ctx, x)
+	if err != nil {
+		t.Fatalf("newUnixDest: %v", err)
+	}
+	x.dest = dest
 	defer x.closeDestination()
-	x.Destinations.Store("unix", func(ctx context.Context, b *[]byte) (int, error) {
-		return x.destUnix(ctx, b)
-	})
 
 	sizes := []int{1, 256, 50 * 1024}
 	for _, size := range sizes {
@@ -501,8 +466,8 @@ func TestDestUnix_StreamFraming(t *testing.T) {
 			payload[i] = byte(i & 0xff)
 		}
 		buf := append([]byte(nil), payload...)
-		if _, err := x.destUnix(ctx, &buf); err != nil {
-			t.Fatalf("size=%d destUnix err: %v", size, err)
+		if _, err := dest.Send(ctx, &buf); err != nil {
+			t.Fatalf("size=%d Send err: %v", size, err)
 		}
 		got, err := setup.recv()
 		if err != nil {
@@ -514,38 +479,28 @@ func TestDestUnix_StreamFraming(t *testing.T) {
 	}
 }
 
-// TestDestUnixGram_MissingSocket confirms InitDestUnixGram fails when the
-// socket file doesn't exist — that's our "fail loudly at startup" contract.
+// TestDestUnixGram_MissingSocket confirms the unixgram factory returns an
+// error when the socket file doesn't exist — that's our "fail loudly at
+// startup" contract.
 func TestDestUnixGram_MissingSocket(t *testing.T) {
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "does-not-exist.sock")
 
 	x := newTestXTCP(t, "unixgram:"+missing)
-	// Override fatalf to capture instead of failing the test.
-	var captured string
-	x.fatalf = func(format string, args ...any) {
-		captured = fmt.Sprintf(format, args...)
-	}
-	x.InitDestUnixGram(context.Background())
-	if captured == "" {
-		t.Fatalf("expected fatalf to be called for missing socket %q", missing)
+	if _, err := newUnixGramDest(context.Background(), x); err == nil {
+		t.Fatalf("expected error for missing socket %q", missing)
 	}
 }
 
-// TestDestUnix_MissingDaemon confirms InitDestUnix fails when nothing is
-// listening on the path.
+// TestDestUnix_MissingDaemon confirms the unix factory returns an error when
+// nothing is listening on the path.
 func TestDestUnix_MissingDaemon(t *testing.T) {
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "no-daemon.sock")
 
 	x := newTestXTCP(t, "unix:"+missing)
-	var captured string
-	x.fatalf = func(format string, args ...any) {
-		captured = fmt.Sprintf(format, args...)
-	}
-	x.InitDestUnix(context.Background())
-	if captured == "" {
-		t.Fatalf("expected fatalf to be called for missing daemon at %q", missing)
+	if _, err := newUnixDest(context.Background(), x); err == nil {
+		t.Fatalf("expected error for missing daemon at %q", missing)
 	}
 }
 
@@ -554,7 +509,7 @@ func TestDestUnix_MissingDaemon(t *testing.T) {
 // receiver side drains so the write side isn't blocked by kernel buffer
 // saturation. b.SetBytes() reports per-record throughput.
 
-func benchDest(b *testing.B, setup func(t testing.TB, dir string) destSetupResult, fn func(*XTCP, context.Context, *[]byte) (int, error)) {
+func benchDest(b *testing.B, scheme string, setup func(t testing.TB, dir string) destSetupResult) {
 	b.Helper()
 
 	dir := b.TempDir()
@@ -578,14 +533,15 @@ func benchDest(b *testing.B, setup func(t testing.TB, dir string) destSetupResul
 	)
 
 	ctx := context.Background()
-	switch {
-	case bytes.HasPrefix([]byte(s.dest), []byte("udp:")):
-		x.InitDestUDP(ctx)
-	case bytes.HasPrefix([]byte(s.dest), []byte("unix:")):
-		x.InitDestUnix(ctx)
-	case bytes.HasPrefix([]byte(s.dest), []byte("unixgram:")):
-		x.InitDestUnixGram(ctx)
+	factory, status := lookupDestinationFactory(scheme)
+	if status != destLookupFound {
+		b.Fatalf("scheme %q not registered: status %v", scheme, status)
 	}
+	dest, err := factory(ctx, x)
+	if err != nil {
+		b.Fatalf("factory(%s): %v", scheme, err)
+	}
+	x.dest = dest
 	defer x.closeDestination()
 
 	// Drain receiver in the background so the writer doesn't block on kernel
@@ -616,7 +572,7 @@ func benchDest(b *testing.B, setup func(t testing.TB, dir string) destSetupResul
 
 	for i := 0; i < b.N; i++ {
 		buf := append([]byte(nil), payload...)
-		if _, err := fn(x, ctx, &buf); err != nil {
+		if _, err := dest.Send(ctx, &buf); err != nil {
 			b.Fatalf("write err: %v", err)
 		}
 	}
@@ -730,14 +686,14 @@ func setupUnixDestTB(t testing.TB, dir string) destSetupResult {
 }
 
 func BenchmarkDestNull(b *testing.B) {
-	benchDest(b, setupNullDestTB, (*XTCP).destNull)
+	benchDest(b, "null", setupNullDestTB)
 }
 func BenchmarkDestUDP(b *testing.B) {
-	benchDest(b, setupUDPDestTB, (*XTCP).destUDP)
+	benchDest(b, "udp", setupUDPDestTB)
 }
 func BenchmarkDestUnixGram(b *testing.B) {
-	benchDest(b, setupUnixGramDestTB, (*XTCP).destUnixGram)
+	benchDest(b, "unixgram", setupUnixGramDestTB)
 }
 func BenchmarkDestUnix(b *testing.B) {
-	benchDest(b, setupUnixDestTB, (*XTCP).destUnix)
+	benchDest(b, "unix", setupUnixDestTB)
 }

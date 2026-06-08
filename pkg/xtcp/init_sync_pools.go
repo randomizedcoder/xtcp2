@@ -6,7 +6,6 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
@@ -59,12 +58,6 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 	x.rtaPool = sync.Pool{
 		New: func() any {
 			return new(xtcpnl.RTAttr)
-		},
-	}
-
-	x.kgoRecordPool = sync.Pool{
-		New: func() any {
-			return new(kgo.Record)
 		},
 	}
 

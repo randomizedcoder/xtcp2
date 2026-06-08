@@ -141,13 +141,13 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		offset += length
 
 		if x.debugLevel > 1000 {
-			log.Printf("Deserialize n:%d x.Destination(ctx, x.Marshaler(xtcpRecord))", n)
+			log.Printf("Deserialize n:%d x.dest.Send(ctx, x.Marshaler(xtcpRecord))", n)
 		}
 
 		// single record send to GRPC client
 		x.flatRecordServiceSend(xtcpRecord)
 
-		n, err := x.Destination(ctx, x.Marshaller(xtcpRecord))
+		n, err := x.dest.Send(ctx, x.Marshaller(xtcpRecord))
 		if err != nil {
 			d.pC.WithLabelValues("Deserialize", "Destation", "error").Inc()
 		} else {

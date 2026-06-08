@@ -3,21 +3,13 @@ package xtcp
 import (
 	"context"
 	"log"
-	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	nats "github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
-	redis "github.com/redis/go-redis/v9"
-
-	nsq "github.com/nsqio/go-nsq"
-	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/pkg/sr"
 )
 
 const (
@@ -26,10 +18,6 @@ const (
 
 	quantileError    = 0.05
 	summaryVecMaxAge = 5 * time.Minute
-
-	// For protobuf the size is at least 6, not 5
-	// https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
-	KafkaHeaderSizeCst = 6
 )
 
 type XTCP struct {
@@ -51,7 +39,6 @@ type XTCP struct {
 	xtcpRecordPool   sync.Pool
 	nlhPool          sync.Pool
 	rtaPool          sync.Pool
-	kgoRecordPool    sync.Pool
 	destBytesPool    sync.Pool
 
 	currentEnvelope       *xtcp_flat_record.Envelope
@@ -60,15 +47,8 @@ type XTCP struct {
 	changePollFrequencyCh chan time.Duration
 	pollRequestCh         chan struct{}
 
-	// Netlink socket variables
-	// socketFD      int
-	// socketAddress *unix.SockaddrNetlink
-	// iour          *iouring.IOURing
-	// resulter      chan iouring.Result
-
 	nlRequest *[]byte
 
-	//netlinkerDoneCh chan time.Time
 	netlinkerDoneCh chan netlinkerDone
 	pollTime        sync.Map
 
@@ -76,58 +56,38 @@ type XTCP struct {
 
 	hostname string
 
-	RTATypeDeserializer map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
-	// RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error)
+	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
 	xtcpRecordZeroizer map[xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.XtcpFlatRecord)
-	// xtcpRecordZeroizer map[xtcp_flat_record.Envelope_XtcpFlatRecord_CongestionAlgorithm]func(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord)
 
 	Marshallers sync.Map
 	Marshaller  func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)
-	//Marshaller       func(e *xtcp_flat_record.Envelope) (buf *[]byte)
-	Destinations     sync.Map
-	Destination      func(ctx context.Context, xtcpRecordBinary *[]byte) (n int, err error)
-	InitDestinations sync.Map
+
+	// dest is the chosen Destination for this process. Built once at startup
+	// in InitDests by looking up x.config.Dest's scheme in the package-level
+	// destRegistry. Per-destination state (clients, conns, fds, pools) lives
+	// inside the implementation behind this interface — no destination-typed
+	// fields leak onto XTCP, which is what lets `-tags dest_kafka` etc. omit
+	// entire library packages from the binary.
+	dest Destination
+
 	// Signals poller can start
 	DestinationReady chan struct{}
 
-	// Netlinker function dispatch — same pattern as Marshaller/Destination.
-	// Variants registered in InitNetlinkers; one chosen at init based on
-	// config.IoUring. The Netlinker field is the per-fd goroutine
-	// entry-point invoked from ns_createNetlinkersAndStore.go.
+	// Netlinker function dispatch — same pattern as Marshaller. Variants
+	// registered in InitNetlinkers; one chosen at init based on config.IoUring.
 	Netlinkers     sync.Map
 	Netlinker      NetlinkerFunc
 	NetlinkerReady chan struct{}
 
 	// rings holds the per-Netlinker io_uring rings when config.IoUring is
-	// true. Key is the netlinker id (uint32). Empty / unused on the
-	// syscall path.
+	// true. Key is the netlinker id (uint32). Empty / unused on the syscall path.
 	rings sync.Map
 
-	kClient    *kgo.Client
-	kRegClient *sr.Client
-	//kSerde       sr.Serde
-	schemaID     int
-	nsqProducer  *nsq.Producer
-	udpConn      net.Conn
-	unixConn     net.Conn
-	unixGramConn net.Conn
-	natsClient   *nats.Conn
-	valKeyClient *redis.Client
-
-	// Dup'd raw fds extracted from the destination conns at init time.
-	// Set only when config.IoUring is true and the corresponding scheme
-	// is active. Required because io_uring SQEs reference fds directly.
-	udpFD      int
-	unixFD     int
-	unixGramFD int
-
-	// fatalf is the function used by InitDest* helpers to abort on startup
+	// fatalf is the function used by initialisation paths to abort on startup
 	// errors. Defaults to log.Fatalf; tests override it with t.Fatalf so they
-	// can drive the init paths without taking down the process. Only the new
-	// InitDestUnix/InitDestUnixGram use this hook today; existing destinations
-	// still call log.Fatalf directly.
+	// can drive the init paths without taking down the process.
 	fatalf func(format string, args ...any)
 
 	flatRecordService *xtcpFlatRecordService
@@ -223,12 +183,6 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	wg.Add(1)
 	go x.nsMapCountReporter(ctx, wg)
 
-	// /var/run/netns is a symlink to /run/netns
-	// netnsDir = "/var/run/netns"
-	// [das@hp1:~]$ ls -la /var/ | grep run
-	// lrwxrwxrwx  1 root root   11 Sep 17 15:57 lock -> ../run/lock
-	// lrwxrwxrwx  1 root root    6 Sep 17 15:57 run -> ../run
-	// https://www.redhat.com/en/blog/net-namespaces
 	x.netNsDirs.Range(func(key, value interface{}) bool {
 		wg.Add(1)
 		go x.watchNsNamespace(ctx, wg, key.(string))
@@ -276,21 +230,10 @@ func (x *XTCP) checkDoneNonBlocking(ctx context.Context) (netlinkerDone bool) {
 }
 
 func (x *XTCP) closeDestination() {
-	scheme, _, _ := strings.Cut(x.config.Dest, ":")
-	switch scheme {
-	case "kafka":
-		x.kClient.Close()
-	case "nsq":
-		x.nsqProducer.Stop()
-	case "udp":
-		x.udpConn.Close()
-	case "unix":
-		if x.unixConn != nil {
-			x.unixConn.Close()
-		}
-	case "unixgram":
-		if x.unixGramConn != nil {
-			x.unixGramConn.Close()
-		}
+	if x.dest == nil {
+		return
+	}
+	if err := x.dest.Close(); err != nil && x.debugLevel > 10 {
+		log.Printf("closeDestination: %v", err)
 	}
 }
