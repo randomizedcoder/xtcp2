@@ -458,7 +458,8 @@ func TestDeserializeAdversarialNlh(t *testing.T) {
 // empty input and a 1-byte input. The fuzzer mutates from there.
 //
 // Run locally:
-//   go test -fuzz=FuzzDeserialize -fuzztime=30s ./pkg/xtcp/...
+//
+//	go test -fuzz=FuzzDeserialize -fuzztime=30s ./pkg/xtcp/...
 func FuzzDeserialize(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte{0x00})
@@ -467,9 +468,9 @@ func FuzzDeserialize(f *testing.F) {
 		uint32(xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst),
 		xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst))
 	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeDoneCst, 16, 16))
-	f.Add(mkNlMsg(0x42, 0, 16))            // unknown type, len=0
-	f.Add(mkNlMsg(0x42, ^uint32(0), 32))   // unknown, max len in small buffer
-	f.Add(loadRealMultipart(f))            // real netlink dump
+	f.Add(mkNlMsg(0x42, 0, 16))          // unknown type, len=0
+	f.Add(mkNlMsg(0x42, ^uint32(0), 32)) // unknown, max len in small buffer
+	f.Add(loadRealMultipart(f))          // real netlink dump
 
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		defer func() {
@@ -489,9 +490,9 @@ func FuzzDeserialize(f *testing.F) {
 // must not panic on these.
 func TestDeserializeInetDiagAdversarialAttrs(t *testing.T) {
 	const (
-		hdrSize = xtcpnl.NlMsgHdrSizeCst        // 16
-		idmSize = xtcpnl.InetDiagMsgSizeCst     // 72
-		rtaSize = xtcpnl.RTAttrSizeCst          // 4
+		hdrSize = xtcpnl.NlMsgHdrSizeCst    // 16
+		idmSize = xtcpnl.InetDiagMsgSizeCst // 72
+		rtaSize = xtcpnl.RTAttrSizeCst      // 4
 	)
 
 	// buildInetDiagWithAttrBody returns a netlink message of type
