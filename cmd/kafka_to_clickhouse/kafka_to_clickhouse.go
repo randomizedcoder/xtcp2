@@ -103,7 +103,7 @@ func main() {
 	ctx := context.TODO()
 
 	valueStrs := strings.Split(*valueStr, ",")
-	var values []uint
+	values := make([]uint, 0, len(valueStrs))
 	for _, str := range valueStrs {
 		v, err := strconv.ParseUint(str, 10, 32)
 		if err != nil {
@@ -263,7 +263,7 @@ func writeDataToFile(_ context.Context, filename string, data []byte) error {
 }
 
 // destKafka sends the protobuf to kafka
-func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, err error) {
+func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, err error) {
 
 	if c.debugLevel > 10 {
 		log.Println("destKafka start")
@@ -276,12 +276,11 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 	kgoRecord.Value = *xtcpRecordBinary
 	len := len(*xtcpRecordBinary)
 
-	var ctxP context.Context
+	// Propagate the caller's context to kClient.Produce so cancellation
+	// flows correctly. Previously a nil `ctxP` was passed (contextcheck).
 	// var cancelP context.CancelFunc
 	// if x.config.KafkaProduceTimeout.AsDuration() != 0 {
-	// 	// I don't understand why setting a context with a timeout doesn't work,
-	// 	// but it definitely doesn't.  It always says the context is canceled. ?!
-	// 	ctxP, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
+	// 	ctx, cancelP = context.WithTimeout(ctx, x.config.KafkaProduceTimeout.AsDuration())
 	// 	defer cancelP()
 	// }
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
@@ -296,7 +295,7 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 	wg.Add(1)
 
 	kClient.Produce(
-		ctxP,
+		ctx,
 		kgoRecord,
 		func(kgoRecord *kgo.Record, err error) {
 			defer func() {

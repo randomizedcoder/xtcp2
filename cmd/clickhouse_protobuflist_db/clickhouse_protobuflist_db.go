@@ -68,7 +68,7 @@ func main() {
 	}
 
 	valueStrs := strings.Split(*valueStr, ",")
-	var values []uint
+	values := make([]uint, 0, len(valueStrs))
 	for _, str := range valueStrs {
 		v, err := strconv.ParseUint(str, 10, 32)
 		if err != nil {
