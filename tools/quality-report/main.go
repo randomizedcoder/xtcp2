@@ -144,6 +144,7 @@ type reportInput struct {
 	GofmtFiles     []string
 	NixfmtFiles    []string
 	CliHelpResults []CliHelpResult
+	Coverage       Coverage
 }
 
 // CliHelpResult is one cmd binary's -help smoke result.
@@ -152,6 +153,37 @@ type CliHelpResult struct {
 	ExitCode int
 	Bytes    int
 	OK       bool
+}
+
+// Coverage holds the parsed `go test -coverprofile` summary: the overall
+// statement-coverage percentage plus a per-package breakdown averaged
+// from `go tool cover -func` output.
+type Coverage struct {
+	// Total is the "total: (statements) NN.N%" line from `go tool cover -func`.
+	Total float64
+	// PerPackage maps "pkg/xtcp" / "tools/quality-report" / "cmd/xtcp2" →
+	// average function coverage within that package. Sourced from the TSV
+	// the orchestrator produces.
+	PerPackage map[string]float64
+	// Available is false when the coverage profile or summary was missing.
+	Available bool
+}
+
+// CoverageThreshold is the per-package floor the plan targets. Packages
+// below this surface as findings in the report.
+const CoverageThreshold = 90.0
+
+// countBelowThreshold reports how many packages fall under
+// CoverageThreshold. Used as the "Findings" count for the go test -cover
+// tool-status row.
+func countBelowThreshold(cov Coverage) int {
+	n := 0
+	for _, pct := range cov.PerPackage {
+		if pct < CoverageThreshold {
+			n++
+		}
+	}
+	return n
 }
 
 func main() {
@@ -378,6 +410,18 @@ func main() {
 				Available: true,
 			})
 		}
+	}
+
+	// go test coverage — parsed from coverage-func.out + coverage-per-package.tsv.
+	in.Coverage = parseCoverage(*rawDir)
+	if in.Coverage.Available {
+		in.Status = append(in.Status, ToolStatus{
+			Name:      "go test -cover",
+			ExitCode:  exitCodes["coverage"],
+			Findings:  countBelowThreshold(in.Coverage),
+			RuntimeS:  runtimes["coverage"],
+			Available: true,
+		})
 	}
 
 	// Configuration audit — parse the .golangci*.yml exclusion sections.
@@ -756,6 +800,58 @@ func parseExclusions(repoRoot string) []ConfigExclusion {
 	return out
 }
 
+// parseCoverage reads the artifacts produced by the orchestrator's
+// coverage post-processing block:
+//
+//   - <rawDir>/coverage-func.out — `go tool cover -func` output; the
+//     last line is `total:\t(statements)\tNN.N%`.
+//   - <rawDir>/coverage-per-package.tsv — `<pkg>\t<percent>` per row,
+//     emitted by the awk pass over coverage-func.out.
+//
+// Either file missing is fine; the report renders "n/a" instead of a
+// percentage in that case.
+func parseCoverage(rawDir string) Coverage {
+	cov := Coverage{PerPackage: map[string]float64{}}
+
+	funcPath := filepath.Join(rawDir, "coverage-func.out")
+	if data, err := os.ReadFile(funcPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "total:") {
+				continue
+			}
+			// `total:\t(statements)\tNN.N%`
+			fields := strings.Fields(line)
+			if len(fields) >= 3 {
+				pct := strings.TrimSuffix(fields[len(fields)-1], "%")
+				if v, perr := strconv.ParseFloat(pct, 64); perr == nil {
+					cov.Total = v
+					cov.Available = true
+				}
+			}
+		}
+	}
+
+	tsvPath := filepath.Join(rawDir, "coverage-per-package.tsv")
+	if data, err := os.ReadFile(tsvPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "\t")
+			if len(parts) != 2 {
+				continue
+			}
+			if v, perr := strconv.ParseFloat(parts[1], 64); perr == nil {
+				cov.PerPackage[parts[0]] = v
+				cov.Available = true
+			}
+		}
+	}
+	return cov
+}
+
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 func loadKnownFailures(path string) map[string]bool {
@@ -1102,6 +1198,19 @@ the adjacent YAML comment. Rows with no justification need review.
 
 {{range .Recommendations}}- {{.}}
 {{end}}
+
+---
+
+## 13. Test coverage
+
+{{if .Coverage.Available}}**Overall:** {{printf "%.1f" .Coverage.Total}}% of statements (target: {{printf "%.0f" .CoverageThreshold}}% per package).
+
+{{if .CoverageRows}}| Package | Coverage | Status |
+|---|---|---|
+{{range .CoverageRows}}| ` + "`{{.Pkg}}`" + ` | {{printf "%.1f" .Pct}}% | {{if .Below}}🔴 below {{printf "%.0f" $.CoverageThreshold}}%{{else}}🟢 OK{{end}} |
+{{end}}
+{{end}}{{else}}*Coverage profile not available — go test did not run or produced no profile.*
+{{end}}
 `
 
 type tierCounts struct {
@@ -1132,6 +1241,16 @@ type renderInput struct {
 	TestStats         testStats
 	FailingTests      []TestResult
 	Recommendations   []string
+	CoverageRows      []coverageRow
+	CoverageThreshold float64
+}
+
+// coverageRow renders one package's coverage percentage with a flag for
+// whether it sits below the CoverageThreshold.
+type coverageRow struct {
+	Pkg   string
+	Pct   float64
+	Below bool
 }
 
 func emit(w io.Writer, in reportInput) error {
@@ -1220,6 +1339,24 @@ func emit(w io.Writer, in reportInput) error {
 			}
 		case testActionSkip:
 			r.TestStats.Skip++
+		}
+	}
+
+	// Coverage rows (sorted by package path) + threshold for the template.
+	r.CoverageThreshold = CoverageThreshold
+	if in.Coverage.Available {
+		pkgs := make([]string, 0, len(in.Coverage.PerPackage))
+		for p := range in.Coverage.PerPackage {
+			pkgs = append(pkgs, p)
+		}
+		sort.Strings(pkgs)
+		for _, p := range pkgs {
+			pct := in.Coverage.PerPackage[p]
+			r.CoverageRows = append(r.CoverageRows, coverageRow{
+				Pkg:   p,
+				Pct:   pct,
+				Below: pct < CoverageThreshold,
+			})
 		}
 	}
 

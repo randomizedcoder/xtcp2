@@ -16,6 +16,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -27,23 +28,37 @@ import (
 var fieldRE = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+|required\s+)?[\w.<>,]+\s+(\w+)\s*=\s*\d+`)
 
 func main() {
-	protoRoot := flag.String("proto-root", "proto", "directory containing *.proto")
-	goRoot := flag.String("go-root", "pkg", "directory containing Go source")
-	flag.Parse()
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	fields, err := collectProtoFields(*protoRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "proto-field-audit: collect protos: %v\n", err)
-		os.Exit(2)
+// runMain wires flag parsing + runAudit. Extracted so tests can drive it
+// with synthetic args + capture buffers without subprocessing.
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("proto-field-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	protoRoot := fs.String("proto-root", "proto", "directory containing *.proto")
+	goRoot := fs.String("go-root", "pkg", "directory containing Go source")
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
+	return runAudit(*protoRoot, *goRoot, stdout, stderr)
+}
 
-	references, err := collectGoReferences(*goRoot)
+// runAudit collects fields from `protoRoot` and references from `goRoot`
+// then reports each proto field that has no matching Set<Camel>() call
+// or `.Camel = ...` assignment in the Go source. Returns 0 / 1 / 2.
+func runAudit(protoRoot, goRoot string, stdout, stderr io.Writer) int {
+	fields, err := collectProtoFields(protoRoot)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "proto-field-audit: collect go: %v\n", err)
-		os.Exit(2)
+		fmt.Fprintf(stderr, "proto-field-audit: collect protos: %v\n", err)
+		return 2
 	}
-
-	fmt.Printf("proto-field-audit: %d proto field(s), %d Go reference(s) scanned\n",
+	references, err := collectGoReferences(goRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "proto-field-audit: collect go: %v\n", err)
+		return 2
+	}
+	fmt.Fprintf(stdout, "proto-field-audit: %d proto field(s), %d Go reference(s) scanned\n",
 		len(fields), len(references))
 
 	unset := 0
@@ -52,16 +67,17 @@ func main() {
 		setterCalled := references["Set"+camel]
 		directAssign := references[camel]
 		if !setterCalled && !directAssign {
-			fmt.Printf("%s: proto field %q (camel: %s) never written in Go (no Set%s, no .%s assignment)\n",
+			fmt.Fprintf(stdout, "%s: proto field %q (camel: %s) never written in Go (no Set%s, no .%s assignment)\n",
 				f.where, f.name, camel, camel, camel)
 			unset++
 		}
 	}
 	if unset > 0 {
-		fmt.Fprintf(os.Stderr, "proto-field-audit: %d unset proto field(s)\n", unset)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "proto-field-audit: %d unset proto field(s)\n", unset)
+		return 1
 	}
-	fmt.Println("proto-field-audit: no findings")
+	fmt.Fprintln(stdout, "proto-field-audit: no findings")
+	return 0
 }
 
 type field struct {

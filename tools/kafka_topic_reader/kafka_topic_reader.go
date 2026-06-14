@@ -74,7 +74,7 @@ func main() {
 	defer client.Close()
 
 	kgoFetchesPool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(kgo.Fetches)
 		},
 	}
@@ -82,7 +82,7 @@ func main() {
 	defer kgoFetchesPool.Put(kgoFetches)
 
 	xtcpRecordPool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
 		},
 	}
@@ -106,16 +106,22 @@ func main() {
 		kgoFetches.EachRecord(func(record *kgo.Record) {
 			j++
 			records++
-
-			fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
-				i, j, records, record.Topic, record.Partition, record.Offset)
-
-			if uerr := proto.Unmarshal(record.Value, xtcpRecord); uerr != nil {
-				log.Printf("Error unmarshalling protobuf message: %v", uerr)
-				return
-			}
-
-			fmt.Printf("i:%d j:%d records:%d Decoded protobuf message:%v\n", i, j, records, xtcpRecord)
+			handleRecord(i, j, records, record, xtcpRecord)
 		})
 	}
+}
+
+// handleRecord logs receipt metadata and attempts to decode the record's
+// value into xtcpRecord. Extracted from the EachRecord callback so tests
+// can exercise the decode happy + bad-proto paths without a Kafka client.
+func handleRecord(i, j, records int, record *kgo.Record, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
+	fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
+		i, j, records, record.Topic, record.Partition, record.Offset)
+
+	if err := proto.Unmarshal(record.Value, xtcpRecord); err != nil {
+		log.Printf("Error unmarshalling protobuf message: %v", err)
+		return
+	}
+
+	fmt.Printf("i:%d j:%d records:%d Decoded protobuf message:%v\n", i, j, records, xtcpRecord)
 }

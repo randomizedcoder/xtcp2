@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 )
@@ -24,40 +25,54 @@ func main() {
 
 	flag.Parse()
 
+	ctx := context.Background()
 	var wg sync.WaitGroup
 
 	for i := 0; i < *count; i++ {
 		wg.Add(1)
-		go server(&wg, *bind, startPort+i)
+		go func(port int) {
+			defer wg.Done()
+			if err := runServer(ctx, *bind, port); err != nil {
+				log.Printf("runServer port=%d err=%v", port, err)
+			}
+		}(startPort + i)
 	}
 
 	wg.Wait()
 }
 
-func server(wg *sync.WaitGroup, bind string, port int) {
-
-	defer wg.Done()
-
+// runServer binds <bind:port> and echoes each accepted connection. Returns
+// when ctx is cancelled (after closing the listener) or on a hard listener
+// error. Extracted from main() / server() so tests can drive it with a
+// 0-port bind and ctx.Cancel() instead of a panic loop.
+func runServer(ctx context.Context, bind string, port int) error {
 	lc := net.ListenConfig{}
-	ln, err := lc.Listen(context.Background(), "tcp", fmt.Sprintf("%s:%d", bind, port)) // this DOES bind to "::" because of "tcp"
+	ln, err := lc.Listen(ctx, "tcp", fmt.Sprintf("%s:%d", bind, port))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("listen %s:%d: %w", bind, port, err)
 	}
-
 	defer func() { _ = ln.Close() }() //nolint:errcheck // demo server teardown
+
+	// Close the listener on ctx cancel so the blocking Accept returns.
+	go func() {
+		<-ctx.Done()
+		_ = ln.Close() //nolint:errcheck // shutdown path
+	}()
 
 	for {
 		conn, aerr := ln.Accept()
 		if aerr != nil {
-			panic(aerr)
-		}
-		go func(conn net.Conn) {
-			_, cerr := io.Copy(conn, conn)
-			defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
-			if cerr != nil {
-				panic(cerr)
+			if ctx.Err() != nil {
+				return nil
 			}
-		}(conn)
+			return fmt.Errorf("accept: %w", aerr)
+		}
+		go handleConn(conn)
 	}
+}
 
+// handleConn echoes bytes back to the connection until EOF or error.
+func handleConn(conn net.Conn) {
+	defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
+	_, _ = io.Copy(conn, conn)          //nolint:errcheck // demo server teardown
 }

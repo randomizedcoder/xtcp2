@@ -31,62 +31,59 @@ func readProtobufFromFile(filePath string) (string, error) {
 }
 
 func registerProtobufSchema(subject string, schema string) error {
-	fmt.Println("registerProtobufSchema")
+	return registerProtobufSchemaAt(http.DefaultClient, schemaRegistryURLCst, subject, schema)
+}
 
-	url := fmt.Sprintf("%s/subjects/%s/versions", schemaRegistryURLCst, subject)
+// registerProtobufSchemaAt POSTs the schema document to <baseURL>/subjects/<subject>/versions
+// via the supplied HTTP client. Extracted so tests can drive it against
+// an httptest.Server instead of the hardcoded schemaRegistryURLCst.
+func registerProtobufSchemaAt(client *http.Client, baseURL, subject, schema string) error {
+	url := fmt.Sprintf("%s/subjects/%s/versions", baseURL, subject)
 
-	reqBody := SchemaRequest{
-		Schema:     schema,
-		SchemaType: "PROTOBUF",
-	}
-
-	bodyBytes, err := json.Marshal(reqBody)
+	bodyBytes, err := json.Marshal(SchemaRequest{Schema: schema, SchemaType: "PROTOBUF"})
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(bodyBytes)) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-
-	fmt.Println("Schema registered successfully under subject:", subject)
 	return nil
 }
 
 func getLatestSchemaID(subject string) (int, error) {
-	fmt.Println("getLatestSchemaID")
+	return getLatestSchemaIDAt(http.DefaultClient, schemaRegistryURLCst, subject)
+}
 
-	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+// getLatestSchemaIDAt fetches the latest schema ID for `subject` via the
+// supplied HTTP client. Same extraction pattern as registerProtobufSchemaAt.
+func getLatestSchemaIDAt(client *http.Client, baseURL, subject string) (int, error) {
+	url := fmt.Sprintf("%s/subjects/%s/versions/latest", baseURL, subject)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		ID int `json:"id"`
 	}
-
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}
-
 	return result.ID, nil
 }
 
