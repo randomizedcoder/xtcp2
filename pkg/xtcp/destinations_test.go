@@ -506,6 +506,48 @@ func TestDestUnix_MissingDaemon(t *testing.T) {
 	}
 }
 
+// udpDest.Send error path: write to a closed connection returns an error
+// without crashing. Exercises the err branch in Send (50% coverage prior).
+func TestUDPDest_SendAfterClose(t *testing.T) {
+	res := setupUDPDest(t, "")
+	defer res.cleanup()
+
+	x := newTestXTCP(t, res.dest)
+	d, err := newUDPDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newUDPDest: %v", err)
+	}
+	if cerr := d.Close(); cerr != nil {
+		t.Fatalf("Close: %v", cerr)
+	}
+	x.debugLevel = 200 // hit the log.Printf branch
+	buf := []byte("after-close")
+	if _, err := d.Send(context.Background(), &buf); err == nil {
+		t.Error("expected error sending after Close")
+	}
+}
+
+// unixGramDest.Send error path.
+func TestUnixGramDest_SendAfterClose(t *testing.T) {
+	dir := t.TempDir()
+	res := setupUnixGramDest(t, dir)
+	defer res.cleanup()
+
+	x := newTestXTCP(t, res.dest)
+	d, err := newUnixGramDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newUnixGramDest: %v", err)
+	}
+	if cerr := d.Close(); cerr != nil {
+		t.Fatalf("Close: %v", cerr)
+	}
+	x.debugLevel = 200
+	buf := []byte("after-close")
+	if _, err := d.Send(context.Background(), &buf); err == nil {
+		t.Error("expected error sending after Close")
+	}
+}
+
 // Benchmarks. Each allocates a 256-byte payload (representative of an xtcp
 // record) and runs b.N writes through the destination; a goroutine on the
 // receiver side drains so the write side isn't blocked by kernel buffer

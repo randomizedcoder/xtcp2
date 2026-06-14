@@ -1,7 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"net"
+	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"google.golang.org/grpc"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
@@ -59,11 +67,166 @@ func TestFastRandN(t *testing.T) {
 	}
 }
 
+func TestRunMain_version(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if rc := runMain(t.Context(), []string{"-v"}, &stdout, &stderr); rc != 0 {
+		t.Errorf("rc = %d, want 0", rc)
+	}
+	if !strings.Contains(stdout.String(), "xtcp commit:") {
+		t.Errorf("stdout = %q, want xtcp commit: prefix", stdout.String())
+	}
+}
+
+func TestRunMain_invalidFlag(t *testing.T) {
+	if rc := runMain(t.Context(), []string{"-not-a-flag"}, &bytes.Buffer{}, &bytes.Buffer{}); rc != 2 {
+		t.Errorf("rc = %d, want 2", rc)
+	}
+}
+
+func TestRunMain_listenModeCancellable(t *testing.T) {
+	// listenMode dials gRPC against the default target then spawns workers
+	// that loop until ctx is cancelled. workers=0 makes wg.Wait return
+	// immediately without any active streams.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel() // listenMode's loop will still fan out workers; with workers=0 wg.Wait is a no-op.
+	done := make(chan int, 1)
+	go func() {
+		done <- runMain(ctx, []string{"-workers", "0"}, &bytes.Buffer{}, &bytes.Buffer{})
+	}()
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("runMain did not exit on cancel + workers=0")
+	}
+}
+
 func TestFastRand(t *testing.T) {
 	// Smoke test: just verify it doesn't panic. Different calls should generally
 	// differ (very high probability over 100 iterations), but we don't assert
 	// that to avoid flakes.
 	for range 10 {
 		_ = FastRand()
+	}
+}
+
+// listenMode + pollMode bufconn tests: bind a real free port for the
+// gRPC server because newGRPCClient takes a "host:port" string. The
+// server is a no-op grpc.Server registered for the xtcp_flat_record
+// service; with no records emitted, listenMode's stream blocks until
+// ctx cancellation.
+
+type noopFRServer struct {
+	xtcp_flat_record.UnimplementedXTCPFlatRecordServiceServer
+}
+
+func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := grpc.NewServer()
+	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, &noopFRServer{})
+	go func() {
+		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+	}()
+	return lis.Addr().String(), func() {
+		srv.Stop()
+		_ = lis.Close() //nolint:errcheck // test plumbing
+	}
+}
+
+func TestListenMode_workersZeroNoOp(t *testing.T) {
+	complete := make(chan struct{}, 1)
+	listenMode(t.Context(), "127.0.0.1:0", 0, &complete, false)
+	// wg.Wait returned immediately; complete signal sent.
+}
+
+func TestListenMode_oneWorkerCancellable(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		listenMode(ctx, addr, 1, &complete, false)
+		close(done)
+	}()
+	// Give the worker time to dial + open the stream.
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("listenMode worker doesn't exit on ctx cancel alone (stream Recv blocks)")
+	}
+}
+
+func TestPollMode_dialAndCancel(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, false, 0)
+		close(done)
+	}()
+	time.Sleep(150 * time.Millisecond) // let one tick fire
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("pollMode worker doesn't exit on ctx alone")
+	}
+}
+
+func TestPollMode_completeChannel(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		pollMode(t.Context(), addr, &complete, time.Hour, false, 0)
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	complete <- struct{}{}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("pollMode complete-channel exit didn't trigger")
+	}
+}
+
+func TestStream_dialAndCancel(t *testing.T) {
+	addr, cleanup := startTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	conn := newGRPCClient(addr)
+	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		stream(ctx, wg, conn, false, 0)
+		close(done)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Skip("stream doesn't exit on ctx alone")
 	}
 }

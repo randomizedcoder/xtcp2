@@ -392,28 +392,42 @@ func main() {
 // initSignalHandler sets up signal handling for the process, and
 // will call cancel() when received
 func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}) {
-
 	c := make(chan os.Signal, signalChannelSizeCst)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true)
+}
 
-	<-c
+// awaitSignalAndShutdown blocks on `sigs`, calls cancel(), then waits for
+// either `complete` or `timeout` before optionally calling os.Exit(0).
+// Split out so tests can drive it with a synthetic sigs channel and
+// doExit=false (without raising real OS signals or terminating the test
+// process).
+func awaitSignalAndShutdown(
+	sigs <-chan os.Signal,
+	cancel context.CancelFunc,
+	complete <-chan struct{},
+	timeout time.Duration,
+	doExit bool,
+) {
+	<-sigs
 	log.Printf("Signal caught, closing application")
 	cancel()
 
 	log.Printf("Signal caught, cancel() called, and sleeping to allow goroutines to close, sleeping:%s",
-		cancelSleepTimeCst.String())
-	timer := time.NewTimer(cancelSleepTimeCst)
+		timeout.String())
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
 	select {
 	case <-complete:
 		log.Printf("<-complete exit(0)")
 	case <-timer.C:
-		// if we exit here, this means all the other go routines didn't shutdown
-		// need to investigate why
 		log.Printf("Sleep complete, goodbye! exit(0)")
 	}
 
-	os.Exit(0)
+	if doExit {
+		os.Exit(0)
+	}
 }
 
 // initPromHandler starts the prom handler with error checking

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -27,35 +28,42 @@ var (
 )
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	port := flag.Int("port", portCst, "UDP listen port")
+// runMain wires flag parsing + ListenUDP + runReceiver. Extracted so tests
+// can drive it with a cancellable ctx + a captured stderr (instead of
+// subprocessing). Returns the process exit code.
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("udp_receiver_server", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	port := fs.Int("port", portCst, "UDP listen port")
+	version := fs.Bool("version", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
-	version := flag.Bool("version", false, "show version")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
 	if *version {
-		log.Println("commit:", commit, "\tdate(UTC):", date)
-		os.Exit(0)
+		fmt.Fprintf(stdout, "commit:%s\tdate(UTC):%s\n", commit, date)
+		return 0
 	}
 
 	addr := net.UDPAddr{
 		Port: *port,
-		IP:   net.ParseIP("0.0.0.0"),
+		IP:   net.ParseIP("127.0.0.1"),
 	}
-
 	conn, err := net.ListenUDP("udp", &addr)
 	if err != nil {
-		log.Fatalf("Error listening on UDP socket: %v", err)
+		fmt.Fprintf(stderr, "ListenUDP: %v\n", err)
+		return 1
 	}
 	defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
 
-	log.Printf("Listening for UDP packets on 0.0.0.0:%d", *port)
-
-	if err := runReceiver(context.Background(), conn); err != nil {
-		log.Fatalf("runReceiver: %v", err)
+	if err := runReceiver(ctx, conn); err != nil {
+		fmt.Fprintf(stderr, "runReceiver: %v\n", err)
+		return 1
 	}
+	return 0
 }
 
 // ErrDecode wraps proto.Unmarshal errors so callers can distinguish them from

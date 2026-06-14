@@ -12,6 +12,10 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
+// initSyncMaps + initHostname: skipped — initSyncMaps log.Fatals when
+// neither /run/netns nor /run/docker/netns exists (which is the default
+// case in test sandboxes). Covered by the microvm harness.
+
 // newInitFixture returns an XTCP shaped for the various Init* tests:
 // fresh Prometheus registry, fatalf wired to t.Fatalf, ready channels
 // allocated.

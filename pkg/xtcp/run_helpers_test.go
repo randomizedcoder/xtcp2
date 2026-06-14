@@ -140,6 +140,40 @@ func TestMapReconciler_cancelExits(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
+// nsMapCountReporter — periodic ticker that reads MapCount + LenSyncMap
+// and publishes to a gauge. Exit via ctx.Done().
+// ───────────────────────────────────────────────────────────────────────
+
+func TestNsMapCountReporter_cancelExits(t *testing.T) {
+	x := newRunFixture(t)
+	x.nsMap = &sync.Map{}
+	// pG is required by nsMapCountReporter (gauge sink); newRunFixture
+	// doesn't set it, but the ticker-driven update requires it. Use a
+	// fresh gauge registered on the test's private registry.
+	reg := prometheus.NewRegistry()
+	x.pG = promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		Subsystem: "xtcp_runhelpers_test", Name: promNameGauge, Help: "test gauge",
+	})
+	x.debugLevel = 200 // exercise the log branch on tick
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		x.nsMapCountReporter(ctx, &wg)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("nsMapCountReporter did not exit on cancel")
+	}
+	wg.Wait()
+}
+
+// ───────────────────────────────────────────────────────────────────────
 // checkDirectoryExists — three branches: exists+dir, exists+file, missing
 // ───────────────────────────────────────────────────────────────────────
 

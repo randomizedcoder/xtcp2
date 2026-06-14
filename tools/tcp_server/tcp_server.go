@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"sync"
 )
 
@@ -19,15 +20,22 @@ const (
 )
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stderr))
+}
 
-	count := flag.Int("count", countCst, "count")
-	bind := flag.String("bind", bindCst, "bind")
+// runMain wires flag parsing + server fan-out. Extracted so tests can drive
+// it with a cancellable ctx + synthetic args without subprocessing. The ctx
+// argument lets tests bind once + cancel; production passes context.Background.
+func runMain(ctx context.Context, args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("tcp_server", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	count := fs.Int("count", countCst, "count")
+	bind := fs.String("bind", bindCst, "bind")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
-	flag.Parse()
-
-	ctx := context.Background()
 	var wg sync.WaitGroup
-
 	for i := 0; i < *count; i++ {
 		wg.Add(1)
 		go func(port int) {
@@ -37,8 +45,8 @@ func main() {
 			}
 		}(startPort + i)
 	}
-
 	wg.Wait()
+	return 0
 }
 
 // runServer binds <bind:port> and echoes each accepted connection. Returns

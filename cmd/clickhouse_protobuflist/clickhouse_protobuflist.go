@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -58,53 +59,50 @@ var (
 )
 
 func main() {
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	filename := flag.String("filename", "protoBytes.bin", "filename")
-	value := flag.Uint("value", 1, "value uint -> uint32")
-
-	envelope := flag.Bool("envelope", false, "envelope")
-
-	v := flag.Bool("v", false, "show version")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
-	if *v {
-		log.Printf("commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+// runMain wires flag parsing + encode + writeDataToFile. Extracted so tests
+// can drive it with synthetic args + capture buffers (without exiting).
+func runMain(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("clickhouse_protobuflist", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	filename := fs.String("filename", "protoBytes.bin", "filename")
+	value := fs.Uint("value", 1, "value uint -> uint32")
+	envelope := fs.Bool("envelope", false, "envelope")
+	v := fs.Bool("v", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 
-	r := &clickhouse_protolist.Envelope_Record{}
-	r.MyUint32 = uint32(*value)
+	if *v {
+		fmt.Fprintf(stdout, "commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
+	}
 
+	r := &clickhouse_protolist.Envelope_Record{MyUint32: uint32(*value)}
 	encodedData, err := encodeLengthDelimitedProtobufList(r)
 	if err != nil {
-		log.Println("Error encoding:", err)
-		return
+		fmt.Fprintln(stderr, "Error encoding:", err)
+		return 1
 	}
 
 	if !*envelope {
-		errW := writeDataToFile(*filename, encodedData)
-		if errW != nil {
-			log.Println("Error:", errW)
-			return
+		if err := writeDataToFile(*filename, encodedData); err != nil {
+			fmt.Fprintln(stderr, "Error:", err)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
-
-	e := &clickhouse_protolist.Envelope{}
-	e.Rows = append(e.Rows, r)
 
 	encodedEnvelope, err := encodeLengthDelimitedEnvelope(encodedData)
 	if err != nil {
-		fmt.Println("Error encoding Envelope:", err)
-		return
+		fmt.Fprintln(stderr, "Error encoding Envelope:", err)
+		return 1
 	}
-
-	errW := writeDataToFile(*filename, encodedEnvelope)
-	if errW != nil {
-		log.Println("Error:", errW)
-		return
+	if err := writeDataToFile(*filename, encodedEnvelope); err != nil {
+		fmt.Fprintln(stderr, "Error:", err)
+		return 1
 	}
-
+	return 0
 }

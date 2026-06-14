@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"io"
 	"log"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -258,6 +260,88 @@ func TestEnvironmentOverrideProm(t *testing.T) {
 	environmentOverrideProm(&listen, &path, 0)
 	if listen != ":9999" || path != "/metrics2" {
 		t.Errorf("environmentOverrideProm mismatch: listen=%q path=%q", listen, path)
+	}
+}
+
+func TestEnvironmentOverrideProm_debugLog(t *testing.T) {
+	listen := ":9000"
+	path := "/m"
+	t.Setenv("PROM_LISTEN", ":1111")
+	t.Setenv("PROM_PATH", "/p")
+	environmentOverrideProm(&listen, &path, 11) // > 10 → log.Printf branch
+	if listen != ":1111" || path != "/p" {
+		t.Errorf("debug-log run still must set values; got listen=%q path=%q", listen, path)
+	}
+}
+
+func TestEnvironmentOverrideDebugLevel_debugLog(t *testing.T) {
+	var d uint = 5
+	t.Setenv("DEBUG_LEVEL", "9")
+	environmentOverrideDebugLevel(&d, 11) // > 10 → log branch
+	if d != 9 {
+		t.Errorf("d = %d, want 9", d)
+	}
+}
+
+func TestEnvironmentOverrideGoMaxProcs_debugLog(t *testing.T) {
+	var p uint = 4
+	t.Setenv("GOMAXPROCS", "8")
+	environmentOverrideGoMaxProcs(&p, 11) // > 10 → log branch
+	if p != 8 {
+		t.Errorf("p = %d, want 8", p)
+	}
+}
+
+func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
+	sigs := make(chan os.Signal, 1)
+	complete := make(chan struct{}, 1)
+	_, cancel := context.WithCancel(context.Background())
+	var cancelCalled bool
+	wrap := func() {
+		cancelCalled = true
+		cancel()
+	}
+	done := make(chan struct{})
+	go func() {
+		awaitSignalAndShutdown(sigs, wrap, complete, 200*time.Millisecond, false)
+		close(done)
+	}()
+	sigs <- syscall.SIGTERM
+	time.Sleep(20 * time.Millisecond)
+	complete <- struct{}{}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("awaitSignalAndShutdown did not return on complete")
+	}
+	if !cancelCalled {
+		t.Error("cancel() was not called")
+	}
+}
+
+func TestAwaitSignalAndShutdown_timeoutPath(t *testing.T) {
+	sigs := make(chan os.Signal, 1)
+	complete := make(chan struct{}) // never signalled
+	_, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		awaitSignalAndShutdown(sigs, cancel, complete, 30*time.Millisecond, false)
+		close(done)
+	}()
+	sigs <- syscall.SIGINT
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout path did not fire")
+	}
+}
+
+func TestEnvironmentOverrideGoMaxProcs_garbage(t *testing.T) {
+	var p uint = 4
+	t.Setenv("GOMAXPROCS", "not-a-number")
+	environmentOverrideGoMaxProcs(&p, 0)
+	if p != 4 {
+		t.Errorf("garbage env should leave p alone; got %d", p)
 	}
 }
 

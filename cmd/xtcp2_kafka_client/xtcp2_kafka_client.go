@@ -5,10 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -21,13 +21,11 @@ import (
 var ErrRecordTooShort = errors.New("kafka record too short for Confluent header")
 
 const (
-	schemaRegistryURLCst = "http://localhost:18081"
-	brokerCst            = "localhost:19092"
-	topicCst             = "xtcp"
-	groupID              = "xtcp-consumer-group"
-	debugLevelCst        = 11
-	signalChannelSizeCst = 10
-	KafkaHeaderSizeCst   = 6
+	brokerCst          = "localhost:19092"
+	topicCst           = "xtcp"
+	groupID            = "xtcp-consumer-group"
+	debugLevelCst      = 11
+	KafkaHeaderSizeCst = 6
 )
 
 var (
@@ -35,55 +33,58 @@ var (
 )
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stderr))
+}
 
-	debugLevelPtr := flag.Uint("d", debugLevelCst, "debug level")
-	flag.Parse()
+// runMain wires flag parsing + Kafka client + poll loop. Extracted so tests
+// can drive it with synthetic args + a cancellable ctx (no broker needed).
+func runMain(ctx context.Context, args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("xtcp2_kafka_client", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	debugLevelPtr := fs.Uint("d", debugLevelCst, "debug level")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	debugLevel = *debugLevelPtr
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	complete := make(chan struct{}, signalChannelSizeCst)
-	go initSignalHandler(cancel, complete)
-
-	// regClient, err := sr.NewClient(sr.URLs(schemaRegistryURLCst))
-	// if err != nil {
-	// 	log.Fatalf("unable to create schema registry client: %v", err)
-	// }
-
-	// serde := sr.NewSerde(regClient)
 
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokerCst),
 		kgo.ConsumerGroup(groupID),
 		kgo.ConsumeTopics(topicCst),
 		kgo.ClientID("xtcp-consumer"),
-		// kgo.RecordDeserializer(serde.RecordDeserializer()),
 	}
-
 	cl, err := kgo.NewClient(opts...)
 	if err != nil {
-		log.Fatalf("unable to create client: %v", err) //nolint:gocritic // exitAfterDefer: client construction failed before cl exists; deferred cancel() is moot at process shutdown
+		fmt.Fprintf(stderr, "unable to create client: %v\n", err)
+		return 1
 	}
 	defer cl.Close()
 
-	if debugLevel > 10 {
-		log.Println("kgo.NewClient complete")
-	}
+	pollLoop(ctx, cl)
+	return 0
+}
 
+// pollLoop is the Kafka consume body. Extracted so test code can call it
+// against a fake client (with a pre-cancelled ctx for a quick exit).
+func pollLoop(ctx context.Context, cl *kgo.Client) {
 	for i := 0; ; i++ {
-
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		if debugLevel > 10 {
 			log.Printf("i:%d, PollFetches", i)
 		}
-
 		fetches := cl.PollFetches(ctx)
+		if ctx.Err() != nil {
+			return
+		}
 		if errs := fetches.Errors(); len(errs) > 0 {
 			log.Printf("fetch errors: %v", errs)
 			continue
 		}
-
 		fetches.EachRecord(func(record *kgo.Record) {
 			_ = processRecord(record.Value, debugLevel)
 		})
@@ -121,27 +122,4 @@ func processRecord(value []byte, debugLvl uint) error {
 		log.Printf("Received row: %+v", row)
 	}
 	return nil
-}
-
-// initSignalHandler sets up signal handling for the process, and
-// will call cancel() when received
-func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}) {
-
-	c := make(chan os.Signal, signalChannelSizeCst)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	<-c
-	log.Printf("Signal caught, closing application")
-	cancel()
-
-	log.Printf("Signal caught, cancel() called, and sleeping to allow goroutines to close")
-
-	select {
-	case <-complete:
-		log.Printf("<-complete exit(0)")
-	default:
-		log.Printf("Sleep complete, goodbye! exit(0)")
-	}
-
-	os.Exit(0)
 }

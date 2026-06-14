@@ -47,44 +47,42 @@ type config struct {
 }
 
 func main() {
+	os.Exit(runMain(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
 
-	filename := flag.String("filename", "protoBytes.bin", "filename")
-	valueStr := flag.String("values", "1", "values uints -> uint32, comma separated")
-
-	envelope := flag.Bool("envelope", true, "envelope")
-	db := flag.Bool("db", true, "db")
-
-	connect := flag.String("connect", clickhouseConnectStringCst, "clickhouse database connect string")
-	user := flag.String("user", clickhouseUserCst, "clickhosue user")
-	pass := flag.String("pass", clickhousePasswordCst, "clickhosue pass")
-
-	dump := flag.Bool("dump", false, "dump proto for debug")
-	dumpFilename := flag.String("dumpFileName", "dump.bin", "dump file name")
-
-	v := flag.Bool("v", false, "show version")
-
-	flag.Parse()
-
-	// Print version information passed in via ldflags in the Makefile
-	if *v {
-		log.Printf("commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+// runMain wires flag parsing + config build + primaryFunction. Extracted so
+// tests can drive it with synthetic args without exiting.
+func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("clickhouse_http_insert_protobuflist", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	filename := fs.String("filename", "protoBytes.bin", "filename")
+	valueStr := fs.String("values", "1", "values uints -> uint32, comma separated")
+	envelope := fs.Bool("envelope", true, "envelope")
+	db := fs.Bool("db", true, "db")
+	connect := fs.String("connect", clickhouseConnectStringCst, "clickhouse database connect string")
+	user := fs.String("user", clickhouseUserCst, "clickhosue user")
+	pass := fs.String("pass", clickhousePasswordCst, "clickhosue pass")
+	dump := fs.Bool("dump", false, "dump proto for debug")
+	dumpFilename := fs.String("dumpFileName", "dump.bin", "dump file name")
+	v := fs.Bool("v", false, "show version")
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 
-	ctx := context.TODO()
+	if *v {
+		fmt.Fprintf(stdout, "commit:%s\tdate(UTC):%s\tversion:%s\n", commit, date, version)
+		return 0
+	}
 
 	valueStrs := strings.Split(*valueStr, ",")
 	values := make([]uint, 0, len(valueStrs))
 	for _, str := range valueStrs {
-		v, err := strconv.ParseUint(str, 10, 32)
+		parsed, err := strconv.ParseUint(str, 10, 32)
 		if err != nil {
-			log.Fatalf("Invalid value: %v", err)
+			fmt.Fprintf(stderr, "Invalid value: %v\n", err)
+			return 1
 		}
-		values = append(values, uint(v))
-	}
-
-	for i, v := range values {
-		log.Printf("values: %d:%v", i, v)
+		values = append(values, uint(parsed))
 	}
 
 	c := config{
@@ -99,15 +97,12 @@ func main() {
 		dumpFilename: *dumpFilename,
 	}
 
-	primaryFunction(ctx, c)
+	return primaryFunction(ctx, c, stderr)
 }
 
-func primaryFunction(ctx context.Context, c config) {
-
+func primaryFunction(ctx context.Context, c config, stderr io.Writer) int {
 	binaryData := prepareBinary(ctx, c)
-
-	fileOrDB(ctx, c, binaryData)
-
+	return fileOrDB(ctx, c, binaryData, stderr)
 }
 
 func prepareBinary(ctx context.Context, c config) (binaryData []byte) {
@@ -156,25 +151,19 @@ func prepareBinary(ctx context.Context, c config) (binaryData []byte) {
 	return binaryData
 }
 
-func fileOrDB(ctx context.Context, c config, binaryData []byte) {
-
+func fileOrDB(ctx context.Context, c config, binaryData []byte, stderr io.Writer) int {
 	if !c.db {
-		errW := writeDataToFile(ctx, c.filename, binaryData)
-		if errW != nil {
-			log.Println("Error:", errW)
+		if err := writeDataToFile(ctx, c.filename, binaryData); err != nil {
+			fmt.Fprintln(stderr, "Error:", err)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
-
-	// if c.db {
-	// 	log.Fatal("db not implemented, cos it's hard to insert protobuf with the clickhouse library")
-	// }
-
-	errDB := insertIntoCH(ctx, c, binaryData)
-	if errDB != nil {
-		log.Println("Error:", errDB)
+	if err := insertIntoCH(ctx, c, binaryData); err != nil {
+		fmt.Fprintln(stderr, "Error:", err)
+		return 1
 	}
-
+	return 0
 }
 
 func writeDataToFile(ctx context.Context, filename string, data []byte) error {
@@ -190,33 +179,30 @@ func writeDataToFile(ctx context.Context, filename string, data []byte) error {
 var ErrClickHouseHTTPPost = errors.New("clickhouse http post failed")
 
 func insertIntoCH(ctx context.Context, c config, binaryData []byte) error {
+	return insertIntoCHAt(ctx, http.DefaultClient, "http://"+c.connectStr, binaryData)
+}
 
-	clickhouseURL := "http://" + clickhouseConnectStringCst + "/?query=INSERT%20INTO%20clickhouse_protolist.clickhouse_protolist%20FORMAT%20Protobuf&format_schema=clickhouse_protolist.proto:clickhouse_protolist.v1.Record"
-
-	log.Printf("clickhouseURL: %v", clickhouseURL)
+// insertIntoCHAt POSTs a binary protobuf payload to ClickHouse's HTTP
+// endpoint. Extracted so tests can drive it against httptest.Server (the
+// production wrapper picks the baseURL from config.connectStr).
+func insertIntoCHAt(ctx context.Context, client *http.Client, baseURL string, binaryData []byte) error {
+	clickhouseURL := baseURL + "/?query=INSERT%20INTO%20clickhouse_protolist.clickhouse_protolist%20FORMAT%20Protobuf&format_schema=clickhouse_protolist.proto:clickhouse_protolist.v1.Record"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, clickhouseURL, bytes.NewReader(binaryData))
 	if err != nil {
-		log.Fatalf("Failed to create request: %v", err)
+		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-protobufList")
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to send request: %v", err)
+		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// Read the response body for detailed error messages
-		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort body read for error logging; original Do err is already wrapped below
-		log.Printf("ClickHouse HTTP Error (Status %d): %s", resp.StatusCode, string(body))
-
-		return fmt.Errorf("%w: %v", ErrClickHouseHTTPPost, err)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort body read for error context
+		return fmt.Errorf("%w: status %d: %s", ErrClickHouseHTTPPost, resp.StatusCode, string(body))
 	}
-
-	fmt.Println("Data successfully inserted into ClickHouse!")
-
 	return nil
 }
