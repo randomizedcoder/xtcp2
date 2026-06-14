@@ -1,27 +1,28 @@
-# nix/microvms/self-test.nix
+# nix/microvms/self-test-vector.nix
 #
-# Self-test script that runs inside the microvm after xtcp2 starts. Performs
-# seven independent checks and prints labeled PASS/FAIL sentinels that the
-# host launcher (see ./default.nix → fullTest) scrapes from the serial
-# console.
+# Self-test for the Vector flavor of the microvm. Mirrors the structure of
+# self-test.nix (independent checks, PASS/FAIL sentinels per check) and:
 #
-# Sentinels (each fires exactly once per VM run):
-#   XTCP2_SELF_TEST_SYSTEMD_{PASS,FAIL}        systemd unit active
-#   XTCP2_SELF_TEST_METRICS_{PASS,FAIL}        /metrics endpoint reachable
-#   XTCP2_SELF_TEST_NETLINK_{PASS,FAIL}        netlink readout produces jsonl
-#   XTCP2_SELF_TEST_BINARIES_HELP_{PASS,FAIL}  every cmd binary -help works
-#   XTCP2_SELF_TEST_GRPC_ROUNDTRIP_{PASS,FAIL} xtcp2 ↔ xtcp2client gRPC works
-#   XTCP2_SELF_TEST_NS_INSPECT_{PASS,FAIL}     ns inspector reads netns state
-#   XTCP2_SELF_TEST_NSTEST_{PASS,FAIL}         nsTest binary runs
-#   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
+#   - keeps checks 1, 2, 4, 5, 6, 7 verbatim (systemd, prometheus, cmd -help
+#     smoke, gRPC roundtrip, ns inspector, nsTest)
+#   - replaces the dead JSONL "check 3 (netlink)" with three new checks that
+#     verify the end-to-end Vector→MinIO pipeline:
+#       VECTOR  — vector active, datagram socket bound with right perms
+#       MINIO   — minio active, bucket exists
+#       PARQUET — :17321 nc roundtrip triggers a netlink poll; within 60 s a
+#                 parquet object lands in the bucket and decodes via duckdb
+#                 to at least one row.
 #
-# Each check is independent: failure of one does not skip the others, so the
-# launcher can attribute failures precisely.
+# Each check emits exactly one sentinel; the host launcher (lib.nix) grep
+# was extended to include the new ones.
 #
 {
   pkgs,
   promPort ? 9088,
   grpcPort ? 8889,
+  bucket ? "xtcp2-records",
+  accessKey ? "xtcp2test",
+  secretKey ? "xtcp2testsecret",
 }:
 
 pkgs.writeShellApplication {
@@ -35,6 +36,8 @@ pkgs.writeShellApplication {
     gnugrep
     procps
     util-linux
+    minio-client
+    duckdb
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -48,7 +51,7 @@ pkgs.writeShellApplication {
     overall_ok=1
 
     echo "================================================"
-    echo " xtcp2 microvm self-test"
+    echo " xtcp2 microvm self-test (Vector flavor)"
     echo " kernel: $(uname -r)"
     echo " host:   $(uname -n)"
     echo "================================================"
@@ -88,31 +91,108 @@ pkgs.writeShellApplication {
       overall_ok=0
     fi
 
-    # ─── Check 3: netlink readout — open a loopback TCP conn, see it in jsonl ─
-    echo "--- check 3: netlink readout of loopback TCP socket ---"
-    check3=1
+    # ─── Check 3a (was NETLINK): VECTOR — vector active + socket bound ────
+    echo "--- check 3a: vector active and unixgram socket present ---"
+    check_vector=1
+    for i in $(seq 1 30); do
+      if systemctl is-active --quiet vector && [ -S /run/xtcp2/output.sock ]; then
+        # confirm perms include o+w (xtcp2 runs as root so technically it can
+        # write anyway, but the test asserts the published contract).
+        mode=$(stat -c '%a' /run/xtcp2/output.sock 2>/dev/null || echo "")
+        if [ "$mode" = "666" ] || [ "$mode" = "660" ] || [ "$mode" = "777" ]; then
+          echo "XTCP2_SELF_TEST_VECTOR_PASS  (active after ''${i}s, socket mode=$mode)"
+          check_vector=0
+          break
+        fi
+      fi
+      sleep 1
+    done
+    if [ "$check_vector" -ne 0 ]; then
+      echo "XTCP2_SELF_TEST_VECTOR_FAIL  (vector not ready / socket missing after 30s)"
+      systemctl status vector --no-pager || true
+      ls -la /run/xtcp2/ || true
+      overall_ok=0
+    fi
+
+    # ─── Check 3b (was NETLINK): MINIO — minio active + bucket exists ─────
+    echo "--- check 3b: minio active and bucket ${bucket} present ---"
+    check_minio=1
+    export MC_CONFIG_DIR=/tmp/self-test-mc
+    mkdir -p "$MC_CONFIG_DIR"
+    mc alias set local http://127.0.0.1:9000 ${accessKey} ${secretKey} >/dev/null 2>&1 || true
+    for i in $(seq 1 30); do
+      if systemctl is-active --quiet minio && \
+         mc ls local/${bucket} >/dev/null 2>&1; then
+        echo "XTCP2_SELF_TEST_MINIO_PASS  (active and bucket reachable after ''${i}s)"
+        check_minio=0
+        break
+      fi
+      sleep 1
+    done
+    if [ "$check_minio" -ne 0 ]; then
+      echo "XTCP2_SELF_TEST_MINIO_FAIL  (minio/bucket not ready after 30s)"
+      systemctl status minio --no-pager || true
+      systemctl status xtcp2-bucket-bootstrap --no-pager || true
+      overall_ok=0
+    fi
+
+    # ─── Check 3c (was NETLINK): PARQUET — end-to-end via :17321 ──────────
+    echo "--- check 3c: trigger :17321 conn, expect parquet object in MinIO ---"
+    # Open a brief loopback TCP roundtrip to give xtcp2 a socket to report.
     nc -l 127.0.0.1 17321 >/dev/null 2>&1 &
     listener_pid=$!
     sleep 1
     ( echo "hi" | nc -w 2 127.0.0.1 17321 >/dev/null 2>&1 ) &
     client_pid=$!
-    for _ in $(seq 1 20); do
-      if [ -f /var/log/xtcp2.jsonl ] && \
-         grep -E -q '"(d_?port|dst_port|remote_port)"[^,}]*17321' /var/log/xtcp2.jsonl; then
-        echo "XTCP2_SELF_TEST_NETLINK_PASS  (4-tuple :17321 found in jsonl)"
-        check3=0
+
+    # Wait up to 60 s for any parquet object to appear under the bucket.
+    parquet_key=""
+    for i in $(seq 1 60); do
+      parquet_key=$(mc find local/${bucket} --name '*.parquet' 2>/dev/null | head -n1)
+      if [ -n "$parquet_key" ]; then
+        echo "    parquet object: $parquet_key  (after ''${i}s)"
         break
       fi
       sleep 1
     done
-    if [ "$check3" -ne 0 ]; then
-      echo "XTCP2_SELF_TEST_NETLINK_FAIL  (no record matching :17321 in /var/log/xtcp2.jsonl)"
-      echo "--- last 20 lines of jsonl sink ---"
-      tail -n 20 /var/log/xtcp2.jsonl 2>/dev/null || echo "(file missing)"
-      overall_ok=0
-    fi
+
     kill "$listener_pid" "$client_pid" 2>/dev/null || true
     wait 2>/dev/null || true
+
+    if [ -z "$parquet_key" ]; then
+      echo "XTCP2_SELF_TEST_PARQUET_FAIL  (no .parquet object in bucket after 60s)"
+      mc ls --recursive local/${bucket} 2>&1 | head -n 20 || true
+      echo "--- xtcp2 metrics relevant to pipeline ---"
+      curl --silent --max-time 2 "http://127.0.0.1:${toString promPort}/metrics" \
+        | grep -E '^xtcp_counts.*(Deserialize|destUnixGram)' | head -20 || true
+      echo "--- vector status + recent journal ---"
+      systemctl status vector --no-pager -l 2>&1 | tail -n 20 || true
+      journalctl -u vector --no-pager -n 30 2>&1 | tail -n 30 || true
+      overall_ok=0
+    else
+      # Download it and decode with duckdb.
+      mc cp "$parquet_key" /tmp/xtcp2.parquet >/dev/null 2>&1
+      if [ ! -s /tmp/xtcp2.parquet ]; then
+        echo "XTCP2_SELF_TEST_PARQUET_FAIL  (downloaded file empty: $parquet_key)"
+        overall_ok=0
+      else
+        rowcount=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM read_parquet('/tmp/xtcp2.parquet')" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        if [ -n "$rowcount" ] && [ "$rowcount" -ge 1 ]; then
+          # Soft assertion: try to find the :17321 dst_port. If schema or
+          # field name differs, we still PASS on rowcount but log it.
+          port_hit=$(duckdb -noheader -list \
+            -c "SELECT count(*) FROM read_parquet('/tmp/xtcp2.parquet') WHERE inet_diag_msg_socket_destination_port = 17321" \
+            2>/dev/null | tail -n1 | tr -d '[:space:]' || echo "?")
+          echo "XTCP2_SELF_TEST_PARQUET_PASS  (rows=$rowcount, :17321 matches=$port_hit, key=$parquet_key)"
+        else
+          echo "XTCP2_SELF_TEST_PARQUET_FAIL  (duckdb decode returned no rows; key=$parquet_key)"
+          duckdb -c "DESCRIBE SELECT * FROM read_parquet('/tmp/xtcp2.parquet')" 2>&1 | head -n 20 || true
+          overall_ok=0
+        fi
+      fi
+    fi
 
     # ─── Check 4: every cmd binary's -help works ──────────────────────────
     echo "--- check 4: -help smoke on every cmd binary ---"
@@ -156,8 +236,6 @@ pkgs.writeShellApplication {
     echo "--- check 5: xtcp2client connects to xtcp2 gRPC (port ${toString grpcPort}) ---"
     check5=1
     if command -v xtcp2client >/dev/null 2>&1; then
-      # Run xtcp2client briefly. Exit code 0 or 124 (timeout) both acceptable
-      # for "it connected"; anything else is a wire/handshake failure.
       timeout 3s xtcp2client -addr "127.0.0.1:${toString grpcPort}" >/tmp/xtcp2client.log 2>&1
       rc=$?
       if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; then

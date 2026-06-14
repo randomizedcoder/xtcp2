@@ -44,6 +44,11 @@ pkgs.mkShell {
       lint-fix                                Apply auto-fixable findings
       lint-new                                Lint only the diff since HEAD~1
 
+    Quality report (every tier + audits, aggregated):
+      nix run .#quality-report                Print the latest report to stdout
+      nix run .#update-quality-report         Refresh docs/quality-report.md
+      nix build .#quality-report              Build the report artifact (result/)
+
     Tests:
       go test ./...                           Unit tests
       nix build .#tests.microvm-lifecycle     Boot xtcp2 in a VM and verify

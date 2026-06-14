@@ -26,7 +26,13 @@ in
 
     configFile = lib.mkOption {
       type = lib.types.path;
-      description = "Path to the xtcp2 JSON config file.";
+      description = ''
+        Path to the xtcp2 JSON config file. Reserved for a future on-disk
+        config format — xtcp2's `cmd/xtcp2/xtcp2.go` does not yet define a
+        `-config` flag, so this path is not currently passed on the command
+        line. Configure the daemon via `extraArgs` (CLI flags) in the
+        meantime.
+      '';
     };
 
     user = lib.mkOption {
@@ -54,8 +60,12 @@ in
 
       serviceConfig = {
         Type = "simple";
+        # NOTE: xtcp2 does not yet implement `-config <path>`. Drive it via
+        # `extraArgs` (CLI flags) instead. configFile is kept in the option
+        # surface for forward-compatibility — when the daemon learns to
+        # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
         ExecStart =
-          "${cfg.package}/bin/xtcp2 -config ${cfg.configFile}"
+          "${cfg.package}/bin/xtcp2"
           + lib.optionalString (cfg.extraArgs != [ ]) " ${lib.concatStringsSep " " cfg.extraArgs}";
         Restart = "on-failure";
         RestartSec = "2s";
