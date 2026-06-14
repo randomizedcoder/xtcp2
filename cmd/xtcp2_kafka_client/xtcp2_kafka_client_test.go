@@ -100,3 +100,65 @@ func TestPollLoop_cancelledCtx(t *testing.T) {
 		t.Fatal("pollLoop did not exit on cancel")
 	}
 }
+
+// Drive pollLoop with debugLevel>10 so the "i:%d, PollFetches" log
+// branch fires on each iteration before cancel.
+func TestPollLoop_debugLogPath(t *testing.T) {
+	prev := debugLevel
+	debugLevel = 20
+	t.Cleanup(func() { debugLevel = prev })
+
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.ConsumerGroup("test-group"),
+		kgo.ConsumeTopics("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, cl)
+		close(done)
+	}()
+	time.Sleep(120 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after cancel")
+	}
+}
+
+// Drive pollLoop with an active ctx against an unreachable broker so
+// PollFetches returns fetch errors each iteration; cancel after a few
+// iterations to exit via the ctx-cancel path. This exercises the
+// fetches.Errors() != 0 branch.
+func TestPollLoop_fetchErrorsThenCancel(t *testing.T) {
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.ConsumerGroup("test-group"),
+		kgo.ConsumeTopics("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, cl)
+		close(done)
+	}()
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after cancel")
+	}
+}

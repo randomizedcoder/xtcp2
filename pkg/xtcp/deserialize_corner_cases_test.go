@@ -76,6 +76,30 @@ func loadRealMultipart(tb testing.TB) []byte {
 	return bs[xtcpnl.PcapNetlinkOffsetCst:]
 }
 
+// signalNetlinkerDone: non-blocking send (default cap=1) covers the happy
+// arm; with the channel pre-filled the default branch executes (counter
+// increment) and the subsequent blocking send completes once we drain.
+func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
+	x := newTestXTCP(t, "null")
+	x.netlinkerDoneCh = make(chan netlinkerDone, 1)
+	// Pre-fill the channel so the non-blocking send hits `default`.
+	x.netlinkerDoneCh <- netlinkerDone{fd: -1}
+
+	args := DeserializeArgs{fd: 42, pC: x.pC}
+	done := make(chan struct{})
+	go func() {
+		x.signalNetlinkerDone(args)
+		close(done)
+	}()
+	// Drain so the blocking send can proceed.
+	<-x.netlinkerDoneCh
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("signalNetlinkerDone did not unblock after drain")
+	}
+}
+
 // runDeserialize is the common wrapper. It installs a recording
 // destination on the test XTCP, runs Deserialize with a bounded timeout
 // (any hang fails the test), and returns the recording dest plus the

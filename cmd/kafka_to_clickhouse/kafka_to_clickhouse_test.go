@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func TestPrepareBinary_noEnvelope(t *testing.T) {
@@ -181,4 +183,130 @@ func TestFileOrKafka_writeError(t *testing.T) {
 	// fileOrKafka logs but does not propagate the error; just verify
 	// no-panic when the write fails.
 	fileOrKafka(t.Context(), config{filename: "/no/such/dir/x", kafka: false}, &data)
+}
+
+// fileOrKafka with kafka=true: drives the destKafka path via the in-process
+// kgo client fixture (the broker is unreachable so Produce's callback fires
+// with an error, but fileOrKafka swallows + logs it).
+// prepareBinary debugDump write-error: fatalf fires when the dump file
+// can't be written. Use a bogus dumpFilename + fatalf swap.
+func TestPrepareBinary_dumpWriteError(t *testing.T) {
+	prev := fatalf
+	called := false
+	fatalf = func(string, ...any) { called = true }
+	t.Cleanup(func() { fatalf = prev })
+
+	c := config{
+		envelope: true, values: []uint{1},
+		debugDump: true, dumpFilename: "/no/such/dir/dump",
+	}
+	prepareBinary(t.Context(), c, 1)
+	if !called {
+		t.Error("fatalf should have been invoked")
+	}
+}
+
+func TestFileOrKafka_kafkaMode(t *testing.T) {
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.DefaultProduceTopic("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+	prevClient := kClient
+	prevPoolNew := kgoRecordPool.New
+	kClient = cl
+	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	t.Cleanup(func() {
+		kClient = prevClient
+		kgoRecordPool.New = prevPoolNew
+	})
+
+	data := []byte("payload")
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	fileOrKafka(ctx, config{topic: "test-topic", kafka: true, debugLevel: 11}, &data)
+	// No assert beyond no-panic — destKafka's callback handles the error.
+}
+
+// destKafka against an unreachable broker: kgo.NewClient succeeds (lazy),
+// then Produce's callback fires with an error after ctx cancellation.
+// Drives the destKafka body without needing a real broker.
+func TestDestKafka_unreachable(t *testing.T) {
+	// Set up the global kClient + kgoRecordPool the same way runMain does.
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.DefaultProduceTopic("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer cl.Close()
+	prevClient := kClient
+	prevPoolNew := kgoRecordPool.New
+	kClient = cl
+	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	t.Cleanup(func() {
+		kClient = prevClient
+		kgoRecordPool.New = prevPoolNew
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+
+	payload := []byte("payload")
+	c := config{topic: "test-topic", debugLevel: 11}
+	n, _ := destKafka(ctx, c, &payload) //nolint:errcheck // err is logged inside the callback
+	if n != 1 {
+		t.Errorf("n = %d, want 1 (Produce was attempted)", n)
+	}
+}
+
+// InitDestKafka happy path: kafka=true + valid broker constructs the
+// client. Reset the global kClient afterwards so other tests aren't
+// affected.
+func TestInitDestKafka_happy(t *testing.T) {
+	prevClient := kClient
+	t.Cleanup(func() {
+		if kClient != prevClient && kClient != nil {
+			kClient.Close()
+		}
+		kClient = prevClient
+	})
+
+	c := config{
+		kafka:    true,
+		topic:    "test-topic",
+		broker:   "localhost:0",
+		clientID: "test",
+	}
+	if err := InitDestKafka(t.Context(), c); err != nil {
+		t.Errorf("InitDestKafka: %v", err)
+	}
+	if kClient == nil {
+		t.Error("kClient should be non-nil after successful InitDestKafka")
+	}
+}
+
+func TestInitDestKafka_debugLog(t *testing.T) {
+	prevClient := kClient
+	t.Cleanup(func() {
+		if kClient != prevClient && kClient != nil {
+			kClient.Close()
+		}
+		kClient = prevClient
+	})
+
+	c := config{
+		kafka:      true,
+		topic:      "test-topic",
+		broker:     "localhost:0",
+		clientID:   "test",
+		debugLevel: 11, // hit the log.Printf branch
+	}
+	if err := InitDestKafka(t.Context(), c); err != nil {
+		t.Errorf("InitDestKafka: %v", err)
+	}
 }

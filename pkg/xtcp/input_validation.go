@@ -2,22 +2,16 @@ package xtcp
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
 // InputValidation is the original log.Fatalf wrapper around validateInput.
 // Kept for the existing call site in init.go; new code should call
-// validateInput directly so the error path is testable. Uses x.fatalf when
-// set (lets tests substitute a non-exit-ing implementation) and falls
-// back to log.Fatalf otherwise.
+// validateInput directly so the error path is testable. Routes through
+// x.callFatalf which falls back to log.Fatalf when x.fatalf is nil.
 func (x *XTCP) InputValidation() {
 	if err := x.validateInput(); err != nil {
-		fatalf := x.fatalf
-		if fatalf == nil {
-			fatalf = log.Fatalf
-		}
-		fatalf("InputValidation: %v", err)
+		x.callFatalf("InputValidation: %v", err)
 	}
 }
 

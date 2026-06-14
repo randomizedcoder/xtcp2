@@ -6,6 +6,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -164,4 +165,66 @@ func TestOnRingClosedResult_sendBuf(t *testing.T) {
 	x := newIouringFixture(t)
 	b := make([]byte, 64)
 	x.onRingClosedResult(xio.Result{Op: xio.OpSendUDP, Buf: &b})
+}
+
+// iouringPrefillRecvs + iouringWaitWithTimeout: drive with a real ring
+// + socketpair fd. Prefill submits one recv SQE; wait should timeout
+// with ETIME since no peer wrote to the socket.
+func TestIouringPrefillRecvs_smoke(t *testing.T) {
+	ring, err := xioRingNew(t)
+	if err != nil {
+		t.Skipf("io_uring unavailable: %v", err)
+	}
+	t.Cleanup(func() { ring.Close(time.Second, nil) })
+
+	x := newIouringFixture(t)
+	// packetBufferPool yields 64-byte buffers (set in newIouringFixture).
+	if err := x.iouringPrefillRecvs(ring, 3, 2); err != nil {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := ring.Submit(); err != nil {
+		t.Errorf("Submit: %v", err)
+	}
+}
+
+// handleRecvCQE error paths: Res<0 with timeout errno + non-timeout errno.
+// Buffer return-to-pool fires regardless.
+func TestHandleRecvCQE_timeoutErr(t *testing.T) {
+	x := newIouringFixture(t)
+	b := make([]byte, 64)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EAGAIN), Buf: &b})
+}
+
+func TestHandleRecvCQE_otherErr(t *testing.T) {
+	x := newIouringFixture(t)
+	x.debugLevel = 11 // hit log branch
+	b := make([]byte, 64)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: &b})
+}
+
+func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
+	x := newIouringFixture(t)
+	nsName := "ns"
+	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
+}
+
+func TestIouringWaitWithTimeout_etime(t *testing.T) {
+	ring, err := xioRingNew(t)
+	if err != nil {
+		t.Skipf("io_uring unavailable: %v", err)
+	}
+	t.Cleanup(func() { ring.Close(time.Second, nil) })
+
+	x := newIouringFixture(t)
+	// No SQEs queued, no peer writes → WaitOneTimeout should return
+	// an ETIME-like error.
+	_, werr := x.iouringWaitWithTimeout(ring, 30*time.Millisecond)
+	if werr == nil {
+		t.Error("expected timeout error when no CQEs available")
+	}
 }

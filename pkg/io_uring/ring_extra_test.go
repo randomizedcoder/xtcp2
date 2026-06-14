@@ -119,6 +119,57 @@ func TestWaitOneTimeout_fires(t *testing.T) {
 	}
 }
 
+// WaitOneTimeout with d<=0 falls through to the WaitOne path. Submit an
+// SQE that will complete (peer writes to the socket) so DrainBatch returns
+// a result rather than blocking forever.
+func TestWaitOneTimeout_zeroTimeoutDelegatesToWaitOne(t *testing.T) {
+	r := newTestRing(t, 0)
+	sock, peer := socketpair(t)
+	buf := allocBuf(64)
+	if _, err := r.EnqueueRecvMsg(sock, buf); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if _, err := r.SubmitAndWait(0); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if _, err := syscall.Write(peer, []byte("ping")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// d=0 → WaitOne path (no timeout). DrainBatch returns at least the
+	// just-arrived CQE.
+	res, err := r.WaitOneTimeout(0)
+	if err != nil {
+		t.Fatalf("WaitOneTimeout(0): %v", err)
+	}
+	if len(res) == 0 {
+		t.Error("expected at least one result after peer write")
+	}
+}
+
+// WaitOneTimeout with a non-zero timeout AND an SQE that completes — the
+// success-return branch (DrainBatch path after WaitCQETimeout returned nil).
+func TestWaitOneTimeout_successDrains(t *testing.T) {
+	r := newTestRing(t, 0)
+	sock, peer := socketpair(t)
+	buf := allocBuf(64)
+	if _, err := r.EnqueueRecvMsg(sock, buf); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if _, err := r.SubmitAndWait(0); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if _, err := syscall.Write(peer, []byte("pong")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	res, err := r.WaitOneTimeout(500 * time.Millisecond)
+	if err != nil {
+		t.Fatalf("WaitOneTimeout: %v", err)
+	}
+	if len(res) == 0 {
+		t.Error("expected at least one drained result")
+	}
+}
+
 func TestSQReady_growsAfterEnqueue(t *testing.T) {
 	r := newTestRing(t, 0)
 	if r.SQReady() != 0 {

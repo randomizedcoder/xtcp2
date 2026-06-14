@@ -87,10 +87,82 @@ func TestPollLoop_cancelledCtx(t *testing.T) {
 	}
 }
 
+// PollLoop with an active (uncancelled) ctx + an unreachable broker:
+// PollFetches returns a fetch error each loop iteration; the loop logs
+// + continues. Cancel ctx after a few iterations so the loop exits via
+// the ctx.Err()-after-Err branch.
+func TestPollLoop_fetchErrorThenCancel(t *testing.T) {
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:0"),
+		kgo.ConsumerGroup("test-group"),
+		kgo.ConsumeTopics("test-topic"),
+	)
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, client, 50*time.Millisecond)
+		close(done)
+	}()
+	// Let a few fetch errors happen before cancellation triggers the
+	// ctx.Err()-after-fetch-err branch.
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after cancel")
+	}
+}
+
 func TestHandleRecord_emptyValue(t *testing.T) {
 	rec := &kgo.Record{Topic: "xtcp", Value: nil}
 	dst := &xtcp_flat_record.Envelope_XtcpFlatRecord{}
 	handleRecord(0, 1, 1, rec, dst)
 	// Empty bytes are a valid empty proto message; nothing to assert beyond
 	// no-panic.
+}
+
+// runMain with debugLevel=0 (-d 0) skips the verbose stdout dump so the
+// `if debugLevel > 10` branch's false-arm is covered.
+func TestRunMain_quiet(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var stdout, stderr strings.Builder
+	rc := runMain(ctx, []string{"-d", "0", "-broker", "localhost:0", "-consumeTimeout", "50ms"}, &stdout, &stderr)
+	if rc != 0 {
+		t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "*broker:") {
+		t.Errorf("verbose output should be suppressed; got %q", stdout.String())
+	}
+}
+
+// pollLoop driven by a kgo client that successfully fetches records.
+// Without a real broker we can't deliver records, but we can exercise
+// the loop's iteration index increment + empty-fetch path. Combined
+// with the existing fetch-error coverage, this fills the gap.
+func TestPollLoop_emptyFetches(t *testing.T) {
+	client, err := kgo.NewClient(kgo.SeedBrokers("localhost:0"))
+	if err != nil {
+		t.Skipf("kgo.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, client, 25*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after ctx timeout")
+	}
 }

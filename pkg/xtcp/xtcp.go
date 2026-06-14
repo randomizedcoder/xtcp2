@@ -96,6 +96,15 @@ type XTCP struct {
 	// can drive the init paths without taking down the process.
 	fatalf func(format string, args ...any)
 
+	// registry is the Prometheus registry InitPromethus and the gRPC
+	// service constructors register metrics into. Defaults to
+	// prometheus.DefaultRegisterer in NewXTCP / NewNsTestingXTCP so
+	// production behavior is unchanged; tests pre-fill this field with a
+	// fresh prometheus.NewRegistry() so repeated InitPromethus /
+	// NewXtcp*Service calls within the same process don't panic from
+	// duplicate metrics collector registration.
+	registry prometheus.Registerer
+
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
 
@@ -121,6 +130,35 @@ type netlinkerDone struct {
 	t  time.Time
 }
 
+// constructorRegistry is the prometheus.Registerer the NewXTCP /
+// NewNsTestingXTCP constructors install on the returned XTCP before
+// calling Init. Defaults to prometheus.DefaultRegisterer (production
+// behavior). Tests swap this in for a fresh prometheus.NewRegistry()
+// so the constructors are re-runnable in one process without panicking
+// from duplicate metrics collector registration.
+var constructorRegistry prometheus.Registerer = prometheus.DefaultRegisterer
+
+// SetConstructorRegistry swaps the registry used by NewXTCP /
+// NewNsTestingXTCP and returns the previous value. Intended for cross-
+// package tests (cmd/ns, cmd/xtcp2) that want a fresh registry per
+// test invocation. Restoring the previous value via the returned hook
+// keeps successive tests' registrations isolated.
+func SetConstructorRegistry(reg prometheus.Registerer) prometheus.Registerer {
+	prev := constructorRegistry
+	constructorRegistry = reg
+	return prev
+}
+
+// SetNetNsCandidateDirs swaps the netns-directory list initSyncMaps
+// probes for. Returns the previous list so tests can restore it.
+// Cross-package tests (cmd/ns) prepend a tempdir so initSyncMaps
+// doesn't fatalf on sandboxes lacking /run/netns + /run/docker/netns.
+func SetNetNsCandidateDirs(dirs []string) []string {
+	prev := netNsCandidateDirs
+	netNsCandidateDirs = dirs
+	return prev
+}
+
 func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config.XtcpConfig) *XTCP {
 
 	x := new(XTCP)
@@ -131,6 +169,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 	x.config = config
 	x.debugLevel = x.config.DebugLevel
 	x.fatalf = log.Fatalf
+	x.registry = constructorRegistry
 
 	x.Init(ctx)
 
@@ -144,11 +183,12 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 	x.ctx = ctx
 	x.cancel = cancel
 	x.fatalf = log.Fatalf
+	x.registry = constructorRegistry
 
 	x.config = &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds: 5000,
 		Dest:                  schemeNull,
-		MarshalTo:             "proto",
+		MarshalTo:             MarshallerProtobufSingle, // was "proto" which is not in validMarshallersMap — latent bug
 		Topic:                 "not-a-topic",
 		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
 			Enabled: make(map[string]bool),

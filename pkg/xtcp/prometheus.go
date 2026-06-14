@@ -37,7 +37,17 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	x.pC = promauto.NewCounterVec(
+	// Production callers (NewXTCP / NewNsTestingXTCP) pre-fill x.registry
+	// with prometheus.DefaultRegisterer; tests inject a fresh
+	// prometheus.NewRegistry() so InitPromethus is re-runnable in the
+	// same process without "duplicate metrics collector" panics.
+	reg := x.registry
+	if reg == nil {
+		reg = prometheus.DefaultRegisterer
+	}
+	factory := promauto.With(reg)
+
+	x.pC = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: promSubsystemXTCP,
 			Name:      promNameCounts,
@@ -46,7 +56,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 		promLabels,
 	)
 
-	x.pH = promauto.NewSummaryVec(
+	x.pH = factory.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Subsystem: promSubsystemXTCP,
 			Name:      promNameHistograms,
@@ -61,7 +71,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 		promLabels,
 	)
 
-	x.pG = promauto.NewGauge(
+	x.pG = factory.NewGauge(
 		prometheus.GaugeOpts{
 			Subsystem: promSubsystemXTCP,
 			Name:      promNameGauge,

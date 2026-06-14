@@ -219,6 +219,41 @@ func TestZeroXTCPCongRecord_dispatch(t *testing.T) {
 	}
 }
 
+// Exercise the DCTCP + VEGAS zeroizer closures (BBR1 is covered above).
+// Each closure is registered separately, so each gets a dedicated test
+// to drive its body.
+func TestZeroXTCPCongRecord_dctcp(t *testing.T) {
+	x := &XTCP{}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitZeroizers(&wg)
+	wg.Wait()
+	rec := &xtcp_flat_record.XtcpFlatRecord{
+		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP,
+		DctcpInfoCeState:        12,
+	}
+	x.ZeroXTCPCongRecord(rec)
+	if rec.DctcpInfoCeState != 0 {
+		t.Errorf("DctcpInfoCeState should be zeroed, got %d", rec.DctcpInfoCeState)
+	}
+}
+
+func TestZeroXTCPCongRecord_vegas(t *testing.T) {
+	x := &XTCP{}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitZeroizers(&wg)
+	wg.Wait()
+	rec := &xtcp_flat_record.XtcpFlatRecord{
+		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS,
+		VegasInfoEnabled:        7,
+	}
+	x.ZeroXTCPCongRecord(rec)
+	if rec.VegasInfoEnabled != 0 {
+		t.Errorf("VegasInfoEnabled should be zeroed, got %d", rec.VegasInfoEnabled)
+	}
+}
+
 func TestZeroXTCPCongRecord_unknownCong(t *testing.T) {
 	x := &XTCP{}
 	var wg sync.WaitGroup
