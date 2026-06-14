@@ -64,7 +64,7 @@ func TestRunMain_cancellable(t *testing.T) {
 
 func TestPollLoop_cancelledCtx(t *testing.T) {
 	// kgo.NewClient on a deferred-resolution broker succeeds without actually
-	// connecting; PollFetches with a cancelled ctx returns an err. Loop
+	// connecting; PollFetches with a canceled ctx returns an err. Loop
 	// exits via the ctx.Done() path.
 	client, err := kgo.NewClient(kgo.SeedBrokers("localhost:0"))
 	if err != nil {
@@ -83,7 +83,7 @@ func TestPollLoop_cancelledCtx(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("pollLoop did not exit on pre-cancelled ctx")
+		t.Fatal("pollLoop did not exit on pre-canceled ctx")
 	}
 }
 

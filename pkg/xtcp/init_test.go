@@ -290,6 +290,24 @@ func TestInitSyncPools_explicitPacketSize(t *testing.T) {
 	}
 }
 
+// InitSyncPools: exercise the xtcpEnvelopePool and destBytesPool New funcs
+// (they weren't asserted by the existing tests so the closures showed up
+// as uncovered statements).
+func TestInitSyncPools_envelopeAndDestPools(t *testing.T) {
+	x := newInitFixture(t)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitSyncPools(&wg)
+	wg.Wait()
+	if x.xtcpEnvelopePool.Get() == nil {
+		t.Error("xtcpEnvelopePool.Get returned nil")
+	}
+	db, _ := x.destBytesPool.Get().(*[]byte)
+	if db == nil || cap(*db) != destBytesMaxSizeCst {
+		t.Errorf("destBytesPool New cap = %d, want %d", cap(*db), destBytesMaxSizeCst)
+	}
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // InitNetlinkers — registers both variants, picks one based on IoUring.
 // ───────────────────────────────────────────────────────────────────────
@@ -315,7 +333,7 @@ func TestInitNetlinkers_syscallDefault(t *testing.T) {
 	select {
 	case <-x.NetlinkerReady:
 	default:
-		t.Error("NetlinkerReady should have been signalled")
+		t.Error("NetlinkerReady should have been signaled")
 	}
 }
 
@@ -328,6 +346,30 @@ func TestInitNetlinkers_ioUringSelected(t *testing.T) {
 	wg.Wait()
 	if x.Netlinker == nil {
 		t.Fatal("Netlinker pointer nil for io_uring path")
+	}
+}
+
+// InitNetlinkers with debugLevel>10 hits the "selected variant" log line.
+func TestInitNetlinkers_debugLog(t *testing.T) {
+	x := newInitFixture(t)
+	x.debugLevel = 20
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitNetlinkers(context.Background(), &wg)
+	wg.Wait()
+}
+
+// InitNetlinkers with x.NetlinkerReady=nil exercises the nil-channel
+// short-circuit before the ready signal.
+func TestInitNetlinkers_nilReadyChannel(t *testing.T) {
+	x := newInitFixture(t)
+	x.NetlinkerReady = nil
+	var wg sync.WaitGroup
+	wg.Add(1)
+	x.InitNetlinkers(context.Background(), &wg)
+	wg.Wait()
+	if x.Netlinker == nil {
+		t.Error("Netlinker should still be selected even without ready channel")
 	}
 }
 
@@ -345,11 +387,11 @@ func TestInitDests_null(t *testing.T) {
 	if x.dest == nil {
 		t.Fatal("InitDests didn't set x.dest for null scheme")
 	}
-	// DestinationReady should be signalled.
+	// DestinationReady should be signaled.
 	select {
 	case <-x.DestinationReady:
 	default:
-		t.Error("DestinationReady should have been signalled")
+		t.Error("DestinationReady should have been signaled")
 	}
 }
 
@@ -440,7 +482,7 @@ func TestInitDests_debugLog(t *testing.T) {
 	select {
 	case <-x.DestinationReady:
 	default:
-		t.Error("DestinationReady should have been signalled")
+		t.Error("DestinationReady should have been signaled")
 	}
 }
 

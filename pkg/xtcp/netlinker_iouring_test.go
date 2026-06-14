@@ -12,6 +12,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 func newIouringFixture(t *testing.T) *XTCP {
@@ -68,6 +71,15 @@ func TestIsETimeError_other(t *testing.T) {
 	}
 	if isETimeError(errors.New("not an errno")) {
 		t.Error("non-errno error should not classify as ETIME")
+	}
+}
+
+// String-fallback branch: errors that wrap an ETIME but whose As-cast
+// to syscall.Errno fails should still classify via the "errno 62"
+// string compare.
+func TestIsETimeError_stringFallback(t *testing.T) {
+	if !isETimeError(errors.New("errno 62")) {
+		t.Error("wrapped 'errno 62' string should classify as ETIME")
 	}
 }
 
@@ -167,6 +179,27 @@ func TestOnRingClosedResult_sendBuf(t *testing.T) {
 	x.onRingClosedResult(xio.Result{Op: xio.OpSendUDP, Buf: &b})
 }
 
+// iouringPrefillRecvs err branch: swap packetBufferPool to yield an
+// empty buffer so EnqueueRecvMsg rejects it and the function returns
+// the error.
+func TestIouringPrefillRecvs_enqueueErr(t *testing.T) {
+	ring, err := xioRingNew(t)
+	if err != nil {
+		t.Skipf("io_uring unavailable: %v", err)
+	}
+	t.Cleanup(func() { ring.Close(time.Second, nil) })
+
+	x := newIouringFixture(t)
+	x.packetBufferPool = sync.Pool{New: func() any {
+		// Empty slice — EnqueueRecvMsg rejects it.
+		b := make([]byte, 0)
+		return &b
+	}}
+	if err := x.iouringPrefillRecvs(ring, 3, 1); err == nil {
+		t.Error("empty buf should make EnqueueRecvMsg return an error")
+	}
+}
+
 // iouringPrefillRecvs + iouringWaitWithTimeout: drive with a real ring
 // + socketpair fd. Prefill submits one recv SQE; wait should timeout
 // with ETIME since no peer wrote to the socket.
@@ -211,6 +244,35 @@ func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
 	nsName := "ns"
 	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
+}
+
+// handleRecvCQE success path (Res>=0): a too-short buffer (4 bytes < 16
+// NlMsgHdr minimum) makes Deserialize return ErrParseDeserializeNlMsgHdr
+// after the safety check, exercising the errD counter increment + the
+// buffer pool put. Without this, the entire success arm of handleRecvCQE
+// stayed at 0% in host tests.
+func TestHandleRecvCQE_successPathTruncated(t *testing.T) {
+	x := newIouringFixture(t)
+	// Deserialize needs a usable config, pools, and pH on the args.
+	x.config = &xtcp_config.XtcpConfig{Modulus: 1}
+	x.xtcpRecordPool = sync.Pool{New: func() any { return new(xtcp_flat_record.XtcpFlatRecord) }}
+	x.nlhPool = sync.Pool{New: func() any { return new(xtcpnl.NlMsgHdr) }}
+	x.rtaPool = sync.Pool{New: func() any { return new(xtcpnl.RTAttr) }}
+	reg := prometheus.NewRegistry()
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{Subsystem: "xtcp_iouring_recv_test",
+			Name: promNameHistograms, Help: "test",
+			Objectives: map[float64]float64{0.5: quantileError},
+			MaxAge:     summaryVecMaxAge},
+		promLabels,
+	)
+
+	b := make([]byte, 64)
+	nsName := "ns"
+	// Res=4 → b[:4] is shorter than NlMsgHdrSizeCst → Deserialize
+	// returns the truncated-header error → handleRecvCQE counter inc.
+	x.handleRecvCQE(context.Background(), nil, &nsName, 7, 0,
+		xio.Result{Op: xio.OpRead, Res: 4, Buf: &b})
 }
 
 func TestIouringWaitWithTimeout_etime(t *testing.T) {

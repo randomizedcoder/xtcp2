@@ -32,12 +32,12 @@ func TestNamespaceName(t *testing.T) {
 func TestCreateNamespace_logsError(t *testing.T) {
 	// Use a name with characters that ip netns rejects so the call
 	// fails fast without requiring privileges.
-	createNamespace("test/invalid/name/with/slashes")
+	createNamespace(t.Context(), "test/invalid/name/with/slashes")
 	// No panic = pass; we don't introspect log output.
 }
 
 func TestRemoveNamespace_logsError(t *testing.T) {
-	removeNamespace("test/invalid/name/with/slashes")
+	removeNamespace(t.Context(), "test/invalid/name/with/slashes")
 }
 
 func TestRunMain_invalidFlag(t *testing.T) {
@@ -47,7 +47,7 @@ func TestRunMain_invalidFlag(t *testing.T) {
 }
 
 func TestRunMain_cancelDuringInitial(t *testing.T) {
-	// Pre-cancelled ctx + initial=5: the initial-fill loop checks
+	// Pre-canceled ctx + initial=5: the initial-fill loop checks
 	// ctx.Err() at the top of each iter and exits without calling
 	// createNamespace 5 times — verifying the cancel hook fires.
 	ctx, cancel := context.WithCancel(t.Context())

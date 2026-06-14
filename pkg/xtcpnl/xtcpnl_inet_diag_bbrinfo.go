@@ -73,8 +73,12 @@ var (
 // It does a basic length check
 func DeserializeBBRInfo(data []byte, b *BBRInfo) (n int, err error) {
 
-	if len(data) < MemInfoSizeCst {
-		return 0, ErrMemInfoSmall
+	// BBRInfo reads 5 × uint32 = 20 bytes. The check used to be against
+	// MemInfoSizeCst (16) — a 16-19 byte buffer passed validation then
+	// panicked on data[16:20]. Same bug shape as the one DeserializeBBRInfoXTCP
+	// already fixed below; this non-XTCP variant was left out.
+	if len(data) < BBRInfoSizeCst {
+		return 0, ErrBBRInfoSmall
 	}
 
 	b.BwLo = binary.LittleEndian.Uint32(data[0:4])

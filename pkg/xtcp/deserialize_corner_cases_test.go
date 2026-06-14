@@ -79,6 +79,11 @@ func loadRealMultipart(tb testing.TB) []byte {
 // signalNetlinkerDone: non-blocking send (default cap=1) covers the happy
 // arm; with the channel pre-filled the default branch executes (counter
 // increment) and the subsequent blocking send completes once we drain.
+//
+// A short sleep before draining ensures the goroutine reaches the select
+// (and takes the `default` arm + the blocking send) BEFORE the main
+// goroutine drains — otherwise there's a race where the drain wins and
+// the non-blocking arm fires instead, missing the default branch.
 func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
 	x := newTestXTCP(t, "null")
 	x.netlinkerDoneCh = make(chan netlinkerDone, 1)
@@ -91,8 +96,11 @@ func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
 		x.signalNetlinkerDone(args)
 		close(done)
 	}()
-	// Drain so the blocking send can proceed.
-	<-x.netlinkerDoneCh
+	// Sleep before draining so the goroutine has time to hit the
+	// default arm + reach the blocking send.
+	time.Sleep(50 * time.Millisecond)
+	<-x.netlinkerDoneCh // unblocks the goroutine's blocking send
+	<-x.netlinkerDoneCh // and drains its sent value
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -435,6 +443,183 @@ func TestDeserializeAdversarialNlh(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			x := newTestDeserializeXTCP(t)
 			// We only assert no-panic / no-hang. Any (n, err) is acceptable.
+			_, _, _ = runDeserialize(t, x, tc.buildBuf())
+		})
+	}
+}
+
+// FuzzDeserialize feeds arbitrary byte sequences through the full
+// xtcp2 netlink parser. The contract under test: no matter what the
+// kernel (or an attacker via a crafted netlink reply) puts on the wire,
+// Deserialize returns in bounded time without panicking. Result errors
+// are allowed and counted via the parser's metrics.
+//
+// Seed corpus: the smallest shapes the bounds tests rely on, plus an
+// empty input and a 1-byte input. The fuzzer mutates from there.
+//
+// Run locally:
+//
+//	go test -fuzz=FuzzDeserialize -fuzztime=30s ./pkg/xtcp/...
+func FuzzDeserialize(f *testing.F) {
+	f.Add([]byte{})
+	f.Add([]byte{0x00})
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 16, 16))
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+		uint32(xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst),
+		xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst))
+	f.Add(mkNlMsg(xtcpnl.NlMsgHdrTypeDoneCst, 16, 16))
+	f.Add(mkNlMsg(0x42, 0, 16))          // unknown type, len=0
+	f.Add(mkNlMsg(0x42, ^uint32(0), 32)) // unknown, max len in small buffer
+	f.Add(loadRealMultipart(f))          // real netlink dump
+
+	f.Fuzz(func(t *testing.T, buf []byte) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Deserialize panicked on %d-byte input: %v\nhex=%x", len(buf), r, buf)
+			}
+		}()
+		x := newTestDeserializeXTCP(t)
+		_, _, _ = runDeserialize(t, x, buf)
+	})
+}
+
+// TestDeserializeInetDiagAdversarialAttrs builds full inet-diag messages
+// (header + body) whose attribute bodies (the RTAttr/NLA sequence after
+// InetDiagMsgSizeCst) contain adversarial sizes — bogus rta.Len smaller
+// than RTAttrSizeCst, larger than the buffer, etc. DeserializeAttributes
+// must not panic on these.
+func TestDeserializeInetDiagAdversarialAttrs(t *testing.T) {
+	const (
+		hdrSize = xtcpnl.NlMsgHdrSizeCst    // 16
+		idmSize = xtcpnl.InetDiagMsgSizeCst // 72
+		rtaSize = xtcpnl.RTAttrSizeCst      // 4
+	)
+
+	// buildInetDiagWithAttrBody returns a netlink message of type
+	// NlMsgHdrTypeInetDiagCst, nlh.Len set so the attributes section
+	// is exactly len(attrBody) bytes, and the body filled with attrBody.
+	buildInetDiagWithAttrBody := func(attrBody []byte) []byte {
+		bufSize := hdrSize + idmSize + len(attrBody)
+		buf := mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+			uint32(bufSize), bufSize)
+		copy(buf[hdrSize+idmSize:], attrBody)
+		return buf
+	}
+
+	cases := []struct {
+		name     string
+		attrBody []byte
+	}{
+		{
+			// Only 2 bytes of attribute body — less than RTAttrSizeCst.
+			// DeserializeRTAttr slice would panic on [offset:offset+4].
+			name:     "attr_body_shorter_than_rta_header",
+			attrBody: []byte{0x00, 0x00},
+		},
+		{
+			// rta.Len = 0 — negative attribute length after subtraction.
+			name: "rta_len_zero",
+			attrBody: func() []byte {
+				b := make([]byte, 32)
+				binary.LittleEndian.PutUint16(b[0:2], 0) // rta.Len
+				binary.LittleEndian.PutUint16(b[2:4], 1) // rta.Type
+				return b
+			}(),
+		},
+		{
+			// rta.Len = 2 — smaller than RTAttrSizeCst (4). Negative.
+			name: "rta_len_below_header_size",
+			attrBody: func() []byte {
+				b := make([]byte, 32)
+				binary.LittleEndian.PutUint16(b[0:2], 2)
+				return b
+			}(),
+		},
+		{
+			// rta.Len lies about a huge attribute (claims 1024 bytes
+			// in an 8-byte body). Slice would extend past the buffer.
+			name: "rta_len_beyond_buffer",
+			attrBody: func() []byte {
+				b := make([]byte, 8)
+				binary.LittleEndian.PutUint16(b[0:2], 1024)
+				binary.LittleEndian.PutUint16(b[2:4], 1)
+				return b
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("DeserializeAttributes panicked on adversarial input %q: %v", tc.name, r)
+				}
+			}()
+			x := newTestDeserializeXTCP(t)
+			_, _, _ = runDeserialize(t, x, buildInetDiagWithAttrBody(tc.attrBody))
+		})
+	}
+}
+
+// TestDeserializeInetDiagAdversarialNlh: same idea as the unknown-type
+// adversarial cases, but with nlh.Type = NlMsgHdrTypeInetDiagCst so the
+// parser routes into processInetDiagRecord — which slices
+// (*d.NLPacket)[offset : offset+InetDiagMsgSizeCst] and computes a
+// body-length from nlh.Len that can go negative. The parser must reject
+// the truncated/lying input cleanly instead of panicking with a slice
+// bounds violation.
+func TestDeserializeInetDiagAdversarialNlh(t *testing.T) {
+	cases := []struct {
+		name     string
+		buildBuf func() []byte
+	}{
+		{
+			// nlh.Len == header size, no body. offset+InetDiagMsgSizeCst
+			// would slice past end-of-buffer.
+			name: "inet_diag_len_equals_header_no_body",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 16, 16)
+			},
+		},
+		{
+			// nlh.Len == header + half an InetDiagMsg. The 72-byte
+			// inet-diag slice would extend past the buffer's end.
+			name: "inet_diag_len_partial_body",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst,
+					uint32(xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst/2),
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst/2)
+			},
+		},
+		{
+			// nlh.Len < InetDiagMsgSizeCst+NlMsgHdrSizeCst → attributes
+			// length goes negative in processInetDiagRecord.
+			name: "inet_diag_len_below_msg_size",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 20,
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst)
+			},
+		},
+		{
+			// nlh.Len lies about a huge message in a small buffer.
+			name: "inet_diag_len_beyond_buffer",
+			buildBuf: func() []byte {
+				return mkNlMsg(xtcpnl.NlMsgHdrTypeInetDiagCst, 4096,
+					xtcpnl.NlMsgHdrSizeCst+xtcpnl.InetDiagMsgSizeCst)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("Deserialize panicked on adversarial input %q: %v", tc.name, r)
+				}
+			}()
+			x := newTestDeserializeXTCP(t)
 			_, _, _ = runDeserialize(t, x, tc.buildBuf())
 		})
 	}

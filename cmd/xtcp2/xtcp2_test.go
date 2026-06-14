@@ -57,6 +57,9 @@ func TestEnvUint64(t *testing.T) {
 		{name: "zero", key: "TEST_U64_ZERO", set: true, val: "0", wantVal: 0, wantOK: true},
 		{name: "unparseable", key: "TEST_U64_BAD", set: true, val: "abc", wantOK: false},
 		{name: "empty", key: "TEST_U64_EMPTY", set: true, val: "", wantOK: false},
+		// Negative values used to ParseInt-then-cast through uint64,
+		// silently producing MaxUint64. Now rejected via ParseUint.
+		{name: "negative", key: "TEST_U64_NEG", set: true, val: "-1", wantOK: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -85,6 +88,12 @@ func TestEnvUint32(t *testing.T) {
 	t.Setenv("TEST_U32_BAD", "not-a-number")
 	if _, ok := envUint32("TEST_U32_BAD"); ok {
 		t.Fatal("unparseable should return ok=false")
+	}
+	// Negative values previously wrapped to MaxUint32 via Atoi+cast.
+	// ParseUint rejects them.
+	t.Setenv("TEST_U32_NEG", "-1")
+	if _, ok := envUint32("TEST_U32_NEG"); ok {
+		t.Fatal("negative value should return ok=false (would silently wrap to MaxUint32 pre-fix)")
 	}
 }
 
@@ -422,7 +431,7 @@ func TestInitPromHandler_smoke(t *testing.T) {
 
 func TestAwaitSignalAndShutdown_timeoutPath(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
-	complete := make(chan struct{}) // never signalled
+	complete := make(chan struct{}) // never signaled
 	_, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {

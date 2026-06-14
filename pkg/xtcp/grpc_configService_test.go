@@ -64,7 +64,7 @@ func TestConfigService_Get(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Set — always returns Unimplemented (current behaviour)
+// Set — always returns Unimplemented (current behavior)
 // ───────────────────────────────────────────────────────────────────────
 
 func TestConfigService_Set(t *testing.T) {
@@ -81,6 +81,24 @@ func TestConfigService_Set(t *testing.T) {
 // ───────────────────────────────────────────────────────────────────────
 // SetPollFrequency — mutates config + signals on the channel
 // ───────────────────────────────────────────────────────────────────────
+
+// Set validate-error branch — pass a SetRequest with an empty Config,
+// which fails required-field validation on the transitively-validated
+// XtcpConfig (poll_frequency, dest, etc.). debugLevel>10 exercises
+// the inner log + counter branches.
+func TestConfigService_Set_validateErr(t *testing.T) {
+	c, _ := newConfigServiceFixture(t)
+	c.debugLevel = 20
+	_, err := c.Set(context.Background(), &xtcp_config.SetRequest{
+		Config: &xtcp_config.XtcpConfig{},
+	})
+	if err == nil {
+		t.Fatal("Set with empty config should fail validation")
+	}
+	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument; got %v", err)
+	}
+}
 
 // SetPollFrequency validate-error branch — empty request fails validation
 // since poll_frequency and poll_timeout are both required. debugLevel>10
@@ -153,6 +171,6 @@ func TestConfigService_SetPollFrequency_happy(t *testing.T) {
 			t.Errorf("channel got %v, want 7s", d)
 		}
 	default:
-		t.Error("SetPollFrequency should have signalled on changePollFrequencyCh")
+		t.Error("SetPollFrequency should have signaled on changePollFrequencyCh")
 	}
 }

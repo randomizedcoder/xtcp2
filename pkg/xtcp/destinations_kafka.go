@@ -126,6 +126,11 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 		ctxP,
 		rec,
 		func(rec *kgo.Record, err error) {
+			// Release the WithTimeout resources whether the produce
+			// succeeded or failed; the previous code only called cancelP
+			// in the err branch, leaking a goroutine + timer per
+			// successful send until the timeout naturally fired.
+			defer cancelP()
 			dur := time.Since(start)
 			d.recordPool.Put(rec)
 			*b = (*b)[:0]
@@ -136,7 +141,6 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 				if d.x.debugLevel > 10 {
 					log.Printf("destKafka %0.6fs Produce err:%v", dur.Seconds(), err)
 				}
-				cancelP()
 				return
 			}
 			d.x.pH.WithLabelValues("destKafka", "Produce", "count").Observe(dur.Seconds())
@@ -246,7 +250,13 @@ func (d *kafkaDest) pingKafkaWithRetries(ctx context.Context, retries int, sleep
 			if d.x.debugLevel > 10 {
 				log.Printf("pingKafkaWithRetries i:%d sleep:%0.3fs", i, s.Seconds())
 			}
-			time.Sleep(s)
+			// time.Sleep would block through ctx cancellation; a
+			// startup-time ctx-cancel should abort retries promptly.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s):
+			}
 			continue
 		}
 		break

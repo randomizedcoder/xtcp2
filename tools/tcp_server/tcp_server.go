@@ -50,7 +50,7 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 }
 
 // runServer binds <bind:port> and echoes each accepted connection. Returns
-// when ctx is cancelled (after closing the listener) or on a hard listener
+// when ctx is canceled (after closing the listener) or on a hard listener
 // error. Extracted from main() / server() so tests can drive it with a
 // 0-port bind and ctx.Cancel() instead of a panic loop.
 func runServer(ctx context.Context, bind string, port int) error {

@@ -14,9 +14,16 @@ import (
 const (
 	xtcpNSName = "xtcpNS"
 
-	guageUpdateFrequency       = 1 * time.Minute
-	reconcileFrequency         = 5 * time.Minute
 	goRoutineReporterFrequency = 1 * time.Minute
+)
+
+// guageUpdateFrequency + reconcileFrequency are var (not const) so tests
+// can shrink them to milliseconds and exercise the ticker.C arm of
+// nsMapCountReporter + mapReconciler without sitting for minutes.
+// Production keeps the original 1m / 5m values.
+var (
+	guageUpdateFrequency = 1 * time.Minute
+	reconcileFrequency   = 5 * time.Minute
 )
 
 // nsMapCountReporter regularly update the promethus gauge

@@ -121,7 +121,7 @@ func TestGetLatestSchemaIDAt_ctxCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := getLatestSchemaIDAt(ctx, srv.Client(), srv.URL, "subj"); err == nil {
-		t.Error("cancelled ctx should produce error")
+		t.Error("canceled ctx should produce error")
 	}
 }
 

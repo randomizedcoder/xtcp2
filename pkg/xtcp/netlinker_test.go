@@ -12,7 +12,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
-// netlinkerSyscall: drive the early-exit path with an already-cancelled
+// netlinkerSyscall: drive the early-exit path with an already-canceled
 // ctx. The loop's first checkDoneNonBlocking returns true and the function
 // cleans up + returns without ever calling Recvfrom.
 
@@ -39,7 +39,7 @@ func TestNetlinkerSyscall_earlyExit(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // pre-cancelled → first checkDoneNonBlocking returns true
+	cancel() // pre-canceled → first checkDoneNonBlocking returns true
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -53,6 +53,6 @@ func TestNetlinkerSyscall_earlyExit(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("netlinkerSyscall did not exit on pre-cancelled ctx")
+		t.Fatal("netlinkerSyscall did not exit on pre-canceled ctx")
 	}
 }

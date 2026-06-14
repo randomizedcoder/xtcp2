@@ -91,6 +91,11 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		length = xtcpnl.NlMsgHdrSizeCst
 		if _, errD := xtcpnl.DeserializeNlMsgHdr((*d.NLPacket)[offset:offset+length], nlh); errD != nil {
 			d.pC.WithLabelValues("Deserialize", "DeserializeNlMsgHdr", "error").Inc()
+			// Both pool buffers were Get'd above; return them before
+			// bailing out so a long-running daemon doesn't slowly drain
+			// the pools on every malformed-packet recovery.
+			d.nlhPool.Put(nlh)
+			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, ErrParseDeserializeNlMsgHdr
 		}
 		offset += length
@@ -124,6 +129,12 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 // into xtcpRecord, fans the populated record out to the gRPC stream
 // service, and ships it through the configured destination. Returns
 // the new offset after consuming the message body.
+//
+// All slice operations on d.NLPacket are bounded against len(*d.NLPacket)
+// and against nlh.Len. A malformed (or adversarial) netlink message that
+// claims a larger body than the buffer holds — or claims a body smaller
+// than InetDiagMsgSizeCst — must produce a clean error return rather
+// than a slice-bounds-out-of-range panic that would crash the daemon.
 func (x *XTCP) processInetDiagRecord(
 	ctx context.Context,
 	d DeserializeArgs,
@@ -132,13 +143,31 @@ func (x *XTCP) processInetDiagRecord(
 	offset int,
 	n uint64,
 ) int {
+	bufEnd := len(*d.NLPacket)
 	length := xtcpnl.InetDiagMsgSizeCst
+	if offset+length > bufEnd {
+		// Truncated inet-diag header — skip the rest of the buffer
+		// instead of panicking on the slice expression below.
+		d.pC.WithLabelValues("Deserialize", "truncatedInetDiagMsg", "error").Inc()
+		return bufEnd
+	}
 	if ierr := xtcpnl.DeserializeInetDiagMsgXTCP((*d.NLPacket)[offset:offset+length], xtcpRecord); ierr != nil {
 		d.pC.WithLabelValues("Deserialize", "DeserializeInetDiagMsgXTCP", "error").Inc()
 	}
 	offset += length
 
-	length = int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
+	// nlh.Len <= NlMsgHdrSizeCst+InetDiagMsgSizeCst → no attributes.
+	// nlh.Len lying about a larger length than the buffer holds →
+	// clamp to the buffer end so DeserializeAttributes can't read OOB.
+	attrLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst - xtcpnl.InetDiagMsgSizeCst
+	if attrLen < 0 {
+		d.pC.WithLabelValues("Deserialize", "inetDiagNlhLenTooSmall", "error").Inc()
+		attrLen = 0
+	}
+	if offset+attrLen > bufEnd {
+		d.pC.WithLabelValues("Deserialize", "inetDiagNlhLenOverflow", "error").Inc()
+		attrLen = bufEnd - offset
+	}
 	x.DeserializeAttributes(DeserializeAttributesArgs{
 		NLPacket:   d.NLPacket,
 		xtcpRecord: xtcpRecord,
@@ -147,9 +176,9 @@ func (x *XTCP) processInetDiagRecord(
 		pH:         d.pH,
 		id:         d.id,
 		offset:     offset,
-		end:        offset + length,
+		end:        offset + attrLen,
 	})
-	offset += length
+	offset += attrLen
 
 	if x.debugLevel > 1000 {
 		log.Printf("Deserialize n:%d x.dest.Send(ctx, x.Marshaler(xtcpRecord))", n)
@@ -232,27 +261,65 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 	// }()
 	// d.pC.WithLabelValues("Deserialize", "start", "count").Inc()
 
+	bufEnd := len(*d.NLPacket)
 	for j := 0; d.offset < d.end; j++ {
+
+		// Each RTAttr is at least RTAttrSizeCst (4) bytes. If less than
+		// that remains in this attributes section — or in the buffer
+		// generally — the next slice would panic. Stop the loop and
+		// count the truncation so it's visible in metrics.
+		if d.offset+xtcpnl.RTAttrSizeCst > d.end ||
+			d.offset+xtcpnl.RTAttrSizeCst > bufEnd {
+			d.pC.WithLabelValues("DeserializeAttributes", "truncatedRTAttrHeader", "error").Inc()
+			return
+		}
 
 		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr) //nolint:errcheck // pool.New returns *RTAttr
 
 		length := xtcpnl.RTAttrSizeCst
 		_, errD := xtcpnl.DeserializeRTAttr((*d.NLPacket)[d.offset:d.offset+length], rta)
 		if errD != nil {
-			log.Fatal("Test Failed DeserializeRTAttr errD", errD)
+			// Don't log.Fatal — that would crash the daemon on a single
+			// malformed attribute. Count the error and stop parsing
+			// this attribute block; the next inet-diag record can still
+			// proceed cleanly.
+			d.pC.WithLabelValues("DeserializeAttributes", "DeserializeRTAttr", "error").Inc()
+			d.rtaPool.Put(rta)
+			return
 		}
 		d.offset += length
 
-		length = int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
+		// rta.Len lying about a payload smaller than the 4-byte RTAttr
+		// header → negative attribute body length. Stop here rather
+		// than slicing with a negative bound.
+		bodyLen := int(rta.Len) - xtcpnl.RTAttrSizeCst + xtcpnl.FourByteAlignPadding(int(rta.Len))
+		if bodyLen < 0 {
+			d.pC.WithLabelValues("DeserializeAttributes", "rtaLenTooSmall", "error").Inc()
+			d.rtaPool.Put(rta)
+			return
+		}
+		// rta.Len lying about a payload larger than the buffer holds →
+		// the slice would extend OOB. Clamp to the buffer end.
+		end := d.offset + bodyLen
+		if end > d.end || end > bufEnd {
+			d.pC.WithLabelValues("DeserializeAttributes", "rtaLenOverflow", "error").Inc()
+			if d.end < bufEnd {
+				end = d.end
+			} else {
+				end = bufEnd
+			}
+		}
 		_ = x.DeserializeAttribute(DeserializeAttributeArgs{ //nolint:errcheck // always returns nil today; signature reserves the option
 			Type:       int(rta.Type),
-			buf:        (*d.NLPacket)[d.offset : d.offset+length],
+			buf:        (*d.NLPacket)[d.offset:end],
 			xtcpRecord: d.xtcpRecord,
 			pC:         d.pC,
 			pH:         d.pH,
 		})
 
-		d.offset += length
+		d.offset += bodyLen
+		// Same overflow could push d.offset past d.end on the next
+		// iteration's slice; loop condition catches that.
 
 		d.rtaPool.Put(rta)
 	}

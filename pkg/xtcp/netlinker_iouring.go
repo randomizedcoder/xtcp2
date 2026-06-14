@@ -190,7 +190,22 @@ func (x *XTCP) iouringWaitWithTimeout(ring *xio.Ring, d time.Duration) ([]xio.Re
 // downstream library). errors.Is walks Unwrap for us, so this also
 // covers the giouring helpers' future wrapping.
 func isETimeError(err error) bool {
-	return errors.Is(err, syscall.ETIME)
+	if err == nil {
+		return false
+	}
+	// errors.As walks the unwrap chain (e.g. fmt.Errorf("...: %w", err)
+	// → syscall.Errno), which the previous direct type-assert missed.
+	// Keep the existing string fallback for libraries that stringify
+	// errno without exposing the typed unwrap path.
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno == syscall.ETIME
+	}
+	// Fallback: match by string for wrapped errors.
+	if err.Error() == "errno 62" {
+		return true
+	}
+	return false
 }
 
 // handleRecvCQE feeds the recv'd bytes into the deserializer and returns

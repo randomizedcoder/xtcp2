@@ -23,6 +23,12 @@
   # null, the Vector flavor attrs are not exposed (so callers that don't
   # have the descriptor set built yet still get the minimal flavor).
   protoDescPackage ? null,
+  # Optional: a coverage-instrumented xtcp2 build (see nix/binaries.nix
+  # xtcp2-cover). When non-null, the coverage flavor is exposed. The
+  # microvm runs the cover binary with GOCOVERDIR set to a tmpfs path,
+  # then the self-test stops xtcp2 to flush counter data and tar+base64s
+  # it out via the serial console for the host lifecycle runner to scrape.
+  xtcp2CoverPackage ? null,
 }:
 
 let
@@ -60,10 +66,48 @@ let
       sink = "vector";
     };
 
+  mkOneCoverage =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2AllPackage
+        ;
+      xtcp2Package = xtcp2CoverPackage;
+      sink = "coverage";
+    };
+
+  mkOneCoverageIoUring =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2AllPackage
+        ;
+      xtcp2Package = xtcp2CoverPackage;
+      sink = "coverage-iouring";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
     lib.genAttrs constants.supportedArchs mkOneVector
+  );
+
+  vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs mkOneCoverage
+  );
+
+  vmsCoverageIoUring = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs mkOneCoverageIoUring
   );
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
@@ -81,6 +125,28 @@ let
         suffix = "-vector";
         sentinelRe = "SYSTEMD|METRICS|VECTOR|MINIO|PARQUET|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|OVERALL";
         timeoutSec = 240;
+      };
+    })
+  );
+
+  lifecycleCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      fullTest = microvmLib.mkLifecycleFullTest {
+        inherit arch;
+        vm = vmsCoverage.${arch};
+        suffix = "-coverage";
+        scrapeCoverage = true;
+      };
+    })
+  );
+
+  lifecycleCoverageIoUring = lib.optionalAttrs (xtcp2CoverPackage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      fullTest = microvmLib.mkLifecycleFullTest {
+        inherit arch;
+        vm = vmsCoverageIoUring.${arch};
+        suffix = "-coverage-iouring";
+        scrapeCoverage = true;
       };
     })
   );
@@ -116,8 +182,12 @@ in
   inherit
     vms
     vmsVector
+    vmsCoverage
+    vmsCoverageIoUring
     lifecycle
     lifecycleVector
+    lifecycleCoverage
+    lifecycleCoverageIoUring
     checks
     checksVector
     ;

@@ -52,12 +52,19 @@ func (x *XTCP) reconcile(ctx context.Context) (int, int) {
 	return x.reconcileMaps(ctx, x.discoverAllNamespaces(), x.nsMap, false)
 }
 
-// reconcileMaps reconciles srcMap into destMap, comparing both keys AND
-// values. The dest is mutated to converge with src:
+// reconcileMaps reconciles srcMap into destMap. The dest is mutated to
+// converge with src:
 //
-//   - Entries in dest that are missing from src, or whose value differs,
-//     are deleted. (A stale value counts as out-of-sync; the second pass
-//     re-stores the fresh value.)
+//   - Entries in dest that are missing from src are deleted.
+//   - Entries in dest whose src value is non-nil AND differs from the
+//     dest value are also deleted; the second pass re-stores the fresh
+//     src value. (The "stale value" branch — kept so existing tests
+//     that pass non-nil src values still exercise replace-on-drift.)
+//   - In production discoverNamespaces stores keys with nil values;
+//     that nil must NOT count as "drift" — comparing nil against the
+//     destMap's netNSitem struct would otherwise delete every entry
+//     every cycle, orphaning each existing netNamespaceInstance
+//     goroutine + its open netlink socketFD.
 //   - Entries in src that are now missing from dest are stored — in
 //     production via x.nsAdd which kicks the namespace-instance goroutine;
 //     in `testing=true` callers the raw value is copied over.
@@ -66,8 +73,12 @@ func (x *XTCP) reconcile(ctx context.Context) (int, int) {
 func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, testing bool) (deleteCount, storeCount int) {
 
 	destMap.Range(func(key, value interface{}) bool {
-		// Delete when the key is gone from src OR its value drifted.
-		if srcValue, ok := srcMap.Load(key); !ok || srcValue != value {
+		// Delete when the key is gone from src OR (src has a non-nil
+		// value that differs from dest). Treating nil src values as
+		// drift would incorrectly delete every production entry —
+		// discoverNamespaces stores all its values as nil.
+		srcValue, ok := srcMap.Load(key)
+		if !ok || (srcValue != nil && srcValue != value) {
 			destMap.Delete(key)
 			deleteCount++
 		}

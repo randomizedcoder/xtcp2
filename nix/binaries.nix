@@ -121,6 +121,30 @@ let
 
   # Default-variant attrs (every cmd → default-variant derivation).
   defaultBinaries = byVariant.default;
+
+  # Coverage-instrumented xtcp2: `-cover` build flag plus `-coverpkg` set
+  # to the in-scope namespace. Writes Go coverage data to $GOCOVERDIR on
+  # clean exit. Consumed by the wave 10 microvm coverage harness; not
+  # exposed by default for production use.
+  #
+  # `destinations = [ ]` builds the stdlib-only flavor (null/udp/unix/
+  # unixgram) — same as host `go test ./...` without dest_kafka/dest_nats/
+  # dest_nsq/dest_valkey build tags. Keeping the block universe in sync
+  # with host tests lets the VM profile merge cleanly with host coverage
+  # without introducing build-tag-gated blocks that drag the total down.
+  xtcp2-cover = mkGoBinary {
+    name = "xtcp2";
+    inherit
+      src
+      commit
+      date
+      version
+      ;
+    variant = "default";
+    destinations = [ ];
+    coverage = true;
+    coverPkg = "github.com/randomizedcoder/xtcp2/...";
+  };
 in
 defaultBinaries
 // {
@@ -136,6 +160,9 @@ defaultBinaries
   xtcp2-nats = xtcp2ByFlavor.nats;
   xtcp2-nsq = xtcp2ByFlavor.nsq;
   xtcp2-valkey = xtcp2ByFlavor.valkey;
+
+  # Coverage-instrumented xtcp2 for the microvm coverage harness.
+  inherit xtcp2-cover;
 
   # Joined builds.
   xtcp2-all = joins.default;

@@ -105,7 +105,7 @@ func client(wg *sync.WaitGroup,
 }
 
 // ErrTimeout is the sentinel returned by clientOnce when the underlying
-// Read/Write deadline fires, signalling "retry next iteration".
+// Read/Write deadline fires, signaling "retry next iteration".
 var ErrTimeout = errors.New("net deadline")
 
 // buildMessage assembles the per-client send buffer: "clientPORT" + pads of

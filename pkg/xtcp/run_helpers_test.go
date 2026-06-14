@@ -38,7 +38,7 @@ func newRunFixture(t *testing.T) *XTCP {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// checkDoneNonBlocking — branch on whether ctx is cancelled
+// checkDoneNonBlocking — branch on whether ctx is canceled
 // ───────────────────────────────────────────────────────────────────────
 
 func TestCheckDoneNonBlocking_open(t *testing.T) {
@@ -49,12 +49,12 @@ func TestCheckDoneNonBlocking_open(t *testing.T) {
 	}
 }
 
-func TestCheckDoneNonBlocking_cancelled(t *testing.T) {
+func TestCheckDoneNonBlocking_canceled(t *testing.T) {
 	x := &XTCP{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if !x.checkDoneNonBlocking(ctx) {
-		t.Error("cancelled ctx should report done")
+		t.Error("canceled ctx should report done")
 	}
 }
 
@@ -228,6 +228,50 @@ func TestCheckDirectoryExists_isFile(t *testing.T) {
 	if checkDirectoryExists(f) {
 		t.Error("regular file should not report as directory")
 	}
+}
+
+// nsMapCountReporter ticker arm: drop guageUpdateFrequency to 20ms so
+// the ticker fires before ctx cancellation. Exercises the gauge.Set
+// + tick counter + (debugLevel>100) log branches.
+func TestNsMapCountReporter_tickFires(t *testing.T) {
+	prev := guageUpdateFrequency
+	guageUpdateFrequency = 20 * time.Millisecond
+	t.Cleanup(func() { guageUpdateFrequency = prev })
+
+	x := newRunFixture(t)
+	x.nsMap = &sync.Map{}
+	x.debugLevel = 200
+	reg := prometheus.NewRegistry()
+	x.pG = promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		Subsystem: "xtcp_tick_test", Name: promNameGauge, Help: "test",
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go x.nsMapCountReporter(ctx, &wg)
+	time.Sleep(80 * time.Millisecond) // a few ticks
+	cancel()
+	wg.Wait()
+}
+
+// mapReconciler ticker arm: same pattern with reconcileFrequency.
+func TestMapReconciler_tickFires(t *testing.T) {
+	prev := reconcileFrequency
+	reconcileFrequency = 20 * time.Millisecond
+	t.Cleanup(func() { reconcileFrequency = prev })
+
+	x := newReconcileFixture(t)
+	x.fatalf = t.Fatalf
+	x.debugLevel = 11 // hit the log branch
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go x.mapReconciler(ctx, &wg)
+	time.Sleep(80 * time.Millisecond) // a few ticks
+	cancel()
+	wg.Wait()
 }
 
 // watchNsNamespace event branches: drive a fsnotify Create then Remove

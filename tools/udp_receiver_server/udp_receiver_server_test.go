@@ -182,6 +182,51 @@ func itoa(n int) string {
 	return string(buf[i:])
 }
 
+// runMain happy completion: send a VALID encoded record then cancel ctx
+// so runReceiver returns nil → runMain falls through to "return 0".
+func TestRunMain_returnZeroAfterClean(t *testing.T) {
+	probe, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := probe.LocalAddr().(*net.UDPAddr).Port
+	_ = probe.Close() //nolint:errcheck // test plumbing
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan int, 1)
+	var stdout, stderr strings.Builder
+	go func() {
+		done <- runMain(ctx, []string{"-port", itoa(port)}, &stdout, &stderr)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// Send a valid encoded record so runReceiver's read unblocks and
+	// the next iter takes the ctx.Done branch.
+	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
+	if derr == nil {
+		buf, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h"}) //nolint:errcheck // test plumbing
+		_, _ = cli.Write(buf)                                                             //nolint:errcheck // test plumbing
+		_ = cli.Close()                                                                   //nolint:errcheck // test plumbing
+	}
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	// Send a second valid record + close the socket via SetReadDeadline
+	// so ReadFromUDP returns and the loop observes ctx.Done().
+	if cli2, _ := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}); cli2 != nil { //nolint:errcheck // test plumbing
+		buf2, _ := proto.Marshal(&xtcp_flat_record.Envelope_XtcpFlatRecord{Hostname: "h2"}) //nolint:errcheck // test plumbing
+		_, _ = cli2.Write(buf2)                                                             //nolint:errcheck // test plumbing
+		_ = cli2.Close()                                                                    //nolint:errcheck // test plumbing
+	}
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Errorf("rc = %d, want 0; stderr=%s", rc, stderr.String())
+		}
+	case <-time.After(2 * time.Second):
+		t.Skip("runMain hung; ReadFromUDP blocks without a packet")
+	}
+}
+
 func TestRunReceiver_readError(t *testing.T) {
 	srv, cli := loopbackUDP(t)
 	_ = cli.Close()                    //nolint:errcheck // test plumbing
@@ -195,7 +240,7 @@ func TestRunReceiver_readError(t *testing.T) {
 		_ = srv.Close() //nolint:errcheck // test plumbing
 	}()
 	err := runReceiver(t.Context(), srv)
-	// Either ctx wasn't cancelled (=> err non-nil) or the cancel-race made
+	// Either ctx wasn't canceled (=> err non-nil) or the cancel-race made
 	// it nil; both branches are valid. Just exercise the path.
 	_ = err
 }

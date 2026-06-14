@@ -66,7 +66,7 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 }
 
 // pollLoop is the Kafka consume body. Extracted so test code can call it
-// against a fake client (with a pre-cancelled ctx for a quick exit).
+// against a fake client (with a pre-canceled ctx for a quick exit).
 func pollLoop(ctx context.Context, cl *kgo.Client) {
 	for i := 0; ; i++ {
 		select {
@@ -86,7 +86,7 @@ func pollLoop(ctx context.Context, cl *kgo.Client) {
 			continue
 		}
 		fetches.EachRecord(func(record *kgo.Record) {
-			_ = processRecord(record.Value, debugLevel)
+			_ = processRecord(record.Value, debugLevel) //nolint:errcheck // processRecord logs internally; nothing actionable here
 		})
 	}
 }

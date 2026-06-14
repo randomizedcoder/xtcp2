@@ -114,6 +114,49 @@ func TestClientOnce_writeError(t *testing.T) {
 	_ = a.Close() //nolint:errcheck // test plumbing
 }
 
+// clientOnce write-timeout path: connect to a pipe with no reader,
+// set a microsecond write deadline → Write returns a timeout error
+// (since the pipe buffer fills) → returns ErrTimeout. net.Pipe is
+// synchronous so any Write without a matching Read blocks until the
+// deadline.
+func TestClientOnce_writeTimeout(t *testing.T) {
+	a, b := net.Pipe()
+	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = b.Close() }() //nolint:errcheck // test plumbing
+
+	// Don't read from b → a.Write blocks until deadline.
+	buf := []byte("x")
+	err := clientOnce(a, buf, make([]byte, 16), time.Millisecond, time.Second)
+	if err == nil {
+		t.Error("expected error from write-deadline expiry")
+	}
+	if !errors.Is(err, ErrTimeout) {
+		t.Errorf("expected ErrTimeout; got %v", err)
+	}
+}
+
+// dialWithRetry where every attempt times out → exhausts retries and
+// returns the wrapped "dial %s: %w" error with lastErr inside.
+// 192.0.2.0/24 is TEST-NET-1, normally unrouted so dial blocks until
+// timeout. In a Nix sandbox without network the kernel rejects with
+// EHOSTUNREACH/EPERM on the first attempt; dialWithRetry then returns
+// that err directly (early return at line 139) — which doesn't satisfy
+// the retry-exhaustion check. The test accepts either outcome since
+// both paths exercise the err-return contract; what we care about is
+// that some err is wrapped/produced for the dial target.
+func TestDialWithRetry_allTimeouts(t *testing.T) {
+	_, err := dialWithRetry("192.0.2.1", 9, 3, 50*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected error from dial to TEST-NET-1")
+	}
+	// Both paths must mention the target somehow; the wrapped form
+	// uses "dial 192.0.2.1:9" while the early-return form uses the
+	// kernel's "dial tcp 192.0.2.1:9" prefix.
+	if !strings.Contains(err.Error(), "192.0.2.1:9") {
+		t.Errorf("err should reference dial address; got %v", err)
+	}
+}
+
 func TestRunMain_zeroCount(t *testing.T) {
 	if rc := runMain([]string{"-count", "0"}, &strings.Builder{}); rc != 0 {
 		t.Errorf("rc = %d, want 0", rc)

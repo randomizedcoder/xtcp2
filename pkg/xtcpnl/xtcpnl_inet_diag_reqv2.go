@@ -51,7 +51,14 @@ func DeserializeInetDiagReqV2(data []byte, inetdiagreqv2 *InetDiagReqV2, s *Inet
 
 	inetdiagreqv2.IDiagStates = binary.BigEndian.Uint32(data[4:8])
 
-	_, errD := DeserializeInetDiagSockID(data[4:4+InetDiagSockIDSizeCst], s)
+	// SocketID begins at offset 8 in the wire format (after the
+	// 4-byte IDiagStates that ends at offset 7), NOT offset 4. The
+	// previous slice — data[4:4+48] — overlapped the IDiagStates
+	// bytes into the SocketID parse, so SocketID.SPort/DPort/IPs etc.
+	// were decoded from positions shifted 4 bytes earlier than they
+	// actually live. Only reached by tests/benchmarks; production
+	// only SERIALIZES InetDiagReqV2 via SerializeNetlinkDiagRequest.
+	_, errD := DeserializeInetDiagSockID(data[8:8+InetDiagSockIDSizeCst], s)
 	if errD != nil {
 		return 0, errD
 	}

@@ -73,7 +73,7 @@ func TestRunMain_invalidFlag(t *testing.T) {
 }
 
 func TestRunMain_cancellable(t *testing.T) {
-	// Pre-cancelled ctx → pollLoop exits via ctx.Done() before fetching.
+	// Pre-canceled ctx → pollLoop exits via ctx.Done() before fetching.
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if rc := runMain(ctx, []string{"-d", "0"}, &bytes.Buffer{}); rc != 0 {

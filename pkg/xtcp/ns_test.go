@@ -221,8 +221,8 @@ func TestNsDelete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// nsDelete will call cancel() on the item's stored CancelFunc.
-	var cancelled bool
-	storedCancel := func() { cancelled = true }
+	var canceled bool
+	storedCancel := func() { canceled = true }
 	x.nsMap.Store("ns1", netNSitem{
 		ctx:      ctx,
 		cancel:   storedCancel,
@@ -237,7 +237,7 @@ func TestNsDelete(t *testing.T) {
 	if _, ok := x.fdToNsMap.Load(7); ok {
 		t.Error("nsDelete should remove the fd→ns binding")
 	}
-	if !cancelled {
+	if !canceled {
 		t.Error("nsDelete should call cancel() on the stored item")
 	}
 	if x.deleteCount.Load() != 1 {
