@@ -21,8 +21,8 @@ type DecodeFromBytesSerializeToTest struct {
 func TestDecodeFromBytesSerializeTo(t *testing.T) {
 	var tests = []DecodeFromBytesSerializeToTest{
 		{
-			description: "verify_request",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes",
+			description: tnVerifyRequest,
+			filename:    tdReqBytes_6_6_44,
 		},
 		{
 			description: "verify_request_all",
@@ -30,11 +30,11 @@ func TestDecodeFromBytesSerializeTo(t *testing.T) {
 		},
 		{
 			description: "verify_request_all_example2",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example2",
+			filename:    tdReqBytes2_6_6_44,
 		},
 		{
 			description: "verify_request_all_example3",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example3",
+			filename:    tdReqBytes3_6_6_44,
 		},
 		{
 			description: "6_10_3 verify_request",
@@ -58,7 +58,7 @@ func TestDecodeFromBytesSerializeTo(t *testing.T) {
 		},
 		{
 			description: "verify_request_allv6",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_single_packet_v6.pcap",
+			filename:    tdReqSinglePktV6_6_6_44,
 			debugLevel:  11,
 		},
 	}

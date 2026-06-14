@@ -22,8 +22,8 @@ func TestDeserializeSockOpt(t *testing.T) {
 	t3 := SockOpt(82)
 	var tests = []DeserializeSockOptTest{
 		{
-			description: "attribute_sockopt",
-			filename:    "./testdata/6_10_3/attribute_sockopt_4305",
+			description: tnAttrSockopt,
+			filename:    tdAttrSockopt_6_10_3,
 			s:           &t1,
 			Func: func(data []byte, s *SockOpt) (n int, err error) {
 				return DeserializeSockOpt(data, s)
@@ -31,7 +31,7 @@ func TestDeserializeSockOpt(t *testing.T) {
 		},
 		{
 			description: "attribute_sockopt_reflection",
-			filename:    "./testdata/6_10_3/attribute_sockopt_4305",
+			filename:    tdAttrSockopt_6_10_3,
 			s:           &t2,
 			Func: func(data []byte, s *SockOpt) (n int, err error) {
 				return DeserializeSockOptReflection(data, s)
@@ -108,8 +108,8 @@ func BenchmarkDeserializeSockOptReflection(b *testing.B) {
 func DeserializeSockOptBoth(b *testing.B, Func func(data []byte, tc *SockOpt) (n int, err error)) {
 	var tests = []DeserializeSockOptTest{
 		{
-			description: "attribute_sockopt",
-			filename:    "./testdata/6_10_3/attribute_sockopt_4305",
+			description: tnAttrSockopt,
+			filename:    tdAttrSockopt_6_10_3,
 		},
 	}
 

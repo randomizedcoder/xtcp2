@@ -8,6 +8,9 @@ import (
 	"testing"
 )
 
+// Shared test fixture path.
+const testdataNonCopyWriteText = "./testdata/non_copy_write_text"
+
 // https://dave.cheney.net/2016/05/10/test-fixtures-in-go
 // t.Log(wd)
 
@@ -56,7 +59,7 @@ func TestMaxLoopsOrForEver(t *testing.T) {
 // Please note the benchmarking code below doesn't seem to find much difference
 func TestScanFile(t *testing.T) {
 
-	filename := "./testdata/non_copy_write_text"
+	filename := testdataNonCopyWriteText
 	scanFileLines := ScanFile(filename)
 	readFileLines := ReadFile(filename)
 
@@ -70,7 +73,7 @@ func TestScanFile(t *testing.T) {
 
 func BenchmarkScanFile(b *testing.B) {
 
-	filename := "./testdata/non_copy_write_text"
+	filename := testdataNonCopyWriteText
 	for n := 0; n < b.N; n++ {
 		scanFileLines := ScanFile(filename)
 		if debugLevel > 100 {
@@ -81,7 +84,7 @@ func BenchmarkScanFile(b *testing.B) {
 
 func BenchmarkReadFile(b *testing.B) {
 
-	filename := "./testdata/non_copy_write_text"
+	filename := testdataNonCopyWriteText
 	for n := 0; n < b.N; n++ {
 		readFileLines := ReadFile(filename)
 		if debugLevel > 100 {
@@ -93,7 +96,7 @@ func BenchmarkReadFile(b *testing.B) {
 func benchmarkFileN(n int, scanType string, b *testing.B) {
 
 	// read in the file
-	filename := "./testdata/non_copy_write_text"
+	filename := testdataNonCopyWriteText
 	scanFileLines := ScanFile(filename)
 
 	// write out larger file (x100)

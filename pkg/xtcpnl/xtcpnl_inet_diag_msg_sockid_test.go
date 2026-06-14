@@ -26,7 +26,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 	var tests = []DeserializeInetDiagSockIDTest{
 		{
 			description: "6_10_3 single_packet_response",
-			filename:    "./testdata/6_10_3/netlink_sock_diag_reply_single_packet_port4322.pcap",
+			filename:    tdReplyPort4322_6_10_3,
 			sport:       54779,
 			dport:       4322,
 			proto:       4,
@@ -48,7 +48,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 		},
 		{
 			description: "port4001",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4001.pcap",
+			filename:    tdReplyPort4001_6_6_44,
 			sport:       26699,
 			dport:       4001,
 			proto:       4,
@@ -58,8 +58,8 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 			cookie:      4106,
 		},
 		{
-			description: "port4018",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4018.pcap",
+			description: tnPort4018,
+			filename:    tdReplyPort4018_6_6_44,
 			sport:       1789,
 			dport:       4018,
 			proto:       4,
@@ -69,7 +69,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 			cookie:      27550,
 		},
 		{
-			description: "port4018",
+			description: tnPort4018,
 			filename:    "./testdata/5_15_164/netlink_sock_diag_reply_single_packet_port4000.pcap",
 			sport:       14385,
 			dport:       4000,
@@ -81,7 +81,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 		},
 		{
 			description: "4_19_319_port4005",
-			filename:    "./testdata/4_19_319/netlink_sock_diag_reply_single_packet_port4005.pcap",
+			filename:    tdReplyPort4005_4_19_319,
 			sport:       44585,
 			dport:       4005,
 			proto:       4,
@@ -92,7 +92,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 		},
 		{
 			description: "port443v4",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v4.pcap",
+			filename:    tdReplyPort443V4_6_6_44,
 			sport:       36821,
 			dport:       443,
 			proto:       4,
@@ -103,7 +103,7 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 		},
 		{
 			description: "port443v6",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v6.pcap",
+			filename:    tdReplyPort443V6_6_6_44,
 			sport:       46965,
 			dport:       443,
 			proto:       6,
@@ -124,8 +124,8 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 			cookie:      2821,
 		},
 		{
-			description: "7_0_3 sport26546 dport443",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap",
+			description: tnSport26546V4,
+			filename:    tdResp26546_7_0_3,
 			sport:       26546,
 			dport:       443,
 			proto:       4,
@@ -146,8 +146,8 @@ func TestDeserializeInetDiagSockID(t *testing.T) {
 			cookie:      24592,
 		},
 		{
-			description: "7_0_3 sport19000 dport10156 v6",
-			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap",
+			description: tnSport19000V6,
+			filename:    tdResp19000V6_7_0_3,
 			sport:       19000,
 			dport:       10156,
 			proto:       6,

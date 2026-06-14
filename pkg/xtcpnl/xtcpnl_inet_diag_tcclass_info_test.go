@@ -19,8 +19,8 @@ type DeserializeTrafficClassTest struct {
 func TestDeserializeTrafficClass(t *testing.T) {
 	var tests = []DeserializeTrafficClassTest{
 		{
-			description: "attribute_tcclass",
-			filename:    "./testdata/6_6_44/attribute_tcclass",
+			description: tnAttrTcclass,
+			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
 			Func: func(data []byte, tc *TrafficClass) (n int, err error) {
 				return DeserializeTrafficClass(data, tc)
@@ -28,7 +28,7 @@ func TestDeserializeTrafficClass(t *testing.T) {
 		},
 		{
 			description: "attribute_tcclass_reflection",
-			filename:    "./testdata/6_6_44/attribute_tcclass",
+			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
 			Func: func(data []byte, tc *TrafficClass) (n int, err error) {
 				return DeserializeTrafficClassReflection(data, tc)
@@ -98,8 +98,8 @@ func BenchmarkDeserializeTrafficClassReflection(b *testing.B) {
 func DeserializeTrafficClassBoth(b *testing.B, Func func(data []byte, tc *TrafficClass) (n int, err error)) {
 	var tests = []DeserializeTrafficClassTest{
 		{
-			description: "attribute_tcclass",
-			filename:    "./testdata/6_6_44/attribute_tcclass",
+			description: tnAttrTcclass,
+			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
 		},
 	}

@@ -18,8 +18,8 @@ func TestDeserializeRTAttr(t *testing.T) {
 	var tests = []DeserializeRTAttrTest{
 		// bbrinfo
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_6_44/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_6_44,
 			length:      24,
 			tyype:       16,
 		},
@@ -31,8 +31,8 @@ func TestDeserializeRTAttr(t *testing.T) {
 		},
 		// vegasinfo
 		{
-			description: "attribute_vegasinfo",
-			filename:    "./testdata/6_6_44/attribute_vegasinfo",
+			description: tnAttrVegasinfo,
+			filename:    tdAttrVegasinfo_6_6_44,
 			length:      20,
 			tyype:       3,
 		},
@@ -46,7 +46,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 		// class_id
 		{
 			description: "attribute_class_id",
-			filename:    "./testdata/6_6_44/attribute_class_id",
+			filename:    tdAttrClassID_6_6_44,
 			length:      8,
 			tyype:       17,
 		},
@@ -82,7 +82,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 		// group_id
 		{
 			description: "attribute_group_id",
-			filename:    "./testdata/6_6_44/attribute_cgroup_id",
+			filename:    tdAttrCgroupID_6_6_44,
 			length:      12,
 			tyype:       21,
 		},
@@ -94,15 +94,15 @@ func TestDeserializeRTAttr(t *testing.T) {
 			tyype:       1,
 		},
 		{
-			description: "4_19_319_attribute_meminfo",
-			filename:    "./testdata/4_19_319/attribute_meminfo_f4096",
+			description: tnMeminfo4_19_319,
+			filename:    tdAttrMeminfo_4_19_319,
 			length:      20,
 			tyype:       1,
 		},
 		// info
 		{
 			description: "6_10_3 attribute_info",
-			filename:    "./testdata/6_10_3/attribute_info",
+			filename:    tdAttrInfo_6_10_3,
 			length:      252,
 			tyype:       2,
 		},
@@ -114,7 +114,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 		},
 		{
 			description: "6_6_44 attribute_info",
-			filename:    "./testdata/6_6_44/attribute_info",
+			filename:    tdAttrInfo_6_6_44,
 			length:      244,
 			tyype:       2,
 		},
@@ -144,8 +144,8 @@ func TestDeserializeRTAttr(t *testing.T) {
 		},
 		// shutdown
 		{
-			description: "attribute_shutdown",
-			filename:    "./testdata/6_6_44/attribute_shutdown",
+			description: tnAttrShutdown,
+			filename:    tdAttrShutdown_6_6_44,
 			length:      5,
 			tyype:       8,
 		},
@@ -164,7 +164,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 		},
 		// sockopt
 		{
-			description: "attribute_sockopt",
+			description: tnAttrSockopt,
 			filename:    "./testdata/6_6_44/attribute_sockopt",
 			length:      6,
 			tyype:       22,
@@ -172,7 +172,7 @@ func TestDeserializeRTAttr(t *testing.T) {
 		// tos
 		{
 			description: "attribute_tos",
-			filename:    "./testdata/6_6_44/attribute_tos",
+			filename:    tdAttrTos_6_6_44,
 			length:      5,
 			tyype:       5,
 		},

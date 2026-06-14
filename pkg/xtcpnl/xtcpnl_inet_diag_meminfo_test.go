@@ -57,8 +57,8 @@ func TestDeserializeMemInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "4_19_319_attribute_meminfo",
-			filename:    "./testdata/4_19_319/attribute_meminfo_f4096",
+			description: tnMeminfo4_19_319,
+			filename:    tdAttrMeminfo_4_19_319,
 			mi: MemInfo{
 				Rmem: 0,
 				Wmem: 0,
@@ -70,8 +70,8 @@ func TestDeserializeMemInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "4_19_319_attribute_meminfo",
-			filename:    "./testdata/4_19_319/attribute_meminfo_f4096",
+			description: tnMeminfo4_19_319,
+			filename:    tdAttrMeminfo_4_19_319,
 			mi: MemInfo{
 				Rmem: 0,
 				Wmem: 0,
@@ -156,8 +156,8 @@ func BenchmarkDeserializeMemInfoReflection(b *testing.B) {
 func DeserializeMemInfoBoth(b *testing.B, Func func(data []byte, mi *MemInfo) (n int, err error)) {
 	var tests = []DeserializeMemInfoTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/4_19_319/attribute_meminfo_f4096",
+			description: tnAttrInfo,
+			filename:    tdAttrMeminfo_4_19_319,
 			mi: MemInfo{
 				Rmem: 0,
 				Wmem: 0,

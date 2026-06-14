@@ -16,8 +16,8 @@ var (
 func BenchmarkDecodeNetlinkDagRequestFromBytes(b *testing.B) {
 	var tests = []DecodeFromBytesSerializeToTest{
 		{
-			description: "verify_request",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes",
+			description: tnVerifyRequest,
+			filename:    tdReqBytes_6_6_44,
 		},
 	}
 
@@ -45,8 +45,8 @@ var (
 func BenchmarkSerializeNetlinkDagRequest(b *testing.B) {
 	var tests = []DecodeFromBytesSerializeToTest{
 		{
-			description: "verify_request",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes",
+			description: tnVerifyRequest,
+			filename:    tdReqBytes_6_6_44,
 		},
 	}
 
@@ -161,7 +161,7 @@ func DeserializeInetDiagReqV2Both(b *testing.B, Func func(data []byte, inetdiagr
 	var tests = []DeserializeInetDiagReqV2Test{
 		{
 			description: "request_v6",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_single_packet_v6.pcap",
+			filename:    tdReqSinglePktV6_6_6_44,
 			length:      128,
 			family:      2,
 			protocol:    6,
@@ -229,8 +229,8 @@ func BenchmarkDeserializeInetDiagMsgReflection(b *testing.B) {
 func DeserializeInetDiagMsgBoth(b *testing.B, Func func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error)) {
 	var tests = []DeserializeInetDiagMsgTest{
 		{
-			description: "port4018",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port4018.pcap",
+			description: tnPort4018,
+			filename:    tdReplyPort4018_6_6_44,
 
 			Family:  2,
 			State:   1,
@@ -361,8 +361,8 @@ func BenchmarkDeserializeRTAttrReflection(b *testing.B) {
 func DeserializeRTAttrBoth(b *testing.B, Func func(data []byte, rta *RTAttr) (n int, err error)) {
 	var tests = []DeserializeRTAttrTest{
 		{
-			description: "attribute_info",
-			filename:    "./testdata/6_6_44/attribute_info",
+			description: tnAttrInfo,
+			filename:    tdAttrInfo_6_6_44,
 			length:      244,
 			tyype:       2,
 		},

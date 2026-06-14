@@ -242,7 +242,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 		// TCPInfo struct still only covers the first 248 bytes; the trailing
 		// AccECN fields are not parsed yet and aren't asserted here.
 		{
-			description: "7_0_3 sport26546 dport443",
+			description: tnSport26546V4,
 			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443_info",
 			tcpinfo: TCPInfo{
 				State:                  1,
@@ -383,7 +383,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 		// IPv6 loopback. Values reflect pcap-capture moment, earlier than the
 		// ss-text moment (bytes_sent 624678 here vs 644931 in ss).
 		{
-			description: "7_0_3 sport19000 dport10156 v6",
+			description: tnSport19000V6,
 			filename:    "./testdata/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6_info",
 			tcpinfo: TCPInfo{
 				State:                  1,

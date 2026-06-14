@@ -55,17 +55,17 @@ func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{},
 	s.pC = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: "xtcp_record_grpc",
-			Name:      "counts",
-			Help:      "xtcp counts",
+			Name:      promNameCounts,
+			Help:      promHelpCounts,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	s.pH = promauto.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Subsystem: "xtcp_record_grpc",
-			Name:      "histograms",
-			Help:      "xtcp historgrams",
+			Name:      promNameHistograms,
+			Help:      promHelpHistograms,
 			Objectives: map[float64]float64{
 				0.1:  quantileError,
 				0.5:  quantileError,
@@ -73,7 +73,7 @@ func NewXtcpFlatRecordService(ctx context.Context, pollRequestCh *chan struct{},
 			},
 			MaxAge: summaryVecMaxAge,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	return s

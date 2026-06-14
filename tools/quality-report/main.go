@@ -33,6 +33,26 @@ import (
 	"time"
 )
 
+// Tool / rule / severity strings reused throughout the aggregator. Kept
+// as named constants so a typo in a Tool field or Severity check
+// stays a compile error rather than a silent mismatch.
+const (
+	toolGofmt = "gofmt"
+	toolGosec = "gosec"
+
+	ruleFormat = "format"
+
+	severityWarning = "warning"
+	severityInfo    = "info"
+	severityError   = "error"
+
+	testActionFail = "fail"
+	testActionPass = "pass"
+	testActionSkip = "skip"
+
+	goSecNixPath = "nix/checks/go-sec.nix"
+)
+
 // linterTier maps a golangci-lint linter name to the lowest config tier
 // in which it is enabled. Source of truth: the `linters:` blocks of
 // .golangci-quick.yml, .golangci.yml, .golangci-comprehensive.yml.
@@ -46,11 +66,11 @@ var linterTier = map[string]int{
 	"ineffassign": 0,
 	"unused":      0,
 	"staticcheck": 0,
-	"gofmt":       0,
+	toolGofmt:     0,
 	"goimports":   0,
 	"typecheck":   0,
 	// Tier 1 (.golangci.yml)
-	"gosec":         1,
+	toolGosec:       1,
 	"gocritic":      1,
 	"revive":        1,
 	"noctx":         1,
@@ -211,10 +231,10 @@ func main() {
 		fs, ok := parseGosec(path, *repoRoot)
 		in.Findings = append(in.Findings, fs...)
 		in.Status = append(in.Status, ToolStatus{
-			Name:      "gosec",
-			ExitCode:  exitCodes["gosec"],
+			Name:      toolGosec,
+			ExitCode:  exitCodes[toolGosec],
 			Findings:  len(fs),
-			RuntimeS:  runtimes["gosec"],
+			RuntimeS:  runtimes[toolGosec],
 			Available: ok,
 		})
 	}
@@ -247,18 +267,18 @@ func main() {
 		in.GofmtFiles = kept
 		for _, f := range kept {
 			in.Findings = append(in.Findings, Finding{
-				Tool:     "gofmt",
-				Rule:     "format",
-				Severity: "warning",
+				Tool:     toolGofmt,
+				Rule:     ruleFormat,
+				Severity: severityWarning,
 				File:     f,
 				Message:  "file not formatted",
 			})
 		}
 		in.Status = append(in.Status, ToolStatus{
-			Name:      "gofmt",
-			ExitCode:  exitCodes["gofmt"],
+			Name:      toolGofmt,
+			ExitCode:  exitCodes[toolGofmt],
 			Findings:  len(kept),
-			RuntimeS:  runtimes["gofmt"],
+			RuntimeS:  runtimes[toolGofmt],
 			Available: fileExists(filepath.Join(*rawDir, "gofmt.out")),
 		})
 	}
@@ -277,8 +297,8 @@ func main() {
 		for _, f := range kept {
 			in.Findings = append(in.Findings, Finding{
 				Tool:     "nixfmt",
-				Rule:     "format",
-				Severity: "warning",
+				Rule:     ruleFormat,
+				Severity: severityWarning,
 				File:     f,
 				Message:  "file not formatted",
 			})
@@ -314,7 +334,7 @@ func main() {
 		failing := 0
 		preexist := 0
 		for _, r := range results {
-			if r.Action == "fail" {
+			if r.Action == testActionFail {
 				if r.Preexist {
 					preexist++
 				} else {
@@ -405,7 +425,7 @@ func parseGolangci(path, tool string, tier int, repoRoot string) ([]Finding, boo
 			Tool:     tool,
 			Tier:     tier,
 			Rule:     "internal/parse-error",
-			Severity: "info",
+			Severity: severityInfo,
 			Message:  fmt.Sprintf("could not parse JSON: %v", err),
 		}}, true
 	}
@@ -455,9 +475,9 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 	var j gosecJSON
 	if err := json.Unmarshal(b, &j); err != nil {
 		return []Finding{{
-			Tool:     "gosec",
+			Tool:     toolGosec,
 			Rule:     "internal/parse-error",
-			Severity: "info",
+			Severity: severityInfo,
 			Message:  fmt.Sprintf("could not parse JSON: %v", err),
 		}}, true
 	}
@@ -470,7 +490,7 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 			msg = fmt.Sprintf("%s (CWE-%s)", msg, is.CWE.ID)
 		}
 		out = append(out, Finding{
-			Tool:     "gosec",
+			Tool:     toolGosec,
 			Rule:     is.RuleID,
 			Severity: strings.ToLower(is.Severity),
 			File:     relpath(is.File, repoRoot),
@@ -509,7 +529,7 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			col, _ := strconv.Atoi(m[3])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
-				Severity: "warning",
+				Severity: severityWarning,
 				File:     m[1], Line: ln, Column: col, Message: m[4],
 			})
 			continue
@@ -518,7 +538,7 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			ln, _ := strconv.Atoi(m[2])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
-				Severity: "warning",
+				Severity: severityWarning,
 				File:     m[1], Line: ln, Message: m[3],
 			})
 			continue
@@ -552,7 +572,7 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 			ln, _ := strconv.Atoi(m[2])
 			col, _ := strconv.Atoi(m[3])
 			out = append(out, Finding{
-				Tool: tool, Severity: "warning",
+				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Column: col, Message: m[4],
 			})
 			continue
@@ -560,14 +580,14 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 		if m := reFileLine.FindStringSubmatch(line); m != nil {
 			ln, _ := strconv.Atoi(m[2])
 			out = append(out, Finding{
-				Tool: tool, Severity: "warning",
+				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Message: m[3],
 			})
 			continue
 		}
 		// Anything else: keep as a free-form finding for visibility.
 		out = append(out, Finding{
-			Tool: tool, Severity: "info", Message: line,
+			Tool: tool, Severity: severityInfo, Message: line,
 		})
 	}
 	return out, true
@@ -610,7 +630,7 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 			if e.Test != "" {
 				failOutput[key] += e.Output
 			}
-		case "pass", "fail", "skip":
+		case testActionPass, testActionFail, testActionSkip:
 			r := results[key]
 			if r == nil {
 				r = &TestResult{Package: e.Package, Test: e.Test}
@@ -618,7 +638,7 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 			}
 			r.Action = e.Action
 			r.Elapsed = e.Elapsed
-			if e.Action == "fail" {
+			if e.Action == testActionFail {
 				r.Output = failOutput[key]
 				name := e.Package
 				if e.Test != "" {
@@ -723,13 +743,13 @@ func parseExclusions(repoRoot string) []ConfigExclusion {
 	}
 	// gosec exclusions — hardcoded in nix/checks/go-sec.nix.
 	out = append(out,
-		ConfigExclusion{Source: "nix/checks/go-sec.nix", Rule: "G103", Scope: "gosec", Justified: true,
+		ConfigExclusion{Source: goSecNixPath, Rule: "G103", Scope: toolGosec, Justified: true,
 			Note: "unsafe pointers: required by pkg/io_uring (giouring wraps liburing SQE/CQE with unsafe.Pointer)"},
-		ConfigExclusion{Source: "nix/checks/go-sec.nix", Rule: "G115", Scope: "gosec", Justified: true,
+		ConfigExclusion{Source: goSecNixPath, Rule: "G115", Scope: toolGosec, Justified: true,
 			Note: "integer overflow conversions: netlink length fields + io_uring batch indices, all bounds-checked"},
-		ConfigExclusion{Source: "nix/checks/go-sec.nix", Rule: "G204", Scope: "gosec", Justified: true,
+		ConfigExclusion{Source: goSecNixPath, Rule: "G204", Scope: toolGosec, Justified: true,
 			Note: "subprocess with variable: cmd/ns + cmd/nsTest invoke `ip netns exec ...` by design"},
-		ConfigExclusion{Source: "nix/checks/go-sec.nix", Rule: "G304", Scope: "gosec", Justified: true,
+		ConfigExclusion{Source: goSecNixPath, Rule: "G304", Scope: toolGosec, Justified: true,
 			Note: "file path from variable: register_schema reads .proto paths from CLI"},
 	)
 	return out
@@ -1124,7 +1144,7 @@ func emit(w io.Writer, in reportInput) error {
 		case 2:
 			r.TierCounts.T2++
 		}
-		if f.Severity == "error" {
+		if f.Severity == severityError {
 			r.HasErrSeverity = true
 		}
 		if isQuickFixableRule(f.Rule) {
@@ -1152,7 +1172,7 @@ func emit(w io.Writer, in reportInput) error {
 		switch f.Tool {
 		case "netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit":
 			auditFindings = append(auditFindings, f)
-		case "gosec":
+		case toolGosec:
 			gosecFindings = append(gosecFindings, f)
 		default:
 			linterFindings = append(linterFindings, f)
@@ -1175,9 +1195,9 @@ func emit(w io.Writer, in reportInput) error {
 	for _, t := range in.Tests {
 		r.TestStats.Total++
 		switch t.Action {
-		case "pass":
+		case testActionPass:
 			r.TestStats.Pass++
-		case "fail":
+		case testActionFail:
 			if t.Preexist {
 				r.TestStats.FailPre++
 				r.PreexistTestFails++
@@ -1188,7 +1208,7 @@ func emit(w io.Writer, in reportInput) error {
 			if t.Test != "" {
 				r.FailingTests = append(r.FailingTests, t)
 			}
-		case "skip":
+		case testActionSkip:
 			r.TestStats.Skip++
 		}
 	}
@@ -1223,7 +1243,7 @@ func isTieredTool(tool string) bool {
 
 func isQuickFixableRule(rule string) bool {
 	switch rule {
-	case "gofmt", "goimports", "misspell", "unconvert", "format":
+	case toolGofmt, "goimports", "misspell", "unconvert", ruleFormat:
 		return true
 	}
 	return false
@@ -1231,11 +1251,11 @@ func isQuickFixableRule(rule string) bool {
 
 func severityOrder(s string) int {
 	switch strings.ToLower(s) {
-	case "high", "error":
+	case "high", severityError:
 		return 0
-	case "medium", "warning":
+	case "medium", severityWarning:
 		return 1
-	case "low", "info":
+	case "low", severityInfo:
 		return 2
 	}
 	return 3

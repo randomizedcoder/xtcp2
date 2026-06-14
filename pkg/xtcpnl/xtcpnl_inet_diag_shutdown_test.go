@@ -19,8 +19,8 @@ type DeserializeShutdownTest struct {
 func TestDeserializeShutdown(t *testing.T) {
 	var tests = []DeserializeShutdownTest{
 		{
-			description: "attribute_shutdown",
-			filename:    "./testdata/6_6_44/attribute_shutdown",
+			description: tnAttrShutdown,
+			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
 			Func: func(data []byte, s *Shutdown) (n int, err error) {
 				return DeserializeShutdown(data, s)
@@ -28,7 +28,7 @@ func TestDeserializeShutdown(t *testing.T) {
 		},
 		{
 			description: "attribute_shutdown_reflection",
-			filename:    "./testdata/6_6_44/attribute_shutdown",
+			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
 			Func: func(data []byte, s *Shutdown) (n int, err error) {
 				return DeserializeShutdownReflection(data, s)
@@ -97,8 +97,8 @@ func BenchmarkDeserializeShutdownReflection(b *testing.B) {
 func DeserializeShutdownBoth(b *testing.B, Func func(data []byte, s *Shutdown) (n int, err error)) {
 	var tests = []DeserializeShutdownTest{
 		{
-			description: "attribute_shutdown",
-			filename:    "./testdata/6_6_44/attribute_shutdown",
+			description: tnAttrShutdown,
+			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(2),
 		},
 	}

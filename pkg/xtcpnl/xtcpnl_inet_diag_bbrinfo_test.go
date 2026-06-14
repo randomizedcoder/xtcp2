@@ -18,8 +18,8 @@ type DeserializeBBRInfoTest struct {
 func TestDeserializeBBRInfo(t *testing.T) {
 	var tests = []DeserializeBBRInfoTest{
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_6_44/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_6_44,
 			b: BBRInfo{
 				BwLo:       1638398437,
 				BwHi:       0,
@@ -32,8 +32,8 @@ func TestDeserializeBBRInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_6_44/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_6_44,
 			b: BBRInfo{
 				BwLo:       1638398437,
 				BwHi:       0,
@@ -49,8 +49,8 @@ func TestDeserializeBBRInfo(t *testing.T) {
 		//skmem:(r0,rb1000000,t0,tb1000000,f2284,w5908,o0,bl0,d25253) ts sack ecn ecnseen bbr wscale:9,9 rto:662 rtt:318.242/62.166 ato:40 mss:1448 pmtu:1500 rcvmss:1448 advmss:1448 cwnd:8 ssthresh:138 bytes_sent:93568860 bytes_retrans:10168410 bytes_acked:83396335 bytes_received:83396334 segs_out:136944 segs_in:135387 data_segs_out:90018 data_segs_in:82319 bbr:(bw:120824bps,mrtt:0.03,pacing_gain:1.25,cwnd_gain:2) send 291200bps lastsnd:232 lastrcv:370 lastack:370 pacing_rate 119616bps delivery_rate 121232bps delivered:87669 app_limited busy:7387385ms unacked:4 retrans:0/9231 dsack_dups:7385 reordering:5 reord_seen:2662 rcv_rtt:348.502 rcv_space:19464 rcv_ssthresh:498552 minrtt:0.007 rcv_ooopack:12444 snd_wnd:498688 rcv_wnd:498688 rehash:180
 		// bbr:(bw:120824bps,mrtt:0.03,pacing_gain:1.25,cwnd_gain:2) 120824bps / 8 = 15103
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_10_3/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_10_3,
 			b: BBRInfo{
 				BwLo:       15103, // 120824bps / 8 = 15103
 				BwHi:       0,
@@ -63,8 +63,8 @@ func TestDeserializeBBRInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_10_3/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_10_3,
 			b: BBRInfo{
 				BwLo:       15103,
 				BwHi:       0,
@@ -171,8 +171,8 @@ func BenchmarkDeserializeBBRInfoReflection(b *testing.B) {
 func DeserializeBBRInfoBoth(b *testing.B, Func func(data []byte, bi *BBRInfo) (n int, err error)) {
 	var tests = []DeserializeMemInfoTest{
 		{
-			description: "attribute_bbrinfo",
-			filename:    "./testdata/6_10_3/attribute_bbrinfo",
+			description: tnAttrBbrinfo,
+			filename:    tdAttrBbrinfo_6_10_3,
 		},
 	}
 

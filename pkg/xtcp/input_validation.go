@@ -11,7 +11,7 @@ func (x *XTCP) InputValidation() {
 		log.Fatalf("InputValidation XTCP Marshal must be one of:%s MarshalTo:%s", validMarshallers(), x.config.MarshalTo)
 	}
 
-	if x.config.Dest != "null" {
+	if x.config.Dest != schemeNull {
 
 		scheme, _, found := strings.Cut(x.config.Dest, ":")
 
@@ -24,7 +24,7 @@ func (x *XTCP) InputValidation() {
 		// path (unix/unixgram) need only one — the rest of the dest is a
 		// path that can itself contain colons in pathological cases.
 		switch scheme {
-		case "unix", "unixgram":
+		case schemeUnix, schemeUnixgram:
 			// only the leading `<scheme>:` separator is required; the
 			// per-destination factory validates the path further.
 		default:

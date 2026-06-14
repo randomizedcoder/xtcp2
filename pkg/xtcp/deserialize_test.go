@@ -60,7 +60,7 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	x.config = &xtcp_config.XtcpConfig{
 		Modulus:    1,
 		MarshalTo:  "protobufSingle",
-		Dest:       "null:",
+		Dest:       schemeNullPrefix,
 		DebugLevel: 0,
 	}
 	x.debugLevel = 0
@@ -75,16 +75,16 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	// Fresh metrics registry per call so tests don't collide.
 	reg := prometheus.NewRegistry()
 	x.pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{Subsystem: "xtcp_dtest", Name: "counts", Help: "counts"},
-		[]string{"function", "variable", "type"},
+		prometheus.CounterOpts{Subsystem: "xtcp_dtest", Name: promNameCounts, Help: promNameCounts},
+		promLabels,
 	)
 	x.pH = promauto.With(reg).NewSummaryVec(
 		prometheus.SummaryOpts{
-			Subsystem: "xtcp_dtest", Name: "histograms", Help: "histograms",
+			Subsystem: "xtcp_dtest", Name: promNameHistograms, Help: promNameHistograms,
 			Objectives: map[float64]float64{0.5: quantileError, 0.99: quantileError},
 			MaxAge:     summaryVecMaxAge,
 		},
-		[]string{"function", "variable", "type"},
+		promLabels,
 	)
 
 	// flatRecordServiceSend touches x.flatRecordService.frMapCount(); a

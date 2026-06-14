@@ -22,7 +22,7 @@ func TestDeserializeInetDiagReqV2(t *testing.T) {
 	var tests = []DeserializeInetDiagReqV2Test{
 		{
 			description: "verify_request_all",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example2",
+			filename:    tdReqBytes2_6_6_44,
 			length:      72,
 			family:      2,
 			protocol:    6,
@@ -32,7 +32,7 @@ func TestDeserializeInetDiagReqV2(t *testing.T) {
 		},
 		{
 			description: "verify_request_all_example3",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_bytes_example3",
+			filename:    tdReqBytes3_6_6_44,
 			length:      72,
 			family:      2,
 			protocol:    6,
@@ -82,7 +82,7 @@ func TestDeserializeInetDiagReqV2(t *testing.T) {
 		},
 		{
 			description: "request_v6",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_request_single_packet_v6.pcap",
+			filename:    tdReqSinglePktV6_6_6_44,
 			length:      128,
 			family:      2,
 			protocol:    6,

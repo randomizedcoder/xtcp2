@@ -22,8 +22,8 @@ func TestDeserializeCGroupID(t *testing.T) {
 
 	var tests = []DeserializeCGroupIDTest{
 		{
-			description: "attribute_cgroup_id",
-			filename:    "./testdata/6_6_44/attribute_cgroup_id",
+			description: tnAttrCgroupID,
+			filename:    tdAttrCgroupID_6_6_44,
 			c:           &x,
 			// c: &CGroupID{
 			// 	ID: 0,
@@ -33,8 +33,8 @@ func TestDeserializeCGroupID(t *testing.T) {
 			},
 		},
 		{
-			description: "attribute_cgroup_id",
-			filename:    "./testdata/6_6_44/attribute_cgroup_id",
+			description: tnAttrCgroupID,
+			filename:    tdAttrCgroupID_6_6_44,
 			c:           &x,
 			// c: &CGroupID{
 			// 	ID: 0,
@@ -116,8 +116,8 @@ func BenchmarkDeserializeCGroupIDReflection(b *testing.B) {
 func DeserializeCGroupIDBoth(b *testing.B, Func func(data []byte, tc *CGroupID) (n int, err error)) {
 	var tests = []DeserializeCGroupIDTest{
 		{
-			description: "attribute_cgroup_id",
-			filename:    "./testdata/6_6_44/attribute_cgroup_id",
+			description: tnAttrCgroupID,
+			filename:    tdAttrCgroupID_6_6_44,
 		},
 	}
 

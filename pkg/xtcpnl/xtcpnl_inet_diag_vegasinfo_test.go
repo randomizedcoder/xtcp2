@@ -19,8 +19,8 @@ func TestDeserializeVegasInfo(t *testing.T) {
 	var tests = []DeserializeVegasInfoTest{
 		// vegasinfo
 		{
-			description: "attribute_vegasinfo",
-			filename:    "./testdata/6_6_44/attribute_vegasinfo",
+			description: tnAttrVegasinfo,
+			filename:    tdAttrVegasinfo_6_6_44,
 			vi: VegasInfo{
 				Enabled: 1,
 				RttCnt:  0,
@@ -32,8 +32,8 @@ func TestDeserializeVegasInfo(t *testing.T) {
 			},
 		},
 		{
-			description: "attribute_vegasinfo",
-			filename:    "./testdata/6_6_44/attribute_vegasinfo",
+			description: tnAttrVegasinfo,
+			filename:    tdAttrVegasinfo_6_6_44,
 			vi: VegasInfo{
 				Enabled: 1,
 				RttCnt:  0,
@@ -117,8 +117,8 @@ func BenchmarkDeserializeVegasInfoReflection(b *testing.B) {
 func DeserializeVegasInfoBoth(b *testing.B, Func func(data []byte, vi *VegasInfo) (n int, err error)) {
 	var tests = []DeserializeVegasInfoTest{
 		{
-			description: "attribute_vegasinfo",
-			filename:    "./testdata/6_6_44/attribute_vegasinfo",
+			description: tnAttrVegasinfo,
+			filename:    tdAttrVegasinfo_6_6_44,
 			vi: VegasInfo{
 				Enabled: 1,
 				RttCnt:  0,
