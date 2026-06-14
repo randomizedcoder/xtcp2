@@ -11,7 +11,7 @@
 
 package xtcpnl
 
-//import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
+// import "github.com/randomizedcoder/xtcp2/xtcpnl" // netlink related functions
 
 import (
 	"encoding/binary"
@@ -121,7 +121,7 @@ type BuildNLRequest struct {
 func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	// Statically build up the netlink socket diag request
 	// TODO - use binary.size in stead of constants here
-	//packetBytes = make([]byte, 72+56) //128
+	// packetBytes = make([]byte, 72+56) //128
 	packetBytes = make([]byte, r.MakeSize)
 
 	// https://www.kernel.org/doc/html/next/userspace-api/netlink/intro.html#generic-netlink
@@ -146,7 +146,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	// seq
 	binary.LittleEndian.PutUint32(packetBytes[8:12], uint32(r.NlMsgSeq))
 	// pid
-	//binary.LittleEndian.PutUint32(packetBytes[12:16], uint32(r.NlMsgPid)) // not using pid
+	// binary.LittleEndian.PutUint32(packetBytes[12:16], uint32(r.NlMsgPid)) // not using pid
 
 	//https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L38
 	// struct inet_diag_req_v2 {
@@ -192,7 +192,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 
 	// There is no PutUint8
 	// ext
-	//binary.LittleEndian.PutUint8(packetBytes[18:19], uint8(0xFF)) // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
+	// binary.LittleEndian.PutUint8(packetBytes[18:19], uint8(0xFF)) // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
 	*(*uint8)(unsafe.Pointer(&packetBytes[18:19][0])) = uint8(r.IDiagExt) // hack just light up the bits, instead of the complex bit shifts above   <--- Request everything!!
 	// pad
 	*(*uint8)(unsafe.Pointer(&packetBytes[19:20][0])) = uint8(0) // pad
@@ -206,7 +206,7 @@ func BuildNetlinkSockDiagRequest(r BuildNLRequest) (packetBytes []byte) {
 	binary.LittleEndian.PutUint32(packetBytes[20:24], r.States)
 
 	// states
-	//*(*uint8)(unsafe.Pointer(&packetBytes[20:21][0])) = uint8(idiag_stats)
+	// *(*uint8)(unsafe.Pointer(&packetBytes[20:21][0])) = uint8(idiag_stats)
 
 	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L14
 	// 	/* Socket identity */

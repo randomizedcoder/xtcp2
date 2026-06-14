@@ -22,7 +22,7 @@ const (
 // netNamespaceInstance runs as a goroutine, and moves the thread
 // into a network namespace, opens a netlink socket, and passes
 // the socketFD back to the creator of this goroutine
-// then this goroutine blocks, waiting to be cancelled
+// then this goroutine blocks, waiting to be canceled
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromName
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromPath
 // https://tip.golang.org/doc/go1.10#runtime
@@ -62,7 +62,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance syscall.Socket err: %v", err)
 		}
-		//log.Fatalf("netNamespaceInstance unix.Socket %s", err)
+		// log.Fatalf("netNamespaceInstance unix.Socket %s", err)
 		return
 	}
 
@@ -151,14 +151,14 @@ const (
 func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	// https://www.man7.org/linux/man-pages/man2/opex.2.html
-	//nsFullName := netnsDir + *ns.name
+	// nsFullName := netnsDir + *ns.name
 	if x.debugLevel > 10 {
 		log.Printf("openAndSetNSWithRetries nsFullName: %s", *nsName)
 	}
 
 	found, err := x.checkMountInfoWithRetries(nsName)
 	if err != nil || !found {
-		return
+		return fd
 	}
 
 	for attempt := 0; attempt < maxRetriesCst; attempt++ {

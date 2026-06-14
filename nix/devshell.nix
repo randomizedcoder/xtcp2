@@ -48,6 +48,7 @@ pkgs.mkShell {
       nix run .#quality-report                Print the latest report to stdout
       nix run .#update-quality-report         Refresh docs/quality-report.md
       nix build .#quality-report              Build the report artifact (result/)
+      nix run .#lint-fix-one -- <linter>      Auto-fix one linter at a time
 
     Tests:
       go test ./...                           Unit tests

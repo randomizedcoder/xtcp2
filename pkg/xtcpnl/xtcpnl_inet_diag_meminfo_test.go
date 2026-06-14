@@ -181,7 +181,7 @@ func DeserializeMemInfoBoth(b *testing.B, Func func(data []byte, mi *MemInfo) (n
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, errD = DeserializeMemInfoBoth(buf, rta)
+		// _, errD = DeserializeMemInfoBoth(buf, rta)
 		_, errD = Func(buf, mi)
 		if errD != nil {
 			b.Error("Test Failed DeserializeMemInfoBoth errD", errD)

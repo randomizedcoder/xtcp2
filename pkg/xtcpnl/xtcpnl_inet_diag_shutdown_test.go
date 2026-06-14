@@ -66,7 +66,7 @@ func TestDeserializeShutdown(t *testing.T) {
 			t.Fatal("Test Failed DeserializeShutdown errD", errD)
 		}
 
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		if !reflect.DeepEqual(*s, test.s) {
 			t.Errorf("Test %d %s !reflect.DeepEqual(s:%x, test.test.s:%x)", i, test.description, s, test.s)

@@ -22,14 +22,14 @@ import (
 )
 
 // 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
-//import "google.golang.org/protobuf/encoding/protowire"
+// import "google.golang.org/protobuf/encoding/protowire"
 //import "google.golang.org/protobuf/encoding/protodelim"
 
 const (
 	schemaRegistryURLCst = "http://localhost:18081"
 
 	brokerCst = "127.0.0.1:9092"
-	//brokerCst   = "redpanda-0:9092"
+	// brokerCst   = "redpanda-0:9092"
 	topicCst    = "clickhouse_protolist"
 	clientIDCst = "dave"
 
@@ -73,7 +73,7 @@ type config struct {
 func main() {
 
 	filename := flag.String("filename", "protoBytes.bin", "filename")
-	valueStr := flag.String("values", "1", "values uints -> uint32, comma seperated")
+	valueStr := flag.String("values", "1", "values uints -> uint32, comma separated")
 
 	envelope := flag.Bool("envelope", true, "envelope")
 	kafka := flag.Bool("kafka", true, "kafka")
@@ -217,7 +217,7 @@ func prepareBinary(_ context.Context, c config, id int) (binaryData []byte) {
 		binaryData = b.Bytes()
 
 		if c.debugDump {
-			errW := os.WriteFile(c.dumpFilename+".envelope", binaryData, 0644)
+			errW := os.WriteFile(c.dumpFilename+".envelope", binaryData, 0600) // gosec G306
 			if errW != nil {
 				log.Fatalf("Failed to write protobuf envelope data: %v", errW)
 			}
@@ -254,7 +254,7 @@ func fileOrKafka(ctx context.Context, c config, binaryData *[]byte) {
 
 func writeDataToFile(_ context.Context, filename string, data []byte) error {
 
-	err := os.WriteFile(filename, data, 0644) // 0644 permissions (rw-r--r--)
+	err := os.WriteFile(filename, data, 0600) // 0600 permissions (rw-------) per gosec G306
 	if err != nil {
 		return fmt.Errorf("error writing to file: %w", err) // Wrap the error
 	}
@@ -277,7 +277,7 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 	len := len(*xtcpRecordBinary)
 
 	var ctxP context.Context
-	//var cancelP context.CancelFunc
+	// var cancelP context.CancelFunc
 	// if x.config.KafkaProduceTimeout.AsDuration() != 0 {
 	// 	// I don't understand why setting a context with a timeout doesn't work,
 	// 	// but it definitely doesn't.  It always says the context is canceled. ?!
@@ -305,7 +305,7 @@ func destKafka(_ context.Context, c config, xtcpRecordBinary *[]byte) (n int, er
 			}()
 
 			dur := time.Since(kafkaStartTime)
-			//cancelP()
+			// cancelP()
 			if err != nil {
 				if c.debugLevel > 10 {
 					log.Printf("destKafka %0.6fs Produce err:%v", dur.Seconds(), err)
@@ -434,7 +434,7 @@ func getLatestSchemaID(subject string) (int, error) {
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
 	if err != nil {
 		return 0, err
 	}

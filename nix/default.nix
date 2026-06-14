@@ -108,6 +108,41 @@ let
       ;
   };
 
+  # Per-linter auto-fix helper: lets a fix-sweep produce one commit per
+  # linter category instead of one giant mixed-bag commit. Invoked via
+  # `nix run .#lint-fix-one -- <linter>` from the repo root.
+  #
+  # Uses the comprehensive config so Tier-2-only auto-fixable linters
+  # (misspell, nakedret) are reachable; `--enable-only` scopes the run
+  # to just the requested linter so the diff is clean.
+  #
+  # `--modules-download-mode=mod` overrides the config's `vendor` setting
+  # (which exists for the Nix sandbox's vendoredSource path). Locally the
+  # repo has no committed vendor/ tree, so we fall back to module-mode
+  # against the user's GOMODCACHE.
+  lintFixOne = pkgs.writeShellApplication {
+    name = "xtcp2-lint-fix-one";
+    runtimeInputs = [ versions.golangci-lint ];
+    text = ''
+      set -eu
+      if [ $# -lt 1 ]; then
+        echo "usage: lint-fix-one <linter>" >&2
+        echo "  e.g. lint-fix-one gocritic" >&2
+        exit 2
+      fi
+      if [ ! -f flake.nix ]; then
+        echo "lint-fix-one: must be run from the xtcp2 repo root" >&2
+        exit 2
+      fi
+      exec golangci-lint run \
+        --config .golangci-comprehensive.yml \
+        --modules-download-mode=mod \
+        --max-issues-per-linter=0 --max-same-issues=0 \
+        --enable-only="$1" \
+        --fix ./...
+    '';
+  };
+
   # User-facing wrapper that refreshes docs/quality-report.md from the
   # current source tree. Invoked via `nix run .#update-quality-report`.
   updateQualityReport = pkgs.writeShellApplication {
@@ -218,6 +253,10 @@ in
     update-quality-report = {
       type = "app";
       program = "${updateQualityReport}/bin/xtcp2-update-quality-report";
+    };
+    lint-fix-one = {
+      type = "app";
+      program = "${lintFixOne}/bin/xtcp2-lint-fix-one";
     };
   };
 

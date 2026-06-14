@@ -46,14 +46,14 @@ func main() {
 	// 	log.Fatalf("unable to create schema registry client: %v", err)
 	// }
 
-	//serde := sr.NewSerde(regClient)
+	// serde := sr.NewSerde(regClient)
 
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokerCst),
 		kgo.ConsumerGroup(groupID),
 		kgo.ConsumeTopics(topicCst),
 		kgo.ClientID("xtcp-consumer"),
-		//kgo.RecordDeserializer(serde.RecordDeserializer()),
+		// kgo.RecordDeserializer(serde.RecordDeserializer()),
 	}
 
 	cl, err := kgo.NewClient(opts...)

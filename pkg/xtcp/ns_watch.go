@@ -17,7 +17,7 @@ import (
 // and removed, and then with inotify in place, this function also calls
 // discoverNamespaces() to read all the existing name spaces from "/run/netns/"
 //
-// if running in a k8s environment, an alterantive approach would be to get
+// if running in a k8s environment, an alternative approach would be to get
 // events, like pod create/detele, from the API, but this would make
 // xtcp specific to k8s, rather than more generic
 func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDir string) error {
@@ -68,7 +68,7 @@ breakPoint:
 				return fmt.Errorf("watcher event channel closed")
 			}
 
-			//nsName := filepath.Base(event.Name)
+			// nsName := filepath.Base(event.Name)
 			//nsName := netNsDir + event.Name
 			nsName := event.Name
 
@@ -116,7 +116,7 @@ func checkDirectoryExists(dir string) bool {
 // this is essentially what "ip netnsd add ns1" does under the hood
 func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) error {
 
-	if err := os.MkdirAll(netnsDir, 0755); err != nil {
+	if err := os.MkdirAll(netnsDir, 0755); err != nil { //nolint:gosec // G301: /run/netns is a system-managed namespace dir; 0755 is the standard `ip netns add` permission
 		return fmt.Errorf("failed to create directory %s: %w", netnsDir, err)
 	}
 

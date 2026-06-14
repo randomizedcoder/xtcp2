@@ -12,3 +12,9 @@
 TestReconcileMaps
 TestReconcileMaps/Add_missing_keys_and_remove_extra_keys
 TestReconcileMaps/Add_missing_keys_and_remove_extra_keys,_one_less
+
+# pkg/misc TestCheckFilePermissions: environment-dependent — tests /bin/bash
+# and /bin/ls hardcoded to 0755, which is not the case on NixOS where those
+# are symlinks into /nix/store with different perms. The test itself is
+# valid; the fixture is wrong for hermetic environments.
+TestCheckFilePermissions

@@ -76,7 +76,7 @@ func TestDeserializeSockOpt(t *testing.T) {
 		if errD != nil {
 			t.Fatal("Test Failed DeserializeSockOpt errD", errD)
 		}
-		//t.Logf("i:%d, n:%d", i, n)
+		// t.Logf("i:%d, n:%d", i, n)
 
 		// if ci.Cong != test.ci.Cong {
 		if !reflect.DeepEqual(*s, *test.s) {

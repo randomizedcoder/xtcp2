@@ -63,7 +63,8 @@ func MaxLoopsOrForEver(pollingLoops uint64, maxLoops uint64) bool {
 func ScanFile(file string) []string {
 	var lines []string
 
-	f, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
+	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
+	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
 		log.Fatalf("XTCPStater scanFile open file error: %v", err)
 	}
@@ -87,7 +88,8 @@ func ScanFile(file string) []string {
 func ReadFile(file string) []string {
 	var lines []string
 
-	f, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
+	// O_RDONLY ignores the `perm` arg; pass 0 rather than 0777 (gosec G302).
+	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
 		log.Fatalf("open file error: %v", err)
 	}
@@ -110,7 +112,7 @@ func ReadFile(file string) []string {
 
 // CheckFilePermissions checks the permission bits on a filename 0755
 // e.g. pass filename and the permissions you want to check
-// This is a crude string comparisions, and does NOT look at who
+// This is a crude string comparisons, and does NOT look at who
 // is running this code, or the ownership of the file in question
 func CheckFilePermissions(filename string, permissions string) bool {
 	// https://golang.org/pkg/os/#Stat
@@ -134,7 +136,7 @@ func byteToMegabyte(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
-// PrintMemUsage uses the go runtime libary to print out current memory usage
+// PrintMemUsage uses the go runtime library to print out current memory usage
 func PrintMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

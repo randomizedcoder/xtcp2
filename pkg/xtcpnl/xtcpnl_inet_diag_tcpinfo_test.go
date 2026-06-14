@@ -17,7 +17,7 @@ type DeserializeTCPInfoTest struct {
 // go test --run TestDeserializeTCPInfo
 func TestDeserializeTCPInfo(t *testing.T) {
 	var tests = []DeserializeTCPInfoTest{
-		//ESTAB     0      10              127.0.0.1:47867          127.0.0.1:4262  users:(("tcp_client",pid=1424,fd=268))  timer:(on,201ms,0) uid:1000 ino:14801 sk:6cb cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
+		// ESTAB     0      10              127.0.0.1:47867          127.0.0.1:4262  users:(("tcp_client",pid=1424,fd=268))  timer:(on,201ms,0) uid:1000 ino:14801 sk:6cb cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
 		// skmem:(r0,rb1000000,t0,tb2626560,f3190,w906,o0,bl0,d0) ts sack ecn ecnseen cubic wscale:9,9 rto:201 rtt:0.249/0.239 ato:40 mss:65483 pmtu:65535 rcvmss:536 advmss:65483 cwnd:10 bytes_sent:4350 bytes_acked:4341 bytes_received:4340 segs_out:438 segs_in:436 data_segs_out:435 data_segs_in:434 send 21038714859bps lastrcv:15 lastack:15 pacing_rate 42056317104bps delivery_rate 74837714280bps delivered:435 app_limited busy:107ms unacked:1 rcv_space:434517 rcv_ssthresh:434517 minrtt:0.007 snd_wnd:458752 rcv_wnd:458752
 		{
 			description: "6_10_3 dport4262",
@@ -89,7 +89,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				return DeserializeTCPInfo(data, t)
 			},
 		},
-		//ESTAB  0      10              127.0.0.1:42839          127.0.0.1:4355  users:(("tcp_client",pid=1421,fd=361))  timer:(on,340ms,0) uid:1000 ino:13300 sk:1010 cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
+		// ESTAB  0      10              127.0.0.1:42839          127.0.0.1:4355  users:(("tcp_client",pid=1421,fd=361))  timer:(on,340ms,0) uid:1000 ino:13300 sk:1010 cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
 		//skmem:(r0,rb1000000,t0,tb2626560,f3190,w906,o0,bl0,d398) ts sack ecn ecnseen cubic wscale:9,9 rto:394 rtt:189.965/45.629 ato:40 mss:65483 pmtu:65535 rcvmss:536 advmss:65483 cwnd:2 ssthresh:2 bytes_sent:126380 bytes_retrans:2360 bytes_acked:124011 bytes_received:124010 segs_out:13415 segs_in:13341 data_segs_out:12638 data_segs_in:12566 send 5515374bps lastsnd:54 lastrcv:55 lastack:55 pacing_rate 6618424bps delivery_rate 34924266664bps delivered:12550 app_limited busy:2383736ms unacked:1 retrans:0/236 dsack_dups:148 rcv_space:434517 rcv_ssthresh:434517 minrtt:0.015 snd_wnd:458752 rcv_wnd:458752 rehash:2
 		{
 			description: "6_10_3 dport4262",
