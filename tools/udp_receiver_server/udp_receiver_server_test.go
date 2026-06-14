@@ -158,7 +158,7 @@ func TestRunMain_cancellable(t *testing.T) {
 	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if derr == nil {
 		_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF}) //nolint:errcheck // test plumbing
-		_ = cli.Close()                                   //nolint:errcheck // test plumbing
+		_ = cli.Close()                                  //nolint:errcheck // test plumbing
 	}
 	cancel()
 	select {
