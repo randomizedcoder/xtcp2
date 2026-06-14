@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -81,7 +82,10 @@ func client(wg *sync.WaitGroup,
 	for r, success := 1, false; r < dialr && !success; r++ {
 
 		var err error
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", bind, port), timeout)
+		dialer := net.Dialer{Timeout: timeout}
+		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		conn, err = dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%d", bind, port))
+		cancel()
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			timeout = dialTimeoutCst + (dialTimeoutCst * time.Duration(r))
 			continue
@@ -91,18 +95,18 @@ func client(wg *sync.WaitGroup,
 		success = true
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // demo client teardown
 
 	for i := 0; ; i++ {
 
-		conn.SetWriteDeadline(time.Now().Add(wto))
+		_ = conn.SetWriteDeadline(time.Now().Add(wto)) //nolint:errcheck // deadline err surfaces on next Write
 		_, werr := conn.Write(buf)
 		if nerr, ok := werr.(net.Error); ok && nerr.Timeout() {
 			fmt.Println("write timeout")
 			continue
 		}
 
-		conn.SetReadDeadline(time.Now().Add(rto))
+		_ = conn.SetReadDeadline(time.Now().Add(rto)) //nolint:errcheck // deadline err surfaces on next Read
 		_, rerr := conn.Read(reply)
 		if nerr, ok := rerr.(net.Error); ok && nerr.Timeout() {
 			fmt.Println("read timeout")

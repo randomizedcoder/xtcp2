@@ -30,9 +30,7 @@ func TestDeserializeDCTCPInfo(t *testing.T) {
 				ABECN:   0,
 				ABTOT:   32768,
 			},
-			Func: func(data []byte, d *DCTCPInfo) (n int, err error) {
-				return DeserializeDCTCPInfo(data, d)
-			},
+			Func: DeserializeDCTCPInfo,
 		},
 		{
 			description: "attribute_dctcpinfo_4033_reflection",
@@ -44,9 +42,7 @@ func TestDeserializeDCTCPInfo(t *testing.T) {
 				ABECN:   0,
 				ABTOT:   32768,
 			},
-			Func: func(data []byte, d *DCTCPInfo) (n int, err error) {
-				return DeserializeDCTCPInfoReflection(data, d)
-			},
+			Func: DeserializeDCTCPInfoReflection,
 		},
 	}
 	for i, test := range tests {
@@ -110,20 +106,14 @@ var (
 // go test -bench=BenchmarkDeserializeDCTCPInfo
 
 func BenchmarkDeserializeDCTCPInfo(b *testing.B) {
-	f := func(data []byte, d *DCTCPInfo) (n int, err error) {
-		return DeserializeDCTCPInfo(data, d)
-	}
-	DeserializeDCTCPInfoBoth(b, f)
+	DeserializeDCTCPInfoBoth(b, DeserializeDCTCPInfo)
 }
 
 func BenchmarkDeserializeDCTCPInfoReflection(b *testing.B) {
-	f := func(data []byte, d *DCTCPInfo) (n int, err error) {
-		return DeserializeDCTCPInfoReflection(data, d)
-	}
-	DeserializeDCTCPInfoBoth(b, f)
+	DeserializeDCTCPInfoBoth(b, DeserializeDCTCPInfoReflection)
 }
 
-func DeserializeDCTCPInfoBoth(b *testing.B, Func func(data []byte, d *DCTCPInfo) (n int, err error)) {
+func DeserializeDCTCPInfoBoth(b *testing.B, fn func(data []byte, d *DCTCPInfo) (n int, err error)) {
 	var tests = []DeserializeMemInfoTest{
 		{
 			description: "attribute_dctcpinfo_4033_reflection",
@@ -146,7 +136,7 @@ func DeserializeDCTCPInfoBoth(b *testing.B, Func func(data []byte, d *DCTCPInfo)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 
-		_, errD = Func(buf, d)
+		_, errD = fn(buf, d)
 		if errD != nil {
 			b.Error("Test Failed DeserializeDCTCPInfoBoth errD", errD)
 		}

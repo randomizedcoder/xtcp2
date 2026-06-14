@@ -62,25 +62,12 @@ breakPoint:
 			}
 
 		case <-x.pollRequestCh:
-			x.pC.WithLabelValues("Poller", "pollRequestCh", "count").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("Poller <-x.pollRequestCh pollingLoops:%d count:%d", pollingLoops, count)
-			}
-
-			if count > 0 {
-				x.pC.WithLabelValues("Poller", "alreadyPolling", "count").Inc()
-				if x.debugLevel > 10 {
-					log.Printf("Poller pollingLoops:%d count:%d alreadyPolling", pollingLoops, count)
-				}
+			next, polled := x.handlePollRequest(pollingLoops, count, lastPollTime)
+			if !polled {
 				continue
 			}
-			t := time.Now()
-			timeSinceLastPoll := t.Sub(lastPollTime)
-			lastPollTime = t
-			if x.debugLevel > 10 {
-				log.Printf("Poller <-ticker.C pollingLoops:%d timeSinceLastPoll:%0.3fs", pollingLoops, timeSinceLastPoll.Seconds())
-			}
-			count = x.pollAllNetlinkSockets(pollingLoops)
+			count = next
+			lastPollTime = time.Now()
 
 		case d := <-x.changePollFrequencyCh:
 			ticker.Reset(d)
@@ -90,24 +77,7 @@ breakPoint:
 			}
 
 		case doneReceived := <-x.netlinkerDoneCh:
-			x.pC.WithLabelValues("Poller", "done", "count").Inc()
-
-			if p, ok := x.pollTime.Load(doneReceived.fd); ok {
-				pTime := doneReceived.t.Sub(p.(time.Time))
-				x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pTime.Seconds())
-
-				if x.debugLevel > 10 {
-					if ns, ok := x.fdToNsMap.Load(doneReceived.fd); ok {
-						log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
-							count, doneReceived.fd, ns.(string), pTime.Seconds(), pTime.Milliseconds())
-					} else {
-						x.pC.WithLabelValues("Poller", "fdToNsMap", "error").Inc()
-						log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d after: %0.3fs %dms",
-							count, doneReceived.fd, pTime.Seconds(), pTime.Milliseconds())
-					}
-				}
-			}
-
+			x.observeNetlinkerDone(doneReceived, count)
 			count--
 			if x.debugLevel > 1000 {
 				log.Printf("Poller <-x.netlinkerDoneCh, count:%d", count)
@@ -120,89 +90,7 @@ breakPoint:
 				log.Println("Poller <-time.After(*x.config.PollTimeout)")
 			}
 
-			//default:
-			// blocking!
 		}
-
-		// // Send batch
-		// if count == 0 {
-
-		// 	x.pollTimeoutTimer.Stop()
-
-		// 	// TODO there is an oppertunity here so NOT marshal, in the case of null dest,
-		// 	// or alternatively if the dest is a GRPC endpoint
-
-		// 	var sTime time.Time
-
-		// 	lockTime := time.Now()
-		// 	x.envelopeMu.Lock() // <----------------------- LOCK!
-
-		// 	b := x.Marshaller(x.currentEnvelope)
-		// 	l := len(x.currentEnvelope.Row)
-
-		// 	for _, r := range x.currentEnvelope.Row {
-		// 		x.ZeroXTCPCongRecord(r)
-		// 		r.Reset()
-		// 		x.xtcpRecordPool.Put(r)
-		// 	}
-
-		// 	x.currentEnvelope.Reset()
-		// 	sTime = x.pollStartTime
-
-		// 	x.envelopeMu.Unlock() // <--------------------- UNLOCK!
-
-		// 	lt := time.Since(lockTime).Seconds()
-		// 	x.pH.WithLabelValues("Poller", "lockTime", "count").Observe(lt)
-		// 	if x.debugLevel > 10 {
-		// 		log.Printf("Poller pollingLoops:%d time.Since(lockTime).Seconds():%0.4f", pollingLoops, lt)
-		// 	}
-
-		// 	if x.debugLevel > 10 {
-		// 		log.Printf("Poller pollingLoops:%d  header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-		// 	}
-
-		// 	if wf > 0 {
-		// 		now := time.Now()
-		// 		err := os.WriteFile(
-		// 			x.config.CapturePath+"dest."+now.Format(time.RFC3339Nano),
-		// 			*(b),
-		// 			writeFilesPermissionsCst)
-		// 		if err != nil {
-		// 			log.Fatal(err)
-		// 		}
-		// 		wf--
-		// 		if x.debugLevel > 10 {
-		// 			log.Printf("Poller pollingLoops:%d wrote dest, wf:%d", pollingLoops, wf)
-		// 			log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-		// 		}
-		// 	}
-
-		// 	if x.debugLevel > 10 {
-		// 		log.Printf("Poller pollingLoops:%d header bytes: % X", pollingLoops, (*b)[:KafkaHeaderSizeCst])
-		// 	}
-
-		// 	var n int
-		// 	if len(*b) > 1 {
-
-		// 		var err error
-		// 		n, err = x.Destination(ctx, b)
-		// 		if err != nil {
-		// 			x.pC.WithLabelValues("Poller", "Destination", "error").Inc()
-		// 			continue
-		// 		}
-		// 		x.pC.WithLabelValues("Poller", "Destination", "count").Inc()
-		// 		x.pC.WithLabelValues("Poller", "Destination", "countN").Add(float64(l))
-		// 		x.pC.WithLabelValues("Poller", "Destination", "bytes").Add(float64(n))
-		// 		if x.debugLevel > 10 {
-		// 			log.Printf("Poller pollingLoops:%d countN:%d bytes:%d", pollingLoops, l, n)
-		// 		}
-
-		// 	} else {
-		// 		x.pC.WithLabelValues("Poller", "DestinationShort", "error").Inc()
-		// 		if x.debugLevel > 10 {
-		// 			log.Printf("Poller pollingLoops:%d len(*b):%d is too short", pollingLoops, len(*b))
-		// 		}
-		// 	}
 
 		pollDuration := time.Since(x.pollStartTime)
 		x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pollDuration.Seconds())
@@ -210,15 +98,60 @@ breakPoint:
 		if x.debugLevel > 10 {
 			log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms",
 				pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds())
-			// log.Printf("Poller pollingLoops:%d pollDuration:%0.4fs %dms bytes:%d",
-			// 	pollingLoops, pollDuration.Seconds(), pollDuration.Milliseconds(), n)
 		}
-
-		// 	}
-
 	}
 
 	x.pC.WithLabelValues("Poller", "complete", "count").Inc()
+}
+
+// handlePollRequest reacts to a poll-request tick. Returns (newCount, true)
+// when a fresh dump was issued, or (count, false) when the previous dump
+// is still in flight and the request was coalesced.
+func (x *XTCP) handlePollRequest(pollingLoops uint64, count int, lastPollTime time.Time) (int, bool) {
+	x.pC.WithLabelValues("Poller", "pollRequestCh", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("Poller <-x.pollRequestCh pollingLoops:%d count:%d", pollingLoops, count)
+	}
+
+	if count > 0 {
+		x.pC.WithLabelValues("Poller", "alreadyPolling", "count").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("Poller pollingLoops:%d count:%d alreadyPolling", pollingLoops, count)
+		}
+		return count, false
+	}
+	if x.debugLevel > 10 {
+		log.Printf("Poller <-ticker.C pollingLoops:%d timeSinceLastPoll:%0.3fs",
+			pollingLoops, time.Since(lastPollTime).Seconds())
+	}
+	return x.pollAllNetlinkSockets(pollingLoops), true
+}
+
+// observeNetlinkerDone records the per-fd poll→done latency and (at
+// debug levels) emits a log line tagged with the netns that owns the fd.
+func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
+	x.pC.WithLabelValues("Poller", "done", "count").Inc()
+
+	p, ok := x.pollTime.Load(d.fd)
+	if !ok {
+		return
+	}
+	pt, _ := p.(time.Time) //nolint:errcheck // pollTime Store sites all use time.Time
+	pTime := d.t.Sub(pt)
+	x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pTime.Seconds())
+
+	if x.debugLevel <= 10 {
+		return
+	}
+	if ns, okNs := x.fdToNsMap.Load(d.fd); okNs {
+		nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap values are strings
+		log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
+			count, d.fd, nsStr, pTime.Seconds(), pTime.Milliseconds())
+		return
+	}
+	x.pC.WithLabelValues("Poller", "fdToNsMap", "error").Inc()
+	log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d after: %0.3fs %dms",
+		count, d.fd, pTime.Seconds(), pTime.Milliseconds())
 }
 
 func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
@@ -226,7 +159,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	startTime := time.Now()
 
 	x.envelopeMu.Lock()
-	x.currentEnvelope = x.xtcpEnvelopePool.Get().(*xtcp_flat_record.Envelope)
+	x.currentEnvelope, _ = x.xtcpEnvelopePool.Get().(*xtcp_flat_record.Envelope) //nolint:errcheck // pool.New returns *Envelope
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 
@@ -235,8 +168,9 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	socketFDs := x.GetNetlinkSocketFDs()
 	for i, socketFD := range socketFDs {
 		if ns, ok := x.fdToNsMap.Load(socketFD); ok {
+			nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap values are strings
 			// "/run/netns/xtcpNS"
-			if ns.(string) == linuxNetNSDirCst+xtcpNSName {
+			if nsStr == linuxNetNSDirCst+xtcpNSName {
 				if x.debugLevel > 100 {
 					log.Printf("pollAllNetlinkSockets skip "+linuxNetNSDirCst+xtcpNSName+" Poll i:%d", i)
 				}

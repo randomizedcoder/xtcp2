@@ -25,7 +25,7 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-t.C:
-			dels, stores := x.reconcile(ctx)
+			dels, stores = x.reconcile(ctx)
 			x.pC.WithLabelValues("mapReconciler", "tick", "count").Inc()
 			x.pC.WithLabelValues("mapReconciler", "dels", "count").Add(float64(dels))
 			x.pC.WithLabelValues("mapReconciler", "stores", "count").Add(float64(stores))
@@ -74,7 +74,7 @@ func (x *XTCP) reconcileMaps(ctx context.Context, srcMap, destMap *sync.Map, tes
 			if testing {
 				destMap.Store(key, value)
 			} else {
-				nsName := key.(string)
+				nsName, _ := key.(string) //nolint:errcheck // sourceMap.Range keys are strings
 				x.nsAdd(ctx, &nsName)
 			}
 			storeCount++

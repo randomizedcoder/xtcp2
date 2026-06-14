@@ -104,20 +104,16 @@ func (x *XTCP) initSyncMaps() {
 		if x.debugLevel > 10 {
 			log.Println("initSyncMaps x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
 		}
-	} else {
-		if x.debugLevel > 10 {
-			log.Println("initSyncMaps NOT x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
-		}
+	} else if x.debugLevel > 10 {
+		log.Println("initSyncMaps NOT x.netNsDirs.Store(" + linuxNetNSDirCst + ")")
 	}
 	if _, err := os.Stat(dockerNetNsDirCst); err == nil {
 		x.netNsDirs.Store(dockerNetNsDirCst, true)
 		if x.debugLevel > 10 {
 			log.Println("initSyncMaps x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
 		}
-	} else {
-		if x.debugLevel > 10 {
-			log.Println("initSyncMaps NOT x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
-		}
+	} else if x.debugLevel > 10 {
+		log.Println("initSyncMaps NOT x.netNsDirs.Store(" + dockerNetNsDirCst + ")")
 	}
 
 	i := 0

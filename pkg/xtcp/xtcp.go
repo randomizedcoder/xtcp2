@@ -191,7 +191,12 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 
 	x.netNsDirs.Range(func(key, value interface{}) bool {
 		wg.Add(1)
-		go x.watchNsNamespace(ctx, wg, key.(string))
+		dir, _ := key.(string) //nolint:errcheck // netNsDirs keys are strings
+		go func() {
+			if err := x.watchNsNamespace(ctx, wg, dir); err != nil {
+				log.Printf("watchNsNamespace(%s) err:%v", dir, err)
+			}
+		}()
 		return true
 	})
 

@@ -75,7 +75,8 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance unix.Bind err: %v", err)
 		}
-		log.Fatalf("netNamespaceInstance unix.Bind %s", err)
+		x.closeSocket(socketFD)                              // close explicitly; log.Fatalf skips the deferred closeSocket
+		log.Fatalf("netNamespaceInstance unix.Bind %s", err) //nolint:gocritic // exitAfterDefer: deferred closeSocket is released explicitly above
 	}
 
 	x.createNetlinkersAndStore(ctx, nsName, socketFD)
@@ -163,7 +164,6 @@ func (x *XTCP) openAndSetNSWithRetries(nsName *string) (fd int) {
 
 	for attempt := 0; attempt < maxRetriesCst; attempt++ {
 
-		var err error
 		fd, err = unix.Open(*nsName, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 		if err != nil {
 			x.pC.WithLabelValues("openAndSetNSWithRetries", "open", "error").Inc()
@@ -282,7 +282,7 @@ func (x *XTCP) checkMountInfo(nsName *string) (bool, error) {
 	}
 	x.pC.WithLabelValues("checkMountInfo", "notFound", "count").Inc()
 
-	if err := scanner.Err(); err != nil {
+	if err = scanner.Err(); err != nil {
 		x.pC.WithLabelValues("checkMountInfo", "scanner.Err", "error").Inc()
 		return false, fmt.Errorf("error reading /proc/self/mountinfo: %w", err)
 	}

@@ -117,7 +117,7 @@ func main() {
 	// Print version information passed in via ldflags in the Makefile
 	if *v {
 		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: -v prints version and exits; deferred cancel() is moot at process shutdown
 	}
 	debugLevel = *d
 
@@ -171,8 +171,8 @@ breakPoint:
 			break breakPoint
 
 		case <-ticker.C:
-			if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
-				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, err)
+			if serr := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); serr != nil {
+				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, serr)
 				break breakPoint
 			}
 			if debugLevel > 10 {
@@ -315,7 +315,7 @@ func newGRPCClient(target string) *grpc.ClientConn {
 func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
 
 	defer wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // streaming client teardown; conn.Close err is non-actionable
 
 	req := &xtcp_flat_record.FlatRecordsRequest{}
 
@@ -325,7 +325,8 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		log.Fatal("Error making gRPC request: ", err.Error())
+		_ = conn.Close()                                      //nolint:errcheck // close explicitly; log.Fatal skips the deferred conn.Close
+		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
 	}
 
 breakPoint:
@@ -342,7 +343,8 @@ breakPoint:
 			log.Printf("id: %d waiting for message i:%d", id, i)
 		}
 
-		flatRecordsResponse, err := stream.Recv()
+		var flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse
+		flatRecordsResponse, err = stream.Recv()
 		if err == io.EOF {
 			continue
 		}

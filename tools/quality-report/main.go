@@ -419,7 +419,7 @@ func parseGolangci(path, tool string, tier int, repoRoot string) ([]Finding, boo
 		return nil, true
 	}
 	var j golangciJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	if err = json.Unmarshal(b, &j); err != nil {
 		// Tolerate: emit a single synthetic finding noting the parse failure.
 		return []Finding{{
 			Tool:     tool,
@@ -473,7 +473,7 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 		return nil, true
 	}
 	var j gosecJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	if err = json.Unmarshal(b, &j); err != nil {
 		return []Finding{{
 			Tool:     toolGosec,
 			Rule:     "internal/parse-error",
@@ -482,9 +482,10 @@ func parseGosec(path, repoRoot string) ([]Finding, bool) {
 		}}, true
 	}
 	out := make([]Finding, 0, len(j.Issues))
-	for _, is := range j.Issues {
-		ln, _ := strconv.Atoi(strings.SplitN(is.Line, "-", 2)[0])
-		col, _ := strconv.Atoi(is.Column)
+	for i := range j.Issues {
+		is := &j.Issues[i]
+		ln := atoiOr0(strings.SplitN(is.Line, "-", 2)[0])
+		col := atoiOr0(is.Column)
 		msg := is.Details
 		if is.CWE.ID != "" {
 			msg = fmt.Sprintf("%s (CWE-%s)", msg, is.CWE.ID)
@@ -525,8 +526,8 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			continue
 		}
 		if m := reFileLineCol.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
-			col, _ := strconv.Atoi(m[3])
+			ln := atoiOr0(m[2])
+			col := atoiOr0(m[3])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
 				Severity: severityWarning,
@@ -535,7 +536,7 @@ func parseLineFindings(path, tool string, tier int, defaultRule string) ([]Findi
 			continue
 		}
 		if m := reFileLine.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
+			ln := atoiOr0(m[2])
 			out = append(out, Finding{
 				Tool: tool, Tier: tier, Rule: defaultRule,
 				Severity: severityWarning,
@@ -569,8 +570,8 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 			continue
 		}
 		if m := reFileLineCol.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
-			col, _ := strconv.Atoi(m[3])
+			ln := atoiOr0(m[2])
+			col := atoiOr0(m[3])
 			out = append(out, Finding{
 				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Column: col, Message: m[4],
@@ -578,7 +579,7 @@ func parseAuditOutput(path, tool string) ([]Finding, bool) {
 			continue
 		}
 		if m := reFileLine.FindStringSubmatch(line); m != nil {
-			ln, _ := strconv.Atoi(m[2])
+			ln := atoiOr0(m[2])
 			out = append(out, Finding{
 				Tool: tool, Severity: severityWarning,
 				File: m[1], Line: ln, Message: m[3],
@@ -612,8 +613,8 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 	dec := json.NewDecoder(f)
 	for {
 		var e event
-		if err := dec.Decode(&e); err != nil {
-			if err == io.EOF {
+		if derr := dec.Decode(&e); derr != nil {
+			if derr == io.EOF {
 				break
 			}
 			// Some Go test output mixes JSON with stderr; skip non-JSON tokens.
@@ -675,8 +676,8 @@ func parseCliHelpSmoke(path string) ([]CliHelpResult, bool) {
 		if len(fields) < 3 {
 			continue
 		}
-		rc, _ := strconv.Atoi(fields[1])
-		bytes, _ := strconv.Atoi(fields[2])
+		rc := atoiOr0(fields[1])
+		bytes := atoiOr0(fields[2])
 		out = append(out, CliHelpResult{
 			Binary:   fields[0],
 			ExitCode: rc,
@@ -739,7 +740,7 @@ func parseExclusions(repoRoot string) []ConfigExclusion {
 				lastComment = ""
 			}
 		}
-		f.Close()
+		_ = f.Close()
 	}
 	// gosec exclusions — hardcoded in nix/checks/go-sec.nix.
 	out = append(out,
@@ -809,13 +810,22 @@ func readKVFile(path string) map[string]string {
 func readRuntimes(path string) map[string]int {
 	out := map[string]int{}
 	for k, v := range readKVFile(path) {
-		out[k], _ = strconv.Atoi(v)
+		out[k] = atoiOr0(v)
 	}
 	return out
 }
 
 func readExitCodes(path string) map[string]int {
 	return readRuntimes(path) // same shape: key=int
+}
+
+// atoiOr0 is a best-effort parse for already-validated numeric strings
+// (regex digit captures, golangci-lint JSON column fields, runtime KV
+// values, etc.). Anywhere the upstream guarantees parseability, the
+// error is uninteresting.
+func atoiOr0(s string) int {
+	n, _ := strconv.Atoi(s) //nolint:errcheck // best-effort parse of pre-validated digits
+	return n
 }
 
 func fileExists(path string) bool {
@@ -847,7 +857,7 @@ func relpath(p, root string) string {
 	if err != nil {
 		return p
 	}
-	if r, err := filepath.Rel(abs, p); err == nil && !strings.HasPrefix(r, "..") {
+	if r, rerr := filepath.Rel(abs, p); rerr == nil && !strings.HasPrefix(r, "..") {
 		return r
 	}
 	return p

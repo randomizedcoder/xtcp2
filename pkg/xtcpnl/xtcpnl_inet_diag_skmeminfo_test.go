@@ -32,9 +32,7 @@ func TestDeserializeSkMemInfo(t *testing.T) {
 				Backlog:    0,
 				Drops:      0,
 			},
-			Func: func(data []byte, sm *SkMemInfo) (n int, err error) {
-				return DeserializeSkMemInfo(data, sm)
-			},
+			Func: DeserializeSkMemInfo,
 		},
 		{
 			description: tnAttrSkmeminfo2,
@@ -50,9 +48,7 @@ func TestDeserializeSkMemInfo(t *testing.T) {
 				Backlog:    0,
 				Drops:      0,
 			},
-			Func: func(data []byte, sm *SkMemInfo) (n int, err error) {
-				return DeserializeSkMemInfoReflection(data, sm)
-			},
+			Func: DeserializeSkMemInfoReflection,
 		},
 		{
 			description: "attribute_skmeminfo",
@@ -68,9 +64,7 @@ func TestDeserializeSkMemInfo(t *testing.T) {
 				Backlog:    0,
 				Drops:      23001,
 			},
-			Func: func(data []byte, sm *SkMemInfo) (n int, err error) {
-				return DeserializeSkMemInfo(data, sm)
-			},
+			Func: DeserializeSkMemInfo,
 		},
 		// ESTAB  0      6174            127.0.0.1:31833          127.0.0.1:4305  users:(("tcp_client",pid=4352,fd=311))  timer:(on,546ms,0) uid:1000 ino:85152 sk:366e cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
 		// skmem:(r0,rb1000000,t0,tb1000000,f3426,w8862,o0,bl0,d24406) ts sack ecn ecnseen bbr wscale:9,9 rto:811 rtt:399.942/93.744 ato:40 mss:1448 pmtu:1500 rcvmss:1448 advmss:1448 cwnd:10 ssthresh:181 bytes_sent:90417090 bytes_retrans:8234976 bytes_acked:82175941 bytes_received:82175940 segs_out:132244 segs_in:131823 data_segs_out:85300 data_segs_in:81763 bbr:(bw:427392bps,mrtt:27.057,pacing_gain:1.25,cwnd_gain:2) send 289642bps lastsnd:191 lastrcv:222 lastack:222 pacing_rate 528896bps delivery_rate 207288bps delivered:83575 app_limited busy:7513436ms unacked:6 retrans:0/7322 dsack_dups:5919 reord_seen:1890 rcv_rtt:407.226 rcv_space:18410 rcv_ssthresh:498552 minrtt:0.01 rcv_ooopack:12469 snd_wnd:498688 rcv_wnd:498688 rehash:149
@@ -89,9 +83,7 @@ func TestDeserializeSkMemInfo(t *testing.T) {
 				Backlog:    0,
 				Drops:      24406,
 			},
-			Func: func(data []byte, sm *SkMemInfo) (n int, err error) {
-				return DeserializeSkMemInfo(data, sm)
-			},
+			Func: DeserializeSkMemInfo,
 		},
 	}
 	for i, test := range tests {
@@ -141,20 +133,14 @@ var (
 
 // go test -bench=BenchmarkDeserializeSkMemInfo
 func BenchmarkDeserializeSkMemInfo(b *testing.B) {
-	f := func(data []byte, sm *SkMemInfo) (n int, err error) {
-		return DeserializeSkMemInfo(data, sm)
-	}
-	DeserializeSkMemInfoBoth(b, f)
+	DeserializeSkMemInfoBoth(b, DeserializeSkMemInfo)
 }
 
 func BenchmarkDeserializeSkMemInfoReflection(b *testing.B) {
-	f := func(data []byte, sm *SkMemInfo) (n int, err error) {
-		return DeserializeSkMemInfoReflection(data, sm)
-	}
-	DeserializeSkMemInfoBoth(b, f)
+	DeserializeSkMemInfoBoth(b, DeserializeSkMemInfoReflection)
 }
 
-func DeserializeSkMemInfoBoth(b *testing.B, Func func(data []byte, sm *SkMemInfo) (n int, err error)) {
+func DeserializeSkMemInfoBoth(b *testing.B, fn func(data []byte, sm *SkMemInfo) (n int, err error)) {
 	var tests = []DeserializeSkMemInfoTest{
 		{
 			description: tnAttrSkmeminfo2,
@@ -187,7 +173,7 @@ func DeserializeSkMemInfoBoth(b *testing.B, Func func(data []byte, sm *SkMemInfo
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, sm)
+		_, errD = fn(buf, sm)
 		if errD != nil {
 			b.Error("Test Failed DeserializeSkMemInfoBoth errD", errD)
 		}

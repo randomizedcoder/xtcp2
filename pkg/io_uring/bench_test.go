@@ -31,8 +31,8 @@ func snapshotRusage(b *testing.B) rusageDelta {
 		b.Fatalf("Getrusage: %v", err)
 	}
 	return rusageDelta{
-		user: ru.Utime.Sec*1e6 + int64(ru.Utime.Usec),
-		sys:  ru.Stime.Sec*1e6 + int64(ru.Stime.Usec),
+		user: ru.Utime.Sec*1e6 + ru.Utime.Usec,
+		sys:  ru.Stime.Sec*1e6 + ru.Stime.Usec,
 		maj:  ru.Majflt,
 		nvcs: ru.Nvcsw,
 		nivs: ru.Nivcsw,
@@ -158,19 +158,19 @@ func benchmarkIoUringSend(b *testing.B, batch int) {
 			buf := pool.Get().(*[]byte)
 			copy(*buf, payload)
 			*buf = (*buf)[:len(payload)]
-			if _, err := r.EnqueueSend(cli, buf, OpSendUnixGram); err != nil {
-				b.Fatalf("EnqueueSend: %v", err)
+			if _, eerr := r.EnqueueSend(cli, buf, OpSendUnixGram); eerr != nil {
+				b.Fatalf("EnqueueSend: %v", eerr)
 			}
 		}
-		if _, err := r.Submit(); err != nil {
-			b.Fatalf("Submit: %v", err)
+		if _, serr := r.Submit(); serr != nil {
+			b.Fatalf("Submit: %v", serr)
 		}
 		// Drain the whole window before refilling.
 		drained := 0
 		for drained < window {
-			results, err := r.WaitOne()
-			if err != nil {
-				b.Fatalf("WaitOne: %v", err)
+			results, werr := r.WaitOne()
+			if werr != nil {
+				b.Fatalf("WaitOne: %v", werr)
 			}
 			for _, res := range results {
 				if res.Buf != nil {
@@ -206,7 +206,7 @@ func BenchmarkSyscallRecv(b *testing.B) {
 
 	go func() {
 		for i := 0; i < b.N; i++ {
-			if _, err := syscall.Write(srv, payload); err != nil {
+			if _, werr := syscall.Write(srv, payload); werr != nil {
 				return
 			}
 		}
@@ -250,7 +250,7 @@ func benchmarkIoUringRecv(b *testing.B, batch int) {
 
 	go func() {
 		for i := 0; i < b.N; i++ {
-			if _, err := syscall.Write(srv, payload); err != nil {
+			if _, werr := syscall.Write(srv, payload); werr != nil {
 				return
 			}
 		}
@@ -272,18 +272,18 @@ func benchmarkIoUringRecv(b *testing.B, batch int) {
 		for j := 0; j < window; j++ {
 			buf := pool.Get().(*[]byte)
 			*buf = (*buf)[:recvBufSize]
-			if _, err := r.EnqueueRecvMsg(cli, buf); err != nil {
-				b.Fatalf("EnqueueRecvMsg: %v", err)
+			if _, eerr := r.EnqueueRecvMsg(cli, buf); eerr != nil {
+				b.Fatalf("EnqueueRecvMsg: %v", eerr)
 			}
 		}
-		if _, err := r.Submit(); err != nil {
-			b.Fatalf("Submit: %v", err)
+		if _, serr := r.Submit(); serr != nil {
+			b.Fatalf("Submit: %v", serr)
 		}
 		drained := 0
 		for drained < window {
-			results, err := r.WaitOne()
-			if err != nil {
-				b.Fatalf("WaitOne: %v", err)
+			results, werr := r.WaitOne()
+			if werr != nil {
+				b.Fatalf("WaitOne: %v", werr)
 			}
 			for _, res := range results {
 				if res.Buf != nil {

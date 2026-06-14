@@ -34,9 +34,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 				FCS:          253,
 				LinkType:     0,
 			},
-			Func: func(data []byte, ph *PcapHeader) (n int, err error) {
-				return DeserializePcapHeader(data, ph)
-			},
+			Func: DeserializePcapHeader,
 		},
 		{
 			description: tnDeserializePcap,
@@ -51,9 +49,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 				FCS:          253,
 				LinkType:     0,
 			},
-			Func: func(data []byte, ph *PcapHeader) (n int, err error) {
-				return DeserializePcapHeaderReflection(data, ph)
-			},
+			Func: DeserializePcapHeaderReflection,
 		},
 		{
 			description: tnSport26546V4,
@@ -68,9 +64,7 @@ func TestDeserializePcapHeader(t *testing.T) {
 				FCS:          253,
 				LinkType:     0,
 			},
-			Func: func(data []byte, ph *PcapHeader) (n int, err error) {
-				return DeserializePcapHeader(data, ph)
-			},
+			Func: DeserializePcapHeader,
 		},
 	}
 
@@ -134,9 +128,7 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 				CapLen: 36,
 				Len:    36,
 			},
-			Func: func(data []byte, prh *PcapRecordHeader) (n int, err error) {
-				return DeserializePcapRecordHeader(data, prh)
-			},
+			Func: DeserializePcapRecordHeader,
 		},
 		{
 			description: tnDeserializePcap,
@@ -147,9 +139,7 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 				CapLen: 36,
 				Len:    36,
 			},
-			Func: func(data []byte, prh *PcapRecordHeader) (n int, err error) {
-				return DeserializePcapRecordHeaderReflection(data, prh)
-			},
+			Func: DeserializePcapRecordHeaderReflection,
 		},
 		{
 			description: tnSport26546V4,
@@ -160,9 +150,7 @@ func TestDeserializePcapRecordHeader(t *testing.T) {
 				CapLen: 3724,
 				Len:    3724,
 			},
-			Func: func(data []byte, prh *PcapRecordHeader) (n int, err error) {
-				return DeserializePcapRecordHeader(data, prh)
-			},
+			Func: DeserializePcapRecordHeader,
 		},
 	}
 
@@ -212,20 +200,14 @@ var (
 
 // go test -bench=BenchmarkDeserializePcapHeader
 func BenchmarkDeserializePcapHeader(b *testing.B) {
-	f := func(data []byte, ph *PcapHeader) (n int, err error) {
-		return DeserializePcapHeader(data, ph)
-	}
-	DeserializePcapHeaderBoth(b, f)
+	DeserializePcapHeaderBoth(b, DeserializePcapHeader)
 }
 
 func BenchmarkDeserializePcapHeaderReflection(b *testing.B) {
-	f := func(data []byte, ph *PcapHeader) (n int, err error) {
-		return DeserializePcapHeaderReflection(data, ph)
-	}
-	DeserializePcapHeaderBoth(b, f)
+	DeserializePcapHeaderBoth(b, DeserializePcapHeaderReflection)
 }
 
-func DeserializePcapHeaderBoth(b *testing.B, Func func(data []byte, ph *PcapHeader) (n int, err error)) {
+func DeserializePcapHeaderBoth(b *testing.B, fn func(data []byte, ph *PcapHeader) (n int, err error)) {
 	var tests = []DeserializePcapHeaderTest{
 		{
 			description: tnDeserializePcap,
@@ -247,7 +229,7 @@ func DeserializePcapHeaderBoth(b *testing.B, Func func(data []byte, ph *PcapHead
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, ph)
+		_, errD = fn(buf, ph)
 		if errD != nil {
 			b.Error("Test Failed DeserializePcapHeaderBoth errD", errD)
 		}
@@ -261,20 +243,14 @@ var (
 
 // go test -bench=BenchmarkDeserializePcapRecordHeader
 func BenchmarkDeserializePcapRecordHeader(b *testing.B) {
-	f := func(data []byte, prh *PcapRecordHeader) (n int, err error) {
-		return DeserializePcapRecordHeader(data, prh)
-	}
-	DeserializePcapRecordHeaderBoth(b, f)
+	DeserializePcapRecordHeaderBoth(b, DeserializePcapRecordHeader)
 }
 
 func BenchmarkDeserializePcapRecordHeaderReflection(b *testing.B) {
-	f := func(data []byte, prh *PcapRecordHeader) (n int, err error) {
-		return DeserializePcapRecordHeaderReflection(data, prh)
-	}
-	DeserializePcapRecordHeaderBoth(b, f)
+	DeserializePcapRecordHeaderBoth(b, DeserializePcapRecordHeaderReflection)
 }
 
-func DeserializePcapRecordHeaderBoth(b *testing.B, Func func(data []byte, prh *PcapRecordHeader) (n int, err error)) {
+func DeserializePcapRecordHeaderBoth(b *testing.B, fn func(data []byte, prh *PcapRecordHeader) (n int, err error)) {
 	var tests = []DeserializePcapRecordHeaderTest{
 		{
 			description: tnDeserializePcap,
@@ -296,7 +272,7 @@ func DeserializePcapRecordHeaderBoth(b *testing.B, Func func(data []byte, prh *P
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, prh)
+		_, errD = fn(buf, prh)
 		if errD != nil {
 			b.Error("Test Failed DeserializePcapRecordHeaderBoth errD", errD)
 		}

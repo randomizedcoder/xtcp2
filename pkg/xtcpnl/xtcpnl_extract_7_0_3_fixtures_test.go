@@ -37,8 +37,8 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 	}
 
 	var ph PcapHeader
-	if _, err := DeserializePcapHeader(bs[:PcapHeaderSizeCst], &ph); err != nil {
-		t.Fatalf("DeserializePcapHeader: %v", err)
+	if _, derr := DeserializePcapHeader(bs[:PcapHeaderSizeCst], &ph); derr != nil {
+		t.Fatalf("DeserializePcapHeader: %v", derr)
 	}
 
 	// Targets transcribed from testdata/7_0_3/ss_tcp_info_n. Chosen because
@@ -78,8 +78,8 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 		}
 
 		var prh PcapRecordHeader
-		if _, err := DeserializePcapRecordHeader(bs[off:off+PcapRecordHeaderSizeCst], &prh); err != nil {
-			t.Fatalf("DeserializePcapRecordHeader at off=%d: %v", off, err)
+		if _, derr := DeserializePcapRecordHeader(bs[off:off+PcapRecordHeaderSizeCst], &prh); derr != nil {
+			t.Fatalf("DeserializePcapRecordHeader at off=%d: %v", off, derr)
 		}
 
 		recStart := off
@@ -100,7 +100,7 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 		nlStart := dataStart + NetlinkCookedHeaderSizeCst
 
 		var nlh NlMsgHdr
-		if _, err := DeserializeNlMsgHdr(bs[nlStart:nlStart+NlMsgHdrSizeCst], &nlh); err != nil {
+		if _, derr := DeserializeNlMsgHdr(bs[nlStart:nlStart+NlMsgHdrSizeCst], &nlh); derr != nil {
 			continue
 		}
 		if nlh.Type != NlMsgHdrTypeInetDiagCst {
@@ -110,7 +110,7 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 		idmStart := nlStart + NlMsgHdrSizeCst
 		var idm InetDiagMsg
 		var sid InetDiagSockID
-		if _, err := DeserializeInetDiagMsg(bs[idmStart:idmStart+InetDiagMsgSizeCst], &idm, &sid); err != nil {
+		if _, derr := DeserializeInetDiagMsg(bs[idmStart:idmStart+InetDiagMsgSizeCst], &idm, &sid); derr != nil {
 			continue
 		}
 		if idm.State != 1 { // TCP_ESTABLISHED
@@ -145,7 +145,7 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 		ao := attrStart
 		for ao+RTAttrSizeCst <= nlEnd {
 			var rta RTAttr
-			if _, err := DeserializeRTAttr(bs[ao:ao+RTAttrSizeCst], &rta); err != nil {
+			if _, derr := DeserializeRTAttr(bs[ao:ao+RTAttrSizeCst], &rta); derr != nil {
 				break
 			}
 			if rta.Len < RTAttrSizeCst || ao+int(rta.Len) > nlEnd {
@@ -190,13 +190,13 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 		singlePcap = append(singlePcap, bs[:PcapHeaderSizeCst]...)
 		singlePcap = append(singlePcap, bs[recStart:dataEnd]...)
 		pcapPath := filepath.Join(outDir, match.name+".pcap")
-		if err := writeIfChanged(pcapPath, singlePcap); err != nil {
-			t.Fatalf("write %s: %v", pcapPath, err)
+		if werr := writeIfChanged(pcapPath, singlePcap); werr != nil {
+			t.Fatalf("write %s: %v", pcapPath, werr)
 		}
 
 		infoPath := filepath.Join(outDir, match.name+"_info")
-		if err := writeIfChanged(infoPath, infoBlob); err != nil {
-			t.Fatalf("write %s: %v", infoPath, err)
+		if werr := writeIfChanged(infoPath, infoBlob); werr != nil {
+			t.Fatalf("write %s: %v", infoPath, werr)
 		}
 
 		found[match.name] = true
@@ -221,7 +221,7 @@ func writeIfChanged(path string, data []byte) error {
 	if err == nil && len(cur) == len(data) && bytesEqual(cur, data) {
 		return nil
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600) //nolint:gosec // G703: path is filepath.Join(testdataDir, …) inside the test, not user input
 }
 
 func bytesEqual(a, b []byte) bool {

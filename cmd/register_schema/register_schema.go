@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -44,7 +45,12 @@ func registerProtobufSchema(subject string, schema string) error {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := http.Post(url, "application/vnd.schemaregistry.v1+json", bytes.NewReader(bodyBytes)) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(bodyBytes)) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	if err != nil {
+		return fmt.Errorf("failed to build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -63,7 +69,11 @@ func getLatestSchemaID(subject string) (int, error) {
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -73,7 +83,7 @@ func getLatestSchemaID(subject string) (int, error) {
 		ID int `json:"id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}
 
@@ -107,7 +117,8 @@ func main() {
 	}
 
 	if *get {
-		id, err := getLatestSchemaID(subject)
+		var id int
+		id, err = getLatestSchemaID(subject)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error registering schema: %v\n", err)
 			os.Exit(1)

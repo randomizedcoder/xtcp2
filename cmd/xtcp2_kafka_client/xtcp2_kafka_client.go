@@ -58,7 +58,7 @@ func main() {
 
 	cl, err := kgo.NewClient(opts...)
 	if err != nil {
-		log.Fatalf("unable to create client: %v", err)
+		log.Fatalf("unable to create client: %v", err) //nolint:gocritic // exitAfterDefer: client construction failed before cl exists; deferred cancel() is moot at process shutdown
 	}
 	defer cl.Close()
 
@@ -98,9 +98,8 @@ func main() {
 			}
 
 			var envelope xtcp_flat_record.Envelope
-			err := proto.Unmarshal(record.Value[6:], &envelope)
-			if err != nil {
-				log.Printf("Failed to unmarshal protobuf: %v", err)
+			if uerr := proto.Unmarshal(record.Value[6:], &envelope); uerr != nil {
+				log.Printf("Failed to unmarshal protobuf: %v", uerr)
 				return
 			}
 

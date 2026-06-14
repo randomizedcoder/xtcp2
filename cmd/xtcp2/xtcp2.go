@@ -108,6 +108,183 @@ var (
 // 5. Allows for profiling options
 // 6. Starts the staters (the multiple metrics go routines), which includes the Prometheus metric endpoints HTTP handler
 // 7. Starts the poller which is really the main loop for xtcp
+// mainFlags holds the pointers returned by flag.X(...) for every CLI
+// arg main() consumes. Bundling them keeps the top-level orchestration
+// short and lets the per-section helpers (printFlags, buildConfig,
+// startProfile) take a single argument instead of 30 positional ones.
+type mainFlags struct {
+	nltimeout                 *uint64
+	pollFrequency             *time.Duration
+	pollTimeout               *time.Duration
+	maxLoops                  *uint64
+	netlinkers                *uint
+	nlmsgSeq                  *uint
+	packetSize                *uint64
+	packetSizeMply            *uint
+	writeFiles                *uint
+	capturePath               *string
+	modulus                   *uint64
+	marshal                   *string
+	protobufListLengthDelimit *bool
+	dest                      *string
+	destWriteFiles            *uint
+	topic                     *string
+	xtcpProtoFile             *string
+	kafkaSchemaUrl            *string
+	produceTimeout            *time.Duration
+	label                     *string
+	tag                       *string
+	grpcPort                  *uint
+	deserializers             *string
+	promListen                *string
+	promPath                  *string
+	goMaxProcs                *uint
+	profileMode               *string
+	v                         *bool
+	conf                      *bool
+	d                         *uint
+	ioUring                   *bool
+	ioUringRecvBatch          *uint
+	ioUringCqeBatch           *uint
+}
+
+func defineFlags() *mainFlags {
+	f := &mainFlags{}
+	f.nltimeout = flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
+	f.pollFrequency = flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
+	f.pollTimeout = flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
+	f.maxLoops = flag.Uint64("maxLoops", maxLoopsCst, "Maximum number of loops, or zero (0) for forever")
+	f.netlinkers = flag.Uint("netlinkers", netlinkersCst, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
+	f.nlmsgSeq = flag.Uint("nlmsgSeq", nlmsgSeqCst, "nlmsgSeq sequence number (start), which should be uint32")
+	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
+	f.packetSize = flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
+	f.packetSizeMply = flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
+	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
+	f.capturePath = flag.String("capturePath", capturePathCst, "Write files path")
+	f.modulus = flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
+	f.marshal = flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack)")
+	f.protobufListLengthDelimit = flag.Bool("protobufListLengthDelimit", protobufListLengthDelimitCst, "protobufListLengthDelimit")
+	f.dest = flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
+	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
+	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
+	f.xtcpProtoFile = flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")
+	f.kafkaSchemaUrl = flag.String("kafkaSchemaUrl", kafkaSchemaUrlCst, "kafka schema registry URL")
+	f.produceTimeout = flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
+	f.label = flag.String("label", labelCst, "label applied to the protobuf")
+	f.tag = flag.String("tag", tagCst, "label applied to the protobuf")
+	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
+	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
+	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
+	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
+	// Maximum number of CPUs that can be executing simultaneously
+	// https://golang.org/pkg/runtime/#GOMAXPROCS -> zero (0) means default
+	f.goMaxProcs = flag.Uint("goMaxProcs", 4, "goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS")
+	// ./xtcp2 --profile.mode cpu
+	// timeout 1h ./xtcp2 --profile.mode cpu
+	f.profileMode = flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
+	f.v = flag.Bool("v", false, "show version")
+	f.conf = flag.Bool("conf", false, "show config")
+	f.d = flag.Uint("d", debugLevelCst, "debug level")
+	f.ioUring = flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)")
+	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
+	f.ioUringCqeBatch = flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
+	return f
+}
+
+func printFlags(f *mainFlags) {
+	fmt.Println("*nltimeout(ms):", *f.nltimeout)
+	fmt.Println("*pollFrequency:", *f.pollFrequency)
+	fmt.Println("*pollTimeout:", *f.pollTimeout)
+	fmt.Println("*maxLoops:", *f.maxLoops)
+	fmt.Println("*netlinkers:", *f.netlinkers)
+	fmt.Println("*nlmsgSeq:", *f.nlmsgSeq)
+	fmt.Println("*packetSize:", *f.packetSize)
+	fmt.Println("*packetSizeMply:", *f.packetSizeMply)
+	fmt.Println("*writeFiles:", *f.writeFiles)
+	fmt.Println("*capturePath:", *f.capturePath)
+	fmt.Println("*modulus:", *f.modulus)
+	fmt.Println("*marshal:", *f.marshal)
+	fmt.Println("*protobufListLengthDelimit:", *f.protobufListLengthDelimit)
+	fmt.Println("*dest:", *f.dest)
+	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
+	fmt.Println("*topic:", *f.topic)
+	fmt.Println("*xtcpProtoFile:", *f.xtcpProtoFile)
+	fmt.Println("*kafkaSchemaUrl:", *f.kafkaSchemaUrl)
+	fmt.Println("*produceTimeout:", *f.produceTimeout)
+	fmt.Println("*promListen:", *f.promListen)
+	fmt.Println("*promPath:", *f.promPath)
+	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
+	fmt.Println("*d:", *f.d)
+}
+
+func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
+	return &xtcp_config.XtcpConfig{
+		NlTimeoutMilliseconds:  *f.nltimeout,
+		PollFrequency:          durationpb.New(*f.pollFrequency),
+		PollTimeout:            durationpb.New(*f.pollTimeout),
+		MaxLoops:               *f.maxLoops,
+		Netlinkers:             uint32(*f.netlinkers),
+		NetlinkersDoneChanSize: netlinkerDoneChSizeCst,
+		NlmsgSeq:               uint32(*f.nlmsgSeq),
+		PacketSize:             *f.packetSize,
+		PacketSizeMply:         uint32(*f.packetSizeMply),
+		WriteFiles:             uint32(*f.writeFiles),
+		CapturePath:            *f.capturePath,
+		Modulus:                *f.modulus,
+		MarshalTo:              *f.marshal,
+		Dest:                   *f.dest,
+		DestWriteFiles:         uint32(*f.destWriteFiles),
+		Topic:                  *f.topic,
+		XtcpProtoFile:          *f.xtcpProtoFile,
+		KafkaSchemaUrl:         *f.kafkaSchemaUrl,
+		KafkaProduceTimeout:    durationpb.New(*f.produceTimeout),
+		DebugLevel:             uint32(*f.d),
+		Label:                  *f.label,
+		Tag:                    *f.tag,
+		GrpcPort:               uint32(*f.grpcPort),
+		EnabledDeserializers:   des,
+
+		IoUring:              *f.ioUring,
+		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
+		IoUringCqeBatchSize:  uint32(*f.ioUringCqeBatch),
+	}
+}
+
+// startProfile installs the pkg/profile hook selected by `mode` and
+// returns the corresponding Stop closure for the caller to defer.
+// "github.com/pkg/profile"
+// https://dave.cheney.net/2013/07/07/introducing-profile-super-simple-profiling-for-go-programs
+// e.g. ./xtcp -profile.mode trace; go tool trace trace.out
+// e.g. ./xtcp -profile.mode cpu; go tool pprof -http=":8081" xtcp cpu.pprof
+func startProfile(mode string, debugLevel uint) func() {
+	if debugLevel > 10 {
+		log.Println("*profileMode:", mode)
+	}
+	var p interface{ Stop() }
+	switch mode {
+	case "cpu":
+		p = profile.Start(profile.CPUProfile, profile.ProfilePath("."))
+	case "mem":
+		p = profile.Start(profile.MemProfile, profile.ProfilePath("."))
+	case "memheap":
+		p = profile.Start(profile.MemProfileHeap, profile.ProfilePath("."))
+	case "mutex":
+		p = profile.Start(profile.MutexProfile, profile.ProfilePath("."))
+	case "block":
+		p = profile.Start(profile.BlockProfile, profile.ProfilePath("."))
+	case "trace":
+		p = profile.Start(profile.TraceProfile, profile.ProfilePath("."))
+	case "goroutine":
+		p = profile.Start(profile.GoroutineProfile, profile.ProfilePath("."))
+	default:
+		if debugLevel > 1000 {
+			log.Println("No profiling")
+		}
+		return func() {}
+	}
+	return p.Stop
+}
+
 func main() {
 
 	misc.DieIfNotLinux()
@@ -118,208 +295,60 @@ func main() {
 	complete := make(chan struct{}, signalChannelSizeCst)
 	go initSignalHandler(cancel, complete)
 
-	nltimeout := flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
-	pollFrequency := flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
-	pollTimeout := flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
-	maxLoops := flag.Uint64("maxLoops", maxLoopsCst, "Maximum number of loops, or zero (0) for forever")
-	netlinkers := flag.Uint("netlinkers", netlinkersCst, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
-	nlmsgSeq := flag.Uint("nlmsgSeq", nlmsgSeqCst, "nlmsgSeq sequence number (start), which should be uint32")
-	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
-	packetSize := flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
-	packetSizeMply := flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
-
-	writeFiles := flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
-	capturePath := flag.String("capturePath", capturePathCst, "Write files path")
-
-	modulus := flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
-	marshal := flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack)")
-	protobufListLengthDelimit := flag.Bool("protobufListLengthDelimit", protobufListLengthDelimitCst, "protobufListLengthDelimit")
-	dest := flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
-	destWriteFiles := flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
-	topic := flag.String("topic", topicCst, "Kafka or NSQ topic")
-	xtcpProtoFile := flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")
-	kafkaSchemaUrl := flag.String("kafkaSchemaUrl", kafkaSchemaUrlCst, "kafka schema registry URL")
-	produceTimeout := flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
-	label := flag.String("label", labelCst, "label applied to the protobuf")
-	tag := flag.String("tag", tagCst, "label applied to the protobuf")
-
-	grpcPort := flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
-
-	deserializers := flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
-	// deserializers := flag.String("deserializers", "info", "Comma separated list of deserializers")
-	// deserializers := flag.String("deserializers", "info,cong", "Comma separated list of deserializers")
-	// meminfo := flag.Bool("meminfo", false, "meminfo")
-	// info := flag.Bool("info", false, "info")
-	// vegas := flag.Bool("vegas", false, "vegas")
-	// cong := flag.Bool("cong", false, "cong")
-	// tos := flag.Bool("tos", false, "tos")
-	// tc := flag.Bool("tc", false, "tc")
-
-	promListen := flag.String("promListen", promListenCst, "Prometheus http listening socket")
-	promPath := flag.String("promPath", promPathCst, "Prometheus http path")
-	// curl -s http://[::1]:9000/metrics 2>&1 | grep -v "#"
-	// curl -s http://127.0.0.1:9000/metrics 2>&1 | grep -v "#"
-
-	// Maximum number of CPUs that can be executing simultaneously
-	// https://golang.org/pkg/runtime/#GOMAXPROCS -> zero (0) means default
-	goMaxProcs := flag.Uint("goMaxProcs", 4, "goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS")
-
-	// ./xtcp2 --profile.mode cpu
-	// timeout 1h ./xtcp2 --profile.mode cpu
-	profileMode := flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
-
-	v := flag.Bool("v", false, "show version")
-
-	conf := flag.Bool("conf", false, "show config")
-
-	d := flag.Uint("d", debugLevelCst, "debug level")
-
-	ioUring := flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)")
-	ioUringRecvBatch := flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
-	ioUringCqeBatch := flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
-
+	f := defineFlags()
 	flag.Parse()
 
-	// Print version information passed in via ldflags in the Makefile
-	if *v {
+	if *f.v {
 		log.Printf("xtcp commit:%s\tdate(UTC):%s\tversion:%s", commit, date, version)
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: -v prints version and exits; deferred cancel() is moot at process shutdown
 	}
 
-	environmentOverrideDebugLevel(d, *d)
-
-	debugLevel = *d
+	environmentOverrideDebugLevel(f.d, *f.d)
+	debugLevel = *f.d
 
 	if debugLevel > 10 {
-		fmt.Println("*nltimeout(ms):", *nltimeout)
-		fmt.Println("*pollFrequency:", *pollFrequency)
-		fmt.Println("*pollTimeout:", *pollTimeout)
-		fmt.Println("*maxLoops:", *maxLoops)
-		fmt.Println("*netlinkers:", *netlinkers)
-		fmt.Println("*nlmsgSeq:", *nlmsgSeq)
-		fmt.Println("*packetSize:", *packetSize)
-		fmt.Println("*packetSizeMply:", *packetSizeMply)
-		fmt.Println("*writeFiles:", *writeFiles)
-		fmt.Println("*capturePath:", *capturePath)
-		fmt.Println("*modulus:", *modulus)
-		fmt.Println("*marshal:", *marshal)
-		fmt.Println("*protobufListLengthDelimit:", *protobufListLengthDelimit)
-		fmt.Println("*dest:", *dest)
-		fmt.Println("*destWriteFiles:", *destWriteFiles)
-		fmt.Println("*topic:", *topic)
-		fmt.Println("*xtcpProtoFile:", *xtcpProtoFile)
-		fmt.Println("*kafkaSchemaUrl:", *kafkaSchemaUrl)
-		fmt.Println("*produceTimeout:", *produceTimeout)
-		fmt.Println("*promListen:", *promListen)
-		fmt.Println("*promPath:", *promPath)
-		fmt.Println("*goMaxProcs:", *goMaxProcs)
-		fmt.Println("*d:", *d)
+		printFlags(f)
 	}
 
-	des := getDeserializers(*deserializers)
-
-	c := &xtcp_config.XtcpConfig{
-		NlTimeoutMilliseconds: *nltimeout,
-		// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
-		PollFrequency:          durationpb.New(*pollFrequency),
-		PollTimeout:            durationpb.New(*pollTimeout),
-		MaxLoops:               *maxLoops,
-		Netlinkers:             uint32(*netlinkers),
-		NetlinkersDoneChanSize: netlinkerDoneChSizeCst,
-		NlmsgSeq:               uint32(*nlmsgSeq),
-		PacketSize:             *packetSize,
-		PacketSizeMply:         uint32(*packetSizeMply),
-		WriteFiles:             uint32(*writeFiles),
-		CapturePath:            *capturePath,
-		Modulus:                *modulus,
-		MarshalTo:              *marshal,
-		Dest:                   *dest,
-		DestWriteFiles:         uint32(*destWriteFiles),
-		Topic:                  *topic,
-		XtcpProtoFile:          *xtcpProtoFile,
-		KafkaSchemaUrl:         *kafkaSchemaUrl,
-		KafkaProduceTimeout:    durationpb.New(*produceTimeout),
-		DebugLevel:             uint32(*d),
-		Label:                  *label,
-		Tag:                    *tag,
-		GrpcPort:               uint32(*grpcPort),
-		EnabledDeserializers:   des,
-
-		IoUring:              *ioUring,
-		IoUringRecvBatchSize: uint32(*ioUringRecvBatch),
-		IoUringCqeBatchSize:  uint32(*ioUringCqeBatch),
-	}
+	c := buildConfig(f, getDeserializers(*f.deserializers))
 
 	if debugLevel > 100 {
 		printConfig(c, "Before environmentOverrideConfig")
 	}
-
 	environmentOverrideConfig(c, debugLevel)
-
 	if debugLevel > 100 {
 		printConfig(c, "After environmentOverrideConfig")
 	}
 
-	if *conf {
+	if *f.conf {
 		printConfig(c, "conf argument")
 		os.Exit(0)
 	}
 
-	environmentOverrideGoMaxProcs(goMaxProcs, debugLevel)
-	if runtime.NumCPU() > int(*goMaxProcs) {
-		mp := runtime.GOMAXPROCS(int(*goMaxProcs))
+	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
+	if runtime.NumCPU() > int(*f.goMaxProcs) {
+		mp := runtime.GOMAXPROCS(int(*f.goMaxProcs))
 		if debugLevel > 10 {
-			log.Printf("Main runtime.GOMAXPROCS now:%d was:%d\n", *goMaxProcs, mp)
+			log.Printf("Main runtime.GOMAXPROCS now:%d was:%d\n", *f.goMaxProcs, mp)
 		}
 	}
 
-	// "github.com/pkg/profile"
-	// https://dave.cheney.net/2013/07/07/introducing-profile-super-simple-profiling-for-go-programs
-	// e.g. ./xtcp -profile.mode trace
-	// go tool trace trace.out
-	// e.g. ./xtcp -profile.mode cpu
-	// go tool pprof -http=":8081" xtcp cpu.pprof
+	defer startProfile(*f.profileMode, debugLevel)()
 
+	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
+	go initPromHandler(*f.promPath, *f.promListen)
 	if debugLevel > 10 {
-		log.Println("*profileMode:", *profileMode)
-	}
-	switch *profileMode {
-	case "cpu":
-		defer profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop()
-	case "mem":
-		defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
-	case "memheap":
-		defer profile.Start(profile.MemProfileHeap, profile.ProfilePath(".")).Stop()
-	case "mutex":
-		defer profile.Start(profile.MutexProfile, profile.ProfilePath(".")).Stop()
-	case "block":
-		defer profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop()
-	case "trace":
-		defer profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop()
-	case "goroutine":
-		defer profile.Start(profile.GoroutineProfile, profile.ProfilePath(".")).Stop()
-	default:
-		if debugLevel > 1000 {
-			log.Println("No profiling")
-		}
-	}
-
-	environmentOverrideProm(promPath, promListen, debugLevel)
-	go initPromHandler(*promPath, *promListen)
-	if debugLevel > 10 {
-		log.Println("Prometheus http listener started on:", *promListen, *promPath)
+		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
 
 	if err := protovalidate.Validate(c); err != nil {
 		log.Fatal("config validation failed:", err)
 	}
-
 	if debugLevel > 10 {
 		log.Println("config validation succeeded")
 	}
 
 	xtcp := xtcp.NewXTCP(ctx, cancel, c)
-
 	if debugLevel > 10 {
 		log.Println("xtcp.Run(ctx, &wg)")
 	}
@@ -394,12 +423,10 @@ func initPromHandler(promPath string, promListen string) {
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
 // variables exist.  This allows over riding the cli flags
-//
-//lint:ignore SA4009 this is nasty, but it's going to be ok
 func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 	key := "PROM_LISTEN"
 	if value, exists := os.LookupEnv(key); exists {
-		promListen = &value
+		*promListen = value
 		if debugLevel > 10 {
 			log.Printf("key:%s, c.PromListen:%s", key, *promListen)
 		}
@@ -407,9 +434,9 @@ func environmentOverrideProm(promListen, promPath *string, debugLevel uint) {
 
 	key = "PROM_PATH"
 	if value, exists := os.LookupEnv(key); exists {
-		promPath = &value
+		*promPath = value
 		if debugLevel > 10 {
-			log.Printf("key:%s, c.PromListen:%s", key, *promPath)
+			log.Printf("key:%s, c.PromPath:%s", key, *promPath)
 		}
 	}
 }
@@ -444,216 +471,172 @@ func environmentOverrideGoMaxProcs(goMaxProcs *uint, debugLevel uint) {
 // this is to allow the environment variables to override the arguments
 // (probably poor form to be mutatating)
 func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
-	key := "NLTIMEOUTMS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.NlTimeoutMilliseconds = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NlTimeoutMilliseconds:%d", key, c.NlTimeoutMilliseconds)
-			}
-		}
-	}
+	envOverridePolling(c, debugLevel)
+	envOverrideNetlinker(c, debugLevel)
+	envOverridePacket(c, debugLevel)
+	envOverrideMarshalAndDest(c, debugLevel)
+	envOverrideKafka(c, debugLevel)
+	envOverrideLabeling(c, debugLevel)
+}
 
-	key = "POLL_FREQUENCY"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.PollFrequency = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PollingFrequency:%s", key, c.PollFrequency.String())
-			}
-		}
+// envUint64 parses an env var as base-10 int64 and yields it as uint64.
+// Returns ok=false when the var is unset or unparseable.
+func envUint64(key string) (uint64, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "POLL_TIMEOUT"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.PollTimeout = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PollingFrequency:%s", key, c.PollTimeout.String())
-			}
-		}
+	i, err := strconv.ParseInt(v, base10, sixtyFour)
+	if err != nil {
+		return 0, false
 	}
+	return uint64(i), true
+}
 
-	key = "MAX_LOOPS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.MaxLoops = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.MaxLoops:%d", key, c.MaxLoops)
-			}
-		}
+// envUint32 parses an env var as decimal int and yields it as uint32.
+func envUint32(key string) (uint32, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "NETLINKERS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.Netlinkers = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.Netlinkers:%d", key, c.Netlinkers)
-			}
-		}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
 	}
+	return uint32(i), true
+}
 
-	key = "NETLINKERS_DONE_CHAN_SIZE"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.NetlinkersDoneChanSize = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NetlinkersDoneChanSize:%d", key, c.NetlinkersDoneChanSize)
-			}
-		}
+// envDuration parses an env var via time.ParseDuration.
+func envDuration(key string) (time.Duration, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
 	}
-
-	key = "NLMSQSEQ"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.NlmsgSeq = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.NlmsgSeq:%d", key, c.NlmsgSeq)
-			}
-		}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, false
 	}
+	return d, true
+}
 
-	key = "PACKET_SIZE"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.PacketSize = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PacketSize:%d", key, c.PacketSize)
-			}
-		}
+// envString returns the env value if set.
+func envString(key string) (string, bool) {
+	return os.LookupEnv(key)
+}
+
+func logEnv(key, msg string, debugLevel uint) {
+	if debugLevel > 10 {
+		log.Printf("key:%s, %s", key, msg)
 	}
+}
 
-	key = "PACKETSIZEMPLY"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.PacketSizeMply = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.PacketSizeMply:%d", key, c.PacketSizeMply)
-			}
-		}
+func envOverridePolling(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint64("NLTIMEOUTMS"); ok {
+		c.NlTimeoutMilliseconds = v
+		logEnv("NLTIMEOUTMS", fmt.Sprintf("c.NlTimeoutMilliseconds:%d", v), debugLevel)
 	}
-
-	key = "WRITEFILES"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.WriteFiles = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.WriteFiles:%d", key, c.WriteFiles)
-			}
-		}
+	if d, ok := envDuration("POLL_FREQUENCY"); ok {
+		c.PollFrequency = durationpb.New(d)
+		logEnv("POLL_FREQUENCY", fmt.Sprintf("c.PollingFrequency:%s", c.PollFrequency.String()), debugLevel)
 	}
-
-	key = "CAPTUREPATH"
-	if value, exists := os.LookupEnv(key); exists {
-		c.CapturePath = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.CapturePath:%s", key, c.CapturePath)
-		}
+	if d, ok := envDuration("POLL_TIMEOUT"); ok {
+		c.PollTimeout = durationpb.New(d)
+		logEnv("POLL_TIMEOUT", fmt.Sprintf("c.PollingFrequency:%s", c.PollTimeout.String()), debugLevel)
 	}
-
-	key = "MODULUS"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.ParseInt(value, base10, sixtyFour); err == nil {
-			c.Modulus = uint64(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.Modulus:%d", key, c.Modulus)
-			}
-		}
+	if v, ok := envUint64("MAX_LOOPS"); ok {
+		c.MaxLoops = v
+		logEnv("MAX_LOOPS", fmt.Sprintf("c.MaxLoops:%d", v), debugLevel)
 	}
-
-	key = "MARSHAL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.MarshalTo = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Marshal:%s", key, c.MarshalTo)
-		}
+	if v, ok := envUint64("MODULUS"); ok {
+		c.Modulus = v
+		logEnv("MODULUS", fmt.Sprintf("c.Modulus:%d", v), debugLevel)
 	}
+}
 
-	key = "PROTOBUF_LIST_LENGTH_DELIMIT"
-	if _, exists := os.LookupEnv(key); exists {
+func envOverrideNetlinker(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint32("NETLINKERS"); ok {
+		c.Netlinkers = v
+		logEnv("NETLINKERS", fmt.Sprintf("c.Netlinkers:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("NETLINKERS_DONE_CHAN_SIZE"); ok {
+		c.NetlinkersDoneChanSize = v
+		logEnv("NETLINKERS_DONE_CHAN_SIZE", fmt.Sprintf("c.NetlinkersDoneChanSize:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("NLMSQSEQ"); ok {
+		c.NlmsgSeq = v
+		logEnv("NLMSQSEQ", fmt.Sprintf("c.NlmsgSeq:%d", v), debugLevel)
+	}
+}
+
+func envOverridePacket(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint64("PACKET_SIZE"); ok {
+		c.PacketSize = v
+		logEnv("PACKET_SIZE", fmt.Sprintf("c.PacketSize:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("PACKETSIZEMPLY"); ok {
+		c.PacketSizeMply = v
+		logEnv("PACKETSIZEMPLY", fmt.Sprintf("c.PacketSizeMply:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("WRITEFILES"); ok {
+		c.WriteFiles = v
+		logEnv("WRITEFILES", fmt.Sprintf("c.WriteFiles:%d", v), debugLevel)
+	}
+	if v, ok := envString("CAPTUREPATH"); ok {
+		c.CapturePath = v
+		logEnv("CAPTUREPATH", fmt.Sprintf("c.CapturePath:%s", v), debugLevel)
+	}
+}
+
+func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("MARSHAL"); ok {
+		c.MarshalTo = v
+		logEnv("MARSHAL", fmt.Sprintf("c.Marshal:%s", v), debugLevel)
+	}
+	if _, ok := os.LookupEnv("PROTOBUF_LIST_LENGTH_DELIMIT"); ok {
 		c.ProtobufListLengthDelimit = true
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.ProtobufListLengthDelimit:%t", key, c.ProtobufListLengthDelimit)
-		}
+		logEnv("PROTOBUF_LIST_LENGTH_DELIMIT", fmt.Sprintf("c.ProtobufListLengthDelimit:%t", c.ProtobufListLengthDelimit), debugLevel)
 	}
-
-	key = "DEST"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Dest = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Dest:%s", key, c.Dest)
-		}
+	if v, ok := envString("DEST"); ok {
+		c.Dest = v
+		logEnv("DEST", fmt.Sprintf("c.Dest:%s", v), debugLevel)
 	}
-
-	key = "DEST_WRITE_FILES"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.DestWriteFiles = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.DestWriteFiles:%d", key, c.DestWriteFiles)
-			}
-		}
+	if v, ok := envUint32("DEST_WRITE_FILES"); ok {
+		c.DestWriteFiles = v
+		logEnv("DEST_WRITE_FILES", fmt.Sprintf("c.DestWriteFiles:%d", v), debugLevel)
 	}
+}
 
-	key = "TOPIC"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Topic = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Topic:%s", key, c.Topic)
-		}
+func envOverrideKafka(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("TOPIC"); ok {
+		c.Topic = v
+		logEnv("TOPIC", fmt.Sprintf("c.Topic:%s", v), debugLevel)
 	}
-
-	key = "XTCP_PROTO_FILE"
-	if value, exists := os.LookupEnv(key); exists {
-		c.XtcpProtoFile = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.XtcpProtoFile:%s", key, c.XtcpProtoFile)
-		}
+	if v, ok := envString("XTCP_PROTO_FILE"); ok {
+		c.XtcpProtoFile = v
+		logEnv("XTCP_PROTO_FILE", fmt.Sprintf("c.XtcpProtoFile:%s", v), debugLevel)
 	}
-
-	key = "KAFKA_SCHEMA_URL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.KafkaSchemaUrl = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.KafkaSchemaUrl:%s", key, c.KafkaSchemaUrl)
-		}
+	if v, ok := envString("KAFKA_SCHEMA_URL"); ok {
+		c.KafkaSchemaUrl = v
+		logEnv("KAFKA_SCHEMA_URL", fmt.Sprintf("c.KafkaSchemaUrl:%s", v), debugLevel)
 	}
-
-	key = "KAFKA_PRODUCE_TIMEOUT"
-	if value, exists := os.LookupEnv(key); exists {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.KafkaProduceTimeout = durationpb.New(d)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.KafkaProduceTimeout:%s", key, c.KafkaProduceTimeout.AsDuration())
-			}
-		}
+	if d, ok := envDuration("KAFKA_PRODUCE_TIMEOUT"); ok {
+		c.KafkaProduceTimeout = durationpb.New(d)
+		logEnv("KAFKA_PRODUCE_TIMEOUT", fmt.Sprintf("c.KafkaProduceTimeout:%s", c.KafkaProduceTimeout.AsDuration()), debugLevel)
 	}
+}
 
-	key = "LABEL"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Label = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Label:%s", key, c.Label)
-		}
+func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("LABEL"); ok {
+		c.Label = v
+		logEnv("LABEL", fmt.Sprintf("c.Label:%s", v), debugLevel)
 	}
-
-	key = "TAG"
-	if value, exists := os.LookupEnv(key); exists {
-		c.Tag = value
-		if debugLevel > 10 {
-			log.Printf("key:%s, c.Tag:%s", key, c.Tag)
-		}
+	if v, ok := envString("TAG"); ok {
+		c.Tag = v
+		logEnv("TAG", fmt.Sprintf("c.Tag:%s", v), debugLevel)
 	}
-
-	key = "GRPC_PORT"
-	if value, exists := os.LookupEnv(key); exists {
-		if i, err := strconv.Atoi(value); err == nil {
-			c.GrpcPort = uint32(i)
-			if debugLevel > 10 {
-				log.Printf("key:%s, c.GrpcPort:%d", key, c.GrpcPort)
-			}
-		}
+	if v, ok := envUint32("GRPC_PORT"); ok {
+		c.GrpcPort = v
+		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
 	}
 }
 

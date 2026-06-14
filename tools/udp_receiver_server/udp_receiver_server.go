@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error listening on UDP socket: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
 
 	log.Printf("Listening for UDP packets on 0.0.0.0:%d", *port)
 
@@ -64,14 +64,15 @@ func main() {
 		},
 	}
 
-	packetBuffer := packetBufferPool.Get().(*[]byte)
+	packetBuffer, _ := packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer packetBufferPool.Put(packetBuffer)
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
+	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	for i := 0; ; i++ {
-		n, _, err := conn.ReadFromUDP(*packetBuffer)
+		var n int
+		n, _, err = conn.ReadFromUDP(*packetBuffer)
 		if err != nil {
 			log.Printf("Error reading from UDP socket: %v", err)
 			continue

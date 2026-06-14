@@ -28,9 +28,7 @@ func TestDeserializeCGroupID(t *testing.T) {
 			// c: &CGroupID{
 			// 	ID: 0,
 			// },
-			Func: func(data []byte, c *CGroupID) (n int, err error) {
-				return DeserializeCGroupID(data, c)
-			},
+			Func: DeserializeCGroupID,
 		},
 		{
 			description: tnAttrCgroupID,
@@ -39,9 +37,7 @@ func TestDeserializeCGroupID(t *testing.T) {
 			// c: &CGroupID{
 			// 	ID: 0,
 			// },
-			Func: func(data []byte, c *CGroupID) (n int, err error) {
-				return DeserializeCGroupIDReflection(data, c)
-			},
+			Func: DeserializeCGroupIDReflection,
 		},
 		{
 			description: "attribute_cgroup_id_21",
@@ -50,9 +46,7 @@ func TestDeserializeCGroupID(t *testing.T) {
 			// c: &CGroupID{
 			// 	ID: 21,
 			// },
-			Func: func(data []byte, c *CGroupID) (n int, err error) {
-				return DeserializeCGroupID(data, c)
-			},
+			Func: DeserializeCGroupID,
 		},
 	}
 	for i, test := range tests {
@@ -100,20 +94,14 @@ var (
 
 // go test -bench=BenchmarkDeserializeCGroupID
 func BenchmarkDeserializeCGroupID(b *testing.B) {
-	f := func(data []byte, c *CGroupID) (n int, err error) {
-		return DeserializeCGroupID(data, c)
-	}
-	DeserializeCGroupIDBoth(b, f)
+	DeserializeCGroupIDBoth(b, DeserializeCGroupID)
 }
 
 func BenchmarkDeserializeCGroupIDReflection(b *testing.B) {
-	f := func(data []byte, c *CGroupID) (n int, err error) {
-		return DeserializeCGroupIDReflection(data, c)
-	}
-	DeserializeCGroupIDBoth(b, f)
+	DeserializeCGroupIDBoth(b, DeserializeCGroupIDReflection)
 }
 
-func DeserializeCGroupIDBoth(b *testing.B, Func func(data []byte, tc *CGroupID) (n int, err error)) {
+func DeserializeCGroupIDBoth(b *testing.B, fn func(data []byte, tc *CGroupID) (n int, err error)) {
 	var tests = []DeserializeCGroupIDTest{
 		{
 			description: tnAttrCgroupID,
@@ -135,7 +123,7 @@ func DeserializeCGroupIDBoth(b *testing.B, Func func(data []byte, tc *CGroupID) 
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, c)
+		_, errD = fn(buf, c)
 		if errD != nil {
 			b.Error("Test Failed DeserializeCGroupIDBoth errD", errD)
 		}

@@ -36,7 +36,8 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	if _, ok := validMarshallersMap[x.config.MarshalTo]; !ok {
-		log.Fatalf("InitMarshallers XTCP MarshalTo invalid:%s, must be one of:%s", x.config.MarshalTo, validMarshallers())
+		wg.Done()                                                                                                          // release the WG explicitly; log.Fatalf skips the deferred Done
+		log.Fatalf("InitMarshallers XTCP MarshalTo invalid:%s, must be one of:%s", x.config.MarshalTo, validMarshallers()) //nolint:gocritic // exitAfterDefer: deferred wg.Done() is released explicitly above
 	}
 
 	// x.Marshallers.Store("protobuf", func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
@@ -65,7 +66,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	})
 
 	if f, ok := x.Marshallers.Load(x.config.MarshalTo); ok {
-		x.Marshaller = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte))
+		x.Marshaller, _ = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)) //nolint:errcheck // Marshallers.Store sites all use this signature
 	} else {
 		log.Fatalf("InitMarshalers XTCP Marshal must be one of protoSingle, protoDelim, protoJson, protoText, msgpack:%s", x.config.MarshalTo)
 	}

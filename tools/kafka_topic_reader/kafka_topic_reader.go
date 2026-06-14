@@ -51,7 +51,7 @@ func main() {
 	// Print version information passed in via ldflags in the Makefile
 	if *version {
 		log.Println("xtcp commit:", commit, "\tdate(UTC):", date)
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: -version prints and exits; deferred cancel() is moot at process shutdown
 	}
 
 	debugLevel = *d
@@ -78,7 +78,7 @@ func main() {
 			return new(kgo.Fetches)
 		},
 	}
-	kgoFetches := kgoFetchesPool.Get().(*kgo.Fetches)
+	kgoFetches, _ := kgoFetchesPool.Get().(*kgo.Fetches) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer kgoFetchesPool.Put(kgoFetches)
 
 	xtcpRecordPool := sync.Pool{
@@ -87,7 +87,7 @@ func main() {
 		},
 	}
 
-	xtcpRecord := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord)
+	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0
@@ -97,8 +97,8 @@ func main() {
 
 		*kgoFetches = client.PollFetches(ctxC)
 		cancelC()
-		if err := kgoFetches.Err(); err != nil {
-			log.Printf("i:%d Error fetching messages: %v", i, err)
+		if ferr := kgoFetches.Err(); ferr != nil {
+			log.Printf("i:%d Error fetching messages: %v", i, ferr)
 			continue
 		}
 
@@ -110,8 +110,8 @@ func main() {
 			fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
 				i, j, records, record.Topic, record.Partition, record.Offset)
 
-			if err := proto.Unmarshal(record.Value, xtcpRecord); err != nil {
-				log.Printf("Error unmarshalling protobuf message: %v", err)
+			if uerr := proto.Unmarshal(record.Value, xtcpRecord); uerr != nil {
+				log.Printf("Error unmarshalling protobuf message: %v", uerr)
 				return
 			}
 

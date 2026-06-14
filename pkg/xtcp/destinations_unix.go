@@ -30,18 +30,20 @@ type unixDest struct {
 	fd   int
 }
 
-func newUnixDest(_ context.Context, x *XTCP) (Destination, error) {
+func newUnixDest(ctx context.Context, x *XTCP) (Destination, error) {
 	path := strings.TrimPrefix(x.config.Dest, "unix:")
 	if x.debugLevel > 10 {
 		log.Printf("InitDestUnix config.Dest:%s path:%s", x.config.Dest, path)
 	}
-	conn, err := net.Dial("unix", path)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
 		return nil, fmt.Errorf("InitDestUnix net.Dial(unix, %q): %w", path, err)
 	}
 	d := &unixDest{x: x, conn: conn}
 	if x.config.IoUring {
-		fd, err := extractFD(conn)
+		var fd int
+		fd, err = extractFD(conn)
 		if err != nil {
 			return nil, fmt.Errorf("InitDestUnix extractFD: %w", err)
 		}

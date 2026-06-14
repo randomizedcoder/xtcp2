@@ -85,9 +85,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     0,
 				TotalRTOTime:           0,
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 		// ESTAB  0      10              127.0.0.1:42839          127.0.0.1:4355  users:(("tcp_client",pid=1421,fd=361))  timer:(on,340ms,0) uid:1000 ino:13300 sk:1010 cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0x2 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
 		//skmem:(r0,rb1000000,t0,tb2626560,f3190,w906,o0,bl0,d398) ts sack ecn ecnseen cubic wscale:9,9 rto:394 rtt:189.965/45.629 ato:40 mss:65483 pmtu:65535 rcvmss:536 advmss:65483 cwnd:2 ssthresh:2 bytes_sent:126380 bytes_retrans:2360 bytes_acked:124011 bytes_received:124010 segs_out:13415 segs_in:13341 data_segs_out:12638 data_segs_in:12566 send 5515374bps lastsnd:54 lastrcv:55 lastack:55 pacing_rate 6618424bps delivery_rate 34924266664bps delivered:12550 app_limited busy:2383736ms unacked:1 retrans:0/236 dsack_dups:148 rcv_space:434517 rcv_ssthresh:434517 minrtt:0.015 snd_wnd:458752 rcv_wnd:458752 rehash:2
@@ -157,9 +155,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     2,      // ? not sure if this is correct.  These aren't in "ss"
 				TotalRTOTime:           238,    // ? not sure if this is correct.  These aren't in "ss"
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 		{
 			// ESTAB  0      0               127.0.0.1:64113          127.0.0.1:5865  users:(("tcp_client",pid=4352,fd=1871)) timer:(keepalive,5.123ms,0) uid:1000 ino:95551 sk:a4e cgroup:/user.slice/user-1000.slice/session-1.scope <-> tos:0 class_id:0 cgroup:/user.slice/user-1000.slice/session-1.scope
@@ -229,9 +225,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     126,    // ? not sure if this is correct.  These aren't in "ss"
 				TotalRTOTime:           45581,  // ? not sure if this is correct.  These aren't in "ss"
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 		// 7_0_3 ss_tcp_info_n line 2:
 		// ESTAB 0 0 10.0.6.188:26546 140.82.114.25:443
@@ -300,9 +294,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     0, // not in ss output
 				TotalRTOTime:           0, // not in ss output
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 		// 7_0_3 ss_tcp_info_n line 13:
 		// ESTAB 0 0 10.0.6.188:63282 3.140.122.174:443
@@ -372,9 +364,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     0,
 				TotalRTOTime:           0,
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 		// 7_0_3 ss_tcp_info_n line 28:
 		// ESTAB 0 0 [::1]:19000 [::1]:10156
@@ -441,9 +431,7 @@ func TestDeserializeTCPInfo(t *testing.T) {
 				TotalRTORecoveries:     0,
 				TotalRTOTime:           0,
 			},
-			Func: func(data []byte, t *TCPInfo) (n int, err error) {
-				return DeserializeTCPInfo(data, t)
-			},
+			Func: DeserializeTCPInfo,
 		},
 	}
 

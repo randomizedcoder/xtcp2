@@ -50,15 +50,17 @@ type udpDest struct {
 	fd   int
 }
 
-func newUDPDest(_ context.Context, x *XTCP) (Destination, error) {
+func newUDPDest(ctx context.Context, x *XTCP) (Destination, error) {
 	addr := strings.TrimPrefix(x.config.Dest, "udp:")
-	conn, err := net.Dial("udp", addr)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "udp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("InitDestUDP net.Dial(udp, %q): %w", addr, err)
 	}
 	d := &udpDest{x: x, conn: conn}
 	if x.config.IoUring {
-		fd, err := extractFD(conn)
+		var fd int
+		fd, err = extractFD(conn)
 		if err != nil {
 			return nil, fmt.Errorf("InitDestUDP extractFD: %w", err)
 		}

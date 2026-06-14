@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -37,23 +38,24 @@ func server(wg *sync.WaitGroup, bind string, port int) {
 
 	defer wg.Done()
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", bind, port)) // this DOES bind to "::" because of "tcp"
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", fmt.Sprintf("%s:%d", bind, port)) // this DOES bind to "::" because of "tcp"
 	if err != nil {
 		panic(err)
 	}
 
-	defer ln.Close()
+	defer func() { _ = ln.Close() }() //nolint:errcheck // demo server teardown
 
 	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			panic(err)
+		conn, aerr := ln.Accept()
+		if aerr != nil {
+			panic(aerr)
 		}
 		go func(conn net.Conn) {
-			_, err := io.Copy(conn, conn)
-			defer conn.Close()
-			if err != nil {
-				panic(err)
+			_, cerr := io.Copy(conn, conn)
+			defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
+			if cerr != nil {
+				panic(cerr)
 			}
 		}(conn)
 	}

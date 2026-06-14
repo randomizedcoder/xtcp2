@@ -1,6 +1,7 @@
 // Small helper functions used throughout the xtcp package. The original
 // file-level comment said "Package misc" but the file is actually in the
 // xtcp package; the canonical package-doc comment lives in xtcp.go.
+
 package xtcp
 
 import (
@@ -50,8 +51,8 @@ func (x *XTCP) nsMapCountReporter(ctx context.Context, wg *sync.WaitGroup) {
 
 func (x *XTCP) MapCount() uint64 {
 	store := x.storeCount.Load()
-	delete := x.deleteCount.Load()
-	return store - delete
+	deleted := x.deleteCount.Load()
+	return store - deleted
 }
 
 // LenSyncMap wraps lenSyncMap
@@ -83,7 +84,8 @@ func (x *XTCP) GetNetlinkSocketFDs() (fds []int) {
 // netlink file descriptors
 func getNetlinkSocketFDs(m *sync.Map) (fds []int) {
 	m.Range(func(k, v interface{}) bool {
-		fds = append(fds, v.(netNSitem).socketFD)
+		item, _ := v.(netNSitem) //nolint:errcheck // nsMap values are netNSitem
+		fds = append(fds, item.socketFD)
 		return true
 	})
 	return fds

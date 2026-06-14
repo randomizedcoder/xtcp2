@@ -38,7 +38,8 @@ const (
 
 func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
+	var lc net.ListenConfig
+	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -77,5 +78,7 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	x.configService = NewXtcpConfigService(ctx, x.config, &x.changePollFrequencyCh, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
-	grpcServer.Serve(lis)
+	if serveErr := grpcServer.Serve(lis); serveErr != nil {
+		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
+	}
 }

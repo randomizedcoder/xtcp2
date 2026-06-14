@@ -22,17 +22,13 @@ func TestDeserializeClassID(t *testing.T) {
 			description: "attribute_class_id",
 			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
-			Func: func(data []byte, c *ClassID) (n int, err error) {
-				return DeserializeClassID(data, c)
-			},
+			Func:        DeserializeClassID,
 		},
 		{
 			description: "attribute_class_id_reflection",
 			filename:    tdAttrClassID_6_6_44,
 			c:           ClassID(0),
-			Func: func(data []byte, c *ClassID) (n int, err error) {
-				return DeserializeClassIDReflection(data, c)
-			},
+			Func:        DeserializeClassIDReflection,
 		},
 	}
 	for i, test := range tests {
@@ -81,20 +77,14 @@ var (
 
 // go test -bench=BenchmarkDeserializeClassID
 func BenchmarkDeserializeClassID(b *testing.B) {
-	f := func(data []byte, c *ClassID) (n int, err error) {
-		return DeserializeClassID(data, c)
-	}
-	DeserializeClassIDBoth(b, f)
+	DeserializeClassIDBoth(b, DeserializeClassID)
 }
 
 func BenchmarkDeserializeClassIDReflection(b *testing.B) {
-	f := func(data []byte, c *ClassID) (n int, err error) {
-		return DeserializeClassIDReflection(data, c)
-	}
-	DeserializeClassIDBoth(b, f)
+	DeserializeClassIDBoth(b, DeserializeClassIDReflection)
 }
 
-func DeserializeClassIDBoth(b *testing.B, Func func(data []byte, tc *ClassID) (n int, err error)) {
+func DeserializeClassIDBoth(b *testing.B, fn func(data []byte, tc *ClassID) (n int, err error)) {
 	var tests = []DeserializeClassIDTest{
 		{
 			description: tnAttrTcclass,
@@ -117,7 +107,7 @@ func DeserializeClassIDBoth(b *testing.B, Func func(data []byte, tc *ClassID) (n
 	var errD error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errD = Func(buf, c)
+		_, errD = fn(buf, c)
 		if errD != nil {
 			b.Error("Test Failed DeserializeClassIDBoth errD", errD)
 		}

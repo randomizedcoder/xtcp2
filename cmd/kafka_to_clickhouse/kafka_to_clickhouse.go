@@ -145,7 +145,7 @@ func main() {
 
 func primaryFunction(ctx context.Context, c config) {
 
-	id, err := getLatestSchemaID(c.subject)
+	id, err := getLatestSchemaID(ctx, c.subject)
 	if err != nil {
 		log.Printf("getLatestSchemaID err:%v", err)
 	}
@@ -269,12 +269,12 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 		log.Println("destKafka start")
 	}
 
-	kgoRecord := kgoRecordPool.Get().(*kgo.Record)
+	kgoRecord, _ := kgoRecordPool.Get().(*kgo.Record) //nolint:errcheck // pool.New returns *kgo.Record
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
 	kgoRecord.Topic = c.topic
 	kgoRecord.Value = *xtcpRecordBinary
-	len := len(*xtcpRecordBinary)
+	binaryLen := len(*xtcpRecordBinary)
 
 	// Propagate the caller's context to kClient.Produce so cancellation
 	// flows correctly. Previously a nil `ctxP` was passed (contextcheck).
@@ -313,7 +313,7 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 			}
 
 			if c.debugLevel > 10 {
-				log.Printf("destKafka len:%d %0.6fs %dms", len, dur.Seconds(), dur.Milliseconds())
+				log.Printf("destKafka len:%d %0.6fs %dms", binaryLen, dur.Seconds(), dur.Milliseconds())
 			}
 		},
 	)
@@ -428,12 +428,16 @@ func InitDestKafka(ctx context.Context, c config) {
 
 }
 
-func getLatestSchemaID(subject string) (int, error) {
+func getLatestSchemaID(ctx context.Context, subject string) (int, error) {
 	fmt.Println("getLatestSchemaID")
 
 	url := fmt.Sprintf("%s/subjects/%s/versions/latest", schemaRegistryURLCst, subject)
 
-	resp, err := http.Get(url) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // G107: url is built from compile-time const schemaRegistryURLCst, not user input
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -443,7 +447,7 @@ func getLatestSchemaID(subject string) (int, error) {
 		ID int `json:"id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}
 

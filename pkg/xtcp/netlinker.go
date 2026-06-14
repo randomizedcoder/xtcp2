@@ -8,6 +8,7 @@
 // Selection happens at init time from config.IoUring. Same dispatch
 // pattern as Marshaller/Destination (sync.Map of closures + chosen
 // function pointer on XTCP).
+
 package xtcp
 
 import (
@@ -46,7 +47,7 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	wf := x.config.WriteFiles
 
-	packetBuffer := x.packetBufferPool.Get().(*[]byte)
+	packetBuffer, _ := x.packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.New returns *[]byte
 
 	for packets, netlinkerDone := 0, false; !netlinkerDone; packets++ {
 
@@ -77,7 +78,8 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if x.debugLevel > 100 {
 			if ns, ok := x.fdToNsMap.Load(fd); ok {
-				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, ns.(string))
+				nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap Store sites all use string
+				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, nsStr)
 			} else {
 				log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d Unknown FD!!", id, packets, n, fd)
 			}
@@ -88,12 +90,13 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if wf > 0 {
 			now := time.Now()
-			err := os.WriteFile(
+			err = os.WriteFile(
 				x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
 				*(packetBuffer),
 				writeFilesPermissionsCst)
 			if err != nil {
-				log.Fatal(err)
+				wg.Done()      // release the WG explicitly; log.Fatal skips the deferred Done
+				log.Fatal(err) //nolint:gocritic // exitAfterDefer: deferred wg.Done() is released explicitly above
 			}
 			wf--
 		}
@@ -121,7 +124,8 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		if x.debugLevel > 100 {
 			if ns, ok := x.fdToNsMap.Load(fd); ok {
-				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, ns.(string))
+				nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap Store sites all use string
+				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, nsStr)
 			} else {
 				log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d", id, packets, n, p, fd)
 			}

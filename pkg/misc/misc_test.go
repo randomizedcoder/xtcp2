@@ -105,15 +105,14 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 	f, err := os.Create(filename)
 	if err != nil {
 		fmt.Println(err)
-		f.Close()
+		_ = f.Close()
 		return
 	}
 
 	for i := 0; i < n; i++ {
 		for _, line := range scanFileLines {
-			fmt.Fprintln(f, line)
-			if err != nil {
-				fmt.Println(err)
+			if _, werr := fmt.Fprintln(f, line); werr != nil {
+				fmt.Println(werr)
 				return
 			}
 		}
@@ -127,9 +126,9 @@ func benchmarkFileN(n int, scanType string, b *testing.B) {
 	// Benchmark timer RESET here!!!                       <--- Reset
 	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for i := 0; i < b.N; i++ {
 		if scanType == "scan" {
-			scanFileLines := ScanFile(filename)
+			scanFileLines = ScanFile(filename)
 			if debugLevel > 100 {
 				fmt.Println("len(scanFileLines):\t", len(scanFileLines))
 			}
@@ -176,7 +175,7 @@ func TestCheckFilePermissions(t *testing.T) {
 		{"/bin/ls", "0755", true},   // test 1
 		// {"/etc/shadow", "0640", true},      // test 2 - can't test these in gitlab
 		// {"/etc/sysctl.conf", "0644", true}, // test 3 - can't test these in gitlab
-		//{"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
+		// {"/etc/sudoers", "0440", true},     // test 4 - can't test these in gitlab
 		{"/bin/bash", "0333", false}, // test 5 - negative
 	}
 	for i, test := range tests {
