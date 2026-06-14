@@ -36,8 +36,9 @@ const (
 	PcapInetDiagSockIDOffsetCst = PcapNetlinkOffsetCst + NlMsgHdrSizeCst + InetDiagMsgBytesBeforeSocketIDCst
 )
 
+// PcapHeader represents the global header in a pcap file.
+//
 // https://www.ietf.org/archive/id/draft-gharris-opsawg-pcap-01.html#name-file-header
-// A Header represents the global header in a pcap file.
 type PcapHeader struct {
 	Magic        uint32 // 4 = 4
 	VersionMajor uint16 // 2 = 6
@@ -92,8 +93,9 @@ func DeserializePcapHeaderReflection(data []byte, ph *PcapHeader) (n int, err er
 // 	bpf_u_int32 len;	/* length of this packet prior to any slicing */
 // };
 
+// PcapRecordHeader represents a record header in a pcap file.
+//
 // https://www.ietf.org/archive/id/draft-gharris-opsawg-pcap-01.html#name-packet-record
-// A RecordHeader represents a record header in a pcap file.
 type PcapRecordHeader struct {
 	TsSec  uint32 // 4 = 4
 	TsXsec uint32 // 4 = 8 // micro or nano depends on magic
@@ -105,8 +107,8 @@ var (
 	ErrPcapRecordHeaderSmall = errors.New("data too small for PcapRecordHeader")
 )
 
-// DeserializePcapHeader does a binary read of a PcapHeader
-// It does a basic length check
+// DeserializePcapRecordHeader does a binary read of a PcapRecordHeader
+// with a basic length check.
 func DeserializePcapRecordHeader(data []byte, prh *PcapRecordHeader) (n int, err error) {
 
 	if len(data) < PcapRecordHeaderSizeCst {

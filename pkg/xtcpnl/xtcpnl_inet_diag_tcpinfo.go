@@ -135,8 +135,10 @@ import (
 
 type TCPInfo TCPInfo6_10_3
 
+// TCPInfo6_10_3 mirrors the kernel's `struct tcp_info` for Linux 6.10.3
+// (tcp_info_for kernel 6.5+).
+//
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#L222
-// tcp_info_for kernel 6.5+
 type TCPInfo6_10_3 struct {
 	State                  uint8 // bytes:1 [0:1]
 	CaState                uint8 // bytes:1 [1:2]
@@ -225,8 +227,10 @@ type TCPInfo6_10_3 struct {
 	TotalRTOTime       uint32 // bytes:4 [244:248] // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
 }
 
+// TCPInfo6_8_12 mirrors the kernel's `struct tcp_info` for Linux 6.8.12
+// (tcp_info_for kernel 6.5+).
+//
 // https://github.com/torvalds/linux/blob/v6.8-rc7/include/uapi/linux/tcp.h#L220
-// tcp_info_for kernel 6.5+
 type TCPInfo6_8_12 struct {
 	State                  uint8 // bytes:1 [0:1]
 	CaState                uint8 // bytes:1 [1:2]
@@ -314,8 +318,10 @@ type TCPInfo6_8_12 struct {
 	TotalRTOTime       uint32 // bytes:4 [244:248] // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
 }
 
+// TCPInfo6_6_44 mirrors the kernel's `struct tcp_info` for Linux 6.6.44
+// (tcp_info_for kernel 6.6+).
+//
 // https://github.com/torvalds/linux/blob/v6.6-rc7/include/uapi/linux/tcp.h#L214
-// tcp_info_for kernel 6.6+
 type TCPInfo6_6_44 struct {
 	State                  uint8 // bytes:1 [0:1]
 	CaState                uint8 // bytes:1 [1:2]
@@ -399,8 +405,10 @@ type TCPInfo6_6_44 struct {
 	Rehash uint32 // bytes:4 [236:240] // PLB or timeout triggered rehash attempts
 }
 
+// TCPInfo5_4_281 mirrors the kernel's `struct tcp_info` for Linux 5.4.281
+// (tcp_info_for kernel 5.4+).
+//
 // https://github.com/torvalds/linux/blob/v5.4-rc8/include/uapi/linux/tcp.h#L206
-// tcp_info_for kernel 5.4+
 type TCPInfo5_4_281 struct {
 	State                  uint8
 	CaState                uint8
@@ -480,10 +488,11 @@ type TCPInfo5_4_281 struct {
 	SndWnd uint32 // bytes:4 [228:232] // peer's advertised receive window after scaling (bytes)
 }
 
-// note that the exported bytes are 236, because it includes the RTA header
-
-// https://github.com/torvalds/linux/blob/v4.19-rc8/include/uapi/linux/tcp.h#L176
-// https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/xenial/tree/include/uapi/linux/tcp.h?h=Ubuntu-hwe-4.15.0-107.108_16.04.1#n168
+// TCPInfo4_19_219 mirrors the kernel's `struct tcp_info` for Linux 4.19.219.
+// Note that the exported bytes are 236, because it includes the RTA header.
+//
+//   - https://github.com/torvalds/linux/blob/v4.19-rc8/include/uapi/linux/tcp.h#L176
+//   - https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/xenial/tree/include/uapi/linux/tcp.h?h=Ubuntu-hwe-4.15.0-107.108_16.04.1#n168
 type TCPInfo4_19_219 struct {
 	State                  uint8
 	CaState                uint8
@@ -557,8 +566,9 @@ type TCPInfo4_19_219 struct {
 	ReordSeen    uint32 // bytes:4 [220:224] // reordering events seen
 }
 
-// note that the exported bytes are 228, because it includes the RTA header
-
+// TCPInfo4_15 mirrors the kernel's `struct tcp_info` for Linux 4.15.
+// Note that the exported bytes are 228, because it includes the RTA header.
+//
 // https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/xenial/tree/include/uapi/linux/tcp.h?h=Ubuntu-hwe-4.15.0-107.108_16.04.1#n168
 type TCPInfo4_15 struct {
 	State                  uint8

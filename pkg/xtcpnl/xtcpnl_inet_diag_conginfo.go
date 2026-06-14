@@ -64,7 +64,7 @@ func DeserializeCongInfo(data []byte, ci *CongInfo) (n int, err error) {
 	// for i := 0; i < len(data); i++ {
 	// 	ci.Cong[i] = data[i]
 	// }
-	//ci.Cong = *((*[6]byte)(data[0:6]))
+	// ci.Cong = *((*[6]byte)(data[0:6]))
 	n = len(data)
 
 	return n, nil

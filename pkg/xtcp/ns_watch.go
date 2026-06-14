@@ -69,7 +69,7 @@ breakPoint:
 			}
 
 			// nsName := filepath.Base(event.Name)
-			//nsName := netNsDir + event.Name
+			// nsName := netNsDir + event.Name
 			nsName := event.Name
 
 			if x.debugLevel > 10 {

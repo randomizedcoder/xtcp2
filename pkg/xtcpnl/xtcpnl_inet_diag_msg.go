@@ -155,8 +155,9 @@ var (
 	ErrInetDiagSockIDSmall = errors.New("data too small for InetDiagSockID")
 )
 
-// DeserializeInetDiagReqV2 does a binary read of a InetDiagReqV2
-// It does a basic length check
+// DeserializeInetDiagSockID does a binary read of an InetDiagSockID with a
+// basic length check.
+//
 // https://github.com/wireshark/wireshark/blob/b24016e0b27bcbc43ba2a269e465eb0f03751b1f/epan/dissectors/packet-netlink-sock_diag.c#L24
 func DeserializeInetDiagSockID(data []byte, sockid *InetDiagSockID) (n int, err error) {
 

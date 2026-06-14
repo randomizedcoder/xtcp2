@@ -1,3 +1,9 @@
+// Package xtcp is the long-running daemon that streams TCP socket state
+// out of the kernel via netlink inet_diag, deserialises the responses, and
+// fans them out to configurable destinations (unixgram, unix, udp, kafka,
+// nats, nsq, valkey, null). The package owns the netlinker, deserializer,
+// poller, namespace-watcher, marshaller, and destination registries; cmd
+// binaries wire them together.
 package xtcp
 
 import (

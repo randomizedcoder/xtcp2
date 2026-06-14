@@ -323,7 +323,7 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 
 	stream, err := client.FlatRecords(ctx, req)
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
-	//stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
+	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		log.Fatal("Error making gRPC request: ", err.Error())
 	}
