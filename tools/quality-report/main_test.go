@@ -21,9 +21,9 @@ func TestAtoiOr0(t *testing.T) {
 		{"not-a-number", 0},
 		{"0", 0},
 		{"-123", -123},
-		{"   ", 0},      // whitespace-only also unparseable
-		{"1.5", 0},      // floats aren't integers
-		{"42a", 0},      // trailing garbage
+		{"   ", 0},                 // whitespace-only also unparseable
+		{"1.5", 0},                 // floats aren't integers
+		{"42a", 0},                 // trailing garbage
 		{"2147483647", 2147483647}, // int32 max round-trips
 	}
 	for _, tc := range cases {
