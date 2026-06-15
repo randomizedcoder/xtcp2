@@ -89,14 +89,20 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		return
 	}
 
-	x.createNetlinkersAndStore(ctx, nsName, socketFD)
+	// Derive a per-ns context here so that nsDelete's cancel() reaches
+	// the <-nsCtx.Done() below; otherwise this goroutine blocks on the
+	// daemon's parent ctx and the deferred closeSocket(socketFD) never
+	// fires on a per-namespace removal — leaking one fd + one goroutine
+	// per nsDelete.
+	nsCtx, nsCancel := context.WithCancel(ctx)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, nsName, socketFD)
 
 	x.pH.WithLabelValues("netNamespaceInstance", "store", "counter").Observe(time.Since(startTime).Seconds())
 
 	x.closeFD(fd)
 
-	// block waiting for done
-	<-ctx.Done()
+	// block waiting for done (per-ns ctx, not parent — see comment above)
+	<-nsCtx.Done()
 
 	x.pC.WithLabelValues("netNamespaceInstance", "ctx.Done", "count").Inc()
 }
@@ -138,7 +144,8 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 	}
 
 	df := "default"
-	x.createNetlinkersAndStore(ctx, &df, socketFD)
+	nsCtx, nsCancel := context.WithCancel(ctx)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, &df, socketFD)
 
 	if x.debugLevel > 10 {
 		log.Printf("openDefaultNetLinkSocket default net namespace netlink socket stored")
@@ -333,6 +340,17 @@ func (x *XTCP) setSocketTimeoutViaSyscall(timeout int64, socketFD int) {
 	// https://godoc.org/golang.org/x/sys/unix#SetsockoptTimeval
 	err := syscall.SetsockoptTimeval(socketFD, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
 	if err != nil {
-		log.Fatalf("SetSocketTimeoutViaSyscall SetsockopttimeSpec %s", err)
+		// Demoted from log.Fatalf: this is called per-namespace from
+		// createNetlinkersAndStore. A SO_RCVTIMEO setsockopt failure on
+		// one namespace's fd shouldn't tear down the whole daemon (every
+		// gRPC service, every other namespace's netlinkers, the poller).
+		// Without the timeout the netlinker can't observe ctx
+		// cancellation between recv calls — record that in a counter so
+		// the operator can see the affected namespace can't shut down
+		// cleanly, but keep the rest of the daemon running.
+		x.pC.WithLabelValues("setSocketTimeoutViaSyscall", "SetsockoptTimeval", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("setSocketTimeoutViaSyscall SetsockoptTimeval err: %v", err)
+		}
 	}
 }

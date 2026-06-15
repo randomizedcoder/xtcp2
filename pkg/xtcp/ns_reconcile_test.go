@@ -132,6 +132,55 @@ func TestReconcileMaps(t *testing.T) {
 		}
 	})
 
+	// Bug 41 regression: a backstop delete (key in dest, not in src)
+	// must call netNSitem.cancel() so the orphaned per-ns goroutine
+	// + netlinkers + socketFD wind down. testing=false uses the
+	// production path which now invokes cancel before Delete.
+	t.Run("backstop_delete_calls_netNSitem_cancel", func(t *testing.T) {
+		srcMap := &sync.Map{} // empty src → every dest entry is "gone"
+		destMap := &sync.Map{}
+
+		// Build a netNSitem with an observable cancel func.
+		var cancelCalled bool
+		nsName := "/run/netns/stale"
+		destMap.Store(nsName, netNSitem{
+			name:   &nsName,
+			cancel: func() { cancelCalled = true },
+		})
+
+		// Need a stub XTCP with the pC CounterVec the production
+		// path increments via nsAdd → but with empty src nothing is
+		// added. Just enough to call reconcileMaps; the cancel branch
+		// runs before any counter increments.
+		x2 := newPollerFixture(t) // reuses the test helper with metrics
+		dels, _ := x2.reconcileMaps(context.Background(), srcMap, destMap, false)
+		if dels != 1 {
+			t.Errorf("dels = %d, want 1", dels)
+		}
+		if !cancelCalled {
+			t.Error("netNSitem.cancel() was not called — bug 41 regression")
+		}
+		if _, ok := destMap.Load(nsName); ok {
+			t.Errorf("destMap still has %q after backstop delete", nsName)
+		}
+	})
+
+	// Bug 41 negative case: testing=true callers may pass arbitrary
+	// value types (raw strings, in the table tests above). The cancel
+	// branch must skip the type-assertion safely instead of panicking.
+	t.Run("backstop_delete_non_netNSitem_value_is_safe", func(t *testing.T) {
+		srcMap := &sync.Map{}
+		destMap := &sync.Map{}
+		destMap.Store("k", "raw-string-not-netNSitem")
+		// testing=true is the path the table tests use. Even if a
+		// caller forgets and passes testing=false with non-netNSitem
+		// values, no panic should occur.
+		dels, _ := x.reconcileMaps(context.Background(), srcMap, destMap, false)
+		if dels != 1 {
+			t.Errorf("dels = %d, want 1", dels)
+		}
+	})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			srcMap := &sync.Map{}

@@ -172,7 +172,14 @@ func primaryFunction(ctx context.Context, c config) {
 			log.Printf("primaryFunction i:%d", i)
 		}
 		fileOrKafka(ctx, c, &binaryData)
-		time.Sleep(c.loopsSleep)
+		// Bug fix: time.Sleep ignored ctx, so SIGTERM took up to
+		// loopsSleep (default 10s) to be observed. Use a ctx-aware
+		// wait so shutdown is prompt.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(c.loopsSleep):
+		}
 	}
 }
 
@@ -441,6 +448,14 @@ func getLatestSchemaIDAt(ctx context.Context, client *http.Client, baseURL, subj
 		return 0, err
 	}
 	defer resp.Body.Close()
+
+	// Schema Registries return a JSON error body on 4xx/5xx; decoding it
+	// into the {id int} struct silently yields id:0. Reject non-2xx
+	// upfront so kafka_to_clickhouse's downstream Produce path doesn't
+	// stamp every Kafka record with a bogus schemaID:0 magic header.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("getLatestSchemaIDAt %s: unexpected status:%d", url, resp.StatusCode)
+	}
 
 	var result struct {
 		ID int `json:"id"`

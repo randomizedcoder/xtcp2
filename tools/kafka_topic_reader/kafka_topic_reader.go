@@ -135,6 +135,12 @@ func handleRecord(i, j, records int, record *kgo.Record, xtcpRecord *xtcp_flat_r
 	fmt.Printf("i:%d j:%d records:%d Received message from topic %s, partition %d, offset %d\n",
 		i, j, records, record.Topic, record.Partition, record.Offset)
 
+	// proto.Unmarshal merges into the destination; without Reset, fields
+	// that were SET on the previous record but UNSET on this one would
+	// stay populated, producing decoded output that mixes adjacent
+	// records. xtcpRecord is reused across the consume loop (pool entry)
+	// so this is reachable in practice.
+	proto.Reset(xtcpRecord)
 	if err := proto.Unmarshal(record.Value, xtcpRecord); err != nil {
 		log.Printf("Error unmarshalling protobuf message: %v", err)
 		return

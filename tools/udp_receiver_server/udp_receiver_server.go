@@ -93,6 +93,21 @@ func runReceiver(ctx context.Context, conn *net.UDPConn) error {
 	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
+	// Close the connection on ctx cancel so the blocking ReadFromUDP
+	// returns with a "use of closed network connection" error and the
+	// loop can observe ctx.Err(). Previously the top-of-loop ctx select
+	// only fired between reads — if a Read was already in flight when
+	// ctx was canceled, the goroutine hung forever.
+	stopCloseWatcher := make(chan struct{})
+	defer close(stopCloseWatcher)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close() //nolint:errcheck // shutdown path
+		case <-stopCloseWatcher:
+		}
+	}()
+
 	for i := 0; ; i++ {
 		select {
 		case <-ctx.Done():
@@ -109,6 +124,10 @@ func runReceiver(ctx context.Context, conn *net.UDPConn) error {
 			return err
 		}
 
+		// proto.Unmarshal merges; without Reset, fields set on record N
+		// linger into record N+1 because xtcpRecord is reused across the
+		// loop (pool entry). Reset before each Unmarshal.
+		proto.Reset(xtcpRecord)
 		if uerr := proto.Unmarshal((*packetBuffer)[:n], xtcpRecord); uerr != nil {
 			return fmt.Errorf("%w: %v", ErrDecode, uerr)
 		}

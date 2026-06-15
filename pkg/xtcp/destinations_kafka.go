@@ -53,7 +53,7 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		return nil, err
 	}
 
-	schemaID, err := d.getLatestSchemaID()
+	schemaID, err := d.getLatestSchemaID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("newKafkaDest getLatestSchemaID: %w", err)
 	}
@@ -155,24 +155,49 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 
 func (d *kafkaDest) Close() error {
 	if d.client != nil {
+		// franz-go's Close cancels in-flight produces without waiting for
+		// their broker acks — records buffered when shutdown fires were
+		// silently dropped. Flush first with a bounded timeout so the
+		// daemon's last poll cycle is durably delivered before teardown.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := d.client.Flush(flushCtx); err != nil {
+			d.x.pC.WithLabelValues("destKafka", "FlushOnClose", "error").Inc()
+			if d.x.debugLevel > 10 {
+				log.Printf("destKafka Flush on Close: %v", err)
+			}
+		}
+		cancel()
 		d.client.Close()
 	}
 	return nil
 }
 
-func (d *kafkaDest) getLatestSchemaID() (int, error) {
+func (d *kafkaDest) getLatestSchemaID(ctx context.Context) (int, error) {
 	url := fmt.Sprintf("%s/subjects/%s-value/versions/latest",
 		d.x.config.KafkaSchemaUrl, d.x.config.Topic)
 	if d.x.debugLevel > 10 {
 		log.Printf("getLatestSchemaID url:%s\n", url)
 	}
-	resp, err := http.Get(url)
+	// http.Get used the DefaultClient which has no timeout — a hung
+	// Schema Registry would block daemon startup indefinitely. Build
+	// the request with the caller's ctx + a hard 10s ceiling so the
+	// init-time call observes shutdown and never wedges.
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		return 0, fmt.Errorf("getLatestSchemaID http.StatusNotFound url:%s", url)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("getLatestSchemaID url:%s unexpected status:%d", url, resp.StatusCode)
 	}
 	var result struct {
 		ID int `json:"id"`

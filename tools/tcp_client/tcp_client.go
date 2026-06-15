@@ -118,11 +118,21 @@ func buildMessage(port, pads int) []byte {
 
 // dialWithRetry retries dial up to `attempts` times with linearly-increasing
 // timeout. Returns the first successful conn or the last non-timeout error.
+//
+// The previous loop bound was `for r := 1; r < attempts; r++` — one short
+// of the advertised count (attempts=10 ran 9 iterations). With attempts=1
+// the loop didn't run at all, lastErr stayed nil, and the function
+// returned a nonsense "dial X:Y: %!w(<nil>)" error. Loop r := 0..attempts-1
+// matches the comment, and if attempts <= 0 we report it instead of
+// pretending we ran a loop.
 func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
-	timeout := baseTimeout
 	addr := fmt.Sprintf("%s:%d", bind, port)
+	if attempts <= 0 {
+		return nil, fmt.Errorf("dial %s: attempts must be > 0, got %d", addr, attempts)
+	}
+	timeout := baseTimeout
 	var lastErr error
-	for r := 1; r < attempts; r++ {
+	for r := 0; r < attempts; r++ {
 		dialer := net.Dialer{Timeout: timeout}
 		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
 		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
@@ -133,7 +143,7 @@ func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (
 		lastErr = err
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
-			timeout = baseTimeout + (baseTimeout * time.Duration(r))
+			timeout = baseTimeout + (baseTimeout * time.Duration(r+1))
 			continue
 		}
 		return nil, err

@@ -174,7 +174,22 @@ func (s *xtcpFlatRecordService) PollFlatRecords(
 			}
 			continue
 		}
-		*s.pollRequestCh <- struct{}{}
+		// Buffered channel of size 2 — third in-flight poke would block
+		// forever if the poller isn't draining (mid-shutdown, paused,
+		// already-polling state). Non-blocking send so the RPC handler
+		// stays responsive; observe both the stream ctx and the
+		// service-level ctx so coalesced pokes don't wedge teardown.
+		select {
+		case *s.pollRequestCh <- struct{}{}:
+		case <-ctx.Done():
+			s.pC.WithLabelValues("PollFlatRecords", "ctxDone", "count").Inc()
+			return ctx.Err()
+		case <-s.ctx.Done():
+			s.pC.WithLabelValues("PollFlatRecords", "serverCtxDone", "count").Inc()
+			return s.ctx.Err()
+		default:
+			s.pC.WithLabelValues("PollFlatRecords", "chFull", "count").Inc()
+		}
 		if s.debugLevel > 10 {
 			log.Printf("PollFlatRecords *s.pollRequestCh <- struct{}{}")
 		}

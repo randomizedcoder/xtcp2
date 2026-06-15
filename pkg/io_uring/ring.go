@@ -180,6 +180,26 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 			}
 		}
 	}
+	// Drain any in-flight entries that didn't get a CQE within the
+	// deadline. The kernel still owns these buffers until QueueExit
+	// reclaims the ring, so we can't safely reuse them yet — but we
+	// MUST hand them back to the caller's drain callback before the
+	// inFlight map vanishes, otherwise the userspace-side packet pool
+	// leaks N buffers per ring close (up to inFlightCap each). Mark
+	// these as a synthetic ETIME-style result (Res=-syscall.ETIME) so
+	// the callback can tell apart "normal CQE with bytes" from "abandoned
+	// at teardown".
+	if onDrain != nil {
+		for reqID, entry := range r.inFlight {
+			onDrain(Result{
+				Op:       entry.op,
+				Res:      -int32(syscall.ETIME),
+				Buf:      entry.buf,
+				HdrBytes: entry.wvHdr,
+			})
+			delete(r.inFlight, reqID)
+		}
+	}
 	r.r.QueueExit()
 	r.r = nil
 }

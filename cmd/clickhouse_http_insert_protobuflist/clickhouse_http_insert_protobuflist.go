@@ -179,14 +179,24 @@ func writeDataToFile(ctx context.Context, filename string, data []byte) error {
 var ErrClickHouseHTTPPost = errors.New("clickhouse http post failed")
 
 func insertIntoCH(ctx context.Context, c config, binaryData []byte) error {
-	return insertIntoCHAt(ctx, http.DefaultClient, "http://"+c.connectStr, binaryData)
+	return insertIntoCHAt(ctx, http.DefaultClient, "http://"+c.connectStr, binaryData, c.envelope)
 }
 
 // insertIntoCHAt POSTs a binary protobuf payload to ClickHouse's HTTP
 // endpoint. Extracted so tests can drive it against httptest.Server (the
 // production wrapper picks the baseURL from config.connectStr).
-func insertIntoCHAt(ctx context.Context, client *http.Client, baseURL string, binaryData []byte) error {
-	clickhouseURL := baseURL + "/?query=INSERT%20INTO%20clickhouse_protolist.clickhouse_protolist%20FORMAT%20Protobuf&format_schema=clickhouse_protolist.proto:clickhouse_protolist.v1.Record"
+//
+// useEnvelope picks the ClickHouse format: ProtobufList for envelope mode
+// (a single Envelope with a repeated Rows field), Protobuf for the
+// length-prefixed per-row mode. The previous code hardwired FORMAT
+// Protobuf regardless, so the default envelope=true path mailed an
+// Envelope at a Record schema — ClickHouse rejected every insert.
+func insertIntoCHAt(ctx context.Context, client *http.Client, baseURL string, binaryData []byte, useEnvelope bool) error {
+	format := "Protobuf"
+	if useEnvelope {
+		format = "ProtobufList"
+	}
+	clickhouseURL := baseURL + "/?query=INSERT%20INTO%20clickhouse_protolist.clickhouse_protolist%20FORMAT%20" + format + "&format_schema=clickhouse_protolist.proto:clickhouse_protolist.v1.Record"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, clickhouseURL, bytes.NewReader(binaryData))
 	if err != nil {

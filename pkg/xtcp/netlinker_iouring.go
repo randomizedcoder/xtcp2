@@ -70,9 +70,21 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 		CQEBatchSize:  cqeBatch,
 	})
 	if err != nil {
-		wg.Done()                                                // release the WG explicitly; log.Fatalf skips the deferred Done
-		runtime.UnlockOSThread()                                 // unpin before exit; deferred UnlockOSThread skipped
-		log.Fatalf("netlinkerIoUring %d ring init: %v", id, err) //nolint:gocritic // exitAfterDefer: deferred wg.Done() + UnlockOSThread released explicitly above
+		// The previous code did `wg.Done(); UnlockOSThread(); log.Fatalf(...)`
+		// with the explicit cleanup justified as "log.Fatalf skips the
+		// deferred Done." That reasoning fails in two directions:
+		//   * Production: log.Fatalf calls os.Exit, killing every
+		//     goroutine — wg cleanup is irrelevant either way.
+		//   * Tests where fatalf is mocked to return: the function would
+		//     continue past Fatalf with ring==nil, panic on ring.Close
+		//     in the deferred teardown, and the deferred wg.Done would
+		//     then DOUBLE-decrement the WaitGroup that the explicit
+		//     wg.Done already touched.
+		// Just log + return; the deferred wg.Done and UnlockOSThread
+		// handle cleanup once, and a mocked fatalf no longer leaves the
+		// function half-initialised.
+		log.Printf("netlinkerIoUring %d ring init: %v", id, err)
+		return
 	}
 	x.rings.Store(id, ring)
 	defer func() {
@@ -88,7 +100,12 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	// gets pinned in the ring's in-flight map; the kernel will fill them
 	// as netlink datagrams arrive.
 	if perr := x.iouringPrefillRecvs(ring, fd, batch); perr != nil {
-		log.Fatalf("netlinkerIoUring %d prefill: %v", id, perr)
+		// Demoted from log.Fatalf: a single namespace's prefill failure
+		// shouldn't kill the whole daemon (gRPC services, poller, every
+		// other namespace's netlinkers). Log + return so the deferred
+		// ring.Close + wg.Done + UnlockOSThread fire normally.
+		log.Printf("netlinkerIoUring %d prefill: %v", id, perr)
+		return
 	}
 	if _, serr := ring.Submit(); serr != nil {
 		log.Printf("netlinkerIoUring %d initial Submit: %v", id, serr)
@@ -234,6 +251,15 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	n := int(res.Res)
 	x.pC.WithLabelValues("NetlinkerIoUring", "packets", "count").Inc()
 	x.pC.WithLabelValues("NetlinkerIoUring", "n", "count").Add(float64(n))
+
+	// If drainOnce couldn't match the CQE to an in-flight entry (e.g.
+	// post-Close stragglers, or — at >2^32 SQEs — a request-ID wrap
+	// collision), res.Buf is nil. Dereferencing it would panic. Count
+	// the orphan and skip; the buffer was never ours to return.
+	if res.Buf == nil {
+		x.pC.WithLabelValues("NetlinkerIoUring", "OrphanCQE", "error").Inc()
+		return
+	}
 
 	b := (*res.Buf)[:n]
 	_, errD := x.Deserialize(ctx, DeserializeArgs{

@@ -63,6 +63,54 @@ func TestDialWithRetry_connRefused(t *testing.T) {
 	}
 }
 
+// dialWithRetry rejects non-positive attempts cleanly. Previously the
+// for-loop bound was `for r := 1; r < attempts; r++` so attempts <= 1
+// ran zero iterations, lastErr stayed nil, and the function returned a
+// confusing `dial X:Y: %!w(<nil>)` formatted error.
+func TestDialWithRetry_nonPositiveAttempts(t *testing.T) {
+	cases := []struct {
+		name     string
+		attempts int
+	}{
+		{"zero_attempts", 0},
+		{"negative_attempts", -3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := dialWithRetry("127.0.0.1", 1, tc.attempts, 10*time.Millisecond)
+			if err == nil {
+				t.Fatalf("attempts=%d should produce an error", tc.attempts)
+			}
+			// The error should explain what went wrong, not contain
+			// a formatting placeholder.
+			if errMsg := err.Error(); strings.Contains(errMsg, "%!w") {
+				t.Errorf("error contains formatting placeholder: %q", errMsg)
+			}
+		})
+	}
+}
+
+// dialWithRetry with attempts=1 must execute exactly one dial. Previously
+// the loop ran zero times (off-by-one) and returned a stale nil-wrapped
+// error.
+func TestDialWithRetry_attemptsOne(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close() //nolint:errcheck // test plumbing
+
+	// Conn-refused on attempts=1 must return a real error, not nil-wrapped.
+	_, err = dialWithRetry("127.0.0.1", port, 1, 50*time.Millisecond)
+	if err == nil {
+		t.Fatal("conn-refused should error")
+	}
+	if strings.Contains(err.Error(), "%!w") {
+		t.Errorf("attempts=1 returned formatting-placeholder error: %q", err.Error())
+	}
+}
+
 func TestClientOnce_happy(t *testing.T) {
 	a, b := net.Pipe()
 	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing

@@ -222,11 +222,15 @@ breakPoint:
 				log.Printf("pollStreamRecv err:%v", err)
 			}
 
+			// A broken stream typically returns the same error immediately
+			// on every subsequent Recv (e.g. "rpc error: stream closed").
+			// The previous code looped without backoff, pegging a CPU core
+			// at 100% until ctx was canceled. Sleep briefly between
+			// retries so the loop is ctx-cancellable AND non-spinny.
 			select {
 			case <-ctx.Done():
 				break breakPoint
-			default:
-				// non-blocking
+			case <-time.After(100 * time.Millisecond):
 			}
 			continue
 		}
@@ -366,7 +370,12 @@ breakPoint:
 		var flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse
 		flatRecordsResponse, err = stream.Recv()
 		if err == io.EOF {
-			continue
+			// End of stream — the server closed cleanly. Subsequent
+			// Recv calls keep returning io.EOF, so `continue` here
+			// pegged a CPU core. Break out of the loop so the
+			// reconnect-with-sleep path in singleStreamingClient
+			// re-establishes a fresh stream.
+			break breakPoint
 		}
 
 		if err != nil {

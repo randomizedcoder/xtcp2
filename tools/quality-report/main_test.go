@@ -12,20 +12,26 @@ import (
 // ───────────────────────────────────────────────────────────────────────
 
 func TestAtoiOr0(t *testing.T) {
-	if got := atoiOr0("42"); got != 42 {
-		t.Errorf("atoiOr0(42) = %d", got)
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"42", 42},
+		{"", 0},
+		{"not-a-number", 0},
+		{"0", 0},
+		{"-123", -123},
+		{"   ", 0},                 // whitespace-only also unparseable
+		{"1.5", 0},                 // floats aren't integers
+		{"42a", 0},                 // trailing garbage
+		{"2147483647", 2147483647}, // int32 max round-trips
 	}
-	if got := atoiOr0(""); got != 0 {
-		t.Errorf("atoiOr0(empty) = %d", got)
-	}
-	if got := atoiOr0("not-a-number"); got != 0 {
-		t.Errorf("atoiOr0(bad) = %d", got)
-	}
-	if got := atoiOr0("0"); got != 0 {
-		t.Errorf("atoiOr0(0) = %d", got)
-	}
-	if got := atoiOr0("-123"); got != -123 {
-		t.Errorf("atoiOr0(-123) = %d", got)
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			if got := atoiOr0(tc.in); got != tc.want {
+				t.Errorf("atoiOr0(%q) = %d, want %d", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -44,20 +50,28 @@ func TestFileExists(t *testing.T) {
 }
 
 func TestBytesIndex(t *testing.T) {
-	if got := bytesIndex([]byte("hello world"), []byte("world")); got != 6 {
-		t.Errorf("bytesIndex = %d, want 6", got)
+	cases := []struct {
+		name     string
+		haystack []byte
+		needle   []byte
+		want     int
+	}{
+		{"middle", []byte("hello world"), []byte("world"), 6},
+		{"missing", []byte("abc"), []byte("d"), -1},
+		{"empty_needle", []byte("abc"), []byte(""), 0},
+		{"empty_haystack", []byte(""), []byte("x"), -1},
+		{"empty_both", []byte(""), []byte(""), 0},
+		{"exact_match", []byte("abc"), []byte("abc"), 0},
+		{"prefix_match", []byte("abcdef"), []byte("abc"), 0},
+		{"suffix_match", []byte("abcdef"), []byte("def"), 3},
+		{"needle_longer_than_haystack", []byte("ab"), []byte("abcd"), -1},
 	}
-	if got := bytesIndex([]byte("abc"), []byte("d")); got != -1 {
-		t.Errorf("bytesIndex(missing) = %d, want -1", got)
-	}
-	if got := bytesIndex([]byte("abc"), []byte("")); got != 0 {
-		t.Errorf("bytesIndex(empty needle) = %d, want 0", got)
-	}
-	if got := bytesIndex([]byte(""), []byte("x")); got != -1 {
-		t.Errorf("bytesIndex(empty haystack) = %d, want -1", got)
-	}
-	if got := bytesIndex([]byte("abc"), []byte("abc")); got != 0 {
-		t.Errorf("bytesIndex(exact) = %d, want 0", got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := bytesIndex(tc.haystack, tc.needle); got != tc.want {
+				t.Errorf("bytesIndex(%q, %q) = %d, want %d", tc.haystack, tc.needle, got, tc.want)
+			}
+		})
 	}
 }
 
