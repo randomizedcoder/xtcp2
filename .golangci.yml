@@ -36,6 +36,10 @@ linters:
     - noctx
     - contextcheck
     - durationcheck
+    # Project-specific: forbid runtime.UnlockOSThread in code paths that
+    # also do setns/unshare, because the pairing is dangerous (see the
+    # forbidigo block below for the why).
+    - forbidigo
 
   settings:
     errcheck:
@@ -102,6 +106,37 @@ linters:
         - name: error-strings
         - name: increment-decrement
         - name: var-declaration
+
+    # Forbidigo guards a specific landmine: `runtime.UnlockOSThread` paired
+    # with `unix.Setns` / `unix.Unshare`. If the goroutine modifies
+    # thread-global state (network namespace) and then unconditionally
+    # unlocks, a *tainted* M can be returned to Go's scheduler — the
+    # runtime can't safely reuse it, parks it, and spawns a new one.
+    # Under heavy ns churn this leaks OS threads up to the SetMaxThreads
+    # cap and crashes the daemon (incident: 12 h s3parquet-long soak hit
+    # `fatal error: thread exhaustion` at 1 h 45 min).
+    #
+    # The safe pattern is: do *not* defer UnlockOSThread; instead, inside
+    # the deferred restore func, call UnlockOSThread ONLY after Setns
+    # confirms the original namespace was restored. On restore failure,
+    # exit the goroutine with the lock still held — the Go runtime then
+    # terminates the OS thread (documented LockOSThread behaviour),
+    # which is exactly what we want for a tainted M.
+    #
+    # If you have a legitimate non-netns use of UnlockOSThread (e.g.
+    # io_uring SQ thread pinning), opt in with `//nolint:forbidigo //
+    # <reason>` at the call site. Anyone touching the netns path will
+    # then see why the rule exists.
+    forbidigo:
+      forbid:
+        - pattern: '^runtime\.UnlockOSThread$'
+          msg: |
+            runtime.UnlockOSThread is unsafe to defer unconditionally in
+            code that calls unix.Setns / unix.Unshare — the M can be
+            returned to the scheduler still in a modified namespace,
+            triggering an unbounded thread leak. Pair it with a
+            *conditional* unlock inside the restore defer, or
+            `//nolint:forbidigo // <reason>` if unrelated.
 
   exclusions:
     warn-unused: true

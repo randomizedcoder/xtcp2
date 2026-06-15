@@ -617,6 +617,17 @@ func TestPrintFlags(t *testing.T) {
 	f.envelopeFlushBytes = &n
 	f.envelopeFlushRows = &n
 	f.kafkaCompression = &s
+	f.s3Endpoint = &s
+	f.s3Bucket = &s
+	f.s3Prefix = &s
+	f.s3AccessKey = &s
+	f.s3SecretKey = &s
+	f.s3Region = &s
+	f.s3ParquetFlushBytes = &n
+	f.pyroscopeUrl = &s
+	f.pyroscopeAppName = &s
+	f.pyroscopeSampleHz = &n
+	f.pyroscopeUploadSec = &n
 	f.dest = &s
 	f.destWriteFiles = &n
 	f.topic = &s
@@ -699,8 +710,19 @@ func TestBuildConfig(t *testing.T) {
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
 		writeFiles: &wf, capturePath: &cp, modulus: &mod, marshal: &mar,
 		envelopeFlushBytes: &wf, envelopeFlushRows: &wf,
-		kafkaCompression: &mar,
-		dest:             &dst, destWriteFiles: &dwf,
+		kafkaCompression:    &mar,
+		s3Endpoint:          &mar,
+		s3Bucket:            &mar,
+		s3Prefix:            &mar,
+		s3AccessKey:         &mar,
+		s3SecretKey:         &mar,
+		s3Region:            &mar,
+		s3ParquetFlushBytes: &wf,
+		pyroscopeUrl:        &mar,
+		pyroscopeAppName:    &mar,
+		pyroscopeSampleHz:   &wf,
+		pyroscopeUploadSec:  &wf,
+		dest:                &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
 		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,

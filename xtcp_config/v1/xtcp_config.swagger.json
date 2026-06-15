@@ -280,6 +280,53 @@
           "type": "string",
           "description": "Kafka producer-batch compression codec. franz-go picks one codec\nfrom the supplied preference list that the broker advertises.\nBoth Redpanda and ClickHouse (via librdkafka on its Kafka engine)\ndecompress all standard codecs transparently — no consumer-side\nconfig is needed regardless of which codec is chosen here.\n\nValid values:\n  \"\" or \"auto\" → preference list [zstd, lz4, snappy, none] —\n                 modern brokers (Redpanda, Kafka 2.1+) end up\n                 on zstd; older brokers fall back through the list\n  \"zstd\"       → force ZStandard (best ratio, modern default)\n  \"lz4\"        → force LZ4 (fast, low CPU)\n  \"snappy\"     → force Snappy (legacy, broad compat)\n  \"gzip\"       → force Gzip (highest CPU; legacy clients)\n  \"none\"       → no compression on the wire\n\nPick \"lz4\" if xtcp2 is CPU-bound on the producer side; pick\n\"zstd\" (the default) if Kafka throughput / disk usage matters more."
         },
+        "s3Endpoint": {
+          "type": "string",
+          "description": "S3 endpoint URL, e.g. \"http://127.0.0.1:9000\" (MinIO) or\n\"https://s3.amazonaws.com\" (AWS). May be empty if -dest carries\nit via the s3parquet:\u003cendpoint\u003e form."
+        },
+        "s3Bucket": {
+          "type": "string",
+          "description": "Required when -dest s3parquet. Bucket must already exist on the\nendpoint; the daemon does not auto-create."
+        },
+        "s3Prefix": {
+          "type": "string",
+          "description": "Optional key-prefix WITHIN the bucket. Joined with the Hive-style\npartition segments (host=…/date=…/hour=…/\u003cfile\u003e.parquet). Empty\n= files land at the bucket root level."
+        },
+        "s3AccessKey": {
+          "type": "string",
+          "description": "Required when -dest s3parquet. Picked up from AWS_ACCESS_KEY_ID\nenv if blank."
+        },
+        "s3SecretKey": {
+          "type": "string",
+          "description": "Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY\nenv if blank. Never logged."
+        },
+        "s3ParquetFlushThresholdBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Soft cap on the in-memory Parquet builder's accumulated\nuncompressed row bytes before the worker finalizes the file and\nuploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).\nOperators tune down for faster file rotation (more S3 PUTs,\nsmaller per-file query latency) or up for fewer larger files\n(better compression ratio, more memory)."
+        },
+        "s3Region": {
+          "type": "string",
+          "description": "S3 region. Required by some S3 implementations even when talking\nto a single-region MinIO. Default \"us-east-1\" when blank."
+        },
+        "pyroscopeUrl": {
+          "type": "string",
+          "description": "Pyroscope continuous-profiling server URL (e.g.\nhttp://127.0.0.1:4040). When set, the daemon streams CPU,\nmemory, goroutine, mutex, and block profiles to that endpoint.\nEmpty disables the agent — no overhead in production runs that\ndon't need it. Operators bring up a Pyroscope OSS server (or\nGrafana Cloud Pyroscope) and point xtcp2 at it for live profile\ndata without restarts."
+        },
+        "pyroscopeAppName": {
+          "type": "string",
+          "description": "Application name registered with the Pyroscope server (the\n\"application\" facet in the Pyroscope UI). Empty → \"xtcp2\".\nSet per fleet/role for multi-host environments\n(e.g. \"xtcp2.prod.iad\", \"xtcp2.staging.fra\")."
+        },
+        "pyroscopeSampleHz": {
+          "type": "integer",
+          "format": "int64",
+          "description": "CPU profile sampling rate in Hz. Default 100. The Pyroscope\nagent uses this to call runtime.SetCPUProfileRate at startup."
+        },
+        "pyroscopeUploadIntervalSec": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Profile upload interval (seconds between batched profile\npushes). Default 15 s."
+        },
         "dest": {
           "type": "string",
           "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes)."

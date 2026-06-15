@@ -42,6 +42,26 @@
       # (~2.5 GiB peak), Redpanda (~700 MiB), dockerd (~150 MiB),
       # xtcp2 (~150 MiB), and the kernel/page cache.
       memClickPipe = 6144;
+      # memClickPipeParquet is used by sink="clickhouse-pipeline-parquet"
+      # (mixed flavor). Adds to memClickPipe's footprint:
+      #   * a SECOND xtcp2 instance (~500 MiB; tracks the same ns set
+      #     as the primary independently)
+      #   * MinIO server + bucket data (~300 MiB for the 2h soak's
+      #     8 k×60 KiB working set; grows with time)
+      # Iterations:
+      #   * 6144 MiB / 3500m CH:  222 OOMs / 2 h
+      #   * 12288 MiB / 8000m CH: 668 OOMs / 30 min
+      #   * 16384 MiB / 12000m CH: 903 OOMs / 30 min — every bump just
+      #     raised the cap and the workload grew with it. Root cause
+      #     wasn't headroom but ClickHouse's OWN observability tables:
+      #     system.latency_log / metric_log / asynchronous_metric_log
+      #     background merges trip the per-server cap before the kafka
+      #     MV gets a chance. Disabled via
+      #     build/containers/clickhouse/config.d/disable_chatty_logs.xml
+      #     mounted by mkVm.nix; OOMs dropped to single digits.
+      # With the chatty-logs disable in place, 16384/12000m is generous
+      # but cheap insurance.
+      memClickPipeParquet = 16384;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;

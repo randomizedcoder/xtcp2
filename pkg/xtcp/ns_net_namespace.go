@@ -45,40 +45,53 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 	}
 
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 
 	// CRITICAL: snapshot the calling thread's original netns BEFORE the
 	// retry loop's `setns` calls, then restore it on the way out via
 	// defer. Without this, the M returned to Go's scheduler after
-	// UnlockOSThread carries the modified kernel netns indefinitely. The
-	// Go runtime can't safely reuse such Ms (a future goroutine that
-	// happens to be scheduled on the same M would silently run in the
-	// wrong netns) so the M-pool grew unbounded — 1h soak with 4-per-sec
-	// churn accumulated ~1100 OS threads and crashed with
-	// `failed to create new OS thread` / errno=11. Restoring netns here
-	// lets the runtime keep reusing the same handful of Ms.
+	// UnlockOSThread carries the modified kernel netns indefinitely.
+	//
+	// Earlier this function used an unconditional `defer
+	// runtime.UnlockOSThread()` paired with a best-effort Setns restore.
+	// Under nsTest churn at 250 ms cadence, the restore Setns kept
+	// failing with EPERM — likely because the kernel rejected setns into
+	// a netns whose original userns context had been altered by all the
+	// intervening ns operations on this thread. The runtime then dutifully
+	// recycled the *tainted* M, but discovered the netns mismatch on the
+	// next syscall and was forced to spin up a fresh M. Over 1 h 45 min
+	// we accumulated >2000 OS threads and crashed with
+	// `fatal error: thread exhaustion`.
+	//
+	// The reliable fix is to make UnlockOSThread *conditional on the
+	// restore succeeding*. If restore fails we leave the goroutine
+	// holding the lock — when this function returns the Go runtime
+	// terminates the OS thread instead of reusing it (documented
+	// behaviour of runtime.LockOSThread). The cost is one OS thread
+	// creation per failed restore (~10 µs) instead of an unbounded
+	// accumulation of tainted Ms.
 	origNs, errOrig := os.Open("/proc/thread-self/ns/net")
 	if errOrig != nil {
 		x.pC.WithLabelValues("netNamespaceInstance", "snapshotOrigNs", "error").Inc()
 		if x.debugLevel > 10 {
 			log.Printf("netNamespaceInstance snapshot original netns err: %v", errOrig)
 		}
-		// Don't return — we can still do the work; just won't be able to
-		// restore on exit. Reset to host netns at end via a host-side fd
-		// open is impossible from here, so accept the M will be tainted
-		// in this rare error case. The SetMaxThreads cap protects us
-		// from unbounded growth in the meantime.
+		// No origNs → can't restore → keep the lock and let the runtime
+		// terminate this thread when the goroutine exits.
 	} else {
 		defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
 		defer func() {
-			if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+			if rerr := restoreNsSetns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
 				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "error").Inc()
 				if x.debugLevel > 10 {
-					log.Printf("netNamespaceInstance restore-netns err: %v", rerr)
+					log.Printf("netNamespaceInstance restore-netns err: %v (keeping thread locked → runtime will terminate it)", rerr)
 				}
-			} else {
-				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "count").Inc()
+				// Skip UnlockOSThread on failure — see top-of-function
+				// comment. Goroutine exits with the lock still held; Go
+				// runtime terminates the thread.
+				return
 			}
+			x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "count").Inc()
+			runtime.UnlockOSThread() //nolint:forbidigo // safe: only called after Setns restore returned nil; tainted-M case takes the early `return` above.
 		}()
 	}
 
@@ -225,6 +238,12 @@ type openAndSetnsSyscallsT struct {
 	setns func(fd int, nstype int) error
 	close func(fd int) error
 }
+
+// restoreNsSetns is the seam used by netNamespaceInstance's deferred
+// restore. Same signature as unix.Setns; tests swap it to force
+// restore failures and exercise the tainted-M code path without
+// needing real CAP_SYS_ADMIN or live network namespaces.
+var restoreNsSetns = unix.Setns
 
 // attemptOpenAndSetns is one iteration of the retry loop. Returns:
 //   - fd: the fd returned by Open. -1 on Open failure. On Setns failure

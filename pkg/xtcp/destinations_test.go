@@ -374,7 +374,7 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	t.Helper()
 
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: io_uring test pins to one thread for SQE/CQE ordering; no netns mutation.
 
 	dir := t.TempDir()
 	setup := c.setup(t, dir)

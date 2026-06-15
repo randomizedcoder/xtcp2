@@ -8,14 +8,21 @@
 #   - bundles the self-test as a oneshot service triggered after xtcp2
 #   - shares /nix/store with the host via 9p
 #
-# Two flavors selected by `sink`:
+# Flavors selected by `sink`:
 #   - "minimal" (default): xtcp2 alone, JSONL configFile (currently a no-op
 #                          stub; the netlink-readout check tolerates a missing
 #                          file). Cheap CI smoke.
-#   - "vector":            xtcp2 → unixgram UDS → Vector → parquet → MinIO,
-#                          all inside the VM. Uses memVector budget. Self-test
-#                          checks VECTOR/MINIO/PARQUET sentinels in addition
-#                          to the rest of the suite.
+#   - "s3parquet":         xtcp2 → MinIO Parquet upload, all inside the VM.
+#                          Reuses the minio-bucket-bootstrap module; the xtcp2
+#                          daemon talks to MinIO directly via the minio-go
+#                          client. Self-test scrapes a single .parquet object
+#                          and exits. Lifecycle smoke for CI.
+#   - "s3parquet-long":    Same plumbing as "s3parquet" but no self-test
+#                          oneshot. A monitor service emits a heartbeat
+#                          sentinel each `S3PARQUET_REPORT_INTERVAL` seconds
+#                          (default 3600). Pairs with mkS3ParquetRunner for
+#                          multi-hour soak runs.
+#   - "clickhouse-pipeline", "soak", "tcp-stress", "coverage[-iouring]".
 #
 {
   pkgs,
@@ -26,9 +33,6 @@
   xtcp2Package,
   xtcp2AllPackage,
   sink ? "minimal",
-  # Required when sink == "vector". A derivation that provides
-  # share/xtcp2/xtcp_flat_record.desc. See nix/lib/mkProtoDescSet.nix.
-  protoDescPackage ? null,
   # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
   # script) that the in-VM container spawn unit loads via `docker load`.
   tcpStressImage ? null,
@@ -38,7 +42,6 @@ let
   constants = import ./constants.nix;
   cfg = constants.architectures.${arch};
 
-  isVector = sink == "vector";
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
@@ -48,12 +51,37 @@ let
   # configured with -dest kafka:localhost:19092 so the records flow
   # through the same pipeline as the production compose.
   isClickPipe = sink == "clickhouse-pipeline";
+  # clickhouse-pipeline + s3parquet mixed: existing redpanda + clickhouse
+  # stack PLUS in-VM MinIO + a second xtcp2 instance writing parquet.
+  # ClickHouse can query the parquet files via the s3() table function /
+  # an S3-engine table — same VM that runs the kafka path, validating
+  # the "operator wants both pipelines on one host" deployment shape.
+  isClickPipeParquet = sink == "clickhouse-pipeline-parquet";
+  # s3parquet = MinIO + xtcp2 writing Parquet directly to S3 (lifecycle).
+  isS3Parquet = sink == "s3parquet";
+  # s3parquet-long = same destination, no self-test, monitor service emits
+  # hourly file-count sentinels. Long-soak runner consumes them.
+  isS3ParquetLong = sink == "s3parquet-long";
+  # capcheck-fail = a deliberately-misconfigured s3parquet-long VM that
+  # drops CAP_SYS_ADMIN from the service. xtcp2's startup capability
+  # check should refuse to start; the lifecycle test verifies the
+  # expected error appears on the serial console.
+  isCapCheckFail = sink == "capcheck-fail";
+  # Convenience predicate — most plumbing (minio module, port forwards,
+  # mem budget, daemon args base) is shared.
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet;
+  # All flavors that bring up the redpanda + clickhouse docker stack.
+  isAnyClickPipe = isClickPipe || isClickPipeParquet;
   # Anything that needs dockerd inside the VM.
-  needsDocker = isTcpStress || isClickPipe;
+  needsDocker = isTcpStress || isAnyClickPipe;
   effectiveMem =
-    if isVector then
-      cfg.memVector
-    else if isClickPipe then
+    if isClickPipeParquet then
+      # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
+      # MinIO + Pyroscope all in one VM.
+      cfg.memClickPipeParquet
+    else if isAnyClickPipe then
+      cfg.memClickPipe
+    else if isAnyS3Parquet then
       cfg.memClickPipe
     else if isTcpStress then
       cfg.memTcpStress
@@ -62,23 +90,25 @@ let
 
   coverDir = "/var/lib/xtcp2cov";
 
-  selfTest =
-    if isVector then
-      import ./self-test-vector.nix {
-        inherit pkgs;
-        promPort = cfg.promPort;
-        grpcPort = cfg.grpcPort;
-      }
-    else
-      import ./self-test.nix {
-        inherit pkgs lib;
-        promPort = cfg.promPort;
-        grpcPort = cfg.grpcPort;
-        coverageEnabled = isCoverage;
-        inherit coverDir;
-        runClickhouseCheck = isClickPipe;
-        clickhousePassword = clickPipeChPassword;
-      };
+  selfTest = import ./self-test.nix {
+    inherit pkgs lib;
+    promPort = cfg.promPort;
+    grpcPort = cfg.grpcPort;
+    coverageEnabled = isCoverage;
+    inherit coverDir;
+    runClickhouseCheck = isAnyClickPipe;
+    runClickhouseParquetCheck = isClickPipeParquet;
+    clickhousePassword = clickPipeChPassword;
+    runS3ParquetCheck = isS3Parquet;
+  };
+
+  # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
+  # enough for short smoke runs to see file growth, and the host-side
+  # runner aggregates the per-minute sentinels into hourly summaries for
+  # long-running tests. Override via the systemd env at boot if you want
+  # genuine hourly cadence (e.g. for a 12 h soak that doesn't need
+  # per-minute resolution).
+  s3ParquetReportIntervalDefault = 60;
 
   # tcp_server/tcp_client tunables for the soak flavor. They share the
   # same port base (cmd/tcp_server/tcp_server.go startPort = 4000), so
@@ -114,6 +144,17 @@ let
   # work without further setup. Override at deploy time if you don't
   # want a hardcoded local-dev password.
   clickPipeChPassword = "xtcp";
+  # ClickHouse container memory cap. Default 3500m for the plain
+  # clickpipe flavor (12h-validated). The mixed flavor adds MinIO +
+  # a second xtcp2 + nsTest churn and needs more — see constants.nix
+  # `memClickPipeParquet` for the OOM history. Bumped 12000m → 14000m
+  # after the 4h soak showed CH parked at ~10.45 GiB MemoryTracking
+  # against the internal cap derived from the container limit (88 %
+  # of 12000m = 10.55 GiB) and the kafka_engine's per-batch 131 MiB
+  # decode buffer allocation getting rejected ~2 %/min. 14000m raises
+  # the internal cap to ~12.3 GiB; VM at 16 GiB leaves ~2 GiB headroom
+  # for the rest of the stack.
+  clickPipeClickhouseMemory = if isClickPipeParquet then "14000m" else "3500m";
 
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
@@ -160,6 +201,21 @@ let
     chmod -R a+rX $out
   '';
 
+  # config.d overrides mounted into /etc/clickhouse-server/config.d/.
+  # Disables the chatty internal observability tables (latency_log,
+  # metric_log, etc.) whose background merges trip the per-server
+  # max-memory cap under heavy ingest. See the XML for details.
+  clickPipeConfigD = pkgs.runCommand "xtcp2-clickhouse-config-d" { } ''
+    mkdir -p $out
+    cp ${../../build/containers/clickhouse/config.d/disable_chatty_logs.xml} \
+       $out/disable_chatty_logs.xml
+    cp ${../../build/containers/clickhouse/config.d/limit_memory.xml} \
+       $out/limit_memory.xml
+    cp ${../../build/containers/clickhouse/config.d/kafka_client_tuning.xml} \
+       $out/kafka_client_tuning.xml
+    chmod -R a+rX $out
+  '';
+
   # nsTest churn parameters tuned for soak runs. Production nsTest defaults
   # are 1000 initial namespaces + 100ms sleep — which inside a microvm
   # creates an explosive boot-time spike (1000 × `ip netns add` back-to-back
@@ -167,8 +223,22 @@ let
   # bit more breathing room between iterations so the daemon's fsnotify
   # watcher + nsAdd path runs continuously without ever being completely
   # idle. Sized empirically — increase if you want harsher loading.
-  soakInitialNs = 50;
-  soakChurnSleep = "250ms";
+  # Soak workload sizing. The mixed clickpipe-parquet flavor runs
+  # TWO xtcp2 instances tracking the same namespaces independently
+  # (kafka path + parquet path), so each in-flight ns handler costs
+  # ~2× the OS threads vs a single-xtcp2 flavor. Cut both knobs
+  # roughly in half to keep each instance well under its 2000-thread
+  # cap with headroom for the inevitable cleanup lag from the
+  # persistent-connection model.
+  soakInitialNs = if isClickPipeParquet then 100 else 200;
+  soakChurnSleep = if isClickPipeParquet then "250ms" else "100ms";
+  # Per-ns persistent loopback connections. 100 conns × 200 ns =
+  # 20,000 ESTABLISHED sockets across the working set. With 5 payload
+  # sizes × 4 send intervals = 20 distinct io profiles, the TCPInfo
+  # readout xtcp2 sees has real spread instead of a single shape.
+  # Mixed flavor uses 25 (matched smaller ns count + slower churn
+  # for the two-xtcp2-instance overhead).
+  soakConnsPerNs = if isClickPipeParquet then 25 else 100;
   # Period (seconds) between /metrics scrapes. 60s lines up with most
   # default Prometheus scrape intervals.
   soakScrapePeriodSec = 60;
@@ -181,10 +251,105 @@ let
       iproute2
     ];
     text = ''
-      # Run nsTest with reduced initial-fill + slightly longer churn sleep
-      # so a 1h / 24h run doesn't drown the journal in `ip netns add` lines
-      # before any actual churn happens.
-      exec ${xtcp2AllPackage}/bin/nsTest -initial ${toString soakInitialNs} -sleep ${soakChurnSleep}
+      # Run nsTest with reduced initial-fill + slightly longer churn
+      # sleep so a 1h / 24h run doesn't drown the journal in
+      # `ip netns add` lines before any actual churn happens.
+      #
+      # -conns ${toString soakConnsPerNs}: after each `ip netns add`,
+      # nsTest enters the new ns, brings lo UP, opens N persistent
+      # loopback TCP connections with varied io profiles, and keeps
+      # them running for the ns's lifetime. xtcp2 then sees 2N
+      # ESTABLISHED sockets per ns in every poll with real spread
+      # across TCPInfo segs/bytes/rtt (different payload sizes +
+      # send intervals per conn). When the churn loop deletes the
+      # ns, nsTest signals the per-ns generator to close cleanly
+      # before `ip netns del` runs.
+      exec ${xtcp2AllPackage}/bin/nsTest \
+        -initial ${toString soakInitialNs} \
+        -sleep ${soakChurnSleep} \
+        -conns ${toString soakConnsPerNs}
+    '';
+  };
+
+  # (Retired) Shell-based ns-traffic driver. Replaced by the
+  # in-process `-traffic` flag on nsTest (cmd/nsTest/nsTest.go),
+  # which avoids the `ip netns exec` race that left this version
+  # producing files=0 over a 12h soak. Kept around as a reference
+  # for future ad-hoc injectors but no longer wired up.
+  soakNsTrafficScript_UNUSED = pkgs.writeShellApplication {
+    name = "xtcp2-soak-ns-traffic";
+    runtimeInputs = with pkgs; [
+      bash # ip netns exec resolves `bash` via PATH; must be in runtimeInputs
+      coreutils
+      iproute2
+      nmap # provides ncat
+      util-linux
+    ];
+    text = ''
+      # Picks a single ns and runs a quick listener+connect pair inside
+      # its loopback. The listener exits when the client disconnects
+      # (-l --recv-only --send-only style), so the function returns
+      # cleanly without leaving orphans even if a process gets stuck —
+      # the outer `timeout` is the backstop.
+      # Single-quoted heredoc-style body for `bash -c '…'`: the inner
+      # script intentionally does NOT expand $vars in the parent shell;
+      # it runs inside `ip netns exec` and only references its own
+      # locals. Annotated so shellcheck doesn't flag it.
+      # shellcheck disable=SC2016
+      inject_one() {
+        local nsname=$1
+        timeout 3 ip netns exec "$nsname" bash -c '
+          # Bring up lo so 127.0.0.1 is routable inside the ns. (Most
+          # nsTest-created namespaces have lo DOWN by default; without
+          # this every connection would EHOSTUNREACH.) Surface errors
+          # to stderr (which is journal+console for this service) so
+          # cap/perms problems become visible.
+          if ! ip link set lo up 2>&1; then
+            echo "ns=$0 ip link set lo up FAILED"
+            exit 1
+          fi
+          # One-shot listener that accepts one connection and exits.
+          ncat -l 127.0.0.1 5000 --recv-only --no-shutdown >/dev/null 2>&1 &
+          server_pid=$!
+          # Brief delay so the listener has socket() + bind() done.
+          sleep 0.1
+          # Fire a payload at it; this produces ESTABLISHED on both
+          # sides for ~50-100 ms, then TIME_WAIT — both visible to xtcp2.
+          if ! ncat --send-only -w 1 127.0.0.1 5000 < /etc/hostname >/dev/null 2>&1; then
+            echo "ns=$0 ncat client FAILED"
+            kill $server_pid 2>/dev/null || true
+            exit 1
+          fi
+          wait $server_pid 2>/dev/null || true
+        ' "$nsname"
+      }
+
+      max_inflight=30
+      while true; do
+        # Snapshot the current ns list — /run/netns/ can churn out from
+        # under a long-running loop, so re-read every cycle. Glob
+        # expansion (not ls|grep) keeps shellcheck happy.
+        namespaces=()
+        for f in /run/netns/ns*; do
+          [ -e "$f" ] || continue
+          namespaces+=("$(basename "$f")")
+        done
+        if [ "''${#namespaces[@]}" -eq 0 ]; then
+          sleep 0.5
+          continue
+        fi
+        for nsname in "''${namespaces[@]}"; do
+          # Block until we have a slot — keeps total fork pressure
+          # bounded regardless of ns population.
+          while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$max_inflight" ]; do
+            wait -n 2>/dev/null || true
+          done
+          inject_one "$nsname" &
+        done
+        wait
+        # Brief gap so we don't busy-loop when ns count is small.
+        sleep 0.2
+      done
     '';
   };
 
@@ -342,11 +507,18 @@ let
       # addr inside the docker net, external kafka addr published as
       # localhost:19092 on the VM host so xtcp2 can dial it.
       docker rm -f redpanda-0 2>/dev/null || true
+      # docker --memory=2G enforces a hard cgroup ceiling. The redpanda
+      # `start --memory=1G` flag below only sets the seastar data plane
+      # reservation — it does NOT bound the rest of the process. A 21h
+      # soak observed redpanda triggering the system OOM-killer with a
+      # 12.9 GiB folio_prealloc allocation, killing the unrelated CH
+      # container as collateral. The docker cgroup limit catches that.
       docker run --detach \
         --name redpanda-0 \
         --network xtcp \
         --hostname redpanda-0 \
         -p 19092:19092 -p 19644:9644 -p 18081:8081 \
+        --memory=2G \
         -v redpanda-0:/var/lib/redpanda/data \
         --restart on-failure \
         ${clickPipeRedpandaImage} \
@@ -358,6 +530,8 @@ let
           --advertise-rpc-addr=redpanda-0:33145 \
           --mode=dev-container \
           --smp=1 \
+          --memory=1G \
+          --reserve-memory=0M \
           --default-log-level=info >/dev/null
       echo "redpanda-0: started"
 
@@ -425,21 +599,34 @@ let
       mkdir -p "$schemasRw"
       cp ${clickPipeProtoSchemas}/* "$schemasRw"/
       chmod -R u+w "$schemasRw"
+      # config.d mount: read-only is fine (no chown required by entrypoint).
+      configDRo=/var/lib/xtcp2-clickhouse-config-d
+      rm -rf "$configDRo"
+      mkdir -p "$configDRo"
+      cp ${clickPipeConfigD}/* "$configDRo"/
       docker rm -f clickhouse 2>/dev/null || true
+      # --add-host host.docker.internal:host-gateway gives ClickHouse a
+      # routable name for the VM host (where the in-VM MinIO listens
+      # for the mixed clickpipe-parquet flavor). The mapping is
+      # harmless for the plain clickpipe flavor too: it's just an
+      # /etc/hosts entry that nothing references unless an s3() table
+      # function asks for it.
       docker run --detach \
         --name clickhouse \
         --network xtcp \
         --hostname clickhouse \
+        --add-host host.docker.internal:host-gateway \
         -p 18123:8123 -p 19001:9000 \
         --ulimit nofile=262144:262144 \
-        --memory=3500m \
+        --memory=${clickPipeClickhouseMemory} \
         --cap-add CAP_NET_ADMIN --cap-add CAP_SYS_NICE \
         --cap-add CAP_IPC_LOCK --cap-add CAP_SYS_PTRACE \
-        --env CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true \
         --env CLICKHOUSE_PASSWORD=${clickPipeChPassword} \
+        --env "MALLOC_CONF=background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000" \
         -v clickhouse_db:/var/lib/clickhouse \
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
+        -v "$configDRo":/etc/clickhouse-server/config.d:ro \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
@@ -492,30 +679,166 @@ let
     '';
   };
 
-  vectorModules =
-    assert lib.assertMsg (
-      protoDescPackage != null
-    ) "mkVm.nix: sink=\"vector\" requires protoDescPackage";
-    [
-      (import ../modules/vector-pipeline.nix {
-        inherit protoDescPackage;
-      })
-      (import ../modules/minio-bucket-bootstrap.nix { })
-      ../modules/xtcp2-vector-path.nix
-    ];
+  # s3parquet flavor: in-VM MinIO + bucket bootstrap. The xtcp2 daemon
+  # talks to MinIO directly via the minio-go client; no proto-desc file
+  # or unixgram socket required. The long-soak variant additionally
+  # brings up a local Pyroscope server so xtcp2 can stream profiles
+  # for goroutine/thread-leak diagnosis without an external dependency.
+  s3ParquetModules = [
+    (import ../modules/minio-bucket-bootstrap.nix {
+      # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
+      # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
+      # tell the bootstrap module not to also declare a tmpfs there.
+      # Other s3parquet flavors keep the tmpfs (short runs only).
+      useTmpfs = !isClickPipeParquet;
+    })
+  ]
+  ++ lib.optionals isS3ParquetLong [
+    (import ../modules/pyroscope-server.nix { })
+  ];
 
-  xtcp2VectorArgs = [
+  # Long-soak monitor: emit one sentinel line per
+  # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
+  # own Prometheus counters (destS3Parquet/upload + uploadBytes)
+  # rather than `mc find` — under nsTest load the mc commands are too
+  # slow to complete inside the cadence window.
+  s3ParquetMonitorScript = pkgs.writeShellApplication {
+    name = "xtcp2-s3parquet-monitor";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      gawk
+      gnugrep
+      gnused
+    ];
+    text = ''
+      # Wait for xtcp2's /metrics endpoint to come up before reporting.
+      # No mc/MinIO probe — xtcp2 itself owns the upload counter we
+      # rely on, so the metrics endpoint is the right readiness gate.
+      for _ in $(seq 1 60); do
+        if curl --silent --fail --max-time 2 \
+             http://127.0.0.1:9088/metrics >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+
+      interval="''${S3PARQUET_REPORT_INTERVAL:-3600}"
+      echo "XTCP2_S3PARQUET_MONITOR_START interval=''${interval}s"
+
+      # Extract a single Prometheus counter value by full label match.
+      # Returns "0" when the counter hasn't been emitted yet (e.g.
+      # before the first finalize), so smoke runs see a clean
+      # files=0 line. The `|| true` swallows pipefail when grep
+      # finds nothing — without it set -e (from
+      # writeShellApplication) kills the whole monitor on the first
+      # cold-start scrape, causing a systemd restart loop.
+      get_counter() {
+        local metrics="$1" pattern="$2"
+        local out
+        out=$( { echo "$metrics" \
+                 | grep -E "^xtcp_counts\\{[^}]*''${pattern}[^}]*\\}" \
+                 | sed -nE 's/.*\}[[:space:]]+([0-9.+e-]+).*/\1/p' \
+                 | head -n1; } || true )
+        echo "''${out:-0}"
+      }
+
+      # Pull the simple Go runtime metrics by their bare name (no
+      # label prefix). Used for goroutine / thread leak diagnosis.
+      get_simple() {
+        local metrics="$1" name="$2"
+        local out
+        out=$( { echo "$metrics" \
+                 | grep -E "^''${name}[[:space:]]" \
+                 | sed -nE 's/[^[:space:]]+[[:space:]]+([0-9.+e-]+).*/\1/p' \
+                 | head -n1; } || true )
+        echo "''${out:-0}"
+      }
+
+      while true; do
+        sleep "$interval"
+        metrics=$(curl --silent --fail --max-time 5 \
+                       http://127.0.0.1:9088/metrics 2>/dev/null || echo "")
+        files=$(get_counter "$metrics" 'variable="upload"')
+        bytes=$(get_counter "$metrics" 'variable="uploadBytes"')
+        rows=$(get_counter "$metrics" 'variable="uploadRows"')
+        gor=$(get_simple "$metrics" 'go_goroutines')
+        thr=$(get_simple "$metrics" 'go_threads')
+        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}" "''${gor:=0}" "''${thr:=0}"
+        # Prometheus client may print "5.4e+07"; convert through awk so
+        # the sentinel shows the integer rather than the scientific-
+        # notation prefix (a previous attempt used "''${var%.*}" which
+        # strips after the last `.` and turned "5.4e+07" into "5").
+        files=$(awk -v n="$files" 'BEGIN { printf "%.0f", n+0 }')
+        bytes=$(awk -v n="$bytes" 'BEGIN { printf "%.0f", n+0 }')
+        rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
+        gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
+        thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr}"
+      done
+    '';
+  };
+
+  # Args for the long-soak flavor. Production-sized 63 MiB flush
+  # threshold — at the steady ~1 MB/min raw-row rate seen in the 30 min
+  # smoke, a 12 h run produces ~12 finalized objects (multiple files in
+  # 12 h, matching the user's stated expectation). Drop to 1048576 for
+  # smoke runs that need a visible file count growing every minute.
+  # Poll rate 10 s keeps the daemon CPU-cheap over multi-hour runs.
+  xtcp2S3ParquetLongArgs = [
     "-dest"
-    "unixgram:/run/xtcp2/output.sock"
+    "s3parquet:http://127.0.0.1:9000"
     "-marshal"
     "protobufList"
     "-frequency"
-    "2s"
-    # xtcp2 requires `-timeout < -frequency`; defaults are 5 s / 10 s. With
-    # frequency dropped to 2 s for fast lifecycle-test cycles, timeout must
-    # come down too.
+    "10s"
     "-timeout"
-    "1s"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "67108864"
+    # Stream profile data to the in-VM Pyroscope server. Empty value
+    # would disable the agent — kept on for long soaks because that's
+    # where leak diagnosis lives.
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-long"
+  ];
+
+  # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
+  # flavor. The primary instance writes to kafka (xtcp2ClickPipeArgs);
+  # this one writes parquet to the same in-VM MinIO so ClickHouse can
+  # read both paths. Different prom + grpc ports so the two instances
+  # don't clash. 256 KiB flush threshold gives parquet turnover within
+  # the 5-10 min boot exercise window (production deployments would
+  # raise this to the 63 MiB default).
+  xtcp2ClickPipeParquetArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "5s"
+    "-timeout"
+    "2s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "262144"
+    "-promListen"
+    ":9089"
+    "-grpcPort"
+    "8890"
   ];
 
   # Both the basic and coverage flavors override the default dest. The
@@ -562,6 +885,29 @@ let
     # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
     # path runs (otherwise 0% covered; the syscall variant runs by default).
     ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
+
+  # s3parquet flavor: write Parquet straight to MinIO. Lifecycle-test
+  # threshold dropped to 1 MiB so a 90 s boot exercise actually triggers
+  # a finalize+upload; production default (set via
+  # S3_PARQUET_FLUSH_BYTES=0) is 63 MiB.
+  xtcp2S3ParquetArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "1048576"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -570,7 +916,7 @@ in
     microvm.nixosModules.microvm
     ../modules/xtcp2-service.nix
   ]
-  ++ lib.optionals isVector vectorModules
+  ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ [
     (
       { config, ... }:
@@ -603,21 +949,31 @@ in
         # NixOS is enabled and blocks everything but ssh, so without
         # these `curl 127.0.0.1:18123` from the host gets a TCP RST.
         networking.firewall.allowedTCPPorts =
-          lib.optionals (isTcpStress || isClickPipe) [
+          lib.optionals (isTcpStress || isAnyClickPipe || isAnyS3Parquet) [
             9088 # xtcp2 prometheus
             8889 # xtcp2 grpc
           ]
           ++ lib.optional isTcpStress 9090 # in-VM Prometheus
-          ++ lib.optionals isClickPipe [
+          ++ lib.optionals isAnyS3Parquet [
+            9000 # MinIO API
+            9001 # MinIO console
+          ]
+          ++ lib.optionals isS3ParquetLong [
+            14040 # Pyroscope OSS UI + ingest
+          ]
+          ++ lib.optionals isAnyClickPipe [
             18123 # clickhouse HTTP
             19001 # clickhouse native
             19092 # redpanda kafka external
             19644 # redpanda admin
             18081 # schema registry
             3000 # grafana
-            # 9090 (prometheus) intentionally not in forwardPorts —
-            # see comment in microvm.forwardPorts.
-            9090 # still open the firewall so grafana's internal call works
+            9090 # prometheus (host accesses via :19090 → guest :9090)
+          ]
+          ++ lib.optionals isClickPipeParquet [
+            # Second xtcp2 instance's prom + grpc endpoints (parquet path).
+            9089
+            8890
           ];
 
         microvm = {
@@ -632,24 +988,46 @@ in
           # kafka_engine couldn't commit offsets, back-pressure froze
           # xtcp2's producer, row count plateaued at ~18k. Fix: give
           # docker its own ext4 disk on the host so /var/lib/docker
-          # gets real (not RAM) bytes. 8 GiB covers a 12h soak with
-          # MergeTree compression at ~3 rows/s × ~1 KiB/row + dockerd
-          # working set + redpanda topic data.
-          volumes = lib.optionals isClickPipe [
-            {
-              # User-writable path so microvm-run can autoCreate the
-              # image without sudo. /tmp is RAM-backed on most distros
-              # but big enough for the 8 GiB image; if you want
-              # cross-boot persistence move this to ~/.cache or a
-              # mounted disk and add `microvm.preStart` to mkdir.
-              image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
-              mountPoint = "/var/lib/docker";
-              size = 8192;
-              autoCreate = true;
-              fsType = "ext4";
-              label = "xtcp2dock";
-            }
-          ];
+          # gets real (not RAM) bytes. 16 GiB covers a 24h soak with
+          # MergeTree compression (~3.6 GiB / 24h) + dockerd working
+          # set + redpanda topic data + redpanda segment log (uncapped
+          # by default). The earlier 8 GiB hit 99 % at T+22h of a 24h
+          # soak.
+          volumes =
+            lib.optionals isAnyClickPipe [
+              {
+                # User-writable path so microvm-run can autoCreate the
+                # image without sudo. /tmp is RAM-backed on most distros
+                # but big enough for the 16 GiB image; if you want
+                # cross-boot persistence move this to ~/.cache or a
+                # mounted disk and add `microvm.preStart` to mkdir.
+                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
+                mountPoint = "/var/lib/docker";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2dock";
+              }
+            ]
+            ++ lib.optionals isClickPipeParquet [
+              {
+                # Dedicated disk for MinIO data in the mixed
+                # clickhouse-pipeline-parquet flavor. Default
+                # minio-bucket-bootstrap.nix puts /var/lib/minio on
+                # a 512 MiB tmpfs — fine for short smokes, ran out
+                # at T+22h of a 24h soak (the parquet path uploads
+                # ~10 MiB/min sustained → 14 GiB over 24h). 16 GiB
+                # ext4 disk covers a full 24h with margin; sparse
+                # file so disk space on the host is consumed
+                # incrementally.
+                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-minio.img";
+                mountPoint = "/var/lib/minio";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2minio";
+              }
+            ];
           interfaces = [
             {
               type = "user";
@@ -665,9 +1043,9 @@ in
           # the docker `-p 18123:8123` mapping then routes into the
           # clickhouse container.
           forwardPorts =
-            lib.optionals (isTcpStress || isClickPipe) [
+            lib.optionals (isTcpStress || isAnyClickPipe || isAnyS3Parquet) [
               # xtcp2 daemon's prometheus + grpc endpoints — same on
-              # every docker-enabled flavor.
+              # every flavor that runs xtcp2 with networking surface.
               {
                 from = "host";
                 host.port = 9088;
@@ -679,6 +1057,33 @@ in
                 guest.port = 8889;
               }
             ]
+            ++ lib.optionals isAnyS3Parquet [
+              # MinIO API (9000) and console (9001) — lets host-side
+              # `mc ls` and a browser hit the in-VM MinIO from the dev box.
+              {
+                from = "host";
+                host.port = 9000;
+                guest.port = 9000;
+              }
+              {
+                from = "host";
+                host.port = 9001;
+                guest.port = 9001;
+              }
+            ]
+            ++ lib.optionals isS3ParquetLong [
+              # Pyroscope UI on the long-soak flavor so operators can
+              # open http://127.0.0.1:14040 from the host and inspect
+              # the live profile. Port shifted off the canonical 4040
+              # because pyroscope was failing to bind it inside the
+              # VM (still investigating; alternate port lets the run
+              # proceed).
+              {
+                from = "host";
+                host.port = 14040;
+                guest.port = 14040;
+              }
+            ]
             ++ lib.optionals isTcpStress [
               # in-VM Prometheus server for the tcp-stress flavor.
               {
@@ -687,7 +1092,7 @@ in
                 guest.port = 9090;
               }
             ]
-            ++ lib.optionals isClickPipe [
+            ++ lib.optionals isAnyClickPipe [
               # ClickHouse HTTP (clickhouse-client uses it via 8123,
               # native via 9000; the docker run publishes them on 18123
               # and 19001 respectively to avoid clashing with anything
@@ -728,13 +1133,29 @@ in
                 guest.port = 3000;
               }
               # Prometheus inside the VM is reachable to Grafana via
-              # 127.0.0.1:9090 internally — no host forward by default,
-              # and :9090 frequently clashes. Use host:19090 if you
-              # want host-side browsing (commented out — uncomment +
-              # add 19090 to firewall list).
-              # {
-              #   from = "host"; host.port = 19090; guest.port = 9090;
-              # }
+              # 127.0.0.1:9090 internally — host-side access via
+              # 19090 (avoiding the common :9090 clash).
+              {
+                from = "host";
+                host.port = 19090;
+                guest.port = 9090;
+              }
+            ]
+            ++ lib.optionals isClickPipeParquet [
+              # Second xtcp2 instance's prom + grpc — the secondary
+              # parquet-writing instance binds these (encoded in
+              # xtcp2ClickPipeParquetArgs). Host curl :9089/metrics
+              # shows the s3parquet upload counter directly.
+              {
+                from = "host";
+                host.port = 9089;
+                guest.port = 9089;
+              }
+              {
+                from = "host";
+                host.port = 8890;
+                guest.port = 8890;
+              }
             ];
           shares = [
             {
@@ -850,26 +1271,88 @@ in
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
-            if isVector then
-              xtcp2VectorArgs
-            else if isCoverage then
+            if isCoverage then
               xtcp2CoverageArgs
-            else if isClickPipe then
+            else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
+              # The mixed flavor uses these args for its primary xtcp2
+              # instance (kafka path); a second instance writing parquet
+              # is declared separately below.
               xtcp2ClickPipeArgs
+            else if isS3Parquet then
+              # s3parquet lifecycle flavor: 1 MiB flush threshold so the
+              # 90 s boot exercise triggers a finalize+upload.
+              xtcp2S3ParquetArgs
+            else if isS3ParquetLong || isCapCheckFail then
+              # s3parquet-long flavor: production 63 MiB flush threshold,
+              # 10 s polling. Pairs with mkS3ParquetRunner.
+              # capcheck-fail reuses the same args (so the daemon's
+              # config is otherwise valid; the capability check is the
+              # only thing that fails).
+              xtcp2S3ParquetLongArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
               # downstream destination throughput.
               xtcp2BasicArgs;
+          # capcheck-fail intentionally drops CAP_SYS_ADMIN. Anything
+          # else gets the default full set.
+          capabilities = lib.mkIf isCapCheckFail [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+            "CAP_SYS_RESOURCE"
+            # CAP_SYS_ADMIN omitted on purpose — startup capability
+            # check should refuse to start with a clear diagnostic.
+          ];
+        };
+
+        # Second xtcp2 instance for the mixed flavor: writes parquet
+        # to MinIO in parallel with the kafka-producing primary
+        # instance above. Same caps, different prom + grpc ports
+        # (encoded in xtcp2ClickPipeParquetArgs), no extra docker /
+        # MinIO setup needed (the bucket bootstrap module is already
+        # imported by s3ParquetModules under isAnyS3Parquet).
+        systemd.services.xtcp2-parquet = lib.mkIf isClickPipeParquet {
+          description = "xtcp2 — TCP socket introspection (parquet sink, secondary instance)";
+          after = [
+            "network-online.target"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wants = [
+            "network-online.target"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${xtcp2Package}/bin/xtcp2 ${lib.concatStringsSep " " xtcp2ClickPipeParquetArgs}";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            User = "root";
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_RESOURCE"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_RESOURCE"
+              "CAP_SYS_ADMIN"
+            ];
+            TasksMax = 8192;
+            LimitNPROC = 8192;
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
         };
 
         # Self-test oneshot. The self-test's check 1 retries `systemctl
-        # is-active xtcp2` for 30 s, so it is robust to xtcp2 starting via
-        # the systemd.path gate (vector flavor) vs. directly at boot
-        # (minimal flavor). Skipped on the soak flavor (long-running churn
-        # + metric scrape services replace it).
-        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak) {
+        # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
+        # boot or via a systemd.path gate. Skipped on long-running flavors
+        # (soak / s3parquet-long), which run heartbeat services instead.
+        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak && !isS3ParquetLong) {
           description = "xtcp2 microvm self-test";
           after = [
             "xtcp2.service"
@@ -891,7 +1374,7 @@ in
         # (see nix/microvms/lib.nix mkSoakRunner) boots the VM, sleeps for
         # the configured -duration, then powers it off and inspects the
         # metric log + journal for crashes/restarts.
-        systemd.services.xtcp2-soak-churn = lib.mkIf isSoak {
+        systemd.services.xtcp2-soak-churn = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
           description = "xtcp2 soak — nsTest namespace churn driver";
           after = [
             "xtcp2.service"
@@ -907,6 +1390,32 @@ in
             # load even across an `ip netns` blip.
             Restart = "on-failure";
             RestartSec = "2s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # s3parquet-long: hourly file-count monitor. Sentinel format
+        # mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
+        # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
+        # (seconds) — the runner overrides per phase.
+        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf isS3ParquetLong {
+          description = "xtcp2 s3parquet-long — hourly MinIO file-count reporter";
+          after = [
+            "xtcp2.service"
+            "multi-user.target"
+          ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          environment.S3PARQUET_REPORT_INTERVAL = toString s3ParquetReportIntervalDefault;
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${s3ParquetMonitorScript}/bin/xtcp2-s3parquet-monitor";
+            # Crash-loop here would silently hide xtcp2's progress; restart
+            # so a brief mc/MinIO blip doesn't permanently silence the
+            # sentinel stream.
+            Restart = "on-failure";
+            RestartSec = "5s";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -938,52 +1447,110 @@ in
         # known population of ESTABLISHED sockets with measurable RTT /
         # bytes-sent / segs-out for the parser to chew on. The two units
         # below run alongside the nsTest churn for the soak flavor.
-        systemd.services.xtcp2-soak-tcp-server = lib.mkIf isSoak {
-          description = "xtcp2 soak — tcp_server echo listeners";
+        systemd.services.xtcp2-soak-tcp-server =
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+            {
+              description = "xtcp2 soak — tcp_server echo listeners";
+              after = [ "network-online.target" ];
+              wants = [ "network-online.target" ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                Type = "simple";
+                ExecStart = "${xtcp2AllPackage}/bin/tcp_server -count ${toString soakTcpServerCount} -bind 0.0.0.0";
+                Restart = "on-failure";
+                RestartSec = "2s";
+                # Need enough fd headroom for `tcpServerCount` listeners +
+                # `tcpClientCount` accepted conns. Default nofile is 1024;
+                # bump it explicitly.
+                LimitNOFILE = 65536;
+                StandardOutput = "journal";
+                StandardError = "journal+console";
+              };
+            };
+
+        # Inject brief loopback TCP traffic INSIDE each ns. The
+        # tcp_server/tcp_client pair above lives in the default ns
+        # only — without this service the per-namespace netlink reads
+        # would be empty and parquet would build nothing.
+        #
+        # NOTE: replaced by nsTest's in-process -traffic flag (see
+        # soakChurnScript). This unit is left guarded behind `false`
+        # so callers / debug references still resolve but the broken
+        # shell-loop variant doesn't try to run.
+        systemd.services.xtcp2-soak-ns-traffic = lib.mkIf false {
+          description = "xtcp2 soak — in-namespace TCP loopback injector";
+          # No After/Wants on xtcp2-soak-churn — that creates a
+          # systemd ordering cycle (caught it in the first
+          # aggressive 12 h: the unit got SKIPped with
+          # "Ordering cycle found"). The driver script already
+          # idles when /run/netns/ is empty, so racing churn at
+          # boot is fine.
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
           wantedBy = [ "multi-user.target" ];
+          # The first aggressive 12 h soak ran but produced
+          # files=0 / envelopeRows=72 across the whole 12 h. The
+          # `ip link set lo up` inside the entered netns was
+          # silently failing (script swallowed errors) because
+          # systemd's default service caps don't cover what
+          # `ip netns exec` needs to manipulate interfaces in the
+          # new ns. Grant the same set xtcp2 itself uses + put
+          # them in Ambient so child processes (ip, ncat) inherit.
           serviceConfig = {
             Type = "simple";
-            ExecStart = "${xtcp2AllPackage}/bin/tcp_server -count ${toString soakTcpServerCount} -bind 0.0.0.0";
+            ExecStart = "${soakNsTrafficScript_UNUSED}/bin/xtcp2-soak-ns-traffic";
             Restart = "on-failure";
             RestartSec = "2s";
-            # Need enough fd headroom for `tcpServerCount` listeners +
-            # `tcpClientCount` accepted conns. Default nofile is 1024;
-            # bump it explicitly.
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_ADMIN"
+            ];
+            # Lots of short-lived processes per cycle.
+            TasksMax = 8192;
             LimitNOFILE = 65536;
-            StandardOutput = "journal";
+            # Errors from the inject helper must reach console so
+            # cap/perms regressions don't silently produce
+            # files=0 runs again.
+            StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
         };
 
-        systemd.services.xtcp2-soak-tcp-client = lib.mkIf isSoak {
-          description = "xtcp2 soak — tcp_client traffic generators";
-          # tcp_server takes a moment to bind all N ports — gate the
-          # clients behind its readiness so the dial-retry loop in
-          # tcp_client doesn't burn through its budget at boot.
-          after = [
-            "xtcp2-soak-tcp-server.service"
-            "network-online.target"
-          ];
-          wants = [
-            "xtcp2-soak-tcp-server.service"
-            "network-online.target"
-          ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Type = "simple";
-            # Brief delay so the server's Accept loop is up. tcp_client
-            # also retries dial up to -dialr times so this is belt+suspenders.
-            ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
-            ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}";
-            Restart = "on-failure";
-            RestartSec = "2s";
-            LimitNOFILE = 65536;
-            StandardOutput = "journal";
-            StandardError = "journal+console";
-          };
-        };
+        systemd.services.xtcp2-soak-tcp-client =
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+            {
+              description = "xtcp2 soak — tcp_client traffic generators";
+              # tcp_server takes a moment to bind all N ports — gate the
+              # clients behind its readiness so the dial-retry loop in
+              # tcp_client doesn't burn through its budget at boot.
+              after = [
+                "xtcp2-soak-tcp-server.service"
+                "network-online.target"
+              ];
+              wants = [
+                "xtcp2-soak-tcp-server.service"
+                "network-online.target"
+              ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                Type = "simple";
+                # Brief delay so the server's Accept loop is up. tcp_client
+                # also retries dial up to -dialr times so this is belt+suspenders.
+                ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+                ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}";
+                Restart = "on-failure";
+                RestartSec = "2s";
+                LimitNOFILE = 65536;
+                StandardOutput = "journal";
+                StandardError = "journal+console";
+              };
+            };
 
         # Enable docker daemon for any flavor that needs it. Adds
         # ~150 MiB to the VM image (dockerd + containerd) but keeps the
@@ -1005,7 +1572,7 @@ in
         # service that curls Prometheus and writes per-query JSON lines
         # to a file so the user sees concrete data even if they don't
         # log into the VM to browse the web UI.
-        services.prometheus = lib.mkIf (isTcpStress || isClickPipe) {
+        services.prometheus = lib.mkIf (isTcpStress || isAnyClickPipe) {
           enable = true;
           port = 9090;
           listenAddress = "0.0.0.0";
@@ -1019,9 +1586,17 @@ in
               static_configs = [
                 {
                   targets = [ "127.0.0.1:${toString cfg.promPort}" ];
-                  labels.instance = "xtcp2-vm";
+                  labels.instance = "xtcp2-primary";
                 }
-              ];
+              ]
+              ++ lib.optional isClickPipeParquet {
+                # The mixed flavor runs a second xtcp2 instance for the
+                # parquet path on port 9089. Scrape both so we can
+                # compare goroutine/memory/GC trends across the two
+                # backends side-by-side in Grafana / promql.
+                targets = [ "127.0.0.1:9089" ];
+                labels.instance = "xtcp2-parquet";
+              };
             }
             {
               job_name = "prometheus-self";
@@ -1051,7 +1626,7 @@ in
         # http://127.0.0.1:3000 directly. Default admin/admin login —
         # change via grafana UI on first browse, or set a password via
         # services.grafana.settings.security.admin_password.
-        services.grafana = lib.mkIf isClickPipe {
+        services.grafana = lib.mkIf isAnyClickPipe {
           enable = true;
           declarativePlugins = with pkgs.grafanaPlugins; [
             grafana-clickhouse-datasource
@@ -1207,7 +1782,7 @@ in
         # The script's tail loop also prints XTCP2_CLICKPIPE_ROWS every 30s
         # so the host runner can grep current row count out of the
         # transcript without docker exec.
-        systemd.services.xtcp2-clickpipe-up = lib.mkIf isClickPipe {
+        systemd.services.xtcp2-clickpipe-up = lib.mkIf isAnyClickPipe {
           description = "xtcp2 clickhouse-pipeline — redpanda + clickhouse + topic + initdb";
           after = [ "docker.service" ];
           requires = [ "docker.service" ];
@@ -1235,7 +1810,7 @@ in
         # Companion monitor: tail row count from xtcp.xtcp_flat_records
         # every 30s so the operator can see records arriving without
         # logging in.
-        systemd.services.xtcp2-clickpipe-monitor = lib.mkIf isClickPipe {
+        systemd.services.xtcp2-clickpipe-monitor = lib.mkIf isAnyClickPipe {
           description = "xtcp2 clickhouse-pipeline — periodic row count monitor";
           after = [
             "xtcp2-clickpipe-up.service"
@@ -1260,7 +1835,7 @@ in
         # enough to scrape). NixOS drops it at /etc/xtcp2/xtcp_flat_record.proto
         # and the -xtcpProtoFile arg in xtcp2ClickPipeArgs points at that
         # path.
-        environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isClickPipe {
+        environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isAnyClickPipe {
           source = ../../proto/xtcp_flat_record/v1/xtcp_flat_record.proto;
         };
 
@@ -1276,15 +1851,6 @@ in
             util-linux
             systemd
           ])
-          ++ lib.optionals isVector (
-            with pkgs;
-            [
-              vector
-              minio
-              minio-client
-              duckdb
-            ]
-          )
           ++ lib.optionals isTcpStress (with pkgs; [ docker ])
           ++ [ xtcp2AllPackage ];
       }

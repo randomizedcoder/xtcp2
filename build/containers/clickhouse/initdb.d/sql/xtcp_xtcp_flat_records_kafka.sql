@@ -212,7 +212,25 @@ SETTINGS
   kafka_num_consumers = 1,
   kafka_thread_per_consumer = 0,
   kafka_skip_broken_messages = 0,
-  kafka_handle_error_mode = 'stream';
+  kafka_handle_error_mode = 'stream',
+  -- ProtobufList already batches: each kafka message is an Envelope
+  -- containing ~100-1000 XtcpFlatRecord rows. The kafka_engine's
+  -- own Block accumulation (kafka_max_block_size, default 65,505 rows)
+  -- is therefore mostly redundant on top — it just holds rows in memory
+  -- across many kafka messages before pushing the MV. Combined with
+  -- the per-poll batch (kafka_poll_max_batch_size, 16 messages here),
+  -- a single MV flush at 65K rows was the source of 131 MiB chunk
+  -- allocations that tipped CH's per-server memory cap.
+  -- Settings:
+  --   kafka_poll_max_batch_size = 16   ~16 kafka messages per poll
+  --   kafka_max_block_size      = 1024 ~1 envelope per flush
+  --   kafka_flush_interval_ms   = 2000 backstop: flush at most every 2 s
+  -- With ~430 envelopeRows/sec from xtcp2 the Block fills in ~2.4 s on
+  -- average, so flushes happen at the row-threshold most of the time
+  -- and the time-backstop kicks in only when the producer is quiet.
+  kafka_max_block_size = 1024,
+  kafka_poll_max_batch_size = 16,
+  kafka_flush_interval_ms = 2000;
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
 -- SELECT * FROM system.kafka_consumers FORMAT Vertical;

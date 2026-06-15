@@ -16,8 +16,17 @@ import (
 	"syscall"
 	"time"
 
-	// protovalidate "github.com/bufbuild/protovalidate-go"
+	// Side-effect import: registers /debug/pprof/* handlers on
+	// http.DefaultServeMux. promHandlerStarter listens on /metrics
+	// via the same mux, so /debug/pprof/goroutine etc. are reachable
+	// on the prom port — handy when forensic stack snapshots are
+	// needed without standing up a separate debug-only HTTP server.
+	// Pyroscope provides continuous profiles; pprof here is the
+	// on-demand /debug/pprof endpoints the Go stdlib registers.
+	_ "net/http/pprof" //nolint:gosec // /metrics port is bound to lo / VM-only in deployments
+
 	"github.com/bufbuild/protovalidate-go"
+	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -82,6 +91,27 @@ const (
 	// validates the value at startup.
 	kafkaCompressionCst = ""
 
+	// s3parquet destination defaults. All empty/zero by default — only
+	// kick in when -dest is s3parquet:... and the operator sets these
+	// via flag or env. Picked up by the dest_s3parquet build-tagged
+	// destination; on a binary built without -tags dest_s3parquet
+	// these fields are wired through harmlessly.
+	s3EndpointCst                        = ""
+	s3BucketCst                          = ""
+	s3PrefixCst                          = ""
+	s3AccessKeyCst                       = ""
+	s3SecretKeyCst                       = ""
+	s3RegionCst                          = ""
+	s3ParquetFlushThresholdBytesCst uint = 0
+
+	// Pyroscope continuous-profiling defaults. Agent disabled when
+	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
+	// PYROSCOPE_URL env, see environmentOverride).
+	pyroscopeUrlCst            = ""
+	pyroscopeAppNameCst        = "xtcp2"
+	pyroscopeSampleHzCst  uint = 100
+	pyroscopeUploadSecCst uint = 15
+
 	// Redpanda
 	destCst = "kafka:redpanda-0:9092"
 	// destCst = "udp:127.0.0.1:13000"
@@ -137,42 +167,53 @@ var (
 // short and lets the per-section helpers (printFlags, buildConfig,
 // startProfile) take a single argument instead of 30 positional ones.
 type mainFlags struct {
-	nltimeout          *uint64
-	pollFrequency      *time.Duration
-	pollTimeout        *time.Duration
-	maxLoops           *uint64
-	netlinkers         *uint
-	nlmsgSeq           *uint
-	packetSize         *uint64
-	packetSizeMply     *uint
-	writeFiles         *uint
-	capturePath        *string
-	modulus            *uint64
-	marshal            *string
-	envelopeFlushBytes *uint
-	envelopeFlushRows  *uint
-	kafkaCompression   *string
-	dest               *string
-	destWriteFiles     *uint
-	topic              *string
-	xtcpProtoFile      *string
-	kafkaSchemaUrl     *string
-	produceTimeout     *time.Duration
-	label              *string
-	tag                *string
-	grpcPort           *uint
-	deserializers      *string
-	promListen         *string
-	promPath           *string
-	goMaxProcs         *uint
-	maxThreads         *int
-	profileMode        *string
-	v                  *bool
-	conf               *bool
-	d                  *uint
-	ioUring            *bool
-	ioUringRecvBatch   *uint
-	ioUringCqeBatch    *uint
+	nltimeout           *uint64
+	pollFrequency       *time.Duration
+	pollTimeout         *time.Duration
+	maxLoops            *uint64
+	netlinkers          *uint
+	nlmsgSeq            *uint
+	packetSize          *uint64
+	packetSizeMply      *uint
+	writeFiles          *uint
+	capturePath         *string
+	modulus             *uint64
+	marshal             *string
+	envelopeFlushBytes  *uint
+	envelopeFlushRows   *uint
+	kafkaCompression    *string
+	s3Endpoint          *string
+	s3Bucket            *string
+	s3Prefix            *string
+	s3AccessKey         *string
+	s3SecretKey         *string
+	s3Region            *string
+	s3ParquetFlushBytes *uint
+	dest                *string
+	destWriteFiles      *uint
+	topic               *string
+	xtcpProtoFile       *string
+	kafkaSchemaUrl      *string
+	produceTimeout      *time.Duration
+	label               *string
+	tag                 *string
+	grpcPort            *uint
+	deserializers       *string
+	promListen          *string
+	promPath            *string
+	goMaxProcs          *uint
+	maxThreads          *int
+	profileMode         *string
+	pyroscopeUrl        *string
+	pyroscopeAppName    *string
+	pyroscopeSampleHz   *uint
+	pyroscopeUploadSec  *uint
+	v                   *bool
+	conf                *bool
+	d                   *uint
+	ioUring             *bool
+	ioUringRecvBatch    *uint
+	ioUringCqeBatch     *uint
 }
 
 func defineFlags() *mainFlags {
@@ -193,6 +234,13 @@ func defineFlags() *mainFlags {
 	f.envelopeFlushBytes = flag.Uint("envelopeFlushBytes", envelopeFlushBytesCst, "Safety-net cap on the in-flight protobufList Envelope's UNCOMPRESSED proto size in bytes (franz-go compresses post-flush, so wire size is typically 3-8x smaller). 0 = use daemon default (768 KiB). Whichever cap (bytes/rows) trips first wins.")
 	f.envelopeFlushRows = flag.Uint("envelopeFlushRows", envelopeFlushRowsCst, "Primary cap on the in-flight protobufList Envelope's row count. 0 = use daemon default (10000). Cheap, predictable; pairs with -envelopeFlushBytes as a safety net.")
 	f.kafkaCompression = flag.String("kafkaCompression", kafkaCompressionCst, "Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.")
+	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
+	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
+	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env. Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env. Never logged.")
+	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
+	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.dest = flag.String("dest", destCst, "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, or nsq:127.0.0.1:4150")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
@@ -215,6 +263,13 @@ func defineFlags() *mainFlags {
 	// ./xtcp2 --profile.mode cpu
 	// timeout 1h ./xtcp2 --profile.mode cpu
 	f.profileMode = flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
+	// Pyroscope continuous profiling. Empty -pyroscopeUrl disables
+	// the agent (zero overhead). Set per-environment via env vars or
+	// the systemd drop-in; we never ship credentials in argv.
+	f.pyroscopeUrl = flag.String("pyroscopeUrl", pyroscopeUrlCst, "Pyroscope server URL (e.g. http://127.0.0.1:4040). Empty disables the agent. Falls back to PYROSCOPE_URL env.")
+	f.pyroscopeAppName = flag.String("pyroscopeAppName", pyroscopeAppNameCst, "Application name registered with Pyroscope. Falls back to PYROSCOPE_APP_NAME env.")
+	f.pyroscopeSampleHz = flag.Uint("pyroscopeSampleHz", pyroscopeSampleHzCst, "CPU sampling rate in Hz fed to runtime.SetCPUProfileRate.")
+	f.pyroscopeUploadSec = flag.Uint("pyroscopeUploadSec", pyroscopeUploadSecCst, "Seconds between batched profile uploads to Pyroscope.")
 	f.v = flag.Bool("v", false, "show version")
 	f.conf = flag.Bool("conf", false, "show config")
 	f.d = flag.Uint("d", debugLevelCst, "debug level")
@@ -240,6 +295,17 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*envelopeFlushBytes:", *f.envelopeFlushBytes)
 	fmt.Println("*envelopeFlushRows:", *f.envelopeFlushRows)
 	fmt.Println("*kafkaCompression:", *f.kafkaCompression)
+	fmt.Println("*s3Endpoint:", *f.s3Endpoint)
+	fmt.Println("*s3Bucket:", *f.s3Bucket)
+	fmt.Println("*s3Prefix:", *f.s3Prefix)
+	// *f.s3AccessKey and *f.s3SecretKey intentionally NOT printed —
+	// they would leak via console logs, lifecycle test scrapers, etc.
+	fmt.Println("*s3Region:", *f.s3Region)
+	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
+	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
+	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
+	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
+	fmt.Println("*pyroscopeUploadSec:", *f.pyroscopeUploadSec)
 	fmt.Println("*dest:", *f.dest)
 	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
 	fmt.Println("*topic:", *f.topic)
@@ -254,33 +320,44 @@ func printFlags(f *mainFlags) {
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
 	return &xtcp_config.XtcpConfig{
-		NlTimeoutMilliseconds:       *f.nltimeout,
-		PollFrequency:               durationpb.New(*f.pollFrequency),
-		PollTimeout:                 durationpb.New(*f.pollTimeout),
-		MaxLoops:                    *f.maxLoops,
-		Netlinkers:                  uint32(*f.netlinkers),
-		NetlinkersDoneChanSize:      netlinkerDoneChSizeCst,
-		NlmsgSeq:                    uint32(*f.nlmsgSeq),
-		PacketSize:                  *f.packetSize,
-		PacketSizeMply:              uint32(*f.packetSizeMply),
-		WriteFiles:                  uint32(*f.writeFiles),
-		CapturePath:                 *f.capturePath,
-		Modulus:                     *f.modulus,
-		MarshalTo:                   *f.marshal,
-		EnvelopeFlushThresholdBytes: uint32(*f.envelopeFlushBytes),
-		EnvelopeFlushThresholdRows:  uint32(*f.envelopeFlushRows),
-		KafkaCompression:            *f.kafkaCompression,
-		Dest:                        *f.dest,
-		DestWriteFiles:              uint32(*f.destWriteFiles),
-		Topic:                       *f.topic,
-		XtcpProtoFile:               *f.xtcpProtoFile,
-		KafkaSchemaUrl:              *f.kafkaSchemaUrl,
-		KafkaProduceTimeout:         durationpb.New(*f.produceTimeout),
-		DebugLevel:                  uint32(*f.d),
-		Label:                       *f.label,
-		Tag:                         *f.tag,
-		GrpcPort:                    uint32(*f.grpcPort),
-		EnabledDeserializers:        des,
+		NlTimeoutMilliseconds:        *f.nltimeout,
+		PollFrequency:                durationpb.New(*f.pollFrequency),
+		PollTimeout:                  durationpb.New(*f.pollTimeout),
+		MaxLoops:                     *f.maxLoops,
+		Netlinkers:                   uint32(*f.netlinkers),
+		NetlinkersDoneChanSize:       netlinkerDoneChSizeCst,
+		NlmsgSeq:                     uint32(*f.nlmsgSeq),
+		PacketSize:                   *f.packetSize,
+		PacketSizeMply:               uint32(*f.packetSizeMply),
+		WriteFiles:                   uint32(*f.writeFiles),
+		CapturePath:                  *f.capturePath,
+		Modulus:                      *f.modulus,
+		MarshalTo:                    *f.marshal,
+		EnvelopeFlushThresholdBytes:  uint32(*f.envelopeFlushBytes),
+		EnvelopeFlushThresholdRows:   uint32(*f.envelopeFlushRows),
+		KafkaCompression:             *f.kafkaCompression,
+		S3Endpoint:                   *f.s3Endpoint,
+		S3Bucket:                     *f.s3Bucket,
+		S3Prefix:                     *f.s3Prefix,
+		S3AccessKey:                  *f.s3AccessKey,
+		S3SecretKey:                  *f.s3SecretKey,
+		S3Region:                     *f.s3Region,
+		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
+		PyroscopeUrl:                 *f.pyroscopeUrl,
+		PyroscopeAppName:             *f.pyroscopeAppName,
+		PyroscopeSampleHz:            uint32(*f.pyroscopeSampleHz),
+		PyroscopeUploadIntervalSec:   uint32(*f.pyroscopeUploadSec),
+		Dest:                         *f.dest,
+		DestWriteFiles:               uint32(*f.destWriteFiles),
+		Topic:                        *f.topic,
+		XtcpProtoFile:                *f.xtcpProtoFile,
+		KafkaSchemaUrl:               *f.kafkaSchemaUrl,
+		KafkaProduceTimeout:          durationpb.New(*f.produceTimeout),
+		DebugLevel:                   uint32(*f.d),
+		Label:                        *f.label,
+		Tag:                          *f.tag,
+		GrpcPort:                     uint32(*f.grpcPort),
+		EnabledDeserializers:         des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
@@ -321,6 +398,63 @@ func startProfile(mode string, debugLevel uint) func() {
 		return func() {}
 	}
 	return p.Stop
+}
+
+// startPyroscope starts the Pyroscope continuous-profiling agent if a
+// server URL is configured. Returns a stop function (no-op when the
+// agent is disabled). All five profile types are enabled so a single
+// scrape gives operators CPU, memory, goroutine, mutex, and block data
+// — essential for diagnosing the kind of OS-thread accumulation that
+// killed the first 12 h soak.
+func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel uint) func() {
+	if url == "" {
+		if debugLevel > 1000 {
+			log.Println("Pyroscope disabled (empty -pyroscopeUrl)")
+		}
+		return func() {}
+	}
+	if appName == "" {
+		appName = "xtcp2"
+	}
+	if sampleHz == 0 {
+		sampleHz = 100
+	}
+	if uploadSec == 0 {
+		uploadSec = 15
+	}
+	cfg := pyroscope.Config{
+		ApplicationName: appName,
+		ServerAddress:   url,
+		UploadRate:      time.Duration(uploadSec) * time.Second,
+		SampleRate:      uint32(sampleHz),
+		ProfileTypes: []pyroscope.ProfileType{
+			pyroscope.ProfileCPU,
+			pyroscope.ProfileAllocObjects,
+			pyroscope.ProfileAllocSpace,
+			pyroscope.ProfileInuseObjects,
+			pyroscope.ProfileInuseSpace,
+			pyroscope.ProfileGoroutines,
+			pyroscope.ProfileMutexCount,
+			pyroscope.ProfileMutexDuration,
+			pyroscope.ProfileBlockCount,
+			pyroscope.ProfileBlockDuration,
+		},
+	}
+	p, err := pyroscope.Start(cfg)
+	if err != nil {
+		// Profiling is observability, never block startup on it.
+		log.Printf("pyroscope agent disabled: %v", err)
+		return func() {}
+	}
+	if debugLevel > 10 {
+		log.Printf("Pyroscope agent started: server=%s app=%s sampleHz=%d uploadInterval=%ds",
+			url, appName, sampleHz, uploadSec)
+	}
+	return func() {
+		if err := p.Stop(); err != nil {
+			log.Printf("pyroscope stop: %v", err)
+		}
+	}
 }
 
 // versionString builds the -v output line. Exposed (lowercase but in the
@@ -421,6 +555,9 @@ func runMain(parentCtx context.Context) int {
 	}
 
 	defer startProfile(*f.profileMode, debugLevel)()
+	defer startPyroscope(c.PyroscopeUrl, c.PyroscopeAppName,
+		uint(c.PyroscopeSampleHz), uint(c.PyroscopeUploadIntervalSec),
+		debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
 	promHandlerStarter(*f.promPath, *f.promListen)
@@ -744,6 +881,36 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.KafkaCompression = v
 		logEnv("KAFKA_COMPRESSION", fmt.Sprintf("c.KafkaCompression:%s", v), debugLevel)
 	}
+	if v, ok := envString("S3_ENDPOINT"); ok {
+		c.S3Endpoint = v
+		logEnv("S3_ENDPOINT", fmt.Sprintf("c.S3Endpoint:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_BUCKET"); ok {
+		c.S3Bucket = v
+		logEnv("S3_BUCKET", fmt.Sprintf("c.S3Bucket:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_PREFIX"); ok {
+		c.S3Prefix = v
+		logEnv("S3_PREFIX", fmt.Sprintf("c.S3Prefix:%s", v), debugLevel)
+	}
+	if v, ok := envString("S3_ACCESS_KEY"); ok {
+		c.S3AccessKey = v
+		// Intentionally NOT logging the access key value — only that
+		// the env var was set. Same for S3_SECRET_KEY below.
+		logEnv("S3_ACCESS_KEY", "set", debugLevel)
+	}
+	if v, ok := envString("S3_SECRET_KEY"); ok {
+		c.S3SecretKey = v
+		logEnv("S3_SECRET_KEY", "set", debugLevel)
+	}
+	if v, ok := envString("S3_REGION"); ok {
+		c.S3Region = v
+		logEnv("S3_REGION", fmt.Sprintf("c.S3Region:%s", v), debugLevel)
+	}
+	if v, ok := envUint32("S3_PARQUET_FLUSH_BYTES"); ok {
+		c.S3ParquetFlushThresholdBytes = v
+		logEnv("S3_PARQUET_FLUSH_BYTES", fmt.Sprintf("c.S3ParquetFlushThresholdBytes:%d", v), debugLevel)
+	}
 	if v, ok := envString("DEST"); ok {
 		c.Dest = v
 		logEnv("DEST", fmt.Sprintf("c.Dest:%s", v), debugLevel)
@@ -805,6 +972,12 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.EnvelopeFlushThresholdBytes:", c.EnvelopeFlushThresholdBytes)
 	fmt.Println("c.EnvelopeFlushThresholdRows:", c.EnvelopeFlushThresholdRows)
 	fmt.Println("c.KafkaCompression:", c.KafkaCompression)
+	fmt.Println("c.S3Endpoint:", c.S3Endpoint)
+	fmt.Println("c.S3Bucket:", c.S3Bucket)
+	fmt.Println("c.S3Prefix:", c.S3Prefix)
+	// c.S3AccessKey / c.S3SecretKey intentionally NOT printed.
+	fmt.Println("c.S3Region:", c.S3Region)
+	fmt.Println("c.S3ParquetFlushThresholdBytes:", c.S3ParquetFlushThresholdBytes)
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)

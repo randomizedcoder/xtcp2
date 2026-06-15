@@ -93,7 +93,7 @@ func drainerLoop(b *testing.B, fd int, stop <-chan struct{}) {
 // BenchmarkSyscallSend baseline: one syscall.Write per record.
 func BenchmarkSyscallSend(b *testing.B) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: bench test uses LockOSThread only to pin to a CPU for stable measurements, no netns mutation
 
 	srv, cli := socketpair(b)
 	stop := make(chan struct{})
@@ -123,7 +123,7 @@ func BenchmarkSyscallSend(b *testing.B) {
 // `batch`, so we never hit the in-flight cap.
 func benchmarkIoUringSend(b *testing.B, batch int) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: bench test uses LockOSThread only to pin to a CPU for stable measurements, no netns mutation
 
 	if batch < 1 {
 		batch = 1
@@ -199,7 +199,7 @@ func BenchmarkIoUringSendBatch256(b *testing.B) { benchmarkIoUringSend(b, 256) }
 // that uses a sync.Pool).
 func BenchmarkSyscallRecv(b *testing.B) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: bench test uses LockOSThread only to pin to a CPU for stable measurements, no netns mutation
 
 	srv, cli := socketpair(b)
 	payload := makePayload()
@@ -234,7 +234,7 @@ func BenchmarkSyscallRecv(b *testing.B) {
 // refills. Mirrors the design intent: many recvs per Submit/Drain syscall.
 func benchmarkIoUringRecv(b *testing.B, batch int) {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: bench test uses LockOSThread only to pin to a CPU for stable measurements, no netns mutation
 
 	if batch < 1 {
 		batch = 1

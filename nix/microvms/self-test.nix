@@ -31,6 +31,12 @@
 #   XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_{PASS,FAIL} (clickhouse-pipeline only)
 #                                              Prom envelopeRows counter vs
 #                                              ClickHouse row count within 15%
+#   XTCP2_SELF_TEST_S3PARQUET_FILES_{PASS,FAIL}       (s3parquet only)
+#                                              ≥1 .parquet object lands in
+#                                              the MinIO bucket within 90s
+#   XTCP2_SELF_TEST_S3PARQUET_ROWS_{PASS,FAIL}        (s3parquet only)
+#                                              duckdb decodes the file and
+#                                              returns ≥1 row
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -58,7 +64,24 @@
   # → _error column populated; main MV filters them out → 0 rows in
   # the destination table).
   runClickhouseCheck ? false,
+  # When true (clickhouse-pipeline-parquet flavor only), the self-test
+  # also queries the in-VM MinIO via ClickHouse's s3() table function
+  # and asserts count() > 0 against the parquet objects xtcp2 wrote.
+  # Validates the "operator queries parquet from inside ClickHouse"
+  # deployment shape side-by-side with the kafka path.
+  runClickhouseParquetCheck ? false,
   clickhousePassword ? "xtcp",
+  # When true (set on the s3parquet flavor), adds Check 13 (≥1 .parquet
+  # object lands in the MinIO bucket within 90 s) and Check 14 (duckdb
+  # can read the file back and the row count is non-zero). The
+  # rationale is the same as the ClickHouse checks: a misconfigured
+  # encoder or sanitization can land syntactically-valid uploads that
+  # downstream tools can't decode.
+  runS3ParquetCheck ? false,
+  s3Endpoint ? "http://127.0.0.1:9000",
+  s3Bucket ? "xtcp2-records",
+  s3AccessKey ? "xtcp2test",
+  s3SecretKey ? "xtcp2testsecret",
 }:
 
 pkgs.writeShellApplication {
@@ -74,7 +97,9 @@ pkgs.writeShellApplication {
     util-linux
     gnutar
     gzip
-    docker  # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
+    docker # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
+    minio-client # mc — only used by Check 13/14 (s3parquet); harmless otherwise
+    duckdb # used by Check 14 to decode the Parquet file
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -415,6 +440,60 @@ pkgs.writeShellApplication {
     fi
     if [ "$check10" -ne 0 ]; then overall_ok=0; fi
 
+    ${lib.optionalString runS3ParquetCheck ''
+      # ─── Check 13: s3parquet object landed in MinIO ──────────────────
+      # Same model as Check 11 — the daemon could be producing bytes
+      # that look right at the Kafka/proto layer but fail at the S3
+      # upload (auth, bucket permissions, network). Catch silently.
+      echo "--- check 13: s3parquet — at least one .parquet object ---"
+      export MC_CONFIG_DIR=/tmp/self-test-mc
+      mkdir -p "$MC_CONFIG_DIR"
+      mc alias set local ${s3Endpoint} ${s3AccessKey} ${s3SecretKey} >/dev/null 2>&1 || true
+      check13=1
+      parquet_key=""
+      for _ in $(seq 1 90); do
+        parquet_key=$(mc find local/${s3Bucket} --name '*.parquet' 2>/dev/null | head -n1)
+        if [ -n "$parquet_key" ]; then
+          break
+        fi
+        sleep 1
+      done
+      if [ -n "$parquet_key" ]; then
+        echo "XTCP2_SELF_TEST_S3PARQUET_FILES_PASS  (first object=$parquet_key)"
+        check13=0
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_FILES_FAIL  (no .parquet object after 90s)"
+      fi
+      if [ "$check13" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 14: s3parquet row decode ──────────────────────────────
+      # Download the first .parquet object and verify duckdb can read it
+      # AND that the row count is non-zero. Sanity check on the schema /
+      # codec choices in pkg/xtcp/destinations_s3parquet_schema.go.
+      echo "--- check 14: s3parquet — duckdb decodes the parquet file ---"
+      check14=1
+      if [ -n "$parquet_key" ]; then
+        mc cp "$parquet_key" /tmp/xtcp2-s3p.parquet >/dev/null 2>&1
+        if [ ! -s /tmp/xtcp2-s3p.parquet ]; then
+          echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (downloaded file empty: $parquet_key)"
+        else
+          rowcount=$(duckdb -noheader -list \
+            -c "SELECT count(*) FROM read_parquet('/tmp/xtcp2-s3p.parquet')" 2>/dev/null \
+            | tail -n1 | tr -d '[:space:]')
+          if [ -n "$rowcount" ] && [ "$rowcount" -ge 1 ] 2>/dev/null; then
+            echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_PASS  (rows=$rowcount, key=$parquet_key)"
+            check14=0
+          else
+            echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (duckdb returned no rows; key=$parquet_key)"
+            duckdb -c "DESCRIBE SELECT * FROM read_parquet('/tmp/xtcp2-s3p.parquet')" 2>&1 | head -n 20 || true
+          fi
+        fi
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (no parquet object to test)"
+      fi
+      if [ "$check14" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
     ${lib.optionalString runClickhouseCheck ''
       # ─── Check 11: ClickHouse received >0 rows + zero parse errors ───
       # xtcp2 marshals an Envelope per poll cycle and Kafka-ships it.
@@ -474,6 +553,37 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_FAIL  (prom=$promRows, ch=$chRows)"
       fi
       if [ "$check12" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runClickhouseParquetCheck ''
+      # ─── Check 15: ClickHouse can SELECT from MinIO parquet via s3() ──
+      # The mixed flavor runs a second xtcp2 instance with -dest s3parquet
+      # writing to in-VM MinIO. ClickHouse reaches the host (where MinIO
+      # listens) via the host.docker.internal alias added to its
+      # /etc/hosts. Wait up to 90s for the secondary xtcp2 to accumulate
+      # enough rows to hit the 4 MiB flush threshold and write the first
+      # parquet object.
+      echo "--- check 15: ClickHouse s3() reads MinIO parquet ---"
+      check15=1
+      parquetRows=0
+      for _ in $(seq 1 45); do
+        # The s3() URL uses host.docker.internal because we're inside
+        # the clickhouse container. Glob ** matches the Hive-style
+        # host=…/date=…/hour=… partitioning xtcp2's parquet writer uses.
+        parquetRows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+          -q "SELECT count() FROM s3('http://host.docker.internal:9000/xtcp2-records/**/*.parquet', 'xtcp2test', 'xtcp2testsecret', 'Parquet')" 2>/dev/null | tr -d '\r\n' || echo 0)
+        if [ "''${parquetRows:-0}" -gt 0 ] 2>/dev/null; then
+          break
+        fi
+        sleep 2
+      done
+      if [ "''${parquetRows:-0}" -gt 0 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_PASS  (rows=$parquetRows)"
+        check15=0
+      else
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_FAIL  (rows=$parquetRows)"
+      fi
+      if [ "$check15" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     echo "================================================"

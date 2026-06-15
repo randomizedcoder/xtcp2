@@ -19,6 +19,11 @@ let
   # Per-binary -help smoke matrix. Each cmd binary gets its own check attr so
   # CI logs name the failing binary cleanly.
   helpSmokes = import ./cli-help-smoke.nix { inherit pkgs lib binaries; };
+  # Capability-check smoke matrix. Verifies xtcp2 refuses to start when
+  # required Linux caps are missing AND that the diagnostic names the
+  # cap + provides remediation. Sub-second per check; lighter-weight
+  # alternative to the microvm-x86_64-capcheck-fail flavor.
+  capChecks = import ./capability-check.nix { inherit pkgs lib binaries; };
 in
 {
   go-vet = import ./go-vet.nix { inherit pkgs lib vendoredSource; };
@@ -43,3 +48,4 @@ in
   proto-field-audit = import ./proto-field-audit.nix { inherit pkgs lib vendoredSource; };
 }
 // helpSmokes
+// capChecks

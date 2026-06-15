@@ -18,6 +18,11 @@
   accessKey ? "xtcp2test",
   secretKey ? "xtcp2testsecret",
   dataSize ? "512M",
+  # When the caller provides a dedicated /var/lib/minio block device
+  # (e.g. microvm.volumes), skip the module's tmpfs declaration. The
+  # tmpfs is fine for short smokes; a 24h mixed flavor soak fills the
+  # default 512 MiB and starts losing parquet uploads.
+  useTmpfs ? true,
 }:
 
 {
@@ -80,13 +85,16 @@ in
 {
   # tmpfs for MinIO data. services.minio dataDir defaults to /var/lib/minio/data;
   # mounting the parent as tmpfs covers it and avoids fighting the module.
-  fileSystems."/var/lib/minio" = {
-    device = "tmpfs";
-    fsType = "tmpfs";
-    options = [
-      "size=${dataSize}"
-      "mode=0755"
-    ];
+  # Skipped when the caller provides a dedicated block device for /var/lib/minio.
+  fileSystems = lib.mkIf useTmpfs {
+    "/var/lib/minio" = {
+      device = "tmpfs";
+      fsType = "tmpfs";
+      options = [
+        "size=${dataSize}"
+        "mode=0755"
+      ];
+    };
   };
 
   services.minio = {
@@ -94,8 +102,13 @@ in
     rootCredentialsFile = "${credentialsFile}";
     region = "us-east-1";
     browser = false;
-    listenAddress = "127.0.0.1:9000";
-    consoleAddress = "127.0.0.1:9001";
+    # Bind on all interfaces, not 127.0.0.1, so QEMU usermode hostfwd
+    # (which routes host:9000 → VM eth0:9000) can reach MinIO. Inside
+    # the VM, xtcp2 still talks to MinIO via 127.0.0.1 (the loopback
+    # path is identical regardless of bind address); the wider bind
+    # only adds the eth0 path that hostfwd needs.
+    listenAddress = "0.0.0.0:9000";
+    consoleAddress = "0.0.0.0:9001";
     dataDir = [ "/var/lib/minio/data" ];
   };
 

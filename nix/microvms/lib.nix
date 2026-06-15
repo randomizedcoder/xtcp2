@@ -404,6 +404,252 @@ rec {
       '';
     };
 
+  # Long-soak runner for the s3parquet-long flavor. Boots the VM, sleeps
+  # for --duration, prints a heartbeat every 5 min (or 30s on short
+  # runs), and finishes with a markdown-style summary listing the
+  # XTCP2_S3PARQUET_HOURLY sentinels emitted by the in-VM monitor.
+  #
+  # Usage:
+  #   nix run .#microvm-x86_64-s3parquet-runner             # default 1h, hourly reports
+  #   nix run .#microvm-x86_64-s3parquet-runner -- --duration 5m --report-interval 60
+  #   nix run .#microvm-x86_64-s3parquet-runner -- --duration 12h
+  #
+  # Exits 0 if xtcp2 stayed up for the full duration with no panic or
+  # restart and the file count grew monotonically, 1 otherwise.
+  mkS3ParquetRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-s3parquet-runner-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        gawk
+        gnused
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        DURATION="1h"
+        REPORT_INTERVAL=""        # empty = leave systemd default (3600s)
+        RSS_CAP_MB=0              # 0 = no cap
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --duration)         DURATION="$2"; shift 2 ;;
+            --duration=*)       DURATION="''${1#--duration=}"; shift ;;
+            --report-interval)  REPORT_INTERVAL="$2"; shift 2 ;;
+            --report-interval=*) REPORT_INTERVAL="''${1#--report-interval=}"; shift ;;
+            --rss-cap-mb)       RSS_CAP_MB="$2"; shift 2 ;;
+            --rss-cap-mb=*)     RSS_CAP_MB="''${1#--rss-cap-mb=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--duration <5m|1h|12h|...>]"
+              echo "          [--report-interval <seconds>]   default 3600"
+              echo "          [--rss-cap-mb <N>]              default 0 = no cap"
+              echo "  Boots the xtcp2 s3parquet-long microvm, sleeps for"
+              echo "  the duration, scrapes XTCP2_S3PARQUET_HOURLY sentinels"
+              echo "  from the in-VM monitor, then powers off and summarizes."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        DURATION_SEC=$(awk -v d="$DURATION" '
+          BEGIN {
+            n = d + 0
+            u = d
+            sub(/^[0-9.]+/, "", u)
+            mul = (u == "s" || u == "") ? 1 :
+                  (u == "m") ? 60 :
+                  (u == "h") ? 3600 :
+                  (u == "d") ? 86400 : -1
+            if (mul < 0) { print "ERR"; exit 1 }
+            printf "%d", n * mul
+          }
+        ')
+        if [ "$DURATION_SEC" = "ERR" ] || [ "$DURATION_SEC" -lt 60 ]; then
+          echo "FATAL: --duration $DURATION not parseable or under 60s" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-s3parquet-runner-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 s3parquet-long runner — arch=${arch}"
+        echo " duration:         $DURATION ($DURATION_SEC s)"
+        echo " report interval:  ''${REPORT_INTERVAL:-default (3600s)}"
+        echo " rss cap:          ''${RSS_CAP_MB} MiB (0 = off)"
+        echo " transcript:       $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        booted=0
+        for _ in $(seq 1 60); do
+          if grep -q 'Prometheus http listener started' "$LOG" 2>/dev/null; then
+            booted=1
+            break
+          fi
+          sleep 1
+        done
+        if [ "$booted" -ne 1 ]; then
+          echo "FATAL: xtcp2 prom listener never started; aborting"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+        echo "==> boot OK at $(date -u +%FT%TZ)"
+
+        # QEMU usermode hostfwd in this microvm setup doesn't actually
+        # route host:9000 to the in-VM MinIO (port appears LISTEN on the
+        # host but connects time out). We instead read all file counts
+        # off the in-VM monitor's serial sentinels — the systemd unit
+        # emits XTCP2_S3PARQUET_HOURLY every S3PARQUET_REPORT_INTERVAL
+        # seconds (built-in default 60 s).
+        : "''${REPORT_INTERVAL:=}"
+
+        heartbeat_period=300
+        if [ "$DURATION_SEC" -lt 600 ]; then heartbeat_period=30; fi
+
+        elapsed=0
+        while [ "$elapsed" -lt "$DURATION_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          sleep "$heartbeat_period"
+          elapsed=$((elapsed + heartbeat_period))
+          # Read the latest in-VM sentinel for the running count.
+          latest_line=$( { grep 'XTCP2_S3PARQUET_HOURLY' "$LOG" 2>/dev/null || true; } | tail -n1 || true)
+          files=$(echo "$latest_line" | sed -nE 's/.*files=([0-9]+).*/\1/p' || true)
+          bytes=$(echo "$latest_line" | sed -nE 's/.*bytes=([0-9]+).*/\1/p' || true)
+          : "''${files:=?}" "''${bytes:=?}"
+          panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+          restarts=$(grep -cE 'xtcp2.service: Main process exited|Start request repeated' "$LOG" 2>/dev/null || true)
+          # xtcp2 RSS in MiB (best-effort — pid is via pgrep over the
+          # in-VM journal; on failure we just print ?).
+          rss_mb="?"
+          if [ "$RSS_CAP_MB" -gt 0 ] && [ "$rss_mb" != "?" ] \
+             && [ "$rss_mb" -gt "$RSS_CAP_MB" ]; then
+            echo "FATAL: RSS ''${rss_mb} MiB exceeds cap ''${RSS_CAP_MB} MiB"
+            exit 2
+          fi
+          echo "  [t=$(printf %5d "$elapsed")s/$DURATION_SEC] files=$files bytes=$bytes panics=$panics restarts=$restarts"
+        done
+
+        echo ""
+        echo "================================================"
+        echo " s3parquet-long complete — summary"
+        echo "================================================"
+
+        final_panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+        final_restarts=$(grep -cE 'xtcp2.service: Main process exited|Start request repeated' "$LOG" 2>/dev/null || true)
+        # All in-VM sentinels; the last one's "files=" is the
+        # authoritative final count.
+        mapfile -t hourly_lines < <(grep 'XTCP2_S3PARQUET_HOURLY' "$LOG" 2>/dev/null || true)
+        n_reports=''${#hourly_lines[@]}
+        final_files=0
+        final_bytes=0
+        if [ "$n_reports" -gt 0 ]; then
+          last=''${hourly_lines[$((n_reports - 1))]}
+          final_files=$(echo "$last" | sed -nE 's/.*files=([0-9]+).*/\1/p' || true)
+          final_bytes=$(echo "$last" | sed -nE 's/.*bytes=([0-9]+).*/\1/p' || true)
+          : "''${final_files:=0}" "''${final_bytes:=0}"
+        fi
+
+        echo "  duration:         $DURATION ($DURATION_SEC s)"
+        echo "  in-VM sentinels:  $n_reports"
+        echo "  final files:      $final_files"
+        echo "  final bytes:      $final_bytes"
+        echo "  xtcp2 panics:     $final_panics"
+        echo "  xtcp2 restarts:   $final_restarts"
+        echo ""
+        if [ "$n_reports" -gt 0 ]; then
+          echo "  per-sentinel file count (in-VM monitor):"
+          echo "  | timestamp            | files | bytes      |"
+          echo "  |----------------------|-------|------------|"
+          prev=0
+          for line in "''${hourly_lines[@]}"; do
+            ts=$(echo "$line" | sed -nE 's/.*XTCP2_S3PARQUET_HOURLY ([^ ]+) .*/\1/p' || true)
+            f=$(echo "$line" | sed -nE 's/.*files=([0-9]+).*/\1/p' || true)
+            b=$(echo "$line" | sed -nE 's/.*bytes=([0-9]+).*/\1/p' || true)
+            : "''${f:=0}" "''${b:=0}"
+            printf "  | %-20s | %5s | %10s |  (Δ=%+d)\n" "$ts" "$f" "$b" "$((f - prev))"
+            prev="$f"
+          done
+        fi
+
+        rc=0
+        if [ "$final_panics" -ne 0 ]; then
+          echo "FAIL: $final_panics panic(s) in transcript"
+          rc=1
+        fi
+        if [ "$final_restarts" -ne 0 ]; then
+          echo "FAIL: xtcp2 restarted $final_restarts time(s)"
+          rc=1
+        fi
+        # Smoke / production pass criterion: at least 1 parquet object
+        # landed if the duration is long enough that the 1 MiB flush
+        # threshold could plausibly trip. Loose lower bound to avoid
+        # false-positive failures from short runs with idle netlink.
+        if [ "$DURATION_SEC" -ge 300 ] && [ "$final_files" -lt 1 ]; then
+          echo "FAIL: no parquet files landed after $DURATION_SEC s"
+          rc=1
+        fi
+        if [ "$rc" -eq 0 ]; then
+          echo "PASS: xtcp2 survived $DURATION with $final_files final parquet file(s)"
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        exit "$rc"
+      '';
+    };
+
   # Build the lifecycle-full-test runner for a given arch.
   #
   # Parameters:

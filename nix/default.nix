@@ -46,10 +46,10 @@ let
       ;
   };
 
-  # Protobuf FileDescriptorSet for the XtcpFlatRecord schema. Vector loads
-  # this at runtime to decode protobuf bytes streamed over the unixgram
-  # destination. Built once here so every consumer (vector module, smoke
-  # tests, future tooling) reuses the same derivation.
+  # Protobuf FileDescriptorSet for the XtcpFlatRecord schema. Kept for
+  # external consumers that want the .desc without standing up the whole
+  # microvm (built and exposed below as the `xtcp-flat-record-desc`
+  # package).
   mkProtoDescSet = import ./lib/mkProtoDescSet.nix { inherit pkgs lib src; };
   xtcpFlatRecordDescPackage = mkProtoDescSet {
     name = "xtcp_flat_record";
@@ -67,7 +67,6 @@ let
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
     xtcp2CoverPackage = binaries.xtcp2-cover;
-    protoDescPackage = xtcpFlatRecordDescPackage;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
 
@@ -306,12 +305,15 @@ in
 
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
-      microvm-x86_64-vector = microvms.vmsVector.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
+      microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
+      microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
+      microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
+      microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -324,7 +326,7 @@ in
       test-go-race = tests.go-race;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
-      test-microvm-lifecycle-x86_64-vector = microvms.lifecycleVector.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
 
@@ -345,7 +347,6 @@ in
     // {
       # Microvm lifecycle per arch shows up alongside the rest of the checks.
       microvm-lifecycle-x86_64 = microvms.checks.x86_64;
-      microvm-lifecycle-x86_64-vector = microvms.checksVector.x86_64;
 
       # Race-detector + per-flavor builds. These run as part of
       # `nix flake check` so a flavor-tag regression (e.g. dest_kafka
@@ -366,9 +367,9 @@ in
       type = "app";
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
     };
-    microvm-x86_64-lifecycle-vector = {
+    microvm-x86_64-lifecycle-s3parquet = {
       type = "app";
-      program = "${microvms.lifecycleVector.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-vector";
+      program = "${microvms.lifecycleS3Parquet.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-s3parquet";
     };
     microvm-x86_64-lifecycle-coverage = {
       type = "app";
@@ -406,6 +407,38 @@ in
       type = "app";
       program = "${microvms.vmsClickPipe.x86_64}/bin/microvm-run";
     };
+
+    # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a
+    # second xtcp2 instance writing parquet. ClickHouse can then query
+    # both the kafka path (xtcp.xtcp_flat_records) and the parquet
+    # path (via s3() table function against MinIO at 127.0.0.1:9000).
+    # Same boot model as clickhouse-pipeline — `nix run` boots the VM
+    # directly; no host-side runner.
+    microvm-x86_64-clickhouse-pipeline-parquet = {
+      type = "app";
+      program = "${microvms.vmsClickPipeParquet.x86_64}/bin/microvm-run";
+    };
+
+    # s3parquet flavor: xtcp2 produces Parquet directly into MinIO via the
+    # in-VM minio-go client. No Vector. After boot, query the bucket from
+    # the host with `mc ls --json local/xtcp2-records --recursive` (or
+    # `duckdb` against s3://xtcp2-records/**/*.parquet) on the forwarded
+    # MinIO endpoint at http://127.0.0.1:9000.
+    microvm-x86_64-s3parquet-pipeline = {
+      type = "app";
+      program = "${microvms.vmsS3Parquet.x86_64}/bin/microvm-run";
+    };
+
+    # On-demand long soak for the s3parquet path. Default 1h with hourly
+    # XTCP2_S3PARQUET_HOURLY sentinels; pass `--duration 12h` for the
+    # production soak or `--report-interval 60 --duration 5m` for a
+    # wiring smoke. Not in `nix flake check` — runs out-of-band like
+    # the soak / tcp-stress / clickhouse-pipeline flavors.
+    microvm-x86_64-s3parquet-runner = {
+      type = "app";
+      program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
+    };
+
     quality-report = {
       type = "app";
       program = "${qualityReport}/bin/quality-report";

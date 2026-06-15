@@ -25,14 +25,17 @@ func (x *XTCP) Init(ctx context.Context) {
 		log.Println("Init starting")
 	}
 
-	if err := x.checkCapabilities(); err != nil {
-		// checkCapabilities returning err means CAP_NET_ADMIN or
-		// CAP_SYS_CHROOT is missing. Production still treats this as a
-		// non-fatal log line (the kernel will surface a permission error
-		// later if it's actually needed). Tests that need to assert the
-		// "missing caps" path can swap x.fatalf and call x.checkCapabilities
-		// directly — runtime behavior preserved.
-		log.Print(err)
+	if err := capabilityCheck(x); err != nil {
+		// checkCapabilities returns a multi-line, actionable error when
+		// a hard-required capability (CAP_NET_ADMIN / CAP_SYS_ADMIN) is
+		// missing. Fatal at startup so the operator gets a clean exit
+		// + diagnostic — far better than a daemon that limps for
+		// 1-2 hours and then crashes with "thread exhaustion" because
+		// it couldn't setns into discovered namespaces. Soft-required
+		// caps (CAP_NET_RAW, CAP_SYS_RESOURCE) print a warning and the
+		// daemon continues.
+		x.fatalf("startup capability check: %v", err)
+		return
 	}
 
 	// initChanenls first, so that signaling channels are ready

@@ -45,9 +45,10 @@ func (x *XTCP) validateInput() error {
 		// schemeNullPrefix colon) failed validation as "must contain x2
 		// colons" while the registry happily had a "null" factory.
 		switch scheme {
-		case schemeUnix, schemeUnixgram, schemeNull:
+		case schemeUnix, schemeUnixgram, schemeNull, schemeS3Parquet:
 			// only the leading `<scheme>:` separator is required; the
-			// per-destination factory validates the path further.
+			// per-destination factory validates the rest further. s3parquet
+			// accepts a URL (http://host:port) which has its own colons.
 		default:
 			if strings.Count(x.config.Dest, ":") != 2 {
 				return fmt.Errorf("XTCP Dest must contain x2 ':' chars:%s", x.config.Dest)

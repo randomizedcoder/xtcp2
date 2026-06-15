@@ -846,7 +846,15 @@ class XtcpConfig final : public ::google::protobuf::Message
     kCapturePathFieldNumber = 100,
     kMarshalToFieldNumber = 120,
     kKafkaCompressionFieldNumber = 124,
+    kS3EndpointFieldNumber = 125,
+    kS3BucketFieldNumber = 126,
+    kS3PrefixFieldNumber = 127,
+    kS3AccessKeyFieldNumber = 128,
+    kS3SecretKeyFieldNumber = 129,
     kDestFieldNumber = 130,
+    kS3RegionFieldNumber = 133,
+    kPyroscopeUrlFieldNumber = 136,
+    kPyroscopeAppNameFieldNumber = 137,
     kTopicFieldNumber = 140,
     kXtcpProtoFileFieldNumber = 143,
     kKafkaSchemaUrlFieldNumber = 145,
@@ -867,7 +875,10 @@ class XtcpConfig final : public ::google::protobuf::Message
     kEnvelopeFlushThresholdBytesFieldNumber = 122,
     kModulusFieldNumber = 110,
     kEnvelopeFlushThresholdRowsFieldNumber = 123,
+    kS3ParquetFlushThresholdBytesFieldNumber = 132,
     kDestWriteFilesFieldNumber = 135,
+    kPyroscopeSampleHzFieldNumber = 138,
+    kPyroscopeUploadIntervalSecFieldNumber = 139,
     kDebugLevelFieldNumber = 160,
     kGrpcPortFieldNumber = 190,
     kIoUringFieldNumber = 210,
@@ -922,6 +933,86 @@ class XtcpConfig final : public ::google::protobuf::Message
   std::string* _internal_mutable_kafka_compression();
 
   public:
+  // string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
+  void clear_s3_endpoint() ;
+  const std::string& s3_endpoint() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_endpoint(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_endpoint();
+  PROTOBUF_NODISCARD std::string* release_s3_endpoint();
+  void set_allocated_s3_endpoint(std::string* value);
+
+  private:
+  const std::string& _internal_s3_endpoint() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_endpoint(
+      const std::string& value);
+  std::string* _internal_mutable_s3_endpoint();
+
+  public:
+  // string s3_bucket = 126 [json_name = "s3Bucket", (.buf.validate.field) = {
+  void clear_s3_bucket() ;
+  const std::string& s3_bucket() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_bucket(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_bucket();
+  PROTOBUF_NODISCARD std::string* release_s3_bucket();
+  void set_allocated_s3_bucket(std::string* value);
+
+  private:
+  const std::string& _internal_s3_bucket() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_bucket(
+      const std::string& value);
+  std::string* _internal_mutable_s3_bucket();
+
+  public:
+  // string s3_prefix = 127 [json_name = "s3Prefix", (.buf.validate.field) = {
+  void clear_s3_prefix() ;
+  const std::string& s3_prefix() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_prefix(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_prefix();
+  PROTOBUF_NODISCARD std::string* release_s3_prefix();
+  void set_allocated_s3_prefix(std::string* value);
+
+  private:
+  const std::string& _internal_s3_prefix() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_prefix(
+      const std::string& value);
+  std::string* _internal_mutable_s3_prefix();
+
+  public:
+  // string s3_access_key = 128 [json_name = "s3AccessKey", (.buf.validate.field) = {
+  void clear_s3_access_key() ;
+  const std::string& s3_access_key() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_access_key(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_access_key();
+  PROTOBUF_NODISCARD std::string* release_s3_access_key();
+  void set_allocated_s3_access_key(std::string* value);
+
+  private:
+  const std::string& _internal_s3_access_key() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_access_key(
+      const std::string& value);
+  std::string* _internal_mutable_s3_access_key();
+
+  public:
+  // string s3_secret_key = 129 [json_name = "s3SecretKey", (.buf.validate.field) = {
+  void clear_s3_secret_key() ;
+  const std::string& s3_secret_key() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_secret_key(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_secret_key();
+  PROTOBUF_NODISCARD std::string* release_s3_secret_key();
+  void set_allocated_s3_secret_key(std::string* value);
+
+  private:
+  const std::string& _internal_s3_secret_key() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_secret_key(
+      const std::string& value);
+  std::string* _internal_mutable_s3_secret_key();
+
+  public:
   // string dest = 130 [json_name = "dest", (.buf.validate.field) = {
   void clear_dest() ;
   const std::string& dest() const;
@@ -936,6 +1027,54 @@ class XtcpConfig final : public ::google::protobuf::Message
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_dest(
       const std::string& value);
   std::string* _internal_mutable_dest();
+
+  public:
+  // string s3_region = 133 [json_name = "s3Region", (.buf.validate.field) = {
+  void clear_s3_region() ;
+  const std::string& s3_region() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_s3_region(Arg_&& arg, Args_... args);
+  std::string* mutable_s3_region();
+  PROTOBUF_NODISCARD std::string* release_s3_region();
+  void set_allocated_s3_region(std::string* value);
+
+  private:
+  const std::string& _internal_s3_region() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_s3_region(
+      const std::string& value);
+  std::string* _internal_mutable_s3_region();
+
+  public:
+  // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+  void clear_pyroscope_url() ;
+  const std::string& pyroscope_url() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_pyroscope_url(Arg_&& arg, Args_... args);
+  std::string* mutable_pyroscope_url();
+  PROTOBUF_NODISCARD std::string* release_pyroscope_url();
+  void set_allocated_pyroscope_url(std::string* value);
+
+  private:
+  const std::string& _internal_pyroscope_url() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_url(
+      const std::string& value);
+  std::string* _internal_mutable_pyroscope_url();
+
+  public:
+  // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+  void clear_pyroscope_app_name() ;
+  const std::string& pyroscope_app_name() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_pyroscope_app_name(Arg_&& arg, Args_... args);
+  std::string* mutable_pyroscope_app_name();
+  PROTOBUF_NODISCARD std::string* release_pyroscope_app_name();
+  void set_allocated_pyroscope_app_name(std::string* value);
+
+  private:
+  const std::string& _internal_pyroscope_app_name() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_app_name(
+      const std::string& value);
+  std::string* _internal_mutable_pyroscope_app_name();
 
   public:
   // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
@@ -1188,6 +1327,16 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_envelope_flush_threshold_rows(::uint32_t value);
 
   public:
+  // uint32 s3_parquet_flush_threshold_bytes = 132 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+  void clear_s3_parquet_flush_threshold_bytes() ;
+  ::uint32_t s3_parquet_flush_threshold_bytes() const;
+  void set_s3_parquet_flush_threshold_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_s3_parquet_flush_threshold_bytes() const;
+  void _internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value);
+
+  public:
   // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
   void clear_dest_write_files() ;
   ::uint32_t dest_write_files() const;
@@ -1196,6 +1345,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   private:
   ::uint32_t _internal_dest_write_files() const;
   void _internal_set_dest_write_files(::uint32_t value);
+
+  public:
+  // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+  void clear_pyroscope_sample_hz() ;
+  ::uint32_t pyroscope_sample_hz() const;
+  void set_pyroscope_sample_hz(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_sample_hz() const;
+  void _internal_set_pyroscope_sample_hz(::uint32_t value);
+
+  public:
+  // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+  void clear_pyroscope_upload_interval_sec() ;
+  ::uint32_t pyroscope_upload_interval_sec() const;
+  void set_pyroscope_upload_interval_sec(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_upload_interval_sec() const;
+  void _internal_set_pyroscope_upload_interval_sec(::uint32_t value);
 
   public:
   // uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
@@ -1253,8 +1422,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 30, 4,
-      145, 27>
+      5, 41, 4,
+      256, 27>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1276,7 +1445,15 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr capture_path_;
     ::google::protobuf::internal::ArenaStringPtr marshal_to_;
     ::google::protobuf::internal::ArenaStringPtr kafka_compression_;
+    ::google::protobuf::internal::ArenaStringPtr s3_endpoint_;
+    ::google::protobuf::internal::ArenaStringPtr s3_bucket_;
+    ::google::protobuf::internal::ArenaStringPtr s3_prefix_;
+    ::google::protobuf::internal::ArenaStringPtr s3_access_key_;
+    ::google::protobuf::internal::ArenaStringPtr s3_secret_key_;
     ::google::protobuf::internal::ArenaStringPtr dest_;
+    ::google::protobuf::internal::ArenaStringPtr s3_region_;
+    ::google::protobuf::internal::ArenaStringPtr pyroscope_url_;
+    ::google::protobuf::internal::ArenaStringPtr pyroscope_app_name_;
     ::google::protobuf::internal::ArenaStringPtr topic_;
     ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
     ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
@@ -1297,7 +1474,10 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t envelope_flush_threshold_bytes_;
     ::uint64_t modulus_;
     ::uint32_t envelope_flush_threshold_rows_;
+    ::uint32_t s3_parquet_flush_threshold_bytes_;
     ::uint32_t dest_write_files_;
+    ::uint32_t pyroscope_sample_hz_;
+    ::uint32_t pyroscope_upload_interval_sec_;
     ::uint32_t debug_level_;
     ::uint32_t grpc_port_;
     bool io_uring_;
@@ -3265,6 +3445,456 @@ inline void XtcpConfig::set_allocated_kafka_compression(std::string* value) {
     _impl_.kafka_compression_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_compression)
+}
+
+// string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_endpoint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_endpoint_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_endpoint() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_endpoint)
+  return _internal_s3_endpoint();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_endpoint(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_endpoint_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_endpoint)
+}
+inline std::string* XtcpConfig::mutable_s3_endpoint() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_endpoint();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_endpoint)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_endpoint() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_endpoint_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_endpoint(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_endpoint_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_endpoint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_endpoint_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_endpoint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_endpoint)
+  return _impl_.s3_endpoint_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_endpoint(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_endpoint_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_endpoint_.IsDefault()) {
+    _impl_.s3_endpoint_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_endpoint)
+}
+
+// string s3_bucket = 126 [json_name = "s3Bucket", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_bucket() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_bucket)
+  return _internal_s3_bucket();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_bucket(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_bucket)
+}
+inline std::string* XtcpConfig::mutable_s3_bucket() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_bucket();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_bucket)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_bucket() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_bucket_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_bucket(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_bucket_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_bucket)
+  return _impl_.s3_bucket_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_bucket(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_bucket_.IsDefault()) {
+    _impl_.s3_bucket_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_bucket)
+}
+
+// string s3_prefix = 127 [json_name = "s3Prefix", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_prefix() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_prefix)
+  return _internal_s3_prefix();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_prefix(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_prefix)
+}
+inline std::string* XtcpConfig::mutable_s3_prefix() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_prefix();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_prefix)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_prefix() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_prefix_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_prefix(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_prefix_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_prefix)
+  return _impl_.s3_prefix_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_prefix(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_prefix_.IsDefault()) {
+    _impl_.s3_prefix_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_prefix)
+}
+
+// string s3_access_key = 128 [json_name = "s3AccessKey", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_access_key() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_access_key)
+  return _internal_s3_access_key();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_access_key(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_access_key)
+}
+inline std::string* XtcpConfig::mutable_s3_access_key() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_access_key();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_access_key)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_access_key() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_access_key_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_access_key(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_access_key_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_access_key)
+  return _impl_.s3_access_key_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_access_key(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_access_key_.IsDefault()) {
+    _impl_.s3_access_key_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_access_key)
+}
+
+// string s3_secret_key = 129 [json_name = "s3SecretKey", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_secret_key() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  return _internal_s3_secret_key();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_secret_key(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_secret_key)
+}
+inline std::string* XtcpConfig::mutable_s3_secret_key() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_secret_key();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_secret_key() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_secret_key_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_secret_key(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_secret_key_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  return _impl_.s3_secret_key_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_secret_key(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_secret_key_.IsDefault()) {
+    _impl_.s3_secret_key_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_secret_key)
+}
+
+// uint32 s3_parquet_flush_threshold_bytes = 132 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_parquet_flush_threshold_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
+}
+inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
+  return _internal_s3_parquet_flush_threshold_bytes();
+}
+inline void XtcpConfig::set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
+  _internal_set_s3_parquet_flush_threshold_bytes(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_parquet_flush_threshold_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_parquet_flush_threshold_bytes_;
+}
+inline void XtcpConfig::_internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_parquet_flush_threshold_bytes_ = value;
+}
+
+// string s3_region = 133 [json_name = "s3Region", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_region() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_region_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::s3_region() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_region)
+  return _internal_s3_region();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_region(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_region_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_region)
+}
+inline std::string* XtcpConfig::mutable_s3_region() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_s3_region();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_region)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_s3_region() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_region_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_region(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_region_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_s3_region() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_region_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_s3_region() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_region)
+  return _impl_.s3_region_.Release();
+}
+inline void XtcpConfig::set_allocated_s3_region(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_region_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_region_.IsDefault()) {
+    _impl_.s3_region_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_region)
+}
+
+// string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::pyroscope_url() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _internal_pyroscope_url();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_url(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_url)
+}
+inline std::string* XtcpConfig::mutable_pyroscope_url() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_pyroscope_url();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_pyroscope_url() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_url_.Get();
+}
+inline void XtcpConfig::_internal_set_pyroscope_url(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.pyroscope_url_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_pyroscope_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_url)
+  return _impl_.pyroscope_url_.Release();
+}
+inline void XtcpConfig::set_allocated_pyroscope_url(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_url_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_url_.IsDefault()) {
+    _impl_.pyroscope_url_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_url)
+}
+
+// string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::pyroscope_app_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _internal_pyroscope_app_name();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_app_name(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+}
+inline std::string* XtcpConfig::mutable_pyroscope_app_name() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_pyroscope_app_name();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_pyroscope_app_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_app_name_.Get();
+}
+inline void XtcpConfig::_internal_set_pyroscope_app_name(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.pyroscope_app_name_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_pyroscope_app_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+  return _impl_.pyroscope_app_name_.Release();
+}
+inline void XtcpConfig::set_allocated_pyroscope_app_name(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_app_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_app_name_.IsDefault()) {
+    _impl_.pyroscope_app_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
+}
+
+// uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_sample_hz() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_sample_hz_ = 0u;
+}
+inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
+  return _internal_pyroscope_sample_hz();
+}
+inline void XtcpConfig::set_pyroscope_sample_hz(::uint32_t value) {
+  _internal_set_pyroscope_sample_hz(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
+}
+inline ::uint32_t XtcpConfig::_internal_pyroscope_sample_hz() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_sample_hz_;
+}
+inline void XtcpConfig::_internal_set_pyroscope_sample_hz(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_sample_hz_ = value;
+}
+
+// uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+inline void XtcpConfig::clear_pyroscope_upload_interval_sec() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_upload_interval_sec_ = 0u;
+}
+inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
+  return _internal_pyroscope_upload_interval_sec();
+}
+inline void XtcpConfig::set_pyroscope_upload_interval_sec(::uint32_t value) {
+  _internal_set_pyroscope_upload_interval_sec(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
+}
+inline ::uint32_t XtcpConfig::_internal_pyroscope_upload_interval_sec() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pyroscope_upload_interval_sec_;
+}
+inline void XtcpConfig::_internal_set_pyroscope_upload_interval_sec(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pyroscope_upload_interval_sec_ = value;
 }
 
 // string dest = 130 [json_name = "dest", (.buf.validate.field) = {
