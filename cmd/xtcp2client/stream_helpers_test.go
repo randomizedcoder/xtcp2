@@ -137,19 +137,19 @@ func TestResourceExhaustedSleep_ctxCancelReturnsTrue(t *testing.T) {
 func TestHandleRecvContinueErr_table(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name        string
-		category    string
-		ctxBuild    func() context.Context
-		err         error
-		wantBreak   bool
+		name      string
+		category  string
+		ctxBuild  func() context.Context
+		err       error
+		wantBreak bool
 		// Don't assert duration — production constants vary, and the
 		// cancel branch returns near-instantly anyway.
 	}{
 		{
-			name:     "positive_ctx_live_non_resource_exhausted_continues",
-			category: "positive",
-			ctxBuild: func() context.Context { return context.Background() },
-			err:      errors.New("Unavailable"),
+			name:      "positive_ctx_live_non_resource_exhausted_continues",
+			category:  "positive",
+			ctxBuild:  func() context.Context { return context.Background() },
+			err:       errors.New("Unavailable"),
 			wantBreak: false,
 		},
 		{

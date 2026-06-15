@@ -89,12 +89,12 @@ func TestShouldSkipFile_table(t *testing.T) {
 // when given hand-crafted ASTs.
 func TestCollectMetricsFromFile_table(t *testing.T) {
 	cases := []struct {
-		name        string
-		category    string
-		src         string
-		wantDefs    []string // metric kinds expected, in order
-		wantRefs    map[string]int
-		wantNoDefs  bool
+		name       string
+		category   string
+		src        string
+		wantDefs   []string // metric kinds expected, in order
+		wantRefs   map[string]int
+		wantNoDefs bool
 	}{
 		{
 			name:     "positive_single_counter_definition",

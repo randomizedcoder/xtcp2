@@ -179,54 +179,54 @@ func TestFindUnguardedAccesses_table(t *testing.T) {
 		wantMsgKind  string // "index" or "slice" — checked when wantFindings > 0
 	}{
 		{
-			name:         "positive_index_b",
-			category:     "positive",
-			src:          `package x
+			name:     "positive_index_b",
+			category: "positive",
+			src: `package x
 func f(b []byte) byte { return b[0] }`,
 			wantFindings: 1,
 			wantMsgKind:  "index access",
 		},
 		{
-			name:         "positive_slice_data",
-			category:     "positive",
-			src:          `package x
+			name:     "positive_slice_data",
+			category: "positive",
+			src: `package x
 func f(data []byte) []byte { return data[0:4] }`,
 			wantFindings: 1,
 			wantMsgKind:  "slice expression",
 		},
 		{
-			name:         "negative_unknown_identifier",
-			category:     "negative",
-			src:          `package x
+			name:     "negative_unknown_identifier",
+			category: "negative",
+			src: `package x
 func f(x []byte) byte { return x[0] }`,
 			wantFindings: 0,
 		},
 		{
-			name:         "negative_index_into_map",
-			category:     "negative",
-			src:          `package x
+			name:     "negative_index_into_map",
+			category: "negative",
+			src: `package x
 func f(m map[string]int) int { return m["k"] }`,
 			wantFindings: 0,
 		},
 		{
-			name:         "boundary_multiple_indices",
-			category:     "boundary",
-			src:          `package x
+			name:     "boundary_multiple_indices",
+			category: "boundary",
+			src: `package x
 func f(buf []byte) byte { return buf[buf[0]] }`,
 			wantFindings: 2, // outer buf[…] + inner buf[0] both flagged
 		},
 		{
-			name:         "corner_slice_three_index",
-			category:     "corner",
-			src:          `package x
+			name:     "corner_slice_three_index",
+			category: "corner",
+			src: `package x
 func f(buf []byte) []byte { return buf[1:2:4] }`,
 			wantFindings: 1,
 			wantMsgKind:  "slice expression",
 		},
 		{
-			name:         "corner_chained_byte_slice_names",
-			category:     "corner",
-			src:          `package x
+			name:     "corner_chained_byte_slice_names",
+			category: "corner",
+			src: `package x
 func f(b []byte) byte {
   payload := b
   _ = payload
@@ -236,9 +236,9 @@ func f(b []byte) byte {
 			wantMsgKind:  "index access",
 		},
 		{
-			name:         "adversarial_deeply_nested_index",
-			category:     "adversarial",
-			src:          `package x
+			name:     "adversarial_deeply_nested_index",
+			category: "adversarial",
+			src: `package x
 func f(b []byte) byte {
   for i := 0; i < 1; i++ {
     if true {

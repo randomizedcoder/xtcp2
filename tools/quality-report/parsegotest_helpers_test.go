@@ -72,8 +72,8 @@ func TestApplyTestEvent_table(t *testing.T) {
 			events: []goTestEvent{
 				{Action: testActionFail, Package: "pkg/diff", Test: "T"},
 			},
-			known: map[string]bool{"T": true}, // matches the second `||` branch
-			wantKey: "pkg/diff/T",
+			known:        map[string]bool{"T": true}, // matches the second `||` branch
+			wantKey:      "pkg/diff/T",
 			wantAction:   testActionFail,
 			wantPreexist: true,
 		},
@@ -255,7 +255,7 @@ func TestFinalizeTestResults_table(t *testing.T) {
 			name:     "corner_empty_test_field_sorts_first",
 			category: "corner",
 			input: map[string]*TestResult{
-				"pkg/x/": {Package: "pkg/x", Test: ""},
+				"pkg/x/":  {Package: "pkg/x", Test: ""},
 				"pkg/x/B": {Package: "pkg/x", Test: "B"},
 			},
 			wantLen: 2, wantFirstPkg: "pkg/x", wantFirstTest: "",
