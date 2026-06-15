@@ -242,7 +242,12 @@ let
       # The image is a streamLayeredImage script in the nix store. Run
       # it; it streams a tar of the image to stdout, which `docker load`
       # consumes directly.
-      ${if tcpStressImage != null then "${tcpStressImage} | docker load" else "echo 'no image provided'; exit 1"}
+      ${
+        if tcpStressImage != null then
+          "${tcpStressImage} | docker load"
+        else
+          "echo 'no image provided'; exit 1"
+      }
     '';
   };
 
@@ -546,10 +551,11 @@ let
     "http://localhost:18081"
   ];
 
-  xtcp2CoverageArgs = xtcp2BasicArgs
-  # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
-  # path runs (otherwise 0% covered; the syscall variant runs by default).
-  ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
+  xtcp2CoverageArgs =
+    xtcp2BasicArgs
+    # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
+    # path runs (otherwise 0% covered; the syscall variant runs by default).
+    ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -602,10 +608,10 @@ in
             19092 # redpanda kafka external
             19644 # redpanda admin
             18081 # schema registry
-            3000  # grafana
+            3000 # grafana
             # 9090 (prometheus) intentionally not in forwardPorts —
             # see comment in microvm.forwardPorts.
-            9090  # still open the firewall so grafana's internal call works
+            9090 # still open the firewall so grafana's internal call works
           ];
 
         microvm = {
@@ -623,22 +629,21 @@ in
           # gets real (not RAM) bytes. 8 GiB covers a 12h soak with
           # MergeTree compression at ~3 rows/s × ~1 KiB/row + dockerd
           # working set + redpanda topic data.
-          volumes =
-            lib.optionals isClickPipe [
-              {
-                # User-writable path so microvm-run can autoCreate the
-                # image without sudo. /tmp is RAM-backed on most distros
-                # but big enough for the 8 GiB image; if you want
-                # cross-boot persistence move this to ~/.cache or a
-                # mounted disk and add `microvm.preStart` to mkdir.
-                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
-                mountPoint = "/var/lib/docker";
-                size = 8192;
-                autoCreate = true;
-                fsType = "ext4";
-                label = "xtcp2dock";
-              }
-            ];
+          volumes = lib.optionals isClickPipe [
+            {
+              # User-writable path so microvm-run can autoCreate the
+              # image without sudo. /tmp is RAM-backed on most distros
+              # but big enough for the 8 GiB image; if you want
+              # cross-boot persistence move this to ~/.cache or a
+              # mounted disk and add `microvm.preStart` to mkdir.
+              image = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
+              mountPoint = "/var/lib/docker";
+              size = 8192;
+              autoCreate = true;
+              fsType = "ext4";
+              label = "xtcp2dock";
+            }
+          ];
           interfaces = [
             {
               type = "user";
@@ -965,7 +970,7 @@ in
             # Brief delay so the server's Accept loop is up. tcp_client
             # also retries dial up to -dialr times so this is belt+suspenders.
             ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
-            ExecStart = ''${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}'';
+            ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}";
             Restart = "on-failure";
             RestartSec = "2s";
             LimitNOFILE = 65536;
