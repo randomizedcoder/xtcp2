@@ -7,9 +7,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
@@ -92,20 +92,16 @@ type kafkaFetcher interface {
 }
 
 func pollLoop(ctx context.Context, client kafkaFetcher, consumeTimeout time.Duration) {
-	kgoFetchesPool := sync.Pool{
-		New: func() any {
-			return new(kgo.Fetches)
-		},
-	}
-	kgoFetches, _ := kgoFetchesPool.Get().(*kgo.Fetches) //nolint:errcheck // pool.Get returns the type from pool.New
+	kgoFetchesPool := xsync.NewPool(func() *kgo.Fetches {
+		return new(kgo.Fetches)
+	})
+	kgoFetches := kgoFetchesPool.Get()
 	defer kgoFetchesPool.Put(kgoFetches)
 
-	xtcpRecordPool := sync.Pool{
-		New: func() any {
-			return new(xtcp_flat_record.XtcpFlatRecord)
-		},
-	}
-	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
+	xtcpRecordPool := xsync.NewPool(func() *xtcp_flat_record.XtcpFlatRecord {
+		return new(xtcp_flat_record.XtcpFlatRecord)
+	})
+	xtcpRecord := xtcpRecordPool.Get()
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	records := 0

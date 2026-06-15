@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -247,12 +248,12 @@ func TestFileOrKafka_kafkaMode(t *testing.T) {
 	}
 	defer cl.Close()
 	prevClient := kClient
-	prevPoolNew := kgoRecordPool.New
+	prevPool := kgoRecordPool
 	kClient = cl
-	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	kgoRecordPool = xsync.NewPool(func() *kgo.Record { return new(kgo.Record) })
 	t.Cleanup(func() {
 		kClient = prevClient
-		kgoRecordPool.New = prevPoolNew
+		kgoRecordPool = prevPool
 	})
 
 	data := []byte("payload")
@@ -276,12 +277,12 @@ func TestDestKafka_unreachable(t *testing.T) {
 	}
 	defer cl.Close()
 	prevClient := kClient
-	prevPoolNew := kgoRecordPool.New
+	prevPool := kgoRecordPool
 	kClient = cl
-	kgoRecordPool.New = func() any { return new(kgo.Record) }
+	kgoRecordPool = xsync.NewPool(func() *kgo.Record { return new(kgo.Record) })
 	t.Cleanup(func() {
 		kClient = prevClient
-		kgoRecordPool.New = prevPoolNew
+		kgoRecordPool = prevPool
 	})
 
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -27,8 +26,8 @@ func newIouringFixture(t *testing.T) *XTCP {
 			Name: promNameCounts, Help: "test counts"},
 		promLabels,
 	)
-	x.destBytesPool = sync.Pool{New: func() any { b := make([]byte, 64); return &b }}
-	x.packetBufferPool = sync.Pool{New: func() any { b := make([]byte, 64); return &b }}
+	x.destBytesPool.Init(func() *[]byte { b := make([]byte, 64); return &b })
+	x.packetBufferPool.Init(func() *[]byte { b := make([]byte, 64); return &b })
 	return x
 }
 
@@ -199,11 +198,11 @@ func TestIouringPrefillRecvs_enqueueErr(t *testing.T) {
 	t.Cleanup(func() { ring.Close(time.Second, nil) })
 
 	x := newIouringFixture(t)
-	x.packetBufferPool = sync.Pool{New: func() any {
+	x.packetBufferPool.Init(func() *[]byte {
 		// Empty slice — EnqueueRecvMsg rejects it.
 		b := make([]byte, 0)
 		return &b
-	}}
+	})
 	if err := x.iouringPrefillRecvs(ring, 3, 1); err == nil {
 		t.Error("empty buf should make EnqueueRecvMsg return an error")
 	}
@@ -264,9 +263,9 @@ func TestHandleRecvCQE_successPathTruncated(t *testing.T) {
 	x := newIouringFixture(t)
 	// Deserialize needs a usable config, pools, and pH on the args.
 	x.config = &xtcp_config.XtcpConfig{Modulus: 1}
-	x.xtcpRecordPool = sync.Pool{New: func() any { return new(xtcp_flat_record.XtcpFlatRecord) }}
-	x.nlhPool = sync.Pool{New: func() any { return new(xtcpnl.NlMsgHdr) }}
-	x.rtaPool = sync.Pool{New: func() any { return new(xtcpnl.RTAttr) }}
+	x.xtcpRecordPool.Init(func() *xtcp_flat_record.XtcpFlatRecord { return new(xtcp_flat_record.XtcpFlatRecord) })
+	x.nlhPool.Init(func() *xtcpnl.NlMsgHdr { return new(xtcpnl.NlMsgHdr) })
+	x.rtaPool.Init(func() *xtcpnl.RTAttr { return new(xtcpnl.RTAttr) })
 	reg := prometheus.NewRegistry()
 	x.pH = promauto.With(reg).NewSummaryVec(
 		prometheus.SummaryOpts{Subsystem: "xtcp_iouring_recv_test",

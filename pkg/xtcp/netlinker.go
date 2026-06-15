@@ -147,7 +147,7 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	wf := x.config.WriteFiles
 
-	packetBuffer, _ := x.packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.New returns *[]byte
+	packetBuffer := x.packetBufferPool.Get()
 
 	for packets, netlinkerDone := 0, false; !netlinkerDone; packets++ {
 

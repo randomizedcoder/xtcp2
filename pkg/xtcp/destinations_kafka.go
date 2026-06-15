@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sr"
 	"github.com/twmb/franz-go/plugin/kprom"
@@ -47,7 +47,7 @@ type kafkaDest struct {
 	client     kafkaProducer
 	regClient  *sr.Client
 	schemaID   int
-	recordPool sync.Pool
+	recordPool *xsync.Pool[*kgo.Record]
 }
 
 // newKafkaProducerFn is the factory tests swap to inject a fake
@@ -65,10 +65,8 @@ func newKafkaProducerReal(opts ...kgo.Opt) (kafkaProducer, error) {
 
 func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 	d := &kafkaDest{
-		x: x,
-		recordPool: sync.Pool{
-			New: func() any { return new(kgo.Record) },
-		},
+		x:          x,
+		recordPool: xsync.NewPool(func() *kgo.Record { return new(kgo.Record) }),
 	}
 
 	// Schema-registry registration is informational only — ClickHouse
@@ -144,7 +142,7 @@ func (d *kafkaDest) Send(ctx context.Context, b *[]byte) (int, error) {
 	// pinned to one partition; previous Timestamp stayed → every
 	// reused record claimed the time of the first send. Topic/Value
 	// overwrite below preserves the original intent.
-	rec := d.recordPool.Get().(*kgo.Record)
+	rec := d.recordPool.Get()
 	*rec = kgo.Record{
 		Topic: d.x.config.Topic,
 		Value: *b,

@@ -222,7 +222,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 // in-flight map until its CQE fires.
 func (x *XTCP) iouringPrefillRecvs(ring *xio.Ring, fd int, n int) error {
 	for i := 0; i < n; i++ {
-		buf, _ := x.packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.New returns *[]byte
+		buf := x.packetBufferPool.Get()
 		// Restore full capacity so the kernel sees a writable buffer.
 		*buf = (*buf)[:cap(*buf)]
 		if _, err := ring.EnqueueRecvMsg(fd, buf); err != nil {

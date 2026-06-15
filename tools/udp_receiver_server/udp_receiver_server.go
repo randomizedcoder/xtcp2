@@ -9,8 +9,8 @@ import (
 	"log"
 	"net"
 	"os"
-	"sync"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/protobuf/proto"
 )
@@ -76,21 +76,17 @@ var ErrDecode = errors.New("proto decode")
 // gracefully). Extracted from main() so tests can drive it with a pair of
 // in-process UDP sockets.
 func runReceiver(ctx context.Context, conn *net.UDPConn) error {
-	packetBufferPool := sync.Pool{
-		New: func() any {
-			b := make([]byte, packetBufferSizeCst)
-			return &b
-		},
-	}
-	xtcpRecordPool := sync.Pool{
-		New: func() any {
-			return new(xtcp_flat_record.XtcpFlatRecord)
-		},
-	}
+	packetBufferPool := xsync.NewPool(func() *[]byte {
+		b := make([]byte, packetBufferSizeCst)
+		return &b
+	})
+	xtcpRecordPool := xsync.NewPool(func() *xtcp_flat_record.XtcpFlatRecord {
+		return new(xtcp_flat_record.XtcpFlatRecord)
+	})
 
-	packetBuffer, _ := packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.Get returns the type from pool.New
+	packetBuffer := packetBufferPool.Get()
 	defer packetBufferPool.Put(packetBuffer)
-	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
+	xtcpRecord := xtcpRecordPool.Get()
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	// Close the connection on ctx cancel so the blocking ReadFromUDP

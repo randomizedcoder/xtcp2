@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
@@ -39,9 +40,9 @@ func newFlatRecordServiceFixture(t *testing.T) *xtcpFlatRecordService {
 			promLabels,
 		),
 	}
-	s.FlatRecordsResponsePool.New = func() any {
+	s.FlatRecordsResponsePool = xsync.NewPool(func() *xtcp_flat_record.FlatRecordsResponse {
 		return new(xtcp_flat_record.FlatRecordsResponse)
-	}
+	})
 	return s
 }
 

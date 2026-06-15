@@ -34,9 +34,7 @@ func TestNetlinkerSyscall_earlyExit(t *testing.T) {
 		},
 		promLabels,
 	)
-	x.packetBufferPool = sync.Pool{
-		New: func() any { b := make([]byte, 4096); return &b },
-	}
+	x.packetBufferPool.Init(func() *[]byte { b := make([]byte, 4096); return &b })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // pre-canceled → first checkDoneNonBlocking returns true

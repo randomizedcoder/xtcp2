@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 )
 
 // destinations_kafka_test.go exercises pkg/xtcp/destinations_kafka.go
@@ -479,13 +480,11 @@ func newKafkaDestForTest(t *testing.T, fake *fakeKafkaProducer) *kafkaDest {
 	t.Helper()
 	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
 	x.config.Topic = "xtcp-test"
-	x.destBytesPool = sync.Pool{New: func() any { b := make([]byte, 0, 128); return &b }}
+	x.destBytesPool.Init(func() *[]byte { b := make([]byte, 0, 128); return &b })
 	d := &kafkaDest{
-		x:      x,
-		client: fake,
-		recordPool: sync.Pool{
-			New: func() any { return new(kgo.Record) },
-		},
+		x:          x,
+		client:     fake,
+		recordPool: xsync.NewPool(func() *kgo.Record { return new(kgo.Record) }),
 	}
 	return d
 }
@@ -521,7 +520,7 @@ func TestKafkaDest_Send_table(t *testing.T) {
 			}
 			// destBytesPool.Put requires the caller to pass a *[]byte;
 			// allocate one here so Send's pool-return path runs.
-			buf := d.x.destBytesPool.Get().(*[]byte)
+			buf := d.x.destBytesPool.Get()
 			*buf = append((*buf)[:0], []byte("payload")...)
 			n, err := d.Send(context.Background(), buf)
 			if err != nil {
@@ -550,7 +549,7 @@ func TestKafkaDest_Send_debugLog(t *testing.T) {
 	fake := &fakeKafkaProducer{produceErr: errors.New("err")}
 	d := newKafkaDestForTest(t, fake)
 	d.x.debugLevel = 11
-	buf := d.x.destBytesPool.Get().(*[]byte)
+	buf := d.x.destBytesPool.Get()
 	*buf = append((*buf)[:0], []byte("x")...)
 	_, _ = d.Send(context.Background(), buf)
 }

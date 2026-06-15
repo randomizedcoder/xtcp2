@@ -90,7 +90,7 @@ func newS3ParquetFixture(t *testing.T, threshold int, injectErr func(int) error)
 		prometheus.SummaryOpts{Subsystem: "xtcp_s3p_test", Name: promNameHistograms, Help: "test"},
 		promLabels,
 	)
-	x.destBytesPool = sync.Pool{New: func() any { b := make([]byte, 0, 1024); return &b }}
+	x.destBytesPool.Init(func() *[]byte { b := make([]byte, 0, 1024); return &b })
 
 	upl := &fakeUploader{injectErr: injectErr}
 	d := &s3ParquetDest{
@@ -111,7 +111,7 @@ func newS3ParquetFixture(t *testing.T, threshold int, injectErr func(int) error)
 // envelope ready for Send.
 func marshalEnvelopeBuf(t *testing.T, x *XTCP, env *xtcp_flat_record.Envelope) *[]byte {
 	t.Helper()
-	buf, _ := x.destBytesPool.Get().(*[]byte)
+	buf := x.destBytesPool.Get()
 	*buf = (*buf)[:0]
 	w := &ByteSliceWriter{Buf: buf}
 	if _, err := protodelim.MarshalTo(w, env); err != nil {
@@ -208,7 +208,7 @@ func TestS3ParquetDest_negative(t *testing.T) {
 			d, _, x := newS3ParquetFixture(t, 1<<30, tc.injectErr)
 			var buf *[]byte
 			if tc.body != nil {
-				got, _ := x.destBytesPool.Get().(*[]byte)
+				got := x.destBytesPool.Get()
 				*got = append((*got)[:0], tc.body...)
 				buf = got
 			} else {
