@@ -23,6 +23,11 @@
   # null, the Vector flavor attrs are not exposed (so callers that don't
   # have the descriptor set built yet still get the minimal flavor).
   protoDescPackage ? null,
+  # Optional: the streamLayeredImage script for oci-xtcp2-tcp-stress.
+  # Phase C ("tcp-stress" sink) loads this into the in-VM docker daemon
+  # at boot and spawns N containers from it. When null, the tcp-stress
+  # flavor attrs are not exposed.
+  tcpStressImage ? null,
   # Optional: a coverage-instrumented xtcp2 build (see nix/binaries.nix
   # xtcp2-cover). When non-null, the coverage flavor is exposed. The
   # microvm runs the cover binary with GOCOVERDIR set to a tmpfs path,
@@ -96,6 +101,52 @@ let
       sink = "coverage-iouring";
     };
 
+  mkOneSoak =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "soak";
+    };
+
+  mkOneTcpStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "tcp-stress";
+    };
+
+  mkOneClickPipe =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "clickhouse-pipeline";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsVector = lib.optionalAttrs (protoDescPackage != null) (
@@ -110,10 +161,22 @@ let
     lib.genAttrs constants.supportedArchs mkOneCoverageIoUring
   );
 
+  vmsSoak = lib.genAttrs constants.supportedArchs mkOneSoak;
+
+  vmsTcpStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneTcpStress
+  );
+
+  vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
+
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
       vm = vms.${arch};
+      # Surface every sentinel the self-test emits so a real failure in
+      # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
+      # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
     };
   });
 
@@ -158,6 +221,22 @@ let
     })
   );
 
+  soak = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkSoakRunner {
+      inherit arch;
+      vm = vmsSoak.${arch};
+    };
+  });
+
+  tcpStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkTcpStressRunner {
+        inherit arch;
+        vm = vmsTcpStress.${arch};
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -191,10 +270,15 @@ in
     vmsVector
     vmsCoverage
     vmsCoverageIoUring
+    vmsSoak
+    vmsTcpStress
+    vmsClickPipe
     lifecycle
     lifecycleVector
     lifecycleCoverage
     lifecycleCoverageIoUring
+    soak
+    tcpStress
     checks
     checksVector
     ;

@@ -31,6 +31,11 @@ in
 {
   name,
   src,
+  # Subdirectory containing the main package. Defaults to "cmd/${name}"
+  # for the historical/production binaries; explicit override lets us
+  # build tools/* helpers (tcp_server, tcp_client, …) through the same
+  # variant + flavor machinery without moving them out of tools/.
+  subPath ? "cmd/${name}",
   variant ? "default",
   # Library destinations to compile into the binary. `null` (default) →
   # every destination (matches pre-build-tag behaviour). `[]` → stdlib
@@ -85,7 +90,7 @@ buildGoModule {
     doCheck
     ;
 
-  subPackages = [ "cmd/${name}" ];
+  subPackages = [ subPath ];
 
   postPatch = patchGoMod;
 

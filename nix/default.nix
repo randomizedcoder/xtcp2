@@ -68,6 +68,7 @@ let
     xtcp2AllPackage = binaries.xtcp2-all;
     xtcp2CoverPackage = binaries.xtcp2-cover;
     protoDescPackage = xtcpFlatRecordDescPackage;
+    tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
 
   # Static analysis + audit checks
@@ -298,11 +299,19 @@ in
         oci-xtcp2-valkey
         ;
 
+      # Phase B: TCP-stress container for the multi-container test
+      # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,
+      # TCP_SLEEP, TCP_PADS, TCP_CONNECT, TCP_BIND env vars.
+      inherit (containers) oci-xtcp2-tcp-stress;
+
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-vector = microvms.vmsVector.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
+      microvm-x86_64-soak = microvms.vmsSoak.x86_64;
+      microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -368,6 +377,34 @@ in
     microvm-x86_64-lifecycle-coverage-iouring = {
       type = "app";
       program = "${microvms.lifecycleCoverageIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-coverage-iouring";
+    };
+    # On-demand long-running soak. Default 1h; pass --duration 24h (or
+    # 5m for a smoke run) to override. Not wired into `nix flake check`
+    # because it holds a KVM slot for the full duration.
+    microvm-x86_64-soak = {
+      type = "app";
+      program = "${microvms.soak.x86_64.runner}/bin/xtcp2-soak-x86_64";
+    };
+    # Phase C: docker-in-VM tcp-stress smoke. Boots a microvm with
+    # dockerd, loads oci-xtcp2-tcp-stress, and spawns N containers
+    # (default 5, configurable via tcpStressNumContainers in mkVm.nix)
+    # each running tcp_server + tcp_client. Each container's sockets
+    # live in their own /run/docker/netns/ entry — xtcp2 watches that
+    # directory and discovers all of them. The runner sleeps for
+    # `--duration` (default 180s) then powers off with a summary.
+    microvm-x86_64-tcp-stress = {
+      type = "app";
+      program = "${microvms.tcpStress.x86_64.runner}/bin/xtcp2-tcp-stress-runner-x86_64";
+    };
+    # Phase E: boots a microvm that runs redpanda + clickhouse as docker
+    # containers, with xtcp2 producing inet_diag records into the kafka
+    # topic, clickhouse_kafka_engine consuming them, and a materialized
+    # view writing them into xtcp.xtcp_flat_records. The microvm exposes
+    # /bin/microvm-run directly so users can poke clickhouse via:
+    #   docker exec clickhouse clickhouse-client -q 'SELECT count() FROM xtcp.xtcp_flat_records'
+    microvm-x86_64-clickhouse-pipeline = {
+      type = "app";
+      program = "${microvms.vmsClickPipe.x86_64}/bin/microvm-run";
     };
     quality-report = {
       type = "app";

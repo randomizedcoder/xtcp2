@@ -47,6 +47,41 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	// CRITICAL: snapshot the calling thread's original netns BEFORE the
+	// retry loop's `setns` calls, then restore it on the way out via
+	// defer. Without this, the M returned to Go's scheduler after
+	// UnlockOSThread carries the modified kernel netns indefinitely. The
+	// Go runtime can't safely reuse such Ms (a future goroutine that
+	// happens to be scheduled on the same M would silently run in the
+	// wrong netns) so the M-pool grew unbounded — 1h soak with 4-per-sec
+	// churn accumulated ~1100 OS threads and crashed with
+	// `failed to create new OS thread` / errno=11. Restoring netns here
+	// lets the runtime keep reusing the same handful of Ms.
+	origNs, errOrig := os.Open("/proc/thread-self/ns/net")
+	if errOrig != nil {
+		x.pC.WithLabelValues("netNamespaceInstance", "snapshotOrigNs", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("netNamespaceInstance snapshot original netns err: %v", errOrig)
+		}
+		// Don't return — we can still do the work; just won't be able to
+		// restore on exit. Reset to host netns at end via a host-side fd
+		// open is impossible from here, so accept the M will be tainted
+		// in this rare error case. The SetMaxThreads cap protects us
+		// from unbounded growth in the meantime.
+	} else {
+		defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
+		defer func() {
+			if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "error").Inc()
+				if x.debugLevel > 10 {
+					log.Printf("netNamespaceInstance restore-netns err: %v", rerr)
+				}
+			} else {
+				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "count").Inc()
+			}
+		}()
+	}
+
 	// if x.debugLevel > 10 {
 	// 	log.Printf("netNamespaceInstance after LockOSThread: %s", ns.name)
 	// }

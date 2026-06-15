@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	runtimeDebug "runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -139,6 +140,7 @@ type mainFlags struct {
 	promListen                *string
 	promPath                  *string
 	goMaxProcs                *uint
+	maxThreads                *int
 	profileMode               *string
 	v                         *bool
 	conf                      *bool
@@ -179,6 +181,10 @@ func defineFlags() *mainFlags {
 	// Maximum number of CPUs that can be executing simultaneously
 	// https://golang.org/pkg/runtime/#GOMAXPROCS -> zero (0) means default
 	f.goMaxProcs = flag.Uint("goMaxProcs", 4, "goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS")
+	// Caps the Go runtime's OS thread pool. >0 sets via debug.SetMaxThreads.
+	// 0 (default) leaves Go's built-in 10000 in place. See the call site
+	// for why this exists (soak-detected thread accumulation).
+	f.maxThreads = flag.Int("maxThreads", 2000, "cap on Go runtime OS threads (debug.SetMaxThreads); 0 = use Go default 10000")
 	// ./xtcp2 --profile.mode cpu
 	// timeout 1h ./xtcp2 --profile.mode cpu
 	f.profileMode = flag.String("profile.mode", "", "enable profiling mode, one of [cpu, mem, mutex, block]")
@@ -369,6 +375,19 @@ func runMain(parentCtx context.Context) int {
 		}
 	}
 
+	// Cap the Go-runtime OS thread pool. Default is 10000, which means a
+	// thread-accumulating bug (xtcp2 burned ~1121 threads in a 1h soak with
+	// 4-per-sec ns churn) silently grows until clone(2) returns EAGAIN and
+	// the runtime *fatal-errors* with `failed to create new OS thread`.
+	// 2000 is high enough for legitimate burst load (4 netlinkers × hundreds
+	// of namespaces) but catches the leak before it crashes; SetMaxThreads
+	// converts the leak into a controlled abort with the same diagnostic.
+	// Override via -maxThreads if a future deployment legitimately needs
+	// more (e.g. >500 simultaneous namespaces).
+	if *f.maxThreads > 0 {
+		debugSetMaxThreads(*f.maxThreads, debugLevel)
+	}
+
 	defer startProfile(*f.profileMode, debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
@@ -528,6 +547,18 @@ func environmentOverrideDebugLevel(d *uint, debugLevel uint) {
 // environmentOverrideGoMaxProcs MUTATES goMaxProcs if env var is set.
 // Same fix shape as environmentOverrideDebugLevel above — ParseUint
 // rejects negative values that previously wrapped via Atoi + uint(i).
+// debugSetMaxThreads bounds the Go runtime's OS thread pool. Default Go is
+// 10000; soak runs showed a thread-accumulation pattern that crashed near
+// 1121 (RLIMIT_NPROC, errno=11). Capping at a chosen value via runtime/debug
+// keeps the failure mode explicit + configurable instead of trip-wired by
+// whatever ulimit happens to be in effect.
+func debugSetMaxThreads(n int, debugLevel uint) {
+	prev := runtimeDebug.SetMaxThreads(n)
+	if debugLevel > 10 {
+		log.Printf("debug.SetMaxThreads: cap=%d (previous=%d)", n, prev)
+	}
+}
+
 func environmentOverrideGoMaxProcs(goMaxProcs *uint, debugLevel uint) {
 	key := "GOMAXPROCS"
 	if value, exists := os.LookupEnv(key); exists {

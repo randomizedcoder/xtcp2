@@ -39,9 +39,9 @@ in
     versions.protoc
     versions.grpcurl
 
-    # netlink / TCP debugging
+    # netlink / TCP debugging.
+    # ss ships inside iproute2 — no separate nixpkgs attr exists for it.
     iproute2
-    ss # via iproute2; explicit for discoverability
     tcpdump
     strace
     ltrace

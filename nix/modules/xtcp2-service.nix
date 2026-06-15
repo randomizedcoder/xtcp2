@@ -81,6 +81,17 @@ in
           "CAP_NET_RAW"
           "CAP_SYS_RESOURCE"
         ];
+        # Default systemd TasksMax is 15% of kernel.pid_max which in a
+        # microvm works out to ~1100. The 1h soak with 4-per-sec ns churn
+        # hit exactly that ceiling: `runtime: failed to create new OS
+        # thread (have 1121 already; errno=11)`. The Go runtime's
+        # SetMaxThreads cap (xtcp2's -maxThreads, default 2000) only
+        # bounds Go's internal pool; systemd's cgroup pids.max is the
+        # outer wall and what was actually killing us. Raise both
+        # explicitly so legitimate burst load (per-ns netlinkers ×
+        # blocked syscalls) has headroom.
+        TasksMax = 8192;
+        LimitNPROC = 8192;
       };
     };
   };

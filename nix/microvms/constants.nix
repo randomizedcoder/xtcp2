@@ -28,6 +28,12 @@
       # Avoid exactly 2048 — microvm.nix #171: QEMU hangs at boot when memory
       # is exactly 2 GiB. 2304 (2.25 GiB) sidesteps that and leaves slack.
       memVector = 2304;
+      # memTcpStress is used by sink="tcp-stress". The flavor runs
+      # dockerd + N container instances of oci-xtcp2-tcp-stress + xtcp2
+      # + an in-VM Prometheus server scraping xtcp2's /metrics. With
+      # 20 containers + Prometheus's ~150 MiB RSS + 12h of TSDB working
+      # set, 3072 MiB leaves clear headroom for a long-running session.
+      memTcpStress = 3072;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
