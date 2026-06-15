@@ -357,8 +357,12 @@ func TestS3ParquetDest_corner_queueFull(t *testing.T) {
 		close(doneCh)
 	}()
 
-	// Wait long enough for the queueFull counter to tick.
-	deadline := time.After(2 * time.Second)
+	// Wait for the queueFull counter to tick. The loop breaks the instant
+	// the counter reaches 1, so a passing run finishes in milliseconds; the
+	// deadline only bounds the genuine-failure case. Keep it generous so a
+	// loaded CI box (full `go test ./...`, esp. under -race) can't trip a
+	// false negative just because the sender goroutine scheduled late.
+	deadline := time.After(30 * time.Second)
 	for {
 		select {
 		case <-deadline:
