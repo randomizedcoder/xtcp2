@@ -334,8 +334,8 @@ func TestSeverityOrder(t *testing.T) {
 		{"high", 0},
 		{"medium", 1},
 		{"low", 2},
-		{"HIGH", 0},   // case-insensitive
-		{"Error", 0},  // case-insensitive
+		{"HIGH", 0},  // case-insensitive
+		{"Error", 0}, // case-insensitive
 		{"unknown", 3},
 		{"", 3},
 	}
