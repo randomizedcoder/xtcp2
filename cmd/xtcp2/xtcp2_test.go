@@ -624,6 +624,10 @@ func TestPrintFlags(t *testing.T) {
 	f.s3SecretKey = &s
 	f.s3Region = &s
 	f.s3ParquetFlushBytes = &n
+	f.pyroscopeUrl = &s
+	f.pyroscopeAppName = &s
+	f.pyroscopeSampleHz = &n
+	f.pyroscopeUploadSec = &n
 	f.dest = &s
 	f.destWriteFiles = &n
 	f.topic = &s
@@ -714,6 +718,10 @@ func TestBuildConfig(t *testing.T) {
 		s3SecretKey:         &mar,
 		s3Region:            &mar,
 		s3ParquetFlushBytes: &wf,
+		pyroscopeUrl:        &mar,
+		pyroscopeAppName:    &mar,
+		pyroscopeSampleHz:   &wf,
+		pyroscopeUploadSec:  &wf,
 		dest:                &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
