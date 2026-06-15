@@ -350,18 +350,91 @@ func newGRPCClient(target string) *grpc.ClientConn {
 	return conn
 }
 
+// recvAction is the per-iteration decision the stream loop takes after
+// stream.Recv returns. Either keep reading (continue), stop reading
+// (break), or print the just-received response.
+type recvAction int
+
+const (
+	recvBreak recvAction = iota
+	recvContinue
+	recvPrint
+)
+
+// classifyRecvErr maps a stream.Recv error into one of the recvAction
+// outcomes. EOF + ctx-cancel are break. ResourceExhausted is a
+// backoff-then-continue (the inner sleep is done by the caller because
+// it needs the same ctx). Other errors fall through to continue —
+// nothing useful to print since the response is nil on error.
+func classifyRecvErr(err error) recvAction {
+	if err == io.EOF {
+		// End of stream — the server closed cleanly. Subsequent Recv
+		// calls keep returning io.EOF, so caller breaks out of the loop
+		// so the singleStreamingClient reconnect-with-sleep path
+		// re-establishes a fresh stream.
+		return recvBreak
+	}
+	if err != nil {
+		return recvContinue
+	}
+	return recvPrint
+}
+
+// resourceExhaustedSleep waits jittered ResourceExhaustedSleepTime or
+// until ctx is cancelled, whichever comes first. Returns true if the
+// caller should break the loop (ctx cancelled during the wait).
+func resourceExhaustedSleep(ctx context.Context, err error) (cancelled bool) {
+	sleepTime := ResourceExhaustedSleepTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
+	if debugLevel > 10 {
+		log.Printf("Received ResourceExhausted error: %v, so sleeping:%0.3f before retry", err, sleepTime.Seconds())
+	}
+	select {
+	case <-ctx.Done():
+		return true
+	case <-time.After(sleepTime):
+		return false
+	}
+}
+
+// ctxDone is a non-blocking ctx.Err() check — equivalent to the
+// `select { case <-ctx.Done(): default: }` pattern but linear so it
+// doesn't contribute to the surrounding function's cyclomatic.
+func ctxDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// handleRecvContinueErr applies the post-classifyRecvErr handling for
+// a recvContinue outcome: optional debug log, ctx-cancel check,
+// ResourceExhausted backoff. Returns true when the caller should
+// break out of the stream loop, false to continue.
+func handleRecvContinueErr(ctx context.Context, client any, err error) bool {
+	if debugLevel > 10 {
+		log.Printf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	if ctxDone(ctx) {
+		return true
+	}
+	if status.Code(err) == codes.ResourceExhausted {
+		if resourceExhaustedSleep(ctx, err) {
+			return true
+		}
+	}
+	return false
+}
+
 func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
 
 	defer wg.Done()
 	defer func() { _ = conn.Close() }() //nolint:errcheck // streaming client teardown; conn.Close err is non-actionable
 
 	req := &xtcp_flat_record.FlatRecordsRequest{}
-
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
-
 	stream, err := client.FlatRecords(ctx, req)
-	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
-	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		// Demoted from log.Fatal: the surrounding singleStreamingClient
 		// loop is a "reconnect after sleep" loop (bug 65). A Fatal here
@@ -372,79 +445,30 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 		return
 	}
 
-breakPoint:
 	for i := 0; ; i++ {
-
-		select {
-		case <-ctx.Done():
-			break breakPoint
-		default:
-			// non-blocking
+		if ctxDone(ctx) {
+			break
 		}
-
 		if debugLevel > 10 {
 			log.Printf("id: %d waiting for message i:%d", id, i)
 		}
-
-		var flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse
-		flatRecordsResponse, err = stream.Recv()
-		if err == io.EOF {
-			// End of stream — the server closed cleanly. Subsequent
-			// Recv calls keep returning io.EOF, so `continue` here
-			// pegged a CPU core. Break out of the loop so the
-			// reconnect-with-sleep path in singleStreamingClient
-			// re-establishes a fresh stream.
-			break breakPoint
-		}
-
-		if err != nil {
-			if debugLevel > 10 {
-				log.Printf("%v.ListFeatures(_) = _, %v", client, err)
-			}
-
-			select {
-			case <-ctx.Done():
-				break breakPoint
-			default:
-				// non-blocking
-			}
-
-			// https://github.com/grpc/grpc-go/blob/master/examples/features/error_handling/client/main.go
-			// ResourceExhausted is the retryable case from the gRPC
-			// example; back off and try again. (The prior code had the
-			// condition inverted — backoff fired for every OTHER err
-			// and ResourceExhausted fell through to print a nil
-			// flatRecordsResponse.) Use ctx-aware wait so shutdown is
-			// prompt.
-			if status.Code(err) == codes.ResourceExhausted {
-				sleepTime := ResourceExhaustedSleepTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
-				if debugLevel > 10 {
-					log.Printf("Received ResourceExhausted error: %v, so sleeping:%0.3f before retry", err, sleepTime.Seconds())
-				}
-				select {
-				case <-ctx.Done():
-					break breakPoint
-				case <-time.After(sleepTime):
-				}
-				continue
-			}
-
-			// Non-retryable error: nothing useful to print (the
-			// flatRecordsResponse is nil after Recv returned an error).
+		resp, rerr := stream.Recv()
+		switch classifyRecvErr(rerr) {
+		case recvBreak:
+			return
+		case recvPrint:
+			printFlatRecordsResponse(resp, id, json, debugLevel)
 			continue
 		}
-
-		// Recv succeeded — print the record. Previously the function
-		// dead-ended here without ever consuming the response (the
-		// orphaned printFlatRecordsResponse call lived inside the
-		// inverted error branch).
-		printFlatRecordsResponse(flatRecordsResponse, id, json, debugLevel)
+		// recvContinue: classify the err further, optionally backoff.
+		if handleRecvContinueErr(ctx, client, rerr) {
+			break
+		}
 	}
 
 	if debugLevel > 10 {
 		log.Printf("stream closing id:%d", id)
 	}
-
 }
 
 func printFlatRecordsResponse(flatRecordsResponse *xtcp_flat_record.FlatRecordsResponse, id int, json bool, debugLevel uint) {

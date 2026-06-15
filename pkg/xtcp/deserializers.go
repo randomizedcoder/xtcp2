@@ -31,160 +31,80 @@ const (
 	dsKeySockopt = "sockopt"
 )
 
+// deserializerFunc is the signature every XTCP-record per-attribute
+// deserializer satisfies. Sharing the type at package scope lets the
+// dispatch table below stay concise.
+type deserializerFunc = func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
+
+// deserializerEntry binds a CLI/config key (e.g. "meminfo") to the
+// INET_DIAG_* enum value the kernel uses and the function that decodes
+// that attribute's payload into XtcpFlatRecord. dispatchTable below is
+// the single source of truth for both InitDeserializers (registration)
+// and GetAllDeserializers (key enumeration); the previous implementation
+// repeated the same {key, enum, func} triple 13× with a separate
+// `if _, exists := ...; exists { ... }` block each — gocyclo 17 +
+// hard to extend.
+type deserializerEntry struct {
+	key  string
+	enum int
+	fn   deserializerFunc
+}
+
+// dispatchTable lists every supported INET_DIAG attribute in kernel-enum
+// order. The kernel comment column ("// INET_DIAG_X N") that used to
+// punctuate the registration code lives in the trailing comment per row.
+// Keep the order matching the kernel header for grep-ability.
+var dispatchTable = []deserializerEntry{
+	{dsKeyMemInfo, xtcpnl.MemInfoEmumValueCst, xtcpnl.DeserializeMemInfoXTCP},         // 1  MEMINFO
+	{dsKeyInfo, xtcpnl.TCPInfoEmumValueCst, xtcpnl.DeserializeTCPInfoXTCP},            // 2  INFO
+	{dsKeyVegas, xtcpnl.VegasInfoEnumValueCst, xtcpnl.DeserializeVegasInfoXTCP},       // 3  VEGASINFO
+	{dsKeyCong, xtcpnl.CongInfoEmumValueCst, xtcpnl.DeserializeCongInfoXTCP},          // 4  CONG
+	{dsKeyTos, xtcpnl.TypeOfServiceEmumValueCst, xtcpnl.DeserializeTypeOfServiceXTCP}, // 5  TOS
+	{dsKeyTc, xtcpnl.TrafficClassEmumValueCst, xtcpnl.DeserializeTrafficClassXTCP},    // 6  TCLASS
+	{dsKeySkmem, xtcpnl.SkMemInfoEnumValueCst, xtcpnl.DeserializeSkMemInfoXTCP},       // 7  SKMEMINFO
+	{dsKeyShut, xtcpnl.ShutdownEmumValueCst, xtcpnl.DeserializeShutdownXTCP},          // 8  SHUTDOWN
+	{dsKeyDctcp, xtcpnl.DCTCPInfoEnumValueCst, xtcpnl.DeserializeDCTCPInfoXTCP},       // 9  DCTCPINFO
+	{dsKeyBbr, xtcpnl.BBRInfoEnumValueCst, xtcpnl.DeserializeBBRInfoXTCP},             // 16 BBRINFO
+	{dsKeyClassID, xtcpnl.ClassIDEnumValueCst, xtcpnl.DeserializeClassIDXTCP},         // 17 CLASS_ID
+	{dsKeyCgroup, xtcpnl.CGroupIDEnumValueCst, xtcpnl.DeserializeCGroupIDXTCP},        // 21 CGROUP_ID
+	{dsKeySockopt, xtcpnl.SockOptEnumValueCst, xtcpnl.DeserializeSockOptXTCP},         // 22 SOCKOPT (bug 39: was incorrectly DeserializeCGroupIDXTCP before)
+}
+
 func GetAllDeserializers() (deserializers []string) {
-	deserializers = append(deserializers, dsKeyMemInfo)
-	deserializers = append(deserializers, dsKeyInfo)
-	deserializers = append(deserializers, dsKeyVegas)
-	deserializers = append(deserializers, dsKeyCong)
-	deserializers = append(deserializers, dsKeyTos)
-	deserializers = append(deserializers, dsKeyTc)
-	deserializers = append(deserializers, dsKeySkmem)
-	deserializers = append(deserializers, dsKeyShut)
-	deserializers = append(deserializers, dsKeyDctcp)
-	deserializers = append(deserializers, dsKeyBbr)
-	deserializers = append(deserializers, dsKeyClassID)
-	deserializers = append(deserializers, dsKeyCgroup)
-	deserializers = append(deserializers, dsKeySockopt)
+	deserializers = make([]string, 0, len(dispatchTable))
+	for _, e := range dispatchTable {
+		deserializers = append(deserializers, e.key)
+	}
 	return deserializers
 }
 
+// InitDeserializers populates x.RTATypeDeserializer + x.RTATypeDeserializerStr
+// with each entry from dispatchTable whose key is enabled in
+// x.config.EnabledDeserializers.Enabled. The 13-block repetitive
+// registration was extracted into a single table walk — gocyclo 17 → 5.
 func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	x.RTATypeDeserializer = make(map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error), RTATypeDeserializerMapLengthCst)
-	// x.RTATypeDeserializer = make(map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error), RTATypeDeserializerMapLengthCst)
+	x.RTATypeDeserializer = make(map[int]deserializerFunc, RTATypeDeserializerMapLengthCst)
 	x.RTATypeDeserializerStr = make(map[int]string, RTATypeDeserializerMapLengthCst)
 
 	// Defensive against tests that build XtcpConfig{} manually without
-	// setting EnabledDeserializers; the 13 `x.config.EnabledDeserializers.Enabled[...]`
-	// lookups below would otherwise nil-deref. Both production constructors
+	// setting EnabledDeserializers; the per-entry Enabled[key] lookups
+	// below would otherwise nil-deref. Both production constructors
 	// (NewXTCP / NewNsTestingXTCP) set the field, but a fresh XTCP{}
-	// fixture is easy to slip through.
+	// fixture is easy to slip through (bug 77).
 	if x.config.EnabledDeserializers == nil {
 		return
 	}
 
-	// x.RTATypeDeserializer[0] = None
-
-	// INET_DIAG_MEMINFO 1
-	key := dsKeyMemInfo
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.MemInfoEmumValueCst] = xtcpnl.DeserializeMemInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.MemInfoEmumValueCst] = key
+	for _, e := range dispatchTable {
+		if _, exists := x.config.EnabledDeserializers.Enabled[e.key]; !exists {
+			continue
+		}
+		x.RTATypeDeserializer[e.enum] = e.fn
+		x.RTATypeDeserializerStr[e.enum] = e.key
 	}
-
-	// INET_DIAG_INFO 2
-	key = dsKeyInfo
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.TCPInfoEmumValueCst] = xtcpnl.DeserializeTCPInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.TCPInfoEmumValueCst] = key
-	}
-
-	// INET_DIAG_VEGASINFO 3
-	key = dsKeyVegas
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.VegasInfoEnumValueCst] = xtcpnl.DeserializeVegasInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.VegasInfoEnumValueCst] = key
-	}
-
-	// INET_DIAG_CONG 4
-	key = dsKeyCong
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.CongInfoEmumValueCst] = xtcpnl.DeserializeCongInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.CongInfoEmumValueCst] = key
-	}
-
-	// INET_DIAG_TOS 5
-	key = dsKeyTos
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.TypeOfServiceEmumValueCst] = xtcpnl.DeserializeTypeOfServiceXTCP
-		x.RTATypeDeserializerStr[xtcpnl.TypeOfServiceEmumValueCst] = key
-	}
-
-	// INET_DIAG_TCLASS 6
-	key = dsKeyTc
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.TrafficClassEmumValueCst] = xtcpnl.DeserializeTrafficClassXTCP
-		x.RTATypeDeserializerStr[xtcpnl.TrafficClassEmumValueCst] = key
-	}
-
-	// INET_DIAG_SKMEMINFO 7
-	key = dsKeySkmem
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.SkMemInfoEnumValueCst] = xtcpnl.DeserializeSkMemInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.SkMemInfoEnumValueCst] = key
-	}
-
-	// INET_DIAG_SHUTDOWN 8
-	key = dsKeyShut
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.ShutdownEmumValueCst] = xtcpnl.DeserializeShutdownXTCP
-		x.RTATypeDeserializerStr[xtcpnl.ShutdownEmumValueCst] = key
-	}
-
-	// INET_DIAG_DCTCPINFO 9
-	key = dsKeyDctcp
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.DCTCPInfoEnumValueCst] = xtcpnl.DeserializeDCTCPInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.DCTCPInfoEnumValueCst] = key
-	}
-
-	// INET_DIAG_PROTOCOL 10
-	// INET_DIAG_SKV6ONLY 11
-	// INET_DIAG_LOCALS 12
-	// INET_DIAG_PEERS 13
-	// INET_DIAG_PAD 14
-	// INET_DIAG_MARK 15
-
-	// INET_DIAG_BBRINFO 16
-	key = dsKeyBbr
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.BBRInfoEnumValueCst] = xtcpnl.DeserializeBBRInfoXTCP
-		x.RTATypeDeserializerStr[xtcpnl.BBRInfoEnumValueCst] = key
-	}
-
-	// INET_DIAG_CLASS_ID 17
-	key = dsKeyClassID
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.ClassIDEnumValueCst] = xtcpnl.DeserializeClassIDXTCP
-		x.RTATypeDeserializerStr[xtcpnl.ClassIDEnumValueCst] = key
-	}
-
-	// INET_DIAG_MD5SIG 18
-	// INET_DIAG_ULP_INFO 19
-	// INET_DIAG_SK_BPF_STORAGES 20
-
-	// INET_DIAG_CGROUP_ID 21
-	key = dsKeyCgroup
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.CGroupIDEnumValueCst] = xtcpnl.DeserializeCGroupIDXTCP
-		x.RTATypeDeserializerStr[xtcpnl.CGroupIDEnumValueCst] = key
-	}
-
-	// INET_DIAG_SOCKOPT 22
-	// Previously registered DeserializeCGroupIDXTCP here as a workaround
-	// because DeserializeSockOptXTCP had the wrong target type
-	// (*Envelope_XtcpFlatRecord). With the sockopt deserializer's
-	// signature corrected, register the actual SockOpt parser — the
-	// CGroupID one was decoding 8 bytes against the 2-byte SOCKOPT
-	// payload, silently erroring out and leaving SockOpt unpopulated.
-	key = dsKeySockopt
-	if _, exists := x.config.EnabledDeserializers.Enabled[key]; exists {
-		x.RTATypeDeserializer[xtcpnl.SockOptEnumValueCst] = xtcpnl.DeserializeSockOptXTCP
-		x.RTATypeDeserializerStr[xtcpnl.SockOptEnumValueCst] = key
-	}
-
-	// // INET_DIAG_PRAGUEINFO 23
-	// x.RTATypeDeserializer[xtcpnl.SockOptEnumValueCst] = func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
-	// 	return xtcpnl.DeserializeCGroupIDXTCP(buf, xtcpRecord)
-	// }
-
-	// if x.debugLevel > 10 {
-	// 	for k := range x.RTATypeDeserializer {
-	// 		log.Printf("RTATypeDeserializer k:%d", k)
-	// 	}
-	// }
 
 	if x.debugLevel > 10 {
 		for k := range x.RTATypeDeserializerStr {

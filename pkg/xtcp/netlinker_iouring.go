@@ -30,6 +30,93 @@ func ringFromContext(ctx context.Context) *xio.Ring {
 	return ring
 }
 
+// iouringRecvBatchDefaultCst / iouringCqeBatchDefaultCst are the
+// fallbacks applied when the config field is zero or negative. Pulled
+// out as constants so tests can assert defaults via the same name.
+const (
+	iouringRecvBatchDefaultCst = 64
+	iouringCqeBatchDefaultCst  = 128
+	iouringTimeoutDefaultCst   = time.Second
+)
+
+// iouringResolveBatchSizes applies the production defaults to the
+// recv-batch + CQE-batch config fields. Any non-positive value falls
+// back to the constants above.
+func iouringResolveBatchSizes(recvCfg, cqeCfg uint32) (recv, cqe int) {
+	recv = int(recvCfg)
+	if recv < 1 {
+		recv = iouringRecvBatchDefaultCst
+	}
+	cqe = int(cqeCfg)
+	if cqe < 1 {
+		cqe = iouringCqeBatchDefaultCst
+	}
+	return recv, cqe
+}
+
+// iouringResolveTimeout converts NlTimeoutMilliseconds into a
+// time.Duration, defaulting to 1 second when the config is zero. Takes
+// uint64 to match the XtcpConfig.NlTimeoutMilliseconds field type
+// (proto-generated; we don't get to pick the width).
+func iouringResolveTimeout(nlTimeoutMs uint64) time.Duration {
+	if nlTimeoutMs == 0 {
+		return iouringTimeoutDefaultCst
+	}
+	return time.Duration(nlTimeoutMs) * time.Millisecond
+}
+
+// iouringRecordWaitErr classifies werr from iouringWaitWithTimeout.
+// ETIME (io_uring wait timeout) bumps the Timeout counter; everything
+// else bumps WaitErr and logs at debug>10. Caller always `continue`s
+// after this returns.
+func (x *XTCP) iouringRecordWaitErr(id uint32, werr error) {
+	if isETimeError(werr) {
+		x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
+		return
+	}
+	x.pC.WithLabelValues("NetlinkerIoUring", "WaitErr", "count").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("netlinkerIoUring %d WaitOne err: %v", id, werr)
+	}
+}
+
+// iouringProcessResults dispatches each CQE in results to either the
+// recv-CQE handler (which also refills the slot) or the send-CQE
+// handler.
+func (x *XTCP) iouringProcessResults(ctxRing context.Context, ring *xio.Ring, nsName *string, fd int, id uint32, results []xio.Result) {
+	for _, res := range results {
+		switch res.Op {
+		case xio.OpRead:
+			x.handleRecvCQE(ctxRing, ring, nsName, fd, id, res)
+			if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
+				x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
+				if x.debugLevel > 10 {
+					log.Printf("netlinkerIoUring %d refill err: %v", id, rerr)
+				}
+			}
+		default:
+			// Send CQEs (OpSendUDP/OpSendUnix/OpSendUnixGram) come
+			// back here when io_uring destinations are active. The
+			// ring's drain layer already returned res.Buf to the
+			// caller; we just record the outcome.
+			x.handleSendCQE(res)
+		}
+	}
+}
+
+// maybeForceGCIoUring fires runtime.GC every forceGCModulesCst packets.
+// Unlike the syscall path's helper, the loop counter starts at 0 and
+// increments BEFORE the modulus check, so packets==0 never enters
+// here. Skipping again on packets==0 is belt-and-suspenders against
+// future refactors of the loop body.
+func (x *XTCP) maybeForceGCIoUring(packets uint64) {
+	if packets == 0 || packets%forceGCModulesCst != 0 {
+		return
+	}
+	x.pC.WithLabelValues("NetlinkerIoUring", "runtime.GC()", "count").Inc()
+	runtime.GC()
+}
+
 // netlinkerIoUring is the opt-in io_uring variant of the Netlinker
 // goroutine. It pre-submits a configurable batch of recvmsg SQEs against
 // the netlink fd, drains CQEs as they arrive, refills each completed
@@ -41,6 +128,11 @@ func ringFromContext(ctx context.Context) *xio.Ring {
 // Periodic xtcp polling means the loop is mostly idle between dump
 // cycles. WaitCQETimeout caps each wait at config.NlTimeoutMilliseconds
 // so ctx cancellation is observed within that bound.
+//
+// The body was previously a gocyclo-18 monolith mixing config defaults,
+// ring init, prefill, wait+drain+dispatch, refill, and GC bookkeeping.
+// Each concern moved to a helper above; the remaining shell is just
+// "init, defer cleanup, drive the loop" (gocyclo 7).
 func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
 
 	defer wg.Done()
@@ -55,14 +147,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	batch := int(x.config.IoUringRecvBatchSize)
-	if batch < 1 {
-		batch = 64
-	}
-	cqeBatch := int(x.config.IoUringCqeBatchSize)
-	if cqeBatch < 1 {
-		cqeBatch = 128
-	}
+	batch, cqeBatch := iouringResolveBatchSizes(x.config.IoUringRecvBatchSize, x.config.IoUringCqeBatchSize)
 
 	ring, err := xio.New(xio.Config{
 		RecvBatchSize: batch,
@@ -112,60 +197,21 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	// Use a Timespec equal to the netlink timeout so cancel polling and
 	// "kernel has no more data" detection share one knob.
-	nlTimeout := time.Duration(x.config.NlTimeoutMilliseconds) * time.Millisecond
-	if nlTimeout <= 0 {
-		nlTimeout = time.Second
-	}
+	nlTimeout := iouringResolveTimeout(x.config.NlTimeoutMilliseconds)
 
 	packets := uint64(0)
 	for !x.checkDoneNonBlocking(ctx) {
-
 		results, werr := x.iouringWaitWithTimeout(ring, nlTimeout)
 		if werr != nil {
-			// ETIME is the "kernel had no data in this window" signal —
-			// equivalent to syscall.Recvfrom's SO_RCVTIMEO timeout in the
-			// syscall path. We just loop and re-check ctx.
-			if isETimeError(werr) {
-				x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
-				continue
-			}
-			x.pC.WithLabelValues("NetlinkerIoUring", "WaitErr", "count").Inc()
-			if x.debugLevel > 10 {
-				log.Printf("netlinkerIoUring %d WaitOne err: %v", id, werr)
-			}
+			x.iouringRecordWaitErr(id, werr)
 			continue
 		}
-
-		// Each completed recv CQE: hand the bytes to Deserialize and
-		// refill the slot with a fresh recv SQE.
-		for _, res := range results {
-			switch res.Op {
-			case xio.OpRead:
-				x.handleRecvCQE(ctxRing, ring, nsName, fd, id, res)
-				if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
-					x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
-					if x.debugLevel > 10 {
-						log.Printf("netlinkerIoUring %d refill err: %v", id, rerr)
-					}
-				}
-			default:
-				// Send CQEs (OpSendUDP/OpSendUnix/OpSendUnixGram) come
-				// back here when io_uring destinations are active. The
-				// ring's drain layer already returned res.Buf to the
-				// caller; we just record the outcome.
-				x.handleSendCQE(res)
-			}
-		}
-
+		x.iouringProcessResults(ctxRing, ring, nsName, fd, id, results)
 		if _, serr := ring.Submit(); serr != nil {
 			x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
 		}
-
 		packets++
-		if packets%forceGCModulesCst == 0 {
-			x.pC.WithLabelValues("NetlinkerIoUring", "runtime.GC()", "count").Inc()
-			runtime.GC()
-		}
+		x.maybeForceGCIoUring(packets)
 	}
 
 	x.pC.WithLabelValues("NetlinkerIoUring", "complete", "count").Inc()

@@ -175,9 +175,45 @@ pkgs.runCommand "xtcp2-quality-report"
     coverPkg='./pkg/io_uring/...,./pkg/misc/...,./pkg/xtcp/...,./pkg/xtcpnl/...,./tools/...,./cmd/...'
     runtool gotest "$RAW/gotest.json" -- \
       go test -json -short \
-        -coverprofile="$RAW/coverage.out" -covermode=atomic \
+        -coverprofile="$RAW/coverage-default.out" -covermode=atomic \
         -coverpkg="$coverPkg" \
         ./...
+
+    # ── per-flavor coverage runs ──────────────────────────────────────
+    # The default `go test ./...` above compiles WITHOUT any
+    # `dest_*` build tags, so pkg/xtcp/destinations_{kafka,nats,nsq,
+    # valkey}.go (each guarded by `//go:build dest_<name>`) are
+    # excluded from the profile. Re-run pkg/xtcp/... once per flavor
+    # with the matching tag so the destination files contribute to
+    # coverage. The merged profile then feeds the existing TSV+HTML
+    # post-processing below.
+    #
+    # Each per-flavor run is independent and writes to its own .out
+    # file; we concatenate them below (skipping the duplicate
+    # `mode: atomic` header) and let the existing awk dedupe by
+    # max-count-per-block, mirroring what `go tool cover` does.
+    for flavor in kafka nats nsq valkey; do
+      go test -tags "dest_$flavor" \
+        -coverprofile="$RAW/coverage-$flavor.out" -covermode=atomic \
+        -coverpkg="$coverPkg" \
+        ./pkg/xtcp/... \
+        >> "$RAW/coverage-flavor-stdout.log" 2>&1 || true
+    done
+
+    # ── merge default + flavor profiles ───────────────────────────────
+    # The first line of each .out is `mode: atomic` — keep only one,
+    # then append every flavor's block lines. The downstream awk
+    # already dedupes per (file:range) key by keeping max-count, so
+    # repeated blocks across flavors collapse cleanly.
+    if [ -s "$RAW/coverage-default.out" ]; then
+      head -n 1 "$RAW/coverage-default.out" > "$RAW/coverage.out"
+      tail -n +2 "$RAW/coverage-default.out" >> "$RAW/coverage.out"
+      for flavor in kafka nats nsq valkey; do
+        if [ -s "$RAW/coverage-$flavor.out" ]; then
+          tail -n +2 "$RAW/coverage-$flavor.out" >> "$RAW/coverage.out"
+        fi
+      done
+    fi
 
     # ── coverage post-processing ───────────────────────────────────────
     # The TSV summary is the canonical input the quality-report aggregator

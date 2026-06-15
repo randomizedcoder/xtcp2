@@ -28,15 +28,8 @@ func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDi
 	x.pC.WithLabelValues("watchNamespaces", "start", "count").Inc()
 	defer x.pC.WithLabelValues("watchNamespaces", "complete", "count").Inc()
 
-	if netNsDir == linuxNetNSDirCst {
-		if !checkDirectoryExists(netNsDir) {
-			if x.debugLevel > 10 {
-				log.Printf("watchNamespaces %s no network namespace exists. Creating: %s", linuxNetNSDirCst, xtcpNSName)
-			}
-			if err := x.createNetworkNamespace(netNsDir, xtcpNSName); err != nil {
-				return err
-			}
-		}
+	if err := x.ensureNetNSDir(netNsDir); err != nil {
+		return err
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -53,52 +46,75 @@ func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDi
 		log.Printf("Watching directory: %s", netNsDir)
 	}
 
-breakPoint:
 	for {
 		x.pC.WithLabelValues("watchNamespaces", "for", "counter").Inc()
-
 		select {
-
 		case <-ctx.Done():
-			break breakPoint
-
+			return nil
 		case event, ok := <-watcher.Events:
-			x.pC.WithLabelValues("watchNamespaces", "event", "counter").Inc()
-			if !ok {
-				x.pC.WithLabelValues("watchNamespaces", "watcherClose", "counter").Inc()
-				return fmt.Errorf("watcher event channel closed")
+			if e := x.dispatchNsFsEvent(ctx, netNsDir, event, ok); e != nil {
+				return e
 			}
-
-			// nsName := filepath.Base(event.Name)
-			// nsName := netNsDir + event.Name
-			nsName := event.Name
-
-			if x.debugLevel > 10 {
-				log.Printf("watchNamespaces %s event.Name: %v event.Op.String: %s nsName:%s", netNsDir, event.Name, event.Op.String(), nsName)
-			}
-
-			if event.Op&fsnotify.Create == fsnotify.Create {
-				x.nsAdd(ctx, &nsName)
-				continue
-			}
-
-			if event.Op&fsnotify.Remove == fsnotify.Remove {
-				x.nsDelete(&nsName)
-				continue
-			}
-
 		case werr, ok := <-watcher.Errors:
-			x.pC.WithLabelValues("watchNamespaces", "error", "error").Inc()
-			if !ok {
-				x.pC.WithLabelValues("watchNamespaces", "watcherCloseErr", "counter").Inc()
-				return fmt.Errorf("watchNamespaces %s error channel closed", netNsDir)
-			}
-			if x.debugLevel > 10 {
-				log.Printf("Watcher error: %v", werr)
+			if e := x.handleNsWatcherErr(netNsDir, werr, ok); e != nil {
+				return e
 			}
 		}
 	}
+}
 
+// ensureNetNSDir creates linuxNetNSDirCst when missing. No-op for any
+// other dir (e.g. tests' tempdirs, which the caller is responsible for
+// creating). The previous body had this conditional inline as a triple-
+// nested if; lifting it cuts watchNsNamespace's gocyclo by 3.
+func (x *XTCP) ensureNetNSDir(netNsDir string) error {
+	if netNsDir != linuxNetNSDirCst {
+		return nil
+	}
+	if checkDirectoryExists(netNsDir) {
+		return nil
+	}
+	if x.debugLevel > 10 {
+		log.Printf("watchNamespaces %s no network namespace exists. Creating: %s", linuxNetNSDirCst, xtcpNSName)
+	}
+	return x.createNetworkNamespace(netNsDir, xtcpNSName)
+}
+
+// dispatchNsFsEvent handles one fsnotify.Event from watcher.Events.
+// Returns nil to continue the watch loop, non-nil when the event
+// channel itself has closed (caller propagates as the loop error).
+func (x *XTCP) dispatchNsFsEvent(ctx context.Context, netNsDir string, event fsnotify.Event, ok bool) error {
+	x.pC.WithLabelValues("watchNamespaces", "event", "counter").Inc()
+	if !ok {
+		x.pC.WithLabelValues("watchNamespaces", "watcherClose", "counter").Inc()
+		return fmt.Errorf("watcher event channel closed")
+	}
+	nsName := event.Name
+	if x.debugLevel > 10 {
+		log.Printf("watchNamespaces %s event.Name: %v event.Op.String: %s nsName:%s", netNsDir, event.Name, event.Op.String(), nsName)
+	}
+	if event.Op&fsnotify.Create == fsnotify.Create {
+		x.nsAdd(ctx, &nsName)
+		return nil
+	}
+	if event.Op&fsnotify.Remove == fsnotify.Remove {
+		x.nsDelete(&nsName)
+	}
+	return nil
+}
+
+// handleNsWatcherErr handles one error from watcher.Errors. Same return
+// contract as dispatchNsFsEvent: non-nil only when the error channel
+// has closed.
+func (x *XTCP) handleNsWatcherErr(netNsDir string, werr error, ok bool) error {
+	x.pC.WithLabelValues("watchNamespaces", "error", "error").Inc()
+	if !ok {
+		x.pC.WithLabelValues("watchNamespaces", "watcherCloseErr", "counter").Inc()
+		return fmt.Errorf("watchNamespaces %s error channel closed", netNsDir)
+	}
+	if x.debugLevel > 10 {
+		log.Printf("Watcher error: %v", werr)
+	}
 	return nil
 }
 
