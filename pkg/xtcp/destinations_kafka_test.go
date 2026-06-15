@@ -415,14 +415,14 @@ func BenchmarkGetLatestSchemaID(b *testing.B) {
 // ───────────────────────────────────────────────────────────────────────
 
 type fakeKafkaProducer struct {
-	produceErr   error
-	pingErr      error
-	flushErr     error
-	produces     atomic.Int64
-	flushes      atomic.Int64
-	closes       atomic.Int64
-	pings        atomic.Int64
-	allowRebals  atomic.Int64
+	produceErr  error
+	pingErr     error
+	flushErr    error
+	produces    atomic.Int64
+	flushes     atomic.Int64
+	closes      atomic.Int64
+	pings       atomic.Int64
+	allowRebals atomic.Int64
 	// failFirstNPings makes the first N Ping calls return pingErr,
 	// then subsequent calls succeed. Lets tests drive the
 	// pingKafkaWithRetries retry path then recovery.
@@ -470,12 +470,12 @@ func newKafkaDestForTest(t *testing.T, fake *fakeKafkaProducer) *kafkaDest {
 
 func TestKafkaDest_Send_table(t *testing.T) {
 	cases := []struct {
-		name              string
-		category          string
-		produceErr        error
-		produceTimeout    time.Duration
-		wantOKCounter     float64
-		wantErrCounter    float64
+		name           string
+		category       string
+		produceErr     error
+		produceTimeout time.Duration
+		wantOKCounter  float64
+		wantErrCounter float64
 	}{
 		{"positive_clean_produce", "positive", nil, 0, 1, 0},
 		{"positive_with_produce_timeout", "positive", nil, 100 * time.Millisecond, 1, 0},
