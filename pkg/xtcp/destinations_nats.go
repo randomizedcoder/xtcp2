@@ -17,10 +17,32 @@ const (
 	natsTimeoutCst    = 1 * time.Second
 )
 
+// natsPublisher captures the surface of *nats.Conn that natsDest
+// actually calls. Lifting it to an interface lets the destination's
+// Send/Close paths run against an in-process fake without a real
+// NATS server — see destinations_nats_test.go. *nats.Conn satisfies
+// this interface via its concrete methods.
+type natsPublisher interface {
+	Publish(subj string, data []byte) error
+	FlushTimeout(timeout time.Duration) error
+	Close()
+}
+
 // natsDest publishes each marshalled record to a NATS subject.
 type natsDest struct {
 	x      *XTCP
-	client *nats.Conn
+	client natsPublisher
+}
+
+// newNATSConnFn is the factory tests swap to inject a fake
+// natsPublisher without dialing a real NATS server. Production
+// callers leave this at the default (newNATSConnReal).
+var newNATSConnFn = newNATSConnReal
+
+// newNATSConnReal is the production factory: opens a real *nats.Conn
+// via nats.Options.Connect with the canonical retry config.
+func newNATSConnReal(opts nats.Options) (natsPublisher, error) {
+	return opts.Connect()
 }
 
 func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
@@ -39,7 +61,7 @@ func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
 		RetryOnFailedConnect: true,
 		Timeout:              natsTimeoutCst,
 	}
-	client, err := opts.Connect()
+	client, err := newNATSConnFn(opts)
 	if err != nil {
 		return nil, fmt.Errorf("newNATSDest opts.Connect: %w", err)
 	}

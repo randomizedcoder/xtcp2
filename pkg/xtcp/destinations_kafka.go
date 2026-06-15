@@ -29,16 +29,43 @@ const (
 	KafkaHeaderSizeCst = 6
 )
 
+// kafkaProducer captures the surface of *kgo.Client that kafkaDest
+// actually calls. Lifting it to an interface lets the destination's
+// Send/Close/pingKafkaWithRetries paths run against an in-process
+// fake without a real broker — see destinations_kafka_test.go.
+// Production uses *kgo.Client which satisfies this interface via its
+// concrete methods.
+type kafkaProducer interface {
+	Produce(ctx context.Context, r *kgo.Record, promise func(*kgo.Record, error))
+	Flush(ctx context.Context) error
+	Close()
+	Ping(ctx context.Context) error
+	AllowRebalance()
+}
+
 // kafkaDest produces each marshalled record to a Kafka topic via franz-go.
 // Construction registers the proto schema with the Schema Registry, dials
 // the broker, and primes a sync.Pool of kgo.Record so each send avoids
 // allocation.
 type kafkaDest struct {
 	x          *XTCP
-	client     *kgo.Client
+	client     kafkaProducer
 	regClient  *sr.Client
 	schemaID   int
 	recordPool sync.Pool
+}
+
+// newKafkaProducerFn is the factory tests swap to inject a fake
+// kafkaProducer without standing up a real kgo.Client. Production
+// callers leave this at the default (newKafkaProducerReal).
+var newKafkaProducerFn = newKafkaProducerReal
+
+// newKafkaProducerReal is the production factory: it constructs a real
+// kgo.Client wired with the production options. Extracted so the test
+// suite can substitute newKafkaProducerFn with a fake-returning
+// closure and exercise newKafkaDest without a broker.
+func newKafkaProducerReal(opts ...kgo.Opt) (kafkaProducer, error) {
+	return kgo.NewClient(opts...)
 }
 
 func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
@@ -92,7 +119,7 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		})),
 	}
 
-	d.client, err = kgo.NewClient(opts...)
+	d.client, err = newKafkaProducerFn(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("newKafkaDest kgo.NewClient: %w", err)
 	}

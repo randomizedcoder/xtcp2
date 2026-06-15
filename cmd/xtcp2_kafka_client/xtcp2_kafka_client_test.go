@@ -162,3 +162,99 @@ func TestPollLoop_fetchErrorsThenCancel(t *testing.T) {
 		t.Fatal("pollLoop did not exit after cancel")
 	}
 }
+
+// fakeFetcher implements the kafkaFetcher interface so pollLoop can be
+// driven with synthetic records — exercises the EachRecord closure
+// body that broker-bound tests can't reach without real kafka.
+type fakeFetcher struct {
+	fetches  []kgo.Fetches
+	calls    int
+	onCancel context.CancelFunc
+}
+
+func (f *fakeFetcher) PollFetches(_ context.Context) kgo.Fetches {
+	f.calls++
+	if f.calls > len(f.fetches) {
+		if f.onCancel != nil {
+			f.onCancel()
+		}
+		return kgo.Fetches{}
+	}
+	return f.fetches[f.calls-1]
+}
+
+func makeFetchWithRecord(value []byte) kgo.Fetches {
+	return kgo.Fetches{
+		{
+			Topics: []kgo.FetchTopic{
+				{
+					Topic: "test-topic",
+					Partitions: []kgo.FetchPartition{
+						{Records: []*kgo.Record{{Value: value}}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestPollLoop_eachRecordClosureFires drives pollLoop with one
+// synthetic Fetch containing a single valid Confluent-framed record.
+// The EachRecord closure (processRecord call) fires, then the second
+// PollFetches call signals the fake to cancel ctx.
+func TestPollLoop_eachRecordClosureFires(t *testing.T) {
+	value := make([]byte, KafkaHeaderSizeCst+1)
+	value[0] = 0x00 // magic
+	// schemaID bytes [1:5] = 0; length byte [5] = 0 → empty proto
+	// envelope; processRecord parses it successfully.
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	fake := &fakeFetcher{
+		fetches:  []kgo.Fetches{makeFetchWithRecord(value)},
+		onCancel: cancel,
+	}
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, fake)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit after fake fetcher exhausted")
+	}
+	if fake.calls < 1 {
+		t.Errorf("expected ≥1 PollFetches call; got %d", fake.calls)
+	}
+}
+
+// TestPollLoop_fakeFetcherErrors drives pollLoop with a Fetches that
+// surfaces an error via FetchPartition.Err, then exhausts to cancel.
+// Exercises the `if errs := fetches.Errors(); ...` branch with a
+// non-empty Errors() result.
+func TestPollLoop_fakeFetcherErrors(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	errFetch := kgo.Fetches{
+		{Topics: []kgo.FetchTopic{
+			{Topic: "test-topic", Partitions: []kgo.FetchPartition{
+				{Err: errors.New("fetch err")},
+			}},
+		}},
+	}
+	fake := &fakeFetcher{
+		fetches:  []kgo.Fetches{errFetch},
+		onCancel: cancel,
+	}
+	done := make(chan struct{})
+	go func() {
+		pollLoop(ctx, fake)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollLoop did not exit on fake-fetcher exhaust")
+	}
+}

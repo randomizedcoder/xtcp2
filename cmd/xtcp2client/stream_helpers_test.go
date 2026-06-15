@@ -39,7 +39,7 @@ func TestClassifyRecvErr_table(t *testing.T) {
 		{"corner_wrapped_eof_NOT_treated_as_eof", "corner",
 			// The helper uses `err == io.EOF` (sentinel equality), not
 			// errors.Is. A wrapped EOF doesn't compare equal — pin this
-			// behaviour against a future shift to errors.Is.
+			// behavior against a future shift to errors.Is.
 			wrapErr(io.EOF), recvContinue},
 		{"adversarial_internal_err_continue", "adversarial", status.Error(codes.Internal, "x"), recvContinue},
 	}
@@ -68,7 +68,7 @@ func TestCtxDone_table(t *testing.T) {
 	}{
 		{"positive_live_ctx_false", "positive",
 			func(_ *testing.T) context.Context { return context.Background() }, false},
-		{"positive_cancelled_ctx_true", "positive",
+		{"positive_canceled_ctx_true", "positive",
 			func(_ *testing.T) context.Context {
 				c, cancel := context.WithCancel(context.Background())
 				cancel()
@@ -111,24 +111,97 @@ func TestCtxDone_table(t *testing.T) {
 
 func TestResourceExhaustedSleep_ctxCancelReturnsTrue(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // already cancelled
+	cancel() // already canceled
 	start := time.Now()
 	got := resourceExhaustedSleep(ctx, errors.New("RE"))
 	if !got {
-		t.Error("cancelled ctx should return true (caller should break loop)")
+		t.Error("canceled ctx should return true (caller should break loop)")
 	}
 	// Sanity: returned promptly, not waiting the full ResourceExhaustedSleepTime.
 	if time.Since(start) > 1*time.Second {
-		t.Errorf("returned after %v on cancelled ctx; should be near-instant", time.Since(start))
+		t.Errorf("returned after %v on canceled ctx; should be near-instant", time.Since(start))
 	}
 }
 
-// (No live-sleep test here: the production sleep is 30-40s and gating
-// it behind an env var is anti-pattern per project convention. The
-// cancel-path test above + the live-ctx benchmark below are
-// sufficient deterministic coverage; the full-sleep behaviour is
-// exercised by the production reconnect loop in singleStreamingClient,
-// which already has integration coverage in xtcp2client_test.go.)
+// TestResourceExhaustedSleep_liveCtxRunsFullSleep exercises the
+// time.After branch (returns false) by shrinking the base sleep
+// duration to a microsecond. ResourceExhaustedSleepTime is a var
+// (not a const) precisely so this test can shrink it without
+// wall-clocking 30+ seconds; production code never mutates it.
+func TestResourceExhaustedSleep_liveCtxRunsFullSleep(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	start := time.Now()
+	got := resourceExhaustedSleep(ctx, errors.New("RE"))
+	if got {
+		t.Error("uncancelled ctx with shrunken sleep should return false")
+	}
+	if elapsed := time.Since(start); elapsed > 1*time.Second {
+		t.Errorf("sleep took %v with shrunken base+jitter; should be sub-second", elapsed)
+	}
+}
+
+// TestResourceExhaustedSleep_debugLogPath covers the debug-log branch
+// (debugLevel > 10) on the same shrunken-sleep path.
+// TestHandleRecvContinueErr_resourceExhaustedLiveCtxContinues covers
+// the recvContinue path where the sleep runs to completion: ctx stays
+// live → resourceExhaustedSleep returns false → handleRecvContinueErr
+// also returns false. Shrunken globals keep the test fast.
+func TestHandleRecvContinueErr_resourceExhaustedLiveCtxContinues(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	got := handleRecvContinueErr(ctx, "client",
+		status.Error(codes.ResourceExhausted, "x"))
+	if got {
+		t.Error("live ctx + shrunken sleep should return false (continue)")
+	}
+}
+
+// TestHandleRecvContinueErr_debugLogPath drives the debug-log gate.
+func TestHandleRecvContinueErr_debugLogPath(t *testing.T) {
+	origDebug := debugLevel
+	debugLevel = 11
+	defer func() { debugLevel = origDebug }()
+	got := handleRecvContinueErr(context.Background(), "client",
+		errors.New("non-retryable"))
+	if got {
+		t.Error("non-ResourceExhausted err with live ctx should return false")
+	}
+}
+
+func TestResourceExhaustedSleep_debugLogPath(t *testing.T) {
+	origSleep := ResourceExhaustedSleepTime
+	origJitter := JitterSleepMaxMs
+	origDebug := debugLevel
+	ResourceExhaustedSleepTime = 1 * time.Microsecond
+	JitterSleepMaxMs = 1
+	debugLevel = 11
+	defer func() {
+		ResourceExhaustedSleepTime = origSleep
+		JitterSleepMaxMs = origJitter
+		debugLevel = origDebug
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_ = resourceExhaustedSleep(ctx, errors.New("RE"))
+}
 
 // ───────────────────────────────────────────────────────────────────────
 // handleRecvContinueErr
@@ -148,12 +221,12 @@ func TestHandleRecvContinueErr_table(t *testing.T) {
 		{
 			name:      "positive_ctx_live_non_resource_exhausted_continues",
 			category:  "positive",
-			ctxBuild:  func() context.Context { return context.Background() },
+			ctxBuild:  context.Background,
 			err:       errors.New("Unavailable"),
 			wantBreak: false,
 		},
 		{
-			name:     "negative_ctx_cancelled_breaks",
+			name:     "negative_ctx_canceled_breaks",
 			category: "negative",
 			ctxBuild: func() context.Context {
 				c, cancel := context.WithCancel(context.Background())
@@ -164,7 +237,7 @@ func TestHandleRecvContinueErr_table(t *testing.T) {
 			wantBreak: true,
 		},
 		{
-			name:     "corner_resource_exhausted_with_cancelled_ctx_breaks_during_sleep",
+			name:     "corner_resource_exhausted_with_canceled_ctx_breaks_during_sleep",
 			category: "corner",
 			ctxBuild: func() context.Context {
 				c, cancel := context.WithCancel(context.Background())
@@ -180,7 +253,7 @@ func TestHandleRecvContinueErr_table(t *testing.T) {
 			// Caller invariant: handleRecvContinueErr is only entered
 			// for the recvContinue case (i.e. err != nil and not EOF).
 			// But the function itself should still be robust.
-			ctxBuild:  func() context.Context { return context.Background() },
+			ctxBuild:  context.Background,
 			err:       nil,
 			wantBreak: false,
 		},
@@ -213,9 +286,9 @@ func TestStreamHelpers_concurrent(t *testing.T) {
 				_ = classifyRecvErr(io.EOF)
 				_ = classifyRecvErr(nil)
 				_ = ctxDone(context.Background())
-				cancelled, cancel := context.WithCancel(context.Background())
+				canceled, cancel := context.WithCancel(context.Background())
 				cancel()
-				if handleRecvContinueErr(cancelled, "c", errors.New("x")) {
+				if handleRecvContinueErr(canceled, "c", errors.New("x")) {
 					breaks.Add(1)
 				}
 			}

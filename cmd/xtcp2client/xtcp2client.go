@@ -52,9 +52,6 @@ const (
 	// default 20s
 	keepaliveTimeout = 20 * time.Second
 
-	ResourceExhaustedSleepTime = 30 * time.Second
-	JitterSleepMaxMs           = 10000
-
 	reconnectTime = 10 * time.Second
 
 	servicePolicyString = `
@@ -91,6 +88,19 @@ var (
 	version string
 
 	debugLevel uint
+
+	// ResourceExhaustedSleepTime is the base backoff duration the
+	// stream loop waits before retrying after a ResourceExhausted
+	// gRPC error. var (was const) so tests can shrink it to
+	// microseconds and exercise the full-sleep branch of
+	// resourceExhaustedSleep without wall-clocking 30+ seconds.
+	// Production code never mutates it.
+	ResourceExhaustedSleepTime = 30 * time.Second
+
+	// JitterSleepMaxMs caps the random jitter added on top of
+	// ResourceExhaustedSleepTime (and reconnectTime). var (was const)
+	// so tests can shrink it to 1ms.
+	JitterSleepMaxMs uint32 = 10000
 )
 
 func main() {
@@ -157,7 +167,11 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 
 	stream, err := client.PollFlatRecords(ctx)
 	if err != nil {
-		log.Fatalf("client.PollFlatRecords(shortCtx) err:%v", err)
+		// Demoted from log.Fatalf: Fatalf calls os.Exit so the deferred
+		// ticker.Stop() above would never run. Log + return so the
+		// defers fire and the caller can decide what to do next.
+		log.Printf("pollMode: client.PollFlatRecords err: %v", err)
+		return
 	}
 
 	// recvCh := make(chan *xtcp_flat_record.FlatRecordsResponse)
@@ -381,9 +395,9 @@ func classifyRecvErr(err error) recvAction {
 }
 
 // resourceExhaustedSleep waits jittered ResourceExhaustedSleepTime or
-// until ctx is cancelled, whichever comes first. Returns true if the
-// caller should break the loop (ctx cancelled during the wait).
-func resourceExhaustedSleep(ctx context.Context, err error) (cancelled bool) {
+// until ctx is canceled, whichever comes first. Returns true if the
+// caller should break the loop (ctx canceled during the wait).
+func resourceExhaustedSleep(ctx context.Context, err error) (canceled bool) {
 	sleepTime := ResourceExhaustedSleepTime + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
 	if debugLevel > 10 {
 		log.Printf("Received ResourceExhausted error: %v, so sleeping:%0.3f before retry", err, sleepTime.Seconds())
@@ -459,8 +473,9 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 		case recvPrint:
 			printFlatRecordsResponse(resp, id, json, debugLevel)
 			continue
+		case recvContinue:
+			// fall through to handleRecvContinueErr below
 		}
-		// recvContinue: classify the err further, optionally backoff.
 		if handleRecvContinueErr(ctx, client, rerr) {
 			break
 		}

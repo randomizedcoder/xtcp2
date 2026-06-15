@@ -152,7 +152,10 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// bounded by a 5s timeout so a wedged broker doesn't block
 		// shutdown indefinitely.
 		defer func() {
-			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// Derive flushCtx from the caller's ctx so cancellation
+			// propagates correctly; cap at 5s so a wedged broker
+			// doesn't block teardown indefinitely.
+			flushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 			if err := kClient.Flush(flushCtx); err != nil {
 				fmt.Fprintf(stderr, "kgo Flush on exit: %v\n", err)

@@ -92,7 +92,7 @@ func TestMillisToTimeval_table(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tv := millisToTimeval(tc.millis)
-			if int64(tv.Sec) != tc.wantSec || int64(tv.Usec) != tc.wantUs {
+			if tv.Sec != tc.wantSec || int64(tv.Usec) != tc.wantUs {
 				t.Errorf("millisToTimeval(%d) = {Sec:%d, Usec:%d}; want {Sec:%d, Usec:%d}",
 					tc.millis, tv.Sec, tv.Usec, tc.wantSec, tc.wantUs)
 			}
