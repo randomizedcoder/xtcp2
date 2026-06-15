@@ -141,10 +141,16 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 	}
 
 	conn := newGRPCClient(addr)
+	// Close the conn + Stop the ticker on the way out. Previously
+	// pollMode returned with both leaked — fine in a one-shot CLI run
+	// but the daemon-embedded usage (and the test harness) leaked one
+	// conn + one *time.Ticker per pollMode invocation.
+	defer func() { _ = conn.Close() }() //nolint:errcheck // already on the way out; Close err is non-actionable
 
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
 
 	ticker := time.NewTicker(pollFrequency)
+	defer ticker.Stop()
 
 	// shortCtx, cancel := context.WithTimeout(ctx, pollFrequency-time.Duration(10*time.Millisecond))
 	// defer cancel()
@@ -253,10 +259,12 @@ func listenMode(ctx context.Context, addr string, workers int, complete *chan st
 	var wg sync.WaitGroup
 	wg.Add(workers)
 	for j := 0; j < workers; j++ {
-
-		conn := newGRPCClient(addr)
-
-		go singleStreamingClient(ctx, &wg, conn, json, j)
+		// singleStreamingClient now owns the conn lifetime — it
+		// re-dials per reconnect iteration. Previously listenMode
+		// dialed once and passed the conn down, but stream()
+		// deferred-Close'd it on first return, so every "reconnect
+		// after sleep" iteration after the first used a dead conn.
+		go singleStreamingClient(ctx, &wg, addr, json, j)
 	}
 
 	wg.Wait()
@@ -274,7 +282,7 @@ func listenMode(ctx context.Context, addr string, workers int, complete *chan st
 // restart branch without waiting 10 seconds.
 var reconnectTimeVar = reconnectTime
 
-func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
+func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, addr string, json bool, id int) {
 
 	defer wg.Done()
 
@@ -288,6 +296,12 @@ breakPoint:
 			// non-blocking
 		}
 
+		// Re-dial per iteration. stream() defer-Close()s the conn it
+		// receives, so a single dial reused across iterations would
+		// hand a closed conn to every reconnect — the original code
+		// had this bug; the reconnect-with-sleep loop was effectively
+		// dead code after iteration 0.
+		conn := newGRPCClient(addr)
 		wg.Add(1)
 		stream(ctx, wg, conn, json, id)
 
@@ -349,8 +363,13 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json
 	// stream, err := client.FlatRecords(ctx, req, grpc.CallContentSubtype(gzip.Name))
 	// stream, err := client.FlatRecords(ctx, req, grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		_ = conn.Close()                                      //nolint:errcheck // close explicitly; log.Fatal skips the deferred conn.Close
-		log.Fatal("Error making gRPC request: ", err.Error()) //nolint:gocritic // exitAfterDefer: deferred conn.Close() is released explicitly above
+		// Demoted from log.Fatal: the surrounding singleStreamingClient
+		// loop is a "reconnect after sleep" loop (bug 65). A Fatal here
+		// killed the whole client every time FlatRecords creation
+		// failed (e.g., server briefly unreachable), defeating the
+		// retry. Log + return so the caller's sleep+restart fires.
+		log.Printf("Error making gRPC request: %v", err)
+		return
 	}
 
 breakPoint:

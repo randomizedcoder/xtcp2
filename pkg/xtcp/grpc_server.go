@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -89,7 +90,11 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 		grpcServer.GracefulStop()
 	}()
 
-	if serveErr := grpcServer.Serve(lis); serveErr != nil {
+	// grpcServer.Serve returns grpc.ErrServerStopped when
+	// GracefulStop / Stop completes — that's the normal shutdown path
+	// here, not an error worth logging. Filter it so a clean SIGTERM
+	// doesn't produce a misleading "Serve err:..." log line every run.
+	if serveErr := grpcServer.Serve(lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
 		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
 	}
 }

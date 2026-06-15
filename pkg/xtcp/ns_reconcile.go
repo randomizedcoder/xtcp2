@@ -22,6 +22,7 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 	}
 
 	t := time.NewTicker(reconcileFrequency)
+	defer t.Stop()
 	for {
 		select {
 		case <-t.C:

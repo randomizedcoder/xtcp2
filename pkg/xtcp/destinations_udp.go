@@ -68,6 +68,11 @@ func newUDPDest(ctx context.Context, x *XTCP) (Destination, error) {
 	if x.config.IoUring {
 		fd, f, eerr := extractFD(conn)
 		if eerr != nil {
+			// Close the conn we just dialed before bailing — otherwise
+			// the fd leaks on every newUDPDest failure path (rare in
+			// practice, but with io_uring enabled an extractFD failure
+			// leaks one UDP socket per InitDests retry).
+			_ = conn.Close() //nolint:errcheck // already on the error path; Close err is non-actionable
 			return nil, fmt.Errorf("InitDestUDP extractFD: %w", eerr)
 		}
 		d.fd = fd

@@ -31,6 +31,14 @@ func (x *XTCP) nsDelete(nsName *string) {
 	fd := netNSItem.socketFD
 	x.nsMap.Delete(*nsName)
 	x.fdToNsMap.Delete(fd)
+	// pollTime is keyed by fd (poller.go:208 x.pollTime.Store(fd, ...)).
+	// Without an explicit Delete, every namespace add/remove cycle
+	// leaves a stale entry — eventually filling the sync.Map with
+	// dead fd numbers. The poller's observeNetlinkerDone still tries
+	// to Load by fd and gets the stale time, producing a misleading
+	// pollToDoneDuration histogram observation if the fd number is
+	// later reused for an unrelated socket.
+	x.pollTime.Delete(fd)
 	x.incrementDeleteAndGenerationCounts()
 
 	x.pC.WithLabelValues("delete", "delete", "counter").Inc()

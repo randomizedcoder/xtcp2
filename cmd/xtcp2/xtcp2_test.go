@@ -465,25 +465,54 @@ func TestEnvironmentOverrideProm_unset(t *testing.T) {
 }
 
 func TestEnvironmentOverrideDebugLevel(t *testing.T) {
-	var d uint = 5
-	t.Setenv("DEBUG_LEVEL", "20")
-	environmentOverrideDebugLevel(&d, 0)
-	if d != 20 {
-		t.Errorf("DebugLevel = %d, want 20", d)
+	cases := []struct {
+		name        string
+		envValue    string
+		initial     uint
+		want        uint
+		description string
+	}{
+		{"set_to_20", "20", 5, 20, "valid value overwrites"},
+		{"garbage_left_alone", "garbage", 7, 7, "unparseable env leaves value alone"},
+		// Bug 60 regression: Atoi+uint(i) wrapped negative values to
+		// MaxUint, silently turning every `if debugLevel > 10` check
+		// into "yes". ParseUint rejects the negative input outright.
+		{"negative_rejected", "-5", 9, 9, "negative env rejected, value left alone"},
+		{"zero_accepted", "0", 11, 0, "zero is a valid debug level"},
 	}
-	t.Setenv("DEBUG_LEVEL", "garbage")
-	environmentOverrideDebugLevel(&d, 0)
-	if d != 20 {
-		t.Errorf("unparseable env should leave d alone; got %d", d)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := tc.initial
+			t.Setenv("DEBUG_LEVEL", tc.envValue)
+			environmentOverrideDebugLevel(&d, 0)
+			if d != tc.want {
+				t.Errorf("%s: d = %d, want %d", tc.description, d, tc.want)
+			}
+		})
 	}
 }
 
 func TestEnvironmentOverrideGoMaxProcs(t *testing.T) {
-	var p uint = 4
-	t.Setenv("GOMAXPROCS", "16")
-	environmentOverrideGoMaxProcs(&p, 0)
-	if p != 16 {
-		t.Errorf("goMaxProcs = %d, want 16", p)
+	cases := []struct {
+		name     string
+		envValue string
+		initial  uint
+		want     uint
+	}{
+		{"set_to_16", "16", 4, 16},
+		{"garbage_left_alone", "abc", 8, 8},
+		{"negative_rejected", "-1", 12, 12}, // bug 60 regression
+		{"zero_accepted", "0", 6, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := tc.initial
+			t.Setenv("GOMAXPROCS", tc.envValue)
+			environmentOverrideGoMaxProcs(&p, 0)
+			if p != tc.want {
+				t.Errorf("p = %d, want %d", p, tc.want)
+			}
+		})
 	}
 }
 

@@ -56,6 +56,15 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	// x.RTATypeDeserializer = make(map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error), RTATypeDeserializerMapLengthCst)
 	x.RTATypeDeserializerStr = make(map[int]string, RTATypeDeserializerMapLengthCst)
 
+	// Defensive against tests that build XtcpConfig{} manually without
+	// setting EnabledDeserializers; the 13 `x.config.EnabledDeserializers.Enabled[...]`
+	// lookups below would otherwise nil-deref. Both production constructors
+	// (NewXTCP / NewNsTestingXTCP) set the field, but a fresh XTCP{}
+	// fixture is easy to slip through.
+	if x.config.EnabledDeserializers == nil {
+		return
+	}
+
 	// x.RTATypeDeserializer[0] = None
 
 	// INET_DIAG_MEMINFO 1

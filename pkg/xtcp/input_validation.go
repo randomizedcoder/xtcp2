@@ -34,9 +34,16 @@ func (x *XTCP) validateInput() error {
 		// Schemes that take a network address (host:port) need exactly two
 		// colons: `<scheme>:<host>:<port>`. Schemes that take a filesystem
 		// path (unix/unixgram) need only one — the rest of the dest is a
-		// path that can itself contain colons in pathological cases.
+		// path that can itself contain colons in pathological cases. The
+		// null scheme takes no payload at all; `null` (bare) bypasses this
+		// block via the schemeNull early-return above, but `null:` makes
+		// it here. Treat both as path-style to keep `-dest null` and
+		// `-dest null:` symmetric — the previous switch only listed
+		// unix/unixgram, so `-dest null:` (with the documented
+		// schemeNullPrefix colon) failed validation as "must contain x2
+		// colons" while the registry happily had a "null" factory.
 		switch scheme {
-		case schemeUnix, schemeUnixgram:
+		case schemeUnix, schemeUnixgram, schemeNull:
 			// only the leading `<scheme>:` separator is required; the
 			// per-destination factory validates the path further.
 		default:

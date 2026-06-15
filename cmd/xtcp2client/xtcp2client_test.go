@@ -321,16 +321,13 @@ func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	reconnectTimeVar = 10 * time.Millisecond
 	t.Cleanup(func() { reconnectTimeVar = prev })
 
-	conn := newGRPCClient(addr)
-	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
-
 	ctx, cancel := context.WithCancel(t.Context())
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
 		debugLevel = 200 // hit the restart log branch
-		singleStreamingClient(ctx, wg, conn, false, 0)
+		singleStreamingClient(ctx, wg, addr, false, 0)
 		close(done)
 	}()
 	// Let stream() complete + sleep at least once before cancel.
@@ -350,16 +347,13 @@ func TestSingleStreamingClient_preCancelled(t *testing.T) {
 	addr, cleanup := startTestGRPC(t)
 	defer cleanup()
 
-	conn := newGRPCClient(addr)
-	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
-
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		singleStreamingClient(ctx, wg, conn, false, 0)
+		singleStreamingClient(ctx, wg, addr, false, 0)
 		close(done)
 	}()
 	select {

@@ -358,3 +358,47 @@ func TestTeardownDrainsCleanly(t *testing.T) {
 		t.Errorf("Close drained %d CQEs, want 1", drained)
 	}
 }
+
+// Bug 47 regression: in-flight SQEs that don't get a CQE within the
+// drain deadline must still be handed back via onDrain so the caller
+// can return the buffers to the packet pool. Previously the buffers
+// were silently abandoned at QueueExit, causing one leaked packet-pool
+// buffer per outstanding recvmsg SQE.
+func TestTeardownReleasesUnacknowledgedBuffers(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	r, err := New(Config{RecvBatchSize: 4, CQEBatchSize: 8})
+	if err != nil {
+		t.Skipf("io_uring not available: %v", err)
+	}
+	srv, cli := socketpair(t)
+	_ = srv // we never write — the recv is intentionally never satisfied
+
+	// Submit 3 recvmsg SQEs that will never get a real CQE (we never
+	// write to srv). Close's drainTimeout has to expire, and the
+	// in-flight cleanup loop has to hand each buffer back.
+	for range 3 {
+		if _, eerr := r.EnqueueRecvMsg(cli, allocBuf(64)); eerr != nil {
+			t.Fatalf("EnqueueRecvMsg: %v", eerr)
+		}
+	}
+	if _, serr := r.Submit(); serr != nil {
+		t.Fatalf("Submit: %v", serr)
+	}
+
+	var drained int
+	var nonNilBufs int
+	r.Close(50*time.Millisecond, func(res Result) {
+		drained++
+		if res.Buf != nil {
+			nonNilBufs++
+		}
+	})
+	if drained != 3 {
+		t.Errorf("drained = %d, want 3", drained)
+	}
+	if nonNilBufs != 3 {
+		t.Errorf("non-nil Bufs = %d, want 3 (all in-flight bufs must be released)", nonNilBufs)
+	}
+}

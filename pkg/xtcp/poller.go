@@ -27,7 +27,9 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	}
 
 	ticker := time.NewTicker(x.config.PollFrequency.AsDuration())
+	defer ticker.Stop()
 	x.pollTimeoutTimer = time.NewTimer(x.config.PollTimeout.AsDuration())
+	defer x.pollTimeoutTimer.Stop()
 
 	count := x.pollAllNetlinkSockets(0)
 

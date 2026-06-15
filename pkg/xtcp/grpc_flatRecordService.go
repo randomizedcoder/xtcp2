@@ -249,7 +249,16 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	}
 
 	xtcpFlatRecordsResponse, _ := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse) //nolint:errcheck // pool.New returns *FlatRecordsResponse
-	// defer x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
+	// Reset the pooled response so its internal proto state (state,
+	// sizeCache, unknownFields) is cleared from the previous send. The
+	// per-record XtcpFlatRecord pointer assignment that follows is the
+	// only meaningful user-visible field, but proto.Marshal trusts
+	// sizeCache for the on-wire byte count; reusing a recycled response
+	// without Reset can mis-encode the next message if its protobuf
+	// size differs from the previous one. Same shape as bug 55 (the
+	// kgo.Record fix) — partially-overwriting a recycled struct is the
+	// pattern.
+	xtcpFlatRecordsResponse.Reset()
 
 	xtcpFlatRecordsResponse.XtcpFlatRecord = xtcpRecord
 
@@ -296,7 +305,6 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		})
 	}
 
-	// xtcpFlatRecordsResponse.Reset()
 	x.flatRecordService.FlatRecordsResponsePool.Put(xtcpFlatRecordsResponse)
 
 }

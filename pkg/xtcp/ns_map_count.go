@@ -38,6 +38,7 @@ func (x *XTCP) nsMapCountReporter(ctx context.Context, wg *sync.WaitGroup) {
 	defer x.pC.WithLabelValues("mapCountReporter", "complete", "counter").Inc()
 
 	t := time.NewTicker(guageUpdateFrequency)
+	defer t.Stop()
 	for {
 		select {
 		case <-t.C:

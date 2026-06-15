@@ -46,6 +46,10 @@ func newUnixDest(ctx context.Context, x *XTCP) (Destination, error) {
 	if x.config.IoUring {
 		fd, f, eerr := extractFD(conn)
 		if eerr != nil {
+			// Close the dialed conn before bailing; otherwise the
+			// extractFD failure path leaks one unix-stream fd. Same
+			// shape as the matching bug in destinations_udp.go.
+			_ = conn.Close() //nolint:errcheck // already on the error path
 			return nil, fmt.Errorf("InitDestUnix extractFD: %w", eerr)
 		}
 		d.fd = fd

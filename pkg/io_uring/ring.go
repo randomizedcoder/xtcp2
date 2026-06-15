@@ -180,15 +180,17 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 			}
 		}
 	}
-	// Drain any in-flight entries that didn't get a CQE within the
-	// deadline. The kernel still owns these buffers until QueueExit
-	// reclaims the ring, so we can't safely reuse them yet — but we
-	// MUST hand them back to the caller's drain callback before the
-	// inFlight map vanishes, otherwise the userspace-side packet pool
-	// leaks N buffers per ring close (up to inFlightCap each). Mark
-	// these as a synthetic ETIME-style result (Res=-syscall.ETIME) so
-	// the callback can tell apart "normal CQE with bytes" from "abandoned
-	// at teardown".
+	// QueueExit BEFORE handing in-flight buffers back: the kernel still
+	// owns those buffers until the ring is torn down. Releasing them to
+	// packetBufferPool before QueueExit would create a use-after-free
+	// window where a CQE could land in a buffer that the pool has
+	// already handed to a fresh netlinker. After QueueExit, the kernel
+	// has no reference to the io_uring fd or its mapped buffers, so
+	// onDrain can safely Put them back. Mark these as a synthetic
+	// ETIME-style result (Res=-syscall.ETIME) so the callback can tell
+	// apart "normal CQE with bytes" from "abandoned at teardown".
+	r.r.QueueExit()
+	r.r = nil
 	if onDrain != nil {
 		for reqID, entry := range r.inFlight {
 			onDrain(Result{
@@ -200,8 +202,6 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 			delete(r.inFlight, reqID)
 		}
 	}
-	r.r.QueueExit()
-	r.r = nil
 }
 
 // NextRequestID returns a fresh per-ring monotonic counter value.
@@ -297,12 +297,21 @@ func (r *Ring) EnqueueWritevUnix(fd int, header []byte, payload *[]byte) (uint32
 	hdrCopy := make([]byte, len(header))
 	copy(hdrCopy, header)
 	iov[0] = syscall.Iovec{Base: &hdrCopy[0], Len: uint64(len(hdrCopy))}
+
+	// When the payload is empty (proto.Marshal of a zero-valued message
+	// can return an empty slice), passing iov[1]={Base:nil, Len:0} with
+	// iovcnt=2 is undefined per writev(2): the kernel may EFAULT on the
+	// nil Base even though Len is 0. Submit iovcnt=1 in that case so the
+	// kernel only sees the header iovec.
+	iovCount := uint32(2)
 	if len(*payload) > 0 {
 		iov[1] = syscall.Iovec{Base: &(*payload)[0], Len: uint64(len(*payload))}
+	} else {
+		iovCount = 1
 	}
 
 	iovPtr := uintptr(unsafe.Pointer(&iov[0]))
-	sqe.PrepareWritev(fd, iovPtr, 2, 0)
+	sqe.PrepareWritev(fd, iovPtr, iovCount, 0)
 	reqID := r.NextRequestID()
 	sqe.SetData64(serialize(EncodedRequest{Operation: OpSendUnix, RequestID: reqID}))
 

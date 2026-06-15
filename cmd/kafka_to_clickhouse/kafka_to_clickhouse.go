@@ -146,6 +146,19 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "InitDestKafka: %v\n", err)
 			return 1
 		}
+		// Flush + Close the producer on the way out. Without this the
+		// final batch of records in franz-go's send buffer was dropped
+		// on process exit (same shape as bug 28 in pkg/xtcp). Flush is
+		// bounded by a 5s timeout so a wedged broker doesn't block
+		// shutdown indefinitely.
+		defer func() {
+			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := kClient.Flush(flushCtx); err != nil {
+				fmt.Fprintf(stderr, "kgo Flush on exit: %v\n", err)
+			}
+			kClient.Close()
+		}()
 	}
 	primaryFunction(ctx, c)
 	return 0
@@ -280,8 +293,16 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 	kgoRecord, _ := kgoRecordPool.Get().(*kgo.Record) //nolint:errcheck // pool.New returns *kgo.Record
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
-	kgoRecord.Topic = c.topic
-	kgoRecord.Value = *xtcpRecordBinary
+	// Reset the pooled record to zero before re-populating. Without this
+	// the previous send's Partition / Timestamp / etc fields persisted
+	// (set internally by franz-go's Produce), pinning every recycled
+	// record to one partition + freezing the timestamp. See bug 55 in
+	// pkg/xtcp/destinations_kafka.go for the longer write-up — same
+	// fix shape in this binary.
+	*kgoRecord = kgo.Record{
+		Topic: c.topic,
+		Value: *xtcpRecordBinary,
+	}
 	binaryLen := len(*xtcpRecordBinary)
 
 	// Propagate the caller's context to kClient.Produce so cancellation
