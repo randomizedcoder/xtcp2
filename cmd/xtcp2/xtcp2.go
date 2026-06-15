@@ -69,7 +69,7 @@ const (
 	marshalCst = "protobufList"
 
 	// envelopeFlushBytesCst caps the in-flight protobufList Envelope's
-	// uncompressed marshalled byte size before deserialize.go triggers
+	// uncompressed marshaled byte size before deserialize.go triggers
 	// an early mid-poll flush. Use as a safety net against pathological
 	// per-record sizes; for everyday batch sizing prefer the row cap
 	// below. 0 = use daemon's compile-time default
@@ -414,7 +414,7 @@ func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel ui
 		return func() {}
 	}
 	if appName == "" {
-		appName = "xtcp2"
+		appName = pyroscopeAppNameCst
 	}
 	if sampleHz == 0 {
 		sampleHz = 100

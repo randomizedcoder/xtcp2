@@ -60,7 +60,7 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 		ns := namespaceName(i)
 		createNamespace(ctx, ns)
 		if *traffic {
-			injectLoopbackTraffic(ns)
+			injectLoopbackTraffic(ctx, ns)
 		}
 		if *conns > 0 {
 			startPersistentTraffic(ctx, ns, *conns)
@@ -83,7 +83,7 @@ func churn(ctx context.Context, initial int, sleep time.Duration, traffic bool, 
 		newNamespace := namespaceName(j + initial)
 		createNamespace(ctx, newNamespace)
 		if traffic {
-			injectLoopbackTraffic(newNamespace)
+			injectLoopbackTraffic(ctx, newNamespace)
 		}
 		if conns > 0 {
 			startPersistentTraffic(ctx, newNamespace, conns)
@@ -123,7 +123,7 @@ func churn(ctx context.Context, initial int, sleep time.Duration, traffic bool, 
 //
 // Errors are logged but non-fatal — the surrounding churn loop must
 // keep running regardless of a single ns's setup failing.
-func injectLoopbackTraffic(nsName string) {
+func injectLoopbackTraffic(ctx context.Context, nsName string) {
 	runtime.LockOSThread()
 	// NB: NO unconditional defer UnlockOSThread — same pattern as
 	// xtcp2's netNamespaceInstance. If the Setns restore fails the
@@ -142,7 +142,7 @@ func injectLoopbackTraffic(nsName string) {
 			log.Printf("injectLoopbackTraffic %s: restore ns: %v (keeping thread locked → runtime will terminate it)", nsName, rerr)
 			return
 		}
-		runtime.UnlockOSThread()
+		runtime.UnlockOSThread() //nolint:forbidigo // safe: only fires after Setns restore returned nil
 	}()
 
 	// Open the target netns and setns into it.
@@ -161,7 +161,7 @@ func injectLoopbackTraffic(nsName string) {
 	// Bring up lo so 127.0.0.1 is routable. Shelling out is slower
 	// than a direct SIOCSIFFLAGS ioctl, but at the soak's churn rate
 	// (~10/s) the cost is negligible and the code is much simpler.
-	if err := exec.Command("ip", "link", "set", "lo", "up").Run(); err != nil {
+	if err := exec.CommandContext(ctx, "ip", "link", "set", "lo", "up").Run(); err != nil {
 		log.Printf("injectLoopbackTraffic %s: ip link set lo up: %v", nsName, err)
 		return
 	}
@@ -171,12 +171,12 @@ func injectLoopbackTraffic(nsName string) {
 	// payload, close. The kernel keeps TIME_WAIT entries for ~60s
 	// per Linux's default tcp_fin_timeout/timewait — well within the
 	// ~20s ns lifetime under the soak's 100 ms churn cadence.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Printf("injectLoopbackTraffic %s: listen: %v", nsName, err)
 		return
 	}
-	defer listener.Close()
+	defer closeOrLog(listener, "injectLoopbackTraffic listener")
 	addr := listener.Addr().String()
 
 	// Accept the connection in a goroutine so the dialer can connect.
@@ -190,8 +190,11 @@ func injectLoopbackTraffic(nsName string) {
 		// Drain a few bytes so the connection actually flows + the
 		// kernel records segs-in/out (visible via inet_diag's TCPInfo).
 		var buf [16]byte
-		_, _ = c.Read(buf[:]) //nolint:errcheck // best-effort drain
-		c.Close()
+		if _, rerr := c.Read(buf[:]); rerr != nil {
+			// best-effort drain; nothing actionable
+			log.Printf("injectLoopbackTraffic %s: drain read: %v", nsName, rerr)
+		}
+		closeOrLog(c, "injectLoopbackTraffic accepted conn")
 	}()
 
 	// Dial + send. 200 ms total timeout so a setns race or other
@@ -202,8 +205,10 @@ func injectLoopbackTraffic(nsName string) {
 		log.Printf("injectLoopbackTraffic %s: dial: %v", nsName, err)
 		return
 	}
-	_, _ = conn.Write([]byte("xtcp2-soak\n")) //nolint:errcheck // best-effort
-	conn.Close()
+	if _, werr := conn.Write([]byte("xtcp2-soak\n")); werr != nil {
+		log.Printf("injectLoopbackTraffic %s: write: %v", nsName, werr)
+	}
+	closeOrLog(conn, "injectLoopbackTraffic dial conn")
 
 	select {
 	case <-acceptDone:
@@ -218,6 +223,15 @@ func injectLoopbackTraffic(nsName string) {
 type nsTrafficState struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+}
+
+// pair holds one loopback listener+dialer connection pair (server +
+// client side) plus its per-conn io profile index. Package-scoped so
+// the openTrafficPairs / runTrafficPairs helpers can share the type.
+type pair struct {
+	server  net.Conn
+	client  net.Conn
+	profile int
 }
 
 // nsTrafficStates: ns name → state. Stored separately from the churn
@@ -266,7 +280,10 @@ func stopPersistentTraffic(nsName string) {
 	if !ok {
 		return
 	}
-	state, _ := v.(*nsTrafficState)
+	state, ok := v.(*nsTrafficState)
+	if !ok {
+		return
+	}
 	state.cancel()
 	// Bounded wait: io goroutines may be in mid-Read/Write when the
 	// cancel fires. Closing the connection from the runner side
@@ -308,25 +325,29 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 			// rather than recycling an M with a non-host netns.
 			return
 		}
-		runtime.UnlockOSThread()
+		runtime.UnlockOSThread() //nolint:forbidigo // safe: only fires after Setns restore returned nil
 	}()
 
 	target, err := os.Open("/run/netns/" + nsName)
 	if err != nil {
 		// Race: ns deleted between createNamespace and here.
-		_ = unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET)
+		if serr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); serr != nil {
+			log.Printf("runPersistentTraffic %s: restore ns: %v", nsName, serr)
+		}
 		restoredOK = true
 		return
 	}
 	defer target.Close()
 	if err := unix.Setns(int(target.Fd()), unix.CLONE_NEWNET); err != nil {
 		log.Printf("runPersistentTraffic %s: setns: %v", nsName, err)
-		_ = unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET)
+		if serr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); serr != nil {
+			log.Printf("runPersistentTraffic %s: restore ns: %v", nsName, serr)
+		}
 		restoredOK = true
 		return
 	}
 
-	if err := exec.Command("ip", "link", "set", "lo", "up").Run(); err != nil {
+	if err := exec.CommandContext(nsCtx, "ip", "link", "set", "lo", "up").Run(); err != nil {
 		log.Printf("runPersistentTraffic %s: ip link set lo up: %v", nsName, err)
 		// Try to restore + return
 		if unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET) == nil {
@@ -335,11 +356,24 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 		return
 	}
 
-	type pair struct {
-		server  net.Conn
-		client  net.Conn
-		profile int
+	pairs := openTrafficPairs(nsCtx, nsName, count)
+
+	// Restore the host netns + conditionally unlock the OS thread.
+	if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
+		log.Printf("runPersistentTraffic %s: restore ns: %v (keeping thread locked → runtime will terminate it)", nsName, rerr)
+	} else {
+		restoredOK = true
 	}
+
+	runTrafficPairs(nsCtx, pairs)
+}
+
+// openTrafficPairs opens `count` loopback listener+dialer pairs inside
+// the current (already-entered) netns and returns the resulting server/
+// client conn pairs. Must be called on the LockOSThread'd goroutine that
+// has setns'd into nsName. Errors are non-fatal: a failed listen breaks
+// the loop, a failed dial skips that pair.
+func openTrafficPairs(ctx context.Context, nsName string, count int) []pair {
 	pairs := make([]pair, 0, count)
 
 	// Open all pairs. A single listener per port is sufficient; we
@@ -353,7 +387,7 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 	// (one new ns / 100 ms) doesn't come anywhere near this.
 	const dialTimeout = 2 * time.Second
 	for i := 0; i < count; i++ {
-		l, lerr := net.Listen("tcp", "127.0.0.1:0")
+		l, lerr := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 		if lerr != nil {
 			// Listen failures are rare and usually mean fd exhaustion
 			// or netns going away — surface once per ns, then break.
@@ -378,25 +412,24 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 			// and the kernel sheds some load. Silent retry-or-skip
 			// keeps the journal readable. Steady-state churn doesn't
 			// hit this path.
-			l.Close()
+			closeOrLog(l, "openTrafficPairs listener")
 			continue
 		}
 		server := <-acceptCh
-		_ = l.Close() // listener no longer needed; accept returned
+		closeOrLog(l, "openTrafficPairs listener") // listener no longer needed; accept returned
 		if server == nil {
-			client.Close()
+			closeOrLog(client, "openTrafficPairs client")
 			continue
 		}
 		pairs = append(pairs, pair{server: server, client: client, profile: i})
 	}
+	return pairs
+}
 
-	// Restore the host netns + conditionally unlock the OS thread.
-	if rerr := unix.Setns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
-		log.Printf("runPersistentTraffic %s: restore ns: %v (keeping thread locked → runtime will terminate it)", nsName, rerr)
-	} else {
-		restoredOK = true
-	}
-
+// runTrafficPairs spawns the echo-server + varied-client io goroutines
+// for each pair, blocks until nsCtx is canceled, then closes every
+// socket to unblock the io goroutines and waits for them to return.
+func runTrafficPairs(nsCtx context.Context, pairs []pair) {
 	if len(pairs) == 0 {
 		return
 	}
@@ -414,8 +447,8 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 	<-nsCtx.Done()
 	// Close all sockets so blocked Read/Write calls return.
 	for _, p := range pairs {
-		_ = p.server.Close()
-		_ = p.client.Close()
+		closeOrLog(p.server, "runTrafficPairs server")
+		closeOrLog(p.client, "runTrafficPairs client")
 	}
 	wg.Wait()
 }
@@ -424,7 +457,7 @@ func runPersistentTraffic(nsCtx context.Context, nsName string, count int, done 
 // Returns on ctx cancel (the connection is closed by the parent
 // goroutine, which unblocks Read).
 func runEchoServer(_ context.Context, c net.Conn) {
-	defer c.Close()
+	defer closeOrLog(c, "runEchoServer conn")
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := c.Read(buf)
@@ -442,7 +475,7 @@ func runEchoServer(_ context.Context, c net.Conn) {
 // the ns; consecutive conns get different sizes AND intervals so the
 // inet_diag readout shows real spread in TCPInfo segs/bytes/rtt.
 func runVariedClient(ctx context.Context, c net.Conn, profileIdx int) {
-	defer c.Close()
+	defer closeOrLog(c, "runVariedClient conn")
 
 	payloadSize := trafficPayloadSizes[profileIdx%len(trafficPayloadSizes)]
 	sendInterval := trafficSendIntervals[(profileIdx/len(trafficPayloadSizes))%len(trafficSendIntervals)]
@@ -495,5 +528,13 @@ func removeNamespace(ctx context.Context, name string) {
 	cmd := exec.CommandContext(ctx, "ip", "netns", "del", name)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to remove namespace %s: %v", name, err)
+	}
+}
+
+// closeOrLog closes c and logs a non-nil error under label. Used by the
+// soak tool's best-effort teardown paths so every Close is handled.
+func closeOrLog(c io.Closer, label string) {
+	if err := c.Close(); err != nil {
+		log.Printf("%s: close: %v", label, err)
 	}
 }

@@ -196,7 +196,7 @@ func (x *XTCP) processInetDiagRecord(
 	x.flatRecordServiceSend(xtcpRecord)
 
 	// ProtobufList: record is owned by currentEnvelope until flushEnvelope
-	// at cycle end marshals and pool-returns it. The mutex serialises
+	// at cycle end marshals and pool-returns it. The mutex serializes
 	// appends from N×K parallel netlinkers (one per netns × Netlinkers).
 	// A nil currentEnvelope means a flush has already run (shutdown race);
 	// return the record to its pool so it doesn't leak.
