@@ -205,7 +205,7 @@ func TestS3ParquetDest_negative(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			d, _, x := newS3ParquetFixture(t, 1 << 30, tc.injectErr)
+			d, _, x := newS3ParquetFixture(t, 1<<30, tc.injectErr)
 			var buf *[]byte
 			if tc.body != nil {
 				got, _ := x.destBytesPool.Get().(*[]byte)

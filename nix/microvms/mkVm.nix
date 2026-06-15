@@ -412,7 +412,12 @@ let
       # The image is a streamLayeredImage script in the nix store. Run
       # it; it streams a tar of the image to stdout, which `docker load`
       # consumes directly.
-      ${if tcpStressImage != null then "${tcpStressImage} | docker load" else "echo 'no image provided'; exit 1"}
+      ${
+        if tcpStressImage != null then
+          "${tcpStressImage} | docker load"
+        else
+          "echo 'no image provided'; exit 1"
+      }
     '';
   };
 
@@ -679,19 +684,18 @@ let
   # or unixgram socket required. The long-soak variant additionally
   # brings up a local Pyroscope server so xtcp2 can stream profiles
   # for goroutine/thread-leak diagnosis without an external dependency.
-  s3ParquetModules =
-    [
-      (import ../modules/minio-bucket-bootstrap.nix {
-        # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
-        # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
-        # tell the bootstrap module not to also declare a tmpfs there.
-        # Other s3parquet flavors keep the tmpfs (short runs only).
-        useTmpfs = !isClickPipeParquet;
-      })
-    ]
-    ++ lib.optionals isS3ParquetLong [
-      (import ../modules/pyroscope-server.nix { })
-    ];
+  s3ParquetModules = [
+    (import ../modules/minio-bucket-bootstrap.nix {
+      # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
+      # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
+      # tell the bootstrap module not to also declare a tmpfs there.
+      # Other s3parquet flavors keep the tmpfs (short runs only).
+      useTmpfs = !isClickPipeParquet;
+    })
+  ]
+  ++ lib.optionals isS3ParquetLong [
+    (import ../modules/pyroscope-server.nix { })
+  ];
 
   # Long-soak monitor: emit one sentinel line per
   # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
@@ -876,10 +880,11 @@ let
     "http://localhost:18081"
   ];
 
-  xtcp2CoverageArgs = xtcp2BasicArgs
-  # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
-  # path runs (otherwise 0% covered; the syscall variant runs by default).
-  ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
+  xtcp2CoverageArgs =
+    xtcp2BasicArgs
+    # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
+    # path runs (otherwise 0% covered; the syscall variant runs by default).
+    ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
 
   # s3parquet flavor: write Parquet straight to MinIO. Lifecycle-test
   # threshold dropped to 1 MiB so a 90 s boot exercise actually triggers
@@ -962,8 +967,8 @@ in
             19092 # redpanda kafka external
             19644 # redpanda admin
             18081 # schema registry
-            3000  # grafana
-            9090  # prometheus (host accesses via :19090 → guest :9090)
+            3000 # grafana
+            9090 # prometheus (host accesses via :19090 → guest :9090)
           ]
           ++ lib.optionals isClickPipeParquet [
             # Second xtcp2 instance's prom + grpc endpoints (parquet path).
@@ -1320,8 +1325,7 @@ in
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
-            ExecStart =
-              "${xtcp2Package}/bin/xtcp2 ${lib.concatStringsSep " " xtcp2ClickPipeParquetArgs}";
+            ExecStart = "${xtcp2Package}/bin/xtcp2 ${lib.concatStringsSep " " xtcp2ClickPipeParquetArgs}";
             Restart = "on-failure";
             RestartSec = "2s";
             User = "root";
@@ -1443,24 +1447,26 @@ in
         # known population of ESTABLISHED sockets with measurable RTT /
         # bytes-sent / segs-out for the parser to chew on. The two units
         # below run alongside the nsTest churn for the soak flavor.
-        systemd.services.xtcp2-soak-tcp-server = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
-          description = "xtcp2 soak — tcp_server echo listeners";
-          after = [ "network-online.target" ];
-          wants = [ "network-online.target" ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Type = "simple";
-            ExecStart = "${xtcp2AllPackage}/bin/tcp_server -count ${toString soakTcpServerCount} -bind 0.0.0.0";
-            Restart = "on-failure";
-            RestartSec = "2s";
-            # Need enough fd headroom for `tcpServerCount` listeners +
-            # `tcpClientCount` accepted conns. Default nofile is 1024;
-            # bump it explicitly.
-            LimitNOFILE = 65536;
-            StandardOutput = "journal";
-            StandardError = "journal+console";
-          };
-        };
+        systemd.services.xtcp2-soak-tcp-server =
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+            {
+              description = "xtcp2 soak — tcp_server echo listeners";
+              after = [ "network-online.target" ];
+              wants = [ "network-online.target" ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                Type = "simple";
+                ExecStart = "${xtcp2AllPackage}/bin/tcp_server -count ${toString soakTcpServerCount} -bind 0.0.0.0";
+                Restart = "on-failure";
+                RestartSec = "2s";
+                # Need enough fd headroom for `tcpServerCount` listeners +
+                # `tcpClientCount` accepted conns. Default nofile is 1024;
+                # bump it explicitly.
+                LimitNOFILE = 65536;
+                StandardOutput = "journal";
+                StandardError = "journal+console";
+              };
+            };
 
         # Inject brief loopback TCP traffic INSIDE each ns. The
         # tcp_server/tcp_client pair above lives in the default ns
@@ -1516,33 +1522,35 @@ in
           };
         };
 
-        systemd.services.xtcp2-soak-tcp-client = lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet) {
-          description = "xtcp2 soak — tcp_client traffic generators";
-          # tcp_server takes a moment to bind all N ports — gate the
-          # clients behind its readiness so the dial-retry loop in
-          # tcp_client doesn't burn through its budget at boot.
-          after = [
-            "xtcp2-soak-tcp-server.service"
-            "network-online.target"
-          ];
-          wants = [
-            "xtcp2-soak-tcp-server.service"
-            "network-online.target"
-          ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Type = "simple";
-            # Brief delay so the server's Accept loop is up. tcp_client
-            # also retries dial up to -dialr times so this is belt+suspenders.
-            ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
-            ExecStart = ''${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}'';
-            Restart = "on-failure";
-            RestartSec = "2s";
-            LimitNOFILE = 65536;
-            StandardOutput = "journal";
-            StandardError = "journal+console";
-          };
-        };
+        systemd.services.xtcp2-soak-tcp-client =
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+            {
+              description = "xtcp2 soak — tcp_client traffic generators";
+              # tcp_server takes a moment to bind all N ports — gate the
+              # clients behind its readiness so the dial-retry loop in
+              # tcp_client doesn't burn through its budget at boot.
+              after = [
+                "xtcp2-soak-tcp-server.service"
+                "network-online.target"
+              ];
+              wants = [
+                "xtcp2-soak-tcp-server.service"
+                "network-online.target"
+              ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                Type = "simple";
+                # Brief delay so the server's Accept loop is up. tcp_client
+                # also retries dial up to -dialr times so this is belt+suspenders.
+                ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+                ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString soakTcpClientCount} -connect ${soakTcpConnect} -sleep ${soakTcpClientSleep} -pads ${toString soakTcpPads}";
+                Restart = "on-failure";
+                RestartSec = "2s";
+                LimitNOFILE = 65536;
+                StandardOutput = "journal";
+                StandardError = "journal+console";
+              };
+            };
 
         # Enable docker daemon for any flavor that needs it. Adds
         # ~150 MiB to the VM image (dockerd + containerd) but keeps the
@@ -1580,7 +1588,8 @@ in
                   targets = [ "127.0.0.1:${toString cfg.promPort}" ];
                   labels.instance = "xtcp2-primary";
                 }
-              ] ++ lib.optional isClickPipeParquet {
+              ]
+              ++ lib.optional isClickPipeParquet {
                 # The mixed flavor runs a second xtcp2 instance for the
                 # parquet path on port 9089. Scrape both so we can
                 # compare goroutine/memory/GC trends across the two

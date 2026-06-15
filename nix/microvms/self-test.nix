@@ -97,9 +97,9 @@ pkgs.writeShellApplication {
     util-linux
     gnutar
     gzip
-    docker  # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
-    minio-client  # mc — only used by Check 13/14 (s3parquet); harmless otherwise
-    duckdb  # used by Check 14 to decode the Parquet file
+    docker # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
+    minio-client # mc — only used by Check 13/14 (s3parquet); harmless otherwise
+    duckdb # used by Check 14 to decode the Parquet file
   ];
   text = ''
     set +e   # never exit early — we want all checks to run

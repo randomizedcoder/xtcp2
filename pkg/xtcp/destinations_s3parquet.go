@@ -252,11 +252,11 @@ func (d *s3ParquetDest) worker() {
 	defer close(d.workerDone)
 
 	var (
-		buf         *bytes.Buffer
-		writer      *parquet.GenericWriter[ParquetRow]
-		accumBytes  int
-		fileRows    int
-		envelopeCt  int
+		buf        *bytes.Buffer
+		writer     *parquet.GenericWriter[ParquetRow]
+		accumBytes int
+		fileRows   int
+		envelopeCt int
 	)
 	startBuilder := func() {
 		buf = new(bytes.Buffer)
