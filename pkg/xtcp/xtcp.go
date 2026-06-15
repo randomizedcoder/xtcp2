@@ -162,6 +162,23 @@ func SetNetNsCandidateDirs(dirs []string) []string {
 	return prev
 }
 
+// capabilityCheck is the startup capability gate, indirected through a
+// package var (like constructorRegistry / netNsCandidateDirs) so tests
+// can run NewXTCP / NewNsTestingXTCP → Init to completion on unprivileged
+// sandboxes. The capability logic itself is exercised directly in
+// init_capabilities_test.go; production keeps the hard fail-fast.
+var capabilityCheck = (*XTCP).checkCapabilities
+
+// SetCapabilityCheck swaps the capability-check seam and returns the
+// previous value. Cross-package tests (cmd/ns) install a no-op and
+// restore on cleanup so Init doesn't fatalf without CAP_SYS_ADMIN /
+// CAP_NET_ADMIN.
+func SetCapabilityCheck(f func(*XTCP) error) func(*XTCP) error {
+	prev := capabilityCheck
+	capabilityCheck = f
+	return prev
+}
+
 func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config.XtcpConfig) *XTCP {
 
 	x := new(XTCP)

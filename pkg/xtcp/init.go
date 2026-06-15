@@ -25,7 +25,7 @@ func (x *XTCP) Init(ctx context.Context) {
 		log.Println("Init starting")
 	}
 
-	if err := x.checkCapabilities(); err != nil {
+	if err := capabilityCheck(x); err != nil {
 		// checkCapabilities returns a multi-line, actionable error when
 		// a hard-required capability (CAP_NET_ADMIN / CAP_SYS_ADMIN) is
 		// missing. Fatal at startup so the operator gets a clean exit
