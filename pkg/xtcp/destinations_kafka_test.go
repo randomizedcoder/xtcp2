@@ -682,6 +682,37 @@ func TestNewKafkaDest_happy(t *testing.T) {
 	_ = d.Close()
 }
 
+// TestNewKafkaDest_debugLog drives the debugLevel > 10 logging branch
+// in newKafkaDest (the five log.Println calls between the kgoMetrics
+// init and the kgo.NewClient call). Same fixture as the happy test but
+// debugLevel = 11 so the if x.debugLevel > 10 block runs.
+func TestNewKafkaDest_debugLog(t *testing.T) {
+	const protoSrc = `syntax = "proto3"; package t; message M {}`
+	srv := httptest.NewServer(schemaRegistryHandler(7, 0))
+	defer srv.Close()
+
+	x := newTestXTCP(t, "kafka:127.0.0.1:9092")
+	x.config.Topic = "xtcp-test"
+	x.config.KafkaSchemaUrl = srv.URL
+	x.debugLevel = 11
+	tmp := filepath.Join(t.TempDir(), "x.proto")
+	if err := os.WriteFile(tmp, []byte(protoSrc), 0o600); err != nil {
+		t.Fatalf("write tmp proto: %v", err)
+	}
+	x.config.XtcpProtoFile = tmp
+
+	fake := &fakeKafkaProducer{}
+	origFactory := newKafkaProducerFn
+	newKafkaProducerFn = func(_ ...kgo.Opt) (kafkaProducer, error) { return fake, nil }
+	defer func() { newKafkaProducerFn = origFactory }()
+
+	d, err := newKafkaDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newKafkaDest err = %v", err)
+	}
+	_ = d.Close()
+}
+
 // TestNewKafkaDest_factoryErr drives the `newKafkaProducerFn err →
 // fmt.Errorf("newKafkaDest kgo.NewClient: ...")` branch.
 func TestNewKafkaDest_factoryErr(t *testing.T) {

@@ -148,18 +148,75 @@ let
 
   # User-facing wrapper that refreshes docs/quality-report.md from the
   # current source tree. Invoked via `nix run .#update-quality-report`.
+  #
+  # With --with-microvm, additionally:
+  #   1. Boot the coverage-instrumented microvm via
+  #      `nix run .#microvm-x86_64-lifecycle-coverage` and scrape the
+  #      Go coverage data dump from its serial console.
+  #   2. Merge the VM profile with the host-only profile produced by
+  #      .#quality-report via `nix run .#coverage-merge`.
+  #   3. Re-run the quality-report aggregator binary with the merged
+  #      profile through the new -coverage-out flag (no Nix rebuild
+  #      needed for the merge step).
+  # Result: the headline coverage % in docs/quality-report.md
+  # reflects io_uring + real netlink + namespace paths the host
+  # sandbox can't exercise.
   updateQualityReport = pkgs.writeShellApplication {
     name = "xtcp2-update-quality-report";
     runtimeInputs = with pkgs; [
       coreutils
       git
+      versions.go
     ];
     text = ''
       set -eu
 
+      WITH_MICROVM=0
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --with-microvm) WITH_MICROVM=1; shift ;;
+          -h|--help)
+            echo "usage: update-quality-report [--with-microvm]"
+            exit 0
+            ;;
+          *) echo "unknown arg: $1" >&2; exit 2 ;;
+        esac
+      done
+
       if [ ! -f flake.nix ]; then
         echo "update-quality-report: must be run from the xtcp2 repo root" >&2
         exit 2
+      fi
+
+      # Step 1: optionally run both microvm-coverage lifecycles
+      # (stdlib + iouring) and collect their coverage scrape dirs.
+      # Each variant exercises different code paths inside the daemon
+      # — the iouring one is the only way to reach the netlinkerIoUring
+      # body without a real io_uring-capable kernel.
+      VMDIR_STD=""
+      VMDIR_IOU=""
+      if [ "$WITH_MICROVM" = "1" ]; then
+        VMDIR_STD="$(mktemp -d -t xtcp2cov-std-XXXXXX)"
+        echo "==> running .#microvm-x86_64-lifecycle-coverage (stdlib)"
+        echo "    scrape dir: $VMDIR_STD"
+        XTCP2_COVERDIR="$VMDIR_STD" \
+          nix run --accept-flake-config .#microvm-x86_64-lifecycle-coverage \
+          || echo "WARNING: stdlib microvm lifecycle exited non-zero; coverage may be partial"
+
+        VMDIR_IOU="$(mktemp -d -t xtcp2cov-iou-XXXXXX)"
+        echo "==> running .#microvm-x86_64-lifecycle-coverage-iouring"
+        echo "    scrape dir: $VMDIR_IOU"
+        XTCP2_COVERDIR="$VMDIR_IOU" \
+          nix run --accept-flake-config .#microvm-x86_64-lifecycle-coverage-iouring \
+          || echo "WARNING: iouring microvm lifecycle exited non-zero; coverage may be partial"
+
+        n_std=$(find "$VMDIR_STD" -type f 2>/dev/null | wc -l)
+        n_iou=$(find "$VMDIR_IOU" -type f 2>/dev/null | wc -l)
+        echo "==> microvm coverage files: stdlib=$n_std iouring=$n_iou"
+        if [ "$n_std" -eq 0 ] && [ "$n_iou" -eq 0 ]; then
+          echo "WARNING: no coverage files scraped from either VM; falling back to host-only"
+          WITH_MICROVM=0
+        fi
       fi
 
       echo "==> building .#quality-report (Tier 2 takes ~10 min on a cold cache;"
@@ -167,9 +224,44 @@ let
       result=$(nix build --no-link --print-out-paths --accept-flake-config .#quality-report)
 
       mkdir -p docs
-      cp "$result/quality-report.md" docs/quality-report.md
-      chmod +w docs/quality-report.md
 
+      if [ "$WITH_MICROVM" = "1" ]; then
+        echo "==> merging host + microvm coverage profiles"
+        MERGED=$(mktemp -t merged-cov-XXXXXX.out)
+        # nix run .#coverage-merge handles host+VM merge: produces a
+        # mode-set profile keyed on the host's block universe with
+        # counts upgraded where any VM run also covered the block.
+        # Multiple --vm-dir flags are union-merged via covdata textfmt.
+        MERGE_ARGS=(--host "$result/raw/coverage.out" --out "$MERGED")
+        n_std=$(find "$VMDIR_STD" -type f 2>/dev/null | wc -l)
+        n_iou=$(find "$VMDIR_IOU" -type f 2>/dev/null | wc -l)
+        if [ "$n_std" -gt 0 ]; then MERGE_ARGS+=(--vm-dir "$VMDIR_STD"); fi
+        if [ "$n_iou" -gt 0 ]; then MERGE_ARGS+=(--vm-dir "$VMDIR_IOU"); fi
+        nix run --accept-flake-config .#coverage-merge -- "''${MERGE_ARGS[@]}" >&2
+
+        # Copy raw/ to a writable temp dir so we can re-run the
+        # aggregator with the merged profile in-place. The Nix store
+        # path is read-only; we need a writable rawDir for the
+        # -coverage-out regeneration step.
+        MERGED_RAW=$(mktemp -d -t merged-raw-XXXXXX)
+        cp -r "$result/raw/." "$MERGED_RAW/"
+        chmod -R +w "$MERGED_RAW"
+
+        echo "==> re-running quality-report with merged profile"
+        go run ./tools/quality-report \
+          -raw-dir "$MERGED_RAW" \
+          -repo-root . \
+          -known-failures ./tools/quality-report/known-failures.txt \
+          -coverage-baseline ./docs/coverage-baseline.txt \
+          -coverage-max-drop 0.5 \
+          -coverage-out "$MERGED" \
+          > docs/quality-report.md \
+          || echo "WARNING: aggregator exited non-zero; report may be incomplete"
+      else
+        cp "$result/quality-report.md" docs/quality-report.md
+      fi
+
+      chmod +w docs/quality-report.md
       echo
       echo "==> wrote docs/quality-report.md"
 

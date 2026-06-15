@@ -215,11 +215,17 @@ in
         # (pkg/xtcp/init.go:130). Pre-create the linux one so xtcp2 starts
         # cleanly in a fresh microvm where no namespaces have been added.
         # When sink=coverage, also create the coverage output directory
-        # the xtcp2-cover binary writes counter+meta files into.
+        # the xtcp2-cover binary writes counter+meta files into AND the
+        # docker netns dir so the self-test Check 10 can exercise the
+        # second fsnotify watch path without installing docker proper.
         systemd.tmpfiles.rules = [
           "d /run/netns 0755 root root -"
         ]
-        ++ lib.optional isCoverage "d ${coverDir} 0755 root root -";
+        ++ lib.optionals isCoverage [
+          "d ${coverDir} 0755 root root -"
+          "d /run/docker 0755 root root -"
+          "d /run/docker/netns 0755 root root -"
+        ];
 
         # GOCOVERDIR for the coverage-instrumented xtcp2 build. The runtime
         # writes covcounters.* + covmeta files into this directory on clean

@@ -136,6 +136,12 @@ let
         vm = vmsCoverage.${arch};
         suffix = "-coverage";
         scrapeCoverage = true;
+        # Surface the new NS_LIFECYCLE + NS_TRAFFIC sentinels from
+        # self-test.nix Checks 8+9 so the lifecycle output makes their
+        # outcome visible. Without this the default filter hides
+        # them; the checks still execute (and the daemon exercises the
+        # corresponding code paths) but the harness output is misleading.
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
       };
     })
   );
@@ -147,6 +153,7 @@ let
         vm = vmsCoverageIoUring.${arch};
         suffix = "-coverage-iouring";
         scrapeCoverage = true;
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
       };
     })
   );

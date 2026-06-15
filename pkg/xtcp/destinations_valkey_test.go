@@ -265,6 +265,33 @@ func TestValkeyDest_RedisClientAdapter_satisfiesIface(t *testing.T) {
 	var _ valkeyPublisher = adapter
 }
 
+// TestValkeyDest_RedisClientAdapter_methods drives the production
+// adapter's three methods (Publish, Ping, Close) against an
+// unreachable port with a short-deadline context. Both Publish and
+// Ping must surface the dial error; Close must not panic.
+//
+// Without these the production adapter showed 0% coverage even with
+// the dest_valkey build tag, because every other test path bypasses
+// the adapter via the newValkeyClientFn factory seam.
+func TestValkeyDest_RedisClientAdapter_methods(t *testing.T) {
+	// Port 1 is reserved (TCP port multiplexer); a connect attempt
+	// will fail fast with ECONNREFUSED on Linux.
+	adapter := newValkeyClientReal("127.0.0.1:1")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	if err := adapter.Publish(ctx, "test-channel", []byte("payload")); err == nil {
+		t.Error("Publish to unreachable addr should error")
+	}
+	if err := adapter.Ping(ctx); err == nil {
+		t.Error("Ping unreachable addr should error")
+	}
+	if err := adapter.Close(); err != nil {
+		t.Errorf("Close after no commands should succeed, got %v", err)
+	}
+}
+
 // TestNewValKeyDest_happy drives the constructor end-to-end via the
 // newValkeyClientFn factory seam. Fake Ping succeeds so the
 // constructor returns a fully-built dest.
