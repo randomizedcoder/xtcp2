@@ -22,10 +22,6 @@ const (
 	kafkaPingTimeoutCst    = 5 * time.Second
 	kafkaPingRetriesCst    = 5
 	kafkaPingRetrySleepCst = 1 * time.Second
-
-	// For protobuf the size is at least 6, not 5
-	// https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format
-	KafkaHeaderSizeCst = 6
 )
 
 // kafkaProducer captures the surface of *kgo.Client that kafkaDest
@@ -75,16 +71,23 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		},
 	}
 
+	// Schema-registry registration is informational only — ClickHouse
+	// (the production consumer) does not consult the registry to decode
+	// messages; it loads xtcp_flat_record.proto from format_schemas via
+	// its kafka_schema setting. Registry incompatibility with a prior
+	// schema version (e.g. after the Phase 0 proto refactor that
+	// collapsed Envelope.XtcpFlatRecord to top-level XtcpFlatRecord)
+	// would otherwise wedge xtcp2 in a respawn loop. Log + continue.
+	//
+	// Counter bumps would crash here: InitDests runs before InitPromethus,
+	// so x.pC is still nil. Log-only is enough for ops visibility —
+	// systemd journal captures all log lines.
 	if err := d.registerProtobufSchema(ctx); err != nil {
-		return nil, err
-	}
-
-	schemaID, err := d.getLatestSchemaID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("newKafkaDest getLatestSchemaID: %w", err)
-	}
-	if schemaID != d.schemaID {
-		return nil, fmt.Errorf("newKafkaDest schemaID:%d != d.schemaID:%d", schemaID, d.schemaID)
+		log.Printf("newKafkaDest registerProtobufSchema (non-fatal): %v", err)
+	} else if schemaID, errLookup := d.getLatestSchemaID(ctx); errLookup != nil {
+		log.Printf("newKafkaDest getLatestSchemaID (non-fatal): %v", errLookup)
+	} else if schemaID != d.schemaID {
+		log.Printf("newKafkaDest registry schemaID:%d != local schemaID:%d (non-fatal)", schemaID, d.schemaID)
 	}
 
 	kgoMetrics := kprom.NewMetrics("kgo")
@@ -98,16 +101,16 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		log.Println("d.schemaID:", d.schemaID)
 	}
 
+	compression, errComp := resolveKafkaCompression(x.config.KafkaCompression)
+	if errComp != nil {
+		return nil, errComp
+	}
+
 	opts := []kgo.Opt{
 		kgo.DefaultProduceTopic(x.config.Topic),
 		kgo.ClientID("xtcp2"),
 		kgo.SeedBrokers(broker),
-		kgo.ProducerBatchCompression(
-			kgo.ZstdCompression(),
-			kgo.Lz4Compression(),
-			kgo.SnappyCompression(),
-			kgo.NoCompression(),
-		),
+		kgo.ProducerBatchCompression(compression...),
 		kgo.AllowAutoTopicCreation(),
 		kgo.WithHooks(kgoMetrics),
 		kgo.DisableIdempotentWrite(),
@@ -118,6 +121,7 @@ func newKafkaDest(ctx context.Context, x *XTCP) (Destination, error) {
 		})),
 	}
 
+	var err error
 	d.client, err = newKafkaProducerFn(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("newKafkaDest kgo.NewClient: %w", err)
@@ -305,6 +309,39 @@ func (d *kafkaDest) pingKafka(ctx context.Context) error {
 		log.Printf("pingKafka kafka ping time:%0.6fs\n", time.Since(pTime).Seconds())
 	}
 	return nil
+}
+
+// resolveKafkaCompression maps the string knob to a franz-go compression
+// preference list. "" / "auto" preserves the original behavior — franz-go
+// picks the first codec the broker advertises support for. Explicit
+// values pin a single codec; an unknown value is fatal at startup so a
+// typo in config doesn't silently fall through to None.
+//
+// All codecs are mutually decodable by Redpanda + ClickHouse's Kafka
+// engine (librdkafka), so the choice is purely a producer CPU/throughput
+// tradeoff. See xtcp_config.proto's KafkaCompression docs.
+func resolveKafkaCompression(name string) ([]kgo.CompressionCodec, error) {
+	switch name {
+	case "", "auto":
+		return []kgo.CompressionCodec{
+			kgo.ZstdCompression(),
+			kgo.Lz4Compression(),
+			kgo.SnappyCompression(),
+			kgo.NoCompression(),
+		}, nil
+	case "zstd":
+		return []kgo.CompressionCodec{kgo.ZstdCompression()}, nil
+	case "lz4":
+		return []kgo.CompressionCodec{kgo.Lz4Compression()}, nil
+	case "snappy":
+		return []kgo.CompressionCodec{kgo.SnappyCompression()}, nil
+	case "gzip":
+		return []kgo.CompressionCodec{kgo.GzipCompression()}, nil
+	case "none":
+		return []kgo.CompressionCodec{kgo.NoCompression()}, nil
+	default:
+		return nil, fmt.Errorf("newKafkaDest unknown KafkaCompression:%q (want one of: auto, zstd, lz4, snappy, gzip, none)", name)
+	}
 }
 
 func init() {

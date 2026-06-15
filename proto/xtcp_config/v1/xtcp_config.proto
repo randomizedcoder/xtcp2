@@ -249,8 +249,55 @@ message XtcpConfig {
 			max_len: 40,
 	}];
 
-	// protobufListMarshal can optionally not length delimit
-	bool protobuf_list_length_delimit                = 121 [
+	// Soft cap on the in-flight envelope's marshalled size, in bytes.
+	// Measured via proto.Size — i.e. the UNCOMPRESSED serialized size.
+	// franz-go applies ZSTD/LZ4/Snappy compression after handoff, so the
+	// actual on-wire Kafka message is typically 3-8x smaller than the
+	// proto.Size we measure here. Treat this as a conservative upper
+	// bound, not the wire size.
+	//
+	// 0 = use the daemon's compile-time default (768 KiB; see
+	// EnvelopeFlushThresholdBytesCst in pkg/xtcp/marshallers.go).
+	// Useful primarily as a safety net against records with huge
+	// `bytes` fields. For everyday batch sizing, prefer the row-count
+	// cap (envelope_flush_threshold_rows) below.
+	uint32 envelope_flush_threshold_bytes            = 122 [
+		(buf.validate.field).required = false
+	];
+
+	// Soft cap on the in-flight envelope's row count. When the envelope
+	// reaches this many rows, deserialize.go triggers an early mid-poll
+	// flush. Cheaper than the byte cap (no proto.Size walk on the hot
+	// path) and more predictable for operators reasoning about batch
+	// size directly.
+	//
+	// 0 = use the daemon's compile-time default
+	// (EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align
+	// with the ClickHouse kafka_max_rows_per_message setting so a
+	// produced envelope never forces the consumer to split it).
+	uint32 envelope_flush_threshold_rows             = 123 [
+		(buf.validate.field).required = false
+	];
+
+	// Kafka producer-batch compression codec. franz-go picks one codec
+	// from the supplied preference list that the broker advertises.
+	// Both Redpanda and ClickHouse (via librdkafka on its Kafka engine)
+	// decompress all standard codecs transparently — no consumer-side
+	// config is needed regardless of which codec is chosen here.
+	//
+	// Valid values:
+	//   "" or "auto" → preference list [zstd, lz4, snappy, none] —
+	//                  modern brokers (Redpanda, Kafka 2.1+) end up
+	//                  on zstd; older brokers fall back through the list
+	//   "zstd"       → force ZStandard (best ratio, modern default)
+	//   "lz4"        → force LZ4 (fast, low CPU)
+	//   "snappy"     → force Snappy (legacy, broad compat)
+	//   "gzip"       → force Gzip (highest CPU; legacy clients)
+	//   "none"       → no compression on the wire
+	//
+	// Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
+	// "zstd" (the default) if Kafka throughput / disk usage matters more.
+	string kafka_compression                         = 124 [
 		(buf.validate.field).required = false
 	];
 

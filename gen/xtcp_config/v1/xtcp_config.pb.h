@@ -845,6 +845,7 @@ class XtcpConfig final : public ::google::protobuf::Message
   enum : int {
     kCapturePathFieldNumber = 100,
     kMarshalToFieldNumber = 120,
+    kKafkaCompressionFieldNumber = 124,
     kDestFieldNumber = 130,
     kTopicFieldNumber = 140,
     kXtcpProtoFileFieldNumber = 143,
@@ -862,13 +863,14 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPacketSizeFieldNumber = 70,
     kNlmsgSeqFieldNumber = 60,
     kPacketSizeMplyFieldNumber = 80,
-    kModulusFieldNumber = 110,
     kWriteFilesFieldNumber = 90,
+    kEnvelopeFlushThresholdBytesFieldNumber = 122,
+    kModulusFieldNumber = 110,
+    kEnvelopeFlushThresholdRowsFieldNumber = 123,
     kDestWriteFilesFieldNumber = 135,
     kDebugLevelFieldNumber = 160,
-    kProtobufListLengthDelimitFieldNumber = 121,
-    kIoUringFieldNumber = 210,
     kGrpcPortFieldNumber = 190,
+    kIoUringFieldNumber = 210,
     kIoUringRecvBatchSizeFieldNumber = 211,
     kIoUringCqeBatchSizeFieldNumber = 212,
   };
@@ -902,6 +904,22 @@ class XtcpConfig final : public ::google::protobuf::Message
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_marshal_to(
       const std::string& value);
   std::string* _internal_mutable_marshal_to();
+
+  public:
+  // string kafka_compression = 124 [json_name = "kafkaCompression", (.buf.validate.field) = {
+  void clear_kafka_compression() ;
+  const std::string& kafka_compression() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_kafka_compression(Arg_&& arg, Args_... args);
+  std::string* mutable_kafka_compression();
+  PROTOBUF_NODISCARD std::string* release_kafka_compression();
+  void set_allocated_kafka_compression(std::string* value);
+
+  private:
+  const std::string& _internal_kafka_compression() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_kafka_compression(
+      const std::string& value);
+  std::string* _internal_mutable_kafka_compression();
 
   public:
   // string dest = 130 [json_name = "dest", (.buf.validate.field) = {
@@ -1130,6 +1148,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_packet_size_mply(::uint32_t value);
 
   public:
+  // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
+  void clear_write_files() ;
+  ::uint32_t write_files() const;
+  void set_write_files(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_write_files() const;
+  void _internal_set_write_files(::uint32_t value);
+
+  public:
+  // uint32 envelope_flush_threshold_bytes = 122 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_bytes() ;
+  ::uint32_t envelope_flush_threshold_bytes() const;
+  void set_envelope_flush_threshold_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_envelope_flush_threshold_bytes() const;
+  void _internal_set_envelope_flush_threshold_bytes(::uint32_t value);
+
+  public:
   // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
   void clear_modulus() ;
   ::uint64_t modulus() const;
@@ -1140,14 +1178,14 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_modulus(::uint64_t value);
 
   public:
-  // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
-  void clear_write_files() ;
-  ::uint32_t write_files() const;
-  void set_write_files(::uint32_t value);
+  // uint32 envelope_flush_threshold_rows = 123 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_rows() ;
+  ::uint32_t envelope_flush_threshold_rows() const;
+  void set_envelope_flush_threshold_rows(::uint32_t value);
 
   private:
-  ::uint32_t _internal_write_files() const;
-  void _internal_set_write_files(::uint32_t value);
+  ::uint32_t _internal_envelope_flush_threshold_rows() const;
+  void _internal_set_envelope_flush_threshold_rows(::uint32_t value);
 
   public:
   // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
@@ -1170,14 +1208,14 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_debug_level(::uint32_t value);
 
   public:
-  // bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
-  void clear_protobuf_list_length_delimit() ;
-  bool protobuf_list_length_delimit() const;
-  void set_protobuf_list_length_delimit(bool value);
+  // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
+  void clear_grpc_port() ;
+  ::uint32_t grpc_port() const;
+  void set_grpc_port(::uint32_t value);
 
   private:
-  bool _internal_protobuf_list_length_delimit() const;
-  void _internal_set_protobuf_list_length_delimit(bool value);
+  ::uint32_t _internal_grpc_port() const;
+  void _internal_set_grpc_port(::uint32_t value);
 
   public:
   // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
@@ -1188,16 +1226,6 @@ class XtcpConfig final : public ::google::protobuf::Message
   private:
   bool _internal_io_uring() const;
   void _internal_set_io_uring(bool value);
-
-  public:
-  // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
-  void clear_grpc_port() ;
-  ::uint32_t grpc_port() const;
-  void set_grpc_port(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_grpc_port() const;
-  void _internal_set_grpc_port(::uint32_t value);
 
   public:
   // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
@@ -1225,8 +1253,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 28, 4,
-      128, 27>
+      5, 30, 4,
+      145, 27>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1247,6 +1275,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr capture_path_;
     ::google::protobuf::internal::ArenaStringPtr marshal_to_;
+    ::google::protobuf::internal::ArenaStringPtr kafka_compression_;
     ::google::protobuf::internal::ArenaStringPtr dest_;
     ::google::protobuf::internal::ArenaStringPtr topic_;
     ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
@@ -1264,13 +1293,14 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint64_t packet_size_;
     ::uint32_t nlmsg_seq_;
     ::uint32_t packet_size_mply_;
-    ::uint64_t modulus_;
     ::uint32_t write_files_;
+    ::uint32_t envelope_flush_threshold_bytes_;
+    ::uint64_t modulus_;
+    ::uint32_t envelope_flush_threshold_rows_;
     ::uint32_t dest_write_files_;
     ::uint32_t debug_level_;
-    bool protobuf_list_length_delimit_;
-    bool io_uring_;
     ::uint32_t grpc_port_;
+    bool io_uring_;
     ::uint32_t io_uring_recv_batch_size_;
     ::uint32_t io_uring_cqe_batch_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -3145,26 +3175,96 @@ inline void XtcpConfig::set_allocated_marshal_to(std::string* value) {
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.marshal_to)
 }
 
-// bool protobuf_list_length_delimit = 121 [json_name = "protobufListLengthDelimit", (.buf.validate.field) = {
-inline void XtcpConfig::clear_protobuf_list_length_delimit() {
+// uint32 envelope_flush_threshold_bytes = 122 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+inline void XtcpConfig::clear_envelope_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.protobuf_list_length_delimit_ = false;
+  _impl_.envelope_flush_threshold_bytes_ = 0u;
 }
-inline bool XtcpConfig::protobuf_list_length_delimit() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.protobuf_list_length_delimit)
-  return _internal_protobuf_list_length_delimit();
+inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
+  return _internal_envelope_flush_threshold_bytes();
 }
-inline void XtcpConfig::set_protobuf_list_length_delimit(bool value) {
-  _internal_set_protobuf_list_length_delimit(value);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.protobuf_list_length_delimit)
+inline void XtcpConfig::set_envelope_flush_threshold_bytes(::uint32_t value) {
+  _internal_set_envelope_flush_threshold_bytes(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
 }
-inline bool XtcpConfig::_internal_protobuf_list_length_delimit() const {
+inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_bytes() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.protobuf_list_length_delimit_;
+  return _impl_.envelope_flush_threshold_bytes_;
 }
-inline void XtcpConfig::_internal_set_protobuf_list_length_delimit(bool value) {
+inline void XtcpConfig::_internal_set_envelope_flush_threshold_bytes(::uint32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.protobuf_list_length_delimit_ = value;
+  _impl_.envelope_flush_threshold_bytes_ = value;
+}
+
+// uint32 envelope_flush_threshold_rows = 123 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+inline void XtcpConfig::clear_envelope_flush_threshold_rows() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_rows_ = 0u;
+}
+inline ::uint32_t XtcpConfig::envelope_flush_threshold_rows() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_rows)
+  return _internal_envelope_flush_threshold_rows();
+}
+inline void XtcpConfig::set_envelope_flush_threshold_rows(::uint32_t value) {
+  _internal_set_envelope_flush_threshold_rows(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_rows)
+}
+inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_rows() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.envelope_flush_threshold_rows_;
+}
+inline void XtcpConfig::_internal_set_envelope_flush_threshold_rows(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_rows_ = value;
+}
+
+// string kafka_compression = 124 [json_name = "kafkaCompression", (.buf.validate.field) = {
+inline void XtcpConfig::clear_kafka_compression() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_compression_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::kafka_compression() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_compression)
+  return _internal_kafka_compression();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_compression(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_compression_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_compression)
+}
+inline std::string* XtcpConfig::mutable_kafka_compression() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_kafka_compression();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_compression)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_kafka_compression() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.kafka_compression_.Get();
+}
+inline void XtcpConfig::_internal_set_kafka_compression(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_compression_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_kafka_compression() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.kafka_compression_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_kafka_compression() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_compression)
+  return _impl_.kafka_compression_.Release();
+}
+inline void XtcpConfig::set_allocated_kafka_compression(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_compression_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_compression_.IsDefault()) {
+    _impl_.kafka_compression_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_compression)
 }
 
 // string dest = 130 [json_name = "dest", (.buf.validate.field) = {

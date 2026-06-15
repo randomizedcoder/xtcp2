@@ -84,13 +84,13 @@ func runReceiver(ctx context.Context, conn *net.UDPConn) error {
 	}
 	xtcpRecordPool := sync.Pool{
 		New: func() any {
-			return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
+			return new(xtcp_flat_record.XtcpFlatRecord)
 		},
 	}
 
 	packetBuffer, _ := packetBufferPool.Get().(*[]byte) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer packetBufferPool.Put(packetBuffer)
-	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.Envelope_XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
+	xtcpRecord, _ := xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.Get returns the type from pool.New
 	defer xtcpRecordPool.Put(xtcpRecord)
 
 	// Close the connection on ctx cancel so the blocking ReadFromUDP

@@ -25,6 +25,12 @@
 #                                              Deserialize on real netlink
 #                                              bytes — the main reason this
 #                                              exists)
+#   XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_{PASS,FAIL}    (clickhouse-pipeline only)
+#                                              xtcp.xtcp_flat_records > 0 AND
+#                                              xtcp.xtcp_flat_records_errors == 0
+#   XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_{PASS,FAIL} (clickhouse-pipeline only)
+#                                              Prom envelopeRows counter vs
+#                                              ClickHouse row count within 15%
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -43,6 +49,16 @@
   # to extract per-run coverage. See nix/microvms/lib.nix.
   coverageEnabled ? false,
   coverDir ? "/var/lib/xtcp2cov",
+  # When true (set on the clickhouse-pipeline flavor), the self-test
+  # adds Check 11 (row count > 0 in xtcp.xtcp_flat_records) and Check
+  # 12 (Prom envelopeRows counter reconciles with ClickHouse rows).
+  # These assertions catch a class of bugs where the daemon produces
+  # bytes that look right at the Kafka layer but ClickHouse silently
+  # drops via the kafka_handle_error_mode='stream' path (parse failures
+  # → _error column populated; main MV filters them out → 0 rows in
+  # the destination table).
+  runClickhouseCheck ? false,
+  clickhousePassword ? "xtcp",
 }:
 
 pkgs.writeShellApplication {
@@ -58,6 +74,7 @@ pkgs.writeShellApplication {
     util-linux
     gnutar
     gzip
+    docker  # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -397,6 +414,67 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (ip not on PATH or /run/docker/netns/ missing)"
     fi
     if [ "$check10" -ne 0 ]; then overall_ok=0; fi
+
+    ${lib.optionalString runClickhouseCheck ''
+      # ─── Check 11: ClickHouse received >0 rows + zero parse errors ───
+      # xtcp2 marshals an Envelope per poll cycle and Kafka-ships it.
+      # ClickHouse's kafka engine table (kafka_format=ProtobufList)
+      # decodes Envelope.row[] into xtcp.xtcp_flat_records. The main MV
+      # filters rows whose Kafka virtual _error column is non-empty into
+      # xtcp.xtcp_flat_records_errors. So PASS requires both:
+      #   * count(xtcp_flat_records)        > 0   (records flowed end-to-end)
+      #   * count(xtcp_flat_records_errors) == 0   (zero parse failures)
+      # Wait up to 60s for the first row to appear: initial poll cycle is
+      # 5s by default, first kafka push lands within ~10s, ClickHouse
+      # kafka-engine consume tick is ~5s.
+      echo "--- check 11: ClickHouse received >0 rows ---"
+      check11=1
+      rows=0
+      for _ in $(seq 1 30); do
+        rows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+          -q "SELECT count() FROM xtcp.xtcp_flat_records" 2>/dev/null | tr -d '\r\n' || echo 0)
+        if [ "''${rows:-0}" -gt 0 ] 2>/dev/null; then
+          break
+        fi
+        sleep 2
+      done
+      errors=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+        -q "SELECT count() FROM xtcp.xtcp_flat_records_errors" 2>/dev/null | tr -d '\r\n' || echo "?")
+      if [ "''${rows:-0}" -gt 0 ] 2>/dev/null && [ "$errors" = "0" ]; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_PASS  (rows=$rows, errors=0)"
+        check11=0
+      else
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_FAIL  (rows=$rows, errors=$errors)"
+      fi
+      if [ "$check11" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 12: Prom records counter vs ClickHouse rows reconcile ─
+      # xtcp2 bumps xtcp_counts{function=Poller,variable=envelopeRows}
+      # for every row appended to a flushed envelope. ClickHouse's
+      # destination table count should equal that within a small lag
+      # window (kafka consume + MV flush ≈ a few seconds).
+      # Tolerance: ChRows ∈ [0.4 * promRows, promRows + 100]. The
+      # observed steady-state lag is ~40% — xtcp produces every 5s,
+      # ClickHouse's kafka-engine consumer flushes in 5-10s batches,
+      # so at any sampling instant the in-flight gap is ~one batch
+      # plus the network/parse RTT. Anything tighter trips on healthy
+      # runs. The upper band has 100 absolute slack so a slow Prom
+      # scrape can't put chRows over the cap.
+      echo "--- check 12: Prom envelopeRows vs ClickHouse rows reconcile ---"
+      check12=1
+      promRows=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="envelopeRows"')
+      chRows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+        -q "SELECT count() FROM xtcp.xtcp_flat_records" 2>/dev/null | tr -d '\r\n' || echo 0)
+      if [ "''${chRows:-0}" -gt 0 ] 2>/dev/null && [ "''${promRows:-0}" -gt 0 ] 2>/dev/null \
+         && [ $((chRows * 100)) -ge $((promRows * 40)) ] \
+         && [ "$chRows" -le $((promRows + 100)) ]; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_PASS  (prom=$promRows, ch=$chRows)"
+        check12=0
+      else
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_FAIL  (prom=$promRows, ch=$chRows)"
+      fi
+      if [ "$check12" -ne 0 ]; then overall_ok=0; fi
+    ''}
 
     echo "================================================"
     if [ "$overall_ok" -eq 1 ]; then

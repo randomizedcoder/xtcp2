@@ -160,7 +160,7 @@ func TestNewXTCP_runsToCompletion(t *testing.T) {
 	defer cancel()
 	cfg := &xtcp_config.XtcpConfig{
 		Dest:      schemeNull,
-		MarshalTo: MarshallerProtobufSingle,
+		MarshalTo: MarshallerProtoJSON,
 		Topic:     "test",
 		EnabledDeserializers: &xtcp_config.EnabledDeserializers{
 			Enabled: make(map[string]bool),
@@ -198,8 +198,13 @@ func TestNewNsTestingXTCP_runsToCompletion(t *testing.T) {
 	if x == nil {
 		t.Fatal("NewNsTestingXTCP returned nil")
 	}
-	if x.Marshaller == nil {
-		t.Error("Marshaller should be populated after Init")
+	// NewNsTestingXTCP configures MarshalTo=protobufList, which lives in
+	// the envelope marshaller registry (per-record Marshaller is nil for
+	// that name). Per-record marshallers are exercised by the protoJson/
+	// protoText/msgpack TestInitMarshallers_validNames test in
+	// marshallers_test.go.
+	if x.EnvelopeMarshaller == nil {
+		t.Error("EnvelopeMarshaller should be populated after Init")
 	}
 	if x.Netlinker == nil {
 		t.Error("Netlinker should be populated after Init")

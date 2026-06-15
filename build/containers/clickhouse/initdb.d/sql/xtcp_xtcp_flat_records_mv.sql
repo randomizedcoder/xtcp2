@@ -12,8 +12,8 @@ DROP VIEW IF EXISTS xtcp.xtcp_flat_records_mv;
 CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_mv TO xtcp.xtcp_flat_records
   AS SELECT
     *
-  FROM xtcp.xtcp_flat_records_kafka;
--- FROM xtcp.xtcp_flat_records_kafka WHERE length(_error) == 0;
+  FROM xtcp.xtcp_flat_records_kafka
+  WHERE length(_error) == 0;
 
 -- https://github.com/ClickHouse/ClickHouse/blob/master/tests/integration/test_storage_kafka/test_batch_fast.py#L2678
 

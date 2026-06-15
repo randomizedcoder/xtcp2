@@ -266,9 +266,19 @@
           "type": "string",
           "title": "Marshalling of the exported data (protobufList,json,prototext)"
         },
-        "protobufListLengthDelimit": {
-          "type": "boolean",
-          "title": "protobufListMarshal can optionally not length delimit"
+        "envelopeFlushThresholdBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Soft cap on the in-flight envelope's marshalled size, in bytes.\nMeasured via proto.Size — i.e. the UNCOMPRESSED serialized size.\nfranz-go applies ZSTD/LZ4/Snappy compression after handoff, so the\nactual on-wire Kafka message is typically 3-8x smaller than the\nproto.Size we measure here. Treat this as a conservative upper\nbound, not the wire size.\n\n0 = use the daemon's compile-time default (768 KiB; see\nEnvelopeFlushThresholdBytesCst in pkg/xtcp/marshallers.go).\nUseful primarily as a safety net against records with huge\n`bytes` fields. For everyday batch sizing, prefer the row-count\ncap (envelope_flush_threshold_rows) below."
+        },
+        "envelopeFlushThresholdRows": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Soft cap on the in-flight envelope's row count. When the envelope\nreaches this many rows, deserialize.go triggers an early mid-poll\nflush. Cheaper than the byte cap (no proto.Size walk on the hot\npath) and more predictable for operators reasoning about batch\nsize directly.\n\n0 = use the daemon's compile-time default\n(EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align\nwith the ClickHouse kafka_max_rows_per_message setting so a\nproduced envelope never forces the consumer to split it)."
+        },
+        "kafkaCompression": {
+          "type": "string",
+          "description": "Kafka producer-batch compression codec. franz-go picks one codec\nfrom the supplied preference list that the broker advertises.\nBoth Redpanda and ClickHouse (via librdkafka on its Kafka engine)\ndecompress all standard codecs transparently — no consumer-side\nconfig is needed regardless of which codec is chosen here.\n\nValid values:\n  \"\" or \"auto\" → preference list [zstd, lz4, snappy, none] —\n                 modern brokers (Redpanda, Kafka 2.1+) end up\n                 on zstd; older brokers fall back through the list\n  \"zstd\"       → force ZStandard (best ratio, modern default)\n  \"lz4\"        → force LZ4 (fast, low CPU)\n  \"snappy\"     → force Snappy (legacy, broad compat)\n  \"gzip\"       → force Gzip (highest CPU; legacy clients)\n  \"none\"       → no compression on the wire\n\nPick \"lz4\" if xtcp2 is CPU-bound on the producer side; pick\n\"zstd\" (the default) if Kafka throughput / disk usage matters more."
         },
         "dest": {
           "type": "string",

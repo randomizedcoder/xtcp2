@@ -48,16 +48,11 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
     inet_diag_msg_socket_source_port                            UInt32 CODEC(LZ4),
     inet_diag_msg_socket_destination_port                       UInt32 CODEC(LZ4),
     inet_diag_msg_socket_source                                 String CODEC(ZSTD),
-    inet_diag_msg_socket_source_ipv4                            Nullable(IPv4),
-    inet_diag_msg_socket_source_ipv6                            Nullable(IPv6),
     inet_diag_msg_socket_destination                            String CODEC(ZSTD),
-    inet_diag_msg_socket_destination_ipv4                       Nullable(IPv4),
-    inet_diag_msg_socket_destination_ipv6                       Nullable(IPv6),
     inet_diag_msg_socket_interface                              UInt32 CODEC(LZ4),
     inet_diag_msg_socket_cookie                                 UInt64 CODEC(LZ4),
     inet_diag_msg_socket_dest_asn                               UInt64 CODEC(LZ4),
     inet_diag_msg_socket_next_hop_asn                           UInt64 CODEC(LZ4),
-    inet_diag_msg_socket_source_asn                             UInt64 CODEC(LZ4),
 
     inet_diag_msg_expires                                       UInt32 CODEC(LZ4),
     inet_diag_msg_rqueue                                        UInt32 CODEC(LZ4),
@@ -129,6 +124,11 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
     tcp_info_reord_seen                                         UInt32 CODEC(LZ4),
     tcp_info_rcv_ooopack                                        UInt32 CODEC(LZ4),
     tcp_info_snd_wnd                                            UInt32 CODEC(LZ4),
+    tcp_info_rcv_wnd                                            UInt32 CODEC(LZ4),
+    tcp_info_rehash                                             UInt32 CODEC(LZ4),
+    tcp_info_total_rto                                          UInt32 CODEC(LZ4),
+    tcp_info_total_rto_recoveries                               UInt32 CODEC(LZ4),
+    tcp_info_total_rto_time                                     UInt32 CODEC(LZ4),
 
     congestion_algorithm_string                                 LowCardinality(String),
     -- congestion_algorithm_enum                                   LowCardinality(String),
@@ -199,21 +199,20 @@ SETTINGS
   kafka_broker_list = 'redpanda-0:9092',
   kafka_topic_list = 'xtcp',
   kafka_group_name = 'xtcp',
-  kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
-  kafka_poll_max_batch_size = 1024,
-  kafka_handle_error_mode = 'stream',
-  kafka_format = 'ProtobufSingle';
-
-  -- kafka_broker_list = 'redpanda-0:9092',
-  -- kafka_topic_list = 'xtcp',
-  -- kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
-  -- kafka_max_rows_per_message = 10000,
-  -- kafka_format = 'ProtobufList',
-  -- kafka_num_consumers = 1,
-  -- kafka_thread_per_consumer = 0,
-  -- kafka_group_name = 'xtcp',
-  -- kafka_skip_broken_messages = 1,
-  -- kafka_handle_error_mode = 'stream';
+  -- ProtobufList format: kafka_schema MUST point at the ROW type
+  -- (XtcpFlatRecord), NOT the Envelope wrapper. ClickHouse's
+  -- ProtobufList handles the envelope framing internally; the schema
+  -- describes how each row's fields map to table columns. Pointing at
+  -- Envelope produces "NO_COLUMNS_SERIALIZED_TO_PROTOBUF_FIELDS" because
+  -- Envelope only has the single 'row' field. See:
+  -- build/containers/clickhouse/clickhouse_protolist_notes.md
+  kafka_schema = 'xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord',
+  kafka_format = 'ProtobufList',
+  kafka_max_rows_per_message = 10000,
+  kafka_num_consumers = 1,
+  kafka_thread_per_consumer = 0,
+  kafka_skip_broken_messages = 0,
+  kafka_handle_error_mode = 'stream';
 
 -- SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka;
 -- SELECT * FROM system.kafka_consumers FORMAT Vertical;

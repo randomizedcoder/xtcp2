@@ -7,6 +7,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
+// EnvelopeZero clears Row for sync.Pool reuse without dropping the
+// underlying slice capacity. Caller is responsible for having already
+// returned each *XtcpFlatRecord to xtcpRecordPool.
+func (x *XTCP) EnvelopeZero(e *xtcp_flat_record.Envelope) {
+	if e == nil {
+		return
+	}
+	e.Row = e.Row[:0]
+}
+
 func (x *XTCP) InitZeroizers(wg *sync.WaitGroup) {
 
 	defer wg.Done()
