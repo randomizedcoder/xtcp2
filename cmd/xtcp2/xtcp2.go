@@ -137,42 +137,42 @@ var (
 // short and lets the per-section helpers (printFlags, buildConfig,
 // startProfile) take a single argument instead of 30 positional ones.
 type mainFlags struct {
-	nltimeout                 *uint64
-	pollFrequency             *time.Duration
-	pollTimeout               *time.Duration
-	maxLoops                  *uint64
-	netlinkers                *uint
-	nlmsgSeq                  *uint
-	packetSize                *uint64
-	packetSizeMply            *uint
-	writeFiles                *uint
-	capturePath               *string
-	modulus                   *uint64
-	marshal                   *string
-	envelopeFlushBytes        *uint
-	envelopeFlushRows         *uint
-	kafkaCompression          *string
-	dest                      *string
-	destWriteFiles            *uint
-	topic                     *string
-	xtcpProtoFile             *string
-	kafkaSchemaUrl            *string
-	produceTimeout            *time.Duration
-	label                     *string
-	tag                       *string
-	grpcPort                  *uint
-	deserializers             *string
-	promListen                *string
-	promPath                  *string
-	goMaxProcs                *uint
-	maxThreads                *int
-	profileMode               *string
-	v                         *bool
-	conf                      *bool
-	d                         *uint
-	ioUring                   *bool
-	ioUringRecvBatch          *uint
-	ioUringCqeBatch           *uint
+	nltimeout          *uint64
+	pollFrequency      *time.Duration
+	pollTimeout        *time.Duration
+	maxLoops           *uint64
+	netlinkers         *uint
+	nlmsgSeq           *uint
+	packetSize         *uint64
+	packetSizeMply     *uint
+	writeFiles         *uint
+	capturePath        *string
+	modulus            *uint64
+	marshal            *string
+	envelopeFlushBytes *uint
+	envelopeFlushRows  *uint
+	kafkaCompression   *string
+	dest               *string
+	destWriteFiles     *uint
+	topic              *string
+	xtcpProtoFile      *string
+	kafkaSchemaUrl     *string
+	produceTimeout     *time.Duration
+	label              *string
+	tag                *string
+	grpcPort           *uint
+	deserializers      *string
+	promListen         *string
+	promPath           *string
+	goMaxProcs         *uint
+	maxThreads         *int
+	profileMode        *string
+	v                  *bool
+	conf               *bool
+	d                  *uint
+	ioUring            *bool
+	ioUringRecvBatch   *uint
+	ioUringCqeBatch    *uint
 }
 
 func defineFlags() *mainFlags {
@@ -254,33 +254,33 @@ func printFlags(f *mainFlags) {
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
 	return &xtcp_config.XtcpConfig{
-		NlTimeoutMilliseconds:  *f.nltimeout,
-		PollFrequency:          durationpb.New(*f.pollFrequency),
-		PollTimeout:            durationpb.New(*f.pollTimeout),
-		MaxLoops:               *f.maxLoops,
-		Netlinkers:             uint32(*f.netlinkers),
-		NetlinkersDoneChanSize: netlinkerDoneChSizeCst,
-		NlmsgSeq:               uint32(*f.nlmsgSeq),
-		PacketSize:             *f.packetSize,
-		PacketSizeMply:         uint32(*f.packetSizeMply),
-		WriteFiles:             uint32(*f.writeFiles),
-		CapturePath:            *f.capturePath,
-		Modulus:                *f.modulus,
+		NlTimeoutMilliseconds:       *f.nltimeout,
+		PollFrequency:               durationpb.New(*f.pollFrequency),
+		PollTimeout:                 durationpb.New(*f.pollTimeout),
+		MaxLoops:                    *f.maxLoops,
+		Netlinkers:                  uint32(*f.netlinkers),
+		NetlinkersDoneChanSize:      netlinkerDoneChSizeCst,
+		NlmsgSeq:                    uint32(*f.nlmsgSeq),
+		PacketSize:                  *f.packetSize,
+		PacketSizeMply:              uint32(*f.packetSizeMply),
+		WriteFiles:                  uint32(*f.writeFiles),
+		CapturePath:                 *f.capturePath,
+		Modulus:                     *f.modulus,
 		MarshalTo:                   *f.marshal,
 		EnvelopeFlushThresholdBytes: uint32(*f.envelopeFlushBytes),
 		EnvelopeFlushThresholdRows:  uint32(*f.envelopeFlushRows),
 		KafkaCompression:            *f.kafkaCompression,
 		Dest:                        *f.dest,
-		DestWriteFiles:         uint32(*f.destWriteFiles),
-		Topic:                  *f.topic,
-		XtcpProtoFile:          *f.xtcpProtoFile,
-		KafkaSchemaUrl:         *f.kafkaSchemaUrl,
-		KafkaProduceTimeout:    durationpb.New(*f.produceTimeout),
-		DebugLevel:             uint32(*f.d),
-		Label:                  *f.label,
-		Tag:                    *f.tag,
-		GrpcPort:               uint32(*f.grpcPort),
-		EnabledDeserializers:   des,
+		DestWriteFiles:              uint32(*f.destWriteFiles),
+		Topic:                       *f.topic,
+		XtcpProtoFile:               *f.xtcpProtoFile,
+		KafkaSchemaUrl:              *f.kafkaSchemaUrl,
+		KafkaProduceTimeout:         durationpb.New(*f.produceTimeout),
+		DebugLevel:                  uint32(*f.d),
+		Label:                       *f.label,
+		Tag:                         *f.tag,
+		GrpcPort:                    uint32(*f.grpcPort),
+		EnabledDeserializers:        des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),

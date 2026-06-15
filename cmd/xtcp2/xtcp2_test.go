@@ -700,7 +700,7 @@ func TestBuildConfig(t *testing.T) {
 		writeFiles: &wf, capturePath: &cp, modulus: &mod, marshal: &mar,
 		envelopeFlushBytes: &wf, envelopeFlushRows: &wf,
 		kafkaCompression: &mar,
-		dest: &dst, destWriteFiles: &dwf,
+		dest:             &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
 		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,
