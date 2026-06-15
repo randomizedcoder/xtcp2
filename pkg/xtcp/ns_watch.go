@@ -162,7 +162,7 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 	// back to Go's scheduler leaks OS threads up to SetMaxThreads. On
 	// restore failure the goroutine exits with the lock still held;
 	// Go's runtime then terminates the OS thread (documented
-	// LockOSThread behaviour) rather than recycling a tainted M.
+	// LockOSThread behavior) rather than recycling a tainted M.
 
 	// Snapshot the calling thread's current netns so we can restore
 	// after the unshare+bind-mount. Otherwise this goroutine's thread

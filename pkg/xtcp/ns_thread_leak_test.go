@@ -105,8 +105,8 @@ func TestNamespaceChurn_threadBoundedUnderRestoreFailure(t *testing.T) {
 	delta := end - baseline
 
 	// Bound is generous to avoid flakes from Go's M-pool warm-up
-	// scheduling. The leaky behaviour grows linearly with N (e.g.
-	// 400 iterations → delta ≥ 300); the fixed behaviour holds
+	// scheduling. The leaky behavior grows linearly with N (e.g.
+	// 400 iterations → delta ≥ 300); the fixed behavior holds
 	// delta < 50 in practice.
 	const maxDelta = 80
 	if delta > maxDelta {

@@ -134,7 +134,7 @@ func runDeserialize(t *testing.T, x *XTCP, buf []byte) (rec *recordingDest, n ui
 
 	// Phase 1 ProtobufList: processInetDiagRecord appends to
 	// x.currentEnvelope under envelopeMu instead of calling dest.Send
-	// per-record. Initialise a fresh envelope so the append path has
+	// per-record. Initialize a fresh envelope so the append path has
 	// somewhere to write; the test then asserts on rec.EnvelopeRows().
 	x.currentEnvelope = &xtcp_flat_record.Envelope{}
 

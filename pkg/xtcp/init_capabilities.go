@@ -81,7 +81,7 @@ func scanCapabilities() (capabilityCheckResult, uint32, error) {
 
 	var caps unix.CapUserData
 	if err := capgetFunc(&hdr, &caps); err != nil {
-		return capabilityCheckResult{}, 0, fmt.Errorf("Capget: %w", err)
+		return capabilityCheckResult{}, 0, fmt.Errorf("capget: %w", err)
 	}
 
 	var res capabilityCheckResult

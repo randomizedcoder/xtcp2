@@ -21,7 +21,7 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	// return), and a canceled ctx would short-circuit Send and lose the
 	// in-flight envelope. The destination's own Close() drains pending
 	// produces with a 5s flush window.
-	defer x.flushEnvelope(context.Background(), "shutdown")
+	defer x.flushEnvelope(context.WithoutCancel(ctx), "shutdown")
 
 	if x.debugLevel > 10 {
 		log.Printf("Poller started")

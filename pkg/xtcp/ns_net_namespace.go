@@ -66,7 +66,7 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 	// restore succeeding*. If restore fails we leave the goroutine
 	// holding the lock — when this function returns the Go runtime
 	// terminates the OS thread instead of reusing it (documented
-	// behaviour of runtime.LockOSThread). The cost is one OS thread
+	// behavior of runtime.LockOSThread). The cost is one OS thread
 	// creation per failed restore (~10 µs) instead of an unbounded
 	// accumulation of tainted Ms.
 	origNs, errOrig := os.Open("/proc/thread-self/ns/net")
