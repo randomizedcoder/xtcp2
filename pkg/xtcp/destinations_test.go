@@ -539,7 +539,7 @@ func TestUDPDest_SendIoUringHappy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUDPDest: %v", err)
 	}
-	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = d.Close() })
 
 	// Build a real io_uring ring + stash it in ctx via ringCtxKey.
 	ring, err := xioRingNew(t)
@@ -571,7 +571,7 @@ func TestUDPDest_SendIoUringNoRing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUDPDest: %v", err)
 	}
-	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = d.Close() })
 
 	buf := []byte("ioring")
 	// Pass a bare ctx (no ring stashed) → expect errNoRingInCtx.
@@ -681,7 +681,7 @@ func TestUnixDest_SendIoUringNoRing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUnixDest: %v", err)
 	}
-	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = d.Close() })
 	buf := []byte("ioring")
 	if _, err := d.Send(context.Background(), &buf); err == nil {
 		t.Error("expected errNoRingInCtx when no ring in context")
@@ -701,7 +701,7 @@ func TestUnixDest_SendIoUringHappy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUnixDest: %v", err)
 	}
-	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = d.Close() })
 
 	ring, err := xioRingNew(t)
 	if err != nil {
@@ -732,7 +732,7 @@ func TestUnixGramDest_SendIoUringNoRing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUnixGramDest: %v", err)
 	}
-	t.Cleanup(func() { _ = d.Close() }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = d.Close() })
 
 	buf := []byte("ioring")
 	if _, err := d.Send(context.Background(), &buf); err == nil {

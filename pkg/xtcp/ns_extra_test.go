@@ -63,8 +63,8 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 
 	x := newNsExtraFixture(t)
@@ -121,8 +121,8 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 
 	x := newNsExtraFixture(t)

@@ -1,8 +1,8 @@
 // Package xsync provides thin, generic, type-safe wrappers over the
 // standard library's sync.Pool (and, later, sync.Map). The point is to
 // move the single unavoidable type assertion into one provably-correct
-// place so call sites get a typed value back and need no scattered
-// `v, _ := p.Get().(*T) //nolint:errcheck`.
+// place so call sites get a typed value back instead of a scattered
+// `v, _ := p.Get().(*T)` plus an errcheck suppression at every site.
 package xsync
 
 import "sync"

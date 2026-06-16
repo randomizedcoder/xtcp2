@@ -37,7 +37,7 @@ func TestReadProtobufFromFile_missing(t *testing.T) {
 func TestRegisterProtobufSchemaAt_happy(t *testing.T) {
 	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body) //nolint:errcheck // test plumbing
+		body, _ := io.ReadAll(r.Body)
 		gotBody = string(body)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -76,7 +76,7 @@ func TestRegisterProtobufSchemaAt_connRefused(t *testing.T) {
 
 func TestGetLatestSchemaIDAt_happy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"id":42}`)) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte(`{"id":42}`))
 	}))
 	defer srv.Close()
 	got, err := getLatestSchemaIDAt(srv.Client(), srv.URL, "subject")
@@ -90,7 +90,7 @@ func TestGetLatestSchemaIDAt_happy(t *testing.T) {
 
 func TestGetLatestSchemaIDAt_badJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("not json")) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
 	if _, err := getLatestSchemaIDAt(srv.Client(), srv.URL, "subject"); err == nil {
@@ -133,7 +133,7 @@ func TestRunMain_getOnly(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		_, _ = w.Write([]byte(`{"id":7}`)) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte(`{"id":7}`))
 	}))
 	defer srv.Close()
 
@@ -155,7 +155,7 @@ func TestRunMain_registerThenGet(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			_, _ = w.Write([]byte(`{"id":42}`)) //nolint:errcheck // test plumbing
+			_, _ = w.Write([]byte(`{"id":42}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -193,7 +193,7 @@ func TestRunMain_getError(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("not json")) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
 

@@ -43,7 +43,7 @@ func TestWriteDataToFile(t *testing.T) {
 	if err := writeDataToFile(p, []byte("xyz")); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(p) //nolint:errcheck // test plumbing
+	b, _ := os.ReadFile(p)
 	if string(b) != "xyz" {
 		t.Errorf("got %q, want xyz", b)
 	}

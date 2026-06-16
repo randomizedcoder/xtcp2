@@ -20,7 +20,7 @@ func TestNewGRPCClient(t *testing.T) {
 	if conn == nil {
 		t.Fatal("newGRPCClient returned nil")
 	}
-	_ = conn.Close() //nolint:errcheck // test plumbing
+	_ = conn.Close()
 }
 
 func TestPrintFlatRecordsResponse_silent(t *testing.T) {
@@ -184,11 +184,11 @@ func startRecordingGRPC(t *testing.T) (addr string, cleanup func()) {
 	srv := grpc.NewServer()
 	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, &recordingFRServer{})
 	go func() {
-		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+		_ = srv.Serve(lis)
 	}()
 	return lis.Addr().String(), func() {
 		srv.Stop()
-		_ = lis.Close() //nolint:errcheck // test plumbing
+		_ = lis.Close()
 	}
 }
 
@@ -201,11 +201,11 @@ func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 	srv := grpc.NewServer()
 	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, &noopFRServer{})
 	go func() {
-		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+		_ = srv.Serve(lis)
 	}()
 	return lis.Addr().String(), func() {
 		srv.Stop()
-		_ = lis.Close() //nolint:errcheck // test plumbing
+		_ = lis.Close()
 	}
 }
 
@@ -310,7 +310,7 @@ func TestStream_recordingServer(t *testing.T) {
 	defer cancel()
 
 	conn := newGRPCClient(addr)
-	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = conn.Close() }()
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -393,7 +393,7 @@ func TestStream_dialAndCancel(t *testing.T) {
 	defer cancel()
 
 	conn := newGRPCClient(addr)
-	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = conn.Close() }()
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)

@@ -539,7 +539,7 @@ func TestGetDeserializers(t *testing.T) {
 			if tc.envSet {
 				t.Setenv("DESERIALIZERS", tc.envOverride)
 			} else {
-				os.Unsetenv("DESERIALIZERS") //nolint:errcheck // test cleanup; t.Setenv reverts after the test
+				os.Unsetenv("DESERIALIZERS")
 			}
 			got := getDeserializers(tc.input)
 			if got == nil {
@@ -580,11 +580,11 @@ func TestPrintConfig(t *testing.T) {
 	done := make(chan struct{})
 	var out strings.Builder
 	go func() {
-		_, _ = io.Copy(&out, r) //nolint:errcheck // test plumbing
+		_, _ = io.Copy(&out, r)
 		close(done)
 	}()
 	printConfig(c, "test snapshot")
-	_ = w.Close() //nolint:errcheck // test plumbing
+	_ = w.Close()
 	<-done
 	if !strings.Contains(out.String(), "test snapshot") || !strings.Contains(out.String(), "protobufList") {
 		t.Errorf("printConfig should include comment + fields; got %q", out.String())
@@ -658,11 +658,11 @@ func TestPrintFlags(t *testing.T) {
 	sink.Add(1)
 	go func() {
 		defer sink.Done()
-		_, _ = io.Copy(io.Discard, r) //nolint:errcheck // test plumbing
+		_, _ = io.Copy(io.Discard, r)
 		close(done)
 	}()
 	printFlags(f)
-	_ = w.Close() //nolint:errcheck // test plumbing
+	_ = w.Close()
 	<-done
 }
 

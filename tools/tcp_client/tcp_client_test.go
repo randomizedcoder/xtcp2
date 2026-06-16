@@ -33,19 +33,19 @@ func TestDialWithRetry_happy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = ln.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 	go func() {
-		c, _ := ln.Accept() //nolint:errcheck // test plumbing
+		c, _ := ln.Accept()
 		if c != nil {
-			_ = c.Close() //nolint:errcheck // test plumbing
+			_ = c.Close()
 		}
 	}()
 	conn, err := dialWithRetry("127.0.0.1", port, 3, 200*time.Millisecond)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	_ = conn.Close() //nolint:errcheck // test plumbing
+	_ = conn.Close()
 }
 
 func TestDialWithRetry_connRefused(t *testing.T) {
@@ -55,7 +55,7 @@ func TestDialWithRetry_connRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close() //nolint:errcheck // test plumbing
+	_ = ln.Close()
 
 	_, err = dialWithRetry("127.0.0.1", port, 2, 100*time.Millisecond)
 	if err == nil {
@@ -99,7 +99,7 @@ func TestDialWithRetry_attemptsOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close() //nolint:errcheck // test plumbing
+	_ = ln.Close()
 
 	// Conn-refused on attempts=1 must return a real error, not nil-wrapped.
 	_, err = dialWithRetry("127.0.0.1", port, 1, 50*time.Millisecond)
@@ -113,14 +113,14 @@ func TestDialWithRetry_attemptsOne(t *testing.T) {
 
 func TestClientOnce_happy(t *testing.T) {
 	a, b := net.Pipe()
-	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = b.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = a.Close() }()
+	defer func() { _ = b.Close() }()
 
 	// Echo server side.
 	go func() {
 		buf := make([]byte, 64)
-		n, _ := b.Read(buf)     //nolint:errcheck // test plumbing
-		_, _ = b.Write(buf[:n]) //nolint:errcheck // test plumbing
+		n, _ := b.Read(buf)
+		_, _ = b.Write(buf[:n])
 	}()
 
 	reply := make([]byte, 32)
@@ -132,13 +132,13 @@ func TestClientOnce_happy(t *testing.T) {
 
 func TestClientOnce_readTimeout(t *testing.T) {
 	a, b := net.Pipe()
-	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = b.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = a.Close() }()
+	defer func() { _ = b.Close() }()
 
 	// Drain the write so it doesn't block, but never reply.
 	go func() {
 		buf := make([]byte, 64)
-		_, _ = b.Read(buf) //nolint:errcheck // test plumbing
+		_, _ = b.Read(buf)
 	}()
 
 	reply := make([]byte, 16)
@@ -150,7 +150,7 @@ func TestClientOnce_readTimeout(t *testing.T) {
 
 func TestClientOnce_writeError(t *testing.T) {
 	a, b := net.Pipe()
-	_ = b.Close() //nolint:errcheck // close the far end before Write
+	_ = b.Close()
 
 	err := clientOnce(a, []byte("x"), make([]byte, 16), time.Second, time.Second)
 	if err == nil {
@@ -159,7 +159,7 @@ func TestClientOnce_writeError(t *testing.T) {
 	if errors.Is(err, ErrTimeout) {
 		t.Error("write error should NOT be ErrTimeout")
 	}
-	_ = a.Close() //nolint:errcheck // test plumbing
+	_ = a.Close()
 }
 
 // clientOnce write-timeout path: connect to a pipe with no reader,
@@ -169,8 +169,8 @@ func TestClientOnce_writeError(t *testing.T) {
 // deadline.
 func TestClientOnce_writeTimeout(t *testing.T) {
 	a, b := net.Pipe()
-	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = b.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = a.Close() }()
+	defer func() { _ = b.Close() }()
 
 	// Don't read from b → a.Write blocks until deadline.
 	buf := []byte("x")
@@ -220,7 +220,7 @@ func TestClient_dialFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close() //nolint:errcheck // test plumbing
+	_ = ln.Close()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -245,14 +245,14 @@ func TestClient_serverCloses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = ln.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	// Accept one connection, close it immediately.
 	go func() {
-		c, _ := ln.Accept() //nolint:errcheck // test plumbing
+		c, _ := ln.Accept()
 		if c != nil {
-			_ = c.Close() //nolint:errcheck // test plumbing
+			_ = c.Close()
 		}
 	}()
 
@@ -284,13 +284,13 @@ func TestRunMain_oneClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = ln.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	go func() {
-		c, _ := ln.Accept() //nolint:errcheck // test plumbing
+		c, _ := ln.Accept()
 		if c != nil {
-			_ = c.Close() //nolint:errcheck // test plumbing
+			_ = c.Close()
 		}
 	}()
 
@@ -320,13 +320,13 @@ func TestRunMain_oneClient(t *testing.T) {
 
 func TestClientOnce_readError(t *testing.T) {
 	a, b := net.Pipe()
-	defer func() { _ = a.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = a.Close() }()
 
 	// Drain the write, then close the remote side so the Read returns EOF.
 	go func() {
 		buf := make([]byte, 64)
-		_, _ = b.Read(buf) //nolint:errcheck // test plumbing
-		_ = b.Close()      //nolint:errcheck // test plumbing
+		_, _ = b.Read(buf)
+		_ = b.Close()
 	}()
 
 	err := clientOnce(a, []byte("x"), make([]byte, 16), time.Second, time.Second)
