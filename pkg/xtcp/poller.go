@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"golang.org/x/sys/unix"
 )
 
@@ -242,7 +241,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	startTime := time.Now()
 
 	x.envelopeMu.Lock()
-	x.currentEnvelope, _ = x.xtcpEnvelopePool.Get().(*xtcp_flat_record.Envelope) //nolint:errcheck // pool.New returns *Envelope
+	x.currentEnvelope = x.xtcpEnvelopePool.Get()
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 

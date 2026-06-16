@@ -67,9 +67,9 @@ func newTestDeserializeXTCP(tb testing.TB) *XTCP {
 	}
 	x.debugLevel = 0
 	x.hostname = misc.GetHostname()
-	x.xtcpRecordPool = sync.Pool{New: func() any { return new(xtcp_flat_record.XtcpFlatRecord) }}
-	x.nlhPool = sync.Pool{New: func() any { return new(xtcpnl.NlMsgHdr) }}
-	x.rtaPool = sync.Pool{New: func() any { return new(xtcpnl.RTAttr) }}
+	x.xtcpRecordPool.Init(func() *xtcp_flat_record.XtcpFlatRecord { return new(xtcp_flat_record.XtcpFlatRecord) })
+	x.nlhPool.Init(func() *xtcpnl.NlMsgHdr { return new(xtcpnl.NlMsgHdr) })
+	x.rtaPool.Init(func() *xtcpnl.RTAttr { return new(xtcpnl.RTAttr) })
 	x.netlinkerDoneCh = make(chan netlinkerDone, 64)
 	x.pollRequestCh = make(chan struct{}, 1)
 	x.fatalf = tb.Fatalf
@@ -208,7 +208,7 @@ func TestDeserialize(t *testing.T) {
 		// one record by checking that field on a freshly-pooled struct
 		// after the run (the pool's reused entries will all carry
 		// x.hostname).
-		fresh := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+		fresh := x.xtcpRecordPool.Get()
 		if fresh.Hostname != "" && fresh.Hostname != test.xtcpRecord.Hostname {
 			t.Errorf("test %d %s: pooled record Hostname=%q want=%q",
 				i, test.description, fresh.Hostname, test.xtcpRecord.Hostname)
@@ -290,5 +290,5 @@ func DeserializeBoth(b *testing.B) {
 		}
 	}
 
-	resultXtcpFlatRecord = x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord)
+	resultXtcpFlatRecord = x.xtcpRecordPool.Get()
 }

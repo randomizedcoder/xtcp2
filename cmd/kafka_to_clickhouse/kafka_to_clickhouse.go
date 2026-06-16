@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist"
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kprom"
 	"google.golang.org/protobuf/encoding/protodelim"
@@ -47,7 +48,7 @@ var (
 	version string
 
 	kClient       *kgo.Client
-	kgoRecordPool sync.Pool
+	kgoRecordPool *xsync.Pool[*kgo.Record]
 
 	// fatalf is the package-level abort handler. Defaults to log.Fatalf;
 	// tests swap this in for a capture so the dump-file write error
@@ -135,11 +136,9 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		debugLevel:   *d,
 	}
 
-	kgoRecordPool = sync.Pool{
-		New: func() any {
-			return new(kgo.Record)
-		},
-	}
+	kgoRecordPool = xsync.NewPool(func() *kgo.Record {
+		return new(kgo.Record)
+	})
 
 	if c.kafka {
 		if err := InitDestKafka(ctx, c); err != nil {
@@ -293,7 +292,7 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 		log.Println("destKafka start")
 	}
 
-	kgoRecord, _ := kgoRecordPool.Get().(*kgo.Record) //nolint:errcheck // pool.New returns *kgo.Record
+	kgoRecord := kgoRecordPool.Get()
 	// defer x.kgoRecordPool.Put(kgoRecord)
 
 	// Reset the pooled record to zero before re-populating. Without this

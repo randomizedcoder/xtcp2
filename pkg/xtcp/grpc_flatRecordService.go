@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/grpc"
 )
@@ -27,7 +28,7 @@ type xtcpFlatRecordService struct {
 	pfrStoreCount          atomic.Uint64
 	pfrDeleteCount         atomic.Uint64
 
-	FlatRecordsResponsePool sync.Pool
+	FlatRecordsResponsePool *xsync.Pool[*xtcp_flat_record.FlatRecordsResponse]
 
 	pollRequestCh *chan struct{}
 
@@ -50,11 +51,9 @@ func NewXtcpFlatRecordService(ctx context.Context, reg prometheus.Registerer, po
 	s.debugLevel = debugLevel
 	s.ctx = ctx
 
-	s.FlatRecordsResponsePool = sync.Pool{
-		New: func() interface{} {
-			return new(xtcp_flat_record.FlatRecordsResponse)
-		},
-	}
+	s.FlatRecordsResponsePool = xsync.NewPool(func() *xtcp_flat_record.FlatRecordsResponse {
+		return new(xtcp_flat_record.FlatRecordsResponse)
+	})
 
 	s.pollRequestCh = pollRequestCh
 
@@ -248,7 +247,7 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		return
 	}
 
-	xtcpFlatRecordsResponse, _ := x.flatRecordService.FlatRecordsResponsePool.Get().(*xtcp_flat_record.FlatRecordsResponse) //nolint:errcheck // pool.New returns *FlatRecordsResponse
+	xtcpFlatRecordsResponse := x.flatRecordService.FlatRecordsResponsePool.Get()
 	// Reset the pooled response so its internal proto state (state,
 	// sizeCache, unknownFields) is cleared from the previous send. The
 	// per-record XtcpFlatRecord pointer assignment that follows is the

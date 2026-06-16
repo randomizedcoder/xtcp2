@@ -165,7 +165,7 @@ func TestInitMarshallers_validNames(t *testing.T) {
 // end expects exactly this byte layout: varint(envelope_size) || envelope.
 func TestProtobufListMarshal_roundtrip(t *testing.T) {
 	x, _ := newMarshalFixture(t)
-	x.destBytesPool = sync.Pool{New: func() any { b := make([]byte, 0, 1024); return &b }}
+	x.destBytesPool.Init(func() *[]byte { b := make([]byte, 0, 1024); return &b })
 
 	env := &xtcp_flat_record.Envelope{
 		Row: []*xtcp_flat_record.XtcpFlatRecord{

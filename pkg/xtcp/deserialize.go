@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -23,9 +23,9 @@ type DeserializeArgs struct {
 	ns             *string
 	fd             int
 	NLPacket       *[]byte
-	xtcpRecordPool *sync.Pool
-	nlhPool        *sync.Pool
-	rtaPool        *sync.Pool
+	xtcpRecordPool *xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]
+	nlhPool        *xsync.Pool[*xtcpnl.NlMsgHdr]
+	rtaPool        *xsync.Pool[*xtcpnl.RTAttr]
 	pC             *prometheus.CounterVec
 	pH             *prometheus.SummaryVec
 	id             uint32
@@ -86,7 +86,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		}
 
 		nlPacketStartTime := time.Now()
-		xtcpRecord, _ := x.xtcpRecordPool.Get().(*xtcp_flat_record.XtcpFlatRecord) //nolint:errcheck // pool.New returns *XtcpFlatRecord
+		xtcpRecord := x.xtcpRecordPool.Get()
 
 		xtcpRecord.Hostname = x.hostname
 		xtcpRecord.TimestampNs = timestampNs
@@ -95,7 +95,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord.SocketFd = uint64(d.fd)
 		xtcpRecord.NetlinkerId = uint64(d.id)
 
-		nlh, _ := d.nlhPool.Get().(*xtcpnl.NlMsgHdr) //nolint:errcheck // pool.New returns *NlMsgHdr
+		nlh := d.nlhPool.Get()
 
 		length = xtcpnl.NlMsgHdrSizeCst
 		if _, errD := xtcpnl.DeserializeNlMsgHdr((*d.NLPacket)[offset:offset+length], nlh); errD != nil {
@@ -291,7 +291,7 @@ type DeserializeAttributesArgs struct {
 	NLPacket   *[]byte
 	xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	// xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord
-	rtaPool *sync.Pool
+	rtaPool *xsync.Pool[*xtcpnl.RTAttr]
 	pC      *prometheus.CounterVec
 	pH      *prometheus.SummaryVec
 	id      uint32
@@ -321,7 +321,7 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 			return
 		}
 
-		rta, _ := d.rtaPool.Get().(*xtcpnl.RTAttr) //nolint:errcheck // pool.New returns *RTAttr
+		rta := d.rtaPool.Get()
 
 		length := xtcpnl.RTAttrSizeCst
 		_, errD := xtcpnl.DeserializeRTAttr((*d.NLPacket)[d.offset:d.offset+length], rta)

@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 const (
@@ -40,12 +42,12 @@ type XTCP struct {
 	deleteCount atomic.Uint64
 	generation  atomic.Uint64
 
-	packetBufferPool sync.Pool
-	xtcpEnvelopePool sync.Pool
-	xtcpRecordPool   sync.Pool
-	nlhPool          sync.Pool
-	rtaPool          sync.Pool
-	destBytesPool    sync.Pool
+	packetBufferPool xsync.Pool[*[]byte]
+	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
+	xtcpRecordPool   xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]
+	nlhPool          xsync.Pool[*xtcpnl.NlMsgHdr]
+	rtaPool          xsync.Pool[*xtcpnl.RTAttr]
+	destBytesPool    xsync.Pool[*[]byte]
 
 	currentEnvelope       *xtcp_flat_record.Envelope
 	pollStartTime         time.Time

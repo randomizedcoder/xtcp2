@@ -263,7 +263,7 @@ func TestInitSyncPools_defaults(t *testing.T) {
 		t.Errorf("PacketSizeMply = %d, want 8", x.config.PacketSizeMply)
 	}
 	// Pools should yield buffers via their New funcs.
-	pb, _ := x.packetBufferPool.Get().(*[]byte)
+	pb := x.packetBufferPool.Get()
 	if pb == nil || cap(*pb) != syscall.Getpagesize()*8 {
 		t.Errorf("packetBufferPool New() produced cap=%d, want %d",
 			cap(*pb), syscall.Getpagesize()*8)
@@ -289,7 +289,7 @@ func TestInitSyncPools_explicitPacketSize(t *testing.T) {
 	wg.Add(1)
 	x.InitSyncPools(&wg)
 	wg.Wait()
-	pb, _ := x.packetBufferPool.Get().(*[]byte)
+	pb := x.packetBufferPool.Get()
 	if cap(*pb) != 8192 {
 		t.Errorf("packet buffer cap = %d, want 8192 (4096 * 2)", cap(*pb))
 	}
@@ -307,7 +307,7 @@ func TestInitSyncPools_envelopeAndDestPools(t *testing.T) {
 	if x.xtcpEnvelopePool.Get() == nil {
 		t.Error("xtcpEnvelopePool.Get returned nil")
 	}
-	db, _ := x.destBytesPool.Get().(*[]byte)
+	db := x.destBytesPool.Get()
 	if db == nil || cap(*db) != destBytesMaxSizeCst {
 		t.Errorf("destBytesPool New cap = %d, want %d", cap(*db), destBytesMaxSizeCst)
 	}

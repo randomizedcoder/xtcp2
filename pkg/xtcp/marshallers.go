@@ -120,8 +120,7 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
 func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 
-	got, _ := x.destBytesPool.Get().(*[]byte) //nolint:errcheck // pool.New returns *[]byte
-	buf = got
+	buf = x.destBytesPool.Get()
 	*buf = (*buf)[:0]
 
 	writer := &ByteSliceWriter{Buf: buf}

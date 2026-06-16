@@ -29,42 +29,30 @@ func (x *XTCP) InitSyncPools(wg *sync.WaitGroup) {
 		packetBufferSize = int(x.config.PacketSize * uint64(x.config.PacketSizeMply))
 	}
 
-	x.packetBufferPool = sync.Pool{
-		New: func() any {
-			b := make([]byte, packetBufferSize)
-			return &b
-		},
-	}
+	x.packetBufferPool.Init(func() *[]byte {
+		b := make([]byte, packetBufferSize)
+		return &b
+	})
 
-	x.xtcpEnvelopePool = sync.Pool{
-		New: func() any {
-			return new(xtcp_flat_record.Envelope)
-		},
-	}
+	x.xtcpEnvelopePool.Init(func() *xtcp_flat_record.Envelope {
+		return new(xtcp_flat_record.Envelope)
+	})
 
-	x.xtcpRecordPool = sync.Pool{
-		New: func() any {
-			return new(xtcp_flat_record.XtcpFlatRecord)
-			// return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
-		},
-	}
+	x.xtcpRecordPool.Init(func() *xtcp_flat_record.XtcpFlatRecord {
+		return new(xtcp_flat_record.XtcpFlatRecord)
+		// return new(xtcp_flat_record.Envelope_XtcpFlatRecord)
+	})
 
-	x.nlhPool = sync.Pool{
-		New: func() any {
-			return new(xtcpnl.NlMsgHdr)
-		},
-	}
+	x.nlhPool.Init(func() *xtcpnl.NlMsgHdr {
+		return new(xtcpnl.NlMsgHdr)
+	})
 
-	x.rtaPool = sync.Pool{
-		New: func() any {
-			return new(xtcpnl.RTAttr)
-		},
-	}
+	x.rtaPool.Init(func() *xtcpnl.RTAttr {
+		return new(xtcpnl.RTAttr)
+	})
 
-	x.destBytesPool = sync.Pool{
-		New: func() any {
-			b := make([]byte, 0, destBytesMaxSizeCst)
-			return &b
-		},
-	}
+	x.destBytesPool.Init(func() *[]byte {
+		b := make([]byte, 0, destBytesMaxSizeCst)
+		return &b
+	})
 }
