@@ -92,7 +92,9 @@ func pollLoop(ctx context.Context, cl kafkaFetcher) {
 			continue
 		}
 		fetches.EachRecord(func(record *kgo.Record) {
-			_ = processRecord(record.Value, debugLevel) //nolint:errcheck // processRecord logs internally; nothing actionable here
+			if perr := processRecord(record.Value, debugLevel); perr != nil && debugLevel > 100 {
+				log.Printf("processRecord: %v", perr)
+			}
 		})
 	}
 }

@@ -45,7 +45,9 @@ func newUnixGramDest(ctx context.Context, x *XTCP) (Destination, error) {
 			// Close the dialed conn before bailing; otherwise the
 			// extractFD failure path leaks one unixgram fd. Same
 			// shape as the matching bug in destinations_udp.go.
-			_ = conn.Close() //nolint:errcheck // already on the error path
+			if cerr := conn.Close(); cerr != nil {
+				log.Printf("InitDestUnixGram: conn close on error path: %v", cerr)
+			}
 			return nil, fmt.Errorf("InitDestUnixGram extractFD: %w", eerr)
 		}
 		d.fd = fd
@@ -86,7 +88,9 @@ func (d *unixgramDest) Send(ctx context.Context, b *[]byte) (int, error) {
 
 func (d *unixgramDest) Close() error {
 	if d.fdFile != nil {
-		_ = d.fdFile.Close() //nolint:errcheck // teardown
+		if cerr := d.fdFile.Close(); cerr != nil {
+			log.Printf("unixgramDest: fdFile close: %v", cerr)
+		}
 		d.fdFile = nil
 	}
 	if d.conn != nil {

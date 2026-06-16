@@ -41,7 +41,9 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 	var startPollTime time.Time
 	if s, ok := x.pollTime.Load(d.fd); ok {
-		startPollTime, _ = s.(time.Time) //nolint:errcheck // sync.Map Store sites all use time.Time
+		if t, isTime := s.(time.Time); isTime {
+			startPollTime = t
+		}
 	} else {
 		// pollTime entry missing — typically a race after nsDelete
 		// (bug 68 cleans up pollTime on delete; an in-flight netlinker
@@ -356,13 +358,22 @@ func (x *XTCP) DeserializeAttributes(d DeserializeAttributesArgs) {
 				end = bufEnd
 			}
 		}
-		_ = x.DeserializeAttribute(DeserializeAttributeArgs{ //nolint:errcheck // always returns nil today; signature reserves the option
+		if aerr := x.DeserializeAttribute(DeserializeAttributeArgs{
 			Type:       int(rta.Type),
 			buf:        (*d.NLPacket)[d.offset:end],
 			xtcpRecord: d.xtcpRecord,
 			pC:         d.pC,
 			pH:         d.pH,
-		})
+		}); aerr != nil {
+			// A per-attribute deserializer reported a problem. Today the
+			// deserializers always return nil, but surface it rather than
+			// swallow it: count + log and keep parsing the next attribute
+			// so one bad TLV doesn't drop the whole record.
+			d.pC.WithLabelValues("DeserializeAttributes", "attribute", "error").Inc()
+			if x.debugLevel > 100 {
+				log.Printf("DeserializeAttributes attribute type %d: %v", rta.Type, aerr)
+			}
+		}
 
 		d.offset += bodyLen
 		// Same overflow could push d.offset past d.end on the next
@@ -391,7 +402,13 @@ func (x *XTCP) DeserializeAttribute(d DeserializeAttributeArgs) error {
 	// pC.WithLabelValues("DeserializeAttribute", x.RTATypeDeserializerStr[Type], "count").Inc()
 
 	if Deserializer, ok := x.RTATypeDeserializer[d.Type]; ok {
-		_ = Deserializer(d.buf, d.xtcpRecord) //nolint:errcheck // per-attribute deserializers currently return nil; signature reserves the option
+		if derr := Deserializer(d.buf, d.xtcpRecord); derr != nil {
+			d.pC.WithLabelValues("DeserializeAttribute", "deserializer", "error").Inc()
+			if x.debugLevel > 100 {
+				log.Printf("DeserializeAttribute type %d deserializer: %v", d.Type, derr)
+			}
+			return derr
+		}
 		return nil
 	}
 

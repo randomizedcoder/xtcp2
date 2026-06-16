@@ -85,7 +85,9 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	// protobufList is per-envelope, handled in InitEnvelopeMarshallers.
 	// A lookup miss here is expected and not an error.
 	if f, ok := x.Marshallers.Load(x.config.MarshalTo); ok {
-		x.Marshaller, _ = f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)) //nolint:errcheck // Marshallers.Store sites all use this signature
+		if m, ok2 := f.(func(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte)); ok2 {
+			x.Marshaller = m
+		}
 	}
 }
 
@@ -107,7 +109,9 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 	})
 
 	if f, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); ok {
-		x.EnvelopeMarshaller, _ = f.(func(e *xtcp_flat_record.Envelope) (buf *[]byte)) //nolint:errcheck // EnvelopeMarshallers.Store sites all use this signature
+		if m, ok2 := f.(func(e *xtcp_flat_record.Envelope) (buf *[]byte)); ok2 {
+			x.EnvelopeMarshaller = m
+		}
 	}
 }
 

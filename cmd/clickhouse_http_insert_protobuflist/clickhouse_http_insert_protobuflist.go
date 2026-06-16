@@ -211,7 +211,10 @@ func insertIntoCHAt(ctx context.Context, client *http.Client, baseURL string, bi
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort body read for error context
+		body, rerr := io.ReadAll(resp.Body)
+		if rerr != nil {
+			body = []byte("<body read failed>")
+		}
 		return fmt.Errorf("%w: status %d: %s", ErrClickHouseHTTPPost, resp.StatusCode, string(body))
 	}
 	return nil
