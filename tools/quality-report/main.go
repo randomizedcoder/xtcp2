@@ -962,7 +962,11 @@ func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
 	if err != nil {
 		return nil, false
 	}
-	defer func() { _ = f.Close() }() //nolint:errcheck // read-only file; close error is non-actionable
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			fmt.Fprintf(os.Stderr, "parseGoTest: close %s: %v\n", path, cerr)
+		}
+	}()
 
 	failOutput := map[string]string{} // pkg/test -> accumulated output
 	results := map[string]*TestResult{}
@@ -1196,7 +1200,10 @@ func readExitCodes(path string) map[string]int {
 // values, etc.). Anywhere the upstream guarantees parseability, the
 // error is uninteresting.
 func atoiOr0(s string) int {
-	n, _ := strconv.Atoi(s) //nolint:errcheck // best-effort parse of pre-validated digits
+	n, aerr := strconv.Atoi(s)
+	if aerr != nil {
+		n = 0
+	}
 	return n
 }
 

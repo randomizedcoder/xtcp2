@@ -252,8 +252,11 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	go x.nsMapCountReporter(ctx, wg)
 
 	x.netNsDirs.Range(func(key, value interface{}) bool {
+		dir, ok := key.(string)
+		if !ok {
+			return true
+		}
 		wg.Add(1)
-		dir, _ := key.(string) //nolint:errcheck // netNsDirs keys are strings
 		go func() {
 			if err := x.watchNsNamespace(ctx, wg, dir); err != nil {
 				log.Printf("watchNsNamespace(%s) err:%v", dir, err)

@@ -106,9 +106,10 @@ func (x *XTCP) logRecvDebug(id uint32, packets, n, fd int) {
 		return
 	}
 	if ns, ok := x.fdToNsMap.Load(fd); ok {
-		nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap Store sites all use string
-		log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, nsStr)
-		return
+		if nsStr, okStr := ns.(string); okStr {
+			log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, nsStr)
+			return
+		}
 	}
 	log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d Unknown FD!!", id, packets, n, fd)
 }
@@ -120,9 +121,10 @@ func (x *XTCP) logProcessedDebug(id uint32, packets, n int, p uint64, fd int) {
 		return
 	}
 	if ns, ok := x.fdToNsMap.Load(fd); ok {
-		nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap Store sites all use string
-		log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, nsStr)
-		return
+		if nsStr, okStr := ns.(string); okStr {
+			log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, nsStr)
+			return
+		}
 	}
 	log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d", id, packets, n, p, fd)
 }

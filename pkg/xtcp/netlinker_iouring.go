@@ -26,7 +26,10 @@ func ringFromContext(ctx context.Context) *xio.Ring {
 	if v == nil {
 		return nil
 	}
-	ring, _ := v.(*xio.Ring) //nolint:errcheck // context.WithValue(ringCtxKey, ring) only writes *xio.Ring
+	ring, ok := v.(*xio.Ring)
+	if !ok {
+		return nil
+	}
 	return ring
 }
 

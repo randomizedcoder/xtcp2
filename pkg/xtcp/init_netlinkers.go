@@ -36,7 +36,9 @@ func (x *XTCP) InitNetlinkers(ctx context.Context, wg *sync.WaitGroup) {
 		x.callFatalf("InitNetlinkers no variant registered for key:%s", key)
 		return
 	}
-	x.Netlinker, _ = f.(NetlinkerFunc) //nolint:errcheck // Netlinkers.Store sites all use NetlinkerFunc
+	if nf, ok2 := f.(NetlinkerFunc); ok2 {
+		x.Netlinker = nf
+	}
 
 	if x.debugLevel > 10 {
 		log.Printf("InitNetlinkers selected variant:%s", key)

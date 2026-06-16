@@ -72,7 +72,9 @@ func newUDPDest(ctx context.Context, x *XTCP) (Destination, error) {
 			// the fd leaks on every newUDPDest failure path (rare in
 			// practice, but with io_uring enabled an extractFD failure
 			// leaks one UDP socket per InitDests retry).
-			_ = conn.Close() //nolint:errcheck // already on the error path; Close err is non-actionable
+			if cerr := conn.Close(); cerr != nil {
+				log.Printf("InitDestUDP: conn close on error path: %v", cerr)
+			}
 			return nil, fmt.Errorf("InitDestUDP extractFD: %w", eerr)
 		}
 		d.fd = fd
@@ -113,7 +115,9 @@ func (d *udpDest) Send(ctx context.Context, b *[]byte) (int, error) {
 
 func (d *udpDest) closeFdFile() {
 	if d.fdFile != nil {
-		_ = d.fdFile.Close() //nolint:errcheck // teardown
+		if cerr := d.fdFile.Close(); cerr != nil {
+			log.Printf("udpDest: fdFile close: %v", cerr)
+		}
 		d.fdFile = nil
 	}
 }

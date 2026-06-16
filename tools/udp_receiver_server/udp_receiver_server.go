@@ -57,7 +57,11 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "ListenUDP: %v\n", err)
 		return 1
 	}
-	defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("udp_receiver_server: conn close: %v", cerr)
+		}
+	}()
 
 	if err := runReceiver(ctx, conn); err != nil {
 		fmt.Fprintf(stderr, "runReceiver: %v\n", err)
@@ -99,7 +103,9 @@ func runReceiver(ctx context.Context, conn *net.UDPConn) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			_ = conn.Close() //nolint:errcheck // shutdown path
+			if cerr := conn.Close(); cerr != nil {
+				log.Printf("udp_receiver_server: conn close on ctx done: %v", cerr)
+			}
 		case <-stopCloseWatcher:
 		}
 	}()

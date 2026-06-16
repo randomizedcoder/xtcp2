@@ -36,7 +36,11 @@ func (x *XTCP) watchNsNamespace(ctx context.Context, wg *sync.WaitGroup, netNsDi
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
-	defer func() { _ = watcher.Close() }() //nolint:errcheck // watcher.Close teardown; err non-actionable
+	defer func() {
+		if cerr := watcher.Close(); cerr != nil {
+			log.Printf("watchNsNamespace: watcher close: %v", cerr)
+		}
+	}()
 
 	if err = watcher.Add(netNsDir); err != nil {
 		return fmt.Errorf("failed to watch directory %s: %w", netNsDir, err)
@@ -176,7 +180,11 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 		// into a new netns with no way back.
 		return fmt.Errorf("failed to snapshot original netns: %w", errOrig)
 	}
-	defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
+	defer func() {
+		if cerr := origNs.Close(); cerr != nil {
+			log.Printf("createNetworkNamespace: origNs close: %v", cerr)
+		}
+	}()
 	defer func() {
 		// Restore on the way out; conditionally unlock only if the
 		// restore actually succeeded.
@@ -214,7 +222,9 @@ func (x *XTCP) createNetworkNamespace(netnsDir string, newNetNSName string) erro
 		// real netns bind". Best-effort remove so the next attempt
 		// starts clean. We're already on the error path; Remove err is
 		// non-actionable.
-		_ = os.Remove(fd.Name()) //nolint:errcheck // cleanup on Mount failure
+		if rerr := os.Remove(fd.Name()); rerr != nil {
+			log.Printf("createNetworkNamespace: cleanup remove %s after mount failure: %v", fd.Name(), rerr)
+		}
 		return fmt.Errorf("failed to bind namespace: %w", err)
 	}
 

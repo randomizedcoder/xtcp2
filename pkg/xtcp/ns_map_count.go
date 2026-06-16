@@ -90,7 +90,10 @@ func (x *XTCP) GetNetlinkSocketFDs() (fds []int) {
 // netlink file descriptors
 func getNetlinkSocketFDs(m *sync.Map) (fds []int) {
 	m.Range(func(k, v interface{}) bool {
-		item, _ := v.(netNSitem) //nolint:errcheck // nsMap values are netNSitem
+		item, ok := v.(netNSitem)
+		if !ok {
+			return true
+		}
 		fds = append(fds, item.socketFD)
 		return true
 	})

@@ -89,7 +89,11 @@ func client(wg *sync.WaitGroup,
 		return
 	}
 
-	defer func() { _ = conn.Close() }() //nolint:errcheck // demo client teardown
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("client: conn close: %v", cerr)
+		}
+	}()
 
 	for i := 0; ; i++ {
 		if err := clientOnce(conn, buf, reply, wto, rto); err != nil {
@@ -155,7 +159,9 @@ func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (
 // applying separate write/read deadlines. Returns ErrTimeout on a deadline
 // hit (caller decides whether to retry) or the underlying I/O error.
 func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error {
-	_ = conn.SetWriteDeadline(time.Now().Add(wto)) //nolint:errcheck // deadline err surfaces on next Write
+	if derr := conn.SetWriteDeadline(time.Now().Add(wto)); derr != nil {
+		return fmt.Errorf("set write deadline: %w", derr)
+	}
 	if _, err := conn.Write(buf); err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {
@@ -164,7 +170,9 @@ func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error 
 		return fmt.Errorf("write: %w", err)
 	}
 
-	_ = conn.SetReadDeadline(time.Now().Add(rto)) //nolint:errcheck // deadline err surfaces on next Read
+	if derr := conn.SetReadDeadline(time.Now().Add(rto)); derr != nil {
+		return fmt.Errorf("set read deadline: %w", derr)
+	}
 	if _, err := conn.Read(reply); err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {

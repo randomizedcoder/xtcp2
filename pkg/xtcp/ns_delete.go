@@ -19,7 +19,14 @@ func (x *XTCP) nsDelete(nsName *string) {
 		return
 	}
 
-	netNSItem, _ := value.(netNSitem) //nolint:errcheck // nsMap Store sites all use netNSitem
+	netNSItem, ok := value.(netNSitem)
+	if !ok {
+		x.pC.WithLabelValues("delete", "assert", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("delete x.nsMap value type assertion failed for %s", *nsName)
+		}
+		return
+	}
 
 	// signal the go routine to close
 	// ( i'm not really sure if it would automatically close )

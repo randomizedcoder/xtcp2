@@ -78,7 +78,11 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		// No origNs → can't restore → keep the lock and let the runtime
 		// terminate this thread when the goroutine exits.
 	} else {
-		defer func() { _ = origNs.Close() }() //nolint:errcheck // restore-only fd
+		defer func() {
+			if cerr := origNs.Close(); cerr != nil {
+				log.Printf("netNamespaceInstance: origNs close: %v", cerr)
+			}
+		}()
 		defer func() {
 			if rerr := restoreNsSetns(int(origNs.Fd()), unix.CLONE_NEWNET); rerr != nil {
 				x.pC.WithLabelValues("netNamespaceInstance", "restoreNs", "error").Inc()

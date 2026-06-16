@@ -161,7 +161,11 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 	// pollMode returned with both leaked — fine in a one-shot CLI run
 	// but the daemon-embedded usage (and the test harness) leaked one
 	// conn + one *time.Ticker per pollMode invocation.
-	defer func() { _ = conn.Close() }() //nolint:errcheck // already on the way out; Close err is non-actionable
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("pollMode: conn close: %v", cerr)
+		}
+	}()
 
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
 
@@ -450,7 +454,11 @@ func handleRecvContinueErr(ctx context.Context, client any, err error) bool {
 func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, json bool, id int) {
 
 	defer wg.Done()
-	defer func() { _ = conn.Close() }() //nolint:errcheck // streaming client teardown; conn.Close err is non-actionable
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("stream: conn close: %v", cerr)
+		}
+	}()
 
 	req := &xtcp_flat_record.FlatRecordsRequest{}
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)

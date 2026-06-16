@@ -218,7 +218,10 @@ func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
 	if !ok {
 		return
 	}
-	pt, _ := p.(time.Time) //nolint:errcheck // pollTime Store sites all use time.Time
+	pt, ok := p.(time.Time)
+	if !ok {
+		return
+	}
 	pTime := d.t.Sub(pt)
 	x.pH.WithLabelValues("Poller", "pollToDoneDuration", "count").Observe(pTime.Seconds())
 
@@ -226,10 +229,11 @@ func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
 		return
 	}
 	if ns, okNs := x.fdToNsMap.Load(d.fd); okNs {
-		nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap values are strings
-		log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
-			count, d.fd, nsStr, pTime.Seconds(), pTime.Milliseconds())
-		return
+		if nsStr, okStr := ns.(string); okStr {
+			log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
+				count, d.fd, nsStr, pTime.Seconds(), pTime.Milliseconds())
+			return
+		}
 	}
 	x.pC.WithLabelValues("Poller", "fdToNsMap", "error").Inc()
 	log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d after: %0.3fs %dms",
@@ -251,9 +255,9 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	polled := 0
 	for i, socketFD := range socketFDs {
 		if ns, ok := x.fdToNsMap.Load(socketFD); ok {
-			nsStr, _ := ns.(string) //nolint:errcheck // fdToNsMap values are strings
+			nsStr, okStr := ns.(string)
 			// "/run/netns/xtcpNS"
-			if nsStr == linuxNetNSDirCst+xtcpNSName {
+			if okStr && nsStr == linuxNetNSDirCst+xtcpNSName {
 				if x.debugLevel > 100 {
 					log.Printf("pollAllNetlinkSockets skip "+linuxNetNSDirCst+xtcpNSName+" Poll i:%d", i)
 				}

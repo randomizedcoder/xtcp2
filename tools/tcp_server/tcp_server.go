@@ -59,7 +59,11 @@ func runServer(ctx context.Context, bind string, port int) error {
 	if err != nil {
 		return fmt.Errorf("listen %s:%d: %w", bind, port, err)
 	}
-	defer func() { _ = ln.Close() }() //nolint:errcheck // demo server teardown
+	defer func() {
+		if cerr := ln.Close(); cerr != nil {
+			log.Printf("runServer: listener close: %v", cerr)
+		}
+	}()
 
 	// Close the listener on ctx cancel so the blocking Accept returns.
 	// The stopCloseWatcher channel lets the watcher goroutine exit if
@@ -72,7 +76,9 @@ func runServer(ctx context.Context, bind string, port int) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			_ = ln.Close() //nolint:errcheck // shutdown path
+			if cerr := ln.Close(); cerr != nil {
+				log.Printf("runServer: listener close on ctx done: %v", cerr)
+			}
 		case <-stopCloseWatcher:
 		}
 	}()
@@ -91,6 +97,12 @@ func runServer(ctx context.Context, bind string, port int) error {
 
 // handleConn echoes bytes back to the connection until EOF or error.
 func handleConn(conn net.Conn) {
-	defer func() { _ = conn.Close() }() //nolint:errcheck // demo server teardown
-	_, _ = io.Copy(conn, conn)          //nolint:errcheck // demo server teardown
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("handleConn: conn close: %v", cerr)
+		}
+	}()
+	if _, cerr := io.Copy(conn, conn); cerr != nil {
+		log.Printf("echo copy: %v", cerr)
+	}
 }
