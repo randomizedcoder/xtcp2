@@ -24,7 +24,6 @@ https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timest
 
 wget -O ./protobuf/timestamp.proto https://raw.githubusercontent.com/protocolbuffers/protobuf/refs/heads/main/src/google/protobuf/timestamp.proto
 
-
 ### C++
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/generated_message_tctable_impl.h"

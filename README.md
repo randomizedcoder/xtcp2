@@ -1,114 +1,142 @@
 # xtcp2
 
-Please run:
-- "make" to build the docker containers and then start the set of containers
-- "deploy" to start the containers if you've already built them
+**xtcp2** is a high-performance Linux daemon that streams kernel TCP socket state — the same rich diagnostics you get from `ss --info` — out of the kernel via the netlink `inet_diag` interface, across **every network namespace on the host**, and fans the results out to a configurable destination (Kafka, NATS, NSQ, Valkey, UDP, Unix sockets, S3/Parquet, or `/dev/null`).
 
-See also: "cat Makefile"
+It is a ground-up reimplementation of [randomizedcoder/xtcp](https://github.com/randomizedcoder/xtcp), rewritten with two goals in mind:
 
+- **Performance** — zero-copy-friendly netlink parsing, `sync.Pool`-backed buffers and protobuf messages, parallel netlink readers, and an optional `io_uring` fast path (Linux 6.1+).
+- **Container / namespace visibility** — xtcp2 discovers network namespaces under `/run/netns/` and `/run/docker/netns/`, spawns a dedicated reader per namespace, and reconciles namespace churn (Kubernetes pods, containers) in real time. You see TCP metrics for every container, not just the host.
 
-```
-#define NDIAG_FLAG_LISTEN_ALL_NSID	0x00000010
-```
-https://github.com/torvalds/linux/blob/bcde95ce32b666478d6737219caa4f8005a8f201/include/uapi/linux/netlink_diag.h#L64
+The typical deployment streams length-delimited protobuf batches to Kafka/Redpanda for ingestion into ClickHouse, but the destination is pluggable and selectable at build time.
 
-## How to do things in this repo
+---
 
-### Redpanda
-
-Redpanda has a admin web console
-
-http://localhost:8085/
-http://localhost:8085/topics/xtcp?p=-1&s=50&o=-1#messages
-
-### Clickhouse
-To query clickhouse
+## Architecture at a glance
 
 ```
-docker exec -ti xtcp-clickhouse-1 bash
-clickhouse-client
+  /run/netns/*  /run/docker/netns/*        (namespace discovery + inotify watch)
+        │
+        ▼
+  ┌─────────────────┐   one per network namespace
+  │ namespace reader │  setns(CLONE_NEWNET) → opens a netlink socket in that ns
+  └─────────────────┘
+        │
+        ▼
+  ┌─────────────────┐   N parallel netlinkers per ns (-netlinkers)
+  │   netlinker(s)   │  send inet_diag dump, recv raw netlink packets
+  └─────────────────┘
+        │
+        ▼
+  ┌─────────────────┐   inet_diag attributes → XtcpFlatRecord
+  │   deserialize    │  (tcp_info, congestion, meminfo, BBR, DCTCP, …)
+  └─────────────────┘
+        │
+        ▼
+  ┌─────────────────┐   accumulate rows into an Envelope; flush on
+  │  poll / batch    │  rows (-envelopeFlushRows) or bytes (-envelopeFlushBytes)
+  └─────────────────┘
+        │
+        ▼
+  ┌─────────────────┐   protobufList | protoJson | protoText | msgpack
+  │   marshaller     │
+  └─────────────────┘
+        │
+        ▼
+  ┌─────────────────┐   kafka | nats | nsq | valkey | udp | unix | s3parquet | null
+  │   destination    │
+  └─────────────────┘
+
+  Side channels:  gRPC API (:8889)  •  Prometheus metrics (:9088)  •  pprof / Pyroscope
 ```
 
-Or direct
-```
-[das@t:~/Downloads/xtcp2]$ docker exec -ti xtcp-clickhouse-1 clickhouse-client
-ClickHouse client version 24.8.12.28 (official build).
-Connecting to localhost:9000 as user default.
-Connected to ClickHouse server version 24.8.12.
+For the full picture see the [documentation hub](docs/README.md).
 
-5d1ddc0e72b5 :) use xtcp
+---
 
-USE xtcp
+## Quick start
 
-Query id: 4d9809bd-de8d-4363-8216-bc7d4bd31b01
+xtcp2 builds and runs with [Nix](https://nixos.org/). It is a Linux-only tool and needs `CAP_NET_ADMIN` (read TCP socket state) and `CAP_SYS_ADMIN` (enter namespaces) — in practice, run it as root or under `sudo`. It refuses to start if the hard-required capabilities are missing, printing exactly what it needs.
 
-Ok.
+```sh
+# 1. Clone
+git clone https://github.com/randomizedcoder/xtcp2.git
+cd xtcp2
 
-0 rows in set. Elapsed: 0.002 sec.
+# 2. Build the main daemon (or `nix develop` for a full dev shell)
+nix build .#xtcp2
 
-5d1ddc0e72b5 :) show tables
-
-SHOW TABLES
-
-Query id: d35852fb-1cd5-48aa-af5f-540a95a97178
-
-   ┌─name────────────────────┐
-1. │ xtcp_flat_records_kafka │
-2. │ xtcp_records            │
-3. │ xtcp_records_mv         │
-   └─────────────────────────┘
-
-3 rows in set. Elapsed: 0.001 sec
+# 3. Run it against the local host, discarding output, with verbose logging
+sudo ./result/bin/xtcp2 -dest null -d 333
 ```
 
+Stream to Kafka/Redpanda instead:
 
-### Clickhouse logs
-
-```
-[das@t:~/Downloads/xtcp2]$ docker exec -ti xtcp-clickhouse-1 ls /var/log/clickhouse-server
-clickhouse-server.err.log  clickhouse-server.log
-
-[das@t:~/Downloads/xtcp2]$ docker exec -ti xtcp-clickhouse-1 tail -f /var/log/clickhouse-server/clickhouse-server.err.log
-17. DB::PipelineExecutor::executeStepImpl(unsigned long, std::atomic<bool>*) @ 0x00000000125c43b0
-18. DB::PipelineExecutor::execute(unsigned long, bool) @ 0x00000000125c3842
-19. DB::CompletedPipelineExecutor::execute() @ 0x00000000125c2152
-20. DB::StorageKafka::threadFunc(unsigned long) @ 0x000000000fe27e7e
-21. DB::BackgroundSchedulePool::threadFunction() @ 0x000000001035a0e0
-22. void std::__function::__policy_invoker<void ()>::__call_impl<std::__function::__default_alloc_func<ThreadFromGlobalPoolImpl<false, true>::ThreadFromGlobalPoolImpl<DB::BackgroundSchedulePool::BackgroundSchedulePool(unsigned long, StrongTypedef<unsigned long, CurrentMetrics::MetricTag>, StrongTypedef<unsigned long, CurrentMetrics::MetricTag>, char const*)::$_0>(DB::BackgroundSchedulePool::BackgroundSchedulePool(unsigned long, StrongTypedef<unsigned long, CurrentMetrics::MetricTag>, StrongTypedef<unsigned long, CurrentMetrics::MetricTag>, char const*)::$_0&&)::'lambda'(), void ()>>(std::__function::__policy_storage const*) @ 0x000000001035b187
-23. void* std::__thread_proxy[abi:v15007]<std::tuple<std::unique_ptr<std::__thread_struct, std::default_delete<std::__thread_struct>>, void ThreadPoolImpl<std::thread>::scheduleImpl<void>(std::function<void ()>, Priority, std::optional<unsigned long>, bool)::'lambda0'()>>(void*) @ 0x000000000d251a89
-24. ? @ 0x00007f0a17fcc609
-25. ? @ 0x00007f0a17ef1353
- (version 24.8.12.28 (official build))
+```sh
+sudo ./result/bin/xtcp2 -dest kafka:127.0.0.1:9092 -topic xtcp
 ```
 
-Clickhouse troubleshooting: https://clickhouse.com/docs/knowledgebase/useful-queries-for-troubleshooting
+Inspect TCP records live over gRPC, in a second terminal:
 
-### Inspect docker images
-
-https://github.com/wagoodman/dive
-```
-[das@t:~/Downloads/xtcp2]$ dive randomizedcoder/xtcp_clickhouse
-Image Source: docker://randomizedcoder/xtcp_clickhouse
-Fetching image... (this can take a while for large images)
-Analyzing image...
-Building cache...
+```sh
+nix build .#xtcp2client
+./result/bin/xtcp2client            # streams XtcpFlatRecord from the running daemon
 ```
 
-### Random bookmarks
+Run `xtcp2 -help` for the full flag list. Common flags:
 
+| Flag | Default | Purpose |
+|---|---|---|
+| `-dest` | `kafka:redpanda-0:9092` | Destination, `scheme:address` (see [destinations](docs/output-and-destinations.md)) |
+| `-topic` | `xtcp` | Kafka / NSQ topic |
+| `-frequency` | `10s` | Poll interval |
+| `-marshal` | `protobufList` | Wire format (`protobufList`, `protoJson`, `protoText`, `msgpack`) |
+| `-netlinkers` | `4` | Parallel netlink readers per namespace |
+| `-deserializers` | `all` | Which inet_diag attributes to decode |
+| `-promListen` | `:9088` | Prometheus metrics listener |
+| `-grpcPort` | `8889` | gRPC API port |
+| `-d` | `111` | Debug verbosity (higher = more) |
 
-https://vincent.bernat.ch/en/blog/2023-dynamic-protobuf-golang
+---
 
-https://github.com/planetscale/vtprotobuf
+## Features
 
-https://pkg.go.dev/google.golang.org/protobuf@v1.36.3/encoding/protodelim
+| Feature | Summary | Docs |
+|---|---|---|
+| **Netlink TCP collection** | Reads TCP socket state via `inet_diag`; 13 pluggable attribute decoders (tcp_info, congestion, meminfo, BBR, DCTCP, skmem, cgroup, …). | [netlink-collection](docs/netlink-collection.md) |
+| **Multi-namespace visibility** | Discovers and watches `/run/netns` + `/run/docker/netns`, one reader per namespace, real-time churn reconciliation. | [network-namespaces](docs/network-namespaces.md) |
+| **Polling & batching** | Periodic dumps accumulated into protobuf Envelopes, flushed by row-count or byte-size thresholds. | [polling-and-batching](docs/polling-and-batching.md) |
+| **Output formats & destinations** | Four marshallers and nine build-tagged destinations (Kafka, NATS, NSQ, Valkey, UDP, Unix, S3/Parquet, null). | [output-and-destinations](docs/output-and-destinations.md) |
+| **gRPC API** | Runtime config get/set and live record streaming over gRPC. | [grpc-api](docs/grpc-api.md) |
+| **Observability** | Prometheus metrics, pprof, Pyroscope continuous profiling, startup capability checks. | [observability](docs/observability.md) |
+| **Performance** | Optional `io_uring` I/O, typed `sync.Pool` wrappers, parallel readers, thread-cap tuning. | [performance](docs/performance.md) |
+| **Testing & quality** | Real captured netlink `.pcap` fixtures across many kernel versions, reflection-free typed parsers, ~800 tests at >92% coverage. | [testing-and-quality](docs/testing-and-quality.md) |
 
+---
 
-Clickhouse - ProtobufList
-https://www.mux.com/blog/latency-and-throughput-tradeoffs-of-clickhouse-kafka-table-engine
+## Binaries
 
-Clickhouse Kafka Engine
-https://altinity.com/blog/kafka-engine-the-story-continues
+The daemon is `xtcp2`; the repo also ships supporting tools under `cmd/`:
 
-Example docker-compose.yml with health check
-https://github.com/filimonov/ch-kafka-consume-perftest/blob/master/docker-compose.yml
+| Binary | Purpose |
+|---|---|
+| `xtcp2` | The main daemon. |
+| `xtcp2client` | gRPC client; streams live `XtcpFlatRecord`s from a running daemon. |
+| `xtcp2_kafka_client` | Kafka consumer that decodes xtcp2's protobufList messages. |
+| `ns` | Namespace inspector — lists/reads netns state the way the daemon sees it. |
+| `nsTest` | Namespace churn driver for soak/stress testing. |
+| `register_schema` | Registers the `xtcp_flat_record` proto with a Confluent Schema Registry. |
+| `kafka_to_clickhouse` | Bridge: consumes the Kafka topic and writes to ClickHouse. |
+| `clickhouse_protobuflist`, `clickhouse_protobuflist_db`, `clickhouse_http_insert_protobuflist` | ClickHouse ingest tools for the protobufList format. |
+| `grpcurl` | Vendored [grpcurl](https://github.com/fullstorydev/grpcurl) for poking the gRPC API. |
+
+---
+
+## Documentation
+
+- **[Documentation hub](docs/README.md)** — background, design, and the full feature index.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Nix build targets, the test suite, linting, and proto regeneration for developers.
+- **[Operations notes](docs/operations.md)** — running the ClickHouse / Redpanda pipeline with docker-compose.
+
+## License
+
+See the repository for license details.

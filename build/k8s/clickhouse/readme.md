@@ -11,9 +11,7 @@ https://github.com/Altinity/clickhouse-operator/blob/master/docs/chk-examples/02
 
 https://blog.duyet.net/2024/03/clickhouse-on-kubernetes.html
 
-
-helm repo add clickhouse-operator https://docs.altinity.com/clickhouse-operator
-helm upgrade --install --create-namespace \
+helm repo add clickhouse-operator https://docs.altinity.com/clickhouse-operator helm upgrade --install --create-namespace \
     --namespace clickhouse \
     clickhouse-operator \
     clickhouse-operator/altinity-clickhouse-operator
@@ -55,7 +53,6 @@ Aliases:
 redpanda-0.redpanda.redpanda.svc.cluster.local has address 10.42.2.65
 ```
 
-
 ```
 [das@hp1:~]$ host chk-extended-cluster1-0-0.clickhouse.svc.cluster.local 10.43.0.10
 Using domain server:
@@ -80,7 +77,6 @@ NAME              CLUSTERS   HOSTS   STATUS       HOSTS-COMPLETED   AGE
 clickhouse-inst   1          3       InProgress                     27h
 ```
 
-
 ```
 [das@hp1:~]$ kubectl cluster-info
 Kubernetes control plane is running at https://127.0.0.1:6443
@@ -96,20 +92,15 @@ https://kb.altinity.com/altinity-kb-kubernetes/
 
 redpanda-0.redpanda.redpanda.svc.cluster.local:9093
 
-
-kubectl exec --stdin --tty chi-clickhouse-inst-clickhouse-0-0-0 -n clickhouse -- /bin/bash
-kubectl exec --stdin --tty chi-clickhouse-inst-clickhouse-0-1-0 -n clickhouse -- /bin/bash
+kubectl exec --stdin --tty chi-clickhouse-inst-clickhouse-0-0-0 -n clickhouse -- /bin/bash kubectl exec --stdin --tty chi-clickhouse-inst-clickhouse-0-1-0 -n clickhouse -- /bin/bash
 
 kubectl -n clickhouse describe chi
-
 
 To nuke namesapce
 
 NS=`kubectl get ns |grep Terminating | awk 'NR==1 {print $1}'` && kubectl get namespace "$NS" -o json   | tr -d "\n" | sed "s/\"finalizers\": \[[^]]\+\]/\"finalizers\": []/"   | kubectl replace --raw /api/v1/namespaces/$NS/finalize -f -
 
-
 ....
-
 
 ```
 [das@hp1:~]$ helm upgrade --install --create-namespace \
@@ -130,6 +121,5 @@ kubectl -n clickhouse describe chk
 ```
 
 kubectl delete pod chi-clickhouse-inst-clickhouse-0-0-0 --grace-period=0 --force -n clickhouse
-
 
 for p in $(kubectl get pods | grep Terminating | awk '{print $1}'); do kubectl delete pod $p --grace-period=0 --force;done

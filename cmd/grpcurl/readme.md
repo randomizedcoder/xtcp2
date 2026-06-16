@@ -2,9 +2,6 @@
 
 This readme has some examples of using grpcurl to interface with xtcp's grpc interface
 
-
-
-
 ```
 [nix-shell:~/Downloads/xtcp2/cmd/nsTest]$ grpcurl -plaintext -use-reflection hp1:8888 list xtcp_config.v1.ConfigService
 xtcp_config.v1.ConfigService.Get
@@ -44,8 +41,6 @@ grpcurl -plaintext hp1:8888 xtcp_config.v1.ConfigService.Get
   }
 }
 ```
-
-
 
 ## ConfigService.SetPollFrequency
 Example of using the SetPollFrequency
@@ -105,6 +100,5 @@ grpcurl -plaintext -d @ hp1:8888 xtcp_config.v1.ConfigService.SetPollFrequency <
 }
 EOM
 ```
-
 
 grpcurl -plaintext hp1:8888 xtcp_config.v1.ConfigService.Get
