@@ -1,24 +1,13 @@
 # xtcp2
 
-**xtcp2** is a high-performance Linux daemon that streams kernel TCP socket state — the
-same rich diagnostics you get from `ss --info` — out of the kernel via the netlink
-`inet_diag` interface, across **every network namespace on the host**, and fans the
-results out to a configurable destination (Kafka, NATS, NSQ, Valkey, UDP, Unix sockets,
-S3/Parquet, or `/dev/null`).
+**xtcp2** is a high-performance Linux daemon that streams kernel TCP socket state — the same rich diagnostics you get from `ss --info` — out of the kernel via the netlink `inet_diag` interface, across **every network namespace on the host**, and fans the results out to a configurable destination (Kafka, NATS, NSQ, Valkey, UDP, Unix sockets, S3/Parquet, or `/dev/null`).
 
-It is a ground-up reimplementation of [randomizedcoder/xtcp](https://github.com/randomizedcoder/xtcp),
-rewritten with two goals in mind:
+It is a ground-up reimplementation of [randomizedcoder/xtcp](https://github.com/randomizedcoder/xtcp), rewritten with two goals in mind:
 
-- **Performance** — zero-copy-friendly netlink parsing, `sync.Pool`-backed buffers and
-  protobuf messages, parallel netlink readers, and an optional `io_uring` fast path
-  (Linux 6.1+).
-- **Container / namespace visibility** — xtcp2 discovers network namespaces under
-  `/run/netns/` and `/run/docker/netns/`, spawns a dedicated reader per namespace, and
-  reconciles namespace churn (Kubernetes pods, containers) in real time. You see TCP
-  metrics for every container, not just the host.
+- **Performance** — zero-copy-friendly netlink parsing, `sync.Pool`-backed buffers and protobuf messages, parallel netlink readers, and an optional `io_uring` fast path (Linux 6.1+).
+- **Container / namespace visibility** — xtcp2 discovers network namespaces under `/run/netns/` and `/run/docker/netns/`, spawns a dedicated reader per namespace, and reconciles namespace churn (Kubernetes pods, containers) in real time. You see TCP metrics for every container, not just the host.
 
-The typical deployment streams length-delimited protobuf batches to Kafka/Redpanda for
-ingestion into ClickHouse, but the destination is pluggable and selectable at build time.
+The typical deployment streams length-delimited protobuf batches to Kafka/Redpanda for ingestion into ClickHouse, but the destination is pluggable and selectable at build time.
 
 ---
 
@@ -66,10 +55,7 @@ For the full picture see the [documentation hub](docs/README.md).
 
 ## Quick start
 
-xtcp2 builds and runs with [Nix](https://nixos.org/). It is a Linux-only tool and needs
-`CAP_NET_ADMIN` (read TCP socket state) and `CAP_SYS_ADMIN` (enter namespaces) — in
-practice, run it as root or under `sudo`. It refuses to start if the hard-required
-capabilities are missing, printing exactly what it needs.
+xtcp2 builds and runs with [Nix](https://nixos.org/). It is a Linux-only tool and needs `CAP_NET_ADMIN` (read TCP socket state) and `CAP_SYS_ADMIN` (enter namespaces) — in practice, run it as root or under `sudo`. It refuses to start if the hard-required capabilities are missing, printing exactly what it needs.
 
 ```sh
 # 1. Clone

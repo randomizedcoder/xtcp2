@@ -1,10 +1,6 @@
 # Output formats & destinations
 
-Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with
-a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the
-wire format; destinations control where the bytes go. Destinations that need a heavy
-client library are gated behind build tags, so a binary only carries the backends it was
-compiled with.
+Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the wire format; destinations control where the bytes go. Destinations that need a heavy client library are gated behind build tags, so a binary only carries the backends it was compiled with.
 
 ## Table of contents
 
@@ -19,8 +15,7 @@ compiled with.
 
 ## Marshallers
 
-`pkg/xtcp/marshallers.go` registers the available output formats, selected with
-`-marshal`:
+`pkg/xtcp/marshallers.go` registers the available output formats, selected with `-marshal`:
 
 | Value | Format | Use |
 |---|---|---|
@@ -29,19 +24,11 @@ compiled with.
 | `protoText` | Protobuf text | Human-readable debugging. |
 | `msgpack` | MessagePack | Alternative compact debug format. |
 
-The `protobufList` format is the important one: it frames each Envelope as a
-length-delimited protobuf message, which ClickHouse's `ProtobufList` input format reads
-directly. The format and its rationale are covered in depth in
-[protobufList migration](protobuflist-migration.md).
+The `protobufList` format is the important one: it frames each Envelope as a length-delimited protobuf message, which ClickHouse's `ProtobufList` input format reads directly. The format and its rationale are covered in depth in [protobufList migration](protobuflist-migration.md).
 
 ## The destination registry
 
-`pkg/xtcp/destinations_core.go` defines the destination interface and a registry. Each
-backend lives in its own `destinations_<scheme>.go` file and calls `RegisterDestination`
-from an `init()` guarded by a `//go:build dest_<scheme>` tag. A destination is selected at
-runtime with `-dest <scheme>:<address>`; it must have been compiled in (see
-[build flavors](build-flavors.md)). Registering the same scheme twice panics, which
-catches duplicate build-tag mistakes early.
+`pkg/xtcp/destinations_core.go` defines the destination interface and a registry. Each backend lives in its own `destinations_<scheme>.go` file and calls `RegisterDestination` from an `init()` guarded by a `//go:build dest_<scheme>` tag. A destination is selected at runtime with `-dest <scheme>:<address>`; it must have been compiled in (see [build flavors](build-flavors.md)). Registering the same scheme twice panics, which catches duplicate build-tag mistakes early.
 
 ## Destinations
 
@@ -57,45 +44,26 @@ catches duplicate build-tag mistakes early.
 | `unixgram` | `unixgram:/tmp/xtcp.sock` | *(always built)* | `destinations_unixgram.go` |
 | `null` | `null` | *(always built)* | `destinations_null.go` |
 
-The stdlib destinations (`udp`, `unix`, `unixgram`, `null`) are always compiled in; the
-library-backed ones (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are only present when
-their build tag is set. `null` discards output and is handy for benchmarking the
-collection path in isolation.
+The stdlib destinations (`udp`, `unix`, `unixgram`, `null`) are always compiled in; the library-backed ones (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are only present when their build tag is set. `null` discards output and is handy for benchmarking the collection path in isolation.
 
 ## Kafka and the schema registry
 
-`pkg/xtcp/destinations_kafka.go` uses [franz-go](https://github.com/twmb/franz-go) to
-produce length-delimited protobufList batches to a topic. Notable behavior:
+`pkg/xtcp/destinations_kafka.go` uses [franz-go](https://github.com/twmb/franz-go) to produce length-delimited protobufList batches to a topic. Notable behavior:
 
-- **Compression** (`-kafkaCompression`): empty/`auto` negotiates a preference list
-  (`zstd`, `lz4`, `snappy`, `none`) with the broker; or pin one of `zstd`, `lz4`, `snappy`,
-  `gzip`, `none`. All are decodable by Redpanda and ClickHouse's Kafka engine.
-- **Schema registry** (`-kafkaSchemaUrl`): the `xtcp_flat_record` proto can be registered
-  with a Confluent-compatible schema registry. This is informational — ClickHouse's
-  ProtobufList ingestion does not require it. The standalone `register_schema` binary does
-  the registration; `-xtcpProtoFile` points at the proto used.
+- **Compression** (`-kafkaCompression`): empty/`auto` negotiates a preference list (`zstd`, `lz4`, `snappy`, `none`) with the broker; or pin one of `zstd`, `lz4`, `snappy`, `gzip`, `none`. All are decodable by Redpanda and ClickHouse's Kafka engine.
+- **Schema registry** (`-kafkaSchemaUrl`): the `xtcp_flat_record` proto can be registered with a Confluent-compatible schema registry. This is informational — ClickHouse's ProtobufList ingestion does not require it. The standalone `register_schema` binary does the registration; `-xtcpProtoFile` points at the proto used.
 - **Produce timeout** (`-produceTimeout`) bounds each produce call.
 
 ## S3 and Parquet
 
-`pkg/xtcp/destinations_s3parquet.go` (build tag `dest_s3parquet`) writes Hive-partitioned
-Parquet files to an S3-compatible store (e.g. MinIO) instead of streaming to a broker. The
-record-to-Parquet schema mapping is in `destinations_s3parquet_schema.go`. Files are
-partitioned `host=…/date=…/hour=…/<file>.parquet` and finalized/uploaded when the in-memory
-builder crosses `-s3ParquetFlushBytes` (default 63 MiB uncompressed). Credentials and
-endpoint come from `-s3*` flags or `S3_*` environment variables; the bucket must already
-exist.
+`pkg/xtcp/destinations_s3parquet.go` (build tag `dest_s3parquet`) writes Hive-partitioned Parquet files to an S3-compatible store (e.g. MinIO) instead of streaming to a broker. The record-to-Parquet schema mapping is in `destinations_s3parquet_schema.go`. Files are partitioned `host=…/date=…/hour=…/<file>.parquet` and finalized/uploaded when the in-memory builder crosses `-s3ParquetFlushBytes` (default 63 MiB uncompressed). Credentials and endpoint come from `-s3*` flags or `S3_*` environment variables; the bucket must already exist.
 
 ## The record schema
 
-The per-socket record and its batch wrapper are defined in
-`proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
+The per-socket record and its batch wrapper are defined in `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
 
 - `Envelope` — a batch: repeated `XtcpFlatRecord` rows plus metadata.
-- `XtcpFlatRecord` — one socket snapshot: timestamp, hostname, network namespace, TCP
-  state, the `tcp_info` fields, congestion algorithm, and the optional attribute groups
-  (skmem, shutdown, DCTCP, BBR, sockopt, class/cgroup IDs). The free-form `-label` and
-  `-tag` flag values are embedded into every record.
+- `XtcpFlatRecord` — one socket snapshot: timestamp, hostname, network namespace, TCP state, the `tcp_info` fields, congestion algorithm, and the optional attribute groups (skmem, shutdown, DCTCP, BBR, sockopt, class/cgroup IDs). The free-form `-label` and `-tag` flag values are embedded into every record.
 
 Generated Go types live in `pkg/xtcp_flat_record/`.
 

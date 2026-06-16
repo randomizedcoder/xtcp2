@@ -1,9 +1,6 @@
 # Observability
 
-xtcp2 is built to run as a long-lived daemon, so it ships first-class observability:
-Prometheus metrics, Go `pprof` endpoints, optional Pyroscope continuous profiling, and a
-startup capability check that fails loudly with an actionable message when the daemon
-lacks a required Linux capability.
+xtcp2 is built to run as a long-lived daemon, so it ships first-class observability: Prometheus metrics, Go `pprof` endpoints, optional Pyroscope continuous profiling, and a startup capability check that fails loudly with an actionable message when the daemon lacks a required Linux capability.
 
 ## Table of contents
 
@@ -16,32 +13,19 @@ lacks a required Linux capability.
 
 ## Prometheus metrics
 
-`pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By
-default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). Metrics cover the
-collection pipeline — netlink reads, deserialization, envelope rows flushed, destination
-sends, and namespace counts — which is what you scrape to alarm on a stalled collector or
-a destination backpressure problem. The `metrics-audit` tool/check
-(`nix build .#test-tools-metrics-audit`) guards metric registration.
+`pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
 
 ## pprof
 
-The standard Go `net/http/pprof` endpoints are mounted on the metrics HTTP server, so
-`/debug/pprof/*` is available on the same `-promListen` address for live CPU, heap,
-goroutine, mutex, and block profiles. For one-shot file-based profiling, `-profile.mode`
-enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
+The standard Go `net/http/pprof` endpoints are mounted on the metrics HTTP server, so `/debug/pprof/*` is available on the same `-promListen` address for live CPU, heap, goroutine, mutex, and block profiles. For one-shot file-based profiling, `-profile.mode` enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
 
 ## Pyroscope continuous profiling
 
-For always-on profiling, xtcp2 integrates with [Pyroscope](https://pyroscope.io/). Set
-`-pyroscopeUrl` (or the `PYROSCOPE_URL` env var) to enable the agent; an empty URL disables
-it. The app name, CPU sample rate, and upload cadence are tunable.
+For always-on profiling, xtcp2 integrates with [Pyroscope](https://pyroscope.io/). Set `-pyroscopeUrl` (or the `PYROSCOPE_URL` env var) to enable the agent; an empty URL disables it. The app name, CPU sample rate, and upload cadence are tunable.
 
 ## Capability checks
 
-`pkg/xtcp/init_capabilities.go` reads the process's effective capability set at startup
-(`unix.Capget`) and checks each capability the daemon needs. Hard-required capabilities
-abort startup with a message naming exactly what's missing and why; soft-required ones
-print a warning and let the daemon run with the related feature degraded.
+`pkg/xtcp/init_capabilities.go` reads the process's effective capability set at startup (`unix.Capget`) and checks each capability the daemon needs. Hard-required capabilities abort startup with a message naming exactly what's missing and why; soft-required ones print a warning and let the daemon run with the related feature degraded.
 
 | Capability | Required? | Why |
 |---|---|---|
@@ -50,9 +34,7 @@ print a warning and let the daemon run with the related feature degraded.
 | `CAP_NET_RAW` | warning | raw-socket (`-dest udp:…` with `IP_HDRINCL`) writes — the daemon runs without it, but a UDP destination fails at the first packet. |
 | `CAP_SYS_RESOURCE` | warning | raising `RLIMIT_MEMLOCK` for `io_uring` ring memory — without it large `-ioUring` rings may fail to allocate. |
 
-In practice this means running xtcp2 as root or under `sudo`. The capability behavior is
-exercised by the `capability-check-*` flake checks and the `capcheck-fail` microVM
-(see [integration testing](integration-testing.md)).
+In practice this means running xtcp2 as root or under `sudo`. The capability behavior is exercised by the `capability-check-*` flake checks and the `capcheck-fail` microVM (see [integration testing](integration-testing.md)).
 
 ## Configuration
 

@@ -1,9 +1,6 @@
 # gRPC API
 
-xtcp2 exposes a gRPC server (default port `8889`) with two services: one to read and
-change daemon configuration at runtime, and one to stream live TCP records. gRPC server
-reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without
-the `.proto` files.
+xtcp2 exposes a gRPC server (default port `8889`) with two services: one to read and change daemon configuration at runtime, and one to stream live TCP records. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
 
 ## Table of contents
 
@@ -17,16 +14,14 @@ the `.proto` files.
 
 ## The server
 
-`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` and registers both services plus gRPC
-reflection. Each service has its own implementation file:
+`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` and registers both services plus gRPC reflection. Each service has its own implementation file:
 
 - `pkg/xtcp/grpc_configService.go` — `ConfigService`.
 - `pkg/xtcp/grpc_flatRecordService.go` — `XTCPFlatRecordService`.
 
 ## ConfigService
 
-Defined in `proto/xtcp_config/v1/xtcp_config.proto`, this service lets you inspect and
-modify the running daemon's configuration:
+Defined in `proto/xtcp_config/v1/xtcp_config.proto`, this service lets you inspect and modify the running daemon's configuration:
 
 | RPC | Purpose |
 |---|---|
@@ -34,9 +29,7 @@ modify the running daemon's configuration:
 | `Set(SetRequest) → SetResponse` | Replace the configuration. |
 | `SetPollFrequency(SetPollFrequencyRequest) → SetPollFrequencyResponse` | Change just the poll interval without a full `Set`. |
 
-Configuration changes are validated with [buf.validate](https://github.com/bufbuild/protovalidate)
-CEL constraints declared in the proto (for example, the poll timeout must be shorter than
-the poll frequency), so invalid updates are rejected at the RPC boundary.
+Configuration changes are validated with [buf.validate](https://github.com/bufbuild/protovalidate) CEL constraints declared in the proto (for example, the poll timeout must be shorter than the poll frequency), so invalid updates are rejected at the RPC boundary.
 
 ## XTCPFlatRecordService
 
@@ -49,9 +42,7 @@ Defined in `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
 
 ## The xtcp2client binary
 
-`cmd/xtcp2client` is the reference client. By default it connects and listens
-(server-streaming) for records; with `-poll` it uses the bidirectional `PollFlatRecords`
-RPC and triggers a poll every `-pollFrequency`.
+`cmd/xtcp2client` is the reference client. By default it connects and listens (server-streaming) for records; with `-poll` it uses the bidirectional `PollFlatRecords` RPC and triggers a poll every `-pollFrequency`.
 
 ```sh
 nix build .#xtcp2client
@@ -75,8 +66,7 @@ nix build .#xtcp2client
 
 ## Using grpcurl
 
-Because reflection is on, the vendored `grpcurl` (`cmd/grpcurl`) can list and call methods
-directly:
+Because reflection is on, the vendored `grpcurl` (`cmd/grpcurl`) can list and call methods directly:
 
 ```sh
 grpcurl -plaintext 127.0.0.1:8889 list

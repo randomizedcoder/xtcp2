@@ -1,9 +1,6 @@
 # Operations
 
-This document covers running the end-to-end xtcp2 → Redpanda (Kafka) → ClickHouse pipeline
-locally with the docker-compose stack, and querying the data once it's flowing. For a
-hermetic, reproducible version of this pipeline (used in CI), see the
-[integration testing](integration-testing.md) microVM flavors instead.
+This document covers running the end-to-end xtcp2 → Redpanda (Kafka) → ClickHouse pipeline locally with the docker-compose stack, and querying the data once it's flowing. For a hermetic, reproducible version of this pipeline (used in CI), see the [integration testing](integration-testing.md) microVM flavors instead.
 
 ## Table of contents
 
@@ -15,9 +12,7 @@ hermetic, reproducible version of this pipeline (used in CI), see the
 
 ## The docker-compose stack
 
-A legacy `Makefile` at the repo root drives a Docker-based pipeline (separate from the Nix
-build system, which is what developers use day to day — see
-[CONTRIBUTING.md](../CONTRIBUTING.md)):
+A legacy `Makefile` at the repo root drives a Docker-based pipeline (separate from the Nix build system, which is what developers use day to day — see [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
 ```sh
 make build_and_deploy   # build the containers and start the stack
@@ -27,8 +22,7 @@ make ch                 # open a clickhouse-client shell
 make followxtcp         # follow the xtcp2 container logs
 ```
 
-Run `cat Makefile` for the full target list (proto checks, dependency updates, volume
-clearing, etc.).
+Run `cat Makefile` for the full target list (proto checks, dependency updates, volume clearing, etc.).
 
 ## Redpanda
 
@@ -56,20 +50,17 @@ docker exec -ti xtcp-clickhouse-1 clickhouse-client
    └─────────────────────────┘
 ```
 
-The `*_kafka` table is a Kafka table engine consuming the topic; a materialized view
-(`*_mv`) forwards rows into the destination table. Server logs live in the container:
+The `*_kafka` table is a Kafka table engine consuming the topic; a materialized view (`*_mv`) forwards rows into the destination table. Server logs live in the container:
 
 ```sh
 docker exec -ti xtcp-clickhouse-1 tail -f /var/log/clickhouse-server/clickhouse-server.err.log
 ```
 
-ClickHouse troubleshooting queries:
-<https://clickhouse.com/docs/knowledgebase/useful-queries-for-troubleshooting>
+ClickHouse troubleshooting queries: <https://clickhouse.com/docs/knowledgebase/useful-queries-for-troubleshooting>
 
 ## Inspecting images
 
-[`dive`](https://github.com/wagoodman/dive) is handy for inspecting the layers of the
-built images:
+[`dive`](https://github.com/wagoodman/dive) is handy for inspecting the layers of the built images:
 
 ```sh
 dive randomizedcoder/xtcp_clickhouse

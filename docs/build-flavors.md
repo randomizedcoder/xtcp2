@@ -1,17 +1,11 @@
 # Build flavors
 
-xtcp2 binaries are built along two orthogonal axes, so you can produce anything from a fat
-debug build with every destination to a 20 MB single-destination image. Every target below
-is exposed by `flake.nix`; run `nix flake show` for the live list.
+xtcp2 binaries are built along two orthogonal axes, so you can produce anything from a fat debug build with every destination to a 20 MB single-destination image. Every target below is exposed by `flake.nix`; run `nix flake show` for the live list.
 
-1. **Build variant** — whether symbols + DWARF are stripped: `debug` / default / `stripped`
-   (`nix/versions.nix` → `buildVariants`).
-2. **Destination flavor** — which message-destination clients are compiled in: `full` /
-   `min` / `kafka` / `nats` / `nsq` / `valkey` (`nix/versions.nix` → `destinationFlavors`).
+1. **Build variant** — whether symbols + DWARF are stripped: `debug` / default / `stripped` (`nix/versions.nix` → `buildVariants`).
+2. **Destination flavor** — which message-destination clients are compiled in: `full` / `min` / `kafka` / `nats` / `nsq` / `valkey` (`nix/versions.nix` → `destinationFlavors`).
 
-Stdlib destinations (`null`, `udp`, `unix`, `unixgram`) are **always** compiled regardless
-of flavor. Only the library destinations (`kafka`, `nats`, `nsq`, `valkey`) are gated by
-`//go:build dest_<scheme>` tags.
+Stdlib destinations (`null`, `udp`, `unix`, `unixgram`) are **always** compiled regardless of flavor. Only the library destinations (`kafka`, `nats`, `nsq`, `valkey`) are gated by `//go:build dest_<scheme>` tags.
 
 ## Table of contents
 
@@ -40,8 +34,7 @@ of flavor. Only the library destinations (`kafka`, `nats`, `nsq`, `valkey`) are 
 
 ## Joined builds
 
-`xtcp2-all*` is a `symlinkJoin` containing every `cmd/<name>/` binary under one `/bin/`,
-used as the contents of the fat OCI images.
+`xtcp2-all*` is a `symlinkJoin` containing every `cmd/<name>/` binary under one `/bin/`, used as the contents of the fat OCI images.
 
 | Target | Variant |
 |---|---|
@@ -51,8 +44,7 @@ used as the contents of the fat OCI images.
 
 ## Other cmd binaries
 
-The other `cmd/<name>/` binaries don't import `pkg/xtcp`, so destination flavors don't
-apply. Each is exposed at its default variant:
+The other `cmd/<name>/` binaries don't import `pkg/xtcp`, so destination flavors don't apply. Each is exposed at its default variant:
 
 ```sh
 nix build .#clickhouse_http_insert_protobuflist
@@ -68,8 +60,7 @@ nix build .#xtcp2_kafka_client
 
 ## OCI images
 
-The three "fat" images carry every cmd binary; the slim images carry only the single
-matching `xtcp2-<flavor>` binary.
+The three "fat" images carry every cmd binary; the slim images carry only the single matching `xtcp2-<flavor>` binary.
 
 | Target | Tag | Contents | Approx size |
 |---|---|---|---|
@@ -82,8 +73,7 @@ matching `xtcp2-<flavor>` binary.
 | `nix build .#oci-xtcp2-nsq` | `xtcp2:nsq` | only `xtcp2-nsq` | 22 MiB |
 | `nix build .#oci-xtcp2-valkey` | `xtcp2:valkey` | only `xtcp2-valkey` | 26 MiB |
 
-Images are built with `pkgs.dockerTools.streamLayeredImage`: `./result` is a script that
-streams a docker-loadable tarball on stdout.
+Images are built with `pkgs.dockerTools.streamLayeredImage`: `./result` is a script that streams a docker-loadable tarball on stdout.
 
 ```sh
 nix build .#oci-xtcp2-kafka
@@ -100,18 +90,14 @@ docker run --rm --entrypoint /bin/register_schema xtcp2:latest -help
 ## Choosing a flavor
 
 - **Every destination at runtime** (config-driven destination): `xtcp2` / `oci-xtcp2`.
-- **Unix-socket sink only** (`unix:` / `unixgram:`): `xtcp2-min` / `oci-xtcp2-min`. UDP and
-  null come for free since they share Go's already-linked `net` package.
-- **Kafka producer**: `xtcp2-kafka` / `oci-xtcp2-kafka` — drops ~4 MB by omitting the nats,
-  nsq, and redis clients.
-- **Debugging / profiling**: `xtcp2-debug` — keeps the symbol table and DWARF so `delve`
-  and `go tool pprof` work directly.
+- **Unix-socket sink only** (`unix:` / `unixgram:`): `xtcp2-min` / `oci-xtcp2-min`. UDP and null come for free since they share Go's already-linked `net` package.
+- **Kafka producer**: `xtcp2-kafka` / `oci-xtcp2-kafka` — drops ~4 MB by omitting the nats, nsq, and redis clients.
+- **Debugging / profiling**: `xtcp2-debug` — keeps the symbol table and DWARF so `delve` and `go tool pprof` work directly.
 - **Smallest image**: `xtcp2-stripped` or a slim per-flavor image.
 
 ## Custom destination combinations
 
-The named flavors are single-destination. For combinations (e.g. kafka + valkey), call
-`mkGoBinary` (`nix/lib/mkGoBinary.nix`) directly with a `destinations` list:
+The named flavors are single-destination. For combinations (e.g. kafka + valkey), call `mkGoBinary` (`nix/lib/mkGoBinary.nix`) directly with a `destinations` list:
 
 ```nix
 mkGoBinary {
@@ -122,9 +108,7 @@ mkGoBinary {
 }
 ```
 
-The `destinations` knob accepts `null` (all four — the `full` flavor), `[ ]` (none — the
-`min` flavor), or a list of schemes. Build tags are derived as `dest_<scheme>` per entry
-and appended to `versions.buildTags` (`netgo`, `osusergo`).
+The `destinations` knob accepts `null` (all four — the `full` flavor), `[ ]` (none — the `min` flavor), or a list of schemes. Build tags are derived as `dest_<scheme>` per entry and appended to `versions.buildTags` (`netgo`, `osusergo`).
 
 ## Build-tag mechanics
 
@@ -137,9 +121,7 @@ and appended to `versions.buildTags` (`netgo`, `osusergo`).
 | `destinations_valkey.go` | `//go:build dest_valkey` | only with `-tags dest_valkey` |
 | `destinations_s3parquet.go` | `//go:build dest_s3parquet` | only with `-tags dest_s3parquet` |
 
-Each tagged file calls `RegisterDestination(scheme, factory)` from its `init()`. With the
-tag off the file isn't compiled, so the registry simply lacks that scheme. The CLI
-distinguishes "unknown scheme" from "known but not compiled in":
+Each tagged file calls `RegisterDestination(scheme, factory)` from its `init()`. With the tag off the file isn't compiled, so the registry simply lacks that scheme. The CLI distinguishes "unknown scheme" from "known but not compiled in":
 
 ```
 $ xtcp2-min -dest kafka:broker:9092
@@ -162,8 +144,7 @@ CGO_ENABLED=0 go build -tags "netgo,osusergo" -ldflags "-s -w" -trimpath -o xtcp
 CGO_ENABLED=0 go build -tags "netgo,osusergo,dest_kafka" -ldflags "-s -w" -trimpath -o xtcp2-kafka ./cmd/xtcp2
 ```
 
-The Nix builds also inject `-X main.commit=…`, `-X main.date=…`, `-X main.version=…`; those
-are optional for ad-hoc builds.
+The Nix builds also inject `-X main.commit=…`, `-X main.date=…`, `-X main.version=…`; those are optional for ad-hoc builds.
 
 ## See also
 
