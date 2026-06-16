@@ -1,9 +1,6 @@
 # xtcp2 integration testing environment
 
-A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms
-alongside the rest of its production data path (redpanda → clickhouse →
-grafana) for end-to-end testing, soak runs, and ad-hoc inspection — all
-from a single `nix run` invocation.
+A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms alongside the rest of its production data path (redpanda → clickhouse → grafana) for end-to-end testing, soak runs, and ad-hoc inspection — all from a single `nix run` invocation.
 
 ## Table of contents
 
@@ -28,20 +25,11 @@ from a single `nix run` invocation.
 
 ## Introduction
 
-This is the heavy integration-testing side of xtcp2. Unit tests live in
-`pkg/*/_test.go` and are run by `go test ./...`; the work documented
-here exercises code paths that only fire under a real Linux kernel,
-real namespaces, real network sockets, a real Kafka broker, and so on.
+This is the heavy integration-testing side of xtcp2. Unit tests live in `pkg/*/_test.go` and are run by `go test ./...`; the work documented here exercises code paths that only fire under a real Linux kernel, real namespaces, real network sockets, a real Kafka broker, and so on.
 
-Everything is packaged through the flake's microvm targets, so a
-single `nix run .#microvm-x86_64-<flavor>` invocation boots a fresh
-QEMU/KVM guest with the requested test scenario fully wired and ready
-to inspect.
+Everything is packaged through the flake's microvm targets, so a single `nix run .#microvm-x86_64-<flavor>` invocation boots a fresh QEMU/KVM guest with the requested test scenario fully wired and ready to inspect.
 
-The environment is structured as a small set of **flavors** built from
-one shared `mkVm.nix`. Each flavor is gated by a `sink = "..."`
-predicate and assembles a different mix of services on top of the base
-xtcp2 daemon.
+The environment is structured as a small set of **flavors** built from one shared `mkVm.nix`. Each flavor is gated by a `sink = "..."` predicate and assembles a different mix of services on top of the base xtcp2 daemon.
 
 ## Quick start
 
@@ -69,8 +57,7 @@ open http://127.0.0.1:18123   # ClickHouse HTTP (curl -u default:xtcp)
 
 ## Architecture
 
-The clickhouse-pipeline flavor is the most complete; the others are
-subsets. ASCII view of the full data flow:
+The clickhouse-pipeline flavor is the most complete; the others are subsets. ASCII view of the full data flow:
 
 ```
 host
@@ -138,21 +125,15 @@ host
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | 3072 MiB | xtcp2 + dockerd + N containers × M sockets | Per-container netns discovery under load |
 | `microvm-x86_64-clickhouse-pipeline` | `clickhouse-pipeline` | 3072 MiB | + Redpanda + ClickHouse + Prometheus + Grafana | Full xtcp2 → Kafka → ClickHouse data path |
 
-Each flavor inherits the shared base config from `nix/microvms/mkVm.nix`
-and adds only what it needs. Common kernel cmdline / hypervisor / nic
-config stays identical across flavors.
+Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and adds only what it needs. Common kernel cmdline / hypervisor / nic config stays identical across flavors.
 
 ## Components
 
 ### xtcp2 daemon
 
-The thing under test. Watches `/run/netns/` and `/run/docker/netns/`
-via fsnotify, spawns a per-namespace netlinker that reads inet_diag
-via netlink, deserializes the wire format into `XtcpFlatRecord`
-protobuf, then ships the records to a configurable destination.
+The thing under test. Watches `/run/netns/` and `/run/docker/netns/` via fsnotify, spawns a per-namespace netlinker that reads inet_diag via netlink, deserializes the wire format into `XtcpFlatRecord` protobuf, then ships the records to a configurable destination.
 
-In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`,
-defined in `nix/modules/xtcp2-service.nix`). Per-flavor argument sets:
+In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`, defined in `nix/modules/xtcp2-service.nix`). Per-flavor argument sets:
 
 | Flavor | `-dest` | Notes |
 |---|---|---|
@@ -160,46 +141,30 @@ defined in `nix/modules/xtcp2-service.nix`). Per-flavor argument sets:
 | vector | `unixgram:/run/xtcp2/output.sock` | Vector reads from the UDS |
 | clickhouse-pipeline | `kafka:localhost:19092` | Real production destination |
 
-Grants: `CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_SYS_RESOURCE`. Limits:
-`TasksMax = 8192` (raised from systemd's default ~1100 after the 1h
-soak hit the cgroup ceiling). Go-runtime cap: `-maxThreads 2000` (via
-`runtime/debug.SetMaxThreads`).
+Grants: `CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_SYS_RESOURCE`. Limits: `TasksMax = 8192` (raised from systemd's default ~1100 after the 1h soak hit the cgroup ceiling). Go-runtime cap: `-maxThreads 2000` (via `runtime/debug.SetMaxThreads`).
 
 ### nsTest — namespace churn driver
 
-`cmd/nsTest/nsTest.go`. A tiny load generator that does
-`ip netns add nsN` / `ip netns del nsN` on a tight loop. Exercises the
-fsnotify watcher + `nsAdd` / `nsDelete` lifecycle inside xtcp2.
+`cmd/nsTest/nsTest.go`. A tiny load generator that does `ip netns add nsN` / `ip netns del nsN` on a tight loop. Exercises the fsnotify watcher + `nsAdd` / `nsDelete` lifecycle inside xtcp2.
 
 Tunables (CLI flags):
 - `-initial` — initial namespace fill (default 1000)
 - `-sleep` — pause between churn iterations (default 100ms)
 
-Used by the **soak** flavor with reduced parameters (`-initial 50
--sleep 250ms`) so a 12h soak doesn't generate gigabytes of churn-log
-noise.
+Used by the **soak** flavor with reduced parameters (`-initial 50 -sleep 250ms`) so a 12h soak doesn't generate gigabytes of churn-log noise.
 
 ### tcp_server / tcp_client — socket population
 
-`tools/tcp_server/`, `tools/tcp_client/`. Generate a known population
-of ESTABLISHED loopback sockets so xtcp2's inet_diag readout has real
-TCP state to parse.
+`tools/tcp_server/`, `tools/tcp_client/`. Generate a known population of ESTABLISHED loopback sockets so xtcp2's inet_diag readout has real TCP state to parse.
 
-- `tcp_server -count N -bind 0.0.0.0` — N echo listeners on ports
-  4000..4000+N-1
-- `tcp_client -count N -connect <host> -sleep 5s -pads 2048` — N
-  goroutines dialing the matching ports, writing 2 KiB messages
-  every 5 s
+- `tcp_server -count N -bind 0.0.0.0` — N echo listeners on ports 4000..4000+N-1
+- `tcp_client -count N -connect <host> -sleep 5s -pads 2048` — N goroutines dialing the matching ports, writing 2 KiB messages every 5 s
 
-Used standalone in the **soak** flavor (default 100+100 on the VM
-host) and via the OCI image in the **tcp-stress** + **clickhouse-pipeline**
-flavors (one tcp_server+client pair per docker container).
+Used standalone in the **soak** flavor (default 100+100 on the VM host) and via the OCI image in the **tcp-stress** + **clickhouse-pipeline** flavors (one tcp_server+client pair per docker container).
 
 ### oci-xtcp2-tcp-stress — containerized stress image
 
-Built via `pkgs.dockerTools.streamLayeredImage`. Bundles just the two
-tools from `tools/tcp_{server,client}/` plus a tiny shell entrypoint
-that dispatches on `TCP_MODE`:
+Built via `pkgs.dockerTools.streamLayeredImage`. Bundles just the two tools from `tools/tcp_{server,client}/` plus a tiny shell entrypoint that dispatches on `TCP_MODE`:
 
 | Env | Default | Effect |
 |---|---|---|
@@ -210,16 +175,11 @@ that dispatches on `TCP_MODE`:
 | `TCP_CONNECT` | 127.0.0.1 | Client target host |
 | `TCP_BIND` | 0.0.0.0 | Server listen address |
 
-In the `tcp-stress` and `clickhouse-pipeline` flavors, `dockerd`
-pre-loads this image at boot, then spawns N containers with
-`TCP_MODE=both`. Each container gets its own netns courtesy of
-docker's bridge network — xtcp2 discovers those via fsnotify on
-`/run/docker/netns/`.
+In the `tcp-stress` and `clickhouse-pipeline` flavors, `dockerd` pre-loads this image at boot, then spawns N containers with `TCP_MODE=both`. Each container gets its own netns courtesy of docker's bridge network — xtcp2 discovers those via fsnotify on `/run/docker/netns/`.
 
 ### Redpanda
 
-[Kafka-compatible event broker.](https://redpanda.com/) Runs as a
-single docker container in the `clickhouse-pipeline` flavor.
+[Kafka-compatible event broker.](https://redpanda.com/) Runs as a single docker container in the `clickhouse-pipeline` flavor.
 
 - Image: `docker.redpanda.com/redpandadata/redpanda:v25.1.7`
 - Internal Kafka API: `redpanda-0:9092` (inside `xtcp` docker network)
@@ -229,8 +189,7 @@ single docker container in the `clickhouse-pipeline` flavor.
 - Data volume: named `redpanda-0`
 - Mode: `dev-container` (single-node, no auth)
 
-`xtcp2-clickpipe-up.service` creates the `xtcp` topic via `rpk` after
-the broker comes up.
+`xtcp2-clickpipe-up.service` creates the `xtcp` topic via `rpk` after the broker comes up.
 
 ### ClickHouse
 
@@ -252,29 +211,19 @@ xtcp_flat_records_errors_mv   ENGINE = MaterializedView  ← parse-failure captu
 xtcp_flat_records_errors      ENGINE = MergeTree ← _error rows (1d TTL)
 ```
 
-SQL DDL lives in `build/containers/clickhouse/initdb.d/sql/` —
-shared between this microvm and the production docker-compose stack.
+SQL DDL lives in `build/containers/clickhouse/initdb.d/sql/` — shared between this microvm and the production docker-compose stack.
 
 #### ProtobufList wire format
 
-The xtcp daemon writes batched records as a length-delimited
-`Envelope` per Kafka message (see `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`):
+The xtcp daemon writes batched records as a length-delimited `Envelope` per Kafka message (see `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`):
 
 ```
 Kafka message body = varint(envelope_size) || serialized_Envelope
 ```
 
-where `Envelope { repeated XtcpFlatRecord row = 10 }` carries all records
-from one poll cycle (or a chunk if the size-cap safety valve flushes
-mid-cycle — see `EnvelopeFlushThresholdBytesCst` in
-`pkg/xtcp/marshallers.go`, default 768 KiB).
+where `Envelope { repeated XtcpFlatRecord row = 10 }` carries all records from one poll cycle (or a chunk if the size-cap safety valve flushes mid-cycle — see `EnvelopeFlushThresholdBytesCst` in `pkg/xtcp/marshallers.go`, default 768 KiB).
 
-No Confluent schema-registry header is prepended on the wire. xtcp's
-schema-registry registration (`registerProtobufSchema` in
-`pkg/xtcp/destinations_kafka.go`) is informational only — ClickHouse
-does not consult the registry to decode messages; it loads the
-`xtcp_flat_record.proto` schema from `/var/lib/clickhouse/format_schemas/`
-via its `kafka_schema` setting.
+No Confluent schema-registry header is prepended on the wire. xtcp's schema-registry registration (`registerProtobufSchema` in `pkg/xtcp/destinations_kafka.go`) is informational only — ClickHouse does not consult the registry to decode messages; it loads the `xtcp_flat_record.proto` schema from `/var/lib/clickhouse/format_schemas/` via its `kafka_schema` setting.
 
 ClickHouse decodes the wire format via:
 
@@ -287,21 +236,14 @@ ENGINE = Kafka SETTINGS
 
 Reference encoders (one Kafka, one HTTP) live at:
 
-- `cmd/clickhouse_http_insert_protobuflist/` — produces the wire format
-  and POSTs to ClickHouse's HTTP `?format=ProtobufList` endpoint. The
-  minimal byte-by-byte reproduction of what the daemon's marshaller
-  emits.
-- `cmd/kafka_to_clickhouse/` — same bytes, but sent via Kafka to
-  exercise the engine table path end-to-end.
+- `cmd/clickhouse_http_insert_protobuflist/` — produces the wire format and POSTs to ClickHouse's HTTP `?format=ProtobufList` endpoint. The minimal byte-by-byte reproduction of what the daemon's marshaller emits.
+- `cmd/kafka_to_clickhouse/` — same bytes, but sent via Kafka to exercise the engine table path end-to-end.
 
-The `cmd/xtcp2_kafka_client/` tool decodes records from the topic via
-`protodelim.UnmarshalFrom` and logs each `Envelope.row`; useful for
-debugging the producer end without ClickHouse in the loop.
+The `cmd/xtcp2_kafka_client/` tool decodes records from the topic via `protodelim.UnmarshalFrom` and logs each `Envelope.row`; useful for debugging the producer end without ClickHouse in the loop.
 
 ### Prometheus
 
-Time-series scraper for xtcp2's `/metrics` endpoint. Enabled in
-`tcp-stress` and `clickhouse-pipeline` flavors.
+Time-series scraper for xtcp2's `/metrics` endpoint. Enabled in `tcp-stress` and `clickhouse-pipeline` flavors.
 
 - Listens on `0.0.0.0:9090` inside the VM
 - Scrape interval: 15s
@@ -310,14 +252,11 @@ Time-series scraper for xtcp2's `/metrics` endpoint. Enabled in
   - `xtcp2` @ `127.0.0.1:9088`
   - `prometheus-self` @ `127.0.0.1:9090`
 
-Companion `xtcp2-prom-snapshot.service` (tcp-stress only) writes a
-JSON line per 30s to stdout so the host runner can grep counters out
-of the transcript.
+Companion `xtcp2-prom-snapshot.service` (tcp-stress only) writes a JSON line per 30s to stdout so the host runner can grep counters out of the transcript.
 
 ### Grafana
 
-Web UI for both Prometheus metrics and ClickHouse SQL queries. Enabled
-in `clickhouse-pipeline`.
+Web UI for both Prometheus metrics and ClickHouse SQL queries. Enabled in `clickhouse-pipeline`.
 
 - Listens on `0.0.0.0:3000` inside the VM, host-forwarded to **:13000**
 - Plugin: `grafana-clickhouse-datasource` v4.16.0 (from nixpkgs)
@@ -343,12 +282,7 @@ WHERE timestamp_ns > now() - INTERVAL 5 MINUTE
 
 ## Lifecycle phases
 
-The shared self-test (`nix/microvms/self-test.nix`) runs 10 checks in
-sequence on every basic / coverage flavor boot. Each check emits a
-sentinel line on the serial console that the host harness greps:
-`XTCP2_SELF_TEST_<NAME>_(PASS|FAIL)`. Checks are independent — a
-failure in one doesn't skip later ones, so an `OVERALL_FAIL`
-pinpoints exactly what broke.
+The shared self-test (`nix/microvms/self-test.nix`) runs 10 checks in sequence on every basic / coverage flavor boot. Each check emits a sentinel line on the serial console that the host harness greps: `XTCP2_SELF_TEST_<NAME>_(PASS|FAIL)`. Checks are independent — a failure in one doesn't skip later ones, so an `OVERALL_FAIL` pinpoints exactly what broke.
 
 | # | Sentinel | Checks |
 |---|---|---|
@@ -364,8 +298,7 @@ pinpoints exactly what broke.
 | 10 | `NS_DOCKER` | Bind-mount under `/run/docker/netns/` fires the second `watchNsNamespace` goroutine end-to-end |
 | — | `OVERALL` | All of 1–10 passed |
 
-The **soak** flavor doesn't run the self-test; instead its runner
-sleeps for `--duration`, then prints:
+The **soak** flavor doesn't run the self-test; instead its runner sleeps for `--duration`, then prints:
 
 ```
 panics, restarts, ns-churn events
@@ -378,16 +311,11 @@ xtcp2.service started, docker.service started, oci image loaded,
 N containers spawned, ≥N per-container ns discovered, 0 panics
 ```
 
-The **clickhouse-pipeline** flavor doesn't have a runner with
-assertions — boot it and inspect via Grafana / curl. The companion
-service `xtcp2-clickpipe-monitor` emits `XTCP2_CLICKPIPE_ROWS …
-rows=N` lines every 30s to the journal.
+The **clickhouse-pipeline** flavor doesn't have a runner with assertions — boot it and inspect via Grafana / curl. The companion service `xtcp2-clickpipe-monitor` emits `XTCP2_CLICKPIPE_ROWS … rows=N` lines every 30s to the journal.
 
 ## Host port forwards
 
-`microvm.forwardPorts` plumbs each port through QEMU's SLiRP hostfwd,
-and `networking.firewall.allowedTCPPorts` opens the matching guest
-ports. All bindings are gated on the flavor predicate.
+`microvm.forwardPorts` plumbs each port through QEMU's SLiRP hostfwd, and `networking.firewall.allowedTCPPorts` opens the matching guest ports. All bindings are gated on the flavor predicate.
 
 | Host | Guest | Service | Flavors |
 |---|---|---|---|
@@ -401,14 +329,11 @@ ports. All bindings are gated on the flavor predicate.
 | `127.0.0.1:18081` | `:18081` | Schema registry | clickhouse-pipeline |
 | `127.0.0.1:13000` | `:3000` | Grafana UI | clickhouse-pipeline |
 
-If any host port collides with something already bound on your dev box,
-either kill that process or edit the `forwardPorts` entry in
-`nix/microvms/mkVm.nix` to use a different host port.
+If any host port collides with something already bound on your dev box, either kill that process or edit the `forwardPorts` entry in `nix/microvms/mkVm.nix` to use a different host port.
 
 ## Tunables
 
-Top-of-file `let` bindings in `nix/microvms/mkVm.nix` — change a
-number, rebuild, run.
+Top-of-file `let` bindings in `nix/microvms/mkVm.nix` — change a number, rebuild, run.
 
 ### Soak
 
@@ -504,86 +429,27 @@ journalctl -u xtcp2 -n 100
 
 ## Troubleshooting
 
-**`Could not set up host forwarding rule 'tcp::XXX-:YYY'`**
-Something on the host already binds port `XXX`. Check `ss -tnlp 'sport = XXX'`,
-kill it, or edit `nix/microvms/mkVm.nix` `forwardPorts` to use a different
-host port.
+**`Could not set up host forwarding rule 'tcp::XXX-:YYY'`** Something on the host already binds port `XXX`. Check `ss -tnlp 'sport = XXX'`, kill it, or edit `nix/microvms/mkVm.nix` `forwardPorts` to use a different host port.
 
-**ClickHouse query returns `REQUIRED_PASSWORD` (code 194)**
-Pass `-u default:xtcp` on curl or `--password xtcp` on `clickhouse-client`.
-Password comes from `clickPipeChPassword` in mkVm.nix.
+**ClickHouse query returns `REQUIRED_PASSWORD` (code 194)** Pass `-u default:xtcp` on curl or `--password xtcp` on `clickhouse-client`. Password comes from `clickPipeChPassword` in mkVm.nix.
 
-**xtcp2 panic with `failed to create new OS thread (have 1121 already)`**
-The systemd `TasksMax` ceiling. Already raised to 8192 in
-`nix/modules/xtcp2-service.nix` — if you see this in a fresh deployment,
-check the unit file `cat /etc/systemd/system/xtcp2.service | grep -i task`.
+**xtcp2 panic with `failed to create new OS thread (have 1121 already)`** The systemd `TasksMax` ceiling. Already raised to 8192 in `nix/modules/xtcp2-service.nix` — if you see this in a fresh deployment, check the unit file `cat /etc/systemd/system/xtcp2.service | grep -i task`.
 
-**`docker pull` fails on first boot**
-The microvm uses qemu user-mode networking; outbound NAT is on by default
-but needs DNS to resolve docker.io. Check the VM serial console for
-network errors; usually a transient issue, the unit's `Restart=on-failure`
-will retry.
+**`docker pull` fails on first boot** The microvm uses qemu user-mode networking; outbound NAT is on by default but needs DNS to resolve docker.io. Check the VM serial console for network errors; usually a transient issue, the unit's `Restart=on-failure` will retry.
 
-**Grafana datasource health-check fails**
-The clickhouse container needs ~30s to become query-ready after its
-docker run. Wait, then refresh the datasource page. If it persists,
-exec into the VM and check `docker logs clickhouse`.
+**Grafana datasource health-check fails** The clickhouse container needs ~30s to become query-ready after its docker run. Wait, then refresh the datasource page. If it persists, exec into the VM and check `docker logs clickhouse`.
 
-**`microvm-run: Address already in use`**
-A previous run's qemu didn't clean up. `fuser -k 12055/tcp 12056/tcp`
-(serial + virtio-console ports), then re-run.
+**`microvm-run: Address already in use`** A previous run's qemu didn't clean up. `fuser -k 12055/tcp 12056/tcp` (serial + virtio-console ports), then re-run.
 
-**`StorageKafka: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file`**
-Harmless startup-only artifact, not a runtime bug. The official ClickHouse
-docker entrypoint runs a temporary server on 127.0.0.1 to execute
-`/docker-entrypoint-initdb.d/*` (including our DDL that creates the
-kafka_engine table). When initdb finishes the entrypoint `SIGTERM`s that
-temporary server and starts the real one. The kafka consumer that was
-attached in the temp server's view tries to load the schema during the
-shutdown window and reports BAD_ARGUMENTS. The next-server-instance
-consumer recovers and proceeds normally. Look for the second
-`Application: Starting ClickHouse` line in `clickhouse-server.log` — every
-log entry after that is the real run. `system.kafka_consumers.exceptions`
-keeps the failed-during-shutdown entry visible (the array stores the most
-recent 10) which is confusing but cosmetic.
+**`StorageKafka: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file`** Harmless startup-only artifact, not a runtime bug. The official ClickHouse docker entrypoint runs a temporary server on 127.0.0.1 to execute `/docker-entrypoint-initdb.d/*` (including our DDL that creates the kafka_engine table). When initdb finishes the entrypoint `SIGTERM`s that temporary server and starts the real one. The kafka consumer that was attached in the temp server's view tries to load the schema during the shutdown window and reports BAD_ARGUMENTS. The next-server-instance consumer recovers and proceeds normally. Look for the second `Application: Starting ClickHouse` line in `clickhouse-server.log` — every log entry after that is the real run. `system.kafka_consumers.exceptions` keeps the failed-during-shutdown entry visible (the array stores the most recent 10) which is confusing but cosmetic.
 
-**`Pushing N rows … took 37152 ms`** in the ClickHouse log
-The kafka_engine → MV → MergeTree path is slow per-batch (tens of seconds
-for a few k rows under the mixed `clickhouse-pipeline-parquet` flavor's
-load). That's why ch_rows appears to "halt" between 30-min probe
-intervals — it's not a halt, it's a long-running flush. Confirm with
-`SELECT num_messages_read, assignments.current_offset[1], last_poll_time
-FROM system.kafka_consumers` — if `last_poll_time` is recent the consumer
-is alive; the slowness is downstream of the consumer. Profiling the
-122-column ZSTD MergeTree insert path is a known open follow-up.
+**`Pushing N rows … took 37152 ms`** in the ClickHouse log The kafka_engine → MV → MergeTree path is slow per-batch (tens of seconds for a few k rows under the mixed `clickhouse-pipeline-parquet` flavor's load). That's why ch_rows appears to "halt" between 30-min probe intervals — it's not a halt, it's a long-running flush. Confirm with `SELECT num_messages_read, assignments.current_offset[1], last_poll_time FROM system.kafka_consumers` — if `last_poll_time` is recent the consumer is alive; the slowness is downstream of the consumer. Profiling the 122-column ZSTD MergeTree insert path is a known open follow-up.
 
-**MEMORY_LIMIT_EXCEEDED while bumping container memory keeps the rate
-the same** *(historical — kept for reference; the actual fix is below)*
-Earlier hypotheses chased ClickHouse's per-server memory cap. Bumping
-the container from 12000m → 14000m → 20000m → 28000m moved the cap
-but ClickHouse's `MemoryTracking` grew to fill it (10 GiB → 12 GiB →
-17 GiB → 24 GiB respectively). The OOM rate (~2.3/min) stayed flat
-because the OOMs are workload-allocation events, not free-memory
-exhaustion. Past ~20000m, MV-insert times blew up (8 rows / 197 s) and
-the consumer started getting kicked by `max.poll.interval.ms`. The
-real cause turned out to be something else entirely — see below.
+**MEMORY_LIMIT_EXCEEDED while bumping container memory keeps the rate the same** *(historical — kept for reference; the actual fix is below)* Earlier hypotheses chased ClickHouse's per-server memory cap. Bumping the container from 12000m → 14000m → 20000m → 28000m moved the cap but ClickHouse's `MemoryTracking` grew to fill it (10 GiB → 12 GiB → 17 GiB → 24 GiB respectively). The OOM rate (~2.3/min) stayed flat because the OOMs are workload-allocation events, not free-memory exhaustion. Past ~20000m, MV-insert times blew up (8 rows / 197 s) and the consumer started getting kicked by `max.poll.interval.ms`. The real cause turned out to be something else entirely — see below.
 
-**The actual root cause: kafka_engine Block accumulation is redundant
-with ProtobufList batching**
-The 10 GiB MemoryTracking was empty over-allocated buffer space, not
-data. Each xtcp2 → kafka message is a `ProtobufList` envelope already
-containing 100-1000 rows; on top of that, the kafka_engine's default
-`kafka_max_block_size = 65,505` rows accumulates rows from many
-envelopes before flushing to the MV. ClickHouse pre-allocates per-column
-buffers sized for the FULL block at flush time, regardless of how few
-rows actually arrived. With 122 columns × 65K rows of pre-allocated
-buffer + ZSTD/LZ4 compression contexts + MV pipeline state, the per-flush
-peak hit ~10 GiB even though the actual data rate is only ~215 KB/sec.
+**The actual root cause: kafka_engine Block accumulation is redundant with ProtobufList batching** The 10 GiB MemoryTracking was empty over-allocated buffer space, not data. Each xtcp2 → kafka message is a `ProtobufList` envelope already containing 100-1000 rows; on top of that, the kafka_engine's default `kafka_max_block_size = 65,505` rows accumulates rows from many envelopes before flushing to the MV. ClickHouse pre-allocates per-column buffers sized for the FULL block at flush time, regardless of how few rows actually arrived. With 122 columns × 65K rows of pre-allocated buffer + ZSTD/LZ4 compression contexts + MV pipeline state, the per-flush peak hit ~10 GiB even though the actual data rate is only ~215 KB/sec.
 
-The fix is `kafka_max_block_size = 1024` (~1 envelope per flush) and
-`kafka_flush_interval_ms = 2000`. Each ProtobufList message effectively
-passes through to the MV directly without redundant row-level batching
-on top. Per-flush column buffers shrink ~64×.
+The fix is `kafka_max_block_size = 1024` (~1 envelope per flush) and `kafka_flush_interval_ms = 2000`. Each ProtobufList message effectively passes through to the MV directly without redundant row-level batching on top. Per-flush column buffers shrink ~64×.
 
 Measured before/after on a fresh 31-min smoke:
 
@@ -596,11 +462,6 @@ Measured before/after on a fresh 31-min smoke:
 | Throughput | ~393 rows/min | **~27,700 rows/min** |
 | Consumer commits / messages | 2 / 426 (rebalance loop) | **367 / 367** |
 
-The throughput now matches xtcp2's actual production rate (~430 rows/sec)
-with the MV running in real-time and zero backlog. ClickHouse runs on
-~300 MiB instead of needing 14 GiB.
+The throughput now matches xtcp2's actual production rate (~430 rows/sec) with the MV running in real-time and zero backlog. ClickHouse runs on ~300 MiB instead of needing 14 GiB.
 
-If you see new MEMORY_LIMIT_EXCEEDED entries with a different `kafka_*`
-setup, check `SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka` and verify
-`kafka_max_block_size` is still at ~1024 — if it's reverted to the
-default 65,505 you'll see the OOM rate jump back to ~2/min.
+If you see new MEMORY_LIMIT_EXCEEDED entries with a different `kafka_*` setup, check `SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka` and verify `kafka_max_block_size` is still at ~1024 — if it's reverted to the default 65,505 you'll see the OOM rate jump back to ~2/min.

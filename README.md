@@ -109,6 +109,7 @@ Run `xtcp2 -help` for the full flag list. Common flags:
 | **gRPC API** | Runtime config get/set and live record streaming over gRPC. | [grpc-api](docs/grpc-api.md) |
 | **Observability** | Prometheus metrics, pprof, Pyroscope continuous profiling, startup capability checks. | [observability](docs/observability.md) |
 | **Performance** | Optional `io_uring` I/O, typed `sync.Pool` wrappers, parallel readers, thread-cap tuning. | [performance](docs/performance.md) |
+| **Testing & quality** | Real captured netlink `.pcap` fixtures across many kernel versions, reflection-free typed parsers, ~800 tests at >92% coverage. | [testing-and-quality](docs/testing-and-quality.md) |
 
 ---
 

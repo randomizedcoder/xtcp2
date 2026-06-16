@@ -51,6 +51,9 @@ Prometheus metrics, Go `pprof` endpoints, optional Pyroscope continuous profilin
 ### [Performance](performance.md)
 The optional `io_uring` reader/writer path, the `pkg/xsync` typed `sync.Pool` / `sync.Map` wrappers, netlinker parallelism, and runtime knobs (`GOMAXPROCS`, OS thread cap).
 
+### [Testing & quality](testing-and-quality.md)
+The captured netlink `.pcap` fixture corpus spanning many kernel versions, the reflection-free typed deserializers it validates, the ~800-test suite at over 92% coverage, the benchmarks, and the custom audit tools.
+
 ## For developers
 
 See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, the full set of Nix build/test targets, the automated test suite (unit, race, per-flavor, and microVM integration tests), linting tiers, and protobuf regeneration. Related references:
