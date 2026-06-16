@@ -107,7 +107,7 @@ func setupBufconnServer(t *testing.T, s *xtcpFlatRecordService) (*grpc.ClientCon
 	srv := grpc.NewServer()
 	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, s)
 	go func() {
-		_ = srv.Serve(lis) //nolint:errcheck // test plumbing
+		_ = srv.Serve(lis)
 	}()
 	dialer := func(_ context.Context, _ string) (net.Conn, error) {
 		return lis.Dial()
@@ -120,7 +120,7 @@ func setupBufconnServer(t *testing.T, s *xtcpFlatRecordService) (*grpc.ClientCon
 		t.Fatal(err)
 	}
 	cleanup := func() {
-		_ = conn.Close() //nolint:errcheck // test plumbing
+		_ = conn.Close()
 		srv.Stop()
 	}
 	return conn, cleanup
@@ -167,7 +167,7 @@ func TestFlatRecords_bufconnCancelExits(t *testing.T) {
 	}
 
 	cancel()
-	_, _ = stream.Recv() //nolint:errcheck // test plumbing
+	_, _ = stream.Recv()
 	time.Sleep(50 * time.Millisecond)
 	if got := srvSvc.frMapCount(); got != 0 {
 		t.Errorf("frMapCount = %d, want 0 after close", got)

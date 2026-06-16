@@ -37,8 +37,8 @@ func TestSetSocketTimeoutViaSyscall_seconds(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 	if err := SetSocketTimeoutViaSyscall(2000, fds[0]); err != nil {
 		t.Errorf("err = %v", err)
@@ -51,8 +51,8 @@ func TestSetSocketTimeoutViaSyscall_milliseconds(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 	if err := SetSocketTimeoutViaSyscall(500, fds[0]); err != nil {
 		t.Errorf("err = %v", err)
@@ -126,7 +126,7 @@ func TestOpenNetlinkSocketWithTimeout_smokes(t *testing.T) {
 	captured := withFatalf(t)
 	fd := OpenNetlinkSocketWithTimeout(1000)
 	if fd >= 0 {
-		_ = unix.Close(fd) //nolint:errcheck // test plumbing
+		_ = unix.Close(fd)
 	}
 	_ = captured // tolerate either outcome
 }

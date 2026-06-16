@@ -143,7 +143,7 @@ func TestInsertIntoCHAt_success(t *testing.T) {
 func TestInsertIntoCHAt_serverError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("oops")) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte("oops"))
 	}))
 	defer srv.Close()
 	err := insertIntoCHAt(t.Context(), srv.Client(), srv.URL, []byte("payload"), true)

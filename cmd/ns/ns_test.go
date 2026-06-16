@@ -189,11 +189,11 @@ func TestRunMain_profileMode(t *testing.T) {
 	// Profile mode "cpu" sets a deferred stopper. Run from tempdir so
 	// the .pprof file ends up there.
 	dir := t.TempDir()
-	wd, _ := os.Getwd() //nolint:errcheck // test plumbing
+	wd, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(wd) }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = os.Chdir(wd) })
 	rc := runMain(t.Context(), []string{"-profile.mode", "cpu"}, &strings.Builder{}, &strings.Builder{})
 	if rc != 0 {
 		t.Errorf("rc = %d, want 0", rc)
@@ -223,11 +223,11 @@ func TestStartProfile_eachMode(t *testing.T) {
 	// to ProfilePath("."). Run from a tempdir + stop immediately so the
 	// .pprof files end up in t.TempDir() and clean up with the test.
 	dir := t.TempDir()
-	wd, _ := os.Getwd() //nolint:errcheck // test plumbing
+	wd, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(wd) }) //nolint:errcheck // test plumbing
+	t.Cleanup(func() { _ = os.Chdir(wd) })
 
 	// Iterate every supported mode. Each pass starts the profile and
 	// immediately stops it before the next mode begins.

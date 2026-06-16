@@ -82,7 +82,7 @@ func TestWriteDataToFile_badPath(t *testing.T) {
 
 func TestGetLatestSchemaIDAt_happy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"id":99}`)) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte(`{"id":99}`))
 	}))
 	defer srv.Close()
 	got, err := getLatestSchemaIDAt(context.Background(), srv.Client(), srv.URL, "subj")
@@ -96,7 +96,7 @@ func TestGetLatestSchemaIDAt_happy(t *testing.T) {
 
 func TestGetLatestSchemaIDAt_badJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("not json")) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
 	if _, err := getLatestSchemaIDAt(context.Background(), srv.Client(), srv.URL, "subj"); err == nil {
@@ -116,7 +116,7 @@ func TestGetLatestSchemaIDAt_connRefused(t *testing.T) {
 func TestGetLatestSchemaIDAt_ctxCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(50 * time.Millisecond)
-		_, _ = w.Write([]byte(`{"id":1}`)) //nolint:errcheck // test plumbing
+		_, _ = w.Write([]byte(`{"id":1}`))
 	}))
 	defer srv.Close()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -290,7 +290,7 @@ func TestDestKafka_unreachable(t *testing.T) {
 
 	payload := []byte("payload")
 	c := config{topic: "test-topic", debugLevel: 11}
-	n, _ := destKafka(ctx, c, &payload) //nolint:errcheck // err is logged inside the callback
+	n, _ := destKafka(ctx, c, &payload)
 	if n != 1 {
 		t.Errorf("n = %d, want 1 (Produce was attempted)", n)
 	}

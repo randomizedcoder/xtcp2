@@ -168,11 +168,11 @@ func TestPrintMemUsage(t *testing.T) {
 	var out strings.Builder
 	done := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(&out, r) //nolint:errcheck // test plumbing
+		_, _ = io.Copy(&out, r)
 		close(done)
 	}()
 	PrintMemUsage()
-	_ = w.Close() //nolint:errcheck // test plumbing
+	_ = w.Close()
 	<-done
 	if !strings.Contains(out.String(), "Alloc") {
 		t.Errorf("PrintMemUsage should print Alloc; got %q", out.String())

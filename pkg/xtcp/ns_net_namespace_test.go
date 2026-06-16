@@ -29,7 +29,7 @@ func TestCloseSocket_success(t *testing.T) {
 	if err != nil {
 		t.Skipf("socketpair: %v", err)
 	}
-	defer func() { _ = unix.Close(fds[1]) }() //nolint:errcheck // test plumbing
+	defer func() { _ = unix.Close(fds[1]) }()
 	x := newCloseFixture(t)
 	x.closeSocket(fds[0])
 }
@@ -44,7 +44,7 @@ func TestCloseFD_success(t *testing.T) {
 	if err != nil {
 		t.Skipf("socketpair: %v", err)
 	}
-	defer func() { _ = unix.Close(fds[1]) }() //nolint:errcheck // test plumbing
+	defer func() { _ = unix.Close(fds[1]) }()
 	x := newCloseFixture(t)
 	x.closeFD(fds[0])
 }
@@ -62,8 +62,8 @@ func TestSetSocketTimeoutViaSyscall_success(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 	x := newCloseFixture(t)
 	// Also need pH for the histogram observation.
@@ -91,8 +91,8 @@ func TestSetSocketTimeoutViaSyscall_seconds(t *testing.T) {
 		t.Skipf("socketpair: %v", err)
 	}
 	defer func() {
-		_ = unix.Close(fds[0]) //nolint:errcheck // test plumbing
-		_ = unix.Close(fds[1]) //nolint:errcheck // test plumbing
+		_ = unix.Close(fds[0])
+		_ = unix.Close(fds[1])
 	}()
 	x := newCloseFixture(t)
 	x.setSocketTimeoutViaSyscall(2000, fds[0]) // >= 1000 → seconds path
@@ -129,7 +129,7 @@ func TestCheckMountInfo_debugLog(t *testing.T) {
 	x := newCloseFixture(t)
 	x.debugLevel = 11 // hit log.Printf branch
 	nsName := "/"
-	_, _ = x.checkMountInfo(&nsName) //nolint:errcheck // test plumbing
+	_, _ = x.checkMountInfo(&nsName)
 }
 
 // checkMountInfoWithRetries: retry wrapper. Found-on-first-try and
@@ -153,7 +153,7 @@ func TestCheckMountInfoWithRetries_neverFound(t *testing.T) {
 	x := newCloseFixture(t)
 	x.debugLevel = 11 // hit the log branch
 	nsName := "ridiculously-unlikely-namespace-suffix-xq44"
-	found, _ := x.checkMountInfoWithRetries(&nsName) //nolint:errcheck // test plumbing
+	found, _ := x.checkMountInfoWithRetries(&nsName)
 	if found {
 		t.Error("expected not-found for synthetic nsName")
 	}

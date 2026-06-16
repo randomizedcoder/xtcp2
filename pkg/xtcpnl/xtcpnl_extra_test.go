@@ -154,7 +154,7 @@ func TestDeserializeInetDiagMsgWG(t *testing.T) {
 	wg.Add(1)
 	idm := new(InetDiagMsg)
 	sock := new(InetDiagSockID)
-	_, _ = DeserializeInetDiagMsgWG(wg, make([]byte, InetDiagMsgSizeCst), idm, sock) //nolint:errcheck // test plumbing
+	_, _ = DeserializeInetDiagMsgWG(wg, make([]byte, InetDiagMsgSizeCst), idm, sock)
 	wg.Wait()
 }
 
@@ -162,7 +162,7 @@ func TestDeserializeInetDiagMsgXTCPWG(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	x := &xtcp_flat_record.XtcpFlatRecord{}
-	_ = DeserializeInetDiagMsgXTCPWG(wg, make([]byte, InetDiagMsgSizeCst), x) //nolint:errcheck // test plumbing
+	_ = DeserializeInetDiagMsgXTCPWG(wg, make([]byte, InetDiagMsgSizeCst), x)
 	wg.Wait()
 }
 

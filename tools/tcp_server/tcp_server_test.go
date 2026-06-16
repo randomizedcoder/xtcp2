@@ -18,7 +18,7 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := probe.Addr().(*net.TCPAddr).Port
-	_ = probe.Close() //nolint:errcheck // test plumbing
+	_ = probe.Close()
 
 	srvDone := make(chan error, 1)
 	go func() {
@@ -38,7 +38,7 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial %s: %v", addr, err)
 	}
-	defer func() { _ = conn.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = conn.Close() }()
 
 	// Echo round-trip.
 	if _, werr := conn.Write([]byte("hello")); werr != nil {
@@ -54,7 +54,7 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 	if string(buf) != "hello" {
 		t.Errorf("got %q, want hello", buf)
 	}
-	_ = conn.Close() //nolint:errcheck // test plumbing
+	_ = conn.Close()
 
 	cancel()
 	select {
@@ -145,7 +145,7 @@ func TestHandleConn_eof(t *testing.T) {
 	if string(buf) != "ping" {
 		t.Errorf("echo: got %q, want ping", buf)
 	}
-	_ = b.Close() //nolint:errcheck // test plumbing
+	_ = b.Close()
 	select {
 	case <-done:
 	case <-time.After(time.Second):

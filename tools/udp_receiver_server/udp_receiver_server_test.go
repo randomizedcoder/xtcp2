@@ -25,7 +25,7 @@ func loopbackUDP(t *testing.T) (server *net.UDPConn, client *net.UDPConn) {
 	}
 	cli, err := net.DialUDP("udp", nil, caddr)
 	if err != nil {
-		_ = srv.Close() //nolint:errcheck // test plumbing
+		_ = srv.Close()
 		t.Fatal(err)
 	}
 	return srv, cli
@@ -33,8 +33,8 @@ func loopbackUDP(t *testing.T) (server *net.UDPConn, client *net.UDPConn) {
 
 func TestRunReceiver_happy(t *testing.T) {
 	srv, cli := loopbackUDP(t)
-	defer func() { _ = srv.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = cli.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = srv.Close() }()
+	defer func() { _ = cli.Close() }()
 
 	rec := &xtcp_flat_record.XtcpFlatRecord{Hostname: "udp-test"}
 	encoded, err := proto.Marshal(rec)
@@ -48,9 +48,9 @@ func TestRunReceiver_happy(t *testing.T) {
 	rdone := make(chan error, 1)
 	go func() {
 		// Send one frame then cancel to break the loop.
-		_, _ = cli.Write(encoded) //nolint:errcheck // test plumbing
+		_, _ = cli.Write(encoded)
 		time.Sleep(50 * time.Millisecond)
-		_ = srv.SetReadDeadline(time.Now()) //nolint:errcheck // unblock the read
+		_ = srv.SetReadDeadline(time.Now())
 	}()
 	go func() {
 		rdone <- runReceiver(ctx, srv)
@@ -68,8 +68,8 @@ func TestRunReceiver_happy(t *testing.T) {
 
 func TestRunReceiver_decodeError(t *testing.T) {
 	srv, cli := loopbackUDP(t)
-	defer func() { _ = srv.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = cli.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = srv.Close() }()
+	defer func() { _ = cli.Close() }()
 
 	rdone := make(chan error, 1)
 	go func() {
@@ -77,7 +77,7 @@ func TestRunReceiver_decodeError(t *testing.T) {
 	}()
 
 	// 0xFF varint header is malformed → proto.Unmarshal returns error.
-	_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF}) //nolint:errcheck // test plumbing
+	_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 
 	select {
 	case err := <-rdone:
@@ -91,8 +91,8 @@ func TestRunReceiver_decodeError(t *testing.T) {
 
 func TestRunReceiver_ctxCancel(t *testing.T) {
 	srv, cli := loopbackUDP(t)
-	defer func() { _ = srv.Close() }() //nolint:errcheck // test plumbing
-	defer func() { _ = cli.Close() }() //nolint:errcheck // test plumbing
+	defer func() { _ = srv.Close() }()
+	defer func() { _ = cli.Close() }()
 
 	ctx, cancel := context.WithCancel(t.Context())
 	rdone := make(chan error, 1)
@@ -100,7 +100,7 @@ func TestRunReceiver_ctxCancel(t *testing.T) {
 		rdone <- runReceiver(ctx, srv)
 	}()
 	cancel()
-	_ = srv.SetReadDeadline(time.Now()) //nolint:errcheck // unblock the read so ctx is observed
+	_ = srv.SetReadDeadline(time.Now())
 
 	select {
 	case err := <-rdone:
@@ -144,7 +144,7 @@ func TestRunMain_cancellable(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := probe.LocalAddr().(*net.UDPAddr).Port
-	_ = probe.Close() //nolint:errcheck // test plumbing
+	_ = probe.Close()
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan int, 1)
@@ -157,8 +157,8 @@ func TestRunMain_cancellable(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if derr == nil {
-		_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF}) //nolint:errcheck // test plumbing
-		_ = cli.Close()                                  //nolint:errcheck // test plumbing
+		_, _ = cli.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
+		_ = cli.Close()
 	}
 	cancel()
 	select {
@@ -190,7 +190,7 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := probe.LocalAddr().(*net.UDPAddr).Port
-	_ = probe.Close() //nolint:errcheck // test plumbing
+	_ = probe.Close()
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan int, 1)
@@ -204,18 +204,18 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 	// the next iter takes the ctx.Done branch.
 	cli, derr := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if derr == nil {
-		buf, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h"}) //nolint:errcheck // test plumbing
-		_, _ = cli.Write(buf)                                                    //nolint:errcheck // test plumbing
-		_ = cli.Close()                                                          //nolint:errcheck // test plumbing
+		buf, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h"})
+		_, _ = cli.Write(buf)
+		_ = cli.Close()
 	}
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 	// Send a second valid record + close the socket via SetReadDeadline
 	// so ReadFromUDP returns and the loop observes ctx.Done().
-	if cli2, _ := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}); cli2 != nil { //nolint:errcheck // test plumbing
-		buf2, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h2"}) //nolint:errcheck // test plumbing
-		_, _ = cli2.Write(buf2)                                                    //nolint:errcheck // test plumbing
-		_ = cli2.Close()                                                           //nolint:errcheck // test plumbing
+	if cli2, _ := net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}); cli2 != nil {
+		buf2, _ := proto.Marshal(&xtcp_flat_record.XtcpFlatRecord{Hostname: "h2"})
+		_, _ = cli2.Write(buf2)
+		_ = cli2.Close()
 	}
 	select {
 	case rc := <-done:
@@ -229,15 +229,15 @@ func TestRunMain_returnZeroAfterClean(t *testing.T) {
 
 func TestRunReceiver_readError(t *testing.T) {
 	srv, cli := loopbackUDP(t)
-	_ = cli.Close()                    //nolint:errcheck // test plumbing
-	defer func() { _ = srv.Close() }() //nolint:errcheck // test plumbing
+	_ = cli.Close()
+	defer func() { _ = srv.Close() }()
 
 	// Force a read error by closing the socket from another goroutine before
 	// any data arrives. ReadFromUDP returns ErrClosed (not a timeout-style
 	// "use of closed network connection" wrap on all kernels).
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		_ = srv.Close() //nolint:errcheck // test plumbing
+		_ = srv.Close()
 	}()
 	err := runReceiver(t.Context(), srv)
 	// Either ctx wasn't canceled (=> err non-nil) or the cancel-race made

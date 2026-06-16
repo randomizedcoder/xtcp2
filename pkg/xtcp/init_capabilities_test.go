@@ -28,12 +28,12 @@ func withCapMask(t *testing.T, eff uint32, body func()) {
 // doesn't panic.
 func TestCheckCapabilities_doesntPanic(t *testing.T) {
 	x := &XTCP{}
-	_ = x.checkCapabilities() //nolint:errcheck // result is environment-dependent
+	_ = x.checkCapabilities()
 }
 
 func TestCheckCapabilities_debugLog(t *testing.T) {
 	x := &XTCP{debugLevel: 11}
-	_ = x.checkCapabilities() //nolint:errcheck // result is environment-dependent
+	_ = x.checkCapabilities()
 }
 
 // Both hard-required caps present → checkCapabilities returns nil.
