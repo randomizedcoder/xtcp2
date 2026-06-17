@@ -108,6 +108,21 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 		return x.protobufListMarshal(e)
 	})
 
+	// The human-readable formats are also offered at the Envelope level so
+	// they work with the destination pipeline (which is envelope-based):
+	// `-marshal protoJson -dest stdout` prints one JSON Envelope per flush.
+	// Without these, EnvelopeMarshaller would be nil for any non-protobufList
+	// format and flushEnvelope would nil-deref.
+	x.EnvelopeMarshallers.Store(MarshallerProtoJSON, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		return x.envelopeProtoJSONMarshal(e)
+	})
+	x.EnvelopeMarshallers.Store(MarshallerProtoText, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		return x.envelopeProtoTextMarshal(e)
+	})
+	x.EnvelopeMarshallers.Store(MarshallerMsgPack, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		return x.envelopeMsgPackMarshal(e)
+	})
+
 	if f, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); ok {
 		if m, ok2 := f.(func(e *xtcp_flat_record.Envelope) (buf *[]byte)); ok2 {
 			x.EnvelopeMarshaller = m
@@ -145,6 +160,40 @@ type ByteSliceWriter struct {
 func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 	*w.Buf = append(*w.Buf, b...)
 	return len(b), nil
+}
+
+// envelopeProtoJSONMarshal marshals a whole Envelope (batch of rows) to
+// compact single-line JSON — one JSON object per flush, i.e. NDJSON when the
+// stdout destination appends a newline. Pairs with `-dest stdout` for
+// jq-able local output. (protojson.Marshal is compact; protojson.Format is
+// multi-line pretty-print and would break the one-object-per-line contract.)
+func (x *XTCP) envelopeProtoJSONMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	b, err := protojson.Marshal(e)
+	if err != nil {
+		x.pC.WithLabelValues("envelopeProtoJSONMarshal", "Marshal", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Println("protojson.Marshal(envelope) err: ", err)
+		}
+	}
+	return &b
+}
+
+// envelopeProtoTextMarshal marshals a whole Envelope to protobuf text.
+func (x *XTCP) envelopeProtoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	b := []byte(prototext.Format(e))
+	return &b
+}
+
+// envelopeMsgPackMarshal marshals a whole Envelope to MsgPack via reflection.
+func (x *XTCP) envelopeMsgPackMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+	b, err := msgpack.Marshal(e)
+	if err != nil {
+		x.pC.WithLabelValues("envelopeMsgPackMarshal", "Marshal", "error").Inc()
+		if x.debugLevel > 1000 {
+			log.Println("envelopeMsgPackMarshal err: ", err)
+		}
+	}
+	return &b
 }
 
 // protoJsonMarshal marshals to JSON.

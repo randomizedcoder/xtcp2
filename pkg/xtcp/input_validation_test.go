@@ -87,6 +87,24 @@ func TestValidateInput_happyPaths(t *testing.T) {
 				Topic:     "xtcp",
 			},
 		},
+		{
+			// stdout takes no payload, like null: both the bare form
+			// and the `:`-suffixed form must validate.
+			name: "stdout dest bare",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      schemeStdout,
+				Topic:     "xtcp",
+			},
+		},
+		{
+			name: "stdout dest with trailing colon",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      "stdout:",
+				Topic:     "xtcp",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
