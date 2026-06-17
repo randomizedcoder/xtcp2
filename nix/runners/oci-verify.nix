@@ -51,7 +51,18 @@ pkgs.writeShellApplication {
         if printf '%s\n' "$body" | grep -q '^xtcp_'; then
           echo ""
           echo "PASS: container '$name' is up and serving xtcp_ metrics."
-          printf '%s\n' "$body" | grep '^xtcp_' | head -n 3
+          # Surface socket-collection activity so it's obvious whether the
+          # daemon is observing real sockets (host network) or an empty
+          # container namespace.
+          seen="$(printf '%s\n' "$body" \
+            | grep -E 'xtcp_counts\{function="Deserialize".*variable="(n|envelopeAppend)"' \
+            || true)"
+          if [ -n "$seen" ]; then
+            echo "socket records deserialized so far:"
+            printf '%s\n' "$seen"
+          else
+            printf '%s\n' "$body" | grep '^xtcp_' | head -n 3
+          fi
           exit 0
         fi
       fi
