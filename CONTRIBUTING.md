@@ -74,6 +74,8 @@ Boot xtcp2 inside a QEMU microVM against a real kernel and real namespaces: `mic
 - `quality-report` / `update-quality-report` — print or refresh `docs/quality-report.md`.
 - `coverage-merge` — merge host + microVM Go coverage profiles.
 - `lint-fix-one -- <linter>` — auto-fix a single linter at a time (safer than `lint-fix`).
+- `oci-xtcp2-start` — load the `oci-xtcp2-min` image into the local Docker daemon and start it (`-dest null`); requires Docker. Extra args after `--` are passed to `xtcp2`.
+- `oci-xtcp2-verify` — confirm the container started by `oci-xtcp2-start` passed its capability check and is serving `xtcp_` metrics on `:9088`; exits non-zero on failure. Defined in `nix/runners/` — a parameterized factory, so a runner for another image flavor is a one-line addition there.
 - The `microvm-x86_64-*` runners (lifecycle, soak, tcp-stress, pipelines), several of which accept `-- --duration <dur>`.
 
 ## Testing

@@ -46,6 +46,10 @@ let
       ;
   };
 
+  # Local Docker runner apps: load + start + verify an OCI image without
+  # remembering the docker incantation. Exposed under both apps and packages.
+  runners = import ./runners { inherit pkgs lib containers; };
+
   # Protobuf FileDescriptorSet for the XtcpFlatRecord schema. Kept for
   # external consumers that want the .desc without standing up the whole
   # microvm (built and exposed below as the `xtcp-flat-record-desc`
@@ -303,6 +307,10 @@ in
       # TCP_SLEEP, TCP_PADS, TCP_CONNECT, TCP_BIND env vars.
       inherit (containers) oci-xtcp2-tcp-stress;
 
+      # Local Docker runner apps, also buildable as packages.
+      oci-xtcp2-start = runners.oci-start;
+      oci-xtcp2-verify = runners.oci-verify;
+
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
@@ -362,6 +370,14 @@ in
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";
+    };
+    oci-xtcp2-start = {
+      type = "app";
+      program = "${runners.oci-start}/bin/xtcp2-oci-start";
+    };
+    oci-xtcp2-verify = {
+      type = "app";
+      program = "${runners.oci-verify}/bin/xtcp2-oci-verify";
     };
     microvm-x86_64-lifecycle = {
       type = "app";
