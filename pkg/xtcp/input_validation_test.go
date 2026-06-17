@@ -105,6 +105,46 @@ func TestValidateInput_happyPaths(t *testing.T) {
 				Topic:     "xtcp",
 			},
 		},
+		{
+			name: "stderr dest bare",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      schemeStderr,
+				Topic:     "xtcp",
+			},
+		},
+		{
+			name: "file dest with path",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      "file:/var/log/xtcp.csv",
+				Topic:     "xtcp",
+			},
+		},
+		{
+			name: "tcp dest host:port",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      "tcp:127.0.0.1:9999",
+				Topic:     "xtcp",
+			},
+		},
+		{
+			name: "http dest url",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      "http://127.0.0.1:8080/ingest",
+				Topic:     "xtcp",
+			},
+		},
+		{
+			name: "https dest url with port",
+			cfg: &xtcp_config.XtcpConfig{
+				MarshalTo: MarshallerProtoJSON,
+				Dest:      "https://collector.example.com:443/v1/ingest",
+				Topic:     "xtcp",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

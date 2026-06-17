@@ -8,16 +8,18 @@ import (
 	"testing"
 )
 
-// TestWriterDestFraming verifies the reusable writerDest writes each payload
-// followed by a single newline, returns the payload byte count, and can be
-// driven entirely through an injected io.Writer — no os.Stdout needed.
-func TestWriterDestFraming(t *testing.T) {
+// TestWriterDestVerbatim verifies the reusable writerDest writes each payload
+// verbatim (framing is the marshaller's job, not the destination's), returns
+// the payload byte count, and can be driven entirely through an injected
+// io.Writer — no os.Stdout needed.
+func TestWriterDestVerbatim(t *testing.T) {
 	x := newTestXTCP(t, schemeStdout)
 	var buf bytes.Buffer
 	d := &writerDest{x: x, w: &buf, label: "destStdout"}
 	ctx := context.Background()
 
-	payloads := [][]byte{[]byte(`{"a":1}`), []byte(`{"b":2}`)}
+	// Marshallers own the newline, so payloads arrive already framed.
+	payloads := [][]byte{[]byte("{\"a\":1}\n"), []byte("{\"b\":2}\n")}
 	for _, p := range payloads {
 		b := append([]byte(nil), p...) // copy: Send must not mutate the caller's buffer
 		n, err := d.Send(ctx, &b)
@@ -43,37 +45,17 @@ func TestWriterDestFraming(t *testing.T) {
 
 var errBoom = errors.New("boom")
 
-// failingWriter fails on the Nth Write (1-indexed); earlier writes succeed
-// into buf. Used to exercise both error branches of writerDest.Send.
-type failingWriter struct {
-	failOn int
-	calls  int
-	buf    bytes.Buffer
-}
+// errWriter always fails, exercising writerDest.Send's error branch.
+type errWriter struct{}
 
-func (w *failingWriter) Write(p []byte) (int, error) {
-	w.calls++
-	if w.calls == w.failOn {
-		return 0, errBoom
-	}
-	return w.buf.Write(p)
-}
+func (errWriter) Write([]byte) (int, error) { return 0, errBoom }
 
-func TestWriterDestPayloadWriteError(t *testing.T) {
+func TestWriterDestWriteError(t *testing.T) {
 	x := newTestXTCP(t, schemeStdout)
-	d := &writerDest{x: x, w: &failingWriter{failOn: 1}, label: "destStdout"}
+	d := &writerDest{x: x, w: errWriter{}, label: "destStdout"}
 	b := []byte("x")
 	if _, err := d.Send(context.Background(), &b); err == nil {
-		t.Fatal("expected error when the payload write fails")
-	}
-}
-
-func TestWriterDestNewlineWriteError(t *testing.T) {
-	x := newTestXTCP(t, schemeStdout)
-	d := &writerDest{x: x, w: &failingWriter{failOn: 2}, label: "destStdout"}
-	b := []byte("x")
-	if _, err := d.Send(context.Background(), &b); err == nil {
-		t.Fatal("expected error when the newline write fails")
+		t.Fatal("expected error when the write fails")
 	}
 }
 

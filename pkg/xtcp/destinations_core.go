@@ -31,6 +31,11 @@ type DestinationFactory func(ctx context.Context, x *XTCP) (Destination, error)
 const (
 	schemeNull      = "null"
 	schemeStdout    = "stdout"
+	schemeStderr    = "stderr"
+	schemeFile      = "file"
+	schemeTCP       = "tcp"
+	schemeHTTP      = "http"
+	schemeHTTPS     = "https"
 	schemeUDP       = "udp"
 	schemeUnix      = "unix"
 	schemeUnixgram  = "unixgram"
@@ -51,7 +56,9 @@ const (
 // distinguish "unknown scheme" from "exists but not compiled into this
 // binary" so the operator gets the right hint.
 var knownSchemes = []string{
-	schemeNull, schemeStdout, schemeUDP, schemeUnix, schemeUnixgram,
+	schemeNull, schemeStdout, schemeStderr, schemeFile,
+	schemeTCP, schemeHTTP, schemeHTTPS,
+	schemeUDP, schemeUnix, schemeUnixgram,
 	schemeKafka, schemeNats, schemeNsq, schemeValkey,
 	schemeS3Parquet,
 }

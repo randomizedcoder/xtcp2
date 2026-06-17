@@ -614,6 +614,7 @@ func TestPrintFlags(t *testing.T) {
 	f.capturePath = &s
 	f.modulus = &n64
 	f.marshal = &s
+	f.columns = &s
 	f.envelopeFlushBytes = &n
 	f.envelopeFlushRows = &n
 	f.kafkaCompression = &s
@@ -685,6 +686,7 @@ func TestBuildConfig(t *testing.T) {
 	cp := "/tmp/cap/"
 	mod := uint64(13)
 	mar := "protoText"
+	cols := "hostname,tcpInfoRtt"
 	dst := "udp:127.0.0.1:13000"
 	dwf := uint(4)
 	topic := "topic1"
@@ -709,6 +711,7 @@ func TestBuildConfig(t *testing.T) {
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
 		writeFiles: &wf, capturePath: &cp, modulus: &mod, marshal: &mar,
+		columns:            &cols,
 		envelopeFlushBytes: &wf, envelopeFlushRows: &wf,
 		kafkaCompression:    &mar,
 		s3Endpoint:          &mar,
@@ -746,6 +749,7 @@ func TestBuildConfig(t *testing.T) {
 		{"CapturePath", c.CapturePath, "/tmp/cap/"},
 		{"Modulus", c.Modulus, uint64(13)},
 		{"MarshalTo", c.MarshalTo, "protoText"},
+		{"CsvColumns", c.CsvColumns, "hostname,tcpInfoRtt"},
 		{"Dest", c.Dest, "udp:127.0.0.1:13000"},
 		{"DestWriteFiles", c.DestWriteFiles, uint32(4)},
 		{"Topic", c.Topic, "topic1"},
