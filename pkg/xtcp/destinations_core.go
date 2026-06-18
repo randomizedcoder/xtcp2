@@ -30,6 +30,7 @@ type DestinationFactory func(ctx context.Context, x *XTCP) (Destination, error)
 // package network name accepted by net.Dial / net.Listen.
 const (
 	schemeNull      = "null"
+	schemeStdout    = "stdout"
 	schemeUDP       = "udp"
 	schemeUnix      = "unix"
 	schemeUnixgram  = "unixgram"
@@ -50,7 +51,7 @@ const (
 // distinguish "unknown scheme" from "exists but not compiled into this
 // binary" so the operator gets the right hint.
 var knownSchemes = []string{
-	schemeNull, schemeUDP, schemeUnix, schemeUnixgram,
+	schemeNull, schemeStdout, schemeUDP, schemeUnix, schemeUnixgram,
 	schemeKafka, schemeNats, schemeNsq, schemeValkey,
 	schemeS3Parquet,
 }

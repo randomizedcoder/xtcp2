@@ -26,7 +26,7 @@ func (x *XTCP) validateInput() error {
 		}
 	}
 
-	if x.config.Dest != schemeNull {
+	if x.config.Dest != schemeNull && x.config.Dest != schemeStdout {
 
 		scheme, _, found := strings.Cut(x.config.Dest, ":")
 		if !found {
@@ -45,7 +45,7 @@ func (x *XTCP) validateInput() error {
 		// schemeNullPrefix colon) failed validation as "must contain x2
 		// colons" while the registry happily had a "null" factory.
 		switch scheme {
-		case schemeUnix, schemeUnixgram, schemeNull, schemeS3Parquet:
+		case schemeUnix, schemeUnixgram, schemeNull, schemeStdout, schemeS3Parquet:
 			// only the leading `<scheme>:` separator is required; the
 			// per-destination factory validates the rest further. s3parquet
 			// accepts a URL (http://host:port) which has its own colons.

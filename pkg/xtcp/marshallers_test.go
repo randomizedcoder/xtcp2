@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -239,5 +240,59 @@ func TestInitEnvelopeMarshallers_anyDest(t *testing.T) {
 				t.Errorf("EnvelopeMarshaller nil for dest=%q", dest)
 			}
 		})
+	}
+}
+
+// TestInitEnvelopeMarshallers_humanFormats verifies the non-protobufList
+// formats are also resolvable at the Envelope level, so they work with the
+// destination pipeline (e.g. `-marshal protoJson -dest stdout`). Before this
+// they were per-record only, leaving EnvelopeMarshaller nil and panicking at
+// flush.
+func TestInitEnvelopeMarshallers_humanFormats(t *testing.T) {
+	for _, name := range []string{MarshallerProtoJSON, MarshallerProtoText, MarshallerMsgPack} {
+		t.Run(name, func(t *testing.T) {
+			x, _ := newMarshalFixture(t)
+			x.config.MarshalTo = name
+			x.config.Dest = schemeStdout
+			var wg sync.WaitGroup
+			wg.Add(1)
+			x.InitEnvelopeMarshallers(&wg)
+			wg.Wait()
+			if x.EnvelopeMarshaller == nil {
+				t.Fatalf("EnvelopeMarshaller nil for %q", name)
+			}
+			buf := x.EnvelopeMarshaller(&xtcp_flat_record.Envelope{
+				Row: []*xtcp_flat_record.XtcpFlatRecord{
+					{Hostname: "host-a", Netns: "/run/netns/ns-1", SocketFd: 11},
+				},
+			})
+			if buf == nil || len(*buf) == 0 {
+				t.Fatalf("%q envelope marshal returned empty buf", name)
+			}
+		})
+	}
+}
+
+// TestEnvelopeProtoJSONMarshal_validJSON confirms the Envelope JSON output is
+// valid JSON and carries the rows, so `-dest stdout -marshal protoJson` emits
+// parseable records.
+func TestEnvelopeProtoJSONMarshal_validJSON(t *testing.T) {
+	x, _ := newMarshalFixture(t)
+	env := &xtcp_flat_record.Envelope{
+		Row: []*xtcp_flat_record.XtcpFlatRecord{
+			{Hostname: "host-a", Netns: "/run/netns/ns-1", SocketFd: 11},
+			{Hostname: "host-b", Netns: "/run/netns/ns-2", SocketFd: 22},
+		},
+	}
+	buf := x.envelopeProtoJSONMarshal(env)
+	if buf == nil || len(*buf) == 0 {
+		t.Fatal("envelopeProtoJSONMarshal returned empty buf")
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(*buf, &decoded); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, *buf)
+	}
+	if _, ok := decoded["row"]; !ok {
+		t.Errorf("JSON envelope missing 'row' field: %s", *buf)
 	}
 }
