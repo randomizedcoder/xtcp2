@@ -245,7 +245,7 @@ message XtcpConfig {
 	string marshal_to                                = 120 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).string = {
-			min_len: 4,
+			min_len: 3,
 			max_len: 40,
 	}];
 
@@ -512,6 +512,14 @@ message XtcpConfig {
 			gte: 1,
 			lte: 4096
 	}];
+
+	// Comma-separated subset of XtcpFlatRecord json field names selecting
+	// which columns the csv/tsv marshallers emit (e.g.
+	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
+	// Empty = all fields. Ignored by non-tabular marshallers.
+	string csv_columns                                = 220 [
+		(buf.validate.field).required = false
+	];
 };
 
 message EnabledDeserializers {

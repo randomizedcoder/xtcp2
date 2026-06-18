@@ -138,6 +138,7 @@ const XtcpConfig$json = {
     {'1': 'io_uring', '3': 210, '4': 1, '5': 8, '8': {}, '10': 'ioUring'},
     {'1': 'io_uring_recv_batch_size', '3': 211, '4': 1, '5': 13, '8': {}, '10': 'ioUringRecvBatchSize'},
     {'1': 'io_uring_cqe_batch_size', '3': 212, '4': 1, '5': 13, '8': {}, '10': 'ioUringCqeBatchSize'},
+    {'1': 'csv_columns', '3': 220, '4': 1, '5': 9, '8': {}, '10': 'csvColumns'},
   ],
   '7': {},
 };
@@ -157,7 +158,7 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'dFNpemVNcGx5Ei4KC3dyaXRlX2ZpbGVzGFogASgNQg26SArIAQAqBRjoBygAUgp3cml0ZUZpbG'
     'VzEi8KDGNhcHR1cmVfcGF0aBhkIAEoCUIMukgJyAEAcgQQARhQUgtjYXB0dXJlUGF0aBIoCgdt'
     'b2R1bHVzGG4gASgEQg66SAvIAQEyBhjAhD0oAVIHbW9kdWx1cxIrCgptYXJzaGFsX3RvGHggAS'
-    'gJQgy6SAnIAQFyBBAEGChSCW1hcnNoYWxUbxJLCh5lbnZlbG9wZV9mbHVzaF90aHJlc2hvbGRf'
+    'gJQgy6SAnIAQFyBBADGChSCW1hcnNoYWxUbxJLCh5lbnZlbG9wZV9mbHVzaF90aHJlc2hvbGRf'
     'Ynl0ZXMYeiABKA1CBrpIA8gBAFIbZW52ZWxvcGVGbHVzaFRocmVzaG9sZEJ5dGVzEkkKHWVudm'
     'Vsb3BlX2ZsdXNoX3RocmVzaG9sZF9yb3dzGHsgASgNQga6SAPIAQBSGmVudmVsb3BlRmx1c2hU'
     'aHJlc2hvbGRSb3dzEjMKEWthZmthX2NvbXByZXNzaW9uGHwgASgJQga6SAPIAQBSEGthZmthQ2'
@@ -185,9 +186,10 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'emVycxIiCghpb191cmluZxjSASABKAhCBrpIA8gBAFIHaW9VcmluZxJGChhpb191cmluZ19yZW'
     'N2X2JhdGNoX3NpemUY0wEgASgNQg26SArIAQAqBRiAICgBUhRpb1VyaW5nUmVjdkJhdGNoU2l6'
     'ZRJEChdpb191cmluZ19jcWVfYmF0Y2hfc2l6ZRjUASABKA1CDbpICsgBACoFGIAgKAFSE2lvVX'
-    'JpbmdDcWVCYXRjaFNpemU6c7pIcBpuCg9YdGNwQ29uZmlnLnBvbGwSMlBvbGwgdGltZW91dCBt'
-    'dXN0IGJlIGxlc3MgdGhhbiBwb2xsIHBvbGxfZnJlcXVlbmN5Gid0aGlzLnBvbGxfZnJlcXVlbm'
-    'N5ID4gdGhpcy5wb2xsX3RpbWVvdXQ=');
+    'JpbmdDcWVCYXRjaFNpemUSKAoLY3N2X2NvbHVtbnMY3AEgASgJQga6SAPIAQBSCmNzdkNvbHVt'
+    'bnM6c7pIcBpuCg9YdGNwQ29uZmlnLnBvbGwSMlBvbGwgdGltZW91dCBtdXN0IGJlIGxlc3MgdG'
+    'hhbiBwb2xsIHBvbGxfZnJlcXVlbmN5Gid0aGlzLnBvbGxfZnJlcXVlbmN5ID4gdGhpcy5wb2xs'
+    'X3RpbWVvdXQ=');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

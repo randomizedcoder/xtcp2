@@ -374,6 +374,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.bool? ioUring,
     $core.int? ioUringRecvBatchSize,
     $core.int? ioUringCqeBatchSize,
+    $core.String? csvColumns,
   }) {
     final $result = create();
     if (nlTimeoutMilliseconds != null) {
@@ -499,6 +500,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (ioUringCqeBatchSize != null) {
       $result.ioUringCqeBatchSize = ioUringCqeBatchSize;
     }
+    if (csvColumns != null) {
+      $result.csvColumns = csvColumns;
+    }
     return $result;
   }
   XtcpConfig._() : super();
@@ -547,6 +551,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOB(210, _omitFieldNames ? '' : 'ioUring')
     ..a<$core.int>(211, _omitFieldNames ? '' : 'ioUringRecvBatchSize', $pb.PbFieldType.OU3)
     ..a<$core.int>(212, _omitFieldNames ? '' : 'ioUringCqeBatchSize', $pb.PbFieldType.OU3)
+    ..aOS(220, _omitFieldNames ? '' : 'csvColumns')
     ..hasRequiredFields = false
   ;
 
@@ -1077,6 +1082,19 @@ class XtcpConfig extends $pb.GeneratedMessage {
   $core.bool hasIoUringCqeBatchSize() => $_has(40);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
+
+  /// Comma-separated subset of XtcpFlatRecord json field names selecting
+  /// which columns the csv/tsv marshallers emit (e.g.
+  /// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
+  /// Empty = all fields. Ignored by non-tabular marshallers.
+  @$pb.TagNumber(220)
+  $core.String get csvColumns => $_getSZ(41);
+  @$pb.TagNumber(220)
+  set csvColumns($core.String v) { $_setString(41, v); }
+  @$pb.TagNumber(220)
+  $core.bool hasCsvColumns() => $_has(41);
+  @$pb.TagNumber(220)
+  void clearCsvColumns() => clearField(220);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {
