@@ -152,6 +152,8 @@ regen-protos          # buf dep update → buf lint → buf build → buf genera
 nix run .#regen-protos
 ```
 
+See [docs/protobuf-formats.md](docs/protobuf-formats.md) for a reference of every schema (config, data export, ClickHouse), the per-language generated outputs, and the `buf.validate` constraints.
+
 ## Code conventions
 
 - **Handle every error.** The codebase does not use `//nolint` suppressions; lint classes are eliminated structurally rather than silenced. Keep that standard in new code — if a linter complains, fix the cause.
