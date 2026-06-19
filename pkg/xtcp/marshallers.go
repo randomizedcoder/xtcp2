@@ -5,23 +5,23 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
-	msgpack "github.com/vmihailenco/msgpack/v5"
-	"google.golang.org/protobuf/encoding/protodelim"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
-// Canonical Marshaller names — referenced by tests and config-validation
-// alike, kept here so a typo in any one site is a compile error.
+// Canonical Marshaller names. Aliased to recordfmt's format constants so the
+// daemon (-marshal) and the xtcp2client (-format) share one source of truth;
+// the byte production lives in pkg/recordfmt, these wrappers add the daemon's
+// buffer pooling, prometheus error counting, and debug logging.
 const (
-	MarshallerProtobufList = "protobufList"
-	MarshallerProtoJSON    = "protoJson"
-	MarshallerProtoText    = "protoText"
-	MarshallerMsgPack      = "msgpack"
-	MarshallerJSONL        = "jsonl" // one JSON record per line (NDJSON / ClickHouse JSONEachRow)
-	MarshallerCSV          = "csv"   // comma-separated, humanized, header once
-	MarshallerTSV          = "tsv"   // tab-separated, humanized, header once
+	MarshallerProtobufList = recordfmt.FormatProtobufList
+	MarshallerProtoJSON    = recordfmt.FormatProtoJSON
+	MarshallerProtoText    = recordfmt.FormatProtoText
+	MarshallerMsgPack      = recordfmt.FormatMsgPack
+	MarshallerJSONL        = recordfmt.FormatJSONL    // one JSON record per line (NDJSON / ClickHouse JSONEachRow)
+	MarshallerCSV          = recordfmt.FormatCSV      // comma-separated, humanized, header once
+	MarshallerTSV          = recordfmt.FormatTSV      // tab-separated, humanized, header once
+	MarshallerHumanize     = recordfmt.FormatHumanize // one humanized JSON record per line
 )
 
 // Envelope-size safety valves. Two independent thresholds — the
@@ -44,11 +44,9 @@ const (
 )
 
 var (
-	// validMarshallersMap is the union of per-record (protoJson,
-	// protoText, msgpack — debug formats) and per-envelope (protobufList
-	// — production wire format) marshaller names. InitMarshallers and
-	// InitEnvelopeMarshallers each only populate their own registry; the
-	// per-record map will miss the protobufList key on purpose.
+	// validMarshallersMap is the union of per-record (protoJson, protoText,
+	// msgpack — debug formats) and per-envelope (protobufList — production
+	// wire format; plus jsonl/csv/tsv/humanize) marshaller names.
 	validMarshallersMap = map[string]bool{
 		MarshallerProtobufList: true, // https://clickhouse.com/docs/en/interfaces/formats/ProtobufList
 		MarshallerProtoJSON:    true,
@@ -57,6 +55,7 @@ var (
 		MarshallerJSONL:        true,
 		MarshallerCSV:          true,
 		MarshallerTSV:          true,
+		MarshallerHumanize:     true,
 	}
 )
 
@@ -65,6 +64,16 @@ func validMarshallers() (marshallers string) {
 		marshallers = marshallers + key + ","
 	}
 	return strings.TrimSuffix(marshallers, ",")
+}
+
+// marshalErr records a marshaller error: bumps the prometheus counter and logs
+// at debug. Centralizes the daemon-side error handling the recordfmt library
+// deliberately leaves to its callers.
+func (x *XTCP) marshalErr(op string, err error) {
+	x.pC.WithLabelValues(op, "marshal", "error").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("%s: %v", op, err)
+	}
 }
 
 func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
@@ -97,15 +106,12 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 	}
 }
 
-// InitEnvelopeMarshallers registers per-Envelope marshallers and stores
-// the chosen function in x.EnvelopeMarshaller. Currently the only entry
-// is protobufList — additional batched formats would register here.
+// InitEnvelopeMarshallers registers per-Envelope marshallers and stores the
+// chosen function in x.EnvelopeMarshaller. The destination pipeline is
+// envelope-based, so every -marshal value resolves here.
 //
-// Any destination is permitted: kafka receives the bytes via Produce,
-// null discards them (used in tests and -dest null deployments), other
-// destinations get the length-delimited Envelope as one record. A
-// downstream consumer that expects per-record bytes won't decode this
-// correctly, but that's a deployment choice, not a daemon-side guard.
+// Any destination is permitted: kafka receives the bytes via Produce, null
+// discards them, other destinations get the marshalled batch as one record.
 func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -113,12 +119,6 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 	x.EnvelopeMarshallers.Store(MarshallerProtobufList, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 		return x.protobufListMarshal(e)
 	})
-
-	// The human-readable formats are also offered at the Envelope level so
-	// they work with the destination pipeline (which is envelope-based):
-	// `-marshal protoJson -dest stdout` prints one JSON Envelope per flush.
-	// Without these, EnvelopeMarshaller would be nil for any non-protobufList
-	// format and flushEnvelope would nil-deref.
 	x.EnvelopeMarshallers.Store(MarshallerProtoJSON, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 		return x.envelopeProtoJSONMarshal(e)
 	})
@@ -129,10 +129,8 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 		return x.envelopeMsgPackMarshal(e)
 	})
 
-	// Tabular + per-record-line formats for easy ad-hoc analysis. csv/tsv
-	// share the reflection row encoder and humanize machine values; jsonl
-	// emits one raw JSON record per line. Registered here (see
-	// marshallers_text.go) so they flow through the envelope pipeline.
+	// jsonl / csv / tsv / humanize — the line/tabular analysis formats
+	// (see marshallers_text.go). All delegate to pkg/recordfmt.
 	x.registerTextEnvelopeMarshallers()
 
 	if f, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); ok {
@@ -142,104 +140,63 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 	}
 }
 
-// protobufListMarshal marshals an Envelope as length-delimited protobuf:
-// varint(envelope_size) || envelope_bytes. ClickHouse's
-// kafka_format='ProtobufList' expects exactly this on the wire. No
-// Confluent schema-registry header is prepended; schema-registry
-// registration in destinations_kafka is informational only (ClickHouse
-// does not consult the registry to decode messages).
-// https://clickhouse.com/docs/en/interfaces/formats#protobuflist
+// protobufListMarshal marshals an Envelope as length-delimited protobuf into a
+// pooled buffer (the production hot path). ClickHouse's
+// kafka_format='ProtobufList' expects exactly this on the wire.
 func (x *XTCP) protobufListMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-
 	buf = x.destBytesPool.Get()
-	*buf = (*buf)[:0]
-
-	writer := &ByteSliceWriter{Buf: buf}
-	if _, err := protodelim.MarshalTo(writer, e); err != nil {
-		x.pC.WithLabelValues("protoMarshal", "MarshalTo", "error").Inc()
-		if x.debugLevel > 10 {
-			log.Println("protodelim.MarshalTo(envelope) err: ", err)
-		}
+	b, err := recordfmt.AppendEnvelopeProtobufList((*buf)[:0], e)
+	if err != nil {
+		x.marshalErr("protobufListMarshal", err)
 	}
-
+	*buf = b
 	return buf
 }
 
-type ByteSliceWriter struct {
-	Buf *[]byte
-}
-
-func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
-	*w.Buf = append(*w.Buf, b...)
-	return len(b), nil
-}
-
-// envelopeProtoJSONMarshal marshals a whole Envelope (batch of rows) to
-// compact single-line JSON, newline-terminated — one JSON object per flush,
-// i.e. NDJSON. Pairs with `-dest stdout` for jq-able local output.
-// (protojson.Marshal is compact; protojson.Format is multi-line pretty-print
-// and would break the one-object-per-line contract.) The trailing newline is
-// the marshaller's framing responsibility — writerDest/tcp/http write bytes
-// verbatim.
 func (x *XTCP) envelopeProtoJSONMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	b, err := protojson.Marshal(e)
+	b, err := recordfmt.MarshalEnvelopeJSON(e)
 	if err != nil {
-		x.pC.WithLabelValues("envelopeProtoJSONMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 10 {
-			log.Println("protojson.Marshal(envelope) err: ", err)
-		}
+		x.marshalErr("envelopeProtoJSONMarshal", err)
 	}
-	b = append(b, '\n')
 	return &b
 }
 
-// envelopeProtoTextMarshal marshals a whole Envelope to protobuf text,
-// newline-terminated so consecutive flushes stay separated on a stream.
 func (x *XTCP) envelopeProtoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	b := []byte(prototext.Format(e))
-	b = append(b, '\n')
+	b, err := recordfmt.MarshalEnvelopeText(e)
+	if err != nil {
+		x.marshalErr("envelopeProtoTextMarshal", err)
+	}
 	return &b
 }
 
-// envelopeMsgPackMarshal marshals a whole Envelope to MsgPack via reflection.
 func (x *XTCP) envelopeMsgPackMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	b, err := msgpack.Marshal(e)
+	b, err := recordfmt.MarshalEnvelopeMsgPack(e)
 	if err != nil {
-		x.pC.WithLabelValues("envelopeMsgPackMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 1000 {
-			log.Println("envelopeMsgPackMarshal err: ", err)
-		}
+		x.marshalErr("envelopeMsgPackMarshal", err)
 	}
 	return &b
 }
 
-// protoJsonMarshal marshals to JSON.
-// https://pkg.go.dev/google.golang.org/protobuf/encoding/protojson
 func (x *XTCP) protoJsonMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	b := []byte(protojson.Format(r))
-	buf = &b
-	return buf
-}
-
-// protoTextMarshal marshals to prototext.
-// https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext
-func (x *XTCP) protoTextMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	b := []byte(prototext.Format(r))
-	buf = &b
-	return buf
-}
-
-// protoMsgPackMarshal marshals to MsgPack via reflection.
-// https://msgpack.uptrace.dev/
-// TODO consider https://github.com/shamaton/msgpackgen for codegen-based throughput.
-func (x *XTCP) protoMsgPackMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
-	b, err := msgpack.Marshal(r)
+	b, err := recordfmt.MarshalJSON(r)
 	if err != nil {
-		x.pC.WithLabelValues("protoMsgPackMarshal", "Marshal", "error").Inc()
-		if x.debugLevel > 1000 {
-			log.Println("protoMsgPackMarshal err: ", err)
-		}
+		x.marshalErr("protoJsonMarshal", err)
 	}
-	buf = &b
-	return buf
+	return &b
+}
+
+func (x *XTCP) protoTextMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	b, err := recordfmt.MarshalText(r)
+	if err != nil {
+		x.marshalErr("protoTextMarshal", err)
+	}
+	return &b
+}
+
+func (x *XTCP) protoMsgPackMarshal(r *xtcp_flat_record.XtcpFlatRecord) (buf *[]byte) {
+	b, err := recordfmt.MarshalMsgPack(r)
+	if err != nil {
+		x.marshalErr("protoMsgPackMarshal", err)
+	}
+	return &b
 }
