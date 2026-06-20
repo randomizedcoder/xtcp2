@@ -58,6 +58,7 @@ The captured netlink `.pcap` fixture corpus spanning many kernel versions, the r
 
 See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, the full set of Nix build/test targets, the automated test suite (unit, race, per-flavor, and microVM integration tests), linting tiers, and protobuf regeneration. Related references:
 
+- [Protobuf formats](protobuf-formats.md) — the config/data/ClickHouse schemas, generated code, and how to regenerate.
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
 - [Quality report](quality-report.md) — auto-generated linter/coverage status.
