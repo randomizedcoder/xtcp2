@@ -198,6 +198,7 @@ The Parquet columns are generated from the [`ParquetRow`](../pkg/xtcp/destinatio
 
 ## See also
 
+- [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering, once the data is loaded.
 - [Protobuf formats](protobuf-formats.md) — the canonical schema and field semantics.
 - [Output formats & destinations](output-and-destinations.md) — the S3/Parquet destination and the alternative humanized CSV/JSON formats.
 - [Build flavors](build-flavors.md) — enabling the `s3parquet` destination.

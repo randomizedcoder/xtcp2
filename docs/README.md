@@ -60,6 +60,7 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 
 - [Protobuf formats](protobuf-formats.md) — the config/data/ClickHouse schemas, generated code, and how to regenerate.
 - [Parquet format](parquet-format.md) — the S3/Parquet layout and schema, for data teams consuming the export.
+- [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
 - [Quality report](quality-report.md) — auto-generated linter/coverage status.
