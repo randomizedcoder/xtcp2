@@ -19,6 +19,9 @@ const (
 	MarshallerProtoJSON    = "protoJson"
 	MarshallerProtoText    = "protoText"
 	MarshallerMsgPack      = "msgpack"
+	MarshallerJSONL        = "jsonl" // one JSON record per line (NDJSON / ClickHouse JSONEachRow)
+	MarshallerCSV          = "csv"   // comma-separated, humanized, header once
+	MarshallerTSV          = "tsv"   // tab-separated, humanized, header once
 )
 
 // Envelope-size safety valves. Two independent thresholds — the
@@ -51,6 +54,9 @@ var (
 		MarshallerProtoJSON:    true,
 		MarshallerProtoText:    true,
 		MarshallerMsgPack:      true,
+		MarshallerJSONL:        true,
+		MarshallerCSV:          true,
+		MarshallerTSV:          true,
 	}
 )
 
@@ -123,6 +129,12 @@ func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 		return x.envelopeMsgPackMarshal(e)
 	})
 
+	// Tabular + per-record-line formats for easy ad-hoc analysis. csv/tsv
+	// share the reflection row encoder and humanize machine values; jsonl
+	// emits one raw JSON record per line. Registered here (see
+	// marshallers_text.go) so they flow through the envelope pipeline.
+	x.registerTextEnvelopeMarshallers()
+
 	if f, ok := x.EnvelopeMarshallers.Load(x.config.MarshalTo); ok {
 		if m, ok2 := f.(func(e *xtcp_flat_record.Envelope) (buf *[]byte)); ok2 {
 			x.EnvelopeMarshaller = m
@@ -163,10 +175,12 @@ func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
 }
 
 // envelopeProtoJSONMarshal marshals a whole Envelope (batch of rows) to
-// compact single-line JSON — one JSON object per flush, i.e. NDJSON when the
-// stdout destination appends a newline. Pairs with `-dest stdout` for
-// jq-able local output. (protojson.Marshal is compact; protojson.Format is
-// multi-line pretty-print and would break the one-object-per-line contract.)
+// compact single-line JSON, newline-terminated — one JSON object per flush,
+// i.e. NDJSON. Pairs with `-dest stdout` for jq-able local output.
+// (protojson.Marshal is compact; protojson.Format is multi-line pretty-print
+// and would break the one-object-per-line contract.) The trailing newline is
+// the marshaller's framing responsibility — writerDest/tcp/http write bytes
+// verbatim.
 func (x *XTCP) envelopeProtoJSONMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b, err := protojson.Marshal(e)
 	if err != nil {
@@ -175,12 +189,15 @@ func (x *XTCP) envelopeProtoJSONMarshal(e *xtcp_flat_record.Envelope) (buf *[]by
 			log.Println("protojson.Marshal(envelope) err: ", err)
 		}
 	}
+	b = append(b, '\n')
 	return &b
 }
 
-// envelopeProtoTextMarshal marshals a whole Envelope to protobuf text.
+// envelopeProtoTextMarshal marshals a whole Envelope to protobuf text,
+// newline-terminated so consecutive flushes stay separated on a stream.
 func (x *XTCP) envelopeProtoTextMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
 	b := []byte(prototext.Format(e))
+	b = append(b, '\n')
 	return &b
 }
 

@@ -860,6 +860,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     kKafkaSchemaUrlFieldNumber = 145,
     kLabelFieldNumber = 170,
     kTagFieldNumber = 180,
+    kCsvColumnsFieldNumber = 220,
     kPollFrequencyFieldNumber = 20,
     kPollTimeoutFieldNumber = 30,
     kKafkaProduceTimeoutFieldNumber = 150,
@@ -1157,6 +1158,22 @@ class XtcpConfig final : public ::google::protobuf::Message
   std::string* _internal_mutable_tag();
 
   public:
+  // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
+  void clear_csv_columns() ;
+  const std::string& csv_columns() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_csv_columns(Arg_&& arg, Args_... args);
+  std::string* mutable_csv_columns();
+  PROTOBUF_NODISCARD std::string* release_csv_columns();
+  void set_allocated_csv_columns(std::string* value);
+
+  private:
+  const std::string& _internal_csv_columns() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_csv_columns(
+      const std::string& value);
+  std::string* _internal_mutable_csv_columns();
+
+  public:
   // .google.protobuf.Duration poll_frequency = 20 [json_name = "pollFrequency", (.buf.validate.field) = {
   bool has_poll_frequency() const;
   void clear_poll_frequency() ;
@@ -1422,8 +1439,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 41, 4,
-      256, 27>
+      5, 42, 4,
+      267, 29>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1459,6 +1476,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
+    ::google::protobuf::internal::ArenaStringPtr csv_columns_;
     ::google::protobuf::Duration* poll_frequency_;
     ::google::protobuf::Duration* poll_timeout_;
     ::google::protobuf::Duration* kafka_produce_timeout_;
@@ -4502,6 +4520,54 @@ inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
 inline void XtcpConfig::_internal_set_io_uring_cqe_batch_size(::uint32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_cqe_batch_size_ = value;
+}
+
+// string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
+inline void XtcpConfig::clear_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::csv_columns() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.csv_columns)
+  return _internal_csv_columns();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_csv_columns(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.csv_columns)
+}
+inline std::string* XtcpConfig::mutable_csv_columns() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_csv_columns();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.csv_columns)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_csv_columns() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.csv_columns_.Get();
+}
+inline void XtcpConfig::_internal_set_csv_columns(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.csv_columns_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.csv_columns)
+  return _impl_.csv_columns_.Release();
+}
+inline void XtcpConfig::set_allocated_csv_columns(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.csv_columns_.IsDefault()) {
+    _impl_.csv_columns_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.csv_columns)
 }
 
 // -------------------------------------------------------------------

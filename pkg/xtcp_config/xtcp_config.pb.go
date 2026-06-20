@@ -479,8 +479,13 @@ type XtcpConfig struct {
 	// userland loop overhead but increase scheduling latency for the
 	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
 	IoUringCqeBatchSize uint32 `protobuf:"varint,212,opt,name=io_uring_cqe_batch_size,json=ioUringCqeBatchSize,proto3" json:"io_uring_cqe_batch_size,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Comma-separated subset of XtcpFlatRecord json field names selecting
+	// which columns the csv/tsv marshallers emit (e.g.
+	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
+	// Empty = all fields. Ignored by non-tabular marshallers.
+	CsvColumns    string `protobuf:"bytes,220,opt,name=csv_columns,json=csvColumns,proto3" json:"csv_columns,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -800,6 +805,13 @@ func (x *XtcpConfig) GetIoUringCqeBatchSize() uint32 {
 	return 0
 }
 
+func (x *XtcpConfig) GetCsvColumns() string {
+	if x != nil {
+		return x.CsvColumns
+	}
+	return ""
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -863,7 +875,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xe8\x12\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x92\x13\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -887,7 +899,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fcapture_path\x18d \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\vcapturePath\x12(\n" +
 	"\amodulus\x18n \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xc0\x84=(\x01R\amodulus\x12+\n" +
 	"\n" +
-	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x04\x18(R\tmarshalTo\x12K\n" +
+	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x03\x18(R\tmarshalTo\x12K\n" +
 	"\x1eenvelope_flush_threshold_bytes\x18z \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
 	"\x1denvelope_flush_threshold_rows\x18{ \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows\x123\n" +
 	"\x11kafka_compression\x18| \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12'\n" +
@@ -924,7 +936,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x18io_uring_recv_batch_size\x18\xd3\x01 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x14ioUringRecvBatchSize\x12D\n" +
 	"\x17io_uring_cqe_batch_size\x18\xd4\x01 \x01(\rB\r\xbaH\n" +
-	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize:s\xbaHp\x1an\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12(\n" +
+	"\vcsv_columns\x18\xdc\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
+	"csvColumns:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +

@@ -386,6 +386,10 @@
           "type": "integer",
           "format": "int64",
           "description": "Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise\nuserland loop overhead but increase scheduling latency for the\nnetlinker goroutine. Ignored unless io_uring=true. Default 128."
+        },
+        "csvColumns": {
+          "type": "string",
+          "description": "Comma-separated subset of XtcpFlatRecord json field names selecting\nwhich columns the csv/tsv marshallers emit (e.g.\n\"hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt\").\nEmpty = all fields. Ignored by non-tabular marshallers."
         }
       },
       "title": "xtcp configuration"
