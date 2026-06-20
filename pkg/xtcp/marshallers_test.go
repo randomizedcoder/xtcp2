@@ -87,28 +87,7 @@ func TestProtoMsgPackMarshal_roundtrip(t *testing.T) {
 	}
 }
 
-// ByteSliceWriter appends raw bytes onto its target.
-func TestByteSliceWriter_Write(t *testing.T) {
-	buf := []byte{}
-	w := &ByteSliceWriter{Buf: &buf}
-	n, err := w.Write([]byte("hello"))
-	if err != nil {
-		t.Fatalf("Write returned error: %v", err)
-	}
-	if n != 5 {
-		t.Errorf("Write returned n=%d, want 5", n)
-	}
-	if string(buf) != "hello" {
-		t.Errorf("buf = %q, want hello", buf)
-	}
-	// Subsequent writes append.
-	if _, err := w.Write([]byte(" world")); err != nil {
-		t.Fatalf("Write append err: %v", err)
-	}
-	if string(buf) != "hello world" {
-		t.Errorf("buf = %q, want hello world", buf)
-	}
-}
+// (length-delimited encoding is now exercised in pkg/recordfmt.)
 
 // InitMarshallers with an invalid MarshalTo: fatalf fires once (the
 // early-return path); the function exits without populating x.Marshaller.

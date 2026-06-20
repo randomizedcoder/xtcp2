@@ -1,31 +1,37 @@
 package xtcp
 
 import (
-	"bytes"
-	"encoding/csv"
-	"log"
 	"sync/atomic"
 
+	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // registerTextEnvelopeMarshallers wires the line/tabular envelope marshallers
-// (jsonl, csv, tsv) into x.EnvelopeMarshallers. Each is an envelope marshaller
-// that iterates Envelope.Row and owns its trailing-newline framing (writerDest
-// and the tcp/http sinks write bytes verbatim).
-//
-// csv/tsv resolve their column set from -columns once here; an invalid spec
-// fatals at init only when one of them is the selected format, so a stray
-// -columns alongside protoJson is harmless.
+// (jsonl, humanize, csv, tsv) into x.EnvelopeMarshallers. Each delegates to
+// pkg/recordfmt and adds the daemon's error counting. csv/tsv resolve their
+// column set from -columns once here; an invalid spec fatals at init only when
+// one of them is the selected format, so a stray -columns alongside protoJson
+// is harmless. The header is emitted once per process (atomic guard).
 func (x *XTCP) registerTextEnvelopeMarshallers() {
 	x.EnvelopeMarshallers.Store(MarshallerJSONL, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-		return x.envelopeJSONLMarshal(e)
+		b, err := recordfmt.MarshalEnvelopeJSONL(e)
+		if err != nil {
+			x.marshalErr("envelopeJSONLMarshal", err)
+		}
+		return &b
+	})
+	x.EnvelopeMarshallers.Store(MarshallerHumanize, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
+		b, err := recordfmt.MarshalEnvelopeHumanizedJSONL(e)
+		if err != nil {
+			x.marshalErr("envelopeHumanizedJSONLMarshal", err)
+		}
+		return &b
 	})
 
-	cols := flatColumns()
+	cols := recordfmt.AllColumns()
 	if x.config.MarshalTo == MarshallerCSV || x.config.MarshalTo == MarshallerTSV {
-		c, err := selectColumns(x.config.CsvColumns)
+		c, err := recordfmt.SelectColumns(x.config.CsvColumns)
 		if err != nil {
 			x.callFatalf("InitEnvelopeMarshallers -columns: %v", err)
 			return
@@ -37,69 +43,17 @@ func (x *XTCP) registerTextEnvelopeMarshallers() {
 	// exactly once per process on whichever stream they feed.
 	var csvHeader, tsvHeader atomic.Bool
 	x.EnvelopeMarshallers.Store(MarshallerCSV, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-		return x.envelopeDelimitedMarshal(e, cols, ',', &csvHeader)
+		b, err := recordfmt.MarshalEnvelopeTable(e, cols, ',', csvHeader.CompareAndSwap(false, true))
+		if err != nil {
+			x.marshalErr("envelopeCSVMarshal", err)
+		}
+		return &b
 	})
 	x.EnvelopeMarshallers.Store(MarshallerTSV, func(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-		return x.envelopeDelimitedMarshal(e, cols, '\t', &tsvHeader)
-	})
-}
-
-// envelopeJSONLMarshal emits one compact JSON object per row, each on its own
-// line (NDJSON / ClickHouse JSONEachRow). Values are raw (machine) — use
-// csv/tsv for humanized addresses/states.
-func (x *XTCP) envelopeJSONLMarshal(e *xtcp_flat_record.Envelope) (buf *[]byte) {
-	var b bytes.Buffer
-	for _, r := range e.Row {
-		line, err := protojson.Marshal(r)
+		b, err := recordfmt.MarshalEnvelopeTable(e, cols, '\t', tsvHeader.CompareAndSwap(false, true))
 		if err != nil {
-			x.pC.WithLabelValues("envelopeJSONLMarshal", "Marshal", "error").Inc()
-			if x.debugLevel > 10 {
-				log.Println("envelopeJSONLMarshal protojson.Marshal err: ", err)
-			}
-			continue
+			x.marshalErr("envelopeTSVMarshal", err)
 		}
-		b.Write(line)
-		b.WriteByte('\n')
-	}
-	out := b.Bytes()
-	return &out
-}
-
-// envelopeDelimitedMarshal renders the envelope's rows as delimited text
-// (CSV or TSV depending on comma), humanized, with the header written once.
-// encoding/csv already terminates every record with '\n', so the block is
-// self-framing.
-func (x *XTCP) envelopeDelimitedMarshal(e *xtcp_flat_record.Envelope, cols []flatCol, comma rune, headerWritten *atomic.Bool) (buf *[]byte) {
-	var b bytes.Buffer
-	w := csv.NewWriter(&b)
-	w.Comma = comma
-
-	if headerWritten.CompareAndSwap(false, true) {
-		if err := w.Write(flatRecordHeader(cols)); err != nil {
-			x.pC.WithLabelValues("envelopeDelimitedMarshal", "header", "error").Inc()
-			if x.debugLevel > 10 {
-				log.Println("envelopeDelimitedMarshal header err: ", err)
-			}
-		}
-	}
-
-	for _, r := range e.Row {
-		if err := w.Write(flatRecordValues(r, cols, true)); err != nil {
-			x.pC.WithLabelValues("envelopeDelimitedMarshal", "row", "error").Inc()
-			if x.debugLevel > 10 {
-				log.Println("envelopeDelimitedMarshal row err: ", err)
-			}
-		}
-	}
-
-	w.Flush()
-	if err := w.Error(); err != nil {
-		x.pC.WithLabelValues("envelopeDelimitedMarshal", "flush", "error").Inc()
-		if x.debugLevel > 10 {
-			log.Println("envelopeDelimitedMarshal flush err: ", err)
-		}
-	}
-
-	out := b.Bytes()
-	return &out
+		return &b
+	})
 }

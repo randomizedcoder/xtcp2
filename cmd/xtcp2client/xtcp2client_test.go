@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -11,6 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
@@ -23,38 +27,105 @@ func TestNewGRPCClient(t *testing.T) {
 	_ = conn.Close()
 }
 
-func TestPrintFlatRecordsResponse_silent(t *testing.T) {
-	// debugLevel 0 → no log output, just the early-return path.
-	resp := &xtcp_flat_record.FlatRecordsResponse{
-		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "h1"},
+func newBufPrinter(t *testing.T, format string) (*recordPrinter, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	p, err := newRecordPrinter(&buf, format, "")
+	if err != nil {
+		t.Fatalf("newRecordPrinter(%q): %v", format, err)
 	}
-	printFlatRecordsResponse(resp, 1, false, 0)
-	printFlatRecordsResponse(resp, 1, true, 0)
+	return p, &buf
 }
 
-func TestPrintFlatRecordsResponse_verbose(t *testing.T) {
-	resp := &xtcp_flat_record.FlatRecordsResponse{
-		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "h2"},
-	}
-	// debugLevel > 10 → both proto.Marshal branch AND the per-format printing.
-	printFlatRecordsResponse(resp, 7, false, 11)
-	printFlatRecordsResponse(resp, 7, true, 11) // json branch
+func nullPrinter() *recordPrinter {
+	p, _ := newRecordPrinter(io.Discard, recordfmt.FormatNull, "")
+	return p
 }
 
-func TestPrintPollFlatRecordsResponse_silent(t *testing.T) {
-	resp := &xtcp_flat_record.PollFlatRecordsResponse{
-		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "p1"},
+func sampleClientRecord() *xtcp_flat_record.XtcpFlatRecord {
+	return &xtcp_flat_record.XtcpFlatRecord{
+		Hostname:                "h1",
+		InetDiagMsgFamily:       2,
+		InetDiagMsgSocketSource: []byte{10, 0, 0, 5},
+		InetDiagMsgState:        10, // LISTEN
+		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
 	}
-	printPollFlatRecordsResponse(resp, 1, false, 0)
-	printPollFlatRecordsResponse(resp, 1, true, 0)
 }
 
-func TestPrintPollFlatRecordsResponse_verbose(t *testing.T) {
-	resp := &xtcp_flat_record.PollFlatRecordsResponse{
-		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "p2"},
+func TestRecordPrinter_formats(t *testing.T) {
+	rec := sampleClientRecord()
+
+	t.Run("json", func(t *testing.T) {
+		p, buf := newBufPrinter(t, recordfmt.FormatJSON)
+		p.record(rec)
+		if !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+			t.Error("json line must end with newline")
+		}
+		var m map[string]any
+		if err := json.Unmarshal(bytes.TrimRight(buf.Bytes(), "\n"), &m); err != nil {
+			t.Fatalf("not valid JSON: %v", err)
+		}
+	})
+
+	t.Run("humanize", func(t *testing.T) {
+		p, buf := newBufPrinter(t, recordfmt.FormatHumanize)
+		p.record(rec)
+		var m map[string]any
+		if err := json.Unmarshal(bytes.TrimRight(buf.Bytes(), "\n"), &m); err != nil {
+			t.Fatalf("not valid JSON: %v", err)
+		}
+		if m["inetDiagMsgState"] != "LISTEN" {
+			t.Errorf("state not humanized: %v", m["inetDiagMsgState"])
+		}
+	})
+
+	t.Run("csv_header_once", func(t *testing.T) {
+		p, buf := newBufPrinter(t, recordfmt.FormatCSV)
+		p.record(rec)
+		p.record(rec)
+		rows, err := csv.NewReader(bytes.NewReader(buf.Bytes())).ReadAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 3 { // header + 2 records
+			t.Fatalf("want header+2 rows, got %d: %v", len(rows), rows)
+		}
+	})
+
+	t.Run("null_empty", func(t *testing.T) {
+		p, buf := newBufPrinter(t, recordfmt.FormatNull)
+		p.record(rec)
+		if buf.Len() != 0 {
+			t.Errorf("null should write nothing, got %q", buf.String())
+		}
+	})
+
+	t.Run("unknown_errors", func(t *testing.T) {
+		if _, err := newRecordPrinter(&bytes.Buffer{}, "xml", ""); err == nil {
+			t.Error("expected error for unknown format")
+		}
+	})
+
+	t.Run("bad_columns_errors", func(t *testing.T) {
+		if _, err := newRecordPrinter(&bytes.Buffer{}, recordfmt.FormatCSV, "nope"); err == nil {
+			t.Error("expected error for unknown column")
+		}
+	})
+}
+
+// printFlatRecordsResponse / printPollFlatRecordsResponse route through the
+// printer; verify both write something for a populated record.
+func TestPrintResponses(t *testing.T) {
+	p, buf := newBufPrinter(t, recordfmt.FormatJSON)
+	printFlatRecordsResponse(&xtcp_flat_record.FlatRecordsResponse{
+		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "h"},
+	}, 1, p, 0)
+	printPollFlatRecordsResponse(&xtcp_flat_record.PollFlatRecordsResponse{
+		XtcpFlatRecord: &xtcp_flat_record.XtcpFlatRecord{Hostname: "p"},
+	}, 7, p, 11)
+	if buf.Len() == 0 {
+		t.Error("expected printer output")
 	}
-	printPollFlatRecordsResponse(resp, 7, false, 11)
-	printPollFlatRecordsResponse(resp, 7, true, 11)
 }
 
 func TestFastRandN(t *testing.T) {
@@ -211,7 +282,7 @@ func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 
 func TestListenMode_workersZeroNoOp(t *testing.T) {
 	complete := make(chan struct{}, 1)
-	listenMode(t.Context(), "127.0.0.1:0", 0, &complete, false)
+	listenMode(t.Context(), "127.0.0.1:0", 0, &complete, nullPrinter())
 	// wg.Wait returned immediately; complete signal sent.
 }
 
@@ -223,7 +294,7 @@ func TestListenMode_oneWorkerCancellable(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		listenMode(ctx, addr, 1, &complete, false)
+		listenMode(ctx, addr, 1, &complete, nullPrinter())
 		close(done)
 	}()
 	// Give the worker time to dial + open the stream.
@@ -244,7 +315,7 @@ func TestPollMode_dialAndCancel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(ctx, addr, &complete, 50*time.Millisecond, false, 0)
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(150 * time.Millisecond) // let one tick fire
@@ -263,7 +334,7 @@ func TestPollMode_completeChannel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(t.Context(), addr, &complete, time.Hour, false, 0)
+		pollMode(t.Context(), addr, &complete, time.Hour, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -287,7 +358,7 @@ func TestPollMode_recordingServer(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		// debugLevel=11 hits more printPollFlatRecordsResponse log branches.
-		pollMode(ctx, addr, &complete, 50*time.Millisecond, true, 11)
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 11)
 		close(done)
 	}()
 	// Let one tick fire so stream.Send + server.Recv complete.
@@ -318,7 +389,7 @@ func TestStream_recordingServer(t *testing.T) {
 	go func() {
 		// debugLevel=200 hits the per-record + EOF log paths.
 		debugLevel = 200
-		stream(ctx, wg, conn, true, 0)
+		stream(ctx, wg, conn, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(200 * time.Millisecond)
@@ -349,7 +420,7 @@ func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		debugLevel = 200 // hit the restart log branch
-		singleStreamingClient(ctx, wg, addr, false, 0)
+		singleStreamingClient(ctx, wg, addr, nullPrinter(), 0)
 		close(done)
 	}()
 	// Let stream() complete + sleep at least once before cancel.
@@ -375,7 +446,7 @@ func TestSingleStreamingClient_preCancelled(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		singleStreamingClient(ctx, wg, addr, false, 0)
+		singleStreamingClient(ctx, wg, addr, nullPrinter(), 0)
 		close(done)
 	}()
 	select {
@@ -399,7 +470,7 @@ func TestStream_dialAndCancel(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		stream(ctx, wg, conn, false, 0)
+		stream(ctx, wg, conn, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)
