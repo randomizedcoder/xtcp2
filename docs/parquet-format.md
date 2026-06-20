@@ -68,7 +68,7 @@ df = dataset.to_table(columns=["timestamp_ns","hostname","tcp_info_rtt"]).to_pan
 -- partitions (host string, date string, hour string); project columns you need.
 ```
 
-**Always select only the columns you need** — there are ~120, and columnar pruning is where Parquet earns its keep. Likewise filter on `date`/`hour` for partition pruning.
+**Always select only the columns you need** — there are 122, and columnar pruning is where Parquet earns its keep. Likewise filter on `date`/`hour` for partition pruning.
 
 ## Loading into Snowflake
 
@@ -172,7 +172,7 @@ A few columns are stored as machine values for fidelity/size and need decoding f
 
 ## Full schema and column types
 
-The complete column list (~120) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns:
+The complete column list (122 columns) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns:
 
 - **Metadata** — `timestamp_ns` (double), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
 - **`inet_diag_msg_*`** — the socket id/4-tuple, state, queues, uid/inode, ASN annotations.
