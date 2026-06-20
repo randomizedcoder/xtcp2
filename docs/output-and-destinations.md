@@ -79,6 +79,8 @@ Notes on the stream sinks:
 
 `pkg/xtcp/destinations_s3parquet.go` (build tag `dest_s3parquet`) writes Hive-partitioned Parquet files to an S3-compatible store (e.g. MinIO) instead of streaming to a broker. The record-to-Parquet schema mapping is in `destinations_s3parquet_schema.go`. Files are partitioned `host=…/date=…/hour=…/<file>.parquet` and finalized/uploaded when the in-memory builder crosses `-s3ParquetFlushBytes` (default 63 MiB uncompressed). Credentials and endpoint come from `-s3*` flags or `S3_*` environment variables; the bucket must already exist.
 
+For a consumer-facing reference of the Parquet layout, schema, and the key TCP columns — written for a **data team** ingesting this into an enterprise platform — see [parquet-format.md](parquet-format.md).
+
 ## The record schema
 
 The per-socket record and its batch wrapper are defined in `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
