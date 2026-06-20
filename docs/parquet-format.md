@@ -9,6 +9,7 @@ The short version: when xtcp2 runs with the S3/Parquet destination it writes **H
 - [Where the files land](#where-the-files-land)
 - [File size, cadence, and compression](#file-size-cadence-and-compression)
 - [Reading the data](#reading-the-data)
+- [Loading into Snowflake](#loading-into-snowflake)
 - [The grain: one row per socket per poll](#the-grain-one-row-per-socket-per-poll)
 - [Start here: the columns that matter](#start-here-the-columns-that-matter)
 - [Decoding cheat sheet](#decoding-cheat-sheet)
@@ -68,6 +69,41 @@ df = dataset.to_table(columns=["timestamp_ns","hostname","tcp_info_rtt"]).to_pan
 ```
 
 **Always select only the columns you need** — there are ~120, and columnar pruning is where Parquet earns its keep. Likewise filter on `date`/`hour` for partition pruning.
+
+## Loading into Snowflake
+
+If your platform team already manages an S3 storage integration, ingesting is a few statements. The column names match the Parquet schema, so name-based matching does the mapping for you.
+
+```sql
+-- One-time: a Parquet file format and an external stage over the prefix.
+-- STORAGE_INTEGRATION is the bucket grant your platform team provisions.
+CREATE OR REPLACE FILE FORMAT xtcp_parquet TYPE = PARQUET;
+
+CREATE OR REPLACE STAGE xtcp_stage
+  URL = 's3://bucket/xtcp/'
+  STORAGE_INTEGRATION = my_s3_int
+  FILE_FORMAT = xtcp_parquet;
+
+-- Auto-create a table whose columns mirror the Parquet schema.
+CREATE OR REPLACE TABLE xtcp_flat_records
+  USING TEMPLATE (
+    SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*))
+    FROM TABLE(INFER_SCHEMA(LOCATION => '@xtcp_stage', FILE_FORMAT => 'xtcp_parquet'))
+  );
+
+-- Load. MATCH_BY_COLUMN_NAME maps Parquet columns → table columns by name.
+COPY INTO xtcp_flat_records
+  FROM @xtcp_stage
+  FILE_FORMAT = (TYPE = PARQUET)
+  MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+```
+
+For **continuous, query-in-place** ingestion instead of a one-shot load, define an external table with `AUTO_REFRESH = TRUE` (backed by Snowpipe + an S3 event notification) over the same stage.
+
+Two Snowflake-specific notes:
+
+- **Partitions live in the path, not the file.** Snowflake won't surface `host`/`date`/`hour` automatically the way Spark/Trino do — derive them from `metadata$filename` (e.g. `REGEXP_SUBSTR(metadata$filename, 'date=([^/]+)', 1, 1, 'e', 1)`) as virtual columns on an external table, or as extra columns during `COPY` via a transform. They make great clustering/pruning keys.
+- **The two IP-address columns load as `BINARY`.** Decode them with `inet_diag_msg_family` as in the [cheat sheet](#decoding-cheat-sheet) — or, if you'd rather not decode in SQL, point the daemon at the humanized CSV/JSON output instead (see [output formats](output-and-destinations.md)).
 
 ## The grain: one row per socket per poll
 
