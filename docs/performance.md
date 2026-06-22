@@ -43,21 +43,18 @@ Tuning:
 
 xtcp2 ships with [profile-guided optimization](https://go.dev/doc/pgo) enabled. A representative CPU profile lives at `cmd/xtcp2/default.pgo`; Go's default `-pgo=auto` (and the Nix `buildGoModule` in `nix/lib/mkGoBinary.nix`) picks it up automatically, so every build is PGO-optimized with no extra flags. PGO lets the compiler make better inlining and devirtualization decisions on the hot paths the profile exercises — netlink deserialization (`pkg/xtcp/deserialize.go`, `pkg/xtcpnl`) and record marshalling (`pkg/recordfmt`).
 
-The committed profile was captured under a synthetic ~2,000-socket load with the `protoJson` and `protobufList` marshallers blended. Measured against the `pkg/recordfmt` benchmarks (`benchstat`, `-count=8`), it gives a meaningful win on the marshalling path — the daemon's CPU-dominant work after the netlink syscalls themselves:
+The committed profile was captured under a synthetic ~2,000-socket load with the `protoJson` and `protobufList` marshallers blended, from a daemon that already includes the structural marshalling optimizations (the O(1) envelope size-cap accumulator and vtprotobuf-generated `MarshalVT`/`SizeVT`). With those in place the collector is **I/O-bound**: in the captured profile ~46% of samples are the netlink `Syscall6`, the reflective `proto.Size`/marshal cost is gone, and the largest remaining Go hot path is `protojson` on the JSON output formats (~22% in the JSON window).
 
-| Benchmark | PGO off → on |
-|---|---|
-| `MarshalEnvelopeProtobufList` (Kafka path) | **−12.9%** |
-| `AppendEnvelopeProtobufList` (pooled flush) | **−13.8%** |
-| `MarshalEnvelopeJSONL` | **−11.3%** |
-| `MarshalJSON` (per record) | **−10.4%** |
-| `recordfmt` geomean | **−7.3%** |
+Because the CPU-heavy reflective marshalling has been removed structurally, **PGO's residual benefit is now small** — it mainly helps the remaining `protojson` path and assorted Go code, and is not a meaningful speedup on the production protobufList/Kafka path, which is already reflection-free. PGO is kept because it is free (auto-applied) and compounding, not because it is a primary optimization here. Refresh it from representative production traffic for best results.
 
-The `pkg/xtcpnl` typed parsers are already sub-10 ns and dominated by memory loads, so PGO is mostly noise there (geomean ≈ −1%); the reflection fallbacks improve ~3–6%. PGO is a free, compounding win on top of the structural optimizations above, not a substitute for them — refresh it from production traffic for best results.
+### Resolved: envelope size-cap & reflective marshalling
 
-### Known hot spot: envelope size-cap
+Earlier profiles showed `google.golang.org/protobuf/proto.Size` at ~40% of non-idle CPU: the envelope size-cap re-walked the **entire** growing envelope every 64 appends (O(rows² / 64)), and the protobufList marshal went through the reflective protobuf runtime. Both are now fixed:
 
-A CPU profile of the running daemon shows `google.golang.org/protobuf/proto.Size` accounting for ~40% of non-idle samples. It is called from the envelope size-cap in `pkg/xtcp/deserialize.go` (every `envelopeSizeCheckModulus` = 64 appends) and re-walks the **entire** growing envelope each time, so the cost over a full batch is roughly O(rows² / 64). Maintaining a running byte accumulator — adding each record's `proto.Size` once at append time instead of re-measuring the whole envelope — would turn this into O(rows). This is the single largest CPU win available and is tracked as a follow-up (PGO alone already recovers part of it via better inlining).
+- the size-cap keeps an **O(1) running byte accumulator** (`pkg/xtcp/deserialize.go`, `envelopeRowBytes` in `pkg/xtcp/marshallers.go`) — each row's exact wire size is added once at append time, equal to `proto.Size(Envelope)` but without the per-check walk;
+- the protobufList marshal uses **vtprotobuf**'s generated, reflection-free `SizeVT` / `MarshalToSizedBufferVT` (`pkg/recordfmt/marshal_envelope.go`).
+
+A retest under the same synthetic load shows total daemon CPU roughly halved and the entire `proto.Size`/reflective-marshal tree gone — the daemon is now netlink-I/O-bound (`Syscall6` is the dominant cost). The next CPU lever is the netlink read path itself (the optional [`io_uring`](#io_uring-fast-path) reader).
 
 ### Finding the bottleneck
 
