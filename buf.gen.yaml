@@ -21,6 +21,16 @@ plugins:
     # opt:
     #   - paths=source_relative
   #--------------------------
+  # planetscale/vtprotobuf — reflection-free MarshalVT/SizeVT/UnmarshalVT.
+  # Runs after protocolbuffers/go (it generates *_vtproto.pb.go alongside the
+  # base *.pb.go in the same package). Used on the protobufList hot path; see
+  # pkg/recordfmt/marshal_envelope.go and pkg/xtcp/marshallers.go.
+  # https://buf.build/community/planetscale-vtprotobuf
+  - remote: buf.build/community/planetscale-vtprotobuf:v0.6.0
+    out: .
+    opt:
+      - features=marshal+unmarshal+size
+  #--------------------------
   # protocolbuffers/go
   # https://buf.build/grpc/go
   - remote: buf.build/grpc/go
