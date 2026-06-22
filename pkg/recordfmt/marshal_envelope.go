@@ -4,26 +4,19 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
+	"slices"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	msgpack "github.com/vmihailenco/msgpack/v5"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 // Framing note: the text/line formats below terminate their output with a
 // newline so consecutive flushes stay separated on a stream (one object/row
 // per line); the binary formats (protobufList, msgpack) do not. Sinks write
 // the bytes verbatim — framing is the marshaller's job.
-
-// byteSliceWriter appends to a []byte; used for length-delimited encoding.
-type byteSliceWriter struct{ buf *[]byte }
-
-func (w *byteSliceWriter) Write(b []byte) (int, error) {
-	*w.buf = append(*w.buf, b...)
-	return len(b), nil
-}
 
 // MarshalEnvelopeProtobufList encodes the Envelope as length-delimited
 // protobuf — varint(size) || bytes — exactly what ClickHouse's ProtobufList
@@ -35,10 +28,18 @@ func MarshalEnvelopeProtobufList(e *xtcp_flat_record.Envelope) ([]byte, error) {
 // AppendEnvelopeProtobufList appends the length-delimited Envelope encoding to
 // dst and returns the extended slice. Lets a caller reuse a pooled buffer
 // (pass dst[:0]) on a hot path; pass nil for a fresh allocation.
+//
+// Uses vtprotobuf's reflection-free SizeVT/MarshalToSizedBufferVT: write the
+// varint length prefix, grow dst by exactly that many bytes, then marshal the
+// Envelope into the tail in place. The output is identical to the protobuf
+// runtime's length-delimited encoding (the ClickHouse ProtobufList contract).
 func AppendEnvelopeProtobufList(dst []byte, e *xtcp_flat_record.Envelope) ([]byte, error) {
-	w := &byteSliceWriter{buf: &dst}
-	if _, err := protodelim.MarshalTo(w, e); err != nil {
-		return dst, fmt.Errorf("recordfmt: protodelim.MarshalTo: %w", err)
+	size := e.SizeVT()
+	dst = protowire.AppendVarint(dst, uint64(size))
+	n := len(dst)
+	dst = slices.Grow(dst, size)[:n+size]
+	if _, err := e.MarshalToSizedBufferVT(dst[n : n+size]); err != nil {
+		return dst[:n], fmt.Errorf("recordfmt: Envelope.MarshalToSizedBufferVT: %w", err)
 	}
 	return dst, nil
 }
