@@ -58,6 +58,7 @@ The captured netlink `.pcap` fixture corpus spanning many kernel versions, the r
 
 See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, the full set of Nix build/test targets, the automated test suite (unit, race, per-flavor, and microVM integration tests), linting tiers, and protobuf regeneration. Related references:
 
+- [Performance optimizations](performance-optimizations.md) — the profile-driven optimization roadmap (candidate improvements, effort, and trade-offs).
 - [Protobuf formats](protobuf-formats.md) — the config/data/ClickHouse schemas, generated code, and how to regenerate.
 - [Parquet format](parquet-format.md) — the S3/Parquet layout and schema, for data teams consuming the export.
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).

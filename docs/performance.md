@@ -98,6 +98,7 @@ Commit the updated `cmd/xtcp2/default.pgo`; the next build applies it automatica
 
 ## See also
 
+- [Performance optimizations](performance-optimizations.md) — the profile-driven roadmap of candidate improvements (size-cap, vtprotobuf, allocation cuts), with effort and trade-offs.
 - [Netlink collection](netlink-collection.md) — the read path these optimizations apply to.
 - [Polling & batching](polling-and-batching.md) — Envelope/record pooling.
 - [Observability](observability.md) — profiling to find the actual bottleneck before tuning.
