@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
@@ -204,11 +203,12 @@ func (x *XTCP) processInetDiagRecord(
 	// return the record to its pool so it doesn't leak.
 	//
 	// Size-cap safety valves: row count (primary, cheap, predictable)
-	// + proto.Size (secondary safety net for pathological per-record
+	// + a byte cap (secondary safety net for pathological per-record
 	// sizes). Whichever trips first triggers an early flush so the
-	// next append lands in a fresh envelope. proto.Size is O(N) so we
-	// only call it every Nth append; the row check is O(1) so we
-	// check on every append.
+	// next append lands in a fresh envelope. The byte total is tracked
+	// incrementally — each append adds the row's exact wire contribution
+	// (envelopeRowBytes) to x.currentEnvelopeBytes — so both checks are
+	// O(1) per append (no proto.Size walk over the whole envelope).
 	x.envelopeMu.Lock()
 	if x.currentEnvelope == nil {
 		x.envelopeMu.Unlock()
@@ -218,22 +218,21 @@ func (x *XTCP) processInetDiagRecord(
 		return offset
 	}
 	x.currentEnvelope.Row = append(x.currentEnvelope.Row, xtcpRecord)
+	x.currentEnvelopeBytes += envelopeRowBytes(xtcpRecord)
 	rowCount := len(x.currentEnvelope.Row)
 	rowThreshold := int(x.config.EnvelopeFlushThresholdRows)
 	if rowThreshold == 0 {
 		rowThreshold = EnvelopeFlushThresholdRowsCst
 	}
+	byteThreshold := int(x.config.EnvelopeFlushThresholdBytes)
+	if byteThreshold == 0 {
+		byteThreshold = EnvelopeFlushThresholdBytesCst
+	}
 	flushReason := ""
 	if rowCount >= rowThreshold {
 		flushReason = "rows_cap"
-	} else if rowCount%envelopeSizeCheckModulus == 0 {
-		byteThreshold := int(x.config.EnvelopeFlushThresholdBytes)
-		if byteThreshold == 0 {
-			byteThreshold = EnvelopeFlushThresholdBytesCst
-		}
-		if proto.Size(x.currentEnvelope) > byteThreshold {
-			flushReason = "size_cap"
-		}
+	} else if x.currentEnvelopeBytes > byteThreshold {
+		flushReason = "size_cap"
 	}
 	x.envelopeMu.Unlock()
 	d.pC.WithLabelValues("Deserialize", "envelopeAppend", "count").Inc()
