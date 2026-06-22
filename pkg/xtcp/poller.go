@@ -89,6 +89,7 @@ func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
 	x.envelopeMu.Lock()
 	e := x.currentEnvelope
 	x.currentEnvelope = nil
+	x.currentEnvelopeBytes = 0
 	x.envelopeMu.Unlock()
 
 	if e == nil {
@@ -246,6 +247,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 
 	x.envelopeMu.Lock()
 	x.currentEnvelope = x.xtcpEnvelopePool.Get()
+	x.currentEnvelopeBytes = 0
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 

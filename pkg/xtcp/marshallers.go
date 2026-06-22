@@ -5,6 +5,9 @@ import (
 	"strings"
 	"sync"
 
+	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
@@ -26,22 +29,37 @@ const (
 
 // Envelope-size safety valves. Two independent thresholds — the
 // first to trip wins. Row count is the primary knob: cheap (O(1) per
-// append) and predictable. proto.Size is a secondary safety net for
+// append) and predictable. The byte cap is a secondary safety net for
 // pathological per-record sizes (a record with a huge bytes field)
 // because the row count alone won't catch those.
 //
-// Note: proto.Size measures the UNCOMPRESSED serialized bytes.
+// Note: the byte cap measures the UNCOMPRESSED serialized bytes.
 // franz-go applies ZSTD/LZ4/Snappy after handoff, so the actual
 // on-wire Kafka message is typically 3-8x smaller. Treat the bytes
 // cap as a conservative upper bound, not the wire size.
 //
-// proto.Size is O(message size) so we only call it every Nth append,
-// mirroring the `Modulus` pattern used elsewhere in this package.
+// The byte total is tracked incrementally (see envelopeRowBytes /
+// XTCP.currentEnvelopeBytes): each append adds the row's exact
+// contribution, so the cap is O(1) per append instead of an
+// O(message size) proto.Size walk over the whole growing envelope.
 const (
 	EnvelopeFlushThresholdBytesCst = 768 * 1024
 	EnvelopeFlushThresholdRowsCst  = 10000
-	envelopeSizeCheckModulus       = 64
+
+	// envelopeRowFieldNumber is the field number of `repeated XtcpFlatRecord
+	// row = 10` in the Envelope message. Used to compute each row's wire
+	// contribution to proto.Size(Envelope).
+	envelopeRowFieldNumber = 10
 )
+
+// envelopeRowBytes returns one row's exact contribution to
+// proto.Size(Envelope): the repeated-field tag + the length prefix + the
+// row's own serialized size. Because Envelope has only the `row` field,
+// summing this over all rows equals proto.Size(Envelope) exactly, so the
+// running total drives the byte-cap with no per-check reflection walk.
+func envelopeRowBytes(r *xtcp_flat_record.XtcpFlatRecord) int {
+	return protowire.SizeTag(envelopeRowFieldNumber) + protowire.SizeBytes(proto.Size(r))
+}
 
 var (
 	// validMarshallersMap is the union of per-record (protoJson, protoText,

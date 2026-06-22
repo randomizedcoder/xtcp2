@@ -50,6 +50,7 @@ type XTCP struct {
 	destBytesPool    xsync.Pool[*[]byte]
 
 	currentEnvelope       *xtcp_flat_record.Envelope
+	currentEnvelopeBytes  int // running proto.Size(currentEnvelope); see envelopeRowBytes
 	pollStartTime         time.Time
 	envelopeMu            sync.Mutex
 	changePollFrequencyCh chan time.Duration
