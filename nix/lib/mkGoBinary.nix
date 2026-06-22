@@ -112,6 +112,12 @@ buildGoModule {
   # Strip and trim paths. When coverage=true, also append `-cover` +
   # `-coverpkg=<patterns>` so the binary writes per-package coverage
   # profiles to $GOCOVERDIR on clean exit.
+  #
+  # Profile-guided optimization (PGO) is applied automatically: Go's default
+  # `-pgo=auto` picks up a `default.pgo` committed next to the main package
+  # (e.g. cmd/xtcp2/default.pgo), and the full source tree is copied into the
+  # build sandbox, so no explicit `-pgo` flag is needed here. To refresh the
+  # profile, see docs/performance.md ("PGO & profiling").
   preBuild = ''
     export GOFLAGS="-trimpath ''${GOFLAGS:-}"
   ''
