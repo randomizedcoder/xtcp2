@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"google.golang.org/protobuf/encoding/protowire"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
@@ -58,7 +57,7 @@ const (
 // summing this over all rows equals proto.Size(Envelope) exactly, so the
 // running total drives the byte-cap with no per-check reflection walk.
 func envelopeRowBytes(r *xtcp_flat_record.XtcpFlatRecord) int {
-	return protowire.SizeTag(envelopeRowFieldNumber) + protowire.SizeBytes(proto.Size(r))
+	return protowire.SizeTag(envelopeRowFieldNumber) + protowire.SizeBytes(r.SizeVT())
 }
 
 var (
