@@ -1085,10 +1085,14 @@ in
               }
             ]
             ++ lib.optionals isTcpStress [
-              # in-VM Prometheus server for the tcp-stress flavor.
+              # in-VM Prometheus server for the tcp-stress flavor. Host side
+              # shifted to 19090 (guest stays 9090) so it doesn't collide with
+              # a Prometheus already running on the dev box's :9090 — qemu
+              # refuses to start if the hostfwd port is taken. Matches the
+              # clickpipe convention (host :19090 → guest :9090).
               {
                 from = "host";
-                host.port = 9090;
+                host.port = 19090;
                 guest.port = 9090;
               }
             ]

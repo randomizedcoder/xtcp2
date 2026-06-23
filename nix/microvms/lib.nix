@@ -203,7 +203,7 @@ rec {
           echo "================================================"
           echo " --keep-alive: VM is still running."
           echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
-          echo "   Prometheus (in-VM): curl 127.0.0.1:9090/api/v1/query?query=..."
+          echo "   Prometheus (host-forwarded): curl 127.0.0.1:19090/api/v1/query?query=..."
           echo "   Ctrl-C this runner to power the VM off."
           echo "================================================"
           wait "$vm_pid"

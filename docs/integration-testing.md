@@ -321,7 +321,7 @@ The **clickhouse-pipeline** flavor doesn't have a runner with assertions — boo
 |---|---|---|---|
 | `127.0.0.1:9088` | `:9088` | xtcp2 `/metrics` | tcp-stress, clickhouse-pipeline |
 | `127.0.0.1:8889` | `:8889` | xtcp2 gRPC | tcp-stress, clickhouse-pipeline |
-| `127.0.0.1:9090` | `:9090` | Prometheus UI | tcp-stress (clickhouse-pipeline reaches it internally) |
+| `127.0.0.1:19090` | `:9090` | Prometheus UI | tcp-stress (host port shifted off `:9090` to avoid clashing with a Prometheus on the dev box; clickhouse-pipeline reaches it internally) |
 | `127.0.0.1:18123` | `:18123` | ClickHouse HTTP (`-u default:xtcp`) | clickhouse-pipeline |
 | `127.0.0.1:19001` | `:19001` | ClickHouse native | clickhouse-pipeline |
 | `127.0.0.1:19092` | `:19092` | Redpanda Kafka external | clickhouse-pipeline |
