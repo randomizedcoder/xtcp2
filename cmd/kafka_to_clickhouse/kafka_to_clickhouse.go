@@ -330,8 +330,17 @@ func destKafka(ctx context.Context, c config, xtcpRecordBinary *[]byte) (n int, 
 		kgoRecord,
 		func(kgoRecord *kgo.Record, err error) {
 			defer func() {
-				wg.Done()
+				// Return the record to the pool BEFORE signaling done.
+				// destKafka's wg.Wait() must not unblock (and the function
+				// return) until this promise callback has fully finished;
+				// otherwise destKafka returns while this goroutine is still
+				// running kgoRecordPool.Put, racing anything that reads or
+				// reassigns kgoRecordPool after destKafka returns (e.g. the
+				// franz-go promise fires on its own goroutine). Ordering the
+				// Put before wg.Done() establishes the happens-before that
+				// wg.Wait() relies on.
 				kgoRecordPool.Put(kgoRecord)
+				wg.Done()
 			}()
 
 			dur := time.Since(kafkaStartTime)
