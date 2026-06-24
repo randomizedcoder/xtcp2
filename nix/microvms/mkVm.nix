@@ -85,6 +85,10 @@ let
       cfg.memClickPipe
     else if isTcpStress then
       cfg.memTcpStress
+    else if isSoak then
+      # nsTest's churn working set (~320 MiB) OOM-loops at the 1024 MiB
+      # baseline; give the soak its own larger budget.
+      cfg.memSoak
     else
       cfg.mem;
 
