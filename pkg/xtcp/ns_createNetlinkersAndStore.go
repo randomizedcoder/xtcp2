@@ -17,6 +17,16 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 
 	x.pC.WithLabelValues("createWorksAndStore", "start", "counter").Inc()
 
+	// The namespace may have been deleted while netNamespaceInstance was
+	// doing its setns/socket init — nsAdd made the cancel reachable, so
+	// nsDelete can have already fired. Don't start netlinkers or update the
+	// nsMap entry for a namespace that's gone; the caller's <-nsCtx.Done()
+	// returns immediately and its deferred closeSocket cleans up.
+	if nsCtx.Err() != nil {
+		x.pC.WithLabelValues("createWorksAndStore", "cancelledDuringInit", "count").Inc()
+		return
+	}
+
 	if x.config.NlTimeoutMilliseconds > 0 {
 		x.setSocketTimeoutViaSyscall(int64(x.config.NlTimeoutMilliseconds), fd)
 	}
@@ -33,9 +43,18 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 	wg.Add(1)
 	go x.createNetlinkers(nsCtx, wg, nsName, fd, x.config.Netlinkers)
 
+	// Update the nsMap slot reserved by nsAdd with the real socketFD.
 	x.nsMap.Store(*nsName, nsi)
 	x.fdToNsMap.Store(fd, *nsName)
 	x.incrementStoreAndGenerationCounts()
+
+	// If a delete raced in between the guard above and the Store, undo it so
+	// we don't leave a stale entry (with a real fd) for a cancelled namespace.
+	if nsCtx.Err() != nil {
+		x.nsMap.Delete(*nsName)
+		x.fdToNsMap.Delete(fd)
+		x.pC.WithLabelValues("createWorksAndStore", "cancelRacedStore", "count").Inc()
+	}
 	if x.debugLevel > 10 {
 		log.Printf("createNetlinkersAndStore: ns:%s socketFD:%d Stored", *nsName, fd)
 	}
