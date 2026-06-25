@@ -34,6 +34,13 @@
       # 20 containers + Prometheus's ~150 MiB RSS + 12h of TSDB working
       # set, 3072 MiB leaves clear headroom for a long-running session.
       memTcpStress = 3072;
+      # memSoak is used by sink="soak". The flavor runs nsTest (which holds
+      # ~200 namespaces × ~100 persistent connections — anon-rss grows to
+      # ~320 MiB) alongside tcp_server/tcp_client and xtcp2. At the 1024 MiB
+      # baseline the kernel OOM-killer repeatedly kills nsTest (~6×/min),
+      # degrading the intended sustained churn. 3072 MiB leaves clear headroom
+      # for nsTest + the tcp population + xtcp2 over a multi-hour soak.
+      memSoak = 3072;
       # memClickPipe is used by sink="clickhouse-pipeline". ClickHouse
       # 25.x easily consumes 2 GiB just to handle the kafka-engine
       # consume + parse + materialize-view path during a soak. With
