@@ -28,7 +28,7 @@ var mountInfoDir = "/proc/self/mountinfo"
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromName
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromPath
 // https://tip.golang.org/doc/go1.10#runtime
-func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
+func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.CancelFunc, nsName *string) {
 
 	startTime := time.Now()
 	x.pC.WithLabelValues("netNamespaceInstance", "start", "counter").Inc()
@@ -105,6 +105,19 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 
 	fd := x.openAndSetNSWithRetries(nsName)
 
+	// If the namespace was deleted during the (possibly slow, retrying) setns
+	// above, nsDelete has already called cancel() — reachable because nsAdd
+	// stored it before this goroutine launched. Abort before opening a netlink
+	// socket we'd immediately close; the deferred restore + UnlockOSThread
+	// still run, so the OS thread is released/terminated cleanly instead of
+	// this goroutine blocking forever on <-nsCtx.Done() (the leak that
+	// exhausted the SetMaxThreads cap under churn).
+	if nsCtx.Err() != nil {
+		x.pC.WithLabelValues("netNamespaceInstance", "abortedDuringInit", "count").Inc()
+		x.closeFD(fd)
+		return
+	}
+
 	// if x.debugLevel > 10 {
 	// 	log.Printf("netNamespaceInstance after unix.Setns: %s", ns.name)
 	// }
@@ -142,12 +155,11 @@ func (x *XTCP) netNamespaceInstance(ctx context.Context, nsName *string) {
 		return
 	}
 
-	// Derive a per-ns context here so that nsDelete's cancel() reaches
-	// the <-nsCtx.Done() below; otherwise this goroutine blocks on the
-	// daemon's parent ctx and the deferred closeSocket(socketFD) never
-	// fires on a per-namespace removal — leaking one fd + one goroutine
-	// per nsDelete.
-	nsCtx, nsCancel := context.WithCancel(ctx)
+	// The per-ns context + cancel were created in nsAdd and stored in nsMap
+	// before this goroutine launched, so nsDelete can always reach cancel()
+	// (see nsAdd). createNetlinkersAndStore fills in the socketFD and starts
+	// the netlinkers; it no-ops if the namespace was already deleted during
+	// the setns/socket init above.
 	x.createNetlinkersAndStore(nsCtx, nsCancel, nsName, socketFD)
 
 	x.pH.WithLabelValues("netNamespaceInstance", "store", "counter").Observe(time.Since(startTime).Seconds())
