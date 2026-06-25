@@ -296,6 +296,7 @@ in
         oci-xtcp2-nats
         oci-xtcp2-nsq
         oci-xtcp2-valkey
+        oci-xtcp2-s3parquet
         ;
 
       # Phase B: TCP-stress container for the multi-container test

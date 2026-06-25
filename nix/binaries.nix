@@ -6,8 +6,8 @@
 # Variant axis (debug / default / stripped) is in versions.nix → buildVariants
 # and affects ldflags + strip. Applies to all cmds.
 #
-# Destination-flavor axis (full / min / kafka / nats / nsq / valkey) is in
-# versions.nix → destinationFlavors and affects build tags. Only applies to
+# Destination-flavor axis (full / min / kafka / nats / nsq / valkey / s3parquet)
+# is in versions.nix → destinationFlavors and affects build tags. Only applies to
 # `xtcp2` and `ns` — the other 8 cmds don't import pkg/xtcp so destinations
 # are irrelevant to them.
 #
@@ -18,6 +18,7 @@
 #   xtcp2-min                     main xtcp2, default variant, stdlib only
 #   xtcp2-kafka                   main xtcp2, default variant, kafka only
 #   xtcp2-nats / -nsq / -valkey   ditto for nats / nsq / valkey
+#   xtcp2-s3parquet               main xtcp2, default variant, s3parquet only
 #   xtcp2-all                     symlinkJoin of every binary, full
 #   xtcp2-all-debug               symlinkJoin, debug variant, full
 #   xtcp2-all-stripped            symlinkJoin, stripped variant, full
@@ -188,6 +189,7 @@ defaultBinaries
   xtcp2-nats = xtcp2ByFlavor.nats;
   xtcp2-nsq = xtcp2ByFlavor.nsq;
   xtcp2-valkey = xtcp2ByFlavor.valkey;
+  xtcp2-s3parquet = xtcp2ByFlavor.s3parquet;
 
   # Coverage-instrumented xtcp2 for the microvm coverage harness.
   inherit xtcp2-cover;
