@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -211,6 +212,51 @@ func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	if c.MarshalTo != "protoJson" ||
 		c.Dest != "null" || c.DestWriteFiles != 3 {
 		t.Errorf("envOverrideMarshalAndDest mismatch: %+v", c)
+	}
+}
+
+// TestEnvOverrideS3SecretFile covers the Docker `_FILE` convention: the S3
+// credential is read from a file named by S3_ACCESS_KEY_FILE /
+// S3_SECRET_KEY_FILE, the contents are trimmed, and the file form wins over
+// the inline S3_ACCESS_KEY / S3_SECRET_KEY env when both are set.
+func TestEnvOverrideS3SecretFile(t *testing.T) {
+	dir := t.TempDir()
+	accessPath := filepath.Join(dir, "access")
+	secretPath := filepath.Join(dir, "secret")
+	// Trailing newline is intentional — mimics `echo`/`aws ssm get-parameter`
+	// output; envStringFromFile must trim it.
+	if err := os.WriteFile(accessPath, []byte("AKIAFROMFILE\n"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secretPath, []byte("  secretFromFile  \n"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &xtcp_config.XtcpConfig{}
+	// Inline env set too — the _FILE form should override it.
+	t.Setenv("S3_ACCESS_KEY", "inlineAccess")
+	t.Setenv("S3_SECRET_KEY", "inlineSecret")
+	t.Setenv("S3_ACCESS_KEY_FILE", accessPath)
+	t.Setenv("S3_SECRET_KEY_FILE", secretPath)
+	envOverrideMarshalAndDest(c, 0)
+	if c.S3AccessKey != "AKIAFROMFILE" {
+		t.Errorf("S3AccessKey = %q, want trimmed file contents", c.S3AccessKey)
+	}
+	if c.S3SecretKey != "secretFromFile" {
+		t.Errorf("S3SecretKey = %q, want trimmed file contents", c.S3SecretKey)
+	}
+}
+
+// TestEnvStringFromFileMissing: an unset env var, or a path that can't be
+// read, yields (_, false) and leaves config untouched (fail-fast downstream
+// rather than running with an empty credential silently overwriting a good one).
+func TestEnvStringFromFileMissing(t *testing.T) {
+	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE_UNSET_FOR_TEST"); ok || v != "" {
+		t.Errorf("unset env: got (%q, %v), want (\"\", false)", v, ok)
+	}
+	t.Setenv("S3_SECRET_KEY_FILE_BADPATH", filepath.Join(t.TempDir(), "does-not-exist"))
+	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE_BADPATH"); ok || v != "" {
+		t.Errorf("missing file: got (%q, %v), want (\"\", false)", v, ok)
 	}
 }
 
