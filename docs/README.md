@@ -64,6 +64,7 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
+- [Stability & soak testing](stability-testing.md) — the soak/perf testing campaign: methods, bugs found & fixed, the OS-thread scaling model, soak results, and operator guidance (`-netlinkers` / `-maxThreads`).
 - [Quality report](quality-report.md) — auto-generated linter/coverage status.
 - [protobufList migration](protobuflist-migration.md) — deep dive on the batch wire format.
 
