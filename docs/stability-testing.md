@@ -9,6 +9,7 @@ This document records the stability/performance testing campaign run against xtc
 - [Bugs found and fixed](#bugs-found-and-fixed)
 - [The OS-thread scaling model](#the-os-thread-scaling-model)
 - [Soak results](#soak-results)
+- [io_uring evaluation](#io_uring-evaluation)
 - [Operator guidance](#operator-guidance)
 - [Known limitation & future work](#known-limitation--future-work)
 - [How to reproduce](#how-to-reproduce)
@@ -89,8 +90,9 @@ backlog pushes the total past the 2,000 cap → crash.
 
 **io_uring does *not* avoid this.** The io_uring netlinker also
 `runtime.LockOSThread()`s for the ring's lifetime (one pinned thread per
-netlinker) and its wait is a blocking `io_uring_enter`. io_uring helps with
-*syscall batching*, not thread count.
+netlinker) and its wait is a blocking `io_uring_enter` — same thread cost. (And
+as the [io_uring evaluation](#io_uring-evaluation) below shows, it doesn't reduce
+kernel CPU either.)
 
 The only approach that decouples thread count from `ns × netlinkers` is reading
 netlink non-blocking through Go's runtime poller (readers park instead of
@@ -110,6 +112,41 @@ The 12 h soak ran the worst case: ~200 namespaces churned at 100 ms add/delete.
 draining many churning sockets) — a steady-state degradation, not a leak. Real
 deployments with stable containers and low churn do far less per-poll work.
 
+## io_uring evaluation
+
+We implemented and benchmarked the optional `io_uring` netlink reader (`-ioUring`)
+to test the hypothesis that its shared-memory ring + batched syscalls would
+reduce kernel load. A **controlled A/B** on the stable `tcp-stress` workload —
+1 h each, `io_uring` the only variable, `-d 1` so logging doesn't confound CPU —
+showed it does **not** help this workload:
+
+| per netlink packet | syscall | io_uring | Δ |
+|---|---|---|---|
+| kernel CPU (`stime`) | 743 µs | 733 µs | −1.4% (noise) |
+| context switches | 0.086 | 0.083 | −3.4% |
+| kernel/user CPU ratio | 4.14 | 4.10 | −0.8% |
+| RSS | ~56 MB | ~186 MB | **+232%** |
+| dominant syscall (`strace -c`) | `recvfrom` 92.5% (2,115 calls) | `io_uring_enter` 92.4% (3,467 calls) | replaced, not reduced |
+
+**Why:** io_uring cleanly replaces `recvfrom` with `io_uring_enter`, but per-packet
+kernel CPU is unchanged because the cost is dominated by the kernel **generating
+the `inet_diag` dump** (walking the socket table + serializing `tcp_info`/cong/
+meminfo — roughly ~10 µs/socket, ~99.9% of the per-packet cost), not by syscall
+entry/exit overhead (~1 µs/packet, ~0.1%). io_uring optimizes the 0.1%. It also
+gives no thread benefit — the io_uring netlinker still `LockOSThread`s per
+netlinker (same `ns × netlinkers` scaling). Net: same CPU, same thread count,
+**3× the memory** for the ring buffers.
+
+io_uring wins for high-frequency *small* I/O where syscall overhead dominates;
+netlink `inet_diag` dumps are the opposite (infrequent, large, kernel-generation-
+heavy). No io_uring config rescues it: bigger batches don't touch dump-gen, and
+`SQPOLL` would burn a dedicated kernel thread per ring (more system CPU, not
+less). The real lever for kernel load is **reducing what the kernel dumps**
+(`-deserializers`, poll `-frequency`).
+
+**Verdict: leave `-ioUring` off.** The code/flag are kept (tested, `iouring-audit`
+guarded) for completeness; the default is correct. See [performance.md](performance.md).
+
 ## Operator guidance
 
 For a deployment of **up to ~200 containers** (namespaces):
@@ -121,9 +158,9 @@ For a deployment of **up to ~200 containers** (namespaces):
 - `-netlinkers 1` is also validated (the 12 h soak config) and has the smallest
   footprint (~400 threads); choose it if your per-namespace socket volume is
   low. `-netlinkers 2` is the recommended balance for production.
-- **Do not reach for `-ioUring` to reduce threads** — it has the same
-  `ns × netlinkers` thread cost. Use it only for syscall batching on very
-  high-throughput single hosts.
+- **Leave `-ioUring` off.** It was tested and gives no benefit for this workload —
+  same kernel CPU/packet, same `ns × netlinkers` thread cost, and +232% RSS (see
+  [io_uring evaluation](#io_uring-evaluation)).
 - Rule of thumb for any config: keep `-maxThreads` (and systemd
   `TasksMax`/`LimitNPROC`, default 8192 in the microVMs) above
   `namespaces × (netlinkers + 1)` with healthy margin.

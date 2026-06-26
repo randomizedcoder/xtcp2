@@ -6,7 +6,7 @@ Performance is the reason xtcp2 was rewritten. On a busy host with many namespac
 
 - [Pooled allocations (`pkg/xsync`)](#pooled-allocations-pkgxsync)
 - [Parallel netlink readers](#parallel-netlink-readers)
-- [io_uring fast path](#io_uring-fast-path)
+- [io_uring fast path (implemented, but not recommended)](#io_uring-fast-path-implemented-but-not-recommended)
 - [Runtime tuning](#runtime-tuning)
 - [PGO & profiling](#pgo--profiling)
 - [Configuration](#configuration)
@@ -20,19 +20,28 @@ The hot path recycles objects through `sync.Pool` rather than allocating per soc
 
 Each namespace runs `-netlinkers` reader goroutines (default 4) created by `pkg/xtcp/init_netlinkers.go`. Reads and deserialization happen in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine draining the socket. Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink-collection.md#netlinkers).
 
-## io_uring fast path
+## io_uring fast path (implemented, but not recommended)
 
-On Linux 6.1+ you can opt into an `io_uring`-based I/O path with `-ioUring`. Instead of blocking `recvfrom`/`sendto` syscalls, it submits batched `recvmsg` (netlink reads) and raw-socket write operations to an `io_uring` ring and reaps completions in batches, cutting syscall overhead on high-fanout hosts. The implementation:
+On Linux 6.1+ you can opt into an `io_uring`-based I/O path with `-ioUring`. Instead of blocking `recvfrom`/`sendto` syscalls, it submits batched `recvmsg` (netlink reads) and raw-socket write operations to an `io_uring` ring and reaps completions in batches. The implementation:
 
 - `pkg/io_uring/ring.go` — ring lifecycle, SQE submission, CQE reaping.
 - `pkg/xtcp/netlinker_iouring.go` — the `io_uring` variant of the netlinker.
+- Tuning: `-ioUringRecvBatch` (default 64, recvmsg SQEs in flight per netlinker, 1–4096) and `-ioUringCqeBatch` (default 128, max CQEs reaped per call, 1–4096). Ring memory is bounded by `RLIMIT_MEMLOCK`; `CAP_SYS_RESOURCE` lets the daemon raise it (see [observability](observability.md#capability-checks)). The `iouring-audit` flake check guards this code, and a coverage microVM exercises the path.
 
-Tuning:
+### Measured impact — and why we don't recommend it
 
-- `-ioUringRecvBatch` (default 64) — recvmsg SQEs kept in flight per netlinker (1–4096); higher reduces syscalls.
-- `-ioUringCqeBatch` (default 128) — max CQEs reaped per poll (1–4096).
+A controlled A/B (1 h each, identical stable workload, `io_uring` the only variable; see [stability-testing.md](stability-testing.md)) found **no kernel-load benefit** for xtcp2's netlink workload:
 
-`io_uring` ring memory is bounded by `RLIMIT_MEMLOCK`; `CAP_SYS_RESOURCE` lets the daemon raise it (see [observability](observability.md#capability-checks)). The `iouring-audit` flake check guards this code, and a dedicated coverage microVM exercises the path.
+| per netlink packet | syscall | io_uring |
+|---|---|---|
+| kernel CPU (`stime`) | 743 µs | 733 µs (−1.4%, noise) |
+| context switches | 0.086 | 0.083 |
+| RSS | ~56 MB | ~186 MB (**+232%**) |
+| dominant syscall | `recvfrom` (92.5%) | `io_uring_enter` (92.4%) |
+
+io_uring cleanly *replaces* `recvfrom` with `io_uring_enter` but doesn't lower per-packet kernel CPU, because **the cost is dominated by the kernel generating the `inet_diag` dump** (walking the socket table, serializing `tcp_info`/cong/meminfo — ~10 µs/socket), not by syscall entry/exit overhead (~0.1% of the per-packet cost). io_uring optimizes that 0.1%. It also doesn't reduce OS-thread usage — the io_uring netlinker still `runtime.LockOSThread()`s per netlinker (same `ns × netlinkers` [scaling](network-namespaces.md)). Net: same CPU, same thread count, **3× the memory**.
+
+**Recommendation: leave `-ioUring` off** (it already defaults off). The real levers for kernel load are reducing what the kernel has to dump — fewer attributes via `-deserializers`, or a lower poll `-frequency` — not the read mechanism. The flag and code are kept (tested, guarded) for completeness and for workloads that may differ.
 
 ## Runtime tuning
 
@@ -54,7 +63,7 @@ Earlier profiles showed `google.golang.org/protobuf/proto.Size` at ~40% of non-i
 - the size-cap keeps an **O(1) running byte accumulator** (`pkg/xtcp/deserialize.go`, `envelopeRowBytes` in `pkg/xtcp/marshallers.go`) — each row's exact wire size is added once at append time, equal to `proto.Size(Envelope)` but without the per-check walk;
 - the protobufList marshal uses **vtprotobuf**'s generated, reflection-free `SizeVT` / `MarshalToSizedBufferVT` (`pkg/recordfmt/marshal_envelope.go`).
 
-A retest under the same synthetic load shows total daemon CPU roughly halved and the entire `proto.Size`/reflective-marshal tree gone — the daemon is now netlink-I/O-bound (`Syscall6` is the dominant cost). The next CPU lever is the netlink read path itself (the optional [`io_uring`](#io_uring-fast-path) reader).
+A retest under the same synthetic load shows total daemon CPU roughly halved and the entire `proto.Size`/reflective-marshal tree gone — the daemon is now netlink-I/O-bound (`Syscall6` is the dominant cost). That remaining cost is the kernel generating the `inet_diag` dump; the lever for it is reducing what's dumped (`-deserializers`, poll `-frequency`), **not** the read mechanism — `io_uring` was tested and gave no benefit (see [below](#io_uring-fast-path-implemented-but-not-recommended)).
 
 ### Finding the bottleneck
 
@@ -89,7 +98,7 @@ Commit the updated `cmd/xtcp2/default.pgo`; the next build applies it automatica
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `-ioUring` | `false` | Enable the `io_uring` I/O path (Linux 6.1+). |
+| `-ioUring` | `false` | Enable the `io_uring` I/O path (Linux 6.1+). Tested — no measured benefit for this workload; leave off (see [io_uring section](#io_uring-fast-path-implemented-but-not-recommended)). |
 | `-ioUringRecvBatch` | `64` | recvmsg SQEs in flight per netlinker (1–4096). |
 | `-ioUringCqeBatch` | `128` | Max CQEs reaped per poll (1–4096). |
 | `-netlinkers` | `4` | Parallel netlink readers per namespace. |
