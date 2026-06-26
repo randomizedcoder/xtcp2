@@ -70,7 +70,7 @@
 
   # Destination flavors. Each maps to a list of `dest_<scheme>` build tags
   # appended to the binary's build. `null` means "all" — backward-compat
-  # default that pulls in every library destination (kafka/nats/nsq/valkey).
+  # default that pulls in every library destination (kafka/nats/nsq/valkey/s3parquet).
   # Stdlib destinations (null/udp/unix/unixgram) are always compiled
   # regardless of this list.
   #
@@ -82,6 +82,7 @@
     nats = [ "nats" ];
     nsq = [ "nsq" ];
     valkey = [ "valkey" ];
+    s3parquet = [ "s3parquet" ];
   };
 
   # The full destination set, expanded explicitly. mkGoBinary uses this when

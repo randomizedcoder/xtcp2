@@ -6,19 +6,20 @@
 #      that carry every cmd/* binary built with the named variant. Used
 #      for production deployments that need every tool in one image.
 #
-#   2. Destination flavor (min / kafka / nats / nsq / valkey) — five
+#   2. Destination flavor (min / kafka / nats / nsq / valkey / s3parquet) — six
 #      single-binary scratch images, each carrying just the matching
 #      `xtcp2-<flavor>` binary. Used for slim production deployments
 #      that only need one destination.
 #
-#   oci-xtcp2          variant=default, full destinations, all 10 cmds   (~119 MiB)
-#   oci-xtcp2-debug    variant=debug,   full destinations, all 10 cmds   (~171 MiB)
-#   oci-xtcp2-stripped variant=stripped,full destinations, all 10 cmds   (~119 MiB)
-#   oci-xtcp2-min      single xtcp2 binary, stdlib destinations only     (~22 MiB)
-#   oci-xtcp2-kafka    single xtcp2 binary, kafka only                   (~26 MiB)
-#   oci-xtcp2-nats     single xtcp2 binary, nats only                    (~26 MiB)
-#   oci-xtcp2-nsq      single xtcp2 binary, nsq only                     (~25 MiB)
-#   oci-xtcp2-valkey   single xtcp2 binary, valkey only                  (~26 MiB)
+#   oci-xtcp2           variant=default, full destinations, all 10 cmds   (~119 MiB)
+#   oci-xtcp2-debug     variant=debug,   full destinations, all 10 cmds   (~171 MiB)
+#   oci-xtcp2-stripped  variant=stripped,full destinations, all 10 cmds   (~119 MiB)
+#   oci-xtcp2-min       single xtcp2 binary, stdlib destinations only     (~22 MiB)
+#   oci-xtcp2-kafka     single xtcp2 binary, kafka only                   (~26 MiB)
+#   oci-xtcp2-nats      single xtcp2 binary, nats only                    (~26 MiB)
+#   oci-xtcp2-nsq       single xtcp2 binary, nsq only                     (~25 MiB)
+#   oci-xtcp2-valkey    single xtcp2 binary, valkey only                  (~26 MiB)
+#   oci-xtcp2-s3parquet single xtcp2 binary, s3parquet only               (~26 MiB)
 #
 {
   pkgs,
@@ -150,6 +151,7 @@ in
   oci-xtcp2-nats = mkFlavorImage "nats";
   oci-xtcp2-nsq = mkFlavorImage "nsq";
   oci-xtcp2-valkey = mkFlavorImage "valkey";
+  oci-xtcp2-s3parquet = mkFlavorImage "s3parquet";
 
   # Phase B: tcp_server + tcp_client image, dispatched by TCP_MODE env.
   # Built so the Phase C docker-in-vm lifecycle harness can spin up
