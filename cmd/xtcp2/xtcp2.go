@@ -239,8 +239,8 @@ func defineFlags() *mainFlags {
 	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
 	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
 	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
-	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env. Never logged.")
-	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env. Never logged.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.dest = flag.String("dest", destCst, "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
@@ -805,6 +805,31 @@ func envString(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
+// envStringFromFile reads a secret from the file whose path is the value of
+// the `key` env var (the Docker `_FILE` convention, e.g.
+// S3_SECRET_KEY_FILE=/run/secrets/s3). This keeps the secret out of the
+// process environment (visible via `docker inspect` / /proc/<pid>/environ)
+// and out of argv — the env only names a path, the bytes live in a file.
+//
+// The file contents are trimmed of surrounding whitespace (handles a trailing
+// newline from `echo`/`aws ssm get-parameter`). Returns ("", false) when the
+// env var is unset/empty, or when the named file can't be read — in the latter
+// case it logs a non-secret error so a misconfiguration is visible, and the
+// downstream destination fails fast on the resulting empty credential rather
+// than running half-configured. The file's contents are never logged.
+func envStringFromFile(key string) (string, bool) {
+	path, ok := os.LookupEnv(key)
+	if !ok || path == "" {
+		return "", false
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("key:%s error reading secret file: %v", key, err)
+		return "", false
+	}
+	return strings.TrimSpace(string(b)), true
+}
+
 func logEnv(key, msg string, debugLevel uint) {
 	if debugLevel > 10 {
 		log.Printf("key:%s, %s", key, msg)
@@ -906,6 +931,18 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envString("S3_SECRET_KEY"); ok {
 		c.S3SecretKey = v
 		logEnv("S3_SECRET_KEY", "set", debugLevel)
+	}
+	// File-based variants (Docker `_FILE` convention). Applied after the
+	// inline S3_ACCESS_KEY / S3_SECRET_KEY blocks so a mounted/baked secret
+	// file wins when both are set. The env var holds only the path; the
+	// credential bytes live in the file. Value is never logged.
+	if v, ok := envStringFromFile("S3_ACCESS_KEY_FILE"); ok {
+		c.S3AccessKey = v
+		logEnv("S3_ACCESS_KEY_FILE", "set", debugLevel)
+	}
+	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE"); ok {
+		c.S3SecretKey = v
+		logEnv("S3_SECRET_KEY_FILE", "set", debugLevel)
 	}
 	if v, ok := envString("S3_REGION"); ok {
 		c.S3Region = v
