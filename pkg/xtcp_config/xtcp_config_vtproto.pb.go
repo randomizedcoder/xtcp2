@@ -469,6 +469,18 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xb8
 	}
+	if m.S3SkipBucketProbe {
+		i--
+		if m.S3SkipBucketProbe {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0xb0
+	}
 	if len(m.S3Region) > 0 {
 		i -= len(m.S3Region)
 		copy(dAtA[i:], m.S3Region)
@@ -896,6 +908,9 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	l = len(m.S3Region)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.S3SkipBucketProbe {
+		n += 3
 	}
 	if m.DestWriteFiles != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.DestWriteFiles))
@@ -2154,6 +2169,26 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.S3Region = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 134:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3SkipBucketProbe", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.S3SkipBucketProbe = bool(v != 0)
 		case 135:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field DestWriteFiles", wireType)

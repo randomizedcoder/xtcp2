@@ -102,6 +102,7 @@ const (
 	s3AccessKeyCst                       = ""
 	s3SecretKeyCst                       = ""
 	s3RegionCst                          = ""
+	s3SkipBucketProbeCst                 = false
 	s3ParquetFlushThresholdBytesCst uint = 0
 
 	// Pyroscope continuous-profiling defaults. Agent disabled when
@@ -189,6 +190,7 @@ type mainFlags struct {
 	s3AccessKey         *string
 	s3SecretKey         *string
 	s3Region            *string
+	s3SkipBucketProbe   *bool
 	s3ParquetFlushBytes *uint
 	dest                *string
 	destWriteFiles      *uint
@@ -242,6 +244,7 @@ func defineFlags() *mainFlags {
 	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
 	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
+	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.dest = flag.String("dest", destCst, "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
@@ -304,6 +307,7 @@ func printFlags(f *mainFlags) {
 	// *f.s3AccessKey and *f.s3SecretKey intentionally NOT printed —
 	// they would leak via console logs, lifecycle test scrapers, etc.
 	fmt.Println("*s3Region:", *f.s3Region)
+	fmt.Println("*s3SkipBucketProbe:", *f.s3SkipBucketProbe)
 	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
 	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
 	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
@@ -346,6 +350,7 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3AccessKey:                  *f.s3AccessKey,
 		S3SecretKey:                  *f.s3SecretKey,
 		S3Region:                     *f.s3Region,
+		S3SkipBucketProbe:            *f.s3SkipBucketProbe,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
 		PyroscopeUrl:                 *f.pyroscopeUrl,
 		PyroscopeAppName:             *f.pyroscopeAppName,
@@ -787,6 +792,22 @@ func envUint32(key string) (uint32, bool) {
 	return uint32(u), true
 }
 
+// envBool parses a boolean env var via strconv.ParseBool (accepts
+// 1/t/T/TRUE/true/True and 0/f/F/FALSE/false/False). Returns (false, false)
+// when the var is unset or unparseable, so a typo leaves the config default
+// untouched rather than silently flipping the flag.
+func envBool(key string) (bool, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return false, false
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, false
+	}
+	return b, true
+}
+
 // envDuration parses an env var via time.ParseDuration.
 func envDuration(key string) (time.Duration, bool) {
 	v, ok := os.LookupEnv(key)
@@ -947,6 +968,10 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envString("S3_REGION"); ok {
 		c.S3Region = v
 		logEnv("S3_REGION", fmt.Sprintf("c.S3Region:%s", v), debugLevel)
+	}
+	if v, ok := envBool("S3_SKIP_BUCKET_PROBE"); ok {
+		c.S3SkipBucketProbe = v
+		logEnv("S3_SKIP_BUCKET_PROBE", fmt.Sprintf("c.S3SkipBucketProbe:%t", v), debugLevel)
 	}
 	if v, ok := envUint32("S3_PARQUET_FLUSH_BYTES"); ok {
 		c.S3ParquetFlushThresholdBytes = v

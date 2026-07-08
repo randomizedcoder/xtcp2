@@ -137,15 +137,23 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 	}
 
 	// Bucket existence probe — separate context so it can't be canceled by
-	// the parent before we've decided whether to dial.
-	bucketCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	exists, err := client.BucketExists(bucketCtx, bucket)
-	if err != nil {
-		return nil, fmt.Errorf("newS3ParquetDest BucketExists(%q): %w", bucket, err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("newS3ParquetDest bucket %q does not exist on %q", bucket, endpoint)
+	// the parent before we've decided whether to dial. BucketExists issues a
+	// HeadBucket, which requires s3:ListBucket; skip it when the credential is
+	// deliberately scoped to s3:PutObject only (write-only key). We then trust
+	// the operator that the bucket exists and let the first upload surface any
+	// misconfiguration instead of failing fast here.
+	if x.config.S3SkipBucketProbe {
+		log.Printf("newS3ParquetDest S3_SKIP_BUCKET_PROBE set: skipping BucketExists probe for bucket %q on %q", bucket, endpoint)
+	} else {
+		bucketCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		exists, err := client.BucketExists(bucketCtx, bucket)
+		if err != nil {
+			return nil, fmt.Errorf("newS3ParquetDest BucketExists(%q): %w", bucket, err)
+		}
+		if !exists {
+			return nil, fmt.Errorf("newS3ParquetDest bucket %q does not exist on %q", bucket, endpoint)
+		}
 	}
 
 	threshold := int(x.config.S3ParquetFlushThresholdBytes)

@@ -417,6 +417,13 @@ type XtcpConfig struct {
 	// S3 region. Required by some S3 implementations even when talking
 	// to a single-region MinIO. Default "us-east-1" when blank.
 	S3Region string `protobuf:"bytes,133,opt,name=s3_region,json=s3Region,proto3" json:"s3_region,omitempty"`
+	// Skip the startup S3 BucketExists probe. The probe issues a
+	// HeadBucket, which requires the s3:ListBucket permission. Set true
+	// when the upload credential is deliberately scoped to s3:PutObject
+	// only (write-only key, e.g. a baked deployment credential) so the
+	// daemon can start without list permission. Default false keeps the
+	// fail-fast probe for normal deployments.
+	S3SkipBucketProbe bool `protobuf:"varint,134,opt,name=s3_skip_bucket_probe,json=s3SkipBucketProbe,proto3" json:"s3_skip_bucket_probe,omitempty"`
 	// Pyroscope continuous-profiling server URL (e.g.
 	// http://127.0.0.1:4040). When set, the daemon streams CPU,
 	// memory, goroutine, mutex, and block profiles to that endpoint.
@@ -679,6 +686,13 @@ func (x *XtcpConfig) GetS3Region() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetS3SkipBucketProbe() bool {
+	if x != nil {
+		return x.S3SkipBucketProbe
+	}
+	return false
+}
+
 func (x *XtcpConfig) GetPyroscopeUrl() string {
 	if x != nil {
 		return x.PyroscopeUrl
@@ -875,7 +889,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x92\x13\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xcc\x13\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -910,7 +924,8 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\rs3_access_key\x18\x80\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12+\n" +
 	"\rs3_secret_key\x18\x81\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x12O\n" +
 	" s3_parquet_flush_threshold_bytes\x18\x84\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12$\n" +
-	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x12,\n" +
+	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x128\n" +
+	"\x14s3_skip_bucket_probe\x18\x86\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x11s3SkipBucketProbe\x12,\n" +
 	"\rpyroscope_url\x18\x88\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\fpyroscopeUrl\x125\n" +
 	"\x12pyroscope_app_name\x18\x89\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10pyroscopeAppName\x127\n" +
 	"\x13pyroscope_sample_hz\x18\x8a\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +

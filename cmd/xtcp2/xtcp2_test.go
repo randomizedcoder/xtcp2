@@ -98,6 +98,30 @@ func TestEnvUint32(t *testing.T) {
 	}
 }
 
+func TestEnvBool(t *testing.T) {
+	t.Setenv("TEST_BOOL_TRUE", "true")
+	if v, ok := envBool("TEST_BOOL_TRUE"); !ok || !v {
+		t.Fatalf("envBool true: ok=%v v=%v", ok, v)
+	}
+	t.Setenv("TEST_BOOL_ONE", "1")
+	if v, ok := envBool("TEST_BOOL_ONE"); !ok || !v {
+		t.Fatalf("envBool 1: ok=%v v=%v", ok, v)
+	}
+	t.Setenv("TEST_BOOL_FALSE", "false")
+	if v, ok := envBool("TEST_BOOL_FALSE"); !ok || v {
+		t.Fatalf("envBool false: ok=%v v=%v", ok, v)
+	}
+	if _, ok := envBool("TEST_BOOL_UNSET"); ok {
+		t.Fatal("unset key should return ok=false")
+	}
+	// Unparseable leaves the config default untouched (ok=false) rather than
+	// silently flipping the flag.
+	t.Setenv("TEST_BOOL_BAD", "yes-please")
+	if _, ok := envBool("TEST_BOOL_BAD"); ok {
+		t.Fatal("unparseable should return ok=false")
+	}
+}
+
 func TestEnvDuration(t *testing.T) {
 	t.Setenv("TEST_DUR_OK", "3s")
 	if d, ok := envDuration("TEST_DUR_OK"); !ok || d != 3*time.Second {
@@ -670,6 +694,7 @@ func TestPrintFlags(t *testing.T) {
 	f.s3AccessKey = &s
 	f.s3SecretKey = &s
 	f.s3Region = &s
+	f.s3SkipBucketProbe = &b
 	f.s3ParquetFlushBytes = &n
 	f.pyroscopeUrl = &s
 	f.pyroscopeAppName = &s
@@ -766,6 +791,7 @@ func TestBuildConfig(t *testing.T) {
 		s3AccessKey:         &mar,
 		s3SecretKey:         &mar,
 		s3Region:            &mar,
+		s3SkipBucketProbe:   &iu,
 		s3ParquetFlushBytes: &wf,
 		pyroscopeUrl:        &mar,
 		pyroscopeAppName:    &mar,
@@ -805,6 +831,7 @@ func TestBuildConfig(t *testing.T) {
 		{"Label", c.Label, "lbl"},
 		{"Tag", c.Tag, "host=a"},
 		{"GrpcPort", c.GrpcPort, uint32(8888)},
+		{"S3SkipBucketProbe", c.S3SkipBucketProbe, true},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
