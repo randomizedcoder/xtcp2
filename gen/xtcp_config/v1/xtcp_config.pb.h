@@ -881,8 +881,9 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPyroscopeSampleHzFieldNumber = 138,
     kPyroscopeUploadIntervalSecFieldNumber = 139,
     kDebugLevelFieldNumber = 160,
-    kGrpcPortFieldNumber = 190,
+    kS3SkipBucketProbeFieldNumber = 134,
     kIoUringFieldNumber = 210,
+    kGrpcPortFieldNumber = 190,
     kIoUringRecvBatchSizeFieldNumber = 211,
     kIoUringCqeBatchSizeFieldNumber = 212,
   };
@@ -1394,14 +1395,14 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_debug_level(::uint32_t value);
 
   public:
-  // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
-  void clear_grpc_port() ;
-  ::uint32_t grpc_port() const;
-  void set_grpc_port(::uint32_t value);
+  // bool s3_skip_bucket_probe = 134 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
+  void clear_s3_skip_bucket_probe() ;
+  bool s3_skip_bucket_probe() const;
+  void set_s3_skip_bucket_probe(bool value);
 
   private:
-  ::uint32_t _internal_grpc_port() const;
-  void _internal_set_grpc_port(::uint32_t value);
+  bool _internal_s3_skip_bucket_probe() const;
+  void _internal_set_s3_skip_bucket_probe(bool value);
 
   public:
   // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
@@ -1412,6 +1413,16 @@ class XtcpConfig final : public ::google::protobuf::Message
   private:
   bool _internal_io_uring() const;
   void _internal_set_io_uring(bool value);
+
+  public:
+  // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
+  void clear_grpc_port() ;
+  ::uint32_t grpc_port() const;
+  void set_grpc_port(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_grpc_port() const;
+  void _internal_set_grpc_port(::uint32_t value);
 
   public:
   // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
@@ -1439,7 +1450,7 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 42, 4,
+      5, 43, 4,
       267, 29>
       _table_;
 
@@ -1497,8 +1508,9 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t pyroscope_sample_hz_;
     ::uint32_t pyroscope_upload_interval_sec_;
     ::uint32_t debug_level_;
-    ::uint32_t grpc_port_;
+    bool s3_skip_bucket_probe_;
     bool io_uring_;
+    ::uint32_t grpc_port_;
     ::uint32_t io_uring_recv_batch_size_;
     ::uint32_t io_uring_cqe_batch_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -3773,6 +3785,28 @@ inline void XtcpConfig::set_allocated_s3_region(std::string* value) {
     _impl_.s3_region_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_region)
+}
+
+// bool s3_skip_bucket_probe = 134 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_skip_bucket_probe() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_skip_bucket_probe_ = false;
+}
+inline bool XtcpConfig::s3_skip_bucket_probe() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
+  return _internal_s3_skip_bucket_probe();
+}
+inline void XtcpConfig::set_s3_skip_bucket_probe(bool value) {
+  _internal_set_s3_skip_bucket_probe(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
+}
+inline bool XtcpConfig::_internal_s3_skip_bucket_probe() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_skip_bucket_probe_;
+}
+inline void XtcpConfig::_internal_set_s3_skip_bucket_probe(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_skip_bucket_probe_ = value;
 }
 
 // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {

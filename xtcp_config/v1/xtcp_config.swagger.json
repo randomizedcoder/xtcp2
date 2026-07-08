@@ -309,6 +309,10 @@
           "type": "string",
           "description": "S3 region. Required by some S3 implementations even when talking\nto a single-region MinIO. Default \"us-east-1\" when blank."
         },
+        "s3SkipBucketProbe": {
+          "type": "boolean",
+          "description": "Skip the startup S3 BucketExists probe. The probe issues a\nHeadBucket, which requires the s3:ListBucket permission. Set true\nwhen the upload credential is deliberately scoped to s3:PutObject\nonly (write-only key, e.g. a baked deployment credential) so the\ndaemon can start without list permission. Default false keeps the\nfail-fast probe for normal deployments."
+        },
         "pyroscopeUrl": {
           "type": "string",
           "description": "Pyroscope continuous-profiling server URL (e.g.\nhttp://127.0.0.1:4040). When set, the daemon streams CPU,\nmemory, goroutine, mutex, and block profiles to that endpoint.\nEmpty disables the agent — no overhead in production runs that\ndon't need it. Operators bring up a Pyroscope OSS server (or\nGrafana Cloud Pyroscope) and point xtcp2 at it for live profile\ndata without restarts."

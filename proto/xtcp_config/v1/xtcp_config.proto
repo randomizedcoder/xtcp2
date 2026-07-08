@@ -356,6 +356,16 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
+	// Skip the startup S3 BucketExists probe. The probe issues a
+	// HeadBucket, which requires the s3:ListBucket permission. Set true
+	// when the upload credential is deliberately scoped to s3:PutObject
+	// only (write-only key, e.g. a baked deployment credential) so the
+	// daemon can start without list permission. Default false keeps the
+	// fail-fast probe for normal deployments.
+	bool s3_skip_bucket_probe                        = 134 [
+		(buf.validate.field).required = false
+	];
+
 	// Pyroscope continuous-profiling server URL (e.g.
 	// http://127.0.0.1:4040). When set, the daemon streams CPU,
 	// memory, goroutine, mutex, and block profiles to that endpoint.

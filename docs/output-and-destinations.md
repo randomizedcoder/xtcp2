@@ -146,6 +146,7 @@ docker logs xtcp2            # header + humanized rows
 | `-s3Prefix` | — | Key prefix within the bucket. |
 | `-s3AccessKey` / `-s3SecretKey` | — | S3 credentials (or `S3_ACCESS_KEY` / `S3_SECRET_KEY`); never logged. |
 | `-s3Region` | `us-east-1` | S3 region. |
+| `-s3SkipBucketProbe` | `false` | Skip the startup `BucketExists` probe (a `HeadBucket` needing `s3:ListBucket`; or `S3_SKIP_BUCKET_PROBE`). Set for a write-only `s3:PutObject`-only credential. |
 | `-s3ParquetFlushBytes` | `0` → 63 MiB | Parquet builder flush threshold (uncompressed). |
 | `-destWriteFiles` | — | Also write marshalled output to N files (debugging). |
 

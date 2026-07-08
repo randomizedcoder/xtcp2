@@ -357,6 +357,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? dest,
     $core.int? s3ParquetFlushThresholdBytes,
     $core.String? s3Region,
+    $core.bool? s3SkipBucketProbe,
     $core.int? destWriteFiles,
     $core.String? pyroscopeUrl,
     $core.String? pyroscopeAppName,
@@ -449,6 +450,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (s3Region != null) {
       $result.s3Region = s3Region;
     }
+    if (s3SkipBucketProbe != null) {
+      $result.s3SkipBucketProbe = s3SkipBucketProbe;
+    }
     if (destWriteFiles != null) {
       $result.destWriteFiles = destWriteFiles;
     }
@@ -534,6 +538,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(130, _omitFieldNames ? '' : 'dest')
     ..a<$core.int>(132, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes', $pb.PbFieldType.OU3)
     ..aOS(133, _omitFieldNames ? '' : 's3Region')
+    ..aOB(134, _omitFieldNames ? '' : 's3SkipBucketProbe')
     ..a<$core.int>(135, _omitFieldNames ? '' : 'destWriteFiles', $pb.PbFieldType.OU3)
     ..aOS(136, _omitFieldNames ? '' : 'pyroscopeUrl')
     ..aOS(137, _omitFieldNames ? '' : 'pyroscopeAppName')
@@ -887,15 +892,30 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(133)
   void clearS3Region() => clearField(133);
 
+  /// Skip the startup S3 BucketExists probe. The probe issues a
+  /// HeadBucket, which requires the s3:ListBucket permission. Set true
+  /// when the upload credential is deliberately scoped to s3:PutObject
+  /// only (write-only key, e.g. a baked deployment credential) so the
+  /// daemon can start without list permission. Default false keeps the
+  /// fail-fast probe for normal deployments.
+  @$pb.TagNumber(134)
+  $core.bool get s3SkipBucketProbe => $_getBF(24);
+  @$pb.TagNumber(134)
+  set s3SkipBucketProbe($core.bool v) { $_setBool(24, v); }
+  @$pb.TagNumber(134)
+  $core.bool hasS3SkipBucketProbe() => $_has(24);
+  @$pb.TagNumber(134)
+  void clearS3SkipBucketProbe() => clearField(134);
+
   /// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
   /// xtcp will capture this many examples of the marshalled data
   /// This is PER poller
   @$pb.TagNumber(135)
-  $core.int get destWriteFiles => $_getIZ(24);
+  $core.int get destWriteFiles => $_getIZ(25);
   @$pb.TagNumber(135)
-  set destWriteFiles($core.int v) { $_setUnsignedInt32(24, v); }
+  set destWriteFiles($core.int v) { $_setUnsignedInt32(25, v); }
   @$pb.TagNumber(135)
-  $core.bool hasDestWriteFiles() => $_has(24);
+  $core.bool hasDestWriteFiles() => $_has(25);
   @$pb.TagNumber(135)
   void clearDestWriteFiles() => clearField(135);
 
@@ -907,11 +927,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
   /// data without restarts.
   @$pb.TagNumber(136)
-  $core.String get pyroscopeUrl => $_getSZ(25);
+  $core.String get pyroscopeUrl => $_getSZ(26);
   @$pb.TagNumber(136)
-  set pyroscopeUrl($core.String v) { $_setString(25, v); }
+  set pyroscopeUrl($core.String v) { $_setString(26, v); }
   @$pb.TagNumber(136)
-  $core.bool hasPyroscopeUrl() => $_has(25);
+  $core.bool hasPyroscopeUrl() => $_has(26);
   @$pb.TagNumber(136)
   void clearPyroscopeUrl() => clearField(136);
 
@@ -920,63 +940,63 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Set per fleet/role for multi-host environments
   /// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
   @$pb.TagNumber(137)
-  $core.String get pyroscopeAppName => $_getSZ(26);
+  $core.String get pyroscopeAppName => $_getSZ(27);
   @$pb.TagNumber(137)
-  set pyroscopeAppName($core.String v) { $_setString(26, v); }
+  set pyroscopeAppName($core.String v) { $_setString(27, v); }
   @$pb.TagNumber(137)
-  $core.bool hasPyroscopeAppName() => $_has(26);
+  $core.bool hasPyroscopeAppName() => $_has(27);
   @$pb.TagNumber(137)
   void clearPyroscopeAppName() => clearField(137);
 
   /// CPU profile sampling rate in Hz. Default 100. The Pyroscope
   /// agent uses this to call runtime.SetCPUProfileRate at startup.
   @$pb.TagNumber(138)
-  $core.int get pyroscopeSampleHz => $_getIZ(27);
+  $core.int get pyroscopeSampleHz => $_getIZ(28);
   @$pb.TagNumber(138)
-  set pyroscopeSampleHz($core.int v) { $_setUnsignedInt32(27, v); }
+  set pyroscopeSampleHz($core.int v) { $_setUnsignedInt32(28, v); }
   @$pb.TagNumber(138)
-  $core.bool hasPyroscopeSampleHz() => $_has(27);
+  $core.bool hasPyroscopeSampleHz() => $_has(28);
   @$pb.TagNumber(138)
   void clearPyroscopeSampleHz() => clearField(138);
 
   /// Profile upload interval (seconds between batched profile
   /// pushes). Default 15 s.
   @$pb.TagNumber(139)
-  $core.int get pyroscopeUploadIntervalSec => $_getIZ(28);
+  $core.int get pyroscopeUploadIntervalSec => $_getIZ(29);
   @$pb.TagNumber(139)
-  set pyroscopeUploadIntervalSec($core.int v) { $_setUnsignedInt32(28, v); }
+  set pyroscopeUploadIntervalSec($core.int v) { $_setUnsignedInt32(29, v); }
   @$pb.TagNumber(139)
-  $core.bool hasPyroscopeUploadIntervalSec() => $_has(28);
+  $core.bool hasPyroscopeUploadIntervalSec() => $_has(29);
   @$pb.TagNumber(139)
   void clearPyroscopeUploadIntervalSec() => clearField(139);
 
   /// Kafka or NSQ topic
   @$pb.TagNumber(140)
-  $core.String get topic => $_getSZ(29);
+  $core.String get topic => $_getSZ(30);
   @$pb.TagNumber(140)
-  set topic($core.String v) { $_setString(29, v); }
+  set topic($core.String v) { $_setString(30, v); }
   @$pb.TagNumber(140)
-  $core.bool hasTopic() => $_has(29);
+  $core.bool hasTopic() => $_has(30);
   @$pb.TagNumber(140)
   void clearTopic() => clearField(140);
 
   /// XtcpProtoFile
   @$pb.TagNumber(143)
-  $core.String get xtcpProtoFile => $_getSZ(30);
+  $core.String get xtcpProtoFile => $_getSZ(31);
   @$pb.TagNumber(143)
-  set xtcpProtoFile($core.String v) { $_setString(30, v); }
+  set xtcpProtoFile($core.String v) { $_setString(31, v); }
   @$pb.TagNumber(143)
-  $core.bool hasXtcpProtoFile() => $_has(30);
+  $core.bool hasXtcpProtoFile() => $_has(31);
   @$pb.TagNumber(143)
   void clearXtcpProtoFile() => clearField(143);
 
   /// Kafka schema registry url
   @$pb.TagNumber(145)
-  $core.String get kafkaSchemaUrl => $_getSZ(31);
+  $core.String get kafkaSchemaUrl => $_getSZ(32);
   @$pb.TagNumber(145)
-  set kafkaSchemaUrl($core.String v) { $_setString(31, v); }
+  set kafkaSchemaUrl($core.String v) { $_setString(32, v); }
   @$pb.TagNumber(145)
-  $core.bool hasKafkaSchemaUrl() => $_has(31);
+  $core.bool hasKafkaSchemaUrl() => $_has(32);
   @$pb.TagNumber(145)
   void clearKafkaSchemaUrl() => clearField(145);
 
@@ -984,77 +1004,77 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Recommend a small timeout, like 1-2 seconds
   /// kgo seems to have a bug, because the timeout is always expired
   @$pb.TagNumber(150)
-  $2.Duration get kafkaProduceTimeout => $_getN(32);
+  $2.Duration get kafkaProduceTimeout => $_getN(33);
   @$pb.TagNumber(150)
   set kafkaProduceTimeout($2.Duration v) { setField(150, v); }
   @$pb.TagNumber(150)
-  $core.bool hasKafkaProduceTimeout() => $_has(32);
+  $core.bool hasKafkaProduceTimeout() => $_has(33);
   @$pb.TagNumber(150)
   void clearKafkaProduceTimeout() => clearField(150);
   @$pb.TagNumber(150)
-  $2.Duration ensureKafkaProduceTimeout() => $_ensure(32);
+  $2.Duration ensureKafkaProduceTimeout() => $_ensure(33);
 
   /// DebugLevel
   @$pb.TagNumber(160)
-  $core.int get debugLevel => $_getIZ(33);
+  $core.int get debugLevel => $_getIZ(34);
   @$pb.TagNumber(160)
-  set debugLevel($core.int v) { $_setUnsignedInt32(33, v); }
+  set debugLevel($core.int v) { $_setUnsignedInt32(34, v); }
   @$pb.TagNumber(160)
-  $core.bool hasDebugLevel() => $_has(33);
+  $core.bool hasDebugLevel() => $_has(34);
   @$pb.TagNumber(160)
   void clearDebugLevel() => clearField(160);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(170)
-  $core.String get label => $_getSZ(34);
+  $core.String get label => $_getSZ(35);
   @$pb.TagNumber(170)
-  set label($core.String v) { $_setString(34, v); }
+  set label($core.String v) { $_setString(35, v); }
   @$pb.TagNumber(170)
-  $core.bool hasLabel() => $_has(34);
+  $core.bool hasLabel() => $_has(35);
   @$pb.TagNumber(170)
   void clearLabel() => clearField(170);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(180)
-  $core.String get tag => $_getSZ(35);
+  $core.String get tag => $_getSZ(36);
   @$pb.TagNumber(180)
-  set tag($core.String v) { $_setString(35, v); }
+  set tag($core.String v) { $_setString(36, v); }
   @$pb.TagNumber(180)
-  $core.bool hasTag() => $_has(35);
+  $core.bool hasTag() => $_has(36);
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(36);
+  $core.int get grpcPort => $_getIZ(37);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(36, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(37, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(36);
+  $core.bool hasGrpcPort() => $_has(37);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(37);
+  EnabledDeserializers get enabledDeserializers => $_getN(38);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(37);
+  $core.bool hasEnabledDeserializers() => $_has(38);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(37);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(38);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(38);
+  $core.bool get ioUring => $_getBF(39);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(38, v); }
+  set ioUring($core.bool v) { $_setBool(39, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(38);
+  $core.bool hasIoUring() => $_has(39);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -1063,11 +1083,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(39);
+  $core.int get ioUringRecvBatchSize => $_getIZ(40);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(39, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(40, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(39);
+  $core.bool hasIoUringRecvBatchSize() => $_has(40);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -1075,11 +1095,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(40);
+  $core.int get ioUringCqeBatchSize => $_getIZ(41);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(40, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(41, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(40);
+  $core.bool hasIoUringCqeBatchSize() => $_has(41);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 
@@ -1088,11 +1108,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
   /// Empty = all fields. Ignored by non-tabular marshallers.
   @$pb.TagNumber(220)
-  $core.String get csvColumns => $_getSZ(41);
+  $core.String get csvColumns => $_getSZ(42);
   @$pb.TagNumber(220)
-  set csvColumns($core.String v) { $_setString(41, v); }
+  set csvColumns($core.String v) { $_setString(42, v); }
   @$pb.TagNumber(220)
-  $core.bool hasCsvColumns() => $_has(41);
+  $core.bool hasCsvColumns() => $_has(42);
   @$pb.TagNumber(220)
   void clearCsvColumns() => clearField(220);
 }
