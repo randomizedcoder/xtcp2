@@ -19,6 +19,10 @@
   protoFile ? null, # path to the .proto file to ship at /<basename>
   exposedPorts ? [ ],
   entrypoint ? "/bin/xtcp2",
+  # Optional Docker HEALTHCHECK image-config block. Durations are integer
+  # nanoseconds (Docker image-config convention), e.g.
+  #   { Test = [ "CMD" "/bin/xtcp2" "-healthcheck" ]; Interval = 30000000000; }
+  healthcheck ? null,
 }:
 
 let
@@ -45,5 +49,6 @@ pkgs.dockerTools.streamLayeredImage {
   config = {
     Entrypoint = [ entrypoint ];
     ExposedPorts = exposedPortsAttr;
-  };
+  }
+  // lib.optionalAttrs (healthcheck != null) { Healthcheck = healthcheck; };
 }

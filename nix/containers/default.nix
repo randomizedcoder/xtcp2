@@ -31,6 +31,22 @@
 let
   mkOciImage = import ../lib/mkOciImage.nix { inherit pkgs lib; };
 
+  # Self-contained container HEALTHCHECK for the xtcp2-daemon images (scratch,
+  # no shell/curl): the binary probes its own /readyz via `-healthcheck`.
+  # Durations are integer nanoseconds. NOT applied to the tcp-stress image
+  # (different entrypoint, no daemon).
+  xtcp2Healthcheck = {
+    Test = [
+      "CMD"
+      "/bin/xtcp2"
+      "-healthcheck"
+    ];
+    Interval = 30000000000; # 30s
+    Timeout = 5000000000; # 5s
+    StartPeriod = 15000000000; # 15s — grace while the daemon reaches ready
+    Retries = 3;
+  };
+
   # tcp-stress-only image: just tcp_server + tcp_client + an entrypoint
   # shell script that dispatches on TCP_MODE. Used by the Phase C
   # docker-in-VM lifecycle harness to spin up N containers with
@@ -116,6 +132,7 @@ let
         8889
       ];
       entrypoint = "/bin/xtcp2";
+      healthcheck = xtcp2Healthcheck;
     };
 
   mkFlavorImage =
@@ -130,6 +147,7 @@ let
         8889
       ];
       entrypoint = "/bin/xtcp2";
+      healthcheck = xtcp2Healthcheck;
     };
 in
 {

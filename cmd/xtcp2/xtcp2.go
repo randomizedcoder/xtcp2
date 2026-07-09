@@ -219,6 +219,7 @@ type mainFlags struct {
 	deserializers       *string
 	promListen          *string
 	promPath            *string
+	healthcheck         *bool
 	goMaxProcs          *uint
 	maxThreads          *int
 	profileMode         *string
@@ -278,6 +279,7 @@ func defineFlags() *mainFlags {
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
+	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
 	// Maximum number of CPUs that can be executing simultaneously
 	// https://golang.org/pkg/runtime/#GOMAXPROCS -> zero (0) means default
 	f.goMaxProcs = flag.Uint("goMaxProcs", 4, "goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS")
@@ -562,6 +564,13 @@ func runMain(parentCtx context.Context) int {
 	f := defineFlags()
 	flag.Parse()
 
+	// Container HEALTHCHECK mode: probe the local /readyz and exit, without
+	// starting the daemon. The scratch image has no shell/curl, so the binary
+	// self-checks (same pattern as the docker_custom_scrape exporter).
+	if *f.healthcheck {
+		return runHealthcheck(*f.promListen)
+	}
+
 	c, done := prepareConfig(f)
 	if done {
 		return 0
@@ -719,6 +728,35 @@ func servePromHandler(promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	if err := srv.Serve(ln); err != nil {
 		fatalf("prometheus error: %v", err)
 	}
+}
+
+// runHealthcheck probes the local /readyz endpoint and returns a process exit
+// code: 0 when ready (HTTP 200), 1 otherwise (not ready, or unreachable). It is
+// the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
+// (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
+// the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
+func runHealthcheck(promListen string) int {
+	addr := promListen
+	if v, ok := os.LookupEnv("PROM_LISTEN"); ok && v != "" {
+		addr = v
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		port = "9088" // promListenCst default
+	}
+	url := "http://127.0.0.1:" + port + "/readyz"
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Printf("healthcheck: GET %s: %v", url, err)
+		return 1
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusOK {
+		return 0
+	}
+	log.Printf("healthcheck: %s -> %d", url, resp.StatusCode)
+	return 1
 }
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
