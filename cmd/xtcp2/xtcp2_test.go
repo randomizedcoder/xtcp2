@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -412,6 +414,34 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 
 // servePromHandler error path with an invalid address forces
 // ListenAndServe to fail; fatalf captures the message.
+func TestRunHealthcheck(t *testing.T) {
+	portOf := func(url string) string {
+		_, p, _ := net.SplitHostPort(strings.TrimPrefix(url, "http://"))
+		return p
+	}
+
+	notReady := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer notReady.Close()
+	if rc := runHealthcheck(":" + portOf(notReady.URL)); rc != 1 {
+		t.Errorf("not-ready: rc=%d, want 1", rc)
+	}
+
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ready.Close()
+	if rc := runHealthcheck(":" + portOf(ready.URL)); rc != 0 {
+		t.Errorf("ready: rc=%d, want 0", rc)
+	}
+
+	// Nothing listening -> unreachable -> 1.
+	if rc := runHealthcheck(":1"); rc != 1 {
+		t.Errorf("unreachable: rc=%d, want 1", rc)
+	}
+}
+
 func TestServePromHandler_bindError(t *testing.T) {
 	prev := fatalf
 	var captured string
