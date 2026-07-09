@@ -373,6 +373,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? location,
     $core.String? hostname,
     $core.bool? resolveContainerId,
+    $core.int? ipv4Ttl,
+    $core.int? ipv6HopLimit,
     $core.int? grpcPort,
     EnabledDeserializers? enabledDeserializers,
     $core.bool? ioUring,
@@ -501,6 +503,12 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (resolveContainerId != null) {
       $result.resolveContainerId = resolveContainerId;
     }
+    if (ipv4Ttl != null) {
+      $result.ipv4Ttl = ipv4Ttl;
+    }
+    if (ipv6HopLimit != null) {
+      $result.ipv6HopLimit = ipv6HopLimit;
+    }
     if (grpcPort != null) {
       $result.grpcPort = grpcPort;
     }
@@ -566,6 +574,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(181, _omitFieldNames ? '' : 'location')
     ..aOS(182, _omitFieldNames ? '' : 'hostname')
     ..aOB(183, _omitFieldNames ? '' : 'resolveContainerId')
+    ..a<$core.int>(184, _omitFieldNames ? '' : 'ipv4Ttl', $pb.PbFieldType.OU3)
+    ..a<$core.int>(185, _omitFieldNames ? '' : 'ipv6HopLimit', $pb.PbFieldType.OU3)
     ..a<$core.int>(190, _omitFieldNames ? '' : 'grpcPort', $pb.PbFieldType.OU3)
     ..aOM<EnabledDeserializers>(200, _omitFieldNames ? '' : 'enabledDeserializers', subBuilder: EnabledDeserializers.create)
     ..aOB(210, _omitFieldNames ? '' : 'ioUring')
@@ -1098,37 +1108,62 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(183)
   void clearResolveContainerId() => clearField(183);
 
+  /// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
+  /// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
+  /// far if the host is unexpectedly internet-exposed — the per-listener
+  /// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
+  /// (cf. prometheus/exporter-toolkit#396.)
+  @$pb.TagNumber(184)
+  $core.int get ipv4Ttl => $_getIZ(40);
+  @$pb.TagNumber(184)
+  set ipv4Ttl($core.int v) { $_setUnsignedInt32(40, v); }
+  @$pb.TagNumber(184)
+  $core.bool hasIpv4Ttl() => $_has(40);
+  @$pb.TagNumber(184)
+  void clearIpv4Ttl() => clearField(184);
+
+  /// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
+  /// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
+  @$pb.TagNumber(185)
+  $core.int get ipv6HopLimit => $_getIZ(41);
+  @$pb.TagNumber(185)
+  set ipv6HopLimit($core.int v) { $_setUnsignedInt32(41, v); }
+  @$pb.TagNumber(185)
+  $core.bool hasIpv6HopLimit() => $_has(41);
+  @$pb.TagNumber(185)
+  void clearIpv6HopLimit() => clearField(185);
+
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(40);
+  $core.int get grpcPort => $_getIZ(42);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(40, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(42, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(40);
+  $core.bool hasGrpcPort() => $_has(42);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(41);
+  EnabledDeserializers get enabledDeserializers => $_getN(43);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(41);
+  $core.bool hasEnabledDeserializers() => $_has(43);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(41);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(43);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(42);
+  $core.bool get ioUring => $_getBF(44);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(42, v); }
+  set ioUring($core.bool v) { $_setBool(44, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(42);
+  $core.bool hasIoUring() => $_has(44);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -1137,11 +1172,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(43);
+  $core.int get ioUringRecvBatchSize => $_getIZ(45);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(43, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(45, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(43);
+  $core.bool hasIoUringRecvBatchSize() => $_has(45);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -1149,11 +1184,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(44);
+  $core.int get ioUringCqeBatchSize => $_getIZ(46);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(44, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(46, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(44);
+  $core.bool hasIoUringCqeBatchSize() => $_has(46);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 
@@ -1162,11 +1197,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
   /// Empty = all fields. Ignored by non-tabular marshallers.
   @$pb.TagNumber(220)
-  $core.String get csvColumns => $_getSZ(45);
+  $core.String get csvColumns => $_getSZ(47);
   @$pb.TagNumber(220)
-  set csvColumns($core.String v) { $_setString(45, v); }
+  set csvColumns($core.String v) { $_setString(47, v); }
   @$pb.TagNumber(220)
-  $core.bool hasCsvColumns() => $_has(45);
+  $core.bool hasCsvColumns() => $_has(47);
   @$pb.TagNumber(220)
   void clearCsvColumns() => clearField(220);
 }

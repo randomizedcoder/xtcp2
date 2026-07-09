@@ -381,6 +381,16 @@
           "type": "boolean",
           "description": "Resolve each socket's owning container id from its cgroup (sets the\nrecord's container_id / container_runtime). Set via -resolveContainerId\nflag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it\nand run --cgroupns=host in a container)."
         },
+        "ipv4Ttl": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).\n0 = kernel default. A low value (e.g. 3) keeps replies from travelling\nfar if the host is unexpectedly internet-exposed — the per-listener\nanalogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.\n(cf. prometheus/exporter-toolkit#396.)"
+        },
+        "ipv6HopLimit": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel\ndefault. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT."
+        },
         "grpcPort": {
           "type": "integer",
           "format": "int64",

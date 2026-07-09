@@ -510,6 +510,25 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
+	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
+	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
+	// far if the host is unexpectedly internet-exposed — the per-listener
+	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
+	// (cf. prometheus/exporter-toolkit#396.)
+	uint32 ipv4_ttl                                  = 184 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 255
+	}];
+
+	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
+	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
+	uint32 ipv6_hop_limit                            = 185 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 255
+	}];
+
 	// GRPC listening port
 	uint32 grpc_port                                 = 190 [
 		(buf.validate.field).required = true,
