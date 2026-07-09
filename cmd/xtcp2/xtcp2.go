@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,6 +31,7 @@ import (
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
@@ -137,6 +139,9 @@ const (
 	hostnameCst           = ""
 	resolveContainerIdCst = false
 
+	ipv4TtlCst      uint = 0
+	ipv6HopLimitCst uint = 0
+
 	deserializersCst = "all"
 
 	grpcPortCst = 8889
@@ -207,6 +212,8 @@ type mainFlags struct {
 	location            *string
 	hostname            *string
 	resolveContainerId  *bool
+	ipv4Ttl             *uint
+	ipv6HopLimit        *uint
 	grpcPort            *uint
 	deserializers       *string
 	promListen          *string
@@ -264,6 +271,8 @@ func defineFlags() *mainFlags {
 	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
+	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from travelling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
+	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
@@ -378,6 +387,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		Location:                     *f.location,
 		Hostname:                     *f.hostname,
 		ResolveContainerId:           *f.resolveContainerId,
+		Ipv4Ttl:                      uint32(*f.ipv4Ttl),
+		Ipv6HopLimit:                 uint32(*f.ipv6HopLimit),
 		GrpcPort:                     uint32(*f.grpcPort),
 		EnabledDeserializers:         des,
 
@@ -529,8 +540,8 @@ var daemonRunner = runDaemonDefault
 // promHandlerStarter is the indirection point for the prom-handler
 // goroutine launch. Default starts the real handler; tests swap it for
 // a no-op to skip the port-bind.
-var promHandlerStarter = func(promPath, promListen string) {
-	go initPromHandler(promPath, promListen)
+var promHandlerStarter = func(promPath, promListen string, ipv4TTL, ipv6HopLimit uint32) {
+	go initPromHandler(promPath, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 func main() {
@@ -582,7 +593,7 @@ func runMain(parentCtx context.Context) int {
 		debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
-	promHandlerStarter(*f.promPath, *f.promListen)
+	promHandlerStarter(*f.promPath, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
@@ -670,7 +681,7 @@ func awaitSignalAndShutdown(
 // ListenAndServe error branch is exercisable without exiting.
 var fatalf = log.Fatalf
 
-func initPromHandler(promPath string, promListen string) {
+func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	http.Handle(promPath, promhttp.HandlerFor(
 		prometheus.DefaultGatherer,
 		promhttp.HandlerOpts{
@@ -678,22 +689,30 @@ func initPromHandler(promPath string, promListen string) {
 			MaxRequestsInFlight: promMaxRequestsInFlight,
 		},
 	))
-	go servePromHandler(promListen)
+	go servePromHandler(promListen, ipv4TTL, ipv6HopLimit)
 }
 
 // servePromHandler runs the prom HTTP server on promListen. On
 // ListenAndServe failure it invokes fatalf (default log.Fatalf in
 // production, swapped to a capture by tests). Extracted from
 // initPromHandler so tests can drive the error path in isolation.
-func servePromHandler(promListen string) {
+func servePromHandler(promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	srv := &http.Server{
-		Addr:              promListen,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	// net.Listen (not srv.ListenAndServe) so the IPv4 TTL / IPv6 hop limit can
+	// be clamped on the listening socket before bind (inherited by accepted
+	// connections). ipsockopt.Control is nil when both are 0 → kernel default.
+	lc := net.ListenConfig{Control: ipsockopt.Control(ipv4TTL, ipv6HopLimit)}
+	ln, err := lc.Listen(context.Background(), "tcp", promListen)
+	if err != nil {
+		fatalf("prometheus error, listen: %v", err)
+		return
+	}
+	if err := srv.Serve(ln); err != nil {
 		fatalf("prometheus error: %v", err)
 	}
 }
@@ -1040,6 +1059,14 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.ResolveContainerId = v
 		logEnv("CONTAINER_ID_RESOLVE", fmt.Sprintf("c.ResolveContainerId:%t", v), debugLevel)
 	}
+	if v, ok := envUint32("IPV4_TTL"); ok {
+		c.Ipv4Ttl = v
+		logEnv("IPV4_TTL", fmt.Sprintf("c.Ipv4Ttl:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("IPV6_HOP_LIMIT"); ok {
+		c.Ipv6HopLimit = v
+		logEnv("IPV6_HOP_LIMIT", fmt.Sprintf("c.Ipv6HopLimit:%d", v), debugLevel)
+	}
 	if v, ok := envUint32("GRPC_PORT"); ok {
 		c.GrpcPort = v
 		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
@@ -1076,6 +1103,8 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.KafkaSchemaUrl:", c.KafkaSchemaUrl)
 	fmt.Println("c.KafkaProduceTimeout:", c.KafkaProduceTimeout.AsDuration())
 	fmt.Println("c.DebugLevel:", c.DebugLevel)
+	fmt.Println("c.Ipv4Ttl:", c.Ipv4Ttl)
+	fmt.Println("c.Ipv6HopLimit:", c.Ipv6HopLimit)
 	fmt.Println("c.Label:", c.Label)
 	fmt.Println("c.Tag:", c.Tag)
 	fmt.Println("c.Location:", c.Location)

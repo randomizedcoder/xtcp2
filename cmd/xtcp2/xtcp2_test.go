@@ -307,10 +307,15 @@ func TestEnvOverrideLabeling(t *testing.T) {
 	t.Setenv("LOCATION", "eu-ro-1")
 	t.Setenv("XTCP_HOSTNAME", "runpod435")
 	t.Setenv("CONTAINER_ID_RESOLVE", "true")
+	t.Setenv("IPV4_TTL", "3")
+	t.Setenv("IPV6_HOP_LIMIT", "9")
 	t.Setenv("GRPC_PORT", "9000")
 	envOverrideLabeling(c, 0)
 	if c.Label != "prod" || c.Tag != "host=foo" || c.GrpcPort != 9000 {
 		t.Errorf("envOverrideLabeling mismatch: %+v", c)
+	}
+	if c.Ipv4Ttl != 3 || c.Ipv6HopLimit != 9 {
+		t.Errorf("envOverrideLabeling ttl mismatch: Ipv4Ttl=%d Ipv6HopLimit=%d", c.Ipv4Ttl, c.Ipv6HopLimit)
 	}
 	if c.Location != "eu-ro-1" || c.Hostname != "runpod435" || !c.ResolveContainerId {
 		t.Errorf("envOverrideLabeling identity mismatch: Location=%q Hostname=%q Resolve=%v", c.Location, c.Hostname, c.ResolveContainerId)
@@ -415,7 +420,7 @@ func TestServePromHandler_bindError(t *testing.T) {
 	}
 	t.Cleanup(func() { fatalf = prev })
 
-	servePromHandler("invalid-host:-1")
+	servePromHandler("invalid-host:-1", 0, 0)
 	if !strings.Contains(captured, "prometheus error") {
 		t.Errorf("fatalf not invoked; got %q", captured)
 	}
@@ -432,7 +437,7 @@ func TestRunMain_version(t *testing.T) {
 
 	// Stub the prom handler starter so it doesn't bind a port.
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string) {}
+	promHandlerStarter = func(_, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
@@ -452,7 +457,7 @@ func TestRunMain_conf(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string) {}
+	promHandlerStarter = func(_, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	captureLog(t, func() {
@@ -471,7 +476,7 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string) {}
+	promHandlerStarter = func(_, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	prevDaemon := daemonRunner
@@ -500,7 +505,7 @@ func TestInitPromHandler_smoke(t *testing.T) {
 	fatalf = func(string, ...any) {} // swallow
 	t.Cleanup(func() { fatalf = prevFatalf })
 
-	initPromHandler("/metrics", ":0")
+	initPromHandler("/metrics", ":0", 0, 0)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -773,6 +778,8 @@ func TestBuildConfig(t *testing.T) {
 	label := "lbl"
 	tag := "host=a"
 	gp := uint(8888)
+	ttl := uint(3)
+	hop := uint(9)
 	pl := ":9088"
 	pp := "/metrics"
 	gmp := uint(8)
@@ -809,6 +816,7 @@ func TestBuildConfig(t *testing.T) {
 		dest:                &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
+		ipv4Ttl: &ttl, ipv6HopLimit: &hop,
 		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,
 		profileMode: &pm, v: &v, conf: &conf, d: &d,
 		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
@@ -843,6 +851,8 @@ func TestBuildConfig(t *testing.T) {
 		{"Hostname", c.Hostname, "protoText"},
 		{"ResolveContainerId", c.ResolveContainerId, true},
 		{"GrpcPort", c.GrpcPort, uint32(8888)},
+		{"Ipv4Ttl", c.Ipv4Ttl, uint32(3)},
+		{"Ipv6HopLimit", c.Ipv6HopLimit, uint32(9)},
 		{"S3SkipBucketProbe", c.S3SkipBucketProbe, true},
 	}
 	for _, ck := range checks {

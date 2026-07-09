@@ -886,6 +886,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kS3SkipBucketProbeFieldNumber = 134,
     kResolveContainerIdFieldNumber = 183,
     kIoUringFieldNumber = 210,
+    kIpv4TtlFieldNumber = 184,
+    kIpv6HopLimitFieldNumber = 185,
     kGrpcPortFieldNumber = 190,
     kIoUringRecvBatchSizeFieldNumber = 211,
     kIoUringCqeBatchSizeFieldNumber = 212,
@@ -1460,6 +1462,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_io_uring(bool value);
 
   public:
+  // uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
+  void clear_ipv4_ttl() ;
+  ::uint32_t ipv4_ttl() const;
+  void set_ipv4_ttl(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv4_ttl() const;
+  void _internal_set_ipv4_ttl(::uint32_t value);
+
+  public:
+  // uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
+  void clear_ipv6_hop_limit() ;
+  ::uint32_t ipv6_hop_limit() const;
+  void set_ipv6_hop_limit(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv6_hop_limit() const;
+  void _internal_set_ipv6_hop_limit(::uint32_t value);
+
+  public:
   // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
   void clear_grpc_port() ;
   ::uint32_t grpc_port() const;
@@ -1495,8 +1517,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 46, 4,
-      283, 29>
+      5, 48, 4,
+      291, 29>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1558,6 +1580,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     bool s3_skip_bucket_probe_;
     bool resolve_container_id_;
     bool io_uring_;
+    ::uint32_t ipv4_ttl_;
+    ::uint32_t ipv6_hop_limit_;
     ::uint32_t grpc_port_;
     ::uint32_t io_uring_recv_batch_size_;
     ::uint32_t io_uring_cqe_batch_size_;
@@ -4536,6 +4560,50 @@ inline bool XtcpConfig::_internal_resolve_container_id() const {
 inline void XtcpConfig::_internal_set_resolve_container_id(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.resolve_container_id_ = value;
+}
+
+// uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_ipv4_ttl() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv4_ttl_ = 0u;
+}
+inline ::uint32_t XtcpConfig::ipv4_ttl() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv4_ttl)
+  return _internal_ipv4_ttl();
+}
+inline void XtcpConfig::set_ipv4_ttl(::uint32_t value) {
+  _internal_set_ipv4_ttl(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv4_ttl)
+}
+inline ::uint32_t XtcpConfig::_internal_ipv4_ttl() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ipv4_ttl_;
+}
+inline void XtcpConfig::_internal_set_ipv4_ttl(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv4_ttl_ = value;
+}
+
+// uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
+inline void XtcpConfig::clear_ipv6_hop_limit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv6_hop_limit_ = 0u;
+}
+inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
+  return _internal_ipv6_hop_limit();
+}
+inline void XtcpConfig::set_ipv6_hop_limit(::uint32_t value) {
+  _internal_set_ipv6_hop_limit(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
+}
+inline ::uint32_t XtcpConfig::_internal_ipv6_hop_limit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ipv6_hop_limit_;
+}
+inline void XtcpConfig::_internal_set_ipv6_hop_limit(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv6_hop_limit_ = value;
 }
 
 // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {

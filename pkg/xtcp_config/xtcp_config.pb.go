@@ -484,6 +484,15 @@ type XtcpConfig struct {
 	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
 	// and run --cgroupns=host in a container).
 	ResolveContainerId bool `protobuf:"varint,183,opt,name=resolve_container_id,json=resolveContainerId,proto3" json:"resolve_container_id,omitempty"`
+	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
+	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
+	// far if the host is unexpectedly internet-exposed — the per-listener
+	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
+	// (cf. prometheus/exporter-toolkit#396.)
+	Ipv4Ttl uint32 `protobuf:"varint,184,opt,name=ipv4_ttl,json=ipv4Ttl,proto3" json:"ipv4_ttl,omitempty"`
+	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
+	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
+	Ipv6HopLimit uint32 `protobuf:"varint,185,opt,name=ipv6_hop_limit,json=ipv6HopLimit,proto3" json:"ipv6_hop_limit,omitempty"`
 	// GRPC listening port
 	GrpcPort             uint32                `protobuf:"varint,190,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	EnabledDeserializers *EnabledDeserializers `protobuf:"bytes,200,opt,name=enabled_deserializers,json=enabledDeserializers,proto3" json:"enabled_deserializers,omitempty"`
@@ -820,6 +829,20 @@ func (x *XtcpConfig) GetResolveContainerId() bool {
 	return false
 }
 
+func (x *XtcpConfig) GetIpv4Ttl() uint32 {
+	if x != nil {
+		return x.Ipv4Ttl
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetIpv6HopLimit() uint32 {
+	if x != nil {
+		return x.Ipv6HopLimit
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetGrpcPort() uint32 {
 	if x != nil {
 		return x.GrpcPort
@@ -925,7 +948,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xdb\x14\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb8\x15\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -983,7 +1006,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12(\n" +
 	"\blocation\x18\xb5\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12(\n" +
 	"\bhostname\x18\xb6\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x129\n" +
-	"\x14resolve_container_id\x18\xb7\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x12,\n" +
+	"\x14resolve_container_id\x18\xb7\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x12'\n" +
+	"\bipv4_ttl\x18\xb8\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
+	"\x0eipv6_hop_limit\x18\xb9\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12,\n" +
 	"\tgrpc_port\x18\xbe\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12b\n" +
 	"\x15enabled_deserializers\x18\xc8\x01 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers\x12\"\n" +
 	"\bio_uring\x18\xd2\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\aioUring\x12F\n" +

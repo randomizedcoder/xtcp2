@@ -144,6 +144,8 @@ docker logs xtcp2            # header + humanized rows
 | `-location` | — | Deployment grouping/facility (data center, PoP, region, …) stamped on every record's `location` (`LOCATION`). |
 | `-hostname` | — | Hostname override stamped on records; defaults to `os.Hostname()`. Required in a container, where `os.Hostname()` returns the container id. `XTCP_HOSTNAME` (NOT `HOSTNAME`). |
 | `-resolveContainerId` | `false` | Resolve each socket's owning container id/runtime from its cgroup into `container_id`/`container_runtime` (`CONTAINER_ID_RESOLVE`). Needs `/sys/fs/cgroup` (mount it + `--cgroupns=host` in a container). |
+| `-ipv4Ttl` | `0` | Outgoing IPv4 TTL on xtcp2's TCP listeners (Prometheus + gRPC); `0` = kernel default. A low value keeps replies from travelling far if the host is internet-exposed (`IPV4_TTL`). |
+| `-ipv6HopLimit` | `0` | Outgoing IPv6 unicast hop limit on xtcp2's TCP listeners; `0` = kernel default (`IPV6_HOP_LIMIT`). |
 | `-s3Endpoint` | — | S3 endpoint URL (or `S3_ENDPOINT`). |
 | `-s3Bucket` | — | S3 bucket (or `S3_BUCKET`); must already exist. |
 | `-s3Prefix` | — | Key prefix within the bucket. |

@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/grpc"
@@ -39,7 +40,9 @@ const (
 
 func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 
-	var lc net.ListenConfig
+	// Clamp the IPv4 TTL / IPv6 hop limit on the gRPC listener too (0 = kernel
+	// default), so its replies can't travel far if the host is internet-exposed.
+	lc := net.ListenConfig{Control: ipsockopt.Control(x.config.Ipv4Ttl, x.config.Ipv6HopLimit)}
 	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

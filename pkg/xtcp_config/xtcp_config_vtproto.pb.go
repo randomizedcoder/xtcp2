@@ -366,6 +366,20 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf0
 	}
+	if m.Ipv6HopLimit != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv6HopLimit))
+		i--
+		dAtA[i] = 0xb
+		i--
+		dAtA[i] = 0xc8
+	}
+	if m.Ipv4Ttl != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv4Ttl))
+		i--
+		dAtA[i] = 0xb
+		i--
+		dAtA[i] = 0xc0
+	}
 	if m.ResolveContainerId {
 		i--
 		if m.ResolveContainerId {
@@ -996,6 +1010,12 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.ResolveContainerId {
 		n += 3
+	}
+	if m.Ipv4Ttl != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv4Ttl))
+	}
+	if m.Ipv6HopLimit != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv6HopLimit))
 	}
 	if m.GrpcPort != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.GrpcPort))
@@ -2650,6 +2670,44 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ResolveContainerId = bool(v != 0)
+		case 184:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ipv4Ttl", wireType)
+			}
+			m.Ipv4Ttl = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Ipv4Ttl |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 185:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ipv6HopLimit", wireType)
+			}
+			m.Ipv6HopLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Ipv6HopLimit |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		case 190:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field GrpcPort", wireType)
