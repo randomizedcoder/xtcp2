@@ -31,6 +31,12 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 		log.Printf("Poller DestinationReady")
 	}
 
+	// Destination is up and netlinkers have started — the daemon is now
+	// operational, so flip liveness/readiness (HTTP /readyz + gRPC health) to
+	// ready, and back to not-ready when the poller returns (shutdown).
+	x.setReady(true)
+	defer x.setReady(false)
+
 	ticker := time.NewTicker(x.config.PollFrequency.AsDuration())
 	defer ticker.Stop()
 	x.pollTimeoutTimer = time.NewTimer(x.config.PollTimeout.AsDuration())

@@ -8,11 +8,14 @@ import (
 	"net"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
+	grpchealth "google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
@@ -82,6 +85,12 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
+	// Standard gRPC health service (grpc.health.v1) so k8s gRPC probes work.
+	// Starts NOT_SERVING; setReady flips it to SERVING once the daemon polls.
+	x.grpcHealth = grpchealth.NewServer()
+	x.grpcHealth.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+	healthpb.RegisterHealthServer(grpcServer, x.grpcHealth)
+
 	// Stop the gRPC server when ctx fires. grpcServer.Serve blocks
 	// indefinitely on lis.Accept and is NOT ctx-aware on its own —
 	// without this goroutine the gRPC server outlives Run() and would
@@ -99,5 +108,19 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	// doesn't produce a misleading "Serve err:..." log line every run.
 	if serveErr := grpcServer.Serve(lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
 		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
+	}
+}
+
+// setReady flips the process readiness in one place: the HTTP /readyz flag and
+// the gRPC health status move together. The daemon calls setReady(true) once it
+// starts polling and setReady(false) on shutdown.
+func (x *XTCP) setReady(r bool) {
+	health.SetReady(r)
+	if x.grpcHealth != nil {
+		status := healthpb.HealthCheckResponse_NOT_SERVING
+		if r {
+			status = healthpb.HealthCheckResponse_SERVING
+		}
+		x.grpcHealth.SetServingStatus("", status)
 	}
 }

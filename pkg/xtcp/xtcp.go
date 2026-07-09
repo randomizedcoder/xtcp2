@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	grpchealth "google.golang.org/grpc/health"
+
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
@@ -118,6 +120,7 @@ type XTCP struct {
 
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
+	grpcHealth        *grpchealth.Server
 
 	pC *prometheus.CounterVec
 	pH *prometheus.SummaryVec
