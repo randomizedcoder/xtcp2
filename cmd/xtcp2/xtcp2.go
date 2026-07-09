@@ -31,6 +31,7 @@ import (
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
@@ -689,6 +690,9 @@ func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit u
 			MaxRequestsInFlight: promMaxRequestsInFlight,
 		},
 	))
+	// Liveness + readiness for container/k8s deployment, on the same listener.
+	http.HandleFunc("/healthz", health.Healthz)
+	http.HandleFunc("/readyz", health.Readyz)
 	go servePromHandler(promListen, ipv4TTL, ipv6HopLimit)
 }
 

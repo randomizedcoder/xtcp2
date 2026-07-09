@@ -5,6 +5,7 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 ## Table of contents
 
 - [Prometheus metrics](#prometheus-metrics)
+- [Health & readiness](#health--readiness)
 - [pprof](#pprof)
 - [Pyroscope continuous profiling](#pyroscope-continuous-profiling)
 - [Capability checks](#capability-checks)
@@ -14,6 +15,21 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 ## Prometheus metrics
 
 `pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
+
+## Health & readiness
+
+For container / Kubernetes deployment the metrics HTTP server also serves two
+probe endpoints (same `-promListen` address):
+
+- **`/healthz`** — liveness. Returns `200` as soon as the HTTP server is up. Use
+  it for a Docker `HEALTHCHECK` or a k8s `livenessProbe`.
+- **`/readyz`** — readiness. Returns `200` only once the daemon has initialised
+  its destination and netlinkers and started polling; `503` until then and again
+  during shutdown. Use it for a k8s `readinessProbe` / `startupProbe` so traffic
+  and rollouts wait until xtcp2 is actually collecting.
+
+The gRPC port additionally serves the standard `grpc.health.v1` service, which
+reports `SERVING` on the same readiness condition (for native k8s gRPC probes).
 
 ## pprof
 
