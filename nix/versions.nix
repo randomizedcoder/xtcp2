@@ -8,9 +8,16 @@
 { pkgs }:
 
 {
-  # Go toolchain. Must satisfy go.mod's `go 1.25` directive.
-  # nixpkgs unstable should have go_1_25; fall back to `go` (latest) if not.
-  go = pkgs.go_1_25 or pkgs.go;
+  # Go toolchain — pinned to 1.26.5 for its security fixes. The pinned nixpkgs
+  # only packages go_1_26 = 1.26.2, so override the version + source to 1.26.5
+  # until nixpkgs catches up (then this can drop back to plain `pkgs.go_1_26`).
+  go = pkgs.go_1_26.overrideAttrs (_old: rec {
+    version = "1.26.5";
+    src = pkgs.fetchurl {
+      url = "https://go.dev/dl/go${version}.src.tar.gz";
+      hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
+    };
+  });
 
   # protobuf tooling
   buf = pkgs.buf;
