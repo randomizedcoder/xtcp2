@@ -26,7 +26,10 @@ let
   versions = import ../versions.nix { inherit pkgs; };
   patchGoMod = import ./patchGoMod.nix { inherit giouring; };
 
-  buildGoModule = pkgs.buildGoModule;
+  # Build with the pinned Go toolchain (versions.go = 1.26.5), not pkgs'
+  # default `go` — otherwise the compiled binary uses whatever pkgs.go
+  # resolves to, defeating the version pin.
+  buildGoModule = pkgs.buildGoModule.override { inherit (versions) go; };
 in
 {
   name,

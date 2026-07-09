@@ -28,7 +28,7 @@ let
   # in the repo, including pkg/clickhouse_protolist, pkg/xtcp_config, etc.) so
   # that lint checks can type-check them. Restricting subPackages omits deps
   # of unbuilt packages from vendor/.
-  parent = pkgs.buildGoModule {
+  parent = (pkgs.buildGoModule.override { inherit (versions) go; }) {
     pname = "xtcp2";
     version = "vendored";
     inherit src vendorHash;
