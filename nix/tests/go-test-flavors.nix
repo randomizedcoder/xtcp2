@@ -42,8 +42,11 @@ let
     valkey = {
       tags = "dest_valkey";
     };
+    s3parquet = {
+      tags = "dest_s3parquet";
+    };
     all = {
-      tags = "dest_kafka dest_nats dest_nsq dest_valkey";
+      tags = "dest_kafka dest_nats dest_nsq dest_valkey dest_s3parquet";
     };
   };
 

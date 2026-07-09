@@ -50,7 +50,7 @@ This is the make-or-break step. Two issues dominate.
 - Require a minimum lifetime — e.g. ≥ N samples or ≥ some bytes — so ephemeral sockets with one noisy RTT sample don't pollute the bands (survivorship filtering).
 - Convert units: µs → ms for RTT; bytes/s → Mbit/s for throughput.
 - Counters (`tcp_info_bytes_*`, `tcp_info_total_retrans`, `tcp_info_segs_*`) are **cumulative over the socket lifetime** — use the last value per socket, or deltas between consecutive polls for rates.
-- Derive the **data-center** dimension. xtcp2 doesn't emit "DC" directly — derive it from your `hostname` convention, or set it explicitly with the daemon's `-label`/`-tag` (carried in the `label`/`tag` columns).
+- Set the **data-center / facility** dimension with the daemon's `-location` flag (or `LOCATION` env), carried in the generic `location` column. (`-label`/`-tag` remain for any other free-form dimensions; `-hostname` overrides the stamped hostname, which matters in containers.)
 
 The per-socket feature table (one row per socket) is the input to everything below. See the [worked example](#worked-example) for the SQL.
 

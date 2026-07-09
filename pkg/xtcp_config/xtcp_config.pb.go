@@ -469,6 +469,21 @@ type XtcpConfig struct {
 	Label string `protobuf:"bytes,170,opt,name=label,proto3" json:"label,omitempty"`
 	// Tag applied to the protobuf
 	Tag string `protobuf:"bytes,180,opt,name=tag,proto3" json:"tag,omitempty"`
+	// Deployment grouping / facility this daemon runs in (data center, PoP,
+	// region, site, …). Generic; stamped on every record's `location` field.
+	// Set via -location flag or LOCATION env.
+	Location string `protobuf:"bytes,181,opt,name=location,proto3" json:"location,omitempty"`
+	// Hostname override. When empty the daemon uses os.Hostname(); set this to
+	// stamp an explicit hostname on records — required in containers, where
+	// os.Hostname() returns the container id, not the host. Set via -hostname
+	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
+	// container id).
+	Hostname string `protobuf:"bytes,182,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Resolve each socket's owning container id from its cgroup (sets the
+	// record's container_id / container_runtime). Set via -resolveContainerId
+	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
+	// and run --cgroupns=host in a container).
+	ResolveContainerId bool `protobuf:"varint,183,opt,name=resolve_container_id,json=resolveContainerId,proto3" json:"resolve_container_id,omitempty"`
 	// GRPC listening port
 	GrpcPort             uint32                `protobuf:"varint,190,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	EnabledDeserializers *EnabledDeserializers `protobuf:"bytes,200,opt,name=enabled_deserializers,json=enabledDeserializers,proto3" json:"enabled_deserializers,omitempty"`
@@ -784,6 +799,27 @@ func (x *XtcpConfig) GetTag() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetResolveContainerId() bool {
+	if x != nil {
+		return x.ResolveContainerId
+	}
+	return false
+}
+
 func (x *XtcpConfig) GetGrpcPort() uint32 {
 	if x != nil {
 		return x.GrpcPort
@@ -889,7 +925,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xcc\x13\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xdb\x14\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -944,7 +980,10 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x05label\x18\xaa\x01 \x01(\tB\n" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x05label\x12\x1d\n" +
 	"\x03tag\x18\xb4\x01 \x01(\tB\n" +
-	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12,\n" +
+	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12(\n" +
+	"\blocation\x18\xb5\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12(\n" +
+	"\bhostname\x18\xb6\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x129\n" +
+	"\x14resolve_container_id\x18\xb7\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x12,\n" +
 	"\tgrpc_port\x18\xbe\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12b\n" +
 	"\x15enabled_deserializers\x18\xc8\x01 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers\x12\"\n" +
 	"\bio_uring\x18\xd2\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\aioUring\x12F\n" +

@@ -482,6 +482,34 @@ message XtcpConfig {
 			max_len: 40,
 	}];
 
+	// Deployment grouping / facility this daemon runs in (data center, PoP,
+	// region, site, …). Generic; stamped on every record's `location` field.
+	// Set via -location flag or LOCATION env.
+	string location                                  = 181 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 253,
+	}];
+
+	// Hostname override. When empty the daemon uses os.Hostname(); set this to
+	// stamp an explicit hostname on records — required in containers, where
+	// os.Hostname() returns the container id, not the host. Set via -hostname
+	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
+	// container id).
+	string hostname                                  = 182 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 253,
+	}];
+
+	// Resolve each socket's owning container id from its cgroup (sets the
+	// record's container_id / container_runtime). Set via -resolveContainerId
+	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
+	// and run --cgroupns=host in a container).
+	bool resolve_container_id                        = 183 [
+		(buf.validate.field).required = false
+	];
+
 	// GRPC listening port
 	uint32 grpc_port                                 = 190 [
 		(buf.validate.field).required = true,

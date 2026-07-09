@@ -87,9 +87,21 @@
         "hostname": {
           "type": "string"
         },
+        "location": {
+          "type": "string",
+          "description": "Deployment grouping / facility this daemon runs in — generic across\noperators (data center, PoP, region, site, …). Free-form; set via\n-location flag or LOCATION env. Constant for every record from one\ndaemon instance."
+        },
         "netns": {
           "type": "string",
           "title": "network namespace"
+        },
+        "containerId": {
+          "type": "string",
+          "description": "Container that owns the socket, resolved from the per-socket cgroup v2\nid (c_group) via the cgroup path (e.g. docker-\u003cid\u003e.scope). Empty when\nthe socket isn't in a recognised container cgroup or resolution is\ndisabled/unavailable. See container_runtime for the detected runtime."
+        },
+        "containerRuntime": {
+          "type": "string",
+          "description": "Container runtime detected while resolving container_id, e.g. \"docker\",\n\"containerd\", \"crio\", \"kubepods\". Empty when container_id is empty."
         },
         "nsid": {
           "type": "integer",

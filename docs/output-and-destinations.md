@@ -86,7 +86,7 @@ For a consumer-facing reference of the Parquet layout, schema, and the key TCP c
 The per-socket record and its batch wrapper are defined in `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
 
 - `Envelope` — a batch: repeated `XtcpFlatRecord` rows plus metadata.
-- `XtcpFlatRecord` — one socket snapshot: timestamp, hostname, network namespace, TCP state, the `tcp_info` fields, congestion algorithm, and the optional attribute groups (skmem, shutdown, DCTCP, BBR, sockopt, class/cgroup IDs). The free-form `-label` and `-tag` flag values are embedded into every record.
+- `XtcpFlatRecord` — one socket snapshot: timestamp, hostname, network namespace, TCP state, the `tcp_info` fields, congestion algorithm, and the optional attribute groups (skmem, shutdown, DCTCP, BBR, sockopt, class/cgroup IDs). The free-form `-label`/`-tag` and the `-location` value are embedded into every record; with `-resolveContainerId` the owning container's `container_id`/`container_runtime` (resolved from the socket's cgroup) are too.
 
 Generated Go types live in `pkg/xtcp_flat_record/`. For the full schema reference (all three protobufs, generated bindings, and how to regenerate) see [protobuf formats](protobuf-formats.md).
 
@@ -140,7 +140,10 @@ docker logs xtcp2            # header + humanized rows
 | `-kafkaSchemaUrl` | `http://localhost:18081` | Confluent schema registry URL. |
 | `-xtcpProtoFile` | — | Proto file used when registering the schema. |
 | `-produceTimeout` | — | Kafka produce timeout. |
-| `-label`, `-tag` | — | Free-form strings embedded in every record. |
+| `-label`, `-tag` | — | Free-form strings embedded in every record (`LABEL`/`TAG`). |
+| `-location` | — | Deployment grouping/facility (data center, PoP, region, …) stamped on every record's `location` (`LOCATION`). |
+| `-hostname` | — | Hostname override stamped on records; defaults to `os.Hostname()`. Required in a container, where `os.Hostname()` returns the container id. `XTCP_HOSTNAME` (NOT `HOSTNAME`). |
+| `-resolveContainerId` | `false` | Resolve each socket's owning container id/runtime from its cgroup into `container_id`/`container_runtime` (`CONTAINER_ID_RESOLVE`). Needs `/sys/fs/cgroup` (mount it + `--cgroupns=host` in a container). |
 | `-s3Endpoint` | — | S3 endpoint URL (or `S3_ENDPOINT`). |
 | `-s3Bucket` | — | S3 bucket (or `S3_BUCKET`); must already exist. |
 | `-s3Prefix` | — | Key prefix within the bucket. |

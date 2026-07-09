@@ -860,6 +860,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kKafkaSchemaUrlFieldNumber = 145,
     kLabelFieldNumber = 170,
     kTagFieldNumber = 180,
+    kLocationFieldNumber = 181,
+    kHostnameFieldNumber = 182,
     kCsvColumnsFieldNumber = 220,
     kPollFrequencyFieldNumber = 20,
     kPollTimeoutFieldNumber = 30,
@@ -882,6 +884,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPyroscopeUploadIntervalSecFieldNumber = 139,
     kDebugLevelFieldNumber = 160,
     kS3SkipBucketProbeFieldNumber = 134,
+    kResolveContainerIdFieldNumber = 183,
     kIoUringFieldNumber = 210,
     kGrpcPortFieldNumber = 190,
     kIoUringRecvBatchSizeFieldNumber = 211,
@@ -1159,6 +1162,38 @@ class XtcpConfig final : public ::google::protobuf::Message
   std::string* _internal_mutable_tag();
 
   public:
+  // string location = 181 [json_name = "location", (.buf.validate.field) = {
+  void clear_location() ;
+  const std::string& location() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_location(Arg_&& arg, Args_... args);
+  std::string* mutable_location();
+  PROTOBUF_NODISCARD std::string* release_location();
+  void set_allocated_location(std::string* value);
+
+  private:
+  const std::string& _internal_location() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_location(
+      const std::string& value);
+  std::string* _internal_mutable_location();
+
+  public:
+  // string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+  void clear_hostname() ;
+  const std::string& hostname() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_hostname(Arg_&& arg, Args_... args);
+  std::string* mutable_hostname();
+  PROTOBUF_NODISCARD std::string* release_hostname();
+  void set_allocated_hostname(std::string* value);
+
+  private:
+  const std::string& _internal_hostname() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hostname(
+      const std::string& value);
+  std::string* _internal_mutable_hostname();
+
+  public:
   // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
   void clear_csv_columns() ;
   const std::string& csv_columns() const;
@@ -1405,6 +1440,16 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_s3_skip_bucket_probe(bool value);
 
   public:
+  // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+  void clear_resolve_container_id() ;
+  bool resolve_container_id() const;
+  void set_resolve_container_id(bool value);
+
+  private:
+  bool _internal_resolve_container_id() const;
+  void _internal_set_resolve_container_id(bool value);
+
+  public:
   // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
   void clear_io_uring() ;
   bool io_uring() const;
@@ -1450,8 +1495,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 43, 4,
-      267, 29>
+      5, 46, 4,
+      283, 29>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1487,6 +1532,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
+    ::google::protobuf::internal::ArenaStringPtr location_;
+    ::google::protobuf::internal::ArenaStringPtr hostname_;
     ::google::protobuf::internal::ArenaStringPtr csv_columns_;
     ::google::protobuf::Duration* poll_frequency_;
     ::google::protobuf::Duration* poll_timeout_;
@@ -1509,6 +1556,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t pyroscope_upload_interval_sec_;
     ::uint32_t debug_level_;
     bool s3_skip_bucket_probe_;
+    bool resolve_container_id_;
     bool io_uring_;
     ::uint32_t grpc_port_;
     ::uint32_t io_uring_recv_batch_size_;
@@ -4370,6 +4418,124 @@ inline void XtcpConfig::set_allocated_tag(std::string* value) {
     _impl_.tag_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.tag)
+}
+
+// string location = 181 [json_name = "location", (.buf.validate.field) = {
+inline void XtcpConfig::clear_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::location() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.location)
+  return _internal_location();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_location(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.location)
+}
+inline std::string* XtcpConfig::mutable_location() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_location();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.location)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_location() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.location_.Get();
+}
+inline void XtcpConfig::_internal_set_location(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.location_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.location)
+  return _impl_.location_.Release();
+}
+inline void XtcpConfig::set_allocated_location(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.location_.IsDefault()) {
+    _impl_.location_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.location)
+}
+
+// string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+inline void XtcpConfig::clear_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.ClearToEmpty();
+}
+inline const std::string& XtcpConfig::hostname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.hostname)
+  return _internal_hostname();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_hostname(Arg_&& arg,
+                                                     Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.hostname)
+}
+inline std::string* XtcpConfig::mutable_hostname() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string* _s = _internal_mutable_hostname();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.hostname)
+  return _s;
+}
+inline const std::string& XtcpConfig::_internal_hostname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.hostname_.Get();
+}
+inline void XtcpConfig::_internal_set_hostname(const std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.Set(value, GetArena());
+}
+inline std::string* XtcpConfig::_internal_mutable_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.hostname_.Mutable( GetArena());
+}
+inline std::string* XtcpConfig::release_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.hostname)
+  return _impl_.hostname_.Release();
+}
+inline void XtcpConfig::set_allocated_hostname(std::string* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.hostname_.IsDefault()) {
+    _impl_.hostname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.hostname)
+}
+
+// bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+inline void XtcpConfig::clear_resolve_container_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.resolve_container_id_ = false;
+}
+inline bool XtcpConfig::resolve_container_id() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.resolve_container_id)
+  return _internal_resolve_container_id();
+}
+inline void XtcpConfig::set_resolve_container_id(bool value) {
+  _internal_set_resolve_container_id(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.resolve_container_id)
+}
+inline bool XtcpConfig::_internal_resolve_container_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.resolve_container_id_;
+}
+inline void XtcpConfig::_internal_set_resolve_container_id(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.resolve_container_id_ = value;
 }
 
 // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {

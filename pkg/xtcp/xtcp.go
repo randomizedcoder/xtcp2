@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
@@ -64,6 +65,10 @@ type XTCP struct {
 	pollTimeoutTimer *time.Timer
 
 	hostname string
+
+	// cgroupResolver maps a socket's cgroup id -> owning container id/runtime.
+	// nil unless config.ResolveContainerId is set. See pkg/cgroupid.
+	cgroupResolver *cgroupid.Resolver
 
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string

@@ -154,8 +154,21 @@ type XtcpFlatRecord struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	TimestampNs float64                `protobuf:"fixed64,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
 	Hostname    string                 `protobuf:"bytes,20,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Deployment grouping / facility this daemon runs in — generic across
+	// operators (data center, PoP, region, site, …). Free-form; set via
+	// -location flag or LOCATION env. Constant for every record from one
+	// daemon instance.
+	Location string `protobuf:"bytes,21,opt,name=location,proto3" json:"location,omitempty"`
 	// network namespace
 	Netns string `protobuf:"bytes,30,opt,name=netns,proto3" json:"netns,omitempty"`
+	// Container that owns the socket, resolved from the per-socket cgroup v2
+	// id (c_group) via the cgroup path (e.g. docker-<id>.scope). Empty when
+	// the socket isn't in a recognised container cgroup or resolution is
+	// disabled/unavailable. See container_runtime for the detected runtime.
+	ContainerId string `protobuf:"bytes,31,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	// Container runtime detected while resolving container_id, e.g. "docker",
+	// "containerd", "crio", "kubepods". Empty when container_id is empty.
+	ContainerRuntime string `protobuf:"bytes,32,opt,name=container_runtime,json=containerRuntime,proto3" json:"container_runtime,omitempty"`
 	// network namespace id
 	// TODO xtcp does not currently get the id
 	Nsid uint32 `protobuf:"varint,40,opt,name=nsid,proto3" json:"nsid,omitempty"`
@@ -335,9 +348,30 @@ func (x *XtcpFlatRecord) GetHostname() string {
 	return ""
 }
 
+func (x *XtcpFlatRecord) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
 func (x *XtcpFlatRecord) GetNetns() string {
 	if x != nil {
 		return x.Netns
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetContainerRuntime() string {
+	if x != nil {
+		return x.ContainerRuntime
 	}
 	return ""
 }
@@ -1342,12 +1376,15 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xa3/\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\x8f0\n" +
 	"\x0eXtcpFlatRecord\x12!\n" +
 	"\ftimestamp_ns\x18\n" +
 	" \x01(\x01R\vtimestampNs\x12\x1a\n" +
-	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x14\n" +
-	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x12\n" +
+	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x1a\n" +
+	"\blocation\x18\x15 \x01(\tR\blocation\x12\x14\n" +
+	"\x05netns\x18\x1e \x01(\tR\x05netns\x12!\n" +
+	"\fcontainer_id\x18\x1f \x01(\tR\vcontainerId\x12+\n" +
+	"\x11container_runtime\x18  \x01(\tR\x10containerRuntime\x12\x12\n" +
 	"\x04nsid\x18( \x01(\rR\x04nsid\x12\x14\n" +
 	"\x05label\x182 \x01(\tR\x05label\x12\x10\n" +
 	"\x03tag\x18< \x01(\tR\x03tag\x12%\n" +

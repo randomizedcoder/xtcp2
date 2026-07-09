@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -79,11 +80,25 @@ func (x *XTCP) Init(ctx context.Context) {
 	x.nlRequest = x.CreateNetLinkRequest(wg)
 
 	x.initHostname()
+	x.initContainerResolver()
 
 	wg.Wait()
 
 	if x.debugLevel > 10 {
 		log.Printf("Init complete after:%0.3f", time.Since(startTime).Seconds())
+	}
+}
+
+// initContainerResolver builds the cgroup-id -> container-id resolver when
+// enabled via config. Off by default; the daemon runs identically without it,
+// leaving container_id/container_runtime empty. See pkg/cgroupid.
+func (x *XTCP) initContainerResolver() {
+	if x.config == nil || !x.config.ResolveContainerId {
+		return
+	}
+	x.cgroupResolver = cgroupid.New(cgroupid.DefaultRoot)
+	if x.debugLevel > 10 {
+		log.Printf("initContainerResolver: cgroup->container resolution enabled (root:%s)", cgroupid.DefaultRoot)
 	}
 }
 
@@ -103,6 +118,14 @@ func (x *XTCP) initChannels() {
 var hostnameLookup = os.Hostname
 
 func (x *XTCP) initHostname() {
+	// An explicit override wins over os.Hostname(). This is required in a
+	// container: os.Hostname() there returns the container id (Docker's UTS
+	// hostname), not the host. Operators inject the real host identity via the
+	// -hostname flag / XTCP_HOSTNAME env.
+	if x.config != nil && x.config.Hostname != "" {
+		x.hostname = x.config.Hostname
+		return
+	}
 	hostname, err := hostnameLookup()
 	if err != nil {
 		x.callFatalf("os.Hostname() error:%s", err)

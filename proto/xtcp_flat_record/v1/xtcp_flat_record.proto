@@ -49,8 +49,24 @@ message XtcpFlatRecord {
 
 	string hostname                                 = 20;
 
+	// Deployment grouping / facility this daemon runs in — generic across
+	// operators (data center, PoP, region, site, …). Free-form; set via
+	// -location flag or LOCATION env. Constant for every record from one
+	// daemon instance.
+	string location                                 = 21;
+
 	// network namespace
 	string netns                                    = 30;
+
+	// Container that owns the socket, resolved from the per-socket cgroup v2
+	// id (c_group) via the cgroup path (e.g. docker-<id>.scope). Empty when
+	// the socket isn't in a recognised container cgroup or resolution is
+	// disabled/unavailable. See container_runtime for the detected runtime.
+	string container_id                             = 31;
+
+	// Container runtime detected while resolving container_id, e.g. "docker",
+	// "containerd", "crio", "kubepods". Empty when container_id is empty.
+	string container_runtime                        = 32;
 
 	// network namespace id
 	// TODO xtcp does not currently get the id
