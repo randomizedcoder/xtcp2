@@ -168,6 +168,12 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         tag_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        location_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        hostname_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         csv_columns_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
@@ -192,6 +198,7 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         pyroscope_upload_interval_sec_{0u},
         debug_level_{0u},
         s3_skip_bucket_probe_{false},
+        resolve_container_id_{false},
         io_uring_{false},
         grpc_port_{0u},
         io_uring_recv_batch_size_{0u},
@@ -430,6 +437,9 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.debug_level_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.label_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.tag_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.location_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.hostname_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.resolve_container_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.grpc_port_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.enabled_deserializers_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_),
@@ -474,6 +484,9 @@ const ::uint32_t
         ~0u,
         ~0u,
         ~0u,
+        ~0u,
+        ~0u,
+        ~0u,
         3,
         ~0u,
         ~0u,
@@ -510,9 +523,9 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 111, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {154, 164, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {166, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, 114, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {160, 170, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {172, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -545,7 +558,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\314\023\n\nXtcpConfi"
+    "nfig.v1.XtcpConfigR\006config\"\333\024\n\nXtcpConfi"
     "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
     "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
     "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
@@ -596,36 +609,39 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "kafkaProduceTimeout\022/\n\013debug_level\030\240\001 \001("
     "\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\022!\n\005label\030\252\001"
     " \001(\tB\n\272H\007r\002\030(\310\001\000R\005label\022\035\n\003tag\030\264\001 \001(\tB\n\272"
-    "H\007r\002\030(\310\001\000R\003tag\022,\n\tgrpc_port\030\276\001 \001(\rB\016\272H\013*"
-    "\006\030\377\377\003(\001\310\001\001R\010grpcPort\022b\n\025enabled_deserial"
-    "izers\030\310\001 \001(\0132$.xtcp_config.v1.EnabledDes"
-    "erializersB\006\272H\003\310\001\000R\024enabledDeserializers"
-    "\022\"\n\010io_uring\030\322\001 \001(\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030"
-    "io_uring_recv_batch_size\030\323\001 \001(\rB\r\272H\n*\005\030\200"
-    " (\001\310\001\000R\024ioUringRecvBatchSize\022D\n\027io_uring"
-    "_cqe_batch_size\030\324\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023i"
-    "oUringCqeBatchSize\022(\n\013csv_columns\030\334\001 \001(\t"
-    "B\006\272H\003\310\001\000R\ncsvColumns:s\272Hp\032n\n\017XtcpConfig."
-    "poll\0222Poll timeout must be less than pol"
-    "l poll_frequency\032\'this.poll_frequency > "
-    "this.poll_timeout\"\237\001\n\024EnabledDeserialize"
-    "rs\022K\n\007enabled\030\001 \003(\01321.xtcp_config.v1.Ena"
-    "bledDeserializers.EnabledEntryR\007enabled\032"
-    ":\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005val"
-    "ue\030\002 \001(\010R\005value:\0028\0012\341\002\n\rConfigService\022]\n"
-    "\003Get\022\032.xtcp_config.v1.GetRequest\032\033.xtcp_"
-    "config.v1.GetResponse\"\035\202\323\344\223\002\027\032\022/ConfigSe"
-    "rvice/Get:\001*\022]\n\003Set\022\032.xtcp_config.v1.Set"
-    "Request\032\033.xtcp_config.v1.SetResponse\"\035\202\323"
-    "\344\223\002\027\032\022/ConfigService/Set:\001*\022\221\001\n\020SetPollF"
-    "requency\022\'.xtcp_config.v1.SetPollFrequen"
-    "cyRequest\032(.xtcp_config.v1.SetPollFreque"
-    "ncyResponse\"*\202\323\344\223\002$\032\037/ConfigService/SetP"
-    "ollFrequency:\001*B\215\001\n\022com.xtcp_config.v1B\017"
-    "XtcpConfigProtoP\001Z\021./pkg/xtcp_config\242\002\003X"
-    "XX\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V1\342\002\031Xtc"
-    "pConfig\\V1\\GPBMetadata\352\002\016XtcpConfig::V1b"
-    "\006proto3"
+    "H\007r\002\030(\310\001\000R\003tag\022(\n\010location\030\265\001 \001(\tB\013\272H\010r\003"
+    "\030\375\001\310\001\000R\010location\022(\n\010hostname\030\266\001 \001(\tB\013\272H\010"
+    "r\003\030\375\001\310\001\000R\010hostname\0229\n\024resolve_container_"
+    "id\030\267\001 \001(\010B\006\272H\003\310\001\000R\022resolveContainerId\022,\n"
+    "\tgrpc_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcP"
+    "ort\022b\n\025enabled_deserializers\030\310\001 \001(\0132$.xt"
+    "cp_config.v1.EnabledDeserializersB\006\272H\003\310\001"
+    "\000R\024enabledDeserializers\022\"\n\010io_uring\030\322\001 \001"
+    "(\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030io_uring_recv_bat"
+    "ch_size\030\323\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\024ioUringRe"
+    "cvBatchSize\022D\n\027io_uring_cqe_batch_size\030\324"
+    "\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUringCqeBatchSiz"
+    "e\022(\n\013csv_columns\030\334\001 \001(\tB\006\272H\003\310\001\000R\ncsvColu"
+    "mns:s\272Hp\032n\n\017XtcpConfig.poll\0222Poll timeou"
+    "t must be less than poll poll_frequency\032"
+    "\'this.poll_frequency > this.poll_timeout"
+    "\"\237\001\n\024EnabledDeserializers\022K\n\007enabled\030\001 \003"
+    "(\01321.xtcp_config.v1.EnabledDeserializers"
+    ".EnabledEntryR\007enabled\032:\n\014EnabledEntry\022\020"
+    "\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\002"
+    "8\0012\341\002\n\rConfigService\022]\n\003Get\022\032.xtcp_confi"
+    "g.v1.GetRequest\032\033.xtcp_config.v1.GetResp"
+    "onse\"\035\202\323\344\223\002\027\032\022/ConfigService/Get:\001*\022]\n\003S"
+    "et\022\032.xtcp_config.v1.SetRequest\032\033.xtcp_co"
+    "nfig.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/ConfigServ"
+    "ice/Set:\001*\022\221\001\n\020SetPollFrequency\022\'.xtcp_c"
+    "onfig.v1.SetPollFrequencyRequest\032(.xtcp_"
+    "config.v1.SetPollFrequencyResponse\"*\202\323\344\223"
+    "\002$\032\037/ConfigService/SetPollFrequency:\001*B\215"
+    "\001\n\022com.xtcp_config.v1B\017XtcpConfigProtoP\001"
+    "Z\021./pkg/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V"
+    "1\312\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMet"
+    "adata\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -637,7 +653,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    3927,
+    4070,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -2124,6 +2140,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         kafka_schema_url_(arena, from.kafka_schema_url_),
         label_(arena, from.label_),
         tag_(arena, from.tag_),
+        location_(arena, from.location_),
+        hostname_(arena, from.hostname_),
         csv_columns_(arena, from.csv_columns_) {}
 
 XtcpConfig::XtcpConfig(
@@ -2183,6 +2201,8 @@ inline PROTOBUF_NDEBUG_INLINE XtcpConfig::Impl_::Impl_(
         kafka_schema_url_(arena),
         label_(arena),
         tag_(arena),
+        location_(arena),
+        hostname_(arena),
         csv_columns_(arena) {}
 
 inline void XtcpConfig::SharedCtor(::_pb::Arena* arena) {
@@ -2219,6 +2239,8 @@ inline void XtcpConfig::SharedDtor(MessageLite& self) {
   this_._impl_.kafka_schema_url_.Destroy();
   this_._impl_.label_.Destroy();
   this_._impl_.tag_.Destroy();
+  this_._impl_.location_.Destroy();
+  this_._impl_.hostname_.Destroy();
   this_._impl_.csv_columns_.Destroy();
   delete this_._impl_.poll_frequency_;
   delete this_._impl_.poll_timeout_;
@@ -2263,7 +2285,7 @@ const ::google::protobuf::internal::ClassData* XtcpConfig::GetClassData() const 
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
+const ::_pbi::TcParseTable<5, 46, 4, 283, 29> XtcpConfig::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_._has_bits_),
     0, // no _extensions_
@@ -2271,7 +2293,7 @@ const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
     offsetof(decltype(_table_), field_lookup_table),
     3757571583,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    43,  // num_field_entries
+    46,  // num_field_entries
     4,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     _class_data_.base(),
@@ -2350,7 +2372,7 @@ const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
   }}, {{
     40, 0, 12,
     62462, 3, 49135, 6, 65279, 8, 61435, 9, 65471, 11, 2050, 12,
-    48480, 26, 65279, 34, 61435, 35, 65471, 37, 58366, 38, 65519, 42,
+    48480, 26, 65279, 34, 4091, 35, 65471, 40, 58366, 41, 65519, 45,
     65535, 65535
   }}, {{
     // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2464,6 +2486,15 @@ const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
     // string tag = 180 [json_name = "tag", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.tag_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string location = 181 [json_name = "location", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.location_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.hostname_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.resolve_container_id_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kBool)},
     // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.grpc_port_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
@@ -2488,7 +2519,7 @@ const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::xtcp_config::v1::EnabledDeserializers>()},
   }}, {{
-    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\0\0\21\13\11\11\15\15\4\0\11\0\0\15\22\0\0\5\17\20\0\0\5\3\0\0\0\0\0\13\0\0\0\0"
+    "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\0\0\21\13\11\11\15\15\4\0\11\0\0\15\22\0\0\5\17\20\0\0\5\3\10\10\0\0\0\0\0\0\13\0"
     "xtcp_config.v1.XtcpConfig"
     "capture_path"
     "marshal_to"
@@ -2507,6 +2538,8 @@ const ::_pbi::TcParseTable<5, 43, 4, 267, 29> XtcpConfig::_table_ = {
     "kafka_schema_url"
     "label"
     "tag"
+    "location"
+    "hostname"
     "csv_columns"
   }},
 };
@@ -2535,6 +2568,8 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   _impl_.kafka_schema_url_.ClearToEmpty();
   _impl_.label_.ClearToEmpty();
   _impl_.tag_.ClearToEmpty();
+  _impl_.location_.ClearToEmpty();
+  _impl_.hostname_.ClearToEmpty();
   _impl_.csv_columns_.ClearToEmpty();
   cached_has_bits = _impl_._has_bits_[0];
   if (cached_has_bits & 0x0000000fu) {
@@ -2854,6 +2889,29 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             target = stream->WriteStringMaybeAliased(180, _s, target);
           }
 
+          // string location = 181 [json_name = "location", (.buf.validate.field) = {
+          if (!this_._internal_location().empty()) {
+            const std::string& _s = this_._internal_location();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.location");
+            target = stream->WriteStringMaybeAliased(181, _s, target);
+          }
+
+          // string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+          if (!this_._internal_hostname().empty()) {
+            const std::string& _s = this_._internal_hostname();
+            ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+                _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.XtcpConfig.hostname");
+            target = stream->WriteStringMaybeAliased(182, _s, target);
+          }
+
+          // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+          if (this_._internal_resolve_container_id() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteBoolToArray(
+                183, this_._internal_resolve_container_id(), target);
+          }
+
           // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
           if (this_._internal_grpc_port() != 0) {
             target = stream->EnsureSpace(target);
@@ -3007,6 +3065,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                               this_._internal_tag());
             }
+            // string location = 181 [json_name = "location", (.buf.validate.field) = {
+            if (!this_._internal_location().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_location());
+            }
+            // string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+            if (!this_._internal_hostname().empty()) {
+              total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                              this_._internal_hostname());
+            }
             // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
             if (!this_._internal_csv_columns().empty()) {
               total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
@@ -3121,6 +3189,10 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             if (this_._internal_s3_skip_bucket_probe() != 0) {
               total_size += 3;
             }
+            // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+            if (this_._internal_resolve_container_id() != 0) {
+              total_size += 3;
+            }
             // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
             if (this_._internal_io_uring() != 0) {
               total_size += 3;
@@ -3204,6 +3276,12 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   }
   if (!from._internal_tag().empty()) {
     _this->_internal_set_tag(from._internal_tag());
+  }
+  if (!from._internal_location().empty()) {
+    _this->_internal_set_location(from._internal_location());
+  }
+  if (!from._internal_hostname().empty()) {
+    _this->_internal_set_hostname(from._internal_hostname());
   }
   if (!from._internal_csv_columns().empty()) {
     _this->_internal_set_csv_columns(from._internal_csv_columns());
@@ -3298,6 +3376,9 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (from._internal_s3_skip_bucket_probe() != 0) {
     _this->_impl_.s3_skip_bucket_probe_ = from._impl_.s3_skip_bucket_probe_;
   }
+  if (from._internal_resolve_container_id() != 0) {
+    _this->_impl_.resolve_container_id_ = from._impl_.resolve_container_id_;
+  }
   if (from._internal_io_uring() != 0) {
     _this->_impl_.io_uring_ = from._impl_.io_uring_;
   }
@@ -3345,6 +3426,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.kafka_schema_url_, &other->_impl_.kafka_schema_url_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.label_, &other->_impl_.label_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.tag_, &other->_impl_.tag_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.location_, &other->_impl_.location_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hostname_, &other->_impl_.hostname_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.csv_columns_, &other->_impl_.csv_columns_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_cqe_batch_size_)

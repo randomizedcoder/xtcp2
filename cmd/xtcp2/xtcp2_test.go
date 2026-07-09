@@ -304,10 +304,16 @@ func TestEnvOverrideLabeling(t *testing.T) {
 	c := &xtcp_config.XtcpConfig{}
 	t.Setenv("LABEL", "prod")
 	t.Setenv("TAG", "host=foo")
+	t.Setenv("LOCATION", "eu-ro-1")
+	t.Setenv("XTCP_HOSTNAME", "runpod435")
+	t.Setenv("CONTAINER_ID_RESOLVE", "true")
 	t.Setenv("GRPC_PORT", "9000")
 	envOverrideLabeling(c, 0)
 	if c.Label != "prod" || c.Tag != "host=foo" || c.GrpcPort != 9000 {
 		t.Errorf("envOverrideLabeling mismatch: %+v", c)
+	}
+	if c.Location != "eu-ro-1" || c.Hostname != "runpod435" || !c.ResolveContainerId {
+		t.Errorf("envOverrideLabeling identity mismatch: Location=%q Hostname=%q Resolve=%v", c.Location, c.Hostname, c.ResolveContainerId)
 	}
 }
 
@@ -792,6 +798,9 @@ func TestBuildConfig(t *testing.T) {
 		s3SecretKey:         &mar,
 		s3Region:            &mar,
 		s3SkipBucketProbe:   &iu,
+		location:            &mar,
+		hostname:            &mar,
+		resolveContainerId:  &iu,
 		s3ParquetFlushBytes: &wf,
 		pyroscopeUrl:        &mar,
 		pyroscopeAppName:    &mar,
@@ -830,6 +839,9 @@ func TestBuildConfig(t *testing.T) {
 		{"DebugLevel", c.DebugLevel, uint32(11)},
 		{"Label", c.Label, "lbl"},
 		{"Tag", c.Tag, "host=a"},
+		{"Location", c.Location, "protoText"},
+		{"Hostname", c.Hostname, "protoText"},
+		{"ResolveContainerId", c.ResolveContainerId, true},
 		{"GrpcPort", c.GrpcPort, uint32(8888)},
 		{"S3SkipBucketProbe", c.S3SkipBucketProbe, true},
 	}

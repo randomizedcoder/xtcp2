@@ -370,6 +370,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? debugLevel,
     $core.String? label,
     $core.String? tag,
+    $core.String? location,
+    $core.String? hostname,
+    $core.bool? resolveContainerId,
     $core.int? grpcPort,
     EnabledDeserializers? enabledDeserializers,
     $core.bool? ioUring,
@@ -489,6 +492,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (tag != null) {
       $result.tag = tag;
     }
+    if (location != null) {
+      $result.location = location;
+    }
+    if (hostname != null) {
+      $result.hostname = hostname;
+    }
+    if (resolveContainerId != null) {
+      $result.resolveContainerId = resolveContainerId;
+    }
     if (grpcPort != null) {
       $result.grpcPort = grpcPort;
     }
@@ -551,6 +563,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..a<$core.int>(160, _omitFieldNames ? '' : 'debugLevel', $pb.PbFieldType.OU3)
     ..aOS(170, _omitFieldNames ? '' : 'label')
     ..aOS(180, _omitFieldNames ? '' : 'tag')
+    ..aOS(181, _omitFieldNames ? '' : 'location')
+    ..aOS(182, _omitFieldNames ? '' : 'hostname')
+    ..aOB(183, _omitFieldNames ? '' : 'resolveContainerId')
     ..a<$core.int>(190, _omitFieldNames ? '' : 'grpcPort', $pb.PbFieldType.OU3)
     ..aOM<EnabledDeserializers>(200, _omitFieldNames ? '' : 'enabledDeserializers', subBuilder: EnabledDeserializers.create)
     ..aOB(210, _omitFieldNames ? '' : 'ioUring')
@@ -1044,37 +1059,76 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(180)
   void clearTag() => clearField(180);
 
+  /// Deployment grouping / facility this daemon runs in (data center, PoP,
+  /// region, site, …). Generic; stamped on every record's `location` field.
+  /// Set via -location flag or LOCATION env.
+  @$pb.TagNumber(181)
+  $core.String get location => $_getSZ(37);
+  @$pb.TagNumber(181)
+  set location($core.String v) { $_setString(37, v); }
+  @$pb.TagNumber(181)
+  $core.bool hasLocation() => $_has(37);
+  @$pb.TagNumber(181)
+  void clearLocation() => clearField(181);
+
+  /// Hostname override. When empty the daemon uses os.Hostname(); set this to
+  /// stamp an explicit hostname on records — required in containers, where
+  /// os.Hostname() returns the container id, not the host. Set via -hostname
+  /// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
+  /// container id).
+  @$pb.TagNumber(182)
+  $core.String get hostname => $_getSZ(38);
+  @$pb.TagNumber(182)
+  set hostname($core.String v) { $_setString(38, v); }
+  @$pb.TagNumber(182)
+  $core.bool hasHostname() => $_has(38);
+  @$pb.TagNumber(182)
+  void clearHostname() => clearField(182);
+
+  /// Resolve each socket's owning container id from its cgroup (sets the
+  /// record's container_id / container_runtime). Set via -resolveContainerId
+  /// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
+  /// and run --cgroupns=host in a container).
+  @$pb.TagNumber(183)
+  $core.bool get resolveContainerId => $_getBF(39);
+  @$pb.TagNumber(183)
+  set resolveContainerId($core.bool v) { $_setBool(39, v); }
+  @$pb.TagNumber(183)
+  $core.bool hasResolveContainerId() => $_has(39);
+  @$pb.TagNumber(183)
+  void clearResolveContainerId() => clearField(183);
+
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(37);
+  $core.int get grpcPort => $_getIZ(40);
   @$pb.TagNumber(190)
-  set grpcPort($core.int v) { $_setUnsignedInt32(37, v); }
+  set grpcPort($core.int v) { $_setUnsignedInt32(40, v); }
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(37);
+  $core.bool hasGrpcPort() => $_has(40);
   @$pb.TagNumber(190)
   void clearGrpcPort() => clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(38);
+  EnabledDeserializers get enabledDeserializers => $_getN(41);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers v) { setField(200, v); }
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(38);
+  $core.bool hasEnabledDeserializers() => $_has(41);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(38);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(41);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(39);
+  $core.bool get ioUring => $_getBF(42);
   @$pb.TagNumber(210)
-  set ioUring($core.bool v) { $_setBool(39, v); }
+  set ioUring($core.bool v) { $_setBool(42, v); }
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(39);
+  $core.bool hasIoUring() => $_has(42);
   @$pb.TagNumber(210)
   void clearIoUring() => clearField(210);
 
@@ -1083,11 +1137,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(40);
+  $core.int get ioUringRecvBatchSize => $_getIZ(43);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(40, v); }
+  set ioUringRecvBatchSize($core.int v) { $_setUnsignedInt32(43, v); }
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(40);
+  $core.bool hasIoUringRecvBatchSize() => $_has(43);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => clearField(211);
 
@@ -1095,11 +1149,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(41);
+  $core.int get ioUringCqeBatchSize => $_getIZ(44);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(41, v); }
+  set ioUringCqeBatchSize($core.int v) { $_setUnsignedInt32(44, v); }
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(41);
+  $core.bool hasIoUringCqeBatchSize() => $_has(44);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => clearField(212);
 
@@ -1108,11 +1162,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
   /// Empty = all fields. Ignored by non-tabular marshallers.
   @$pb.TagNumber(220)
-  $core.String get csvColumns => $_getSZ(42);
+  $core.String get csvColumns => $_getSZ(45);
   @$pb.TagNumber(220)
-  set csvColumns($core.String v) { $_setString(42, v); }
+  set csvColumns($core.String v) { $_setString(45, v); }
   @$pb.TagNumber(220)
-  $core.bool hasCsvColumns() => $_has(42);
+  $core.bool hasCsvColumns() => $_has(45);
   @$pb.TagNumber(220)
   void clearCsvColumns() => clearField(220);
 }

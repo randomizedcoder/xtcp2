@@ -133,6 +133,10 @@ const (
 	labelCst = ""
 	tagCst   = ""
 
+	locationCst           = ""
+	hostnameCst           = ""
+	resolveContainerIdCst = false
+
 	deserializersCst = "all"
 
 	grpcPortCst = 8889
@@ -200,6 +204,9 @@ type mainFlags struct {
 	produceTimeout      *time.Duration
 	label               *string
 	tag                 *string
+	location            *string
+	hostname            *string
+	resolveContainerId  *bool
 	grpcPort            *uint
 	deserializers       *string
 	promListen          *string
@@ -254,6 +261,9 @@ func defineFlags() *mainFlags {
 	f.produceTimeout = flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
 	f.label = flag.String("label", labelCst, "label applied to the protobuf")
 	f.tag = flag.String("tag", tagCst, "label applied to the protobuf")
+	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
+	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
+	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
@@ -365,6 +375,9 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		DebugLevel:                   uint32(*f.d),
 		Label:                        *f.label,
 		Tag:                          *f.tag,
+		Location:                     *f.location,
+		Hostname:                     *f.hostname,
+		ResolveContainerId:           *f.resolveContainerId,
 		GrpcPort:                     uint32(*f.grpcPort),
 		EnabledDeserializers:         des,
 
@@ -1015,6 +1028,18 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.Tag = v
 		logEnv("TAG", fmt.Sprintf("c.Tag:%s", v), debugLevel)
 	}
+	if v, ok := envString("LOCATION"); ok {
+		c.Location = v
+		logEnv("LOCATION", fmt.Sprintf("c.Location:%s", v), debugLevel)
+	}
+	if v, ok := envString("XTCP_HOSTNAME"); ok {
+		c.Hostname = v
+		logEnv("XTCP_HOSTNAME", fmt.Sprintf("c.Hostname:%s", v), debugLevel)
+	}
+	if v, ok := envBool("CONTAINER_ID_RESOLVE"); ok {
+		c.ResolveContainerId = v
+		logEnv("CONTAINER_ID_RESOLVE", fmt.Sprintf("c.ResolveContainerId:%t", v), debugLevel)
+	}
 	if v, ok := envUint32("GRPC_PORT"); ok {
 		c.GrpcPort = v
 		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
@@ -1053,6 +1078,9 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.DebugLevel:", c.DebugLevel)
 	fmt.Println("c.Label:", c.Label)
 	fmt.Println("c.Tag:", c.Tag)
+	fmt.Println("c.Location:", c.Location)
+	fmt.Println("c.Hostname:", c.Hostname)
+	fmt.Println("c.ResolveContainerId:", c.ResolveContainerId)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
 	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
 }

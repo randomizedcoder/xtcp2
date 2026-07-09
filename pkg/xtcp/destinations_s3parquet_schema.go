@@ -21,9 +21,12 @@ type ParquetRow struct {
 	TimestampNs float64 `parquet:"timestamp_ns,snappy"`
 
 	Hostname string `parquet:"hostname,zstd"`
+	Location string `parquet:"location,zstd"`
 
-	Netns string `parquet:"netns,zstd"`
-	Nsid  uint32 `parquet:"nsid,snappy"`
+	Netns            string `parquet:"netns,zstd"`
+	ContainerId      string `parquet:"container_id,zstd"`
+	ContainerRuntime string `parquet:"container_runtime,zstd"`
+	Nsid             uint32 `parquet:"nsid,snappy"`
 
 	Label string `parquet:"label,zstd"`
 	Tag   string `parquet:"tag,zstd"`

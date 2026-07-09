@@ -1,5 +1,6 @@
 # Nix
 result
+result-*
 
 # cmd/* binaries built at repo root by `go build ./cmd/<name>`
 /clickhouse_http_insert_protobuflist

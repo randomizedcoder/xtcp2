@@ -1073,6 +1073,57 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -1136,7 +1187,7 @@ return false;
 		}
 	}
 	
-// no validation rules for debug_level// no validation rules for label// no validation rules for tag// no validation rules for grpc_port
+// no validation rules for debug_level// no validation rules for label// no validation rules for tag// no validation rules for location// no validation rules for hostname// no validation rules for resolve_container_id// no validation rules for grpc_port
 	
 	
 	

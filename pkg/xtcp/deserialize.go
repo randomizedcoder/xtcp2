@@ -90,6 +90,14 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord := x.xtcpRecordPool.Get()
 
 		xtcpRecord.Hostname = x.hostname
+		// Constant-per-instance identity. These are set from config here (they
+		// were previously accepted into config but never stamped onto records).
+		// String assignment copies only the header, so this is cheap in the
+		// per-socket hot loop; Parquet/ClickHouse dictionary-compress the
+		// constant columns to ~nothing.
+		xtcpRecord.Label = x.config.Label
+		xtcpRecord.Tag = x.config.Tag
+		xtcpRecord.Location = x.config.Location
 		xtcpRecord.TimestampNs = timestampNs
 		xtcpRecord.Netns = *d.ns
 		xtcpRecord.RecordCounter = n
@@ -189,6 +197,14 @@ func (x *XTCP) processInetDiagRecord(
 		end:        offset + attrLen,
 	})
 	offset += attrLen
+
+	// Resolve the owning container from the socket's cgroup id (populated by
+	// DeserializeAttributes above). O(1) cached map lookup — empty when the
+	// resolver is disabled, the cgroup isn't a container, or the container
+	// started since the last snapshot (the next cycle picks it up).
+	if x.cgroupResolver != nil && xtcpRecord.CGroup != 0 {
+		xtcpRecord.ContainerId, xtcpRecord.ContainerRuntime = x.cgroupResolver.Resolve(xtcpRecord.CGroup)
+	}
 
 	if x.debugLevel > 1000 {
 		log.Printf("Deserialize n:%d envelope append", n)

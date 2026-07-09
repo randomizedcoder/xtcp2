@@ -500,8 +500,12 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TimestampNs: r.TimestampNs,
 
 		Hostname: r.Hostname,
-		Netns:    r.Netns,
-		Nsid:     r.Nsid,
+		Location: r.Location,
+
+		Netns:            r.Netns,
+		ContainerId:      r.ContainerId,
+		ContainerRuntime: r.ContainerRuntime,
+		Nsid:             r.Nsid,
 
 		Label: r.Label,
 		Tag:   r.Tag,

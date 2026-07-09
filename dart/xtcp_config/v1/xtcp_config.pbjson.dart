@@ -134,6 +134,9 @@ const XtcpConfig$json = {
     {'1': 'debug_level', '3': 160, '4': 1, '5': 13, '8': {}, '10': 'debugLevel'},
     {'1': 'label', '3': 170, '4': 1, '5': 9, '8': {}, '10': 'label'},
     {'1': 'tag', '3': 180, '4': 1, '5': 9, '8': {}, '10': 'tag'},
+    {'1': 'location', '3': 181, '4': 1, '5': 9, '8': {}, '10': 'location'},
+    {'1': 'hostname', '3': 182, '4': 1, '5': 9, '8': {}, '10': 'hostname'},
+    {'1': 'resolve_container_id', '3': 183, '4': 1, '5': 8, '8': {}, '10': 'resolveContainerId'},
     {'1': 'grpc_port', '3': 190, '4': 1, '5': 13, '8': {}, '10': 'grpcPort'},
     {'1': 'enabled_deserializers', '3': 200, '4': 1, '5': 11, '6': '.xtcp_config.v1.EnabledDeserializers', '8': {}, '10': 'enabledDeserializers'},
     {'1': 'io_uring', '3': 210, '4': 1, '5': 8, '8': {}, '10': 'ioUring'},
@@ -182,16 +185,18 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'ltZW91dBiWASABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CELpIDcgBAKoBByIDCNgE'
     'MgBSE2thZmthUHJvZHVjZVRpbWVvdXQSLwoLZGVidWdfbGV2ZWwYoAEgASgNQg26SArIAQEqBR'
     'joBygAUgpkZWJ1Z0xldmVsEiEKBWxhYmVsGKoBIAEoCUIKukgHyAEAcgIYKFIFbGFiZWwSHQoD'
-    'dGFnGLQBIAEoCUIKukgHyAEAcgIYKFIDdGFnEiwKCWdycGNfcG9ydBi+ASABKA1CDrpIC8gBAS'
-    'oGGP//AygBUghncnBjUG9ydBJiChVlbmFibGVkX2Rlc2VyaWFsaXplcnMYyAEgASgLMiQueHRj'
-    'cF9jb25maWcudjEuRW5hYmxlZERlc2VyaWFsaXplcnNCBrpIA8gBAFIUZW5hYmxlZERlc2VyaW'
-    'FsaXplcnMSIgoIaW9fdXJpbmcY0gEgASgIQga6SAPIAQBSB2lvVXJpbmcSRgoYaW9fdXJpbmdf'
-    'cmVjdl9iYXRjaF9zaXplGNMBIAEoDUINukgKyAEAKgUYgCAoAVIUaW9VcmluZ1JlY3ZCYXRjaF'
-    'NpemUSRAoXaW9fdXJpbmdfY3FlX2JhdGNoX3NpemUY1AEgASgNQg26SArIAQAqBRiAICgBUhNp'
-    'b1VyaW5nQ3FlQmF0Y2hTaXplEigKC2Nzdl9jb2x1bW5zGNwBIAEoCUIGukgDyAEAUgpjc3ZDb2'
-    'x1bW5zOnO6SHAabgoPWHRjcENvbmZpZy5wb2xsEjJQb2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNz'
-    'IHRoYW4gcG9sbCBwb2xsX2ZyZXF1ZW5jeRondGhpcy5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG'
-    '9sbF90aW1lb3V0');
+    'dGFnGLQBIAEoCUIKukgHyAEAcgIYKFIDdGFnEigKCGxvY2F0aW9uGLUBIAEoCUILukgIyAEAcg'
+    'MY/QFSCGxvY2F0aW9uEigKCGhvc3RuYW1lGLYBIAEoCUILukgIyAEAcgMY/QFSCGhvc3RuYW1l'
+    'EjkKFHJlc29sdmVfY29udGFpbmVyX2lkGLcBIAEoCEIGukgDyAEAUhJyZXNvbHZlQ29udGFpbm'
+    'VySWQSLAoJZ3JwY19wb3J0GL4BIAEoDUIOukgLyAEBKgYY//8DKAFSCGdycGNQb3J0EmIKFWVu'
+    'YWJsZWRfZGVzZXJpYWxpemVycxjIASABKAsyJC54dGNwX2NvbmZpZy52MS5FbmFibGVkRGVzZX'
+    'JpYWxpemVyc0IGukgDyAEAUhRlbmFibGVkRGVzZXJpYWxpemVycxIiCghpb191cmluZxjSASAB'
+    'KAhCBrpIA8gBAFIHaW9VcmluZxJGChhpb191cmluZ19yZWN2X2JhdGNoX3NpemUY0wEgASgNQg'
+    '26SArIAQAqBRiAICgBUhRpb1VyaW5nUmVjdkJhdGNoU2l6ZRJEChdpb191cmluZ19jcWVfYmF0'
+    'Y2hfc2l6ZRjUASABKA1CDbpICsgBACoFGIAgKAFSE2lvVXJpbmdDcWVCYXRjaFNpemUSKAoLY3'
+    'N2X2NvbHVtbnMY3AEgASgJQga6SAPIAQBSCmNzdkNvbHVtbnM6c7pIcBpuCg9YdGNwQ29uZmln'
+    'LnBvbGwSMlBvbGwgdGltZW91dCBtdXN0IGJlIGxlc3MgdGhhbiBwb2xsIHBvbGxfZnJlcXVlbm'
+    'N5Gid0aGlzLnBvbGxfZnJlcXVlbmN5ID4gdGhpcy5wb2xsX3RpbWVvdXQ=');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

@@ -107,6 +107,19 @@ func newS3ParquetFixture(t *testing.T, threshold int, injectErr func(int) error)
 	return d, upl, x
 }
 
+// ByteSliceWriter is an io.Writer that appends to a pooled *[]byte, so
+// protodelim.MarshalTo can write into a destBytesPool buffer without
+// allocating. (A production copy existed before the pkg/recordfmt refactor;
+// only tests need it now, so it lives here.)
+type ByteSliceWriter struct {
+	Buf *[]byte
+}
+
+func (w *ByteSliceWriter) Write(b []byte) (n int, err error) {
+	*w.Buf = append(*w.Buf, b...)
+	return len(b), nil
+}
+
 // marshalEnvelopeBuf returns a pooled *[]byte holding a length-delimited
 // envelope ready for Send.
 func marshalEnvelopeBuf(t *testing.T, x *XTCP, env *xtcp_flat_record.Envelope) *[]byte {

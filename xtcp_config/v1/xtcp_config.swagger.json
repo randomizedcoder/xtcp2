@@ -369,6 +369,18 @@
           "type": "string",
           "title": "Tag applied to the protobuf"
         },
+        "location": {
+          "type": "string",
+          "description": "Deployment grouping / facility this daemon runs in (data center, PoP,\nregion, site, …). Generic; stamped on every record's `location` field.\nSet via -location flag or LOCATION env."
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."
+        },
+        "resolveContainerId": {
+          "type": "boolean",
+          "description": "Resolve each socket's owning container id from its cgroup (sets the\nrecord's container_id / container_runtime). Set via -resolveContainerId\nflag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it\nand run --cgroupns=host in a container)."
+        },
         "grpcPort": {
           "type": "integer",
           "format": "int64",
