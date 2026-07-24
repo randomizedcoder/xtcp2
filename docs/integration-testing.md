@@ -13,6 +13,7 @@ A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms alongside
   - [nsTest — namespace churn driver](#nstest--namespace-churn-driver)
   - [tcp_server / tcp_client — socket population](#tcp_server--tcp_client--socket-population)
   - [oci-xtcp2-tcp-stress — containerized stress image](#oci-xtcp2-tcp-stress--containerized-stress-image)
+  - [discovery-bench — namespace-discovery A/B](#discovery-bench--namespace-discovery-ab)
   - [Redpanda](#redpanda)
   - [ClickHouse](#clickhouse)
   - [Prometheus](#prometheus)
@@ -47,6 +48,9 @@ nix run .#microvm-x86_64-soak -- --duration 12h
 
 # Per-container netns stress: 20 docker containers × 100 sockets each
 nix run .#microvm-x86_64-tcp-stress -- --duration 180s
+
+# Namespace-discovery A/B benchmark: dir-scan vs /proc-scan, on a real kernel
+nix run .#microvm-x86_64-discovery-bench -- --timeout 900
 
 # Full production pipeline: xtcp2 → redpanda → clickhouse + grafana
 nix run .#microvm-x86_64-clickhouse-pipeline
@@ -124,6 +128,7 @@ host
 | `microvm-x86_64-soak` | `soak` | 1024 MiB | xtcp2 + nsTest + tcp_server/client + prom-scraper | Long-running stability (1h/12h+) |
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | 3072 MiB | xtcp2 + dockerd + N containers × M sockets | Per-container netns discovery under load |
 | `microvm-x86_64-clickhouse-pipeline` | `clickhouse-pipeline` | 3072 MiB | + Redpanda + ClickHouse + Prometheus + Grafana | Full xtcp2 → Kafka → ClickHouse data path |
+| `microvm-x86_64-discovery-bench` | `discovery-bench` | 4096 MiB | xtcp2 + `discovery-bench` grid | Namespace-discovery A/B benchmark (dir-scan vs `/proc`-scan) on a real kernel |
 
 Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and adds only what it needs. Common kernel cmdline / hypervisor / nic config stays identical across flavors.
 
@@ -176,6 +181,17 @@ Built via `pkgs.dockerTools.streamLayeredImage`. Bundles just the two tools from
 | `TCP_BIND` | 0.0.0.0 | Server listen address |
 
 In the `tcp-stress` and `clickhouse-pipeline` flavors, `dockerd` pre-loads this image at boot, then spawns N containers with `TCP_MODE=both`. Each container gets its own netns courtesy of docker's bridge network — xtcp2 discovers those via fsnotify on `/run/docker/netns/`.
+
+### discovery-bench — namespace-discovery A/B
+
+`tools/discovery-bench/`. A re-runnable benchmark comparing the two ways xtcp2 can discover the set of network namespaces to poll:
+
+- **Method A — directory scan** (what xtcp2 does today, `pkg/xtcp/ns_discover.go`): `os.ReadDir(/run/netns, /run/docker/netns)`. Cost is O(named-namespaces); it only sees bind-mounted namespaces, so **anonymous** container/`unshare -n` netns are invisible to it.
+- **Method B — `/proc/<pid>/ns/net` inode scan**: walk `/proc`, dedup namespaces by inode. Cost is O(processes); it sees **every** namespace with a live process, including anonymous ones. Two sub-variants: `readlink`+parse vs `stat`→`Stat_t.Ino`.
+
+Modes: `measure` (time each method against the live system + a coverage diff + per-method skip counts), `grid` (root-only `N namespaces × P processes` sweep, one JSON line per cell). The **`discovery-bench` microVM flavor** runs `grid` on boot as root — so Method B's `/proc` scan sees every namespace with no ptrace-gated skips, and `ip netns` builds the controlled grid — emitting `DISCOBENCH_START` / `DISCOBENCH_GRID` (per cell) / `DISCOBENCH_DONE` sentinels to the serial console. The grid populates each cell with cheap `sleep infinity` processes (`ip netns exec <ns> sleep infinity` for the in-namespace ones), so P can reach thousands without the RSS a fleet of real binaries would cost. Grid sizes are overridable via the `DISCO_NS_GRID` / `DISCO_PID_GRID` / `DISCO_ITERS` service env.
+
+A hermetic Go microbenchmark (the algorithmic O(namespaces) vs O(processes) shape) and a root-gated coverage proof (an anonymous `unshare -n` netns is found only by the `/proc` scan) ship in `discovery_bench_test.go` and run under ordinary `go test`. Background and motivation live in [docs/design-namespace-discovery-and-reconcile.md](design-namespace-discovery-and-reconcile.md).
 
 ### Redpanda
 
@@ -311,6 +327,11 @@ xtcp2.service started, docker.service started, oci image loaded,
 N containers spawned, ≥N per-container ns discovered, 0 panics
 ```
 
+The **discovery-bench** runner boots the VM, waits for the in-VM
+`discovery-bench-run` service to emit `DISCOBENCH_DONE` (bounded by
+`--timeout`, default 1200 s), prints the collected per-cell JSON, powers off,
+and passes iff no cell reported `DISCOBENCH_ERR`.
+
 The **clickhouse-pipeline** flavor doesn't have a runner with assertions — boot it and inspect via Grafana / curl. The companion service `xtcp2-clickpipe-monitor` emits `XTCP2_CLICKPIPE_ROWS … rows=N` lines every 30s to the journal.
 
 ## Host port forwards
@@ -404,6 +425,15 @@ nix run .#microvm-x86_64-tcp-stress -- --duration 300s
 # transcript shows /run/docker/netns/<containerID> CREATE events
 # pinged by fsnotify, per-container netNamespaceInstance goroutines
 # spawned, inet_diag readout populating in each
+```
+
+### Benchmark namespace discovery (dir-scan vs /proc-scan)
+
+```sh
+nix run .#microvm-x86_64-discovery-bench -- --timeout 900
+# boots a root VM, sweeps an N-namespaces × P-processes grid, and prints a
+# DISCOBENCH_GRID JSON line per cell with each method's ns/op + coverage.
+# Re-run any time to re-confirm the numbers on a new kernel/host.
 ```
 
 ### End-to-end: dashboards on real records

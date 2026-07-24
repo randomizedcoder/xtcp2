@@ -12,6 +12,7 @@
 #   nix run    .#regen-protos            # `buf generate` (needs network)
 #   nix flake check                      # Tier 0+1 lint + go-vet + audits + smokes
 #   nix run    .#microvm-x86_64-lifecycle  # boot xtcp2 in a VM, run 3-check self-test
+#   nix run    .#microvm-x86_64-discovery-bench  # ns-discovery A/B (dir vs /proc scan)
 #
 # Overriding the giouring source (local fork):
 #   nix develop --override-input giouring path:/home/das/Downloads/giouring

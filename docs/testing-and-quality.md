@@ -72,6 +72,7 @@ The suite is large and the bar is high:
 
 - **126 benchmark functions** (e.g. `pkg/xtcpnl/xtcpnl_bench_test.go`) measure parsing throughput against the fixture corpus, so performance changes are observable.
 - Fuzz testing exercises the parser against malformed input.
+- **Namespace-discovery A/B** (`tools/discovery-bench/`) compares directory-scan vs `/proc`-inode-scan discovery. A hermetic microbenchmark runs under `go test`; the root-only real-kernel grid runs via the `microvm-x86_64-discovery-bench` flavor. See [integration-testing.md](integration-testing.md#discovery-bench--namespace-discovery-ab).
 
 ## Audit tools
 
