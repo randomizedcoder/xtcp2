@@ -55,7 +55,7 @@ For the full picture see the [documentation hub](docs/README.md).
 
 ## Quick start
 
-xtcp2 builds and runs with [Nix](https://nixos.org/). It is a Linux-only tool and needs `CAP_NET_ADMIN` (read TCP socket state) and `CAP_SYS_ADMIN` (enter namespaces) — in practice, run it as root or under `sudo`. It refuses to start if the hard-required capabilities are missing, printing exactly what it needs.
+xtcp2 builds and runs with [Nix](https://nixos.org/). It is a Linux-only tool and needs `CAP_NET_ADMIN` (read TCP socket state) and `CAP_SYS_ADMIN` (enter namespaces) — in practice, run it as root or under `sudo`. It refuses to start if the hard-required capabilities are missing, printing exactly what it needs. For multi-namespace visibility it also needs `CAP_SYS_PTRACE`: namespace discovery reads `/proc/<pid>/ns/net` of other processes, which the kernel gates behind `ptrace_may_access` even for root. Without it xtcp2 starts (with a warning) but sees only its own namespace — every container/pod netns is invisible.
 
 ```sh
 # 1. Clone

@@ -42,6 +42,12 @@ var requiredCaps = []requiredCap{
 		reason: "setns(CLONE_NEWNET) into per-namespace netlink sockets; without it, every setns into a new ns AND every restore back to the original fails with EPERM, the openAndSetNSWithRetries retry loop spins through all 10 attempts holding a locked OS thread, and a heavy ns-churn workload exhausts the SetMaxThreads ceiling within a few hours",
 	},
 	{
+		bit:    unix.CAP_SYS_PTRACE,
+		name:   "CAP_SYS_PTRACE",
+		fatal:  false,
+		reason: "Method B namespace discovery reads /proc/<pid>/ns/net of OTHER processes to enumerate live network namespaces. The kernel gates that readlink/open behind ptrace_may_access, which denies non-dumpable targets (most system daemons, and anything spawned via `ip netns exec`) to a process lacking CAP_SYS_PTRACE — even one running as root. Without it, discovery sees ONLY xtcp2's own namespace: every per-container/pod/other netns is invisible and silently unmonitored (the /proc scan's skipped-pid counter climbs while found stays at 1). Grant CAP_SYS_PTRACE for multi-namespace visibility; host-only monitoring works without it",
+	},
+	{
 		bit:    unix.CAP_NET_RAW,
 		name:   "CAP_NET_RAW",
 		fatal:  false,
