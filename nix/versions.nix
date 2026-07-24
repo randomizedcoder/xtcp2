@@ -106,5 +106,5 @@
   # Go vendor hash. Update by running `nix build .#xtcp2` and pasting the
   # `got:` value from the hash mismatch error. Used by every Nix check that
   # needs deps in the sandbox (see nix/lib/goModules.nix).
-  goVendorHash = "sha256-KpZrd1NhcLMEFrNehiGBwt7sKFZlwa+uankR1itYizw=";
+  goVendorHash = "sha256-gvORPkTs1uJZhcSNWLdJzELX8FEE5QosfS6hP0N9n2E=";
 }
