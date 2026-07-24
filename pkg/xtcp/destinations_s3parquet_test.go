@@ -126,7 +126,7 @@ func newS3ParquetFixtureCustom(t *testing.T, threshold int, injectErr func(int) 
 	if customize != nil {
 		customize(d)
 	}
-	go d.worker()
+	go d.worker(context.Background())
 	return d, upl, x
 }
 
