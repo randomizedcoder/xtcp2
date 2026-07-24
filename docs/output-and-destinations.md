@@ -92,7 +92,7 @@ Generated Go types live in `pkg/xtcp_flat_record/`. For the full schema referenc
 
 ## Quick recipes
 
-These exercise the analysis-friendly formats and sinks. xtcp2 needs `CAP_NET_ADMIN` + `CAP_SYS_ADMIN` (run as root / `sudo`) and at least one namespace directory to exist (see [network namespaces](network-namespaces.md)); use a low non-zero `-d` (e.g. `-d 1`) so logs stay quiet on stderr while records go to the chosen sink.
+These exercise the analysis-friendly formats and sinks. xtcp2 needs `CAP_NET_ADMIN` + `CAP_SYS_ADMIN` (run as root / `sudo`), plus `CAP_SYS_PTRACE` for multi-namespace discovery (reading `/proc/<pid>/ns/net`; without it only the host namespace is seen — see [network namespaces](network-namespaces.md)); use a low non-zero `-d` (e.g. `-d 1`) so logs stay quiet on stderr while records go to the chosen sink.
 
 **Local binary:**
 

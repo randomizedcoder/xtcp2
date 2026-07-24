@@ -47,6 +47,7 @@ For always-on profiling, xtcp2 integrates with [Pyroscope](https://pyroscope.io/
 |---|---|---|
 | `CAP_NET_ADMIN` | **fatal** | netlink `inet_diag` queries — without it xtcp2 can read no TCP data at all. |
 | `CAP_SYS_ADMIN` | **fatal** | `setns(CLONE_NEWNET)` into per-namespace sockets — without it every namespace enter/restore fails with `EPERM`. |
+| `CAP_SYS_PTRACE` | warning | Method B **discovery** reads `/proc/<pid>/ns/net` of other processes, gated by `ptrace_may_access` (denied for non-dumpable targets even to root). Without it the `/proc` scan sees only xtcp2's own namespace — the daemon runs but discovers no container/pod netns. |
 | `CAP_NET_RAW` | warning | raw-socket (`-dest udp:…` with `IP_HDRINCL`) writes — the daemon runs without it, but a UDP destination fails at the first packet. |
 | `CAP_SYS_RESOURCE` | warning | raising `RLIMIT_MEMLOCK` for `io_uring` ring memory — without it large `-ioUring` rings may fail to allocate. |
 

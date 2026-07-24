@@ -57,6 +57,12 @@ in
         "CAP_NET_RAW"
         "CAP_SYS_RESOURCE"
         "CAP_SYS_ADMIN"
+        # Method B discovery reads /proc/<pid>/ns/net of OTHER processes to
+        # enumerate live network namespaces; the kernel gates that behind
+        # ptrace_may_access, which denies non-dumpable targets (system daemons,
+        # `ip netns exec` children) even to root without CAP_SYS_PTRACE. Without
+        # it the /proc scan sees only xtcp2's own ns and discovers nothing.
+        "CAP_SYS_PTRACE"
       ];
       description = ''
         Linux capabilities granted to xtcp2 via AmbientCapabilities +

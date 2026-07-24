@@ -46,7 +46,7 @@ The per-namespace reader lives in `pkg/xtcp/ns_net_namespace.go`. Because `setns
 3. Opens a netlink socket — now scoped to that namespace — and runs the [netlinkers](netlink-collection.md#netlinkers).
 4. On exit, restores the original namespace and releases the thread.
 
-Entering a namespace requires `CAP_SYS_ADMIN`; without it every `setns` fails with `EPERM`. See [observability](observability.md#capability-checks).
+Entering a namespace requires `CAP_SYS_ADMIN`; without it every `setns` fails with `EPERM`. **Discovering** namespaces requires `CAP_SYS_PTRACE`: Method B enumerates live namespaces by reading `/proc/<pid>/ns/net`, and the kernel gates that readlink/open behind `ptrace_may_access`, which denies non-dumpable targets (system daemons, `ip netns exec` children) even to root. Without `CAP_SYS_PTRACE` the `/proc` scan sees only xtcp2's own namespace — the daemon starts (with a soft-capability warning) but discovers nothing to enter. See [observability](observability.md#capability-checks).
 
 ## Thread-leak avoidance
 
