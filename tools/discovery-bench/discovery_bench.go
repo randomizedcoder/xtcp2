@@ -302,6 +302,13 @@ func measure(procRoot string, dirs []string, iters int) measureResult {
 		r := scanProcStat(procRoot)
 		return len(r.seen), r.skipped
 	})
+	// proc-reuse: the reused, zero-allocation nsScanner. Created once and re-run
+	// across iters, so it measures the long-running-daemon steady state.
+	sc := newNsScanner(procRoot)
+	reuseRes := timeScan("proc-reuse", iters, func() (int, int) { return sc.scan() })
+	if cerr := sc.Close(); cerr != nil {
+		fmt.Fprintf(os.Stderr, "nsScanner close: %v\n", cerr)
+	}
 
 	// Coverage: resolve A's paths → inodes, compare to B's inode set.
 	dirInodes := resolveDirInodes(scanDirNames(dirs))
@@ -317,7 +324,7 @@ func measure(procRoot string, dirs []string, iters int) measureResult {
 	return measureResult{
 		ProcRoot:   procRoot,
 		NetnsDirs:  dirs,
-		Methods:    []methodResult{dirRes, rlRes, stRes},
+		Methods:    []methodResult{dirRes, rlRes, stRes, reuseRes},
 		CoverProcN: len(procInodes),
 		CoverDirN:  len(dirInodes),
 		BOnlyN:     len(bOnly),

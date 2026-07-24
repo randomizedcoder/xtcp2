@@ -133,6 +133,55 @@ func BenchmarkProcScanReadlink(b *testing.B) {
 	}
 }
 
+// BenchmarkProcScanReuse measures the reused nsScanner in steady state (the
+// scanner is created + warmed once, then re-run) — the long-running-daemon case.
+// Allocs/op should be ~0 regardless of process count.
+func BenchmarkProcScanReuse(b *testing.B) {
+	const distinct = 100
+	for _, p := range []int{100, 1000, 10000} {
+		b.Run("pids="+strconv.Itoa(p), func(b *testing.B) {
+			proc := buildProcTree(b, p, distinct)
+			s := newNsScanner(proc)
+			b.Cleanup(func() {
+				if err := s.Close(); err != nil {
+					b.Error(err)
+				}
+			})
+			s.scan() // warm buffers + map
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				s.scan()
+			}
+		})
+	}
+}
+
+// TestNsScanner_matchesReadlink guards the unsafe fast path against the plain
+// implementation: same distinct inode set, same skip count.
+func TestNsScanner_matchesReadlink(t *testing.T) {
+	proc := buildProcTree(t, 500, 50)
+	want := scanProcReadlink(proc)
+	s := newNsScanner(proc)
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	found, skipped := s.scan()
+	if found != len(want.seen) {
+		t.Fatalf("nsScanner found %d, scanProcReadlink found %d", found, len(want.seen))
+	}
+	if skipped != want.skipped {
+		t.Fatalf("nsScanner skipped %d, scanProcReadlink skipped %d", skipped, want.skipped)
+	}
+	for ino := range want.seen {
+		if _, ok := s.seen[ino]; !ok {
+			t.Fatalf("nsScanner missing inode %d that scanProcReadlink found", ino)
+		}
+	}
+}
+
 // ─────────────────────── coverage proof (Exp 3, root) ───────────────────────
 
 // TestCoverage_anonymousNetnsFoundOnlyByProc creates an anonymous network
