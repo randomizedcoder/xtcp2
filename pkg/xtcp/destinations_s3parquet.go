@@ -21,6 +21,8 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"google.golang.org/protobuf/encoding/protodelim"
 
+	"github.com/randomizedcoder/xtcp2/pkg/misc"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
@@ -39,9 +41,26 @@ const s3ParquetDestQueueCapacity = 16
 // worker to flush its final partial Parquet to S3 before giving up.
 const s3ParquetWorkerDrainTimeout = 30 * time.Second
 
-// s3ParquetUploadMaxAttempts caps the retry count on transient S3 errors
-// per upload. 1 = no retry; 3 = original attempt + 2 retries.
-const s3ParquetUploadMaxAttempts = 3
+// s3ParquetUploadMaxAttempts is the default cap on upload attempts (original +
+// retries) when the config leaves s3_upload_max_attempts unset (0). Retries use
+// full-jitter exponential backoff. See docs/design-jitter-and-backoff.md.
+const s3ParquetUploadMaxAttempts = 10
+
+// s3FlushIntervalFloorCst is the floor for the derived staleness-ceiling flush
+// interval (used when s3_flush_interval is 0). Sitting just above the typical
+// byte-cap fill time keeps the byte cap the dominant driver at high poll
+// frequencies, so the fleet doesn't storm the bucket with tiny objects.
+const s3FlushIntervalFloorCst = 30 * time.Minute
+
+// Upload retry backoff bounds. The per-attempt window grows as
+// base<<(attempt-1) and is clamped to [min,max]; full jitter then draws the
+// actual sleep in [0, window]. When s3_upload_backoff_cap is 0 the cap is
+// derived as clamp(PollFrequency/10, min, max).
+const (
+	s3UploadBackoffBaseCst   = 1 * time.Second
+	s3UploadBackoffCapMinCst = 1 * time.Second
+	s3UploadBackoffCapMaxCst = 1 * time.Hour
+)
 
 // parquetUploader is the surface the worker needs from a backing object
 // store. Real production uses a minio.Client wrapper; tests use a fake
@@ -67,6 +86,23 @@ type s3ParquetDest struct {
 	bucket    string
 	prefix    string // optional path prefix WITHIN the bucket; may be ""
 	threshold int    // accumulated uncompressed bytes before finalize
+
+	// Fleet jitter & backoff knobs, resolved from config in newS3ParquetDest.
+	// See docs/design-jitter-and-backoff.md.
+	flushInterval      time.Duration // staleness ceiling (already floored)
+	flushJitterPct     uint32        // jitter % applied to flushInterval
+	thresholdJitterPct uint32        // per-object downward jitter % on threshold
+	maxAttempts        int           // upload attempts before dropping
+	backoffCap         time.Duration // cap on a single retry's jitter window
+
+	// Seams (per-instance → race-free; production defaults set in
+	// newS3ParquetDest, tests inject deterministic stubs). jitterDur/jitterInt
+	// draw jitter; sleep is the ctx-aware backoff sleep; newTimer builds the
+	// worker's flush timer (tests hand back a channel they fire manually).
+	jitterDur func(time.Duration) time.Duration
+	jitterInt func(int) int
+	sleep     func(context.Context, time.Duration) bool
+	newTimer  func(time.Duration) (<-chan time.Time, func() bool)
 
 	// queueCh carries marshalled envelopes from Send to the worker.
 	// IMPORTANT: never closed by Close (sending on a closed channel
@@ -161,18 +197,62 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 		threshold = S3ParquetFlushThresholdBytesCst
 	}
 
+	maxAttempts := int(x.config.S3UploadMaxAttempts)
+	if maxAttempts == 0 {
+		maxAttempts = s3ParquetUploadMaxAttempts
+	}
+
 	d := &s3ParquetDest{
-		x:          x,
-		uploader:   &minioUploader{client: client},
-		bucket:     bucket,
-		prefix:     x.config.S3Prefix,
-		threshold:  threshold,
-		queueCh:    make(chan envelopeBytes, s3ParquetDestQueueCapacity),
-		closedCh:   make(chan struct{}),
-		workerDone: make(chan struct{}),
+		x:                  x,
+		uploader:           &minioUploader{client: client},
+		bucket:             bucket,
+		prefix:             x.config.S3Prefix,
+		threshold:          threshold,
+		flushInterval:      resolveFlushInterval(x.config),
+		flushJitterPct:     x.config.S3FlushJitterPct,
+		thresholdJitterPct: x.config.S3FlushThresholdJitterPct,
+		maxAttempts:        maxAttempts,
+		backoffCap:         resolveBackoffCap(x.config),
+		jitterDur:          misc.JitterDuration,
+		jitterInt:          misc.JitterIntN,
+		sleep:              misc.SleepCtx,
+		newTimer:           func(dur time.Duration) (<-chan time.Time, func() bool) { t := time.NewTimer(dur); return t.C, t.Stop },
+		queueCh:            make(chan envelopeBytes, s3ParquetDestQueueCapacity),
+		closedCh:           make(chan struct{}),
+		workerDone:         make(chan struct{}),
 	}
 	go d.worker()
 	return d, nil
+}
+
+// resolveFlushInterval returns the staleness-ceiling flush interval: the
+// configured s3_flush_interval, or when unset (0) the derived
+// max(PollFrequency, 30m) floor (see s3FlushIntervalFloorCst).
+func resolveFlushInterval(c *xtcp_config.XtcpConfig) time.Duration {
+	if d := c.S3FlushInterval.AsDuration(); d > 0 {
+		return d
+	}
+	if freq := c.PollFrequency.AsDuration(); freq > s3FlushIntervalFloorCst {
+		return freq
+	}
+	return s3FlushIntervalFloorCst
+}
+
+// resolveBackoffCap returns the cap on a single upload retry's jitter window:
+// the configured s3_upload_backoff_cap, or when unset (0) the derived
+// clamp(PollFrequency/10, 1s, 1h).
+func resolveBackoffCap(c *xtcp_config.XtcpConfig) time.Duration {
+	if d := c.S3UploadBackoffCap.AsDuration(); d > 0 {
+		return d
+	}
+	capDur := c.PollFrequency.AsDuration() / 10
+	if capDur < s3UploadBackoffCapMinCst {
+		capDur = s3UploadBackoffCapMinCst
+	}
+	if capDur > s3UploadBackoffCapMaxCst {
+		capDur = s3UploadBackoffCapMaxCst
+	}
+	return capDur
 }
 
 // Send enqueues the marshalled envelope for the background worker. The
@@ -260,17 +340,22 @@ func (d *s3ParquetDest) worker() {
 	defer close(d.workerDone)
 
 	var (
-		buf        *bytes.Buffer
-		writer     *parquet.GenericWriter[ParquetRow]
-		accumBytes int
-		fileRows   int
-		envelopeCt int
+		buf                *bytes.Buffer
+		writer             *parquet.GenericWriter[ParquetRow]
+		accumBytes         int
+		fileRows           int
+		envelopeCt         int
+		effectiveThreshold int
 	)
 	startBuilder := func() {
 		buf = new(bytes.Buffer)
 		writer = parquet.NewGenericWriter[ParquetRow](buf)
 		accumBytes = 0
 		fileRows = 0
+		// Per-object downward threshold jitter: each object finalizes at a
+		// fresh random target in [threshold*(1-pct/100), threshold], so
+		// identically-loaded hosts don't cross the byte cap in lockstep.
+		effectiveThreshold = jitteredThreshold(d.threshold, d.thresholdJitterPct, d.jitterInt)
 	}
 	startBuilder()
 
@@ -316,11 +401,19 @@ func (d *s3ParquetDest) worker() {
 			}
 			fileRows++
 			accumBytes += approxRowBytes(row)
-			if accumBytes >= d.threshold {
+			if accumBytes >= effectiveThreshold {
 				finalize()
 			}
 		}
 	}
+
+	// Staleness-ceiling flush timer. Fires on a jittered interval so the
+	// fleet doesn't ceiling-flush in lockstep, and bounds how long a
+	// low-volume host's data may sit unshipped. The first fire is also
+	// jittered so a synchronized start doesn't produce a synchronized first
+	// ceiling flush.
+	flushCh, flushStop := d.newTimer(d.jitterDur(d.flushInterval))
+	defer flushStop()
 
 	for {
 		select {
@@ -339,8 +432,32 @@ func (d *s3ParquetDest) worker() {
 			}
 		case item := <-d.queueCh:
 			processItem(item)
+		case <-flushCh:
+			finalize() // no-op when the builder is empty
+			flushStop()
+			flushCh, flushStop = d.newTimer(nextFlushDelay(d.flushInterval, d.flushJitterPct, d.jitterDur))
 		}
 	}
+}
+
+// jitteredThreshold returns the per-object finalize target: threshold minus a
+// downward jitter draw in [0, threshold*pct/100]. Downward-only, so the target
+// never exceeds threshold (preserving the in-memory byte bound). pct==0 (via
+// jitterInt(0)==0) yields exactly threshold. jitterInt is injected so tests can
+// force a value.
+func jitteredThreshold(threshold int, pct uint32, jitterInt func(int) int) int {
+	return threshold - jitterInt(misc.ScaleIntPct(threshold, pct))
+}
+
+// nextFlushDelay returns the next staleness-ceiling flush delay: interval
+// shifted by a random offset in [-max/2, +max/2) where max = interval*pct/100,
+// so the mean stays interval. pct==0 yields exactly interval.
+func nextFlushDelay(interval time.Duration, pct uint32, jitter func(time.Duration) time.Duration) time.Duration {
+	limit := misc.ScalePct(interval, pct)
+	if limit <= 0 {
+		return interval
+	}
+	return interval - limit/2 + jitter(limit)
 }
 
 // returnBuf zeroes the slice and returns it to destBytesPool so the
@@ -350,17 +467,27 @@ func (d *s3ParquetDest) returnBuf(b *[]byte) {
 	d.x.destBytesPool.Put(b)
 }
 
-// uploadWithRetry does s3ParquetUploadMaxAttempts PutObject calls with
-// exponential backoff between transient failures. On terminal failure
-// (or non-retryable HTTP status from minio) it logs + bumps an error
-// counter and drops the batch. The daemon keeps running; data loss is
-// the documented failure mode for s3 outages.
+// uploadWithRetry does up to d.maxAttempts PutObject calls with full-jitter
+// exponential backoff between failures: the per-attempt window grows as
+// base<<(attempt-1) capped at d.backoffCap, and the actual sleep is a uniform
+// draw in [0, window] (AWS-style full jitter), which de-correlates a fleet's
+// retries when a shared dependency recovers. The backoff sleep is ctx-aware, so
+// shutdown (or the 60s upload-ctx deadline) aborts promptly. On terminal
+// failure it logs + bumps an error counter and drops the batch — the daemon
+// keeps running; data loss is the documented failure mode for prolonged s3
+// outages. See docs/design-jitter-and-backoff.md.
 func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *bytes.Buffer, rows int) {
 	body := bytes.NewReader(buf.Bytes())
 	size := int64(buf.Len())
-	for attempt := 1; attempt <= s3ParquetUploadMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= d.maxAttempts; attempt++ {
 		if attempt > 1 {
-			_, _ = body.Seek(0, io.SeekStart)
+			// Rewind to re-read the buffer for the retry. bytes.Reader.Seek
+			// only errors on a negative offset, which SeekStart+0 never is;
+			// check anyway rather than discard the error.
+			if _, err := body.Seek(0, io.SeekStart); err != nil {
+				log.Printf("destS3Parquet PUT %s/%s seek for retry: %v", d.bucket, key, err)
+				break
+			}
 		}
 		start := time.Now()
 		err := d.uploader.PutObject(ctx, d.bucket, key, body, size)
@@ -385,18 +512,41 @@ func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *by
 		// not credentials. Defense in depth.
 		errMsg := err.Error()
 		log.Printf("destS3Parquet PUT %s/%s attempt %d/%d failed: %s",
-			d.bucket, key, attempt, s3ParquetUploadMaxAttempts, errMsg)
+			d.bucket, key, attempt, d.maxAttempts, errMsg)
 		if d.x.pC != nil {
 			d.x.pC.WithLabelValues("destS3Parquet", "uploadRetry", "error").Inc()
 		}
-		// Backoff: 100ms, 400ms (exponential 4x).
-		time.Sleep(time.Duration(100*attempt*attempt) * time.Millisecond)
+		if attempt == d.maxAttempts {
+			break
+		}
+		// Full-jitter exponential backoff; ctx-aware so shutdown aborts.
+		window := backoffWindow(s3UploadBackoffBaseCst, d.backoffCap, attempt)
+		if !d.sleep(ctx, d.jitterDur(window)) {
+			return
+		}
 	}
 	if d.x.pC != nil {
 		d.x.pC.WithLabelValues("destS3Parquet", "upload", "error").Inc()
 	}
 	log.Printf("destS3Parquet PUT %s/%s permanently failed after %d attempts; dropping %d rows",
-		d.bucket, key, s3ParquetUploadMaxAttempts, rows)
+		d.bucket, key, d.maxAttempts, rows)
+}
+
+// backoffWindow returns min(cap, base<<(attempt-1)) for attempt>=1, computed
+// overflow-safe (the shift is bounded before it can exceed int64).
+func backoffWindow(base, capDur time.Duration, attempt int) time.Duration {
+	shift := attempt - 1
+	if shift < 0 {
+		shift = 0
+	}
+	if shift >= 33 {
+		return capDur
+	}
+	w := base << shift
+	if w <= 0 || w > capDur {
+		return capDur
+	}
+	return w
 }
 
 // objectKey builds the partitioned key for the next Parquet object.

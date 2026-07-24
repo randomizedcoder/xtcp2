@@ -72,6 +72,16 @@ func (f *fakeUploader) Calls() []fakeUploadCall {
 // wired into a fresh prometheus registry + destBytesPool. The worker is
 // started, so callers can Send → assert → Close.
 func newS3ParquetFixture(t *testing.T, threshold int, injectErr func(int) error) (*s3ParquetDest, *fakeUploader, *XTCP) {
+	return newS3ParquetFixtureCustom(t, threshold, injectErr, nil)
+}
+
+// newS3ParquetFixtureCustom is newS3ParquetFixture with a hook to tweak the
+// seams/knobs BEFORE the worker starts (so jitter, the flush timer, or backoff
+// can be driven deterministically). The defaults are deterministic and inert —
+// no jitter, an instant (no-op) backoff sleep, and a flush timer that never
+// fires — so callers that only exercise the byte-cap / Close path behave
+// exactly as before this feature.
+func newS3ParquetFixtureCustom(t *testing.T, threshold int, injectErr func(int) error, customize func(*s3ParquetDest)) (*s3ParquetDest, *fakeUploader, *XTCP) {
 	t.Helper()
 	x := &XTCP{
 		config: &xtcp_config.XtcpConfig{
@@ -93,15 +103,28 @@ func newS3ParquetFixture(t *testing.T, threshold int, injectErr func(int) error)
 	x.destBytesPool.Init(func() *[]byte { b := make([]byte, 0, 1024); return &b })
 
 	upl := &fakeUploader{injectErr: injectErr}
+	neverFire := make(chan time.Time)
 	d := &s3ParquetDest{
-		x:          x,
-		uploader:   upl,
-		bucket:     x.config.S3Bucket,
-		prefix:     x.config.S3Prefix,
-		threshold:  threshold,
-		queueCh:    make(chan envelopeBytes, s3ParquetDestQueueCapacity),
-		closedCh:   make(chan struct{}),
-		workerDone: make(chan struct{}),
+		x:                  x,
+		uploader:           upl,
+		bucket:             x.config.S3Bucket,
+		prefix:             x.config.S3Prefix,
+		threshold:          threshold,
+		flushInterval:      time.Hour,
+		flushJitterPct:     0,
+		thresholdJitterPct: 0,
+		maxAttempts:        s3ParquetUploadMaxAttempts,
+		backoffCap:         time.Second,
+		jitterDur:          func(time.Duration) time.Duration { return 0 },
+		jitterInt:          func(int) int { return 0 },
+		sleep:              func(context.Context, time.Duration) bool { return true },
+		newTimer:           func(time.Duration) (<-chan time.Time, func() bool) { return neverFire, func() bool { return true } },
+		queueCh:            make(chan envelopeBytes, s3ParquetDestQueueCapacity),
+		closedCh:           make(chan struct{}),
+		workerDone:         make(chan struct{}),
+	}
+	if customize != nil {
+		customize(d)
 	}
 	go d.worker()
 	return d, upl, x

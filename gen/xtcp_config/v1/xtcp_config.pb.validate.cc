@@ -1158,6 +1158,108 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -1241,7 +1343,47 @@ return false;
 		}
 	}
 	
-// no validation rules for io_uring// no validation rules for io_uring_recv_batch_size// no validation rules for io_uring_cqe_batch_size// no validation rules for csv_columns
+// no validation rules for io_uring// no validation rules for io_uring_recv_batch_size// no validation rules for io_uring_cqe_batch_size// no validation rules for csv_columns// no validation rules for poll_jitter_pct
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_s3_flush_interval() && !pgv::BaseValidator::AbstractCheckMessage(m.s3_flush_interval(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "XtcpConfigValidationError" << "." << "S3FlushInterval";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+// no validation rules for s3_flush_jitter_pct// no validation rules for s3_flush_threshold_jitter_pct// no validation rules for s3_upload_max_attempts
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_s3_upload_backoff_cap() && !pgv::BaseValidator::AbstractCheckMessage(m.s3_upload_backoff_cap(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "XtcpConfigValidationError" << "." << "S3UploadBackoffCap";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+
 		
 	return true;
 }

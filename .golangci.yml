@@ -169,6 +169,15 @@ linters:
         linters:
           - gosec
         text: "G404|G301"
+      # gosec G404 (math/rand): the fleet jitter helpers (JitterDuration /
+      # JitterIntN) intentionally use math/rand/v2 — jitter is a load-spreading
+      # concern, not a security one, and rand/v2's per-process auto-seeding is
+      # exactly what the thundering-herd design needs (see
+      # docs/design-jitter-and-backoff.md). crypto/rand would be wrong here.
+      - path: "pkg/misc/timing\\.go"
+        linters:
+          - gosec
+        text: "G404"
       # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
       # Linux kernel uapi `struct tcp_info` revisions. Renaming breaks the
       # explicit per-version mapping that is the point of pkg/xtcpnl.

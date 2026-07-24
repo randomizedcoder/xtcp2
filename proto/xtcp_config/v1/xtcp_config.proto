@@ -577,6 +577,65 @@ message XtcpConfig {
 	string csv_columns                                = 220 [
 		(buf.validate.field).required = false
 	];
+
+	// Fleet jitter & upload backoff (thundering-herd avoidance). See
+	// docs/design-jitter-and-backoff.md. All jitter is disabled by setting
+	// the relevant *_jitter_pct to 0, restoring deterministic behavior.
+
+	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
+	// both the startup delay before the first poll and each subsequent tick.
+	// 0 disables (immediate first poll, fixed interval). Default 20.
+	uint32 poll_jitter_pct                            = 221 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 100
+	}];
+
+	// s3parquet staleness ceiling: force-flush the in-memory Parquet object
+	// after this long even if it hasn't reached the byte cap, bounding upload
+	// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
+	google.protobuf.Duration s3_flush_interval        = 222 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	// Maximum jitter as a percent of s3_flush_interval, applied to the first
+	// timed flush and each interval so the fleet doesn't ceiling-flush in
+	// lockstep. 0 disables. Default 20.
+	uint32 s3_flush_jitter_pct                         = 223 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 100
+	}];
+
+	// Per-object downward jitter as a percent of the s3parquet byte cap: each
+	// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
+	// size-cap upload path even under uniform load. Downward-only, so an
+	// object never exceeds the in-memory byte bound. 0 disables. Default 20.
+	uint32 s3_flush_threshold_jitter_pct               = 224 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 100
+	}];
+
+	// Maximum S3 upload attempts (original + retries) before dropping the
+	// object. Retries use full-jitter exponential backoff. Default 10.
+	uint32 s3_upload_max_attempts                      = 225 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 100
+	}];
+
+	// Cap on a single upload retry's backoff window (full jitter draws in
+	// [0, window], window grows exponentially up to this cap). 0 = derive as
+	// clamp(poll_frequency/10, 1s, 1h).
+	google.protobuf.Duration s3_upload_backoff_cap     = 226 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
 };
 
 message EnabledDeserializers {

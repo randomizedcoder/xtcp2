@@ -514,9 +514,33 @@ type XtcpConfig struct {
 	// which columns the csv/tsv marshallers emit (e.g.
 	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
 	// Empty = all fields. Ignored by non-tabular marshallers.
-	CsvColumns    string `protobuf:"bytes,220,opt,name=csv_columns,json=csvColumns,proto3" json:"csv_columns,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	CsvColumns string `protobuf:"bytes,220,opt,name=csv_columns,json=csvColumns,proto3" json:"csv_columns,omitempty"`
+	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
+	// both the startup delay before the first poll and each subsequent tick.
+	// 0 disables (immediate first poll, fixed interval). Default 20.
+	PollJitterPct uint32 `protobuf:"varint,221,opt,name=poll_jitter_pct,json=pollJitterPct,proto3" json:"poll_jitter_pct,omitempty"`
+	// s3parquet staleness ceiling: force-flush the in-memory Parquet object
+	// after this long even if it hasn't reached the byte cap, bounding upload
+	// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
+	S3FlushInterval *durationpb.Duration `protobuf:"bytes,222,opt,name=s3_flush_interval,json=s3FlushInterval,proto3" json:"s3_flush_interval,omitempty"`
+	// Maximum jitter as a percent of s3_flush_interval, applied to the first
+	// timed flush and each interval so the fleet doesn't ceiling-flush in
+	// lockstep. 0 disables. Default 20.
+	S3FlushJitterPct uint32 `protobuf:"varint,223,opt,name=s3_flush_jitter_pct,json=s3FlushJitterPct,proto3" json:"s3_flush_jitter_pct,omitempty"`
+	// Per-object downward jitter as a percent of the s3parquet byte cap: each
+	// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
+	// size-cap upload path even under uniform load. Downward-only, so an
+	// object never exceeds the in-memory byte bound. 0 disables. Default 20.
+	S3FlushThresholdJitterPct uint32 `protobuf:"varint,224,opt,name=s3_flush_threshold_jitter_pct,json=s3FlushThresholdJitterPct,proto3" json:"s3_flush_threshold_jitter_pct,omitempty"`
+	// Maximum S3 upload attempts (original + retries) before dropping the
+	// object. Retries use full-jitter exponential backoff. Default 10.
+	S3UploadMaxAttempts uint32 `protobuf:"varint,225,opt,name=s3_upload_max_attempts,json=s3UploadMaxAttempts,proto3" json:"s3_upload_max_attempts,omitempty"`
+	// Cap on a single upload retry's backoff window (full jitter draws in
+	// [0, window], window grows exponentially up to this cap). 0 = derive as
+	// clamp(poll_frequency/10, 1s, 1h).
+	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,226,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -885,6 +909,48 @@ func (x *XtcpConfig) GetCsvColumns() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetPollJitterPct() uint32 {
+	if x != nil {
+		return x.PollJitterPct
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3FlushInterval() *durationpb.Duration {
+	if x != nil {
+		return x.S3FlushInterval
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetS3FlushJitterPct() uint32 {
+	if x != nil {
+		return x.S3FlushJitterPct
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3FlushThresholdJitterPct() uint32 {
+	if x != nil {
+		return x.S3FlushThresholdJitterPct
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3UploadMaxAttempts() uint32 {
+	if x != nil {
+		return x.S3UploadMaxAttempts
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3UploadBackoffCap() *durationpb.Duration {
+	if x != nil {
+		return x.S3UploadBackoffCap
+	}
+	return nil
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -948,7 +1014,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb8\x15\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xed\x18\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -1017,7 +1083,16 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x17io_uring_cqe_batch_size\x18\xd4\x01 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12(\n" +
 	"\vcsv_columns\x18\xdc\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
-	"csvColumns:s\xbaHp\x1an\n" +
+	"csvColumns\x123\n" +
+	"\x0fpoll_jitter_pct\x18\xdd\x01 \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\rpollJitterPct\x12S\n" +
+	"\x11s3_flush_interval\x18\xde\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x0fs3FlushInterval\x12:\n" +
+	"\x13s3_flush_jitter_pct\x18\xdf\x01 \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x10s3FlushJitterPct\x12M\n" +
+	"\x1ds3_flush_threshold_jitter_pct\x18\xe0\x01 \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x19s3FlushThresholdJitterPct\x12B\n" +
+	"\x16s3_upload_max_attempts\x18\xe1\x01 \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Z\n" +
+	"\x15s3_upload_backoff_cap\x18\xe2\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
@@ -1066,18 +1141,20 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	9,  // 7: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
 	9,  // 8: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
 	7,  // 9: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
-	8,  // 10: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 11: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 12: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 13: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	1,  // 14: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 15: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 16: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	9,  // 10: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	9,  // 11: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	8,  // 12: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	0,  // 13: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	2,  // 14: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	4,  // 15: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	1,  // 16: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	3,  // 17: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	5,  // 18: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	16, // [16:19] is the sub-list for method output_type
+	13, // [13:16] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

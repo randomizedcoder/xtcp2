@@ -17,6 +17,7 @@ import (
 	grpchealth "google.golang.org/grpc/health"
 
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
+	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
@@ -109,6 +110,11 @@ type XTCP struct {
 	// can drive the init paths without taking down the process.
 	fatalf func(format string, args ...any)
 
+	// pollerSleep is the context-aware sleep the Poller uses for its jittered
+	// startup delay. Defaults to misc.SleepCtx; tests swap it for a recorder
+	// so the delay is asserted without a real wait. See poller.go.
+	pollerSleep func(ctx context.Context, d time.Duration) bool
+
 	// registry is the Prometheus registry InitPromethus and the gRPC
 	// service constructors register metrics into. Defaults to
 	// prometheus.DefaultRegisterer in NewXTCP / NewNsTestingXTCP so
@@ -200,6 +206,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 	x.config = config
 	x.debugLevel = x.config.DebugLevel
 	x.fatalf = log.Fatalf
+	x.pollerSleep = misc.SleepCtx
 	x.registry = constructorRegistry
 
 	x.Init(ctx)
@@ -214,6 +221,7 @@ func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel
 	x.ctx = ctx
 	x.cancel = cancel
 	x.fatalf = log.Fatalf
+	x.pollerSleep = misc.SleepCtx
 	x.registry = constructorRegistry
 
 	x.config = &xtcp_config.XtcpConfig{

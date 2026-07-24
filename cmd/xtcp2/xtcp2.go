@@ -108,6 +108,17 @@ const (
 	s3SkipBucketProbeCst                 = false
 	s3ParquetFlushThresholdBytesCst uint = 0
 
+	// Fleet jitter & upload backoff defaults (thundering-herd avoidance). See
+	// docs/design-jitter-and-backoff.md. A 0 pct disables the corresponding
+	// jitter (restoring deterministic behavior); the two 0-valued durations
+	// mean "derive from poll_frequency" (see the s3parquet destination).
+	pollJitterPctCst             uint = 20
+	s3FlushIntervalCst                = 0 * time.Second
+	s3FlushJitterPctCst          uint = 20
+	s3FlushThresholdJitterPctCst uint = 20
+	s3UploadMaxAttemptsCst       uint = 10
+	s3UploadBackoffCapCst             = 0 * time.Second
+
 	// Pyroscope continuous-profiling defaults. Agent disabled when
 	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
 	// PYROSCOPE_URL env, see environmentOverride).
@@ -210,37 +221,45 @@ type mainFlags struct {
 	s3Region            *string
 	s3SkipBucketProbe   *bool
 	s3ParquetFlushBytes *uint
-	dest                *string
-	destWriteFiles      *uint
-	topic               *string
-	xtcpProtoFile       *string
-	kafkaSchemaUrl      *string
-	produceTimeout      *time.Duration
-	label               *string
-	tag                 *string
-	location            *string
-	hostname            *string
-	resolveContainerId  *bool
-	ipv4Ttl             *uint
-	ipv6HopLimit        *uint
-	grpcPort            *uint
-	deserializers       *string
-	promListen          *string
-	promPath            *string
-	healthcheck         *bool
-	goMaxProcs          *uint
-	maxThreads          *int
-	profileMode         *string
-	pyroscopeUrl        *string
-	pyroscopeAppName    *string
-	pyroscopeSampleHz   *uint
-	pyroscopeUploadSec  *uint
-	v                   *bool
-	conf                *bool
-	d                   *uint
-	ioUring             *bool
-	ioUringRecvBatch    *uint
-	ioUringCqeBatch     *uint
+
+	pollJitterPct             *uint
+	s3FlushInterval           *time.Duration
+	s3FlushJitterPct          *uint
+	s3FlushThresholdJitterPct *uint
+	s3UploadMaxAttempts       *uint
+	s3UploadBackoffCap        *time.Duration
+
+	dest               *string
+	destWriteFiles     *uint
+	topic              *string
+	xtcpProtoFile      *string
+	kafkaSchemaUrl     *string
+	produceTimeout     *time.Duration
+	label              *string
+	tag                *string
+	location           *string
+	hostname           *string
+	resolveContainerId *bool
+	ipv4Ttl            *uint
+	ipv6HopLimit       *uint
+	grpcPort           *uint
+	deserializers      *string
+	promListen         *string
+	promPath           *string
+	healthcheck        *bool
+	goMaxProcs         *uint
+	maxThreads         *int
+	profileMode        *string
+	pyroscopeUrl       *string
+	pyroscopeAppName   *string
+	pyroscopeSampleHz  *uint
+	pyroscopeUploadSec *uint
+	v                  *bool
+	conf               *bool
+	d                  *uint
+	ioUring            *bool
+	ioUringRecvBatch   *uint
+	ioUringCqeBatch    *uint
 }
 
 // defaultDestFor picks the `-dest` default from the library destinations
@@ -295,6 +314,12 @@ func defineFlags() *mainFlags {
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
 	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
+	f.pollJitterPct = flag.Uint("pollJitterPct", pollJitterPctCst, "Poll-schedule jitter as a percent (0-100) of -frequency, applied to the startup delay and each tick to avoid a synchronized fleet. 0 disables (immediate first poll, fixed interval).")
+	f.s3FlushInterval = flag.Duration("s3FlushInterval", s3FlushIntervalCst, "s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).")
+	f.s3FlushJitterPct = flag.Uint("s3FlushJitterPct", s3FlushJitterPctCst, "s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.")
+	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
+	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
+	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
 	f.dest = flag.String("dest", defaultDest(), "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
@@ -364,6 +389,12 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*s3Region:", *f.s3Region)
 	fmt.Println("*s3SkipBucketProbe:", *f.s3SkipBucketProbe)
 	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
+	fmt.Println("*pollJitterPct:", *f.pollJitterPct)
+	fmt.Println("*s3FlushInterval:", *f.s3FlushInterval)
+	fmt.Println("*s3FlushJitterPct:", *f.s3FlushJitterPct)
+	fmt.Println("*s3FlushThresholdJitterPct:", *f.s3FlushThresholdJitterPct)
+	fmt.Println("*s3UploadMaxAttempts:", *f.s3UploadMaxAttempts)
+	fmt.Println("*s3UploadBackoffCap:", *f.s3UploadBackoffCap)
 	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
 	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
 	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
@@ -407,6 +438,12 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3Region:                     *f.s3Region,
 		S3SkipBucketProbe:            *f.s3SkipBucketProbe,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
+		PollJitterPct:                uint32(*f.pollJitterPct),
+		S3FlushInterval:              durationpb.New(*f.s3FlushInterval),
+		S3FlushJitterPct:             uint32(*f.s3FlushJitterPct),
+		S3FlushThresholdJitterPct:    uint32(*f.s3FlushThresholdJitterPct),
+		S3UploadMaxAttempts:          uint32(*f.s3UploadMaxAttempts),
+		S3UploadBackoffCap:           durationpb.New(*f.s3UploadBackoffCap),
 		PyroscopeUrl:                 *f.pyroscopeUrl,
 		PyroscopeAppName:             *f.pyroscopeAppName,
 		PyroscopeSampleHz:            uint32(*f.pyroscopeSampleHz),
@@ -985,6 +1022,10 @@ func envOverridePolling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.Modulus = v
 		logEnv("MODULUS", fmt.Sprintf("c.Modulus:%d", v), debugLevel)
 	}
+	if v, ok := envUint32("POLL_JITTER_PCT"); ok {
+		c.PollJitterPct = v
+		logEnv("POLL_JITTER_PCT", fmt.Sprintf("c.PollJitterPct:%d", v), debugLevel)
+	}
 }
 
 func envOverrideNetlinker(c *xtcp_config.XtcpConfig, debugLevel uint) {
@@ -1084,6 +1125,26 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3ParquetFlushThresholdBytes = v
 		logEnv("S3_PARQUET_FLUSH_BYTES", fmt.Sprintf("c.S3ParquetFlushThresholdBytes:%d", v), debugLevel)
 	}
+	if d, ok := envDuration("S3_FLUSH_INTERVAL"); ok {
+		c.S3FlushInterval = durationpb.New(d)
+		logEnv("S3_FLUSH_INTERVAL", fmt.Sprintf("c.S3FlushInterval:%s", c.S3FlushInterval.String()), debugLevel)
+	}
+	if v, ok := envUint32("S3_FLUSH_JITTER_PCT"); ok {
+		c.S3FlushJitterPct = v
+		logEnv("S3_FLUSH_JITTER_PCT", fmt.Sprintf("c.S3FlushJitterPct:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("S3_FLUSH_THRESHOLD_JITTER_PCT"); ok {
+		c.S3FlushThresholdJitterPct = v
+		logEnv("S3_FLUSH_THRESHOLD_JITTER_PCT", fmt.Sprintf("c.S3FlushThresholdJitterPct:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("S3_UPLOAD_MAX_ATTEMPTS"); ok {
+		c.S3UploadMaxAttempts = v
+		logEnv("S3_UPLOAD_MAX_ATTEMPTS", fmt.Sprintf("c.S3UploadMaxAttempts:%d", v), debugLevel)
+	}
+	if d, ok := envDuration("S3_UPLOAD_BACKOFF_CAP"); ok {
+		c.S3UploadBackoffCap = durationpb.New(d)
+		logEnv("S3_UPLOAD_BACKOFF_CAP", fmt.Sprintf("c.S3UploadBackoffCap:%s", c.S3UploadBackoffCap.String()), debugLevel)
+	}
 	if v, ok := envString("DEST"); ok {
 		c.Dest = v
 		logEnv("DEST", fmt.Sprintf("c.Dest:%s", v), debugLevel)
@@ -1171,6 +1232,12 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	// c.S3AccessKey / c.S3SecretKey intentionally NOT printed.
 	fmt.Println("c.S3Region:", c.S3Region)
 	fmt.Println("c.S3ParquetFlushThresholdBytes:", c.S3ParquetFlushThresholdBytes)
+	fmt.Println("c.PollJitterPct:", c.PollJitterPct)
+	fmt.Println("c.S3FlushInterval:", c.S3FlushInterval.AsDuration())
+	fmt.Println("c.S3FlushJitterPct:", c.S3FlushJitterPct)
+	fmt.Println("c.S3FlushThresholdJitterPct:", c.S3FlushThresholdJitterPct)
+	fmt.Println("c.S3UploadMaxAttempts:", c.S3UploadMaxAttempts)
+	fmt.Println("c.S3UploadBackoffCap:", c.S3UploadBackoffCap.AsDuration())
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)

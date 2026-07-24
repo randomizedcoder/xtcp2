@@ -867,6 +867,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPollTimeoutFieldNumber = 30,
     kKafkaProduceTimeoutFieldNumber = 150,
     kEnabledDeserializersFieldNumber = 200,
+    kS3FlushIntervalFieldNumber = 222,
+    kS3UploadBackoffCapFieldNumber = 226,
     kNlTimeoutMillisecondsFieldNumber = 10,
     kMaxLoopsFieldNumber = 40,
     kNetlinkersFieldNumber = 50,
@@ -891,6 +893,10 @@ class XtcpConfig final : public ::google::protobuf::Message
     kGrpcPortFieldNumber = 190,
     kIoUringRecvBatchSizeFieldNumber = 211,
     kIoUringCqeBatchSizeFieldNumber = 212,
+    kPollJitterPctFieldNumber = 221,
+    kS3FlushJitterPctFieldNumber = 223,
+    kS3FlushThresholdJitterPctFieldNumber = 224,
+    kS3UploadMaxAttemptsFieldNumber = 225,
   };
   // string capture_path = 100 [json_name = "capturePath", (.buf.validate.field) = {
   void clear_capture_path() ;
@@ -1272,6 +1278,36 @@ class XtcpConfig final : public ::google::protobuf::Message
   ::xtcp_config::v1::EnabledDeserializers* _internal_mutable_enabled_deserializers();
 
   public:
+  // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+  bool has_s3_flush_interval() const;
+  void clear_s3_flush_interval() ;
+  const ::google::protobuf::Duration& s3_flush_interval() const;
+  PROTOBUF_NODISCARD ::google::protobuf::Duration* release_s3_flush_interval();
+  ::google::protobuf::Duration* mutable_s3_flush_interval();
+  void set_allocated_s3_flush_interval(::google::protobuf::Duration* value);
+  void unsafe_arena_set_allocated_s3_flush_interval(::google::protobuf::Duration* value);
+  ::google::protobuf::Duration* unsafe_arena_release_s3_flush_interval();
+
+  private:
+  const ::google::protobuf::Duration& _internal_s3_flush_interval() const;
+  ::google::protobuf::Duration* _internal_mutable_s3_flush_interval();
+
+  public:
+  // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+  bool has_s3_upload_backoff_cap() const;
+  void clear_s3_upload_backoff_cap() ;
+  const ::google::protobuf::Duration& s3_upload_backoff_cap() const;
+  PROTOBUF_NODISCARD ::google::protobuf::Duration* release_s3_upload_backoff_cap();
+  ::google::protobuf::Duration* mutable_s3_upload_backoff_cap();
+  void set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* value);
+  void unsafe_arena_set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* value);
+  ::google::protobuf::Duration* unsafe_arena_release_s3_upload_backoff_cap();
+
+  private:
+  const ::google::protobuf::Duration& _internal_s3_upload_backoff_cap() const;
+  ::google::protobuf::Duration* _internal_mutable_s3_upload_backoff_cap();
+
+  public:
   // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
   void clear_nl_timeout_milliseconds() ;
   ::uint64_t nl_timeout_milliseconds() const;
@@ -1512,12 +1548,52 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_io_uring_cqe_batch_size(::uint32_t value);
 
   public:
+  // uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
+  void clear_poll_jitter_pct() ;
+  ::uint32_t poll_jitter_pct() const;
+  void set_poll_jitter_pct(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_poll_jitter_pct() const;
+  void _internal_set_poll_jitter_pct(::uint32_t value);
+
+  public:
+  // uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+  void clear_s3_flush_jitter_pct() ;
+  ::uint32_t s3_flush_jitter_pct() const;
+  void set_s3_flush_jitter_pct(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_s3_flush_jitter_pct() const;
+  void _internal_set_s3_flush_jitter_pct(::uint32_t value);
+
+  public:
+  // uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+  void clear_s3_flush_threshold_jitter_pct() ;
+  ::uint32_t s3_flush_threshold_jitter_pct() const;
+  void set_s3_flush_threshold_jitter_pct(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_s3_flush_threshold_jitter_pct() const;
+  void _internal_set_s3_flush_threshold_jitter_pct(::uint32_t value);
+
+  public:
+  // uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+  void clear_s3_upload_max_attempts() ;
+  ::uint32_t s3_upload_max_attempts() const;
+  void set_s3_upload_max_attempts(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_s3_upload_max_attempts() const;
+  void _internal_set_s3_upload_max_attempts(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 48, 4,
+      5, 54, 6,
       291, 29>
       _table_;
 
@@ -1561,6 +1637,8 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::google::protobuf::Duration* poll_timeout_;
     ::google::protobuf::Duration* kafka_produce_timeout_;
     ::xtcp_config::v1::EnabledDeserializers* enabled_deserializers_;
+    ::google::protobuf::Duration* s3_flush_interval_;
+    ::google::protobuf::Duration* s3_upload_backoff_cap_;
     ::uint64_t nl_timeout_milliseconds_;
     ::uint64_t max_loops_;
     ::uint32_t netlinkers_;
@@ -1585,6 +1663,10 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t grpc_port_;
     ::uint32_t io_uring_recv_batch_size_;
     ::uint32_t io_uring_cqe_batch_size_;
+    ::uint32_t poll_jitter_pct_;
+    ::uint32_t s3_flush_jitter_pct_;
+    ::uint32_t s3_flush_threshold_jitter_pct_;
+    ::uint32_t s3_upload_max_attempts_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -4836,6 +4918,276 @@ inline void XtcpConfig::set_allocated_csv_columns(std::string* value) {
     _impl_.csv_columns_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.csv_columns)
+}
+
+// uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_poll_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.poll_jitter_pct_ = 0u;
+}
+inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
+  return _internal_poll_jitter_pct();
+}
+inline void XtcpConfig::set_poll_jitter_pct(::uint32_t value) {
+  _internal_set_poll_jitter_pct(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_poll_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.poll_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_poll_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.poll_jitter_pct_ = value;
+}
+
+// .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+inline bool XtcpConfig::has_s3_flush_interval() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.s3_flush_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_flush_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.s3_flush_interval_;
+  return p != nullptr ? *p : reinterpret_cast<const ::google::protobuf::Duration&>(::google::protobuf::_Duration_default_instance_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::s3_flush_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+  return _internal_s3_flush_interval();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_s3_flush_interval(::google::protobuf::Duration* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
+  }
+  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000010u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000010u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+}
+inline ::google::protobuf::Duration* XtcpConfig::release_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000010u;
+  ::google::protobuf::Duration* released = _impl_.s3_flush_interval_;
+  _impl_.s3_flush_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* XtcpConfig::unsafe_arena_release_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+
+  _impl_._has_bits_[0] &= ~0x00000010u;
+  ::google::protobuf::Duration* temp = _impl_.s3_flush_interval_;
+  _impl_.s3_flush_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* XtcpConfig::_internal_mutable_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_flush_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.s3_flush_interval_;
+}
+inline ::google::protobuf::Duration* XtcpConfig::mutable_s3_flush_interval() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000010u;
+  ::google::protobuf::Duration* _msg = _internal_mutable_s3_flush_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Duration* value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::MessageLite*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000010u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000010u;
+  }
+
+  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+}
+
+// uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_flush_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_jitter_pct_ = 0u;
+}
+inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
+  return _internal_s3_flush_jitter_pct();
+}
+inline void XtcpConfig::set_s3_flush_jitter_pct(::uint32_t value) {
+  _internal_set_s3_flush_jitter_pct(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_flush_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_flush_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_s3_flush_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_jitter_pct_ = value;
+}
+
+// uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_flush_threshold_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_threshold_jitter_pct_ = 0u;
+}
+inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
+  return _internal_s3_flush_threshold_jitter_pct();
+}
+inline void XtcpConfig::set_s3_flush_threshold_jitter_pct(::uint32_t value) {
+  _internal_set_s3_flush_threshold_jitter_pct(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_flush_threshold_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_flush_threshold_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_s3_flush_threshold_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_threshold_jitter_pct_ = value;
+}
+
+// uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_upload_max_attempts() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_upload_max_attempts_ = 0u;
+}
+inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
+  return _internal_s3_upload_max_attempts();
+}
+inline void XtcpConfig::set_s3_upload_max_attempts(::uint32_t value) {
+  _internal_set_s3_upload_max_attempts(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_upload_max_attempts() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_upload_max_attempts_;
+}
+inline void XtcpConfig::_internal_set_s3_upload_max_attempts(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_upload_max_attempts_ = value;
+}
+
+// .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+inline bool XtcpConfig::has_s3_upload_backoff_cap() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.s3_upload_backoff_cap_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_upload_backoff_cap() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.s3_upload_backoff_cap_;
+  return p != nullptr ? *p : reinterpret_cast<const ::google::protobuf::Duration&>(::google::protobuf::_Duration_default_instance_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::s3_upload_backoff_cap() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+  return _internal_s3_upload_backoff_cap();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
+  }
+  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000020u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000020u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+}
+inline ::google::protobuf::Duration* XtcpConfig::release_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000020u;
+  ::google::protobuf::Duration* released = _impl_.s3_upload_backoff_cap_;
+  _impl_.s3_upload_backoff_cap_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* XtcpConfig::unsafe_arena_release_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+
+  _impl_._has_bits_[0] &= ~0x00000020u;
+  ::google::protobuf::Duration* temp = _impl_.s3_upload_backoff_cap_;
+  _impl_.s3_upload_backoff_cap_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* XtcpConfig::_internal_mutable_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_upload_backoff_cap_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.s3_upload_backoff_cap_;
+}
+inline ::google::protobuf::Duration* XtcpConfig::mutable_s3_upload_backoff_cap() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000020u;
+  ::google::protobuf::Duration* _msg = _internal_mutable_s3_upload_backoff_cap();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::MessageLite*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000020u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000020u;
+  }
+
+  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
 }
 
 // -------------------------------------------------------------------

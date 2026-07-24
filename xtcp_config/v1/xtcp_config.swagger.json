@@ -416,6 +416,34 @@
         "csvColumns": {
           "type": "string",
           "description": "Comma-separated subset of XtcpFlatRecord json field names selecting\nwhich columns the csv/tsv marshallers emit (e.g.\n\"hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt\").\nEmpty = all fields. Ignored by non-tabular marshallers."
+        },
+        "pollJitterPct": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum poll-schedule jitter as a percent of poll_frequency, applied to\nboth the startup delay before the first poll and each subsequent tick.\n0 disables (immediate first poll, fixed interval). Default 20."
+        },
+        "s3FlushInterval": {
+          "type": "string",
+          "description": "s3parquet staleness ceiling: force-flush the in-memory Parquet object\nafter this long even if it hasn't reached the byte cap, bounding upload\nlatency for low-volume hosts. 0 = derive as max(poll_frequency, 30m)."
+        },
+        "s3FlushJitterPct": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum jitter as a percent of s3_flush_interval, applied to the first\ntimed flush and each interval so the fleet doesn't ceiling-flush in\nlockstep. 0 disables. Default 20."
+        },
+        "s3FlushThresholdJitterPct": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Per-object downward jitter as a percent of the s3parquet byte cap: each\nobject finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the\nsize-cap upload path even under uniform load. Downward-only, so an\nobject never exceeds the in-memory byte bound. 0 disables. Default 20."
+        },
+        "s3UploadMaxAttempts": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum S3 upload attempts (original + retries) before dropping the\nobject. Retries use full-jitter exponential backoff. Default 10."
+        },
+        "s3UploadBackoffCap": {
+          "type": "string",
+          "description": "Cap on a single upload retry's backoff window (full jitter draws in\n[0, window], window grows exponentially up to this cap). 0 = derive as\nclamp(poll_frequency/10, 1s, 1h)."
         }
       },
       "title": "xtcp configuration"
