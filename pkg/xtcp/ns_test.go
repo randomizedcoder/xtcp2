@@ -2,8 +2,6 @@ package xtcp
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 
@@ -103,135 +101,25 @@ func TestGetNetlinkSocketFDs(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// discoverNamespaces — scans a tempdir + returns map keyed by file name.
-// ───────────────────────────────────────────────────────────────────────
-
-func TestDiscoverNamespaces_emptyDir(t *testing.T) {
-	x := newNsFixture(t)
-	dir := t.TempDir() + "/"
-	m := x.discoverNamespaces(dir)
-	count := 0
-	m.Range(func(k, v interface{}) bool { count++; return true })
-	if count != 0 {
-		t.Errorf("empty dir should yield 0 entries; got %d", count)
-	}
-}
-
-func TestDiscoverNamespaces_withFiles(t *testing.T) {
-	x := newNsFixture(t)
-	dir := t.TempDir() + "/"
-	for _, name := range []string{"alice", "bob", "charlie"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte{}, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// And one subdirectory that should be skipped.
-	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	m := x.discoverNamespaces(dir)
-	count := 0
-	m.Range(func(k, v interface{}) bool { count++; return true })
-	if count != 3 {
-		t.Errorf("3 files + 1 dir → expected 3 entries; got %d", count)
-	}
-}
-
-func TestDiscoverNamespaces_missingDir(t *testing.T) {
-	x := newNsFixture(t)
-	m := x.discoverNamespaces("/no/such/path/")
-	count := 0
-	m.Range(func(k, v interface{}) bool { count++; return true })
-	if count != 0 {
-		t.Errorf("missing dir should yield 0 entries; got %d", count)
-	}
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// discoverAllNamespaces — merges discoverNamespaces results across
-// every entry in netNsDirs.
-// ───────────────────────────────────────────────────────────────────────
-
-func TestDiscoverAllNamespaces_singleDir(t *testing.T) {
-	x := newNsFixture(t)
-	dir := t.TempDir() + "/"
-	if err := os.WriteFile(filepath.Join(dir, "ns1"), []byte{}, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	x.netNsDirs.Store(dir, true)
-	m := x.discoverAllNamespaces()
-	count := 0
-	m.Range(func(k, v interface{}) bool { count++; return true })
-	if count != 1 {
-		t.Errorf("single dir 1 file → 1 entry; got %d", count)
-	}
-}
-
-func TestDiscoverAllNamespaces_mergedDirs(t *testing.T) {
-	x := newNsFixture(t)
-	dir1 := t.TempDir() + "/"
-	dir2 := t.TempDir() + "/"
-	if err := os.WriteFile(filepath.Join(dir1, "ns1"), []byte{}, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir2, "ns2"), []byte{}, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	x.netNsDirs.Store(dir1, true)
-	x.netNsDirs.Store(dir2, true)
-	m := x.discoverAllNamespaces()
-	count := 0
-	m.Range(func(k, v interface{}) bool { count++; return true })
-	if count != 2 {
-		t.Errorf("merged 2 dirs → 2 entries; got %d", count)
-	}
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// mergeMaps — used by discoverAllNamespaces; map1 + map2 union into new.
-// ───────────────────────────────────────────────────────────────────────
-
-func TestMergeMaps(t *testing.T) {
-	m1 := &sync.Map{}
-	m1.Store("a", 1)
-	m1.Store("b", 2)
-	m2 := &sync.Map{}
-	m2.Store("b", 99) // overlap: map2 wins
-	m2.Store("c", 3)
-	merged := mergeMaps(m1, m2)
-	got := map[string]int{}
-	merged.Range(func(k, v interface{}) bool {
-		got[k.(string)] = v.(int)
-		return true
-	})
-	want := map[string]int{"a": 1, "b": 99, "c": 3}
-	for k, wv := range want {
-		if got[k] != wv {
-			t.Errorf("merged[%s] = %d, want %d", k, got[k], wv)
-		}
-	}
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// nsDelete — removes a netNSitem from nsMap + cancels its context.
+// nsDelete — removes a netNSitem (keyed by inode) from nsMap + cancels its ctx.
 // ───────────────────────────────────────────────────────────────────────
 
 func TestNsDelete(t *testing.T) {
 	x := newNsFixture(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	const inode = uint64(4026531950)
 	// nsDelete will call cancel() on the item's stored CancelFunc.
 	var canceled bool
 	storedCancel := func() { canceled = true }
-	x.nsMap.Store("ns1", netNSitem{
-		ctx:      ctx,
+	name := "ns1"
+	x.nsMap.Store(inode, netNSitem{
+		inode:    inode,
+		name:     &name,
 		cancel:   storedCancel,
 		socketFD: 7,
 	})
-	x.fdToNsMap.Store(7, "ns1")
-	name := "ns1"
-	x.nsDelete(&name)
-	if _, ok := x.nsMap.Load("ns1"); ok {
+	x.fdToNsMap.Store(7, inode)
+	x.nsDelete(inode)
+	if _, ok := x.nsMap.Load(inode); ok {
 		t.Error("nsDelete should remove the entry from nsMap")
 	}
 	if _, ok := x.fdToNsMap.Load(7); ok {
@@ -247,9 +135,8 @@ func TestNsDelete(t *testing.T) {
 
 func TestNsDelete_missingKey(t *testing.T) {
 	x := newNsFixture(t)
-	name := "no-such-ns"
 	// Should not panic, should be a no-op.
-	x.nsDelete(&name)
+	x.nsDelete(4026531951)
 	if x.deleteCount.Load() != 0 {
 		t.Errorf("deleteCount should stay 0 for missing key; got %d",
 			x.deleteCount.Load())

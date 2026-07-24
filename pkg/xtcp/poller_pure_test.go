@@ -240,37 +240,19 @@ func TestPollAllNetlinkSockets_emptyFDs(t *testing.T) {
 	}
 }
 
-// pollAllNetlinkSockets skips the xtcpNS namespace's fd AND excludes it
-// from the returned count. GetNetlinkSocketFDs pulls socketFD values out
-// of nsMap (not fdToNsMap), so we have to seed both: nsMap gives the fd;
-// fdToNsMap gives the ns name lookup used by the skip check.
-//
-// The returned count must equal the number of fds actually polled, not
-// len(socketFDs). Counting the skipped xtcpNS fd would make Poller wait
-// for one extra "done" signal that never arrives, forcing every poll
-// cycle to fall back to the PollTimeoutTimer.
-func TestPollAllNetlinkSockets_skipsXtcpNS(t *testing.T) {
+// pollAllNetlinkSockets polls every ready fd and returns the count of fds it
+// actually issued a dump against. A slot reserved by nsAdd whose socket isn't
+// open yet (socketFD == -1) is skipped and NOT counted — counting it would make
+// Poller wait for a done signal that never arrives.
+func TestPollAllNetlinkSockets_pollsReadySkipsReserved(t *testing.T) {
 	x := newPollerFixture(t)
-	x.nsMap.Store(linuxNetNSDirCst+xtcpNSName, netNSitem{socketFD: 42})
-	x.fdToNsMap.Store(42, linuxNetNSDirCst+xtcpNSName)
-	x.debugLevel = 200 // hit the skip-log branch
+	x.debugLevel = 200                                                            // hit the poll-log branch
+	x.nsMap.Store(uint64(4026531800), netNSitem{inode: 4026531800, socketFD: 7})  // ready
+	x.nsMap.Store(uint64(4026531801), netNSitem{inode: 4026531801, socketFD: 11}) // ready
+	x.nsMap.Store(uint64(4026531802), netNSitem{inode: 4026531802, socketFD: -1}) // reserved
 	got := x.pollAllNetlinkSockets(0)
-	if got != 0 {
-		t.Errorf("count = %d, want 0 (xtcpNS was skipped and must not count)", got)
-	}
-}
-
-// Mixed case: one xtcpNS fd (skipped) + one regular fd (polled). Count
-// should be 1 — the polled one.
-func TestPollAllNetlinkSockets_skipsXtcpNSAmongstOthers(t *testing.T) {
-	x := newPollerFixture(t)
-	x.nsMap.Store(linuxNetNSDirCst+xtcpNSName, netNSitem{socketFD: 42})
-	x.fdToNsMap.Store(42, linuxNetNSDirCst+xtcpNSName)
-	x.nsMap.Store("/run/netns/other", netNSitem{socketFD: 7})
-	x.fdToNsMap.Store(7, "/run/netns/other")
-	got := x.pollAllNetlinkSockets(0)
-	if got != 1 {
-		t.Errorf("count = %d, want 1 (one polled, one skipped)", got)
+	if got != 2 {
+		t.Errorf("count = %d, want 2 (two ready polled, one reserved -1 skipped)", got)
 	}
 }
 
@@ -285,7 +267,7 @@ func TestObserveNetlinkerDone_knownFDLogged(t *testing.T) {
 	x := newPollerFixture(t)
 	x.debugLevel = 11 // > 10 → hit the namespace-log branch
 	x.pollTime.Store(7, time.Now().Add(-10*time.Millisecond))
-	x.fdToNsMap.Store(7, "/run/netns/foo")
+	x.fdToNsMap.Store(7, uint64(4026531840))
 	x.observeNetlinkerDone(netlinkerDone{fd: 7, t: time.Now()}, 1)
 }
 

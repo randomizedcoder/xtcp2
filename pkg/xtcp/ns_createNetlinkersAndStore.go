@@ -13,7 +13,7 @@ import (
 // leaving netNamespaceInstance blocked on the parent (daemon-lifetime)
 // context — its deferred closeSocket(fd) never fired on a delete, leaking
 // one netlink fd + one goroutine per namespace removed.
-func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.CancelFunc, nsName *string, fd int) {
+func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string, fd int) {
 
 	x.pC.WithLabelValues("createWorksAndStore", "start", "counter").Inc()
 
@@ -33,7 +33,9 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 
 	wg := new(sync.WaitGroup)
 	nsi := netNSitem{
-		name:     nsName,
+		inode:    inode,
+		pid:      pid,
+		name:     name,
 		ctx:      nsCtx,
 		cancel:   nsCancel,
 		wg:       wg,
@@ -41,22 +43,23 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 	}
 
 	wg.Add(1)
-	go x.createNetlinkers(nsCtx, wg, nsName, fd, x.config.Netlinkers)
+	go x.createNetlinkers(nsCtx, wg, name, fd, x.config.Netlinkers)
 
-	// Update the nsMap slot reserved by nsAdd with the real socketFD.
-	x.nsMap.Store(*nsName, nsi)
-	x.fdToNsMap.Store(fd, *nsName)
+	// Update the nsMap slot reserved by nsAdd (keyed by inode) with the real
+	// socketFD; register the reverse fd → inode lookup.
+	x.nsMap.Store(inode, nsi)
+	x.fdToNsMap.Store(fd, inode)
 	x.incrementStoreAndGenerationCounts()
 
 	// If a delete raced in between the guard above and the Store, undo it so
 	// we don't leave a stale entry (with a real fd) for a cancelled namespace.
 	if nsCtx.Err() != nil {
-		x.nsMap.Delete(*nsName)
+		x.nsMap.Delete(inode)
 		x.fdToNsMap.Delete(fd)
 		x.pC.WithLabelValues("createWorksAndStore", "cancelRacedStore", "count").Inc()
 	}
 	if x.debugLevel > 10 {
-		log.Printf("createNetlinkersAndStore: ns:%s socketFD:%d Stored", *nsName, fd)
+		log.Printf("createNetlinkersAndStore: inode:%d name:%s socketFD:%d Stored", inode, *name, fd)
 	}
 }
 

@@ -8,7 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -152,14 +155,36 @@ func (x *XTCP) callFatalf(format string, args ...any) {
 // completion.
 var netNsCandidateDirs = []string{linuxNetNSDirCst, dockerNetNsDirCst}
 
+// procRoot is the procfs mount the /proc-scan discovery reads. A var so tests
+// can point it at a synthetic tree; production uses "/proc".
+var procRoot = "/proc"
+
+// checkDirectoryExists reports whether dir exists and is a directory. Treats any
+// Stat error as "no" and only dereferences info on the success path (a
+// non-not-exist error — EACCES, EIO — leaves info==nil, so info.IsDir() would
+// panic).
+func checkDirectoryExists(dir string) bool {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
 func (x *XTCP) initSyncMaps() {
 	x.nsMap = &sync.Map{}
 	x.fdToNsMap = &sync.Map{}
 	x.netNsDirs = &sync.Map{}
 
+	// Probe the well-known bind-mount dirs. Under Method B these are consulted
+	// only for best-effort namespace *names* (discovery itself scans /proc), so
+	// a missing /run/netns — e.g. a container with only anonymous namespaces —
+	// is fine and no longer fatal.
+	var nameDirs []string
 	for _, dir := range netNsCandidateDirs {
 		if _, err := os.Stat(dir); err == nil {
 			x.netNsDirs.Store(dir, true)
+			nameDirs = append(nameDirs, dir)
 			if x.debugLevel > 10 {
 				log.Println("initSyncMaps x.netNsDirs.Store(" + dir + ")")
 			}
@@ -168,16 +193,25 @@ func (x *XTCP) initSyncMaps() {
 		}
 	}
 
-	i := 0
-	x.netNsDirs.Range(func(key, value interface{}) bool {
-		i++
-		return true
-	})
+	x.initNsDiscovery(nameDirs)
+}
 
-	if i < 1 {
-		x.callFatalf("%s", "initSyncMaps neither network namespace directory exists.  ??!")
+// initNsDiscovery constructs the reused /proc scanner + name resolver and records
+// xtcp's own netns inode (so openDefaultNetLinkSocket's host socket dedups
+// against the /proc-scan). Tests may replace x.nsScanner / x.nsResolver /
+// x.selfNsInode afterwards to point at a synthetic tree.
+func (x *XTCP) initNsDiscovery(nameDirs []string) {
+	x.nsScanner = nsdiscover.NewScanner(procRoot)
+	x.nsResolver = nsdiscover.NewResolver(procRoot, nameDirs)
+
+	var st unix.Stat_t
+	if err := unix.Stat(procRoot+"/self/ns/net", &st); err != nil {
+		if x.debugLevel > 10 {
+			log.Printf("initNsDiscovery stat %s/self/ns/net err: %v", procRoot, err)
+		}
 		return
 	}
+	x.selfNsInode = st.Ino
 }
 
 // CreateNetLinkRequest builds the netlink request

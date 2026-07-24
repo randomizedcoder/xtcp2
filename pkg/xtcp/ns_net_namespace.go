@@ -29,7 +29,7 @@ var mountInfoDir = "/proc/self/mountinfo"
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromName
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromPath
 // https://tip.golang.org/doc/go1.10#runtime
-func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.CancelFunc, nsName *string) {
+func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string) {
 
 	startTime := time.Now()
 	x.pC.WithLabelValues("netNamespaceInstance", "start", "counter").Inc()
@@ -37,12 +37,12 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	defer func() {
 		x.pH.WithLabelValues("netNamespaceInstance", "complete", "counter").Observe(time.Since(startTime).Seconds())
 		if x.debugLevel > 10 {
-			log.Printf("netNamespaceInstance complete: %s after seconds:%0.3f", *nsName, time.Since(startTime).Seconds())
+			log.Printf("netNamespaceInstance complete: inode=%d name=%s after seconds:%0.3f", inode, *name, time.Since(startTime).Seconds())
 		}
 	}()
 
 	if x.debugLevel > 10 {
-		log.Printf("netNamespaceInstance: %s", *nsName)
+		log.Printf("netNamespaceInstance: inode=%d pid=%d name=%s", inode, pid, *name)
 	}
 
 	runtime.LockOSThread()
@@ -104,11 +104,11 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	// 	log.Printf("netNamespaceInstance after LockOSThread: %s", ns.name)
 	// }
 
-	// Production enters via the /run/netns (or /run/docker/netns) bind-mount
-	// path, which needs the mount-readiness gate. (Entering by /proc/<pid>/ns/net
-	// — checkMount=false — is exercised by tests and used by the /proc-scan
-	// discovery path.)
-	fd := x.openAndSetNSWithRetries(nsName, true)
+	// Enter the namespace by its representative pid's /proc/<pid>/ns/net handle.
+	// checkMount=false: unlike a /run/netns bind mount, this handle is valid the
+	// moment the pid is observable, so there is no mount-readiness gate.
+	handle := procNsPath(pid)
+	fd := x.openAndSetNSWithRetries(&handle, false)
 
 	// If the namespace was deleted during the (possibly slow, retrying) setns
 	// above, nsDelete has already called cancel() — reachable because nsAdd
@@ -165,7 +165,7 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	// (see nsAdd). createNetlinkersAndStore fills in the socketFD and starts
 	// the netlinkers; it no-ops if the namespace was already deleted during
 	// the setns/socket init above.
-	x.createNetlinkersAndStore(nsCtx, nsCancel, nsName, socketFD)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, pid, name, socketFD)
 
 	x.pH.WithLabelValues("netNamespaceInstance", "store", "counter").Observe(time.Since(startTime).Seconds())
 
@@ -213,12 +213,16 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 		log.Fatalf("openDefaultNetLinkSocket unix.Bind %s", err)
 	}
 
+	// Key the host/default socket by xtcp's own netns inode so the /proc-scan
+	// discovery (which will also see this inode) dedups it instead of opening a
+	// second socket for the same namespace. The record label stays "default" for
+	// backward compatibility.
 	df := "default"
 	nsCtx, nsCancel := context.WithCancel(ctx)
-	x.createNetlinkersAndStore(nsCtx, nsCancel, &df, socketFD)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD)
 
 	if x.debugLevel > 10 {
-		log.Printf("openDefaultNetLinkSocket default net namespace netlink socket stored")
+		log.Printf("openDefaultNetLinkSocket default net namespace netlink socket stored (inode=%d)", x.selfNsInode)
 	}
 }
 

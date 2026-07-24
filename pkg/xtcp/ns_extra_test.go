@@ -78,11 +78,12 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
 	x.debugLevel = 11 // hit the log branch
 	nsName := "test-ns"
+	const inode = uint64(4026531111)
 	nsCtx, nsCancel := context.WithCancel(context.Background())
 	defer nsCancel()
-	x.createNetlinkersAndStore(nsCtx, nsCancel, &nsName, fds[0])
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0])
 
-	if _, ok := x.nsMap.Load(nsName); !ok {
+	if _, ok := x.nsMap.Load(inode); !ok {
 		t.Error("nsMap should contain the new ns entry")
 	}
 	if _, ok := x.fdToNsMap.Load(fds[0]); !ok {
@@ -138,12 +139,13 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 	}
 	x.debugLevel = 11
 	nsName := "spawn-store-ns"
+	const inode = uint64(4026531112)
 	nsCtx, nsCancel := context.WithCancel(context.Background())
 	defer nsCancel()
-	x.createNetlinkersAndStore(nsCtx, nsCancel, &nsName, fds[0])
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0])
 	ran.Wait()
 
-	if _, ok := x.nsMap.Load(nsName); !ok {
+	if _, ok := x.nsMap.Load(inode); !ok {
 		t.Error("nsMap should contain the new ns entry")
 	}
 }
@@ -153,9 +155,9 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 func TestNsAdd_duplicate(t *testing.T) {
 	x := newNsExtraFixture(t)
 	x.debugLevel = 11
-	nsName := "already-here"
-	x.nsMap.Store(nsName, netNSitem{})
-	x.nsAdd(context.Background(), &nsName)
+	const inode = uint64(4026531113)
+	x.nsMap.Store(inode, netNSitem{})
+	x.nsAdd(context.Background(), nsIdentity{inode: inode, pid: 100, name: "already-here"})
 	// No assert needed beyond the function returning; the counter was
 	// incremented and no panic / leaked goroutine.
 }

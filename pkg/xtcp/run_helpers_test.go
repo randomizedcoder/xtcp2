@@ -11,6 +11,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 )
 
 func newRunFixture(t *testing.T) *XTCP {
@@ -108,6 +110,12 @@ func newReconcileFixture(t *testing.T) *XTCP {
 	x := newRunFixture(t)
 	x.nsMap = &sync.Map{}
 	x.netNsDirs.Store(t.TempDir(), "/")
+	// reconcile scans /proc via nsScanner; point it at an empty temp tree so no
+	// namespaces are discovered (these tests exercise the empty/lifecycle paths).
+	proc := t.TempDir()
+	x.nsScanner = nsdiscover.NewScanner(proc)
+	x.nsResolver = nsdiscover.NewResolver(proc, nil)
+	t.Cleanup(func() { _ = x.nsScanner.Close() })
 	return x
 }
 
@@ -169,34 +177,6 @@ func TestNsMapCountReporter_cancelExits(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("nsMapCountReporter did not exit on cancel")
-	}
-	wg.Wait()
-}
-
-// watchNsNamespace: fsnotify-based ns watcher. With a tempdir as netNsDir
-// (not linuxNetNSDirCst, so the createNetworkNamespace branch is skipped),
-// it should set up the watcher and exit on ctx.Done().
-func TestWatchNsNamespace_cancelExits(t *testing.T) {
-	x := newRunFixture(t)
-	x.nsMap = &sync.Map{}
-	dir := t.TempDir()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	wg.Add(1)
-	done := make(chan error, 1)
-	go func() {
-		done <- x.watchNsNamespace(ctx, &wg, dir)
-	}()
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("err = %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("watchNsNamespace did not exit on cancel")
 	}
 	wg.Wait()
 }
@@ -272,70 +252,4 @@ func TestMapReconciler_tickFires(t *testing.T) {
 	time.Sleep(80 * time.Millisecond) // a few ticks
 	cancel()
 	wg.Wait()
-}
-
-// watchNsNamespace event branches: drive a fsnotify Create then Remove
-// through a tempdir watcher and confirm the handler dispatches into
-// nsAdd (duplicate path) + nsDelete without exiting. debugLevel>10
-// exercises the log branches.
-func TestWatchNsNamespace_createRemoveEvents(t *testing.T) {
-	x := newRunFixture(t)
-	x.debugLevel = 20
-	dir := t.TempDir()
-
-	// Pre-populate nsMap so the Create event lands on the duplicate
-	// branch (avoids spawning netNamespaceInstance which needs caps).
-	nsPath := filepath.Join(dir, "alpha")
-	nsCtx, nsCancel := context.WithCancel(context.Background())
-	x.nsMap.Store(nsPath, netNSitem{
-		name: &nsPath, ctx: nsCtx, cancel: nsCancel,
-		wg: &sync.WaitGroup{}, socketFD: 9999,
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	wg.Add(1)
-	done := make(chan error, 1)
-	go func() { done <- x.watchNsNamespace(ctx, &wg, dir) }()
-
-	// Give the watcher a moment to install the inotify hook.
-	time.Sleep(80 * time.Millisecond)
-
-	// Create event.
-	if err := os.WriteFile(nsPath, []byte{}, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(80 * time.Millisecond)
-	// Remove event.
-	if err := os.Remove(nsPath); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(80 * time.Millisecond)
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("err = %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("watchNsNamespace did not exit on cancel")
-	}
-	wg.Wait()
-}
-
-// watchNsNamespace bad-directory path: Add() on a non-existent dir
-// returns an error before the for-select loop.
-func TestWatchNsNamespace_badDir(t *testing.T) {
-	x := newRunFixture(t)
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	wg.Add(1)
-	err := x.watchNsNamespace(ctx, &wg, "/no/such/dir/probably")
-	if err == nil {
-		t.Error("watcher.Add on missing dir should error")
-	}
-	if err != nil && !errors.Is(err, errors.Unwrap(err)) && err.Error() == "" {
-		t.Errorf("err = %v", err)
-	}
 }
