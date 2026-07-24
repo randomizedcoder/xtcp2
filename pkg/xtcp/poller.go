@@ -302,9 +302,13 @@ func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
 // opens asynchronously (netNamespaceInstance) and is still -1 (reserved, skipped
 // by pollAllNetlinkSockets) during this cycle.
 func (x *XTCP) reconcileThenPoll(ctx context.Context, pollingLoops uint64) (count int) {
-	dels, stores := x.reconcile(ctx)
-	if (dels > 0 || stores > 0) && x.debugLevel > 10 {
-		log.Printf("reconcileThenPoll pre-poll reconcile dels:%d stores:%d", dels, stores)
+	// Pre-poll reconcile is on by default; -reconcileBeforePoll=false opts out and
+	// leaves discovery to the background mapReconciler ticker.
+	if x.reconcileBeforePollEnabled() {
+		dels, stores := x.reconcile(ctx)
+		if (dels > 0 || stores > 0) && x.debugLevel > 10 {
+			log.Printf("reconcileThenPoll pre-poll reconcile dels:%d stores:%d", dels, stores)
+		}
 	}
 	return x.pollAllNetlinkSockets(pollingLoops)
 }

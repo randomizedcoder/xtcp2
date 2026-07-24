@@ -151,6 +151,8 @@ const XtcpConfig$json = {
     {'1': 's3_flush_threshold_jitter_pct', '3': 224, '4': 1, '5': 13, '8': {}, '10': 's3FlushThresholdJitterPct'},
     {'1': 's3_upload_max_attempts', '3': 225, '4': 1, '5': 13, '8': {}, '10': 's3UploadMaxAttempts'},
     {'1': 's3_upload_backoff_cap', '3': 226, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 's3UploadBackoffCap'},
+    {'1': 'reconcile_frequency', '3': 227, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'reconcileFrequency'},
+    {'1': 'reconcile_before_poll', '3': 228, '4': 1, '5': 8, '10': 'reconcileBeforePoll'},
   ],
   '7': {},
 };
@@ -212,9 +214,11 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'VGhyZXNob2xkSml0dGVyUGN0EkIKFnMzX3VwbG9hZF9tYXhfYXR0ZW1wdHMY4QEgASgNQgy6SA'
     'nIAQAqBBhkKAFSE3MzVXBsb2FkTWF4QXR0ZW1wdHMSWgoVczNfdXBsb2FkX2JhY2tvZmZfY2Fw'
     'GOIBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkILukgIyAEAqgECMgBSEnMzVXBsb2'
-    'FkQmFja29mZkNhcDpzukhwGm4KD1h0Y3BDb25maWcucG9sbBIyUG9sbCB0aW1lb3V0IG11c3Qg'
-    'YmUgbGVzcyB0aGFuIHBvbGwgcG9sbF9mcmVxdWVuY3kaJ3RoaXMucG9sbF9mcmVxdWVuY3kgPi'
-    'B0aGlzLnBvbGxfdGltZW91dA==');
+    'FkQmFja29mZkNhcBJYChNyZWNvbmNpbGVfZnJlcXVlbmN5GOMBIAEoCzIZLmdvb2dsZS5wcm90'
+    'b2J1Zi5EdXJhdGlvbkILukgIyAEAqgECMgBSEnJlY29uY2lsZUZyZXF1ZW5jeRIzChVyZWNvbm'
+    'NpbGVfYmVmb3JlX3BvbGwY5AEgASgIUhNyZWNvbmNpbGVCZWZvcmVQb2xsOnO6SHAabgoPWHRj'
+    'cENvbmZpZy5wb2xsEjJQb2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNzIHRoYW4gcG9sbCBwb2xsX2'
+    'ZyZXF1ZW5jeRondGhpcy5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG9sbF90aW1lb3V0');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

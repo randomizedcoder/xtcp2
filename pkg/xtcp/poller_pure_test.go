@@ -21,8 +21,9 @@ func newPollerFixture(t *testing.T) *XTCP {
 	t.Helper()
 	x := &XTCP{
 		config: &xtcp_config.XtcpConfig{
-			NlmsgSeq:    1,
-			PollTimeout: durationpb.New(2 * time.Second),
+			NlmsgSeq:            1,
+			PollTimeout:         durationpb.New(2 * time.Second),
+			ReconcileBeforePoll: true, // production default; exercises reconcileThenPoll
 		},
 		nsMap:     &sync.Map{},
 		fdToNsMap: &sync.Map{},
@@ -326,6 +327,29 @@ func TestReconcileThenPoll_reconcilesBeforePolling(t *testing.T) {
 	defer mu.Unlock()
 	if cancels != 2 {
 		t.Errorf("cancels = %d, want 2 (both stale namespaces torn down)", cancels)
+	}
+}
+
+// reconcileThenPoll with -reconcileBeforePoll=false must NOT reconcile: a stale
+// nsMap entry that empty /proc would normally reconcile away is left untouched,
+// and its cancel never fires. Discovery is then left to the background ticker.
+func TestReconcileThenPoll_skipsReconcileWhenDisabled(t *testing.T) {
+	x := newPollerFixture(t)
+	x.config.ReconcileBeforePoll = false
+	cancelled := false
+	name := "keep"
+	x.nsMap.Store(uint64(4026531950), netNSitem{inode: 4026531950, name: &name, cancel: func() { cancelled = true }, socketFD: -1})
+
+	count := x.reconcileThenPoll(context.Background(), 1)
+
+	if count != 0 {
+		t.Errorf("count = %d, want 0", count)
+	}
+	if _, ok := x.nsMap.Load(uint64(4026531950)); !ok {
+		t.Error("entry should survive: pre-poll reconcile must be skipped when disabled")
+	}
+	if cancelled {
+		t.Error("cancel must not fire when pre-poll reconcile is disabled")
 	}
 }
 

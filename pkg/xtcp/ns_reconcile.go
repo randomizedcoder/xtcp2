@@ -24,7 +24,21 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 		log.Printf("mapReconciler dels:%d, stores:%d", dels, stores)
 	}
 
-	t := time.NewTicker(reconcileFrequency)
+	// The background ticker is a floor/fallback: with reconcileBeforePoll the
+	// Poller reconciles every cycle, so this mainly covers the poller-idle /
+	// poller-disabled cases. A configured 0 disables it entirely — the initial
+	// reconcile above still ran, so a poller-driven daemon keeps discovering via
+	// its pre-poll reconcile; block until shutdown.
+	freq := x.backgroundReconcileFrequency()
+	if freq <= 0 {
+		if x.debugLevel > 10 {
+			log.Printf("mapReconciler background ticker disabled (reconcileFrequency=0)")
+		}
+		<-ctx.Done()
+		return
+	}
+
+	t := time.NewTicker(freq)
 	defer t.Stop()
 	for {
 		select {
@@ -54,6 +68,22 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 // two pids in the same namespace collapse to one entry, and a namespace whose
 // representative pid died but that still has other live processes keeps a fresh
 // pid on the next scan.
+// backgroundReconcileFrequency is the mapReconciler ticker period, from config
+// when set, else the package default. 0 disables the background ticker.
+func (x *XTCP) backgroundReconcileFrequency() time.Duration {
+	if x.config != nil && x.config.ReconcileFrequency != nil {
+		return x.config.ReconcileFrequency.AsDuration()
+	}
+	return reconcileFrequency
+}
+
+// reconcileBeforePollEnabled reports whether the Poller reconciles before each
+// poll cycle. Defaults to true (the production flag default) when config is
+// absent, so tests and the daemon agree.
+func (x *XTCP) reconcileBeforePollEnabled() bool {
+	return x.config == nil || x.config.ReconcileBeforePoll
+}
+
 func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 
 	// Serialize against the other caller (background mapReconciler vs. the

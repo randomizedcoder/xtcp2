@@ -767,6 +767,8 @@ func TestPrintFlags(t *testing.T) {
 	f.s3FlushThresholdJitterPct = &n
 	f.s3UploadMaxAttempts = &n
 	f.s3UploadBackoffCap = &d
+	f.reconcileFrequency = &d
+	f.reconcileBeforePoll = &b
 	f.pyroscopeUrl = &s
 	f.pyroscopeAppName = &s
 	f.pyroscopeSampleHz = &n
@@ -857,6 +859,8 @@ func TestBuildConfig(t *testing.T) {
 	sftj := uint(15)
 	suma := uint(7)
 	subc := 90 * time.Second
+	rf := 3 * time.Minute
+	rbp := false
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -881,6 +885,8 @@ func TestBuildConfig(t *testing.T) {
 		s3FlushThresholdJitterPct: &sftj,
 		s3UploadMaxAttempts:       &suma,
 		s3UploadBackoffCap:        &subc,
+		reconcileFrequency:        &rf,
+		reconcileBeforePoll:       &rbp,
 		pyroscopeUrl:              &mar,
 		pyroscopeAppName:          &mar,
 		pyroscopeSampleHz:         &wf,
@@ -932,6 +938,8 @@ func TestBuildConfig(t *testing.T) {
 		{"S3FlushThresholdJitterPct", c.S3FlushThresholdJitterPct, uint32(15)},
 		{"S3UploadMaxAttempts", c.S3UploadMaxAttempts, uint32(7)},
 		{"S3UploadBackoffCap", c.S3UploadBackoffCap.AsDuration(), 90 * time.Second},
+		{"ReconcileFrequency", c.ReconcileFrequency.AsDuration(), 3 * time.Minute},
+		{"ReconcileBeforePoll", c.ReconcileBeforePoll, false},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {

@@ -539,8 +539,23 @@ type XtcpConfig struct {
 	// [0, window], window grows exponentially up to this cap). 0 = derive as
 	// clamp(poll_frequency/10, 1s, 1h).
 	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,226,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Period of the background namespace-reconcile ticker (Method B /proc scan
+	// that converges the tracked namespace set). With reconcile_before_poll the
+	// Poller reconciles every cycle and is the real discovery mechanism, so this
+	// background pass is an occasional safety-net expected to find nothing
+	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
+	// so operators can confirm from the counters that it is redundant. It still
+	// matters when the poller is idle or disabled. 0 disables the background
+	// ticker entirely (the startup reconcile still runs once).
+	ReconcileFrequency *durationpb.Duration `protobuf:"bytes,227,opt,name=reconcile_frequency,json=reconcileFrequency,proto3" json:"reconcile_frequency,omitempty"`
+	// Run a namespace reconcile immediately before each poll cycle, so a
+	// namespace that appeared since the last cycle is entered and gets a socket
+	// within ~1 poll interval instead of waiting for the background ticker. Ties
+	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
+	// mutex-serialized with the background reconciler. Default true.
+	ReconcileBeforePoll bool `protobuf:"varint,228,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -951,6 +966,20 @@ func (x *XtcpConfig) GetS3UploadBackoffCap() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetReconcileFrequency() *durationpb.Duration {
+	if x != nil {
+		return x.ReconcileFrequency
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetReconcileBeforePoll() bool {
+	if x != nil {
+		return x.ReconcileBeforePoll
+	}
+	return false
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -1014,7 +1043,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xed\x18\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xfc\x19\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -1092,7 +1121,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x1ds3_flush_threshold_jitter_pct\x18\xe0\x01 \x01(\rB\n" +
 	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x19s3FlushThresholdJitterPct\x12B\n" +
 	"\x16s3_upload_max_attempts\x18\xe1\x01 \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Z\n" +
-	"\x15s3_upload_backoff_cap\x18\xe2\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap:s\xbaHp\x1an\n" +
+	"\x15s3_upload_backoff_cap\x18\xe2\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x12X\n" +
+	"\x13reconcile_frequency\x18\xe3\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x123\n" +
+	"\x15reconcile_before_poll\x18\xe4\x01 \x01(\bR\x13reconcileBeforePoll:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
@@ -1143,18 +1174,19 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	7,  // 9: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
 	9,  // 10: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
 	9,  // 11: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	8,  // 12: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 13: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 14: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 15: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	1,  // 16: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 17: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 18: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	16, // [16:19] is the sub-list for method output_type
-	13, // [13:16] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	9,  // 12: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
+	8,  // 13: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	0,  // 14: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	2,  // 15: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	4,  // 16: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	1,  // 17: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	3,  // 18: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	5,  // 19: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	17, // [17:20] is the sub-list for method output_type
+	14, // [14:17] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

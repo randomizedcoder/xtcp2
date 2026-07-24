@@ -869,6 +869,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     kEnabledDeserializersFieldNumber = 200,
     kS3FlushIntervalFieldNumber = 222,
     kS3UploadBackoffCapFieldNumber = 226,
+    kReconcileFrequencyFieldNumber = 227,
     kNlTimeoutMillisecondsFieldNumber = 10,
     kMaxLoopsFieldNumber = 40,
     kNetlinkersFieldNumber = 50,
@@ -885,11 +886,12 @@ class XtcpConfig final : public ::google::protobuf::Message
     kPyroscopeSampleHzFieldNumber = 138,
     kPyroscopeUploadIntervalSecFieldNumber = 139,
     kDebugLevelFieldNumber = 160,
+    kIpv4TtlFieldNumber = 184,
+    kIpv6HopLimitFieldNumber = 185,
     kS3SkipBucketProbeFieldNumber = 134,
     kResolveContainerIdFieldNumber = 183,
     kIoUringFieldNumber = 210,
-    kIpv4TtlFieldNumber = 184,
-    kIpv6HopLimitFieldNumber = 185,
+    kReconcileBeforePollFieldNumber = 228,
     kGrpcPortFieldNumber = 190,
     kIoUringRecvBatchSizeFieldNumber = 211,
     kIoUringCqeBatchSizeFieldNumber = 212,
@@ -1308,6 +1310,21 @@ class XtcpConfig final : public ::google::protobuf::Message
   ::google::protobuf::Duration* _internal_mutable_s3_upload_backoff_cap();
 
   public:
+  // .google.protobuf.Duration reconcile_frequency = 227 [json_name = "reconcileFrequency", (.buf.validate.field) = {
+  bool has_reconcile_frequency() const;
+  void clear_reconcile_frequency() ;
+  const ::google::protobuf::Duration& reconcile_frequency() const;
+  PROTOBUF_NODISCARD ::google::protobuf::Duration* release_reconcile_frequency();
+  ::google::protobuf::Duration* mutable_reconcile_frequency();
+  void set_allocated_reconcile_frequency(::google::protobuf::Duration* value);
+  void unsafe_arena_set_allocated_reconcile_frequency(::google::protobuf::Duration* value);
+  ::google::protobuf::Duration* unsafe_arena_release_reconcile_frequency();
+
+  private:
+  const ::google::protobuf::Duration& _internal_reconcile_frequency() const;
+  ::google::protobuf::Duration* _internal_mutable_reconcile_frequency();
+
+  public:
   // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
   void clear_nl_timeout_milliseconds() ;
   ::uint64_t nl_timeout_milliseconds() const;
@@ -1468,6 +1485,26 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_debug_level(::uint32_t value);
 
   public:
+  // uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
+  void clear_ipv4_ttl() ;
+  ::uint32_t ipv4_ttl() const;
+  void set_ipv4_ttl(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv4_ttl() const;
+  void _internal_set_ipv4_ttl(::uint32_t value);
+
+  public:
+  // uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
+  void clear_ipv6_hop_limit() ;
+  ::uint32_t ipv6_hop_limit() const;
+  void set_ipv6_hop_limit(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv6_hop_limit() const;
+  void _internal_set_ipv6_hop_limit(::uint32_t value);
+
+  public:
   // bool s3_skip_bucket_probe = 134 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
   void clear_s3_skip_bucket_probe() ;
   bool s3_skip_bucket_probe() const;
@@ -1498,24 +1535,14 @@ class XtcpConfig final : public ::google::protobuf::Message
   void _internal_set_io_uring(bool value);
 
   public:
-  // uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-  void clear_ipv4_ttl() ;
-  ::uint32_t ipv4_ttl() const;
-  void set_ipv4_ttl(::uint32_t value);
+  // bool reconcile_before_poll = 228 [json_name = "reconcileBeforePoll"];
+  void clear_reconcile_before_poll() ;
+  bool reconcile_before_poll() const;
+  void set_reconcile_before_poll(bool value);
 
   private:
-  ::uint32_t _internal_ipv4_ttl() const;
-  void _internal_set_ipv4_ttl(::uint32_t value);
-
-  public:
-  // uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-  void clear_ipv6_hop_limit() ;
-  ::uint32_t ipv6_hop_limit() const;
-  void set_ipv6_hop_limit(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_ipv6_hop_limit() const;
-  void _internal_set_ipv6_hop_limit(::uint32_t value);
+  bool _internal_reconcile_before_poll() const;
+  void _internal_set_reconcile_before_poll(bool value);
 
   public:
   // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
@@ -1593,8 +1620,8 @@ class XtcpConfig final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 54, 6,
-      291, 29>
+      5, 56, 7,
+      299, 29>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1639,6 +1666,7 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::xtcp_config::v1::EnabledDeserializers* enabled_deserializers_;
     ::google::protobuf::Duration* s3_flush_interval_;
     ::google::protobuf::Duration* s3_upload_backoff_cap_;
+    ::google::protobuf::Duration* reconcile_frequency_;
     ::uint64_t nl_timeout_milliseconds_;
     ::uint64_t max_loops_;
     ::uint32_t netlinkers_;
@@ -1655,11 +1683,12 @@ class XtcpConfig final : public ::google::protobuf::Message
     ::uint32_t pyroscope_sample_hz_;
     ::uint32_t pyroscope_upload_interval_sec_;
     ::uint32_t debug_level_;
+    ::uint32_t ipv4_ttl_;
+    ::uint32_t ipv6_hop_limit_;
     bool s3_skip_bucket_probe_;
     bool resolve_container_id_;
     bool io_uring_;
-    ::uint32_t ipv4_ttl_;
-    ::uint32_t ipv6_hop_limit_;
+    bool reconcile_before_poll_;
     ::uint32_t grpc_port_;
     ::uint32_t io_uring_recv_batch_size_;
     ::uint32_t io_uring_cqe_batch_size_;
@@ -5188,6 +5217,119 @@ inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::
 
   _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+}
+
+// .google.protobuf.Duration reconcile_frequency = 227 [json_name = "reconcileFrequency", (.buf.validate.field) = {
+inline bool XtcpConfig::has_reconcile_frequency() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000040u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.reconcile_frequency_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_reconcile_frequency() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.reconcile_frequency_;
+  return p != nullptr ? *p : reinterpret_cast<const ::google::protobuf::Duration&>(::google::protobuf::_Duration_default_instance_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::reconcile_frequency() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+  return _internal_reconcile_frequency();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_reconcile_frequency(::google::protobuf::Duration* value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
+  }
+  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000040u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000040u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+}
+inline ::google::protobuf::Duration* XtcpConfig::release_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000040u;
+  ::google::protobuf::Duration* released = _impl_.reconcile_frequency_;
+  _impl_.reconcile_frequency_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* XtcpConfig::unsafe_arena_release_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+
+  _impl_._has_bits_[0] &= ~0x00000040u;
+  ::google::protobuf::Duration* temp = _impl_.reconcile_frequency_;
+  _impl_.reconcile_frequency_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* XtcpConfig::_internal_mutable_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.reconcile_frequency_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.reconcile_frequency_;
+}
+inline ::google::protobuf::Duration* XtcpConfig::mutable_reconcile_frequency() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000040u;
+  ::google::protobuf::Duration* _msg = _internal_mutable_reconcile_frequency();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Duration* value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::MessageLite*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000040u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000040u;
+  }
+
+  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+}
+
+// bool reconcile_before_poll = 228 [json_name = "reconcileBeforePoll"];
+inline void XtcpConfig::clear_reconcile_before_poll() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reconcile_before_poll_ = false;
+}
+inline bool XtcpConfig::reconcile_before_poll() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
+  return _internal_reconcile_before_poll();
+}
+inline void XtcpConfig::set_reconcile_before_poll(bool value) {
+  _internal_set_reconcile_before_poll(value);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
+}
+inline bool XtcpConfig::_internal_reconcile_before_poll() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.reconcile_before_poll_;
+}
+inline void XtcpConfig::_internal_set_reconcile_before_poll(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reconcile_before_poll_ = value;
 }
 
 // -------------------------------------------------------------------

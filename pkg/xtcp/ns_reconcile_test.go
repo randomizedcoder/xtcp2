@@ -11,10 +11,45 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
+
+// TestBackgroundReconcileFrequency: nil config → package default; a configured
+// value is honored; 0 means "disable the background ticker".
+func TestBackgroundReconcileFrequency(t *testing.T) {
+	x := &XTCP{}
+	if got := x.backgroundReconcileFrequency(); got != reconcileFrequency {
+		t.Errorf("nil config: got %v, want default %v", got, reconcileFrequency)
+	}
+	x.config = &xtcp_config.XtcpConfig{ReconcileFrequency: durationpb.New(90 * time.Second)}
+	if got := x.backgroundReconcileFrequency(); got != 90*time.Second {
+		t.Errorf("configured: got %v, want 90s", got)
+	}
+	x.config = &xtcp_config.XtcpConfig{ReconcileFrequency: durationpb.New(0)}
+	if got := x.backgroundReconcileFrequency(); got != 0 {
+		t.Errorf("zero: got %v, want 0 (disabled)", got)
+	}
+}
+
+// TestReconcileBeforePollEnabled: nil config defaults to true (production flag
+// default); otherwise the config bool wins.
+func TestReconcileBeforePollEnabled(t *testing.T) {
+	x := &XTCP{}
+	if !x.reconcileBeforePollEnabled() {
+		t.Error("nil config should default to true")
+	}
+	x.config = &xtcp_config.XtcpConfig{ReconcileBeforePoll: true}
+	if !x.reconcileBeforePollEnabled() {
+		t.Error("true config should enable")
+	}
+	x.config = &xtcp_config.XtcpConfig{ReconcileBeforePoll: false}
+	if x.reconcileBeforePollEnabled() {
+		t.Error("false config should disable")
+	}
+}
 
 // buildProcTreeForXTCP creates p pid dirs each with an ns/net symlink to
 // net:[base+i%distinct] under a temp /proc, so the /proc-scan discovery finds
