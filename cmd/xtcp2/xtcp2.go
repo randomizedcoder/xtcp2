@@ -659,7 +659,7 @@ func runMain(parentCtx context.Context) int {
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		return runHealthcheck(*f.promListen)
+		return runHealthcheck(ctx, *f.promListen)
 	}
 
 	c, done := prepareConfig(f)
@@ -826,7 +826,7 @@ func servePromHandler(promListen string, ipv4TTL, ipv6HopLimit uint32) {
 // the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
 // (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
 // the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
-func runHealthcheck(promListen string) int {
+func runHealthcheck(ctx context.Context, promListen string) int {
 	addr := promListen
 	if v, ok := os.LookupEnv("PROM_LISTEN"); ok && v != "" {
 		addr = v
@@ -836,8 +836,15 @@ func runHealthcheck(promListen string) int {
 		port = "9088" // promListenCst default
 	}
 	url := "http://127.0.0.1:" + port + "/readyz"
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+	if err != nil {
+		log.Printf("healthcheck: new request %s: %v", url, err)
+		return 1
+	}
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("healthcheck: GET %s: %v", url, err)
 		return 1
