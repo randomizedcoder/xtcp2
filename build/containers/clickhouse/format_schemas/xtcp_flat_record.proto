@@ -49,11 +49,19 @@ message XtcpFlatRecord {
 
 	string hostname                                 = 20;
 
-	// network namespace
+	// deployment grouping / facility (data center, PoP, region, site, …)
+	string location                                 = 21;
+
+	// network namespace — best-effort human name
 	string netns                                    = 30;
 
 	// network-namespace inode (stable identity, from /proc/<pid>/ns/net)
 	uint64 netns_inode                              = 33;
+
+	// container that owns the socket, resolved from the per-socket cgroup id
+	string container_id                             = 31;
+	// container runtime detected while resolving container_id
+	string container_runtime                        = 32;
 
 	// network namespace id
 	// TODO xtcp does not currently get the id

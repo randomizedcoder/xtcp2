@@ -26,9 +26,12 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
 
     -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
     hostname                                                    LowCardinality(String),
+    location                                                    LowCardinality(String),
 
     netns                                                       String CODEC(ZSTD),
     netns_inode                                                 UInt64 CODEC(ZSTD),
+    container_id                                                String CODEC(ZSTD),
+    container_runtime                                           LowCardinality(String),
     nsid                                                        UInt32 CODEC(LZ4),
 
     label                                                       LowCardinality(String),
