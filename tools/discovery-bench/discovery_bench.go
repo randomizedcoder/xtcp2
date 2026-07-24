@@ -30,9 +30,10 @@
 //	-mode grid      Root-only. For each (N namespaces × P processes) cell: create
 //	                the namespaces, spawn the processes, run measure, tear down.
 //	                Emits one JSON line per cell for the harness to collect.
-//	-mode sleeper   Internal: a self-contained "hold a process alive" child used
-//	                by grid mode (optionally after setns into a namespace), so the
-//	                tool needs no external `sleep`/`nsenter`.
+//	                Processes are cheap `sleep infinity` (bulk, host netns) and
+//	                `ip netns exec <ns> sleep infinity` (the in-namespace ones) so
+//	                P can reach thousands without the RSS a fleet of Go binaries
+//	                would cost.
 package main
 
 import (
@@ -44,7 +45,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -84,14 +84,11 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	asJSON := fs.Bool("json", false, "emit one machine-readable JSON line per result")
 	nsGrid := fs.String("nsGrid", "1,10,50,100", "grid mode: namespace counts to sweep")
 	pidGrid := fs.String("pidGrid", "100,500,1000,5000", "grid mode: process counts to sweep")
-	setnsPath := fs.String("setns", "", "sleeper mode: setns into this netns path before holding")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
 	switch *mode {
-	case "sleeper":
-		return runSleeper(ctx, *setnsPath, stderr)
 	case "measure":
 		dirs := splitNonEmpty(*netnsDirs)
 		res := measure(*procRoot, dirs, *iters)
@@ -340,22 +337,18 @@ type gridRow struct {
 }
 
 // runGrid sweeps (N namespaces × P processes). For each cell it creates the
-// namespaces (ip netns add), spawns P sleeper children (some setns'd into the
-// created namespaces so Method B has distinct inodes to dedup and at least one
-// anonymous-coverage case), runs measure, then tears everything down.
+// namespaces (ip netns add), spawns P `sleep infinity` children (the first N via
+// `ip netns exec` so they live inside the created namespaces and give Method B
+// distinct inodes to dedup, the rest in the host netns to build the O(P) load),
+// runs measure, then tears everything down.
 func runGrid(ctx context.Context, procRoot string, dirs []string, iters int, nsCounts, pidCounts []int, asJSON bool, stdout, stderr io.Writer) int {
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(stderr, "grid mode requires root (creates namespaces + processes)")
 		return 1
 	}
-	self, err := os.Executable()
-	if err != nil {
-		fmt.Fprintf(stderr, "cannot find own executable: %v\n", err)
-		return 1
-	}
 	for _, n := range nsCounts {
 		for _, p := range pidCounts {
-			row, err := runGridCell(ctx, self, procRoot, dirs, iters, n, p, stderr)
+			row, err := runGridCell(ctx, procRoot, dirs, iters, n, p, stderr)
 			if err != nil {
 				fmt.Fprintf(stderr, "cell ns=%d pids=%d failed: %v\n", n, p, err)
 				continue
@@ -376,7 +369,7 @@ func runGrid(ctx context.Context, procRoot string, dirs []string, iters int, nsC
 	return 0
 }
 
-func runGridCell(ctx context.Context, self, procRoot string, dirs []string, iters, n, p int, stderr io.Writer) (gridRow, error) {
+func runGridCell(ctx context.Context, procRoot string, dirs []string, iters, n, p int, stderr io.Writer) (gridRow, error) {
 	names := make([]string, 0, n)
 	for i := range n {
 		name := fmt.Sprintf("disco%d", i)
@@ -386,32 +379,47 @@ func runGridCell(ctx context.Context, self, procRoot string, dirs []string, iter
 		}
 		names = append(names, name)
 	}
-	// Spawn p sleeper children; distribute the first `n` across the created
-	// namespaces (one each) so B has distinct inodes, the rest stay in the host
-	// netns (they still cost B one readlink/stat each — the O(P) we're measuring).
-	procs := make([]*exec.Cmd, 0, p)
+	// Spawn p cheap `sleep infinity` children. The first n run via `ip netns
+	// exec` so they live inside the created namespaces (distinct inodes for B to
+	// dedup); the rest stay in the host netns but still cost B one readlink/stat
+	// each — the O(P) we're measuring.
+	held := make([]*exec.Cmd, 0, p)
 	for i := range p {
-		setns := ""
+		var cmd *exec.Cmd
+		var err error
 		if i < n {
-			setns = filepath.Join("/run/netns", names[i])
+			cmd, err = spawnHeld(ctx, stderr, "ip", "netns", "exec", names[i], "sleep", "infinity")
+		} else {
+			cmd, err = spawnHeld(ctx, stderr, "sleep", "infinity")
 		}
-		cmd := exec.CommandContext(ctx, self, "-mode", "sleeper", "-setns", setns)
-		cmd.Stderr = stderr
-		if err := cmd.Start(); err != nil {
-			killAll(procs, stderr)
+		if err != nil {
+			killAll(held, stderr)
 			cleanupNetns(ctx, names, stderr)
-			return gridRow{}, fmt.Errorf("spawn sleeper %d: %w", i, err)
+			return gridRow{}, fmt.Errorf("spawn process %d: %w", i, err)
 		}
-		procs = append(procs, cmd)
+		held = append(held, cmd)
 	}
-	// Small settle so the children have finished setns before we scan.
+	// Small settle so the children have entered their namespaces before we scan.
 	time.Sleep(settleDelay)
 
 	res := measure(procRoot, dirs, iters)
 
-	killAll(procs, stderr)
+	killAll(held, stderr)
 	cleanupNetns(ctx, names, stderr)
 	return gridRow{NS: n, PIDs: p, Measure: res}, nil
+}
+
+// spawnHeld starts a long-lived child in its own process group (Setpgid) so the
+// whole group can be signalled at teardown — `ip netns exec` forks, so killing
+// just the leader would orphan the actual `sleep`.
+func spawnHeld(ctx context.Context, stderr io.Writer, name string, args ...string) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stderr = stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func killAll(procs []*exec.Cmd, stderr io.Writer) {
@@ -419,8 +427,14 @@ func killAll(procs []*exec.Cmd, stderr io.Writer) {
 		if c.Process == nil {
 			continue
 		}
-		if err := c.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			fmt.Fprintf(stderr, "kill sleeper: %v\n", err)
+		// Kill the whole process group (negative pid). Falls back to the
+		// single process if the group lookup fails.
+		if pgid, err := syscall.Getpgid(c.Process.Pid); err == nil {
+			if kerr := syscall.Kill(-pgid, syscall.SIGKILL); kerr != nil && !errors.Is(kerr, syscall.ESRCH) {
+				fmt.Fprintf(stderr, "kill group %d: %v\n", pgid, kerr)
+			}
+		} else if kerr := c.Process.Kill(); kerr != nil && !errors.Is(kerr, os.ErrProcessDone) {
+			fmt.Fprintf(stderr, "kill pid %d: %v\n", c.Process.Pid, kerr)
 		}
 	}
 	for _, c := range procs {
@@ -428,7 +442,7 @@ func killAll(procs []*exec.Cmd, stderr io.Writer) {
 		// expected teardown path, not a failure worth reporting.
 		var ee *exec.ExitError
 		if err := c.Wait(); err != nil && !errors.As(err, &ee) {
-			fmt.Fprintf(stderr, "wait sleeper: %v\n", err)
+			fmt.Fprintf(stderr, "wait child: %v\n", err)
 		}
 	}
 }
@@ -439,27 +453,6 @@ func cleanupNetns(ctx context.Context, names []string, stderr io.Writer) {
 			fmt.Fprintf(stderr, "ip netns del %s: %v (%s)\n", name, err, out)
 		}
 	}
-}
-
-// runSleeper optionally enters a namespace then blocks until signalled. Used as
-// the grid's process-population primitive so we depend on no external binary.
-func runSleeper(ctx context.Context, setnsPath string, stderr io.Writer) int {
-	if setnsPath != "" {
-		f, err := os.Open(setnsPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "sleeper open %s: %v\n", setnsPath, err)
-			return 1
-		}
-		defer func() { _ = f.Close() }()
-		if err := unix.Setns(int(f.Fd()), unix.CLONE_NEWNET); err != nil {
-			fmt.Fprintf(stderr, "sleeper setns %s: %v\n", setnsPath, err)
-			return 1
-		}
-	}
-	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
-	<-sigCtx.Done()
-	return 0
 }
 
 // ───────────────────────────── small helpers ────────────────────────────────
