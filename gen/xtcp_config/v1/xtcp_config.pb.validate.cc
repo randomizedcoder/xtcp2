@@ -1260,6 +1260,40 @@ return false;
 	
 
 
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
 
 bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err) {
 	(void)m;
@@ -1384,6 +1418,26 @@ return false;
 	}
 	
 
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_reconcile_frequency() && !pgv::BaseValidator::AbstractCheckMessage(m.reconcile_frequency(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "XtcpConfigValidationError" << "." << "ReconcileFrequency";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+// no validation rules for reconcile_before_poll
 		
 	return true;
 }

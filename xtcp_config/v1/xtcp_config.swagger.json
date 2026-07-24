@@ -444,6 +444,14 @@
         "s3UploadBackoffCap": {
           "type": "string",
           "description": "Cap on a single upload retry's backoff window (full jitter draws in\n[0, window], window grows exponentially up to this cap). 0 = derive as\nclamp(poll_frequency/10, 1s, 1h)."
+        },
+        "reconcileFrequency": {
+          "type": "string",
+          "description": "Period of the background namespace-reconcile ticker (Method B /proc scan\nthat converges the tracked namespace set). This is a floor / fallback: when\nreconcile_before_poll is true the Poller reconciles every cycle, so this\nmainly matters when the poller is idle or disabled. 0 disables the\nbackground ticker entirely (the startup reconcile still runs once). Default\n5m."
+        },
+        "reconcileBeforePoll": {
+          "type": "boolean",
+          "description": "Run a namespace reconcile immediately before each poll cycle, so a\nnamespace that appeared since the last cycle is entered and gets a socket\nwithin ~1 poll interval instead of waiting for the background ticker. Ties\ndiscovery cadence to poll cadence; the /proc scan is zero-allocation and\nmutex-serialized with the background reconciler. Default true."
         }
       },
       "title": "xtcp configuration"

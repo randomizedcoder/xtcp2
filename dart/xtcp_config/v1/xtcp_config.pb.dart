@@ -387,6 +387,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? s3FlushThresholdJitterPct,
     $core.int? s3UploadMaxAttempts,
     $2.Duration? s3UploadBackoffCap,
+    $2.Duration? reconcileFrequency,
+    $core.bool? reconcileBeforePoll,
   }) {
     final $result = create();
     if (nlTimeoutMilliseconds != null) {
@@ -551,6 +553,12 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (s3UploadBackoffCap != null) {
       $result.s3UploadBackoffCap = s3UploadBackoffCap;
     }
+    if (reconcileFrequency != null) {
+      $result.reconcileFrequency = reconcileFrequency;
+    }
+    if (reconcileBeforePoll != null) {
+      $result.reconcileBeforePoll = reconcileBeforePoll;
+    }
     return $result;
   }
   XtcpConfig._() : super();
@@ -612,6 +620,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..a<$core.int>(224, _omitFieldNames ? '' : 's3FlushThresholdJitterPct', $pb.PbFieldType.OU3)
     ..a<$core.int>(225, _omitFieldNames ? '' : 's3UploadMaxAttempts', $pb.PbFieldType.OU3)
     ..aOM<$2.Duration>(226, _omitFieldNames ? '' : 's3UploadBackoffCap', subBuilder: $2.Duration.create)
+    ..aOM<$2.Duration>(227, _omitFieldNames ? '' : 'reconcileFrequency', subBuilder: $2.Duration.create)
+    ..aOB(228, _omitFieldNames ? '' : 'reconcileBeforePoll')
     ..hasRequiredFields = false
   ;
 
@@ -1310,6 +1320,37 @@ class XtcpConfig extends $pb.GeneratedMessage {
   void clearS3UploadBackoffCap() => clearField(226);
   @$pb.TagNumber(226)
   $2.Duration ensureS3UploadBackoffCap() => $_ensure(53);
+
+  /// Period of the background namespace-reconcile ticker (Method B /proc scan
+  /// that converges the tracked namespace set). This is a floor / fallback: when
+  /// reconcile_before_poll is true the Poller reconciles every cycle, so this
+  /// mainly matters when the poller is idle or disabled. 0 disables the
+  /// background ticker entirely (the startup reconcile still runs once). Default
+  /// 5m.
+  @$pb.TagNumber(227)
+  $2.Duration get reconcileFrequency => $_getN(54);
+  @$pb.TagNumber(227)
+  set reconcileFrequency($2.Duration v) { setField(227, v); }
+  @$pb.TagNumber(227)
+  $core.bool hasReconcileFrequency() => $_has(54);
+  @$pb.TagNumber(227)
+  void clearReconcileFrequency() => clearField(227);
+  @$pb.TagNumber(227)
+  $2.Duration ensureReconcileFrequency() => $_ensure(54);
+
+  /// Run a namespace reconcile immediately before each poll cycle, so a
+  /// namespace that appeared since the last cycle is entered and gets a socket
+  /// within ~1 poll interval instead of waiting for the background ticker. Ties
+  /// discovery cadence to poll cadence; the /proc scan is zero-allocation and
+  /// mutex-serialized with the background reconciler. Default true.
+  @$pb.TagNumber(228)
+  $core.bool get reconcileBeforePoll => $_getBF(55);
+  @$pb.TagNumber(228)
+  set reconcileBeforePoll($core.bool v) { $_setBool(55, v); }
+  @$pb.TagNumber(228)
+  $core.bool hasReconcileBeforePoll() => $_has(55);
+  @$pb.TagNumber(228)
+  void clearReconcileBeforePoll() => clearField(228);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

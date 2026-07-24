@@ -175,16 +175,23 @@ Serialization note: pre-poll reconcile (Feature 1), the periodic reconcile (Feat
 
 ## New configuration surface
 
-Following the proto-config pattern established by the jitter work (`XtcpConfig` fields with `buf.validate` constraints, regenerated via `buf generate`), add to `proto/xtcp_config/v1/xtcp_config.proto` (next free tags after the jitter block at 221–226):
+Following the proto-config pattern established by the jitter work (`XtcpConfig` fields with `buf.validate` constraints, regenerated via `buf generate`), the reconcile cadence is configurable via `proto/xtcp_config/v1/xtcp_config.proto` (tags after the jitter/S3 block at 221–226).
 
-| Field (proposed) | Type | Default | Meaning |
-|---|---|---|---|
-| `reconcile_interval` | `google.protobuf.Duration` | unset → derive | Background reconcile cadence. `0` disables; unset derives from poll frequency (`min(poll, ceiling)`). |
-| `reconcile_on_poll` | `bool` | `true` | Enable the pre-poll reconcile (Feature 1). |
-| `reconcile_readiness_grace` | `google.protobuf.Duration` | small default | Max wait for newly-added sockets before polling (Feature 1a); `0` = don't wait (Feature 1b). |
-| `gauge_interval` | `google.protobuf.Duration` | unset → derive | Namespace-count gauge cadence, or fold into reconcile. |
+**Implemented** (tags 227–228):
 
-Exact names/defaults to be finalized in the implementation PR. Each needs: const default in `cmd/xtcp2/xtcp2.go`, a `mainFlags` field, a `defineFlags` entry, `buildConfig`/`printFlags`/`printConfig` wiring, and env-override plumbing — the same six-touchpoint pattern used for the jitter fields.
+| Field | Type | Default | Flag / env | Meaning |
+|---|---|---|---|---|
+| `reconcile_frequency` | `google.protobuf.Duration` | `5m` | `-reconcileFrequency` / `RECONCILE_FREQUENCY` | Background `mapReconciler` ticker period — a floor/fallback. `0` disables the background ticker (the startup reconcile still runs once; a poller-driven daemon keeps discovering via the pre-poll reconcile). |
+| `reconcile_before_poll` | `bool` | `true` | `-reconcileBeforePoll` / `RECONCILE_BEFORE_POLL` | Run a reconcile immediately before each poll cycle (Feature 1), tying discovery cadence to poll cadence. |
+
+Each field uses the standard seven-touchpoint wiring in `cmd/xtcp2/xtcp2.go` (const default, `mainFlags` field, `defineFlags`, `printFlags`, `buildConfig`, env override, `printConfig`).
+
+**Not implemented (deliberately):**
+
+- **`reconcile_readiness_grace`** — the Feature 1a "wait for the new socket before polling" knob. Instead xtcp uses the simpler next-cycle pickup (Feature 1b): a namespace discovered by the pre-poll reconcile has its socket opened asynchronously and is polled from the *next* cycle (it is `-1`/reserved and skipped this cycle). This avoids blocking the poll path; the one-cycle latency for a brand-new namespace is negligible.
+- **`gauge_interval`** — the namespace-count gauge still runs on its own `guageUpdateFrequency` ticker; not worth a knob yet.
+
+**Serialization.** Both reconcile triggers — the background `mapReconciler` and the Poller's pre-poll reconcile — funnel through `reconcile()`, which takes `reconcileMu`. Beyond a coherent `nsMap` diff this is required for memory safety: `nsScanner` reuses buffers + a persistent `/proc` fd and must never scan concurrently. (A coalescing single-owner channel, as this doc earlier mused, proved unnecessary for two callers — a mutex is simpler and sufficient.)
 
 ## Step back: is inotify the right primitive?
 

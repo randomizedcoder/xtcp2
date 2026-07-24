@@ -636,6 +636,25 @@ message XtcpConfig {
 		(buf.validate.field).duration = {
 			gte: { seconds: 0 }
 	}];
+
+	// Period of the background namespace-reconcile ticker (Method B /proc scan
+	// that converges the tracked namespace set). This is a floor / fallback: when
+	// reconcile_before_poll is true the Poller reconciles every cycle, so this
+	// mainly matters when the poller is idle or disabled. 0 disables the
+	// background ticker entirely (the startup reconcile still runs once). Default
+	// 5m.
+	google.protobuf.Duration reconcile_frequency       = 227 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	// Run a namespace reconcile immediately before each poll cycle, so a
+	// namespace that appeared since the last cycle is entered and gets a socket
+	// within ~1 poll interval instead of waiting for the background ticker. Ties
+	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
+	// mutex-serialized with the background reconciler. Default true.
+	bool reconcile_before_poll                         = 228;
 };
 
 message EnabledDeserializers {
