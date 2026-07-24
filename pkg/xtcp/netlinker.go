@@ -106,8 +106,8 @@ func (x *XTCP) logRecvDebug(id uint32, packets, n, fd int) {
 		return
 	}
 	if ns, ok := x.fdToNsMap.Load(fd); ok {
-		if nsStr, okStr := ns.(string); okStr {
-			log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d ns:%s", id, packets, n, fd, nsStr)
+		if inode, okI := ns.(uint64); okI {
+			log.Printf("Netlinker %d Recvfrom packets:%d, n:%d, fd:%d inode:%d", id, packets, n, fd, inode)
 			return
 		}
 	}
@@ -121,8 +121,8 @@ func (x *XTCP) logProcessedDebug(id uint32, packets, n int, p uint64, fd int) {
 		return
 	}
 	if ns, ok := x.fdToNsMap.Load(fd); ok {
-		if nsStr, okStr := ns.(string); okStr {
-			log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d ns:%s", id, packets, n, p, fd, nsStr)
+		if inode, okI := ns.(uint64); okI {
+			log.Printf("Netlinker %d packets:%d, n:%d, p:%d, fd:%d inode:%d", id, packets, n, p, fd, inode)
 			return
 		}
 	}

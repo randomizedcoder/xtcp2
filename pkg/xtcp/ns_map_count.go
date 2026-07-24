@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-const (
-	xtcpNSName = "xtcpNS"
-)
-
 // guageUpdateFrequency + reconcileFrequency are var (not const) so tests
 // can shrink them to milliseconds and exercise the ticker.C arm of
 // nsMapCountReporter + mapReconciler without sitting for minutes.

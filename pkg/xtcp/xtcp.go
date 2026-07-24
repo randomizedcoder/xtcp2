@@ -18,6 +18,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
@@ -39,12 +40,24 @@ type XTCP struct {
 	config *xtcp_config.XtcpConfig
 
 	// ns[netNSitem]
+	// nsMap is keyed by nsfs inode (uint64) → netNSitem; fdToNsMap maps a
+	// socket fd → its owning inode. netNsDirs are the bind-mount dirs the
+	// nsResolver consults for best-effort names (no longer scanned for discovery).
 	netNsDirs   *sync.Map
 	nsMap       *sync.Map
 	fdToNsMap   *sync.Map
 	storeCount  atomic.Uint64
 	deleteCount atomic.Uint64
 	generation  atomic.Uint64
+
+	// Method B (/proc-scan) namespace discovery. nsScanner enumerates the live
+	// namespaces (by inode + representative pid); nsResolver names them.
+	// selfNsInode is xtcp's own netns inode — openDefaultNetLinkSocket already
+	// holds a socket for it, so discovery keys the default socket by this inode
+	// and reconcile dedups it rather than opening a second one.
+	nsScanner   *nsdiscover.Scanner
+	nsResolver  *nsdiscover.Resolver
+	selfNsInode uint64
 
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
@@ -135,9 +148,26 @@ type XTCP struct {
 	debugLevel uint32
 }
 
+// nsIdentity is what /proc-scan discovery yields for one network namespace:
+// its nsfs inode (the stable identity and the nsMap key), a representative live
+// pid to enter it by (via /proc/<pid>/ns/net), and a best-effort human name
+// (the record's netns label). See pkg/nsdiscover.
+type nsIdentity struct {
+	inode uint64
+	pid   int
+	name  string
+}
+
 // network namespace item
-// these are the items we track about each network name space
+// these are the items we track about each network name space.
+//
+// Keyed in nsMap by inode (the stable identity — a namespace has no bind-mount
+// path under Method B). pid is the representative pid it was entered by; after
+// the socket is open the pid is irrelevant (the netlinker holds the socket), so
+// pid death is harmless. name is the best-effort label stamped on each record.
 type netNSitem struct {
+	inode    uint64
+	pid      int
 	name     *string
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -268,20 +298,9 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	wg.Add(1)
 	go x.nsMapCountReporter(ctx, wg)
 
-	x.netNsDirs.Range(func(key, value interface{}) bool {
-		dir, ok := key.(string)
-		if !ok {
-			return true
-		}
-		wg.Add(1)
-		go func() {
-			if err := x.watchNsNamespace(ctx, wg, dir); err != nil {
-				log.Printf("watchNsNamespace(%s) err:%v", dir, err)
-			}
-		}()
-		return true
-	})
-
+	// Namespace discovery is the mapReconciler: it scans /proc each cycle and
+	// converges nsMap. There is no inotify watcher under Method B — a /proc scan
+	// re-derives ground truth (incl. anonymous namespaces) and cannot drift.
 	wg.Add(1)
 	go x.mapReconciler(ctx, wg)
 
@@ -306,6 +325,14 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	}
 
 	x.closeDestination()
+
+	// Release the persistent /proc scanner fd. Safe here: wg.Wait above means
+	// mapReconciler (the only scanner user) has already exited.
+	if x.nsScanner != nil {
+		if cerr := x.nsScanner.Close(); cerr != nil && x.debugLevel > 10 {
+			log.Printf("XTCP.Run() nsScanner close: %v", cerr)
+		}
+	}
 
 	if x.debugLevel > 10 {
 		log.Println("XTCP.Run() complete")

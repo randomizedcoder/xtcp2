@@ -5,39 +5,31 @@ import (
 	"log"
 )
 
-// nsAdd reserves the namespace's slot and starts its netNamespaceInstance
-// goroutine.
+// nsAdd reserves the namespace's slot (keyed by inode) and starts its
+// netNamespaceInstance goroutine, which enters the namespace via
+// /proc/<pid>/ns/net and opens its netlink socket.
 //
-// The per-ns context + cancel are created HERE and stored in nsMap *before*
-// the goroutine is launched. Previously the cancel was created deep inside
-// netNamespaceInstance — only after LockOSThread + setns + socket bind (which
-// can take milliseconds, or up to seconds when setns retries). A namespace
-// deleted during that init window (trivial under heavy `ip netns add/del`
-// churn) found no nsMap entry, so nsDelete never called cancel(); the instance
-// then blocked forever on <-nsCtx.Done() holding a locked OS thread. Those
-// leaked threads accumulate to the SetMaxThreads (-maxThreads, default 2000)
-// ceiling and crash the daemon with "fatal error: thread exhaustion".
-// Reserving the cancel up front guarantees nsDelete can always reach it, so a
-// delete-during-init reliably unblocks the instance.
-//
-// LoadOrStore makes the "already present?" check and the slot reservation
-// atomic, closing a second race where two adds for the same name could both
-// pass a Load() check and launch duplicate goroutines.
-func (x *XTCP) nsAdd(ctx context.Context, nsName *string) {
+// The per-ns context + cancel are created HERE and stored in nsMap *before* the
+// goroutine is launched, so nsDelete can always reach cancel() even if the
+// namespace disappears during the (possibly slow, retrying) setns — see the
+// thread-exhaustion regression in ns_churn_race_test.go. LoadOrStore makes the
+// "already present?" check and the slot reservation atomic.
+func (x *XTCP) nsAdd(ctx context.Context, id nsIdentity) {
 
 	x.pC.WithLabelValues("add", "store", "counter").Inc()
 
 	if x.debugLevel > 10 {
-		log.Printf("add: %s\n", *nsName)
+		log.Printf("add: inode=%d pid=%d name=%s\n", id.inode, id.pid, id.name)
 	}
 
-	// Copy the name: callers (the fsnotify watch loop) reuse the backing
-	// string variable, so we must not retain their pointer across the
-	// goroutine's lifetime.
-	name := *nsName
+	// Copy the name so the netNSitem / record-label *string has stable backing
+	// independent of the caller's nsIdentity value.
+	name := id.name
 	nsCtx, nsCancel := context.WithCancel(ctx)
 
-	if _, loaded := x.nsMap.LoadOrStore(name, netNSitem{
+	if _, loaded := x.nsMap.LoadOrStore(id.inode, netNSitem{
+		inode:    id.inode,
+		pid:      id.pid,
 		name:     &name,
 		ctx:      nsCtx,
 		cancel:   nsCancel,
@@ -47,10 +39,10 @@ func (x *XTCP) nsAdd(ctx context.Context, nsName *string) {
 		nsCancel()
 		x.pC.WithLabelValues("add", "duplicate", "counter").Inc()
 		if x.debugLevel > 10 {
-			log.Printf("add duplicate: %s\n", *nsName)
+			log.Printf("add duplicate: inode=%d\n", id.inode)
 		}
 		return
 	}
 
-	go x.netNamespaceInstance(nsCtx, nsCancel, &name)
+	go x.netNamespaceInstance(nsCtx, nsCancel, id.inode, id.pid, &name)
 }

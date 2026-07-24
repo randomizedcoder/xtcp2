@@ -279,9 +279,9 @@ func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
 		return
 	}
 	if ns, okNs := x.fdToNsMap.Load(d.fd); okNs {
-		if nsStr, okStr := ns.(string); okStr {
-			log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d ns:%s after: %0.3fs %dms",
-				count, d.fd, nsStr, pTime.Seconds(), pTime.Milliseconds())
+		if inode, okI := ns.(uint64); okI {
+			log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d inode:%d after: %0.3fs %dms",
+				count, d.fd, inode, pTime.Seconds(), pTime.Milliseconds())
 			return
 		}
 	}
@@ -305,32 +305,26 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	socketFDs := x.GetNetlinkSocketFDs()
 	polled := 0
 	for i, socketFD := range socketFDs {
-		if ns, ok := x.fdToNsMap.Load(socketFD); ok {
-			nsStr, okStr := ns.(string)
-			// "/run/netns/xtcpNS"
-			if okStr && nsStr == linuxNetNSDirCst+xtcpNSName {
-				if x.debugLevel > 100 {
-					log.Printf("pollAllNetlinkSockets skip "+linuxNetNSDirCst+xtcpNSName+" Poll i:%d", i)
-				}
-				continue
-			}
-			x.poll(socketFD)
-			polled++
-			if x.debugLevel > 10 {
-				log.Printf("pollAllNetlinkSockets Poll i:%d fd:%d", i, socketFD)
-			}
+		// Skip slots reserved by nsAdd whose socket isn't open yet
+		// (createNetlinkersAndStore hasn't published the real fd — socketFD is
+		// still -1). They get polled on the next cycle once ready. Counting a
+		// -1 here would make Poller expect a done signal that never arrives.
+		if socketFD < 0 {
+			continue
+		}
+		x.poll(socketFD)
+		polled++
+		if x.debugLevel > 10 {
+			log.Printf("pollAllNetlinkSockets Poll i:%d fd:%d", i, socketFD)
 		}
 	}
 
 	// restart the timeout timer
 	x.pollTimeoutTimer.Reset(x.config.PollTimeout.AsDuration())
 
-	// Return the count of fds we actually issued a poll against, NOT
-	// len(socketFDs). The xtcpNS fd is in socketFDs but is skipped above
-	// — counting it would tell Poller to expect one more done signal
-	// than will ever arrive, so count never drops to 0 and every cycle
-	// waits for the PollTimeoutTimer to fire instead of advancing on
-	// the natural netlinker-done signals.
+	// Return the count of fds we actually issued a poll against (excludes the
+	// not-yet-ready -1 slots), NOT len(socketFDs) — Poller waits for exactly
+	// this many netlinker-done signals before advancing.
 	return polled
 }
 

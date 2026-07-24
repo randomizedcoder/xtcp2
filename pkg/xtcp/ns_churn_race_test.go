@@ -4,8 +4,6 @@ package xtcp
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -66,21 +64,16 @@ func TestNsChurn_deleteDuringInit_doesNotLeakThread(t *testing.T) {
 	x.config = &xtcp_config.XtcpConfig{Netlinkers: 0}
 	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
 
+	const raceInode = 4026531999
+	const racePid = 12345
 	name := "race-ns"
 
-	// Make checkMountInfo pass (it just scans mountInfoDir for the name), so
-	// init reaches the (blocked) open seam rather than bailing early.
-	mi := filepath.Join(t.TempDir(), "mountinfo")
-	if werr := os.WriteFile(mi, []byte("36 35 0:32 / /run/netns/"+name+" rw - nsfs nsfs rw\n"), 0o600); werr != nil {
-		t.Fatal(werr)
-	}
-	origMountInfoDir := mountInfoDir
-	mountInfoDir = mi
-	t.Cleanup(func() { mountInfoDir = origMountInfoDir })
+	// Method B enters by /proc/<pid>/ns/net with checkMount=false, so there is
+	// no mountinfo gate to satisfy — init reaches the (blocked) open seam directly.
 
-	// nsAdd reserves the cancel in nsMap and launches netNamespaceInstance,
-	// which blocks in the open seam.
-	x.nsAdd(context.Background(), &name)
+	// nsAdd reserves the cancel in nsMap (keyed by inode) and launches
+	// netNamespaceInstance, which blocks in the open seam.
+	x.nsAdd(context.Background(), nsIdentity{inode: raceInode, pid: racePid, name: name})
 
 	select {
 	case <-openEntered:
@@ -90,13 +83,13 @@ func TestNsChurn_deleteDuringInit_doesNotLeakThread(t *testing.T) {
 	}
 
 	// The fix's key property: the cancel is reachable *during* init.
-	if _, ok := x.nsMap.Load(name); !ok {
+	if _, ok := x.nsMap.Load(uint64(raceInode)); !ok {
 		close(releaseOpen)
 		t.Fatal("nsAdd must store the per-ns entry (with cancel) before init completes")
 	}
 
 	// Delete while the instance is still initializing — this is the race.
-	x.nsDelete(&name)
+	x.nsDelete(raceInode)
 
 	// Let init proceed; the instance must observe the cancellation and exit
 	// (abort-during-init), not block forever on <-nsCtx.Done().

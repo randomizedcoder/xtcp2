@@ -279,25 +279,25 @@ func TestLogRecvDebug_table(t *testing.T) {
 		name           string
 		category       string
 		debugLevel     uint32
-		storeNs        string // empty → don't store
+		storeInode     uint64 // 0 → don't store (fd unknown)
 		wantSubstr     string
 		wantNotPresent bool
 	}{
-		{"positive_debug_on_ns_known", "positive", 101, "ns-A", "ns:ns-A", false},
-		{"positive_debug_on_ns_unknown", "positive", 101, "", "Unknown FD!!", false},
-		{"negative_debug_off_threshold", "negative", 100, "ns-A", "", true},
-		{"negative_debug_off_zero", "negative", 0, "ns-A", "", true},
-		{"boundary_just_above_threshold", "boundary", 101, "ns-A", "ns:ns-A", false},
-		{"corner_debug_max", "corner", ^uint32(0), "ns-X", "ns:ns-X", false},
-		{"adversarial_empty_ns_string", "adversarial", 101, "", "Unknown FD!!", false},
+		{"positive_debug_on_ns_known", "positive", 101, 4026531840, "inode:4026531840", false},
+		{"positive_debug_on_ns_unknown", "positive", 101, 0, "Unknown FD!!", false},
+		{"negative_debug_off_threshold", "negative", 100, 4026531840, "", true},
+		{"negative_debug_off_zero", "negative", 0, 4026531840, "", true},
+		{"boundary_just_above_threshold", "boundary", 101, 4026531841, "inode:4026531841", false},
+		{"corner_debug_max", "corner", ^uint32(0), 4026531842, "inode:4026531842", false},
+		{"adversarial_unknown_fd", "adversarial", 101, 0, "Unknown FD!!", false},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
 			x := newNetlinkerXTCP(t)
 			x.debugLevel = tc.debugLevel
-			if tc.storeNs != "" {
-				x.fdToNsMap.Store(42, tc.storeNs)
+			if tc.storeInode != 0 {
+				x.fdToNsMap.Store(42, tc.storeInode)
 			}
 			out := withCapturedLog(t, func() {
 				x.logRecvDebug(7, 3, 200, 42)
@@ -320,24 +320,24 @@ func TestLogProcessedDebug_table(t *testing.T) {
 		name           string
 		category       string
 		debugLevel     uint32
-		storeNs        string
+		storeInode     uint64
 		wantSubstr     string
 		wantNotPresent bool
 	}{
-		{"positive_debug_on_ns_known", "positive", 101, "nsP", "ns:nsP", false},
-		{"positive_debug_on_ns_unknown", "positive", 101, "", "p:5", false},
-		{"negative_debug_off_threshold", "negative", 100, "nsP", "", true},
-		{"boundary_debug_one_above", "boundary", 101, "nsP", "ns:nsP", false},
-		{"corner_packet_max_uint64", "corner", 101, "nsP", fmt.Sprintf("p:%d", ^uint64(0)), false},
-		{"adversarial_high_debug_level", "adversarial", 1 << 20, "nsP", "ns:nsP", false},
+		{"positive_debug_on_ns_known", "positive", 101, 4026531840, "inode:4026531840", false},
+		{"positive_debug_on_ns_unknown", "positive", 101, 0, "p:5", false},
+		{"negative_debug_off_threshold", "negative", 100, 4026531840, "", true},
+		{"boundary_debug_one_above", "boundary", 101, 4026531840, "inode:4026531840", false},
+		{"corner_packet_max_uint64", "corner", 101, 4026531840, fmt.Sprintf("p:%d", ^uint64(0)), false},
+		{"adversarial_high_debug_level", "adversarial", 1 << 20, 4026531840, "inode:4026531840", false},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
 			x := newNetlinkerXTCP(t)
 			x.debugLevel = tc.debugLevel
-			if tc.storeNs != "" {
-				x.fdToNsMap.Store(99, tc.storeNs)
+			if tc.storeInode != 0 {
+				x.fdToNsMap.Store(99, tc.storeInode)
 			}
 			out := withCapturedLog(t, func() {
 				pVal := uint64(5)

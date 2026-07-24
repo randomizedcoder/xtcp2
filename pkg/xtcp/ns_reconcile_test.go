@@ -2,222 +2,160 @@ package xtcp
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
-// Test-fixture keys/values reused across every TestReconcileMaps row.
-const (
-	testKey1   = "key1"
-	testKey2   = "key2"
-	testKey3   = "key3"
-	testKey4   = "key4"
-	testValue1 = "value1"
-	testValue2 = "value2"
-	testValue3 = "value3"
-	testValue4 = "value4"
+// buildProcTreeForXTCP creates p pid dirs each with an ns/net symlink to
+// net:[base+i%distinct] under a temp /proc, so the /proc-scan discovery finds
+// `distinct` namespaces with inodes base..base+distinct-1.
+func buildProcTreeForXTCP(t *testing.T, p, distinct int, base uint64) string {
+	t.Helper()
+	proc := t.TempDir()
+	for i := 0; i < p; i++ {
+		pidDir := filepath.Join(proc, strconv.Itoa(1000+i))
+		if err := os.MkdirAll(filepath.Join(pidDir, "ns"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		ino := base + uint64(i%distinct)
+		target := "net:[" + strconv.FormatUint(ino, 10) + "]"
+		if err := os.Symlink(target, filepath.Join(pidDir, "ns", "net")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return proc
+}
 
-	// testOldValue2 mimics a stale entry already present in the destination
-	// map when reconcileMaps runs — it should be replaced by testValue2.
-	testOldValue2 = "old_value2"
-)
+func newReconcileTestXTCP(t *testing.T, proc string) *XTCP {
+	t.Helper()
+	x := newRunFixture(t)
+	x.config = &xtcp_config.XtcpConfig{Netlinkers: 0}
+	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
+	x.nsScanner = nsdiscover.NewScanner(proc)
+	x.nsResolver = nsdiscover.NewResolver(proc, nil)
+	t.Cleanup(func() { _ = x.nsScanner.Close() })
+	return x
+}
 
-func TestReconcileMaps(t *testing.T) {
-	tests := []struct {
-		name         string
-		srcEntries   map[interface{}]interface{}
-		destEntries  map[interface{}]interface{}
-		expectedDest map[interface{}]interface{}
-		deletes      int
-		stores       int
-	}{
-		{
-			name: "Add missing keys and remove extra keys",
-			srcEntries: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			destEntries: map[interface{}]interface{}{
-				testKey2: testOldValue2,
-				testKey3: testValue3,
-			},
-			expectedDest: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			deletes: 2,
-			stores:  2,
-		},
-		{
-			name: "No changes needed",
-			srcEntries: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			destEntries: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			expectedDest: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			deletes: 0,
-			stores:  0,
-		},
-		{
-			name: "Add missing keys and remove extra keys, one extra",
-			srcEntries: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			destEntries: map[interface{}]interface{}{
-				testKey2: testOldValue2,
-				testKey3: testValue3,
-				testKey4: testValue4,
-			},
-			expectedDest: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			deletes: 3,
-			stores:  2,
-		},
-		{
-			name: "Add missing keys and remove extra keys, one less",
-			srcEntries: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			destEntries: map[interface{}]interface{}{
-				testKey2: testOldValue2,
-			},
-			expectedDest: map[interface{}]interface{}{
-				testKey1: testValue1,
-				testKey2: testValue2,
-			},
-			deletes: 1,
-			stores:  2,
-		},
+// TestReconcile_deletesGoneNamespaces: nsMap holds inodes that /proc no longer
+// shows → reconcile deletes them (cancelling their ctx) and returns the count.
+func TestReconcile_deletesGoneNamespaces(t *testing.T) {
+	x := newReconcileTestXTCP(t, t.TempDir()) // empty /proc → nothing live
+
+	var mu sync.Mutex
+	cancels := 0
+	for _, ino := range []uint64{4026531900, 4026531901} {
+		_, cancel := context.WithCancel(context.Background())
+		wrapped := func() { mu.Lock(); cancels++; mu.Unlock(); cancel() }
+		name := "gone"
+		x.nsMap.Store(ino, netNSitem{inode: ino, name: &name, cancel: wrapped, socketFD: -1})
 	}
 
-	var x XTCP
+	dels, stores := x.reconcile(context.Background())
+	if dels != 2 || stores != 0 {
+		t.Fatalf("reconcile = (dels=%d, stores=%d), want (2, 0)", dels, stores)
+	}
+	if n := lenSyncMap(x.nsMap); n != 0 {
+		t.Fatalf("nsMap len = %d after delete-all, want 0", n)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if cancels != 2 {
+		t.Fatalf("cancels called = %d, want 2", cancels)
+	}
+}
 
-	// In production, discoverAllNamespaces builds srcMap with nil
-	// values (see pkg/xtcp/ns_discover.go: nsMap.Store(nsName, nil)).
-	// Without the !srcValue==nil short-circuit, reconcileMaps treats
-	// nil != netNSitem as drift and deletes every entry every cycle,
-	// causing nsAdd to spawn a new netNamespaceInstance goroutine
-	// while the existing one (still holding a netlink socketFD) is
-	// orphaned. This regression test asserts that nil src values
-	// don't trigger a delete.
-	t.Run("production_nil_src_values_preserve_dest", func(t *testing.T) {
-		srcMap := &sync.Map{}
-		srcMap.Store("/run/netns/foo", nil) // discover's actual shape
-		srcMap.Store("/run/netns/bar", nil)
-		destMap := &sync.Map{}
-		destMap.Store("/run/netns/foo", "netNSitem-foo") // simulates netNSitem
-		destMap.Store("/run/netns/bar", "netNSitem-bar")
+// TestReconcile_keepsTrackedNamespaces: an inode present in both /proc and nsMap
+// is left alone (no delete, no re-add).
+func TestReconcile_keepsTrackedNamespaces(t *testing.T) {
+	const base = uint64(4026532000)
+	proc := buildProcTreeForXTCP(t, 3, 3, base) // inodes base, base+1, base+2
+	x := newReconcileTestXTCP(t, proc)
 
-		dels, stores := x.reconcileMaps(context.Background(), srcMap, destMap, true)
-		if dels != 0 {
-			t.Errorf("expected 0 deletes (nil src values must not count as drift); got %d", dels)
-		}
-		if stores != 0 {
-			t.Errorf("expected 0 stores (dest already has these keys); got %d", stores)
-		}
-		// destMap should still have the original netNSitem values.
-		if v, ok := destMap.Load("/run/netns/foo"); !ok || v != "netNSitem-foo" {
-			t.Errorf("destMap[foo] = (%v, %v); want netNSitem-foo, true", v, ok)
-		}
+	for i := uint64(0); i < 3; i++ {
+		_, cancel := context.WithCancel(context.Background())
+		name := "tracked"
+		x.nsMap.Store(base+i, netNSitem{inode: base + i, name: &name, cancel: cancel, socketFD: 5})
+	}
+
+	dels, stores := x.reconcile(context.Background())
+	if dels != 0 || stores != 0 {
+		t.Fatalf("reconcile = (dels=%d, stores=%d), want (0, 0) when all tracked", dels, stores)
+	}
+	if n := lenSyncMap(x.nsMap); n != 3 {
+		t.Fatalf("nsMap len = %d, want 3", n)
+	}
+}
+
+// TestReconcile_addsNewNamespaces: /proc shows namespaces not in nsMap →
+// reconcile calls nsAdd for each, reserving an entry keyed by inode. The ctx is
+// pre-cancelled so each spawned netNamespaceInstance aborts right after the
+// (faked) open; nsAdd still reserves the inode slot synchronously, which is what
+// we assert. We join the goroutines (via the "end" counter) before the fake seam
+// is restored so they never read it concurrently with the restore.
+func TestReconcile_addsNewNamespaces(t *testing.T) {
+	const base = uint64(4026532100)
+	proc := buildProcTreeForXTCP(t, 4, 2, base) // 2 distinct namespaces
+	x := newReconcileTestXTCP(t, proc)
+
+	fake := openAndSetnsSyscallsT{
+		open:  func(string, int, uint32) (int, error) { return -1, syscall.ENOENT },
+		setns: func(int, int) error { return nil },
+		close: func(int) error { return nil },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // each netNamespaceInstance aborts during init
+
+	var dels, stores int
+	withFakeSyscalls(t, fake, func() {
+		dels, stores = x.reconcile(ctx)
+		// Both aborting goroutines must finish before withFakeSyscalls restores
+		// the global open seam (else -race sees a read/write on it).
+		waitForNsInstanceEnd(t, x, 2)
 	})
 
-	// Bug 41 regression: a backstop delete (key in dest, not in src)
-	// must call netNSitem.cancel() so the orphaned per-ns goroutine
-	// + netlinkers + socketFD wind down. testing=false uses the
-	// production path which now invokes cancel before Delete.
-	t.Run("backstop_delete_calls_netNSitem_cancel", func(t *testing.T) {
-		srcMap := &sync.Map{} // empty src → every dest entry is "gone"
-		destMap := &sync.Map{}
-
-		// Build a netNSitem with an observable cancel func.
-		var cancelCalled bool
-		nsName := "/run/netns/stale"
-		destMap.Store(nsName, netNSitem{
-			name:   &nsName,
-			cancel: func() { cancelCalled = true },
-		})
-
-		// Need a stub XTCP with the pC CounterVec the production
-		// path increments via nsAdd → but with empty src nothing is
-		// added. Just enough to call reconcileMaps; the cancel branch
-		// runs before any counter increments.
-		x2 := newPollerFixture(t) // reuses the test helper with metrics
-		dels, _ := x2.reconcileMaps(context.Background(), srcMap, destMap, false)
-		if dels != 1 {
-			t.Errorf("dels = %d, want 1", dels)
+	if dels != 0 || stores != 2 {
+		t.Fatalf("reconcile = (dels=%d, stores=%d), want (0, 2)", dels, stores)
+	}
+	for i := uint64(0); i < 2; i++ {
+		if _, ok := x.nsMap.Load(base + i); !ok {
+			t.Fatalf("reconcile did not reserve inode %d", base+i)
 		}
-		if !cancelCalled {
-			t.Error("netNSitem.cancel() was not called — bug 41 regression")
+	}
+}
+
+// waitForNsInstanceEnd blocks until at least `want` netNamespaceInstance
+// goroutines have run to completion (their deferred "end" counter fired).
+func waitForNsInstanceEnd(t *testing.T, x *XTCP, want float64) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		if testutil.ToFloat64(x.pC.WithLabelValues("netNamespaceInstance", "end", "counter")) >= want {
+			return
 		}
-		if _, ok := destMap.Load(nsName); ok {
-			t.Errorf("destMap still has %q after backstop delete", nsName)
+		select {
+		case <-deadline:
+			t.Fatalf("netNamespaceInstance end counter did not reach %v", want)
+		case <-time.After(5 * time.Millisecond):
 		}
-	})
+	}
+}
 
-	// Bug 41 negative case: testing=true callers may pass arbitrary
-	// value types (raw strings, in the table tests above). The cancel
-	// branch must skip the type-assertion safely instead of panicking.
-	t.Run("backstop_delete_non_netNSitem_value_is_safe", func(t *testing.T) {
-		srcMap := &sync.Map{}
-		destMap := &sync.Map{}
-		destMap.Store("k", "raw-string-not-netNSitem")
-		// testing=true is the path the table tests use. Even if a
-		// caller forgets and passes testing=false with non-netNSitem
-		// values, no panic should occur.
-		dels, _ := x.reconcileMaps(context.Background(), srcMap, destMap, false)
-		if dels != 1 {
-			t.Errorf("dels = %d, want 1", dels)
-		}
-	})
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			srcMap := &sync.Map{}
-			for k, v := range test.srcEntries {
-				srcMap.Store(k, v)
-			}
-
-			destMap := &sync.Map{}
-			for k, v := range test.destEntries {
-				destMap.Store(k, v)
-			}
-
-			deletes, stores := x.reconcileMaps(context.Background(), srcMap, destMap, true)
-
-			actualDest := make(map[interface{}]interface{})
-			destMap.Range(func(key, value interface{}) bool {
-				actualDest[key] = value
-				return true
-			})
-
-			if len(actualDest) != len(test.expectedDest) {
-				t.Errorf("expected %d entries, got %d", len(test.expectedDest), len(actualDest))
-			}
-
-			for k, v := range test.expectedDest {
-				if actualDest[k] != v {
-					t.Errorf("key %v: expected value %v, got %v", k, v, actualDest[k])
-				}
-			}
-
-			if deletes != test.deletes {
-				t.Errorf("expected %d deletes, got %d", test.deletes, deletes)
-			}
-
-			if stores != test.stores {
-				t.Errorf("expected %d stores, got %d", test.stores, stores)
-			}
-		})
+// TestReconcile_emptyProc: no live namespaces and an empty nsMap → 0/0.
+func TestReconcile_emptyProc(t *testing.T) {
+	x := newReconcileTestXTCP(t, t.TempDir())
+	if dels, stores := x.reconcile(context.Background()); dels != 0 || stores != 0 {
+		t.Fatalf("empty reconcile = (%d, %d), want (0, 0)", dels, stores)
 	}
 }
