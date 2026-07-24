@@ -14,10 +14,13 @@ import (
 // guageUpdateFrequency + reconcileFrequency are var (not const) so tests
 // can shrink them to milliseconds and exercise the ticker.C arm of
 // nsMapCountReporter + mapReconciler without sitting for minutes.
-// Production keeps the original 1m / 5m values.
+// reconcileFrequency is only the fallback when config carries no value; the
+// production default comes from cmd/xtcp2 (reconcileFrequencyCst, 6h) — long
+// because the pre-poll reconcile is the real discovery mechanism and the
+// background pass is an occasional, expected-to-be-idle safety-net.
 var (
 	guageUpdateFrequency = 1 * time.Minute
-	reconcileFrequency   = 5 * time.Minute
+	reconcileFrequency   = 6 * time.Hour
 )
 
 // nsMapCountReporter regularly update the promethus gauge

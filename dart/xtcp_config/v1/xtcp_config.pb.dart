@@ -1322,11 +1322,13 @@ class XtcpConfig extends $pb.GeneratedMessage {
   $2.Duration ensureS3UploadBackoffCap() => $_ensure(53);
 
   /// Period of the background namespace-reconcile ticker (Method B /proc scan
-  /// that converges the tracked namespace set). This is a floor / fallback: when
-  /// reconcile_before_poll is true the Poller reconciles every cycle, so this
-  /// mainly matters when the poller is idle or disabled. 0 disables the
-  /// background ticker entirely (the startup reconcile still runs once). Default
-  /// 5m.
+  /// that converges the tracked namespace set). With reconcile_before_poll the
+  /// Poller reconciles every cycle and is the real discovery mechanism, so this
+  /// background pass is an occasional safety-net expected to find nothing
+  /// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
+  /// so operators can confirm from the counters that it is redundant. It still
+  /// matters when the poller is idle or disabled. 0 disables the background
+  /// ticker entirely (the startup reconcile still runs once).
   @$pb.TagNumber(227)
   $2.Duration get reconcileFrequency => $_getN(54);
   @$pb.TagNumber(227)

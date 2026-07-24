@@ -447,7 +447,7 @@
         },
         "reconcileFrequency": {
           "type": "string",
-          "description": "Period of the background namespace-reconcile ticker (Method B /proc scan\nthat converges the tracked namespace set). This is a floor / fallback: when\nreconcile_before_poll is true the Poller reconciles every cycle, so this\nmainly matters when the poller is idle or disabled. 0 disables the\nbackground ticker entirely (the startup reconcile still runs once). Default\n5m."
+          "description": "Period of the background namespace-reconcile ticker (Method B /proc scan\nthat converges the tracked namespace set). With reconcile_before_poll the\nPoller reconciles every cycle and is the real discovery mechanism, so this\nbackground pass is an occasional safety-net expected to find nothing\n(mapReconciler dels/stores stay 0) — the default is deliberately long (6h)\nso operators can confirm from the counters that it is redundant. It still\nmatters when the poller is idle or disabled. 0 disables the background\nticker entirely (the startup reconcile still runs once)."
         },
         "reconcileBeforePoll": {
           "type": "boolean",

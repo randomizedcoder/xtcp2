@@ -121,9 +121,14 @@ const (
 
 	// Namespace-reconcile cadence defaults (Method B /proc-scan discovery).
 	// reconcileBeforePoll ties discovery to poll cadence (reconcile before each
-	// poll); reconcileFrequency is the background floor/fallback ticker (0
-	// disables it — the startup reconcile still runs once).
-	reconcileFrequencyCst  = 5 * time.Minute
+	// poll) and is the real discovery mechanism. The background reconcile is now
+	// just an occasional safety-net / confirmation: with the pre-poll reconcile
+	// carrying discovery, it is expected to find nothing (mapReconciler dels/
+	// stores stay 0 in Prometheus), so the default is deliberately long — 6h,
+	// just enough to catch a hypothetical missed namespace and to let operators
+	// confirm from the counters that the background pass is redundant. 0 disables
+	// it entirely (the startup reconcile still runs once).
+	reconcileFrequencyCst  = 6 * time.Hour
 	reconcileBeforePollCst = true
 
 	// Pyroscope continuous-profiling defaults. Agent disabled when
@@ -330,7 +335,7 @@ func defineFlags() *mainFlags {
 	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
 	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
 	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
-	f.reconcileFrequency = flag.Duration("reconcileFrequency", reconcileFrequencyCst, "Period of the background namespace-reconcile ticker (Method B /proc scan). A floor/fallback: -reconcileBeforePoll reconciles every poll cycle. 0 disables the background ticker (startup reconcile still runs once).")
+	f.reconcileFrequency = flag.Duration("reconcileFrequency", reconcileFrequencyCst, "Period of the background namespace-reconcile ticker (Method B /proc scan). With -reconcileBeforePoll carrying discovery this is a rare safety-net expected to find nothing (watch mapReconciler dels/stores in Prometheus); default is long (6h). 0 disables it (startup reconcile still runs once).")
 	f.reconcileBeforePoll = flag.Bool("reconcileBeforePoll", reconcileBeforePollCst, "Reconcile namespaces immediately before each poll cycle, so a newly-appeared namespace is entered within ~1 poll interval. Ties discovery cadence to poll cadence.")
 	f.dest = flag.String("dest", defaultDest(), "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")

@@ -540,11 +540,13 @@ type XtcpConfig struct {
 	// clamp(poll_frequency/10, 1s, 1h).
 	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,226,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
 	// Period of the background namespace-reconcile ticker (Method B /proc scan
-	// that converges the tracked namespace set). This is a floor / fallback: when
-	// reconcile_before_poll is true the Poller reconciles every cycle, so this
-	// mainly matters when the poller is idle or disabled. 0 disables the
-	// background ticker entirely (the startup reconcile still runs once). Default
-	// 5m.
+	// that converges the tracked namespace set). With reconcile_before_poll the
+	// Poller reconciles every cycle and is the real discovery mechanism, so this
+	// background pass is an occasional safety-net expected to find nothing
+	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
+	// so operators can confirm from the counters that it is redundant. It still
+	// matters when the poller is idle or disabled. 0 disables the background
+	// ticker entirely (the startup reconcile still runs once).
 	ReconcileFrequency *durationpb.Duration `protobuf:"bytes,227,opt,name=reconcile_frequency,json=reconcileFrequency,proto3" json:"reconcile_frequency,omitempty"`
 	// Run a namespace reconcile immediately before each poll cycle, so a
 	// namespace that appeared since the last cycle is entered and gets a socket
