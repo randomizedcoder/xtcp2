@@ -464,7 +464,7 @@ rec {
         # Wait for xtcp2 to be up.
         booted=0
         for _ in $(seq 1 60); do
-          if grep -q 'Prometheus http listener started' "$LOG" 2>/dev/null; then
+          if grep -qE 'Prometheus http listener started|XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null; then
             booted=1
             break
           fi
@@ -662,7 +662,7 @@ rec {
 
         booted=0
         for _ in $(seq 1 60); do
-          if grep -q 'Prometheus http listener started' "$LOG" 2>/dev/null; then
+          if grep -qE 'Prometheus http listener started|XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null; then
             booted=1
             break
           fi
