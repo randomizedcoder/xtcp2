@@ -448,7 +448,7 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer notReady.Close()
-	if rc := runHealthcheck(":" + portOf(notReady.URL)); rc != 1 {
+	if rc := runHealthcheck(context.Background(), ":"+portOf(notReady.URL)); rc != 1 {
 		t.Errorf("not-ready: rc=%d, want 1", rc)
 	}
 
@@ -456,12 +456,12 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ready.Close()
-	if rc := runHealthcheck(":" + portOf(ready.URL)); rc != 0 {
+	if rc := runHealthcheck(context.Background(), ":"+portOf(ready.URL)); rc != 0 {
 		t.Errorf("ready: rc=%d, want 0", rc)
 	}
 
 	// Nothing listening -> unreachable -> 1.
-	if rc := runHealthcheck(":1"); rc != 1 {
+	if rc := runHealthcheck(context.Background(), ":1"); rc != 1 {
 		t.Errorf("unreachable: rc=%d, want 1", rc)
 	}
 }
