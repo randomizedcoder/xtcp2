@@ -312,7 +312,8 @@ The shared self-test (`nix/microvms/self-test.nix`) runs 10 checks in sequence o
 | 8 | `NS_LIFECYCLE` | a netns holding a live process is discovered by the Method B `/proc` scan (pre-poll reconcile → `netNamespaceInstance` start); process exit + ns removal → reconcile `delete`. Both counters bump |
 | 9 | `NS_TRAFFIC` | TCP listener (the live process Method B keys on) + client inside a fresh netns produces measurable Netlinker `packets` |
 | 10 | `NS_DOCKER` | docker-style netns: bind-mount under `/run/docker/netns/` + a live process is discovered via `/proc` and named from the bind mount; `netNamespaceInstance` start + `delete` bump |
-| — | `OVERALL` | All of 1–10 passed |
+| 16 | `NS_ANONYMOUS` | **the Method B audit-gap proof**: an anonymous `unshare -n` netns (no `/run/netns` bind mount) held by a live process is discovered purely via `/proc` — the exact case dir-scan/inotify was blind to; `netNamespaceInstance` start + `delete` bump |
+| — | `OVERALL` | All checks passed |
 
 The **soak** flavor doesn't run the self-test; instead its runner sleeps for `--duration`, then prints:
 

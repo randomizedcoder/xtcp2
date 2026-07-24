@@ -241,7 +241,7 @@ let
       # Surface every sentinel the self-test emits so a real failure in
       # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
       # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
     };
   });
 
@@ -253,7 +253,7 @@ let
       # The two s3parquet-specific sentinels alongside the baseline set.
       # 240 s timeout because the worker accumulates rows for several
       # poll cycles before triggering the 1 MiB-threshold finalize.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
       timeoutSec = 240;
     };
   });
@@ -270,7 +270,7 @@ let
         # outcome visible. Without this the default filter hides
         # them; the checks still execute (and the daemon exercises the
         # corresponding code paths) but the harness output is misleading.
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
       };
     })
   );
@@ -282,7 +282,7 @@ let
         vm = vmsCoverageIoUring.${arch};
         suffix = "-coverage-iouring";
         scrapeCoverage = true;
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
       };
     })
   );

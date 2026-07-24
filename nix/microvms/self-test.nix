@@ -26,6 +26,11 @@
 #                                              Deserialize on real netlink
 #                                              bytes — the main reason this
 #                                              exists)
+#   XTCP2_SELF_TEST_NS_ANONYMOUS_{PASS,FAIL}   an anonymous `unshare -n` netns
+#                                              (no /run/netns bind mount) held by
+#                                              a live process is discovered by
+#                                              the Method B /proc scan — the
+#                                              audit gap dir-scan/inotify missed
 #   XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_{PASS,FAIL}    (clickhouse-pipeline only)
 #                                              xtcp.xtcp_flat_records > 0 AND
 #                                              xtcp.xtcp_flat_records_errors == 0
@@ -449,6 +454,45 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (ip not on PATH or /run/docker/netns/ missing)"
     fi
     if [ "$check10" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 16: anonymous netns (unshare -n, no bind mount) — audit gap ──
+    # THE Method B proof. `unshare --net` creates a network namespace with a
+    # live process but NO /run/netns or /run/docker/netns bind mount — exactly
+    # the anonymous container/pod netns the old dir-scan/inotify model was blind
+    # to. Method B discovers it purely from /proc/<pid>/ns/net, so xtcp2 should
+    # enter it and spawn a per-ns netlinker (netNamespaceInstance "start"), then
+    # tear it down (delete counter) once the process exits. Numbered 16 (next
+    # free id) but belongs with the NS group (8-10).
+    echo "--- check 16: anonymous netns (unshare -n, no bind mount) ---"
+    check16=1
+    if command -v unshare >/dev/null 2>&1; then
+      before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      before_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+      # Anonymous netns held open by a live process; no bind mount anywhere.
+      # exec sleep so the backgrounded pid IS the live process in the ns (kill
+      # then reaches it directly).
+      unshare --net sh -c 'ip link set lo up 2>/dev/null; exec sleep 60' &
+      anon_pid=$!
+      # A couple of poll cycles (~2s each) for the pre-poll reconcile to find it.
+      sleep 6
+      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      # Drop the process → the anonymous ns now has no live process → reconcile
+      # tears it down on a following cycle.
+      kill "$anon_pid" 2>/dev/null || true
+      wait "$anon_pid" 2>/dev/null || true
+      sleep 6
+      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
+        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+        check16=0
+      else
+        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+      fi
+    else
+      echo "XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL  (unshare not on PATH)"
+    fi
+    if [ "$check16" -ne 0 ]; then overall_ok=0; fi
 
     ${lib.optionalString runS3ParquetCheck ''
       # ─── Check 13: s3parquet object landed in MinIO ──────────────────
