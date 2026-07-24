@@ -189,6 +189,23 @@ let
       sink = "capcheck-fail";
     };
 
+  # discovery-bench: root VM that runs the namespace-discovery A/B grid
+  # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
+  mkOneDiscoveryBench =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "discovery-bench";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
@@ -214,6 +231,8 @@ let
   vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
 
   vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
+
+  vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -291,6 +310,13 @@ let
     })
   );
 
+  discoveryBench = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkDiscoveryBenchRunner {
+      inherit arch;
+      vm = vmsDiscoveryBench.${arch};
+    };
+  });
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -318,7 +344,9 @@ in
     vmsS3Parquet
     vmsS3ParquetLong
     vmsCapCheckFail
+    vmsDiscoveryBench
     s3parquetLong
+    discoveryBench
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage

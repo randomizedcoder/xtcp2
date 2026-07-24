@@ -67,6 +67,10 @@ let
   # check should refuse to start; the lifecycle test verifies the
   # expected error appears on the serial console.
   isCapCheckFail = sink == "capcheck-fail";
+  # discovery-bench = a root VM that runs the namespace-discovery A/B grid
+  # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
+  # No downstream/dockerd — it only needs ip netns + many cheap processes.
+  isDiscoveryBench = sink == "discovery-bench";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
   isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet;
@@ -89,6 +93,9 @@ let
       # nsTest's churn working set (~320 MiB) OOM-loops at the 1024 MiB
       # baseline; give the soak its own larger budget.
       cfg.memSoak
+    else if isDiscoveryBench then
+      # The grid sweep spawns up to a few thousand processes per cell.
+      cfg.memDiscoveryBench
     else
       cfg.mem;
 
@@ -1845,6 +1852,43 @@ in
         # path.
         environment.etc."xtcp2/xtcp_flat_record.proto" = lib.mkIf isAnyClickPipe {
           source = ../../proto/xtcp_flat_record/v1/xtcp_flat_record.proto;
+        };
+
+        # discovery-bench flavor: run the namespace-discovery A/B grid on boot,
+        # emit DISCOBENCH_GRID JSON lines + a DISCOBENCH_DONE sentinel to the
+        # serial console, then let the host runner power the VM off. Runs as root
+        # inside the VM, so Method B's /proc scan sees every namespace (no
+        # ptrace-gated skips) and `ip netns` can build the controlled N×P grid.
+        systemd.services.discovery-bench-run = lib.mkIf isDiscoveryBench {
+          description = "xtcp2 — namespace-discovery A/B grid benchmark";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
+          path = with pkgs; [
+            iproute2
+            coreutils
+            util-linux
+          ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            # The largest grid cell spawns thousands of `sleep` procs in this
+            # service's cgroup; lift the per-service task cap to fit them.
+            TasksMax = 16384;
+            ExecStart = pkgs.writeShellScript "discovery-bench-run" ''
+              set -u
+              NS_GRID="''${DISCO_NS_GRID:-1,10,50,100}"
+              PID_GRID="''${DISCO_PID_GRID:-100,500,1000,3000}"
+              ITERS="''${DISCO_ITERS:-30}"
+              echo "DISCOBENCH_START ns_grid=$NS_GRID pid_grid=$PID_GRID iters=$ITERS"
+              ${xtcp2AllPackage}/bin/discovery-bench \
+                -mode grid -json \
+                -nsGrid "$NS_GRID" -pidGrid "$PID_GRID" -iters "$ITERS" \
+                || echo "DISCOBENCH_ERR grid exited non-zero"
+              echo "DISCOBENCH_DONE"
+            '';
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
         };
 
         environment.systemPackages =

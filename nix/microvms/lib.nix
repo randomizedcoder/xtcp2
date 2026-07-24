@@ -225,6 +225,137 @@ rec {
   #
   # Exits 0 if xtcp2 stayed up for the full duration with no panic or
   # restart in the journal, 1 otherwise.
+  # Host runner for the discovery-bench flavor. Boots the VM, taps the serial
+  # console, waits for the in-VM discovery-bench-run service to emit its
+  # DISCOBENCH_DONE sentinel (with a bounded timeout), prints the collected
+  # DISCOBENCH_GRID JSON lines, powers the VM off, and exits 0 iff the grid
+  # completed without a DISCOBENCH_ERR. This is a finite benchmark, not a soak.
+  mkDiscoveryBenchRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-discovery-bench-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=1200
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>]"
+              echo "  Boots the discovery-bench microvm, runs the namespace-"
+              echo "  discovery A/B grid (dir-scan vs /proc-scan) against a real"
+              echo "  kernel, prints the per-cell JSON, then powers off."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-discovery-bench-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 microvm discovery-bench — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # Wait for the grid to finish (DISCOBENCH_DONE) or the timeout.
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'DISCOBENCH_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: DISCOBENCH_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " discovery-bench results (per grid cell)"
+        echo "================================================"
+        grep -E 'DISCOBENCH_START|DISCOBENCH_GRID|DISCOBENCH_ERR' "$LOG" 2>/dev/null || true
+
+        rc=0
+        if grep -q 'DISCOBENCH_ERR' "$LOG" 2>/dev/null; then
+          echo "FAIL: at least one grid cell reported DISCOBENCH_ERR"
+          rc=1
+        else
+          cells=$(grep -cE 'DISCOBENCH_GRID' "$LOG" 2>/dev/null || true)
+          echo "PASS: grid completed — $cells cell(s) measured"
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        exit "$rc"
+      '';
+    };
+
   mkSoakRunner =
     {
       arch,

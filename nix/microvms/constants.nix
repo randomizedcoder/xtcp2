@@ -69,6 +69,11 @@
       # With the chatty-logs disable in place, 16384/12000m is generous
       # but cheap insurance.
       memClickPipeParquet = 16384;
+      # memDiscoveryBench is used by sink="discovery-bench". The grid sweep
+      # spawns up to a few thousand `sleep infinity` processes per cell (cheap,
+      # shared libc pages) plus the created namespaces; 4096 MiB leaves clear
+      # headroom for the largest (pids=3000) cell and the page cache.
+      memDiscoveryBench = 4096;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
