@@ -2,8 +2,55 @@
 
 **xtcp2 monitors TCP sockets inside every network namespace on a host, which means it must keep an open, bound netlink socket in each live namespace and tear it down when the namespace goes away. Today that "which namespaces are live" set is maintained by a *push* model — an inotify watcher mutates a long-lived in-memory mirror as filesystem events arrive — backed by a fixed 5-minute reconcile loop that re-scans the filesystem to repair anything the watcher missed. That reconcile fires on a fixed cadence regardless of how often the daemon actually polls: with a 24 h poll frequency it runs 288 times a day to protect an invariant that only matters once a day. This document describes the risks (wasted CPU at fleet scale, a real drift window on inotify overflow, and an async socket-readiness gap), redesigns reconciliation to be *pull-based and proportional to the poll frequency* so correctness is guaranteed at the only moment it matters, and — at the user's request — steps back to evaluate whether inotify is even the right primitive, sketching alternative discovery designs that could eliminate drift structurally.**
 
+## Decision (post-benchmark, confirmed)
+
+The "step back" question below was resolved in favor of the strongest-correctness
+option: **`/proc/<pid>/ns/net` inode scanning (Method B) replaces the
+directory/inotify model outright.** The driver is that xtcp2 is used as a
+**security-audit** tool, where seeing *every* namespace — including anonymous
+container/pod netns that never get a `/run/netns` bind mount — outweighs
+everything else. The remaining doubt was cost; benchmarking removed it.
+
+**Evidence** (`tools/discovery-bench/`, and the `discovery-bench` microVM flavor —
+see [integration-testing.md](integration-testing.md#discovery-bench--namespace-discovery-ab)):
+
+- Real-kernel root grid (N namespaces × P processes): dir-scan is O(namespaces)
+  (~5–35 µs), `/proc`-scan is O(processes) (~0.4 ms @ 100 pids → ~10 ms @ 3000).
+  A ~60× per-scan gap — but discovery now runs **once per poll** (pull-at-poll),
+  so even the worst cell is ~0.017% of a core at 1-minute polling, negligible at
+  hour scale.
+- The `stat` variant beats `readlink` (no ptrace-gated skips when privileged, no
+  string parse). A **reused, zero-allocation scanner** (`tools/discovery-bench/
+  nsscanner.go`: persistent `/proc` fd + `getdents` + raw `readlinkat` + reused
+  map/buffers) is **0 allocs/op flat, independent of process count**, and the
+  fastest variant — the right shape for a long-running daemon.
+- Coverage proof: an anonymous `unshare -n` netns is found by the `/proc` scan and
+  invisible to the dir scan — the exact audit gap this closes.
+
+**Consequences carried into production** (see the implementation plan and the
+approved PR breakdown):
+
+- **Identity**: `nsMap` is keyed by **inode**. Each record keeps `netns` as a
+  best-effort human *name* (bind-mount name if the ns is named; else
+  container-derived from `/proc/<pid>/cgroup`; else `netns:[<inode>]`) and gains a
+  new **`netns_inode` uint64** field as the stable true identity.
+- **Enter by fd**: namespaces are entered via `/proc/<pid>/ns/net` + `setns`,
+  which *removes* the `checkMountInfo` mountinfo-readiness gate (an ns fd is
+  already valid).
+- **Process-visibility semantic**: Method B only sees namespaces with a **live
+  process**. An empty `ip netns add` (no process) is invisible — correct (nothing
+  to poll), but it changes the mental model and the microVM self-test (which must
+  run a process inside the test ns).
+- **Which features survive**: Feature 1 (pre-poll reconcile) becomes the core
+  integration point; Feature 2 (proportional/optional background reconcile)
+  survives as an optional socket pre-warm re-scan; **Feature 3 (inotify overflow
+  self-heal) is moot** — there is no inotify.
+
+Everything below is the analysis that led here; it is retained as the rationale.
+
 ## Table of contents
 
+- [Decision (post-benchmark, confirmed)](#decision-post-benchmark-confirmed)
 - [Background: how namespace tracking works today](#background-how-namespace-tracking-works-today)
 - [The observation: work decoupled from need](#the-observation-work-decoupled-from-need)
 - [Risks](#risks)
@@ -166,10 +213,11 @@ So the strongest "resolves drift completely" design is not a better event source
 
 ### Recommendation
 
-1. **Adopt pull (readdir at poll time) as the correctness source** — Feature 1. This alone makes drift structurally impossible for the currently-covered (named/bind-mounted) namespaces, which is the same coverage inotify has today, so it's a strict improvement with no coverage regression.
-2. **Keep inotify as an optional pre-warmer** with the overflow self-heal (Feature 3) while it remains on, and make it disable-able. Once Feature 1 is proven in the fleet, the default can flip to "pull-only, inotify off."
-3. **Note `/proc/*/ns/net` scanning as the natural future step** if/when xtcp needs to cover *anonymous* container namespaces that never get a `/run/netns` bind mount — it's both drift-free and broader-coverage, at higher scan cost. This is a coverage upgrade, orthogonal to the drift fix, and belongs in its own design.
-4. **eBPF and CRI integration are deliberately out of scope** — they add real-time push we've just argued we don't need for correctness, at significant complexity/coupling cost. Revisit only if a future requirement (sub-second reaction, or authoritative container identity) demands it.
+*(Resolved — see [Decision](#decision-post-benchmark-confirmed) at the top. Recorded here as the reasoning.)* The original recommendation staged pull-first with `/proc` scanning as a "future step." The benchmark evidence and the security-audit correctness requirement pulled that future forward: **`/proc/<pid>/ns/net` scanning is adopted now as the sole discovery mechanism, replacing dir-scan + inotify outright**, because it is the only option that covers anonymous namespaces — and pull-at-poll plus a zero-allocation reused scanner make its higher per-scan cost immaterial.
+
+1. **`/proc`-scan (stat variant) is the correctness source**, run pull-at-poll. Drift is structurally impossible (each poll re-derives ground truth) *and* coverage is complete (every namespace with a live process, incl. anonymous).
+2. **inotify + the `/run/netns` directory model are removed** — not kept as a pre-warmer. The reused scanner is cheap enough that a periodic background re-scan (Feature 2) covers pre-warming when wanted.
+3. **eBPF and CRI integration remain out of scope** — real-time push we don't need for correctness, at significant complexity/coupling cost. Revisit only under a future sub-second-reaction or authoritative-container-identity requirement.
 
 The elegant outcome: *the reconcile stops being a repair pass bolted onto a leaky event stream, and becomes the discovery mechanism itself — run exactly when its result is consumed.*
 
