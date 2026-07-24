@@ -264,8 +264,8 @@ var trafficSendIntervals = []time.Duration{
 // varied per-conn profiles, and registers a per-ns cancel so churn()
 // can tear it down before deleting the ns. Non-fatal on errors — a
 // failure to bring up some ns's traffic must not stop the wider churn.
-func startPersistentTraffic(parentCtx context.Context, nsName string, count int) {
-	nsCtx, cancel := context.WithCancel(parentCtx)
+func startPersistentTraffic(ctx context.Context, nsName string, count int) {
+	nsCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	nsTrafficStates.Store(nsName, &nsTrafficState{cancel: cancel, done: done})
 

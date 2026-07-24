@@ -645,8 +645,8 @@ func main() {
 
 // runMain wires the production main body. Extracted so tests can run
 // it with stubbed daemonRunner / promHandlerStarter.
-func runMain(parentCtx context.Context) int {
-	ctx, cancel := context.WithCancel(parentCtx)
+func runMain(ctx context.Context) int {
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	complete := make(chan struct{}, signalChannelSizeCst)
@@ -659,7 +659,7 @@ func runMain(parentCtx context.Context) int {
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		return runHealthcheck(ctx, *f.promListen)
+		return runHealthcheck(runCtx, *f.promListen)
 	}
 
 	c, done := prepareConfig(f)
@@ -707,7 +707,7 @@ func runMain(parentCtx context.Context) int {
 		log.Println("config validation succeeded")
 	}
 
-	daemonRunner(ctx, cancel, c)
+	daemonRunner(runCtx, cancel, c)
 	select {
 	case complete <- struct{}{}:
 	default:
