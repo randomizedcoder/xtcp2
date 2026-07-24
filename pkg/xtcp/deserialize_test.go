@@ -217,6 +217,61 @@ func TestDeserialize(t *testing.T) {
 	}
 }
 
+// TestDeserialize_stampsNetnsIdentity verifies that Deserialize stamps both
+// the best-effort namespace name (Netns, threaded by pointer) and the stable
+// namespace inode (NetnsInode, passed alongside in DeserializeArgs) onto every
+// record it produces. Uses a large flush threshold and a directly-installed
+// currentEnvelope so the produced records stay inspectable rather than being
+// flushed + pool-returned.
+func TestDeserialize_stampsNetnsIdentity(t *testing.T) {
+	x := newTestDeserializeXTCP(t)
+	// Never flush during the test so the rows stay in currentEnvelope.
+	x.config.EnvelopeFlushThresholdRows = 1_000_000
+	x.config.EnvelopeFlushThresholdBytes = 1 << 30
+	x.currentEnvelope = &xtcp_flat_record.Envelope{}
+
+	const fixture = "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet2.pcap"
+	f, err := os.Open(fixture)
+	if err != nil {
+		t.Fatalf("open %s: %v", fixture, err)
+	}
+	bs, err := io.ReadAll(f)
+	_ = f.Close()
+	if err != nil {
+		t.Fatalf("read %s: %v", fixture, err)
+	}
+	buf := bs[xtcpnl.PcapNetlinkOffsetCst:]
+
+	const wantInode = uint64(4026532444)
+	nsName := "test-ns-name"
+	n, errD := x.Deserialize(context.Background(), DeserializeArgs{
+		ns:             &nsName,
+		fd:             0,
+		inode:          wantInode,
+		NLPacket:       &buf,
+		xtcpRecordPool: &x.xtcpRecordPool,
+		nlhPool:        &x.nlhPool,
+		rtaPool:        &x.rtaPool,
+		pC:             x.pC,
+		pH:             x.pH,
+		id:             0,
+	})
+	if errD != nil {
+		t.Fatalf("Deserialize err: %v (n=%d)", errD, n)
+	}
+	if n == 0 || len(x.currentEnvelope.Row) == 0 {
+		t.Fatalf("no records produced: n=%d rows=%d", n, len(x.currentEnvelope.Row))
+	}
+	for i, r := range x.currentEnvelope.Row {
+		if r.NetnsInode != wantInode {
+			t.Errorf("row %d NetnsInode=%d, want %d", i, r.NetnsInode, wantInode)
+		}
+		if r.Netns != nsName {
+			t.Errorf("row %d Netns=%q, want %q", i, r.Netns, nsName)
+		}
+	}
+}
+
 var (
 	resultXtcpFlatRecord *xtcp_flat_record.XtcpFlatRecord
 	// resultXtcpFlatRecord *xtcp_flat_record.Envelope_XtcpFlatRecord

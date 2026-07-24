@@ -159,8 +159,15 @@ type XtcpFlatRecord struct {
 	// -location flag or LOCATION env. Constant for every record from one
 	// daemon instance.
 	Location string `protobuf:"bytes,21,opt,name=location,proto3" json:"location,omitempty"`
-	// network namespace
+	// network namespace — best-effort human name (bind-mount name, else a
+	// container-derived name, else "netns:[<inode>]"). Not a stable key; use
+	// netns_inode for identity.
 	Netns string `protobuf:"bytes,30,opt,name=netns,proto3" json:"netns,omitempty"`
+	// network-namespace inode (from /proc/<pid>/ns/net). The stable identity of
+	// the namespace this socket lives in — unique per live namespace on the host
+	// for the daemon's lifetime, including the host/default namespace (its own
+	// self-inode). 0 only when the inode could not be determined.
+	NetnsInode uint64 `protobuf:"varint,33,opt,name=netns_inode,json=netnsInode,proto3" json:"netns_inode,omitempty"`
 	// Container that owns the socket, resolved from the per-socket cgroup v2
 	// id (c_group) via the cgroup path (e.g. docker-<id>.scope). Empty when
 	// the socket isn't in a recognised container cgroup or resolution is
@@ -360,6 +367,13 @@ func (x *XtcpFlatRecord) GetNetns() string {
 		return x.Netns
 	}
 	return ""
+}
+
+func (x *XtcpFlatRecord) GetNetnsInode() uint64 {
+	if x != nil {
+		return x.NetnsInode
+	}
+	return 0
 }
 
 func (x *XtcpFlatRecord) GetContainerId() string {
@@ -1376,13 +1390,15 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\x8f0\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xb00\n" +
 	"\x0eXtcpFlatRecord\x12!\n" +
 	"\ftimestamp_ns\x18\n" +
 	" \x01(\x01R\vtimestampNs\x12\x1a\n" +
 	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x1a\n" +
 	"\blocation\x18\x15 \x01(\tR\blocation\x12\x14\n" +
-	"\x05netns\x18\x1e \x01(\tR\x05netns\x12!\n" +
+	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x1f\n" +
+	"\vnetns_inode\x18! \x01(\x04R\n" +
+	"netnsInode\x12!\n" +
 	"\fcontainer_id\x18\x1f \x01(\tR\vcontainerId\x12+\n" +
 	"\x11container_runtime\x18  \x01(\tR\x10containerRuntime\x12\x12\n" +
 	"\x04nsid\x18( \x01(\rR\x04nsid\x12\x14\n" +

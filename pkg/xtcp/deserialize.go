@@ -21,6 +21,7 @@ var (
 type DeserializeArgs struct {
 	ns             *string
 	fd             int
+	inode          uint64
 	NLPacket       *[]byte
 	xtcpRecordPool *xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]
 	nlhPool        *xsync.Pool[*xtcpnl.NlMsgHdr]
@@ -99,7 +100,12 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord.Tag = x.config.Tag
 		xtcpRecord.Location = x.config.Location
 		xtcpRecord.TimestampNs = timestampNs
+		// netns is the best-effort human name; netns_inode is the stable
+		// identity (nsfs inode) of the namespace this socket lives in. The
+		// name is threaded by pointer from the netlinker; the inode is passed
+		// alongside (see DeserializeArgs.inode).
 		xtcpRecord.Netns = *d.ns
+		xtcpRecord.NetnsInode = d.inode
 		xtcpRecord.RecordCounter = n
 		xtcpRecord.SocketFd = uint64(d.fd)
 		xtcpRecord.NetlinkerId = uint64(d.id)

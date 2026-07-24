@@ -44,7 +44,7 @@ func TestNetlinkerSyscall_earlyExit(t *testing.T) {
 	name := "test-ns"
 	done := make(chan struct{})
 	go func() {
-		x.netlinkerSyscall(ctx, wg, &name, -1, 0)
+		x.netlinkerSyscall(ctx, wg, &name, 0, -1, 0)
 		close(done)
 	}()
 	wg.Wait()

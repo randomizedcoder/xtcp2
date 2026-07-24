@@ -309,6 +309,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
     kInetDiagMsgSocketDestinationFieldNumber = 108,
     kCongestionAlgorithmStringFieldNumber = 400,
     kTimestampNsFieldNumber = 10,
+    kNetnsInodeFieldNumber = 33,
     kRecordCounterFieldNumber = 70,
     kNsidFieldNumber = 40,
     kInetDiagMsgFamilyFieldNumber = 101,
@@ -592,6 +593,16 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   private:
   double _internal_timestamp_ns() const;
   void _internal_set_timestamp_ns(double value);
+
+  public:
+  // uint64 netns_inode = 33 [json_name = "netnsInode"];
+  void clear_netns_inode() ;
+  ::uint64_t netns_inode() const;
+  void set_netns_inode(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_netns_inode() const;
+  void _internal_set_netns_inode(::uint64_t value);
 
   public:
   // uint64 record_counter = 70 [json_name = "recordCounter"];
@@ -1739,8 +1750,8 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
   static const ::google::protobuf::internal::TcParseTable<
-      5, 125, 0,
-      248, 77>
+      5, 126, 0,
+      248, 84>
       _table_;
 
   friend class ::google::protobuf::MessageLite;
@@ -1768,6 +1779,7 @@ class XtcpFlatRecord final : public ::google::protobuf::Message
     ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_destination_;
     ::google::protobuf::internal::ArenaStringPtr congestion_algorithm_string_;
     double timestamp_ns_;
+    ::uint64_t netns_inode_;
     ::uint64_t record_counter_;
     ::uint32_t nsid_;
     ::uint32_t inet_diag_msg_family_;
@@ -3001,6 +3013,28 @@ inline void XtcpFlatRecord::set_allocated_netns(std::string* value) {
     _impl_.netns_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.netns)
+}
+
+// uint64 netns_inode = 33 [json_name = "netnsInode"];
+inline void XtcpFlatRecord::clear_netns_inode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.netns_inode_ = ::uint64_t{0u};
+}
+inline ::uint64_t XtcpFlatRecord::netns_inode() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.netns_inode)
+  return _internal_netns_inode();
+}
+inline void XtcpFlatRecord::set_netns_inode(::uint64_t value) {
+  _internal_set_netns_inode(value);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.netns_inode)
+}
+inline ::uint64_t XtcpFlatRecord::_internal_netns_inode() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.netns_inode_;
+}
+inline void XtcpFlatRecord::_internal_set_netns_inode(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.netns_inode_ = value;
 }
 
 // string container_id = 31 [json_name = "containerId"];

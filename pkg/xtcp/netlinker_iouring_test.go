@@ -234,7 +234,7 @@ func TestHandleRecvCQE_timeoutErr(t *testing.T) {
 	x := newIouringFixture(t)
 	b := make([]byte, 64)
 	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EAGAIN), Buf: &b})
 }
 
@@ -243,14 +243,14 @@ func TestHandleRecvCQE_otherErr(t *testing.T) {
 	x.debugLevel = 11 // hit log branch
 	b := make([]byte, 64)
 	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: &b})
 }
 
 func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
 	x := newIouringFixture(t)
 	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 3, 0,
+	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
 		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
 }
 
@@ -279,7 +279,7 @@ func TestHandleRecvCQE_successPathTruncated(t *testing.T) {
 	nsName := "ns"
 	// Res=4 → b[:4] is shorter than NlMsgHdrSizeCst → Deserialize
 	// returns the truncated-header error → handleRecvCQE counter inc.
-	x.handleRecvCQE(context.Background(), nil, &nsName, 7, 0,
+	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 7, 0,
 		xio.Result{Op: xio.OpRead, Res: 4, Buf: &b})
 }
 
