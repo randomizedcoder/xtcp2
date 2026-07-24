@@ -30,7 +30,9 @@ const (
 // NetlinkerFunc is the signature of a per-fd netlinker goroutine. The
 // chosen variant is stored in x.Netlinker (sync.Map dispatch — see
 // init_netlinkers.go) and called from ns_createNetlinkersAndStore.go.
-type NetlinkerFunc func(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32)
+// nsName is the best-effort namespace name (by pointer, shared) and inode
+// is its stable nsfs identity; both are stamped onto every record.
+type NetlinkerFunc func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32)
 
 // recvOneFromKernel performs a single syscall.Recvfrom into buf and
 // classifies the result. retry=true means the caller should skip the
@@ -139,7 +141,7 @@ func (x *XTCP) logProcessedDebug(id uint32, packets, n int, p uint64, fd int) {
 // classification + debug logging + on-disk capture + GC bookkeeping +
 // pool teardown inline. The bulk has moved into the helpers above;
 // what remains is the receive-decode-loop skeleton (gocyclo 5).
-func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
+func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
 
 	defer wg.Done()
 
@@ -181,6 +183,7 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 			DeserializeArgs{
 				ns:             nsName,
 				fd:             fd,
+				inode:          inode,
 				NLPacket:       &b,
 				xtcpRecordPool: &x.xtcpRecordPool,
 				nlhPool:        &x.nlhPool,

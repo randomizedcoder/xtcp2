@@ -60,6 +60,7 @@ inline constexpr XtcpFlatRecord::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         timestamp_ns_{0},
+        netns_inode_{::uint64_t{0u}},
         record_counter_{::uint64_t{0u}},
         nsid_{0u},
         inet_diag_msg_family_{0u},
@@ -335,6 +336,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.hostname_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.location_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.netns_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.netns_inode_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_runtime_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.nsid_),
@@ -498,10 +500,10 @@ static const ::_pbi::MigrationSchema
     schemas[] ABSL_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
         {0, -1, -1, sizeof(::xtcp_flat_record::v1::Envelope)},
         {9, -1, -1, sizeof(::xtcp_flat_record::v1::XtcpFlatRecord)},
-        {142, -1, -1, sizeof(::xtcp_flat_record::v1::FlatRecordsRequest)},
-        {150, 159, -1, sizeof(::xtcp_flat_record::v1::FlatRecordsResponse)},
-        {160, -1, -1, sizeof(::xtcp_flat_record::v1::PollFlatRecordsRequest)},
-        {168, 177, -1, sizeof(::xtcp_flat_record::v1::PollFlatRecordsResponse)},
+        {143, -1, -1, sizeof(::xtcp_flat_record::v1::FlatRecordsRequest)},
+        {151, 160, -1, sizeof(::xtcp_flat_record::v1::FlatRecordsResponse)},
+        {161, -1, -1, sizeof(::xtcp_flat_record::v1::PollFlatRecordsRequest)},
+        {169, 178, -1, sizeof(::xtcp_flat_record::v1::PollFlatRecordsResponse)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_flat_record::v1::_Envelope_default_instance_._instance,
@@ -516,184 +518,185 @@ const char descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5fr
     "\n*xtcp_flat_record/v1/xtcp_flat_record.p"
     "roto\022\023xtcp_flat_record.v1\"A\n\010Envelope\0225\n"
     "\003row\030\n \003(\0132#.xtcp_flat_record.v1.XtcpFla"
-    "tRecordR\003row\"\2170\n\016XtcpFlatRecord\022!\n\014times"
+    "tRecordR\003row\"\2600\n\016XtcpFlatRecord\022!\n\014times"
     "tamp_ns\030\n \001(\001R\013timestampNs\022\032\n\010hostname\030\024"
     " \001(\tR\010hostname\022\032\n\010location\030\025 \001(\tR\010locati"
-    "on\022\024\n\005netns\030\036 \001(\tR\005netns\022!\n\014container_id"
-    "\030\037 \001(\tR\013containerId\022+\n\021container_runtime"
-    "\030  \001(\tR\020containerRuntime\022\022\n\004nsid\030( \001(\rR\004"
-    "nsid\022\024\n\005label\0302 \001(\tR\005label\022\020\n\003tag\030< \001(\tR"
-    "\003tag\022%\n\016record_counter\030F \001(\004R\rrecordCoun"
-    "ter\022\033\n\tsocket_fd\030P \001(\004R\010socketFd\022!\n\014netl"
-    "inker_id\030Z \001(\004R\013netlinkerId\022/\n\024inet_diag"
-    "_msg_family\030e \001(\rR\021inetDiagMsgFamily\022-\n\023"
-    "inet_diag_msg_state\030f \001(\rR\020inetDiagMsgSt"
-    "ate\022-\n\023inet_diag_msg_timer\030g \001(\rR\020inetDi"
-    "agMsgTimer\0221\n\025inet_diag_msg_retrans\030h \001("
-    "\rR\022inetDiagMsgRetrans\022E\n inet_diag_msg_s"
-    "ocket_source_port\030i \001(\rR\033inetDiagMsgSock"
-    "etSourcePort\022O\n%inet_diag_msg_socket_des"
-    "tination_port\030j \001(\rR inetDiagMsgSocketDe"
-    "stinationPort\022<\n\033inet_diag_msg_socket_so"
-    "urce\030k \001(\014R\027inetDiagMsgSocketSource\022F\n i"
-    "net_diag_msg_socket_destination\030l \001(\014R\034i"
-    "netDiagMsgSocketDestination\022B\n\036inet_diag"
-    "_msg_socket_interface\030m \001(\rR\032inetDiagMsg"
-    "SocketInterface\022<\n\033inet_diag_msg_socket_"
-    "cookie\030n \001(\004R\027inetDiagMsgSocketCookie\022\?\n"
-    "\035inet_diag_msg_socket_dest_asn\030o \001(\004R\030in"
-    "etDiagMsgSocketDestAsn\022F\n!inet_diag_msg_"
-    "socket_next_hop_asn\030p \001(\004R\033inetDiagMsgSo"
-    "cketNextHopAsn\0221\n\025inet_diag_msg_expires\030"
-    "q \001(\rR\022inetDiagMsgExpires\022/\n\024inet_diag_m"
-    "sg_rqueue\030r \001(\rR\021inetDiagMsgRqueue\022/\n\024in"
-    "et_diag_msg_wqueue\030s \001(\rR\021inetDiagMsgWqu"
-    "eue\022)\n\021inet_diag_msg_uid\030t \001(\rR\016inetDiag"
-    "MsgUid\022-\n\023inet_diag_msg_inode\030u \001(\rR\020ine"
-    "tDiagMsgInode\022#\n\rmem_info_rmem\030\311\001 \001(\rR\013m"
-    "emInfoRmem\022#\n\rmem_info_wmem\030\312\001 \001(\rR\013memI"
-    "nfoWmem\022#\n\rmem_info_fmem\030\313\001 \001(\rR\013memInfo"
-    "Fmem\022#\n\rmem_info_tmem\030\314\001 \001(\rR\013memInfoTme"
-    "m\022%\n\016tcp_info_state\030\255\002 \001(\rR\014tcpInfoState"
-    "\022*\n\021tcp_info_ca_state\030\256\002 \001(\rR\016tcpInfoCaS"
-    "tate\0221\n\024tcp_info_retransmits\030\257\002 \001(\rR\022tcp"
-    "InfoRetransmits\022\'\n\017tcp_info_probes\030\260\002 \001("
-    "\rR\rtcpInfoProbes\022)\n\020tcp_info_backoff\030\261\002 "
-    "\001(\rR\016tcpInfoBackoff\022)\n\020tcp_info_options\030"
-    "\262\002 \001(\rR\016tcpInfoOptions\022.\n\023tcp_info_send_"
-    "scale\030\263\002 \001(\rR\020tcpInfoSendScale\022,\n\022tcp_in"
-    "fo_rcv_scale\030\264\002 \001(\rR\017tcpInfoRcvScale\022J\n\""
-    "tcp_info_delivery_rate_app_limited\030\265\002 \001("
-    "\rR\035tcpInfoDeliveryRateAppLimited\022F\n tcp_"
-    "info_fast_open_client_failed\030\266\002 \001(\rR\033tcp"
-    "InfoFastOpenClientFailed\022!\n\014tcp_info_rto"
-    "\030\273\002 \001(\rR\ntcpInfoRto\022!\n\014tcp_info_ato\030\274\002 \001"
-    "(\rR\ntcpInfoAto\022(\n\020tcp_info_snd_mss\030\275\002 \001("
-    "\rR\rtcpInfoSndMss\022(\n\020tcp_info_rcv_mss\030\276\002 "
-    "\001(\rR\rtcpInfoRcvMss\022)\n\020tcp_info_unacked\030\277"
-    "\002 \001(\rR\016tcpInfoUnacked\022\'\n\017tcp_info_sacked"
-    "\030\300\002 \001(\rR\rtcpInfoSacked\022#\n\rtcp_info_lost\030"
-    "\301\002 \001(\rR\013tcpInfoLost\022)\n\020tcp_info_retrans\030"
-    "\302\002 \001(\rR\016tcpInfoRetrans\022)\n\020tcp_info_facke"
-    "ts\030\303\002 \001(\rR\016tcpInfoFackets\0225\n\027tcp_info_la"
-    "st_data_sent\030\304\002 \001(\rR\023tcpInfoLastDataSent"
-    "\0223\n\026tcp_info_last_ack_sent\030\305\002 \001(\rR\022tcpIn"
-    "foLastAckSent\0225\n\027tcp_info_last_data_recv"
-    "\030\306\002 \001(\rR\023tcpInfoLastDataRecv\0223\n\026tcp_info"
-    "_last_ack_recv\030\307\002 \001(\rR\022tcpInfoLastAckRec"
-    "v\022#\n\rtcp_info_pmtu\030\310\002 \001(\rR\013tcpInfoPmtu\0222"
-    "\n\025tcp_info_rcv_ssthresh\030\311\002 \001(\rR\022tcpInfoR"
-    "cvSsthresh\022!\n\014tcp_info_rtt\030\312\002 \001(\rR\ntcpIn"
-    "foRtt\022(\n\020tcp_info_rtt_var\030\313\002 \001(\rR\rtcpInf"
-    "oRttVar\0222\n\025tcp_info_snd_ssthresh\030\314\002 \001(\rR"
-    "\022tcpInfoSndSsthresh\022*\n\021tcp_info_snd_cwnd"
-    "\030\315\002 \001(\rR\016tcpInfoSndCwnd\022(\n\020tcp_info_adv_"
-    "mss\030\316\002 \001(\rR\rtcpInfoAdvMss\022/\n\023tcp_info_re"
-    "ordering\030\317\002 \001(\rR\021tcpInfoReordering\022(\n\020tc"
-    "p_info_rcv_rtt\030\320\002 \001(\rR\rtcpInfoRcvRtt\022,\n\022"
-    "tcp_info_rcv_space\030\321\002 \001(\rR\017tcpInfoRcvSpa"
-    "ce\0224\n\026tcp_info_total_retrans\030\322\002 \001(\rR\023tcp"
-    "InfoTotalRetrans\0220\n\024tcp_info_pacing_rate"
-    "\030\323\002 \001(\004R\021tcpInfoPacingRate\0227\n\030tcp_info_m"
-    "ax_pacing_rate\030\324\002 \001(\004R\024tcpInfoMaxPacingR"
-    "ate\0220\n\024tcp_info_bytes_acked\030\325\002 \001(\004R\021tcpI"
-    "nfoBytesAcked\0226\n\027tcp_info_bytes_received"
-    "\030\326\002 \001(\004R\024tcpInfoBytesReceived\022*\n\021tcp_inf"
-    "o_segs_out\030\327\002 \001(\rR\016tcpInfoSegsOut\022(\n\020tcp"
-    "_info_segs_in\030\330\002 \001(\rR\rtcpInfoSegsIn\0225\n\027t"
-    "cp_info_not_sent_bytes\030\331\002 \001(\rR\023tcpInfoNo"
-    "tSentBytes\022(\n\020tcp_info_min_rtt\030\332\002 \001(\rR\rt"
-    "cpInfoMinRtt\0221\n\025tcp_info_data_segs_in\030\333\002"
-    " \001(\rR\021tcpInfoDataSegsIn\0223\n\026tcp_info_data"
-    "_segs_out\030\334\002 \001(\rR\022tcpInfoDataSegsOut\0224\n\026"
-    "tcp_info_delivery_rate\030\335\002 \001(\004R\023tcpInfoDe"
-    "liveryRate\022,\n\022tcp_info_busy_time\030\336\002 \001(\004R"
-    "\017tcpInfoBusyTime\0222\n\025tcp_info_rwnd_limite"
-    "d\030\337\002 \001(\004R\022tcpInfoRwndLimited\0226\n\027tcp_info"
-    "_sndbuf_limited\030\340\002 \001(\004R\024tcpInfoSndbufLim"
-    "ited\022-\n\022tcp_info_delivered\030\341\002 \001(\rR\020tcpIn"
-    "foDelivered\0222\n\025tcp_info_delivered_ce\030\342\002 "
-    "\001(\rR\022tcpInfoDeliveredCe\022.\n\023tcp_info_byte"
-    "s_sent\030\343\002 \001(\004R\020tcpInfoBytesSent\0224\n\026tcp_i"
-    "nfo_bytes_retrans\030\344\002 \001(\004R\023tcpInfoBytesRe"
-    "trans\022.\n\023tcp_info_dsack_dups\030\345\002 \001(\rR\020tcp"
-    "InfoDsackDups\022.\n\023tcp_info_reord_seen\030\346\002 "
-    "\001(\rR\020tcpInfoReordSeen\0220\n\024tcp_info_rcv_oo"
-    "opack\030\347\002 \001(\rR\021tcpInfoRcvOoopack\022(\n\020tcp_i"
-    "nfo_snd_wnd\030\350\002 \001(\rR\rtcpInfoSndWnd\022(\n\020tcp"
-    "_info_rcv_wnd\030\351\002 \001(\rR\rtcpInfoRcvWnd\022\'\n\017t"
-    "cp_info_rehash\030\352\002 \001(\rR\rtcpInfoRehash\022,\n\022"
-    "tcp_info_total_rto\030\353\002 \001(\rR\017tcpInfoTotalR"
-    "to\022A\n\035tcp_info_total_rto_recoveries\030\354\002 \001"
-    "(\rR\031tcpInfoTotalRtoRecoveries\0225\n\027tcp_inf"
-    "o_total_rto_time\030\355\002 \001(\rR\023tcpInfoTotalRto"
-    "Time\022\?\n\033congestion_algorithm_string\030\220\003 \001"
-    "(\tR\031congestionAlgorithmString\022t\n\031congest"
-    "ion_algorithm_enum\030\221\003 \001(\01627.xtcp_flat_re"
-    "cord.v1.XtcpFlatRecord.CongestionAlgorit"
-    "hmR\027congestionAlgorithmEnum\022\'\n\017type_of_s"
-    "ervice\030\365\003 \001(\rR\rtypeOfService\022$\n\rtraffic_"
-    "class\030\366\003 \001(\rR\014trafficClass\0223\n\026sk_mem_inf"
-    "o_rmem_alloc\030\331\004 \001(\rR\022skMemInfoRmemAlloc\022"
-    "-\n\023sk_mem_info_rcv_buf\030\332\004 \001(\rR\017skMemInfo"
-    "RcvBuf\0223\n\026sk_mem_info_wmem_alloc\030\333\004 \001(\rR"
-    "\022skMemInfoWmemAlloc\022-\n\023sk_mem_info_snd_b"
-    "uf\030\334\004 \001(\rR\017skMemInfoSndBuf\0221\n\025sk_mem_inf"
-    "o_fwd_alloc\030\335\004 \001(\rR\021skMemInfoFwdAlloc\0225\n"
-    "\027sk_mem_info_wmem_queued\030\336\004 \001(\rR\023skMemIn"
-    "foWmemQueued\022,\n\022sk_mem_info_optmem\030\337\004 \001("
-    "\rR\017skMemInfoOptmem\022.\n\023sk_mem_info_backlo"
-    "g\030\340\004 \001(\rR\020skMemInfoBacklog\022*\n\021sk_mem_inf"
-    "o_drops\030\341\004 \001(\rR\016skMemInfoDrops\022&\n\016shutdo"
-    "wn_state\030\274\005 \001(\rR\rshutdownState\022-\n\022vegas_"
-    "info_enabled\030\241\006 \001(\rR\020vegasInfoEnabled\022,\n"
-    "\022vegas_info_rtt_cnt\030\242\006 \001(\rR\017vegasInfoRtt"
-    "Cnt\022%\n\016vegas_info_rtt\030\243\006 \001(\rR\014vegasInfoR"
-    "tt\022,\n\022vegas_info_min_rtt\030\244\006 \001(\rR\017vegasIn"
-    "foMinRtt\022-\n\022dctcp_info_enabled\030\205\007 \001(\rR\020d"
-    "ctcpInfoEnabled\022.\n\023dctcp_info_ce_state\030\206"
-    "\007 \001(\rR\020dctcpInfoCeState\022)\n\020dctcp_info_al"
-    "pha\030\207\007 \001(\rR\016dctcpInfoAlpha\022*\n\021dctcp_info"
-    "_ab_ecn\030\210\007 \001(\rR\016dctcpInfoAbEcn\022*\n\021dctcp_"
-    "info_ab_tot\030\211\007 \001(\rR\016dctcpInfoAbTot\022$\n\016bb"
-    "r_info_bw_lo\030\351\007 \001(\rR\013bbrInfoBwLo\022$\n\016bbr_"
-    "info_bw_hi\030\352\007 \001(\rR\013bbrInfoBwHi\022(\n\020bbr_in"
-    "fo_min_rtt\030\353\007 \001(\rR\rbbrInfoMinRtt\0220\n\024bbr_"
-    "info_pacing_gain\030\354\007 \001(\rR\021bbrInfoPacingGa"
-    "in\022,\n\022bbr_info_cwnd_gain\030\355\007 \001(\rR\017bbrInfo"
-    "CwndGain\022\032\n\010class_id\030\315\010 \001(\rR\007classId\022\032\n\010"
-    "sock_opt\030\316\010 \001(\rR\007sockOpt\022\030\n\007c_group\030\263\t \001"
-    "(\004R\006cGroup\"\231\002\n\023CongestionAlgorithm\022$\n CO"
-    "NGESTION_ALGORITHM_UNSPECIFIED\020\000\022\036\n\032CONG"
-    "ESTION_ALGORITHM_CUBIC\020\001\022\036\n\032CONGESTION_A"
-    "LGORITHM_DCTCP\020\002\022\036\n\032CONGESTION_ALGORITHM"
-    "_VEGAS\020\003\022\037\n\033CONGESTION_ALGORITHM_PRAGUE\020"
-    "\004\022\035\n\031CONGESTION_ALGORITHM_BBR1\020\005\022\035\n\031CONG"
-    "ESTION_ALGORITHM_BBR2\020\006\022\035\n\031CONGESTION_AL"
-    "GORITHM_BBR3\020\007\"\024\n\022FlatRecordsRequest\"d\n\023"
-    "FlatRecordsResponse\022M\n\020xtcp_flat_record\030"
-    "\001 \001(\0132#.xtcp_flat_record.v1.XtcpFlatReco"
-    "rdR\016xtcpFlatRecord\"\030\n\026PollFlatRecordsReq"
-    "uest\"h\n\027PollFlatRecordsResponse\022M\n\020xtcp_"
-    "flat_record\030\001 \001(\0132#.xtcp_flat_record.v1."
-    "XtcpFlatRecordR\016xtcpFlatRecord2\355\001\n\025XTCPF"
-    "latRecordService\022b\n\013FlatRecords\022\'.xtcp_f"
-    "lat_record.v1.FlatRecordsRequest\032(.xtcp_"
-    "flat_record.v1.FlatRecordsResponse0\001\022p\n\017"
-    "PollFlatRecords\022+.xtcp_flat_record.v1.Po"
-    "llFlatRecordsRequest\032,.xtcp_flat_record."
-    "v1.PollFlatRecordsResponse(\0010\001B\253\001\n\027com.x"
-    "tcp_flat_record.v1B\023XtcpFlatRecordProtoP"
-    "\001Z\026./pkg/xtcp_flat_record\242\002\003XXX\252\002\021XtcpFl"
-    "atRecord.V1\312\002\021XtcpFlatRecord\\V1\342\002\035XtcpFl"
-    "atRecord\\V1\\GPBMetadata\352\002\022XtcpFlatRecord"
-    "::V1b\006proto3"
+    "on\022\024\n\005netns\030\036 \001(\tR\005netns\022\037\n\013netns_inode\030"
+    "! \001(\004R\nnetnsInode\022!\n\014container_id\030\037 \001(\tR"
+    "\013containerId\022+\n\021container_runtime\030  \001(\tR"
+    "\020containerRuntime\022\022\n\004nsid\030( \001(\rR\004nsid\022\024\n"
+    "\005label\0302 \001(\tR\005label\022\020\n\003tag\030< \001(\tR\003tag\022%\n"
+    "\016record_counter\030F \001(\004R\rrecordCounter\022\033\n\t"
+    "socket_fd\030P \001(\004R\010socketFd\022!\n\014netlinker_i"
+    "d\030Z \001(\004R\013netlinkerId\022/\n\024inet_diag_msg_fa"
+    "mily\030e \001(\rR\021inetDiagMsgFamily\022-\n\023inet_di"
+    "ag_msg_state\030f \001(\rR\020inetDiagMsgState\022-\n\023"
+    "inet_diag_msg_timer\030g \001(\rR\020inetDiagMsgTi"
+    "mer\0221\n\025inet_diag_msg_retrans\030h \001(\rR\022inet"
+    "DiagMsgRetrans\022E\n inet_diag_msg_socket_s"
+    "ource_port\030i \001(\rR\033inetDiagMsgSocketSourc"
+    "ePort\022O\n%inet_diag_msg_socket_destinatio"
+    "n_port\030j \001(\rR inetDiagMsgSocketDestinati"
+    "onPort\022<\n\033inet_diag_msg_socket_source\030k "
+    "\001(\014R\027inetDiagMsgSocketSource\022F\n inet_dia"
+    "g_msg_socket_destination\030l \001(\014R\034inetDiag"
+    "MsgSocketDestination\022B\n\036inet_diag_msg_so"
+    "cket_interface\030m \001(\rR\032inetDiagMsgSocketI"
+    "nterface\022<\n\033inet_diag_msg_socket_cookie\030"
+    "n \001(\004R\027inetDiagMsgSocketCookie\022\?\n\035inet_d"
+    "iag_msg_socket_dest_asn\030o \001(\004R\030inetDiagM"
+    "sgSocketDestAsn\022F\n!inet_diag_msg_socket_"
+    "next_hop_asn\030p \001(\004R\033inetDiagMsgSocketNex"
+    "tHopAsn\0221\n\025inet_diag_msg_expires\030q \001(\rR\022"
+    "inetDiagMsgExpires\022/\n\024inet_diag_msg_rque"
+    "ue\030r \001(\rR\021inetDiagMsgRqueue\022/\n\024inet_diag"
+    "_msg_wqueue\030s \001(\rR\021inetDiagMsgWqueue\022)\n\021"
+    "inet_diag_msg_uid\030t \001(\rR\016inetDiagMsgUid\022"
+    "-\n\023inet_diag_msg_inode\030u \001(\rR\020inetDiagMs"
+    "gInode\022#\n\rmem_info_rmem\030\311\001 \001(\rR\013memInfoR"
+    "mem\022#\n\rmem_info_wmem\030\312\001 \001(\rR\013memInfoWmem"
+    "\022#\n\rmem_info_fmem\030\313\001 \001(\rR\013memInfoFmem\022#\n"
+    "\rmem_info_tmem\030\314\001 \001(\rR\013memInfoTmem\022%\n\016tc"
+    "p_info_state\030\255\002 \001(\rR\014tcpInfoState\022*\n\021tcp"
+    "_info_ca_state\030\256\002 \001(\rR\016tcpInfoCaState\0221\n"
+    "\024tcp_info_retransmits\030\257\002 \001(\rR\022tcpInfoRet"
+    "ransmits\022\'\n\017tcp_info_probes\030\260\002 \001(\rR\rtcpI"
+    "nfoProbes\022)\n\020tcp_info_backoff\030\261\002 \001(\rR\016tc"
+    "pInfoBackoff\022)\n\020tcp_info_options\030\262\002 \001(\rR"
+    "\016tcpInfoOptions\022.\n\023tcp_info_send_scale\030\263"
+    "\002 \001(\rR\020tcpInfoSendScale\022,\n\022tcp_info_rcv_"
+    "scale\030\264\002 \001(\rR\017tcpInfoRcvScale\022J\n\"tcp_inf"
+    "o_delivery_rate_app_limited\030\265\002 \001(\rR\035tcpI"
+    "nfoDeliveryRateAppLimited\022F\n tcp_info_fa"
+    "st_open_client_failed\030\266\002 \001(\rR\033tcpInfoFas"
+    "tOpenClientFailed\022!\n\014tcp_info_rto\030\273\002 \001(\r"
+    "R\ntcpInfoRto\022!\n\014tcp_info_ato\030\274\002 \001(\rR\ntcp"
+    "InfoAto\022(\n\020tcp_info_snd_mss\030\275\002 \001(\rR\rtcpI"
+    "nfoSndMss\022(\n\020tcp_info_rcv_mss\030\276\002 \001(\rR\rtc"
+    "pInfoRcvMss\022)\n\020tcp_info_unacked\030\277\002 \001(\rR\016"
+    "tcpInfoUnacked\022\'\n\017tcp_info_sacked\030\300\002 \001(\r"
+    "R\rtcpInfoSacked\022#\n\rtcp_info_lost\030\301\002 \001(\rR"
+    "\013tcpInfoLost\022)\n\020tcp_info_retrans\030\302\002 \001(\rR"
+    "\016tcpInfoRetrans\022)\n\020tcp_info_fackets\030\303\002 \001"
+    "(\rR\016tcpInfoFackets\0225\n\027tcp_info_last_data"
+    "_sent\030\304\002 \001(\rR\023tcpInfoLastDataSent\0223\n\026tcp"
+    "_info_last_ack_sent\030\305\002 \001(\rR\022tcpInfoLastA"
+    "ckSent\0225\n\027tcp_info_last_data_recv\030\306\002 \001(\r"
+    "R\023tcpInfoLastDataRecv\0223\n\026tcp_info_last_a"
+    "ck_recv\030\307\002 \001(\rR\022tcpInfoLastAckRecv\022#\n\rtc"
+    "p_info_pmtu\030\310\002 \001(\rR\013tcpInfoPmtu\0222\n\025tcp_i"
+    "nfo_rcv_ssthresh\030\311\002 \001(\rR\022tcpInfoRcvSsthr"
+    "esh\022!\n\014tcp_info_rtt\030\312\002 \001(\rR\ntcpInfoRtt\022("
+    "\n\020tcp_info_rtt_var\030\313\002 \001(\rR\rtcpInfoRttVar"
+    "\0222\n\025tcp_info_snd_ssthresh\030\314\002 \001(\rR\022tcpInf"
+    "oSndSsthresh\022*\n\021tcp_info_snd_cwnd\030\315\002 \001(\r"
+    "R\016tcpInfoSndCwnd\022(\n\020tcp_info_adv_mss\030\316\002 "
+    "\001(\rR\rtcpInfoAdvMss\022/\n\023tcp_info_reorderin"
+    "g\030\317\002 \001(\rR\021tcpInfoReordering\022(\n\020tcp_info_"
+    "rcv_rtt\030\320\002 \001(\rR\rtcpInfoRcvRtt\022,\n\022tcp_inf"
+    "o_rcv_space\030\321\002 \001(\rR\017tcpInfoRcvSpace\0224\n\026t"
+    "cp_info_total_retrans\030\322\002 \001(\rR\023tcpInfoTot"
+    "alRetrans\0220\n\024tcp_info_pacing_rate\030\323\002 \001(\004"
+    "R\021tcpInfoPacingRate\0227\n\030tcp_info_max_paci"
+    "ng_rate\030\324\002 \001(\004R\024tcpInfoMaxPacingRate\0220\n\024"
+    "tcp_info_bytes_acked\030\325\002 \001(\004R\021tcpInfoByte"
+    "sAcked\0226\n\027tcp_info_bytes_received\030\326\002 \001(\004"
+    "R\024tcpInfoBytesReceived\022*\n\021tcp_info_segs_"
+    "out\030\327\002 \001(\rR\016tcpInfoSegsOut\022(\n\020tcp_info_s"
+    "egs_in\030\330\002 \001(\rR\rtcpInfoSegsIn\0225\n\027tcp_info"
+    "_not_sent_bytes\030\331\002 \001(\rR\023tcpInfoNotSentBy"
+    "tes\022(\n\020tcp_info_min_rtt\030\332\002 \001(\rR\rtcpInfoM"
+    "inRtt\0221\n\025tcp_info_data_segs_in\030\333\002 \001(\rR\021t"
+    "cpInfoDataSegsIn\0223\n\026tcp_info_data_segs_o"
+    "ut\030\334\002 \001(\rR\022tcpInfoDataSegsOut\0224\n\026tcp_inf"
+    "o_delivery_rate\030\335\002 \001(\004R\023tcpInfoDeliveryR"
+    "ate\022,\n\022tcp_info_busy_time\030\336\002 \001(\004R\017tcpInf"
+    "oBusyTime\0222\n\025tcp_info_rwnd_limited\030\337\002 \001("
+    "\004R\022tcpInfoRwndLimited\0226\n\027tcp_info_sndbuf"
+    "_limited\030\340\002 \001(\004R\024tcpInfoSndbufLimited\022-\n"
+    "\022tcp_info_delivered\030\341\002 \001(\rR\020tcpInfoDeliv"
+    "ered\0222\n\025tcp_info_delivered_ce\030\342\002 \001(\rR\022tc"
+    "pInfoDeliveredCe\022.\n\023tcp_info_bytes_sent\030"
+    "\343\002 \001(\004R\020tcpInfoBytesSent\0224\n\026tcp_info_byt"
+    "es_retrans\030\344\002 \001(\004R\023tcpInfoBytesRetrans\022."
+    "\n\023tcp_info_dsack_dups\030\345\002 \001(\rR\020tcpInfoDsa"
+    "ckDups\022.\n\023tcp_info_reord_seen\030\346\002 \001(\rR\020tc"
+    "pInfoReordSeen\0220\n\024tcp_info_rcv_ooopack\030\347"
+    "\002 \001(\rR\021tcpInfoRcvOoopack\022(\n\020tcp_info_snd"
+    "_wnd\030\350\002 \001(\rR\rtcpInfoSndWnd\022(\n\020tcp_info_r"
+    "cv_wnd\030\351\002 \001(\rR\rtcpInfoRcvWnd\022\'\n\017tcp_info"
+    "_rehash\030\352\002 \001(\rR\rtcpInfoRehash\022,\n\022tcp_inf"
+    "o_total_rto\030\353\002 \001(\rR\017tcpInfoTotalRto\022A\n\035t"
+    "cp_info_total_rto_recoveries\030\354\002 \001(\rR\031tcp"
+    "InfoTotalRtoRecoveries\0225\n\027tcp_info_total"
+    "_rto_time\030\355\002 \001(\rR\023tcpInfoTotalRtoTime\022\?\n"
+    "\033congestion_algorithm_string\030\220\003 \001(\tR\031con"
+    "gestionAlgorithmString\022t\n\031congestion_alg"
+    "orithm_enum\030\221\003 \001(\01627.xtcp_flat_record.v1"
+    ".XtcpFlatRecord.CongestionAlgorithmR\027con"
+    "gestionAlgorithmEnum\022\'\n\017type_of_service\030"
+    "\365\003 \001(\rR\rtypeOfService\022$\n\rtraffic_class\030\366"
+    "\003 \001(\rR\014trafficClass\0223\n\026sk_mem_info_rmem_"
+    "alloc\030\331\004 \001(\rR\022skMemInfoRmemAlloc\022-\n\023sk_m"
+    "em_info_rcv_buf\030\332\004 \001(\rR\017skMemInfoRcvBuf\022"
+    "3\n\026sk_mem_info_wmem_alloc\030\333\004 \001(\rR\022skMemI"
+    "nfoWmemAlloc\022-\n\023sk_mem_info_snd_buf\030\334\004 \001"
+    "(\rR\017skMemInfoSndBuf\0221\n\025sk_mem_info_fwd_a"
+    "lloc\030\335\004 \001(\rR\021skMemInfoFwdAlloc\0225\n\027sk_mem"
+    "_info_wmem_queued\030\336\004 \001(\rR\023skMemInfoWmemQ"
+    "ueued\022,\n\022sk_mem_info_optmem\030\337\004 \001(\rR\017skMe"
+    "mInfoOptmem\022.\n\023sk_mem_info_backlog\030\340\004 \001("
+    "\rR\020skMemInfoBacklog\022*\n\021sk_mem_info_drops"
+    "\030\341\004 \001(\rR\016skMemInfoDrops\022&\n\016shutdown_stat"
+    "e\030\274\005 \001(\rR\rshutdownState\022-\n\022vegas_info_en"
+    "abled\030\241\006 \001(\rR\020vegasInfoEnabled\022,\n\022vegas_"
+    "info_rtt_cnt\030\242\006 \001(\rR\017vegasInfoRttCnt\022%\n\016"
+    "vegas_info_rtt\030\243\006 \001(\rR\014vegasInfoRtt\022,\n\022v"
+    "egas_info_min_rtt\030\244\006 \001(\rR\017vegasInfoMinRt"
+    "t\022-\n\022dctcp_info_enabled\030\205\007 \001(\rR\020dctcpInf"
+    "oEnabled\022.\n\023dctcp_info_ce_state\030\206\007 \001(\rR\020"
+    "dctcpInfoCeState\022)\n\020dctcp_info_alpha\030\207\007 "
+    "\001(\rR\016dctcpInfoAlpha\022*\n\021dctcp_info_ab_ecn"
+    "\030\210\007 \001(\rR\016dctcpInfoAbEcn\022*\n\021dctcp_info_ab"
+    "_tot\030\211\007 \001(\rR\016dctcpInfoAbTot\022$\n\016bbr_info_"
+    "bw_lo\030\351\007 \001(\rR\013bbrInfoBwLo\022$\n\016bbr_info_bw"
+    "_hi\030\352\007 \001(\rR\013bbrInfoBwHi\022(\n\020bbr_info_min_"
+    "rtt\030\353\007 \001(\rR\rbbrInfoMinRtt\0220\n\024bbr_info_pa"
+    "cing_gain\030\354\007 \001(\rR\021bbrInfoPacingGain\022,\n\022b"
+    "br_info_cwnd_gain\030\355\007 \001(\rR\017bbrInfoCwndGai"
+    "n\022\032\n\010class_id\030\315\010 \001(\rR\007classId\022\032\n\010sock_op"
+    "t\030\316\010 \001(\rR\007sockOpt\022\030\n\007c_group\030\263\t \001(\004R\006cGr"
+    "oup\"\231\002\n\023CongestionAlgorithm\022$\n CONGESTIO"
+    "N_ALGORITHM_UNSPECIFIED\020\000\022\036\n\032CONGESTION_"
+    "ALGORITHM_CUBIC\020\001\022\036\n\032CONGESTION_ALGORITH"
+    "M_DCTCP\020\002\022\036\n\032CONGESTION_ALGORITHM_VEGAS\020"
+    "\003\022\037\n\033CONGESTION_ALGORITHM_PRAGUE\020\004\022\035\n\031CO"
+    "NGESTION_ALGORITHM_BBR1\020\005\022\035\n\031CONGESTION_"
+    "ALGORITHM_BBR2\020\006\022\035\n\031CONGESTION_ALGORITHM"
+    "_BBR3\020\007\"\024\n\022FlatRecordsRequest\"d\n\023FlatRec"
+    "ordsResponse\022M\n\020xtcp_flat_record\030\001 \001(\0132#"
+    ".xtcp_flat_record.v1.XtcpFlatRecordR\016xtc"
+    "pFlatRecord\"\030\n\026PollFlatRecordsRequest\"h\n"
+    "\027PollFlatRecordsResponse\022M\n\020xtcp_flat_re"
+    "cord\030\001 \001(\0132#.xtcp_flat_record.v1.XtcpFla"
+    "tRecordR\016xtcpFlatRecord2\355\001\n\025XTCPFlatReco"
+    "rdService\022b\n\013FlatRecords\022\'.xtcp_flat_rec"
+    "ord.v1.FlatRecordsRequest\032(.xtcp_flat_re"
+    "cord.v1.FlatRecordsResponse0\001\022p\n\017PollFla"
+    "tRecords\022+.xtcp_flat_record.v1.PollFlatR"
+    "ecordsRequest\032,.xtcp_flat_record.v1.Poll"
+    "FlatRecordsResponse(\0010\001B\253\001\n\027com.xtcp_fla"
+    "t_record.v1B\023XtcpFlatRecordProtoP\001Z\026./pk"
+    "g/xtcp_flat_record\242\002\003XXX\252\002\021XtcpFlatRecor"
+    "d.V1\312\002\021XtcpFlatRecord\\V1\342\002\035XtcpFlatRecor"
+    "d\\V1\\GPBMetadata\352\002\022XtcpFlatRecord::V1b\006p"
+    "roto3"
 };
 static ::absl::once_flag descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto = {
     false,
     false,
-    6972,
+    7005,
     descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto,
     "xtcp_flat_record/v1/xtcp_flat_record.proto",
     &descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once,
@@ -1110,7 +1113,7 @@ const ::google::protobuf::internal::ClassData* XtcpFlatRecord::GetClassData() co
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
+const ::_pbi::TcParseTable<5, 126, 0, 248, 84> XtcpFlatRecord::_table_ = {
   {
     0,  // no _has_bits_
     0, // no _extensions_
@@ -1118,7 +1121,7 @@ const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
     offsetof(decltype(_table_), field_lookup_table),
     535297535,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    125,  // num_field_entries
+    126,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     _class_data_.base(),
@@ -1149,9 +1152,9 @@ const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
     // string container_runtime = 32 [json_name = "containerRuntime"];
     {::_pbi::TcParser::FastUS2,
      {642, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_)}},
-    // uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
-    {::_pbi::TcParser::FastV32S2,
-     {1928, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_expires_)}},
+    // uint64 netns_inode = 33 [json_name = "netnsInode"];
+    {::_pbi::TcParser::FastV64S2,
+     {648, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_)}},
     // string label = 50 [json_name = "label"];
     {::_pbi::TcParser::FastUS2,
      {914, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.label_)}},
@@ -1195,21 +1198,21 @@ const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
     {::_pbi::TcParser::FastUS2,
      {506, 63, 0, PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_id_)}},
   }}, {{
-    40, 0, 5,
-    64510, 6, 49135, 8, 65279, 10, 8187, 11, 49152, 15,201, 0, 1,
-     65520, 29,
-    301, 0, 7,
-    15360, 33, 0, 45, 0, 61, 0, 77, 65534, 93, 65535, 94,
-    65511, 94,501, 0, 1,
-     65532, 96,601, 0, 1,
-     65024, 98,700, 0, 1,
-     65534, 107,801, 0, 1,
-     65520, 108,901, 0, 1,
-     65504, 112,
-    1001, 0, 1,
-    65504, 117,1101, 0, 1,
-     65532, 122,1203, 0, 1,
-     65534, 124,
+    33, 0, 11,
+    65406, 6, 63485, 8, 32735, 10, 65023, 12, 15, 13, 65504, 25,
+    65535, 30, 65535, 30, 65535, 30, 65535, 30, 61695, 30,301, 0, 7,
+     15360, 34,
+    0, 46, 0, 62, 0, 78, 65534, 94, 65535, 95, 65511, 95,
+    501, 0, 1,
+    65532, 97,601, 0, 1,
+     65024, 99,700, 0, 1,
+     65534, 108,801, 0, 1,
+     65520, 109,901, 0, 1,
+     65504, 113,1001, 0, 1,
+     65504, 118,
+    1101, 0, 1,
+    65532, 123,1203, 0, 1,
+     65534, 125,
     65535, 65535
   }}, {{
     // double timestamp_ns = 10 [json_name = "timestampNs"];
@@ -1230,6 +1233,9 @@ const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
     // string container_runtime = 32 [json_name = "containerRuntime"];
     {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_), 0, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // uint64 netns_inode = 33 [json_name = "netnsInode"];
+    {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_), 0, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt64)},
     // uint32 nsid = 40 [json_name = "nsid"];
     {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.nsid_), 0, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
@@ -1590,7 +1596,7 @@ const ::_pbi::TcParseTable<5, 125, 0, 248, 77> XtcpFlatRecord::_table_ = {
   }},
   // no aux_entries
   {{
-    "\42\0\10\10\5\14\21\0\5\3\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\33\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+    "\42\0\10\10\5\14\21\0\0\5\3\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\33\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
     "xtcp_flat_record.v1.XtcpFlatRecord"
     "hostname"
     "location"
@@ -1686,6 +1692,13 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
             ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
                 _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.container_runtime");
             target = stream->WriteStringMaybeAliased(32, _s, target);
+          }
+
+          // uint64 netns_inode = 33 [json_name = "netnsInode"];
+          if (this_._internal_netns_inode() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+                33, this_._internal_netns_inode(), target);
           }
 
           // uint32 nsid = 40 [json_name = "nsid"];
@@ -2601,6 +2614,11 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
             if (::absl::bit_cast<::uint64_t>(this_._internal_timestamp_ns()) != 0) {
               total_size += 9;
             }
+            // uint64 netns_inode = 33 [json_name = "netnsInode"];
+            if (this_._internal_netns_inode() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                              this_._internal_netns_inode());
+            }
             // uint64 record_counter = 70 [json_name = "recordCounter"];
             if (this_._internal_record_counter() != 0) {
               total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
@@ -3216,6 +3234,9 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::
   }
   if (::absl::bit_cast<::uint64_t>(from._internal_timestamp_ns()) != 0) {
     _this->_impl_.timestamp_ns_ = from._impl_.timestamp_ns_;
+  }
+  if (from._internal_netns_inode() != 0) {
+    _this->_impl_.netns_inode_ = from._impl_.netns_inode_;
   }
   if (from._internal_record_counter() != 0) {
     _this->_impl_.record_counter_ = from._impl_.record_counter_;

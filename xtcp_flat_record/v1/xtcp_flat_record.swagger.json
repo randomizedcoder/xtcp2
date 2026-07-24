@@ -93,7 +93,12 @@
         },
         "netns": {
           "type": "string",
-          "title": "network namespace"
+          "description": "network namespace — best-effort human name (bind-mount name, else a\ncontainer-derived name, else \"netns:[\u003cinode\u003e]\"). Not a stable key; use\nnetns_inode for identity."
+        },
+        "netnsInode": {
+          "type": "string",
+          "format": "uint64",
+          "description": "network-namespace inode (from /proc/\u003cpid\u003e/ns/net). The stable identity of\nthe namespace this socket lives in — unique per live namespace on the host\nfor the daemon's lifetime, including the host/default namespace (its own\nself-inode). 0 only when the inode could not be determined."
         },
         "containerId": {
           "type": "string",

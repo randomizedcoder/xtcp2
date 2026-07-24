@@ -89,7 +89,7 @@ func TestNetlinkerSyscall_loopDrivesViaSocketpair(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	nsName := "test-ns"
-	go x.netlinkerSyscall(ctx, &wg, &nsName, readFD, 7)
+	go x.netlinkerSyscall(ctx, &wg, &nsName, 0, readFD, 7)
 
 	// Give the loop a couple of iterations to chew through the payload
 	// + hit the Deserialize-err path, then cancel.
@@ -130,7 +130,7 @@ func TestNetlinkerSyscall_immediateCancelExitsCleanly(t *testing.T) {
 	nsName := "ns"
 	done := make(chan struct{})
 	go func() {
-		x.netlinkerSyscall(ctx, &wg, &nsName, readFD, 0)
+		x.netlinkerSyscall(ctx, &wg, &nsName, 0, readFD, 0)
 		close(done)
 	}()
 	select {
@@ -157,7 +157,7 @@ func TestNetlinkerSyscall_captureBranchFires(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	nsName := "ns"
-	go x.netlinkerSyscall(ctx, &wg, &nsName, readFD, 0)
+	go x.netlinkerSyscall(ctx, &wg, &nsName, 0, readFD, 0)
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 	done := make(chan struct{})

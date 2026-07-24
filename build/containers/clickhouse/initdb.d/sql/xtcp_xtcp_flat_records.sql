@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
     hostname                                                    LowCardinality(String),
 
     netns                                                       String CODEC(ZSTD),
+    netns_inode                                                 UInt64 CODEC(ZSTD),
     nsid                                                        UInt32 CODEC(LZ4),
 
     label                                                       LowCardinality(String),

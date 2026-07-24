@@ -62,7 +62,7 @@ func TestNsChurn_deleteDuringInit_doesNotLeakThread(t *testing.T) {
 
 	x := newNsExtraFixture(t)
 	x.config = &xtcp_config.XtcpConfig{Netlinkers: 0}
-	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
+	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {}
 
 	const raceInode = 4026531999
 	const racePid = 12345

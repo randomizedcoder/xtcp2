@@ -86,11 +86,11 @@ func (x *XTCP) iouringRecordWaitErr(id uint32, werr error) {
 // iouringProcessResults dispatches each CQE in results to either the
 // recv-CQE handler (which also refills the slot) or the send-CQE
 // handler.
-func (x *XTCP) iouringProcessResults(ctxRing context.Context, ring *xio.Ring, nsName *string, fd int, id uint32, results []xio.Result) {
+func (x *XTCP) iouringProcessResults(ctxRing context.Context, ring *xio.Ring, nsName *string, inode uint64, fd int, id uint32, results []xio.Result) {
 	for _, res := range results {
 		switch res.Op {
 		case xio.OpRead:
-			x.handleRecvCQE(ctxRing, ring, nsName, fd, id, res)
+			x.handleRecvCQE(ctxRing, ring, nsName, inode, fd, id, res)
 			if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
 				x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
 				if x.debugLevel > 10 {
@@ -136,7 +136,7 @@ func (x *XTCP) maybeForceGCIoUring(packets uint64) {
 // ring init, prefill, wait+drain+dispatch, refill, and GC bookkeeping.
 // Each concern moved to a helper above; the remaining shell is just
 // "init, defer cleanup, drive the loop" (gocyclo 7).
-func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, id uint32) {
+func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
 
 	defer wg.Done()
 
@@ -209,7 +209,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 			x.iouringRecordWaitErr(id, werr)
 			continue
 		}
-		x.iouringProcessResults(ctxRing, ring, nsName, fd, id, results)
+		x.iouringProcessResults(ctxRing, ring, nsName, inode, fd, id, results)
 		if _, serr := ring.Submit(); serr != nil {
 			x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
 		}
@@ -275,7 +275,7 @@ func isETimeError(err error) bool {
 
 // handleRecvCQE feeds the recv'd bytes into the deserializer and returns
 // the buffer to the pool, mirroring the syscall path's contract.
-func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string, fd int, id uint32, res xio.Result) {
+func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string, inode uint64, fd int, id uint32, res xio.Result) {
 	x.pC.WithLabelValues("NetlinkerIoUring", "recv", "count").Inc()
 	if res.Res < 0 {
 		// CQE result is -errno on error.
@@ -311,6 +311,7 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	p, errD := x.Deserialize(ctx, DeserializeArgs{
 		ns:             nsName,
 		fd:             fd,
+		inode:          inode,
 		NLPacket:       &b,
 		xtcpRecordPool: &x.xtcpRecordPool,
 		nlhPool:        &x.nlhPool,

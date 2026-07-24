@@ -50,7 +50,7 @@ func TestCreateNetlinkers_zero(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	name := "test-ns"
-	x.createNetlinkers(context.Background(), wg, &name, -1, 0)
+	x.createNetlinkers(context.Background(), wg, &name, 0, -1, 0)
 	wg.Wait() // should complete instantly since netlinkers=0
 }
 
@@ -75,7 +75,7 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	// Netlinker function pointer is required by createNetlinkers; even
 	// with netlinkers=0 the field must be set (the loop body never runs
 	// so any signature works).
-	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
+	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {}
 	x.debugLevel = 11 // hit the log branch
 	nsName := "test-ns"
 	const inode = uint64(4026531111)
@@ -100,7 +100,7 @@ func TestCreateNetlinkers_nonZero(t *testing.T) {
 	x := newNsExtraFixture(t)
 	x.debugLevel = 11 // hit log branch
 	var ran sync.WaitGroup
-	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ int, _ uint32) {
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {
 		defer wg.Done()
 		ran.Done()
 	}
@@ -108,7 +108,7 @@ func TestCreateNetlinkers_nonZero(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	name := "spawn-ns"
-	x.createNetlinkers(context.Background(), wg, &name, 9, 2)
+	x.createNetlinkers(context.Background(), wg, &name, 0, 9, 2)
 	wg.Wait()
 	ran.Wait() // both Netlinker invocations ran
 }
@@ -133,7 +133,7 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 	}
 	var ran sync.WaitGroup
 	ran.Add(2)
-	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ int, _ uint32) {
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {
 		defer wg.Done()
 		ran.Done()
 	}

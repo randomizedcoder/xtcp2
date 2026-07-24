@@ -40,7 +40,7 @@ func newReconcileTestXTCP(t *testing.T, proc string) *XTCP {
 	t.Helper()
 	x := newRunFixture(t)
 	x.config = &xtcp_config.XtcpConfig{Netlinkers: 0}
-	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ int, _ uint32) {}
+	x.Netlinker = func(_ context.Context, _ *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {}
 	x.nsScanner = nsdiscover.NewScanner(proc)
 	x.nsResolver = nsdiscover.NewResolver(proc, nil)
 	t.Cleanup(func() { _ = x.nsScanner.Close() })

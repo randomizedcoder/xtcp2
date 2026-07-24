@@ -24,6 +24,7 @@ type ParquetRow struct {
 	Location string `parquet:"location,zstd"`
 
 	Netns            string `parquet:"netns,zstd"`
+	NetnsInode       uint64 `parquet:"netns_inode,snappy"`
 	ContainerId      string `parquet:"container_id,zstd"`
 	ContainerRuntime string `parquet:"container_runtime,zstd"`
 	Nsid             uint32 `parquet:"nsid,snappy"`

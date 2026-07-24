@@ -662,6 +662,7 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		Location: r.Location,
 
 		Netns:            r.Netns,
+		NetnsInode:       r.NetnsInode,
 		ContainerId:      r.ContainerId,
 		ContainerRuntime: r.ContainerRuntime,
 		Nsid:             r.Nsid,

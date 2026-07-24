@@ -52,6 +52,9 @@ message XtcpFlatRecord {
 	// network namespace
 	string netns                                    = 30;
 
+	// network-namespace inode (stable identity, from /proc/<pid>/ns/net)
+	uint64 netns_inode                              = 33;
+
 	// network namespace id
 	// TODO xtcp does not currently get the id
 	uint32 nsid                                     = 40;

@@ -43,7 +43,7 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 	}
 
 	wg.Add(1)
-	go x.createNetlinkers(nsCtx, wg, name, fd, x.config.Netlinkers)
+	go x.createNetlinkers(nsCtx, wg, name, inode, fd, x.config.Netlinkers)
 
 	// Update the nsMap slot reserved by nsAdd (keyed by inode) with the real
 	// socketFD; register the reverse fd → inode lookup.
@@ -68,7 +68,7 @@ func (x *XTCP) incrementStoreAndGenerationCounts() {
 	x.generation.Add(1)
 }
 
-func (x *XTCP) createNetlinkers(ctx context.Context, wg *sync.WaitGroup, nsName *string, fd int, netlinkers uint32) {
+func (x *XTCP) createNetlinkers(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
 
 	x.pC.WithLabelValues("createNetlinkers", "start", "counter").Inc()
 
@@ -76,7 +76,7 @@ func (x *XTCP) createNetlinkers(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	for i := uint32(0); i < netlinkers; i++ {
 		wg.Add(1)
-		go x.Netlinker(ctx, wg, nsName, fd, i)
+		go x.Netlinker(ctx, wg, nsName, inode, fd, i)
 		if x.debugLevel > 10 {
 			log.Printf("createNetlinkers Netlinker i:%d, fd:%d", i, fd)
 		}
