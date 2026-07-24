@@ -1758,6 +1758,52 @@ in
           };
         };
 
+        # Periodic /proc-based resource snapshots for the leak-soak (and the
+        # io_uring-vs-syscall comparison). Every 30s emit xtcp2's cumulative
+        # user/kernel CPU (utime/stime from /proc/PID/stat), voluntary and
+        # nonvoluntary context switches, RSS, and thread count (/proc/PID/status)
+        # as one XTCP2_RES_SNAPSHOT json line. Diff consecutive lines host-side
+        # to see long-term trends: rss_kb is the memory-growth signal, threads
+        # the OS-thread-leak signal, CPU + ctxt round it out. Gated to the load
+        # flavors (soak / tcp-stress).
+        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak) {
+          description = "xtcp2 — periodic CPU/ctxt/RSS/thread snapshots (leak-soak)";
+          after = [ "xtcp2.service" ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          path = [
+            pkgs.procps
+            pkgs.gnugrep
+            pkgs.coreutils
+          ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = pkgs.writeShellScript "xtcp2-resource-snapshot" ''
+              set -u
+              clk=$(getconf CLK_TCK 2>/dev/null || echo 100)
+              while true; do
+                pid=$(pgrep -x xtcp2 | head -1 || true)
+                if [ -n "''${pid:-}" ] && [ -r "/proc/$pid/stat" ]; then
+                  # /proc/PID/stat: utime=14, stime=15 (clock ticks).
+                  read -r -a st < "/proc/$pid/stat"
+                  utime=''${st[13]}; stime=''${st[14]}
+                  vctx=$(grep -m1 '^voluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  nvctx=$(grep -m1 '^nonvoluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  rss=$(grep -m1 '^VmRSS' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  threads=$(grep -m1 '^Threads' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  printf 'XTCP2_RES_SNAPSHOT {"t":"%s","clk":%s,"utime":%s,"stime":%s,"vctx":%s,"nvctx":%s,"rss_kb":%s,"threads":%s}\n' \
+                    "$(date -u +%FT%TZ)" "$clk" "''${utime:-0}" "''${stime:-0}" "$vctx" "$nvctx" "$rss" "''${threads:-0}"
+                fi
+                sleep 30
+              done
+            '';
+            Restart = "on-failure";
+            RestartSec = "5s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
         systemd.services.xtcp2-tcp-stress-load = lib.mkIf isTcpStress {
           description = "xtcp2 tcp-stress — load OCI image into docker";
           after = [ "docker.service" ];
