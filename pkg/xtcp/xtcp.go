@@ -59,6 +59,13 @@ type XTCP struct {
 	nsResolver  *nsdiscover.Resolver
 	selfNsInode uint64
 
+	// reconcileMu serializes reconcile(). Two goroutines call it now — the
+	// background mapReconciler ticker and the Poller's pre-poll reconcile — and
+	// nsScanner reuses buffers + a persistent /proc fd (lseek+getdents), so it is
+	// NOT safe for concurrent use. The mutex guarantees single-threaded scanner
+	// access as well as a coherent nsMap diff.
+	reconcileMu sync.Mutex
+
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
 	xtcpRecordPool   xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]
@@ -298,9 +305,13 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	wg.Add(1)
 	go x.nsMapCountReporter(ctx, wg)
 
-	// Namespace discovery is the mapReconciler: it scans /proc each cycle and
-	// converges nsMap. There is no inotify watcher under Method B — a /proc scan
-	// re-derives ground truth (incl. anonymous namespaces) and cannot drift.
+	// Namespace discovery is reconcile(): a /proc scan re-derives ground truth
+	// (incl. anonymous namespaces) and converges nsMap — there is no inotify
+	// watcher under Method B. Two goroutines drive it: the Poller runs a pre-poll
+	// reconcile every cycle (so discovery tracks poll cadence), and this
+	// background mapReconciler ticks slowly as a floor — and is the ONLY driver
+	// when the poller is disabled (runPoller=false). reconcile is mutex-guarded,
+	// so the two never race the shared nsScanner.
 	wg.Add(1)
 	go x.mapReconciler(ctx, wg)
 
@@ -327,7 +338,8 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	x.closeDestination()
 
 	// Release the persistent /proc scanner fd. Safe here: wg.Wait above means
-	// mapReconciler (the only scanner user) has already exited.
+	// both scanner users — the background mapReconciler and the Poller's pre-poll
+	// reconcile — have already exited.
 	if x.nsScanner != nil {
 		if cerr := x.nsScanner.Close(); cerr != nil && x.debugLevel > 10 {
 			log.Printf("XTCP.Run() nsScanner close: %v", cerr)
