@@ -37,6 +37,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -134,19 +135,25 @@ type procResult struct {
 	skipped int
 }
 
-// scanProcReadlink walks procRoot, reads each numeric pid's ns/net symlink,
-// parses the "net:[<inode>]" target, and dedups by inode. The handle is
+// procMapHint pre-sizes the dedup map. Most hosts have well under this many
+// distinct network namespaces; overshoot just avoids a couple of early grows.
+const procMapHint = 64
+
+// scanProcReadlink walks procRoot, reads each numeric pid's ns/net symlink into
+// a reused buffer, parses the "net:[<inode>]" target straight from the bytes
+// (no result-string alloc), and dedups by inode. The handle is
 // /proc/<pid>/ns/net for one representative pid (the enterable fd source).
 func scanProcReadlink(procRoot string) procResult {
-	r := procResult{seen: make(map[uint64]string)}
-	forEachPid(procRoot, func(pidDir string) {
-		link := filepath.Join(pidDir, "ns", "net")
-		target, err := os.Readlink(link)
-		if err != nil {
+	r := procResult{seen: make(map[uint64]string, procMapHint)}
+	buf := make([]byte, 64) // "net:[<inode>]" is short; reused across pids
+	forEachPid(procRoot, func(name string) {
+		link := procRoot + "/" + name + "/ns/net"
+		n, err := unix.Readlink(link, buf)
+		if err != nil || n <= 0 {
 			r.skipped++
 			return
 		}
-		ino, ok := parseNetInode(target)
+		ino, ok := parseNetInode(buf[:n])
 		if !ok {
 			r.skipped++
 			return
@@ -160,12 +167,12 @@ func scanProcReadlink(procRoot string) procResult {
 
 // scanProcStat is the same walk but stats ns/net for its inode instead of
 // readlink+parse. stat follows the magic symlink to the nsfs inode, so
-// Stat_t.Ino IS the namespace identity — no string parsing.
+// Stat_t.Ino IS the namespace identity — no readlink buffer, no parsing.
 func scanProcStat(procRoot string) procResult {
-	r := procResult{seen: make(map[uint64]string)}
-	forEachPid(procRoot, func(pidDir string) {
-		link := filepath.Join(pidDir, "ns", "net")
-		var st unix.Stat_t
+	r := procResult{seen: make(map[uint64]string, procMapHint)}
+	var st unix.Stat_t
+	forEachPid(procRoot, func(name string) {
+		link := procRoot + "/" + name + "/ns/net"
 		if err := unix.Stat(link, &st); err != nil {
 			r.skipped++
 			return
@@ -177,33 +184,45 @@ func scanProcStat(procRoot string) procResult {
 	return r
 }
 
-// forEachPid calls fn(pidDir) for every numeric-named entry directly under
-// procRoot. The first-byte digit check skips /proc's non-pid entries (cpuinfo,
-// sys, self, …) without a syscall per entry.
-func forEachPid(procRoot string, fn func(pidDir string)) {
-	entries, err := os.ReadDir(procRoot)
+// forEachPid calls fn(name) for every numeric-named entry directly under
+// procRoot, reading the directory in batches. Readdirnames avoids os.ReadDir's
+// two big costs on /proc: sorting thousands of entries we don't need ordered,
+// and allocating an os.DirEntry per entry. The first-byte digit check skips the
+// non-pid entries (cpuinfo, sys, self, …) without a syscall each.
+func forEachPid(procRoot string, fn func(name string)) {
+	f, err := os.Open(procRoot)
 	if err != nil {
 		return
 	}
-	for _, e := range entries {
-		name := e.Name()
-		if len(name) == 0 || name[0] < '0' || name[0] > '9' {
-			continue
+	defer func() { _ = f.Close() }()
+	for {
+		names, err := f.Readdirnames(512)
+		for _, name := range names {
+			if len(name) == 0 || name[0] < '0' || name[0] > '9' {
+				continue
+			}
+			fn(name)
 		}
-		fn(filepath.Join(procRoot, name))
+		if err != nil {
+			return // io.EOF (done) or a real read error
+		}
 	}
 }
 
-// parseNetInode extracts the inode from a "net:[4026531840]" symlink target.
-func parseNetInode(target string) (uint64, bool) {
-	l := strings.IndexByte(target, '[')
-	r := strings.IndexByte(target, ']')
-	if l < 0 || r <= l {
+// parseNetInode extracts the inode from a "net:[4026531840]" symlink target,
+// operating on bytes so the readlink hot path needs no result-string alloc.
+func parseNetInode(target []byte) (uint64, bool) {
+	l := bytes.IndexByte(target, '[')
+	r := bytes.IndexByte(target, ']')
+	if l < 0 || r <= l+1 { // r<=l+1 also rejects empty brackets "[]"
 		return 0, false
 	}
-	ino, err := strconv.ParseUint(target[l+1:r], 10, 64)
-	if err != nil {
-		return 0, false
+	var ino uint64
+	for _, c := range target[l+1 : r] {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		ino = ino*10 + uint64(c-'0')
 	}
 	return ino, true
 }

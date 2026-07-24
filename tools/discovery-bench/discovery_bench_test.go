@@ -70,7 +70,7 @@ func TestParseNetInode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseNetInode(tt.target)
+			got, ok := parseNetInode([]byte(tt.target))
 			if ok != tt.ok || got != tt.want {
 				t.Fatalf("parseNetInode(%q) = (%d,%v), want (%d,%v)", tt.target, got, ok, tt.want, tt.ok)
 			}
