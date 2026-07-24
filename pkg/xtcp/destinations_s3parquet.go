@@ -221,7 +221,7 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 		closedCh:           make(chan struct{}),
 		workerDone:         make(chan struct{}),
 	}
-	go d.worker()
+	go d.worker(ctx)
 	return d, nil
 }
 
@@ -336,7 +336,11 @@ func (d *s3ParquetDest) Close() error {
 // row to the in-memory writer, and finalizes + uploads when the
 // accumulated byte threshold is reached. On queue close (Close was
 // called) finalizes whatever's left and exits.
-func (d *s3ParquetDest) worker() {
+//
+// ctx is the daemon run context; the upload derives from it via
+// context.WithoutCancel (see finalize) so the final shutdown flush isn't
+// aborted when the daemon ctx is cancelled.
+func (d *s3ParquetDest) worker(ctx context.Context) {
 	defer close(d.workerDone)
 
 	var (
@@ -373,7 +377,12 @@ func (d *s3ParquetDest) worker() {
 			startBuilder()
 			return
 		}
-		uploadCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		// WithoutCancel is deliberate: on shutdown the daemon ctx is
+		// cancelled, but the final partial-Parquet flush (driven by Close)
+		// must still upload. Strip cancellation while keeping the 60s
+		// deadline + any ctx values. Mirrors the poller's shutdown flush
+		// (poller.go's context.WithoutCancel).
+		uploadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
 		key := d.objectKey()
 		d.uploadWithRetry(uploadCtx, key, buf, fileRows)
 		cancel()
