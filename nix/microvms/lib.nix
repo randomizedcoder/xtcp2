@@ -513,6 +513,25 @@ rec {
         echo "  xtcp2 panics:     $final_panics"
         echo "  xtcp2 restarts:   $final_restarts"
 
+        # Resource-snapshot trend (XTCP2_RES_SNAPSHOT from the in-VM
+        # xtcp2-resource-snapshot service): rss_kb is the memory-growth signal,
+        # threads the OS-thread-leak signal. Over a churn soak both should stay
+        # bounded, not grow monotonically — a large positive delta is the leak
+        # tell. Reported (not gated): thread count legitimately fluctuates with
+        # per-ns netlinker spawn/teardown, so a human reads the trend.
+        snap_n=$(grep -cE 'XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null || true)
+        echo "  res snapshots:    $snap_n"
+        if [ "$snap_n" -ge 2 ]; then
+          first=$(grep -E 'XTCP2_RES_SNAPSHOT' "$LOG" | head -1)
+          last=$(grep -E 'XTCP2_RES_SNAPSHOT' "$LOG" | tail -1)
+          rss0=$(printf '%s' "$first" | grep -oE 'rss_kb":[0-9]+' | grep -oE '[0-9]+' | head -1)
+          rss1=$(printf '%s' "$last"  | grep -oE 'rss_kb":[0-9]+' | grep -oE '[0-9]+' | head -1)
+          thr0=$(printf '%s' "$first" | grep -oE 'threads":[0-9]+' | grep -oE '[0-9]+' | head -1)
+          thr1=$(printf '%s' "$last"  | grep -oE 'threads":[0-9]+' | grep -oE '[0-9]+' | head -1)
+          echo "  rss_kb trend:     ''${rss0:-?} -> ''${rss1:-?}  (delta $(( ''${rss1:-0} - ''${rss0:-0} )) kb)"
+          echo "  threads trend:    ''${thr0:-?} -> ''${thr1:-?}  (delta $(( ''${thr1:-0} - ''${thr0:-0} )))"
+        fi
+
         rc=0
         if [ "$final_panics" -ne 0 ]; then
           echo "FAIL: $final_panics panic(s) in transcript"
