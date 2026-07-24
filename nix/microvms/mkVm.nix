@@ -866,6 +866,16 @@ let
     "2s"
     "-timeout"
     "1s"
+    # 48h leak-soak config (recommended production shape): one quiet debug
+    # level so the 48h transcript stays small (and CPU isn't dominated by
+    # logging), the recommended -netlinkers 2 read parallelism, and a generous
+    # -maxThreads backstop. Syscall path (no -ioUring — it gave no benefit).
+    "-d"
+    "1"
+    "-netlinkers"
+    "2"
+    "-maxThreads"
+    "8000"
   ];
 
   # Phase E: xtcp2 produces directly into the in-VM redpanda. external
@@ -1753,6 +1763,60 @@ in
             RestartSec = "5s";
             # journal+console so the lines also stream out the serial
             # console — the host runner greps them from the transcript.
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Resource-usage snapshots for the io_uring-vs-syscall comparison.
+        # Every 30s emit xtcp2's cumulative kernel/user CPU (stime/utime from
+        # /proc/PID/stat), context switches (/proc/PID/status), RSS, and the
+        # netlink packet + Recvfrom-syscall counters (from :9088). The host
+        # diffs consecutive lines to get stime/packet, ctxt-switches/packet,
+        # etc. Every ~5 min it also runs a short `strace -c` sample to dump an
+        # exact syscall histogram (recvfrom in syscall mode → io_uring_enter in
+        # io_uring mode), so the syscall reduction is directly visible.
+        # Gated to the load flavors used for the comparison.
+        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak) {
+          description = "xtcp2 — periodic CPU/ctxt/syscall snapshots (io_uring A/B)";
+          after = [ "xtcp2.service" ];
+          wants = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          path = [
+            pkgs.procps
+            pkgs.curl
+            pkgs.gnugrep
+            pkgs.coreutils
+            pkgs.strace
+          ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = pkgs.writeShellScript "xtcp2-resource-snapshot" ''
+              set -u
+              clk=$(getconf CLK_TCK 2>/dev/null || echo 100)
+              i=0
+              while true; do
+                pid=$(pgrep -x xtcp2 | head -1 || true)
+                if [ -n "''${pid:-}" ] && [ -r "/proc/$pid/stat" ]; then
+                  # /proc/PID/stat: utime=14, stime=15 (clock ticks).
+                  read -r -a st < "/proc/$pid/stat"
+                  utime=''${st[13]}; stime=''${st[14]}
+                  vctx=$(grep -m1 '^voluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  nvctx=$(grep -m1 '^nonvoluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  rss=$(grep -m1 '^VmRSS' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  threads=$(grep -m1 '^Threads' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+                  # Leak panel (/proc only): rss_kb is the memory-growth signal,
+                  # threads is the OS-thread-leak signal, ctxt + CPU round it out.
+                  # Diff consecutive lines host-side to see long-term trends.
+                  printf 'XTCP2_RES_SNAPSHOT {"t":"%s","clk":%s,"utime":%s,"stime":%s,"vctx":%s,"nvctx":%s,"rss_kb":%s,"threads":%s}\n' \
+                    "$(date -u +%FT%TZ)" "$clk" "''${utime:-0}" "''${stime:-0}" "$vctx" "$nvctx" "$rss" "''${threads:-0}"
+                fi
+                i=$((i + 1))
+                sleep 30
+              done
+            '';
+            Restart = "on-failure";
+            RestartSec = "5s";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
