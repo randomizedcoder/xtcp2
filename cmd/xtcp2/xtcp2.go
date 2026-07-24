@@ -116,8 +116,16 @@ const (
 	pyroscopeSampleHzCst  uint = 100
 	pyroscopeUploadSecCst uint = 15
 
-	// Redpanda
+	// destCst is the `-dest` fallback used when the binary compiles in
+	// several library destinations (the "full" flavor) — kafka is the
+	// historical default. A binary with exactly one library destination
+	// defaults to that destination instead; one with none defaults to
+	// stdoutDestCst. See defaultDest.
 	destCst = "kafka:redpanda-0:9092"
+	// stdoutDestCst is the `-dest` default for the "min" flavor (no library
+	// destinations compiled in): an always-compiled sink so the binary boots
+	// without the operator having to pass -dest.
+	stdoutDestCst = "stdout"
 	// destCst = "udp:127.0.0.1:13000"
 	// destCst = "nsq:nsqd:4150"
 	// destCst = "nats:nats:8222"
@@ -235,6 +243,31 @@ type mainFlags struct {
 	ioUringCqeBatch     *uint
 }
 
+// defaultDestFor picks the `-dest` default from the library destinations
+// compiled into this binary: the sole one's registered default when exactly
+// one is present, stdoutDestCst when none are (the "min" flavor), and destCst
+// (kafka) when several are (the "full" flavor). lookup resolves a scheme to
+// its registered default (xtcp.LibraryDefaultDest in production; a stub in
+// tests). Kept pure so the branching is unit-testable without global state.
+func defaultDestFor(libs []string, lookup func(string) string) string {
+	switch len(libs) {
+	case 1:
+		return lookup(libs[0])
+	case 0:
+		return stdoutDestCst
+	default:
+		return destCst
+	}
+}
+
+// defaultDest is the `-dest` flag default, derived from the destinations
+// linked into this binary. init() funcs in pkg/xtcp populate the registry
+// before defineFlags runs, so the compiled-in set is known here. An explicit
+// -dest flag or DEST env var still overrides this (it is only the default).
+func defaultDest() string {
+	return defaultDestFor(xtcp.CompiledInLibrarySchemes(), xtcp.LibraryDefaultDest)
+}
+
 func defineFlags() *mainFlags {
 	f := &mainFlags{}
 	f.nltimeout = flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
@@ -262,7 +295,7 @@ func defineFlags() *mainFlags {
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
 	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
-	f.dest = flag.String("dest", destCst, "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
+	f.dest = flag.String("dest", defaultDest(), "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
 	f.destWriteFiles = flag.Uint("destWriteFiles", DestWriteFilesCst, "Write out the marshaled data to destWriteFiles number of files ( for debugging only )")
 	f.topic = flag.String("topic", topicCst, "Kafka or NSQ topic")
 	f.xtcpProtoFile = flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")

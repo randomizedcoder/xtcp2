@@ -642,4 +642,8 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 
 func init() {
 	RegisterDestination(schemeS3Parquet, newS3ParquetDest)
+	// Bare scheme: the endpoint/bucket come from -s3Endpoint/S3_ENDPOINT etc.
+	// (newS3ParquetDest falls back to config.S3Endpoint when the dest payload
+	// is empty).
+	RegisterLibraryDefaultDest(schemeS3Parquet, schemeS3Parquet+":")
 }

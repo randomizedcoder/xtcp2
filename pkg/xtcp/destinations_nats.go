@@ -107,4 +107,5 @@ func (d *natsDest) Close() error {
 
 func init() {
 	RegisterDestination("nats", newNATSDest)
+	RegisterLibraryDefaultDest("nats", "nats:nats:8222")
 }

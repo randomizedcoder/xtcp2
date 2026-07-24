@@ -66,6 +66,14 @@ var knownSchemes = []string{
 var (
 	destRegistryMu sync.RWMutex
 	destRegistry   = map[string]DestinationFactory{}
+
+	// libraryDefaultDest maps a library (build-tag-gated) destination scheme
+	// to the canonical `-dest` value the CLI should default to. Populated
+	// from the same init() that calls RegisterDestination. Stdlib
+	// destinations (null/stdout/file/tcp/...) register none, so registering a
+	// default is what marks a scheme as a "library" destination for
+	// auto-defaulting. Guarded by destRegistryMu.
+	libraryDefaultDest = map[string]string{}
 )
 
 // RegisterDestination wires a factory into the runtime dispatch map. Called
@@ -84,6 +92,40 @@ func RegisterDestination(scheme string, f DestinationFactory) {
 		panic(fmt.Sprintf("xtcp: RegisterDestination called twice for scheme %q — duplicate //go:build tag?", scheme))
 	}
 	destRegistry[scheme] = f
+}
+
+// RegisterLibraryDefaultDest records the canonical `-dest` value for a
+// library (build-tag-gated) destination. The CLI uses it as the default
+// `-dest` when exactly one library destination is compiled into the binary,
+// so a single-destination build (e.g. s3parquet-only) works without the
+// operator overriding the default. Called from the same init() as
+// RegisterDestination; stdlib destinations register none and thus never
+// participate in auto-defaulting.
+func RegisterLibraryDefaultDest(scheme, dest string) {
+	destRegistryMu.Lock()
+	defer destRegistryMu.Unlock()
+	libraryDefaultDest[scheme] = dest
+}
+
+// CompiledInLibrarySchemes returns the sorted list of library-destination
+// schemes linked into this binary (those that registered a default dest).
+func CompiledInLibrarySchemes() []string {
+	destRegistryMu.RLock()
+	defer destRegistryMu.RUnlock()
+	out := make([]string, 0, len(libraryDefaultDest))
+	for s := range libraryDefaultDest {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// LibraryDefaultDest returns the registered default `-dest` for a library
+// scheme, or "" if the scheme registered none / is not compiled in.
+func LibraryDefaultDest(scheme string) string {
+	destRegistryMu.RLock()
+	defer destRegistryMu.RUnlock()
+	return libraryDefaultDest[scheme]
 }
 
 // IsKnownScheme reports whether scheme was ever a valid xtcp2 destination
