@@ -61,6 +61,7 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Performance optimizations](performance-optimizations.md) — the profile-driven optimization roadmap (candidate improvements, effort, and trade-offs).
 - [Protobuf formats](protobuf-formats.md) — the config/data/ClickHouse schemas, generated code, and how to regenerate.
 - [Parquet format](parquet-format.md) — the S3/Parquet layout and schema, for data teams consuming the export.
+- [Fleet jitter & upload backoff](design-jitter-and-backoff.md) — thundering-herd avoidance: poll jitter, jittered S3 flush (size + time), and jittered proportional upload retry, for fleet-scale (5–10k machine) deployments.
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
