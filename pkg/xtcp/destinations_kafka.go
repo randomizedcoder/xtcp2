@@ -344,4 +344,5 @@ func resolveKafkaCompression(name string) ([]kgo.CompressionCodec, error) {
 
 func init() {
 	RegisterDestination("kafka", newKafkaDest)
+	RegisterLibraryDefaultDest("kafka", "kafka:redpanda-0:9092")
 }

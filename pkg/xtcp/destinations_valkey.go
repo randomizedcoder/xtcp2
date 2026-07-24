@@ -120,4 +120,5 @@ func (d *valkeyDest) Close() error {
 
 func init() {
 	RegisterDestination("valkey", newValKeyDest)
+	RegisterLibraryDefaultDest("valkey", "valkey:valkey:6379")
 }

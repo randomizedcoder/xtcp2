@@ -973,3 +973,27 @@ func TestPrepareConfig_runPath(t *testing.T) {
 		t.Error("non-short-circuit path should produce a non-nil config")
 	}
 }
+
+func TestDefaultDestFor(t *testing.T) {
+	// lookup stub returns a recognizable default per scheme so we can assert
+	// the single-library branch resolves through it.
+	lookup := func(scheme string) string { return scheme + ":resolved" }
+
+	tests := []struct {
+		name string
+		libs []string
+		want string
+	}{
+		{"no library dests → stdout (min flavor)", nil, stdoutDestCst},
+		{"empty slice → stdout", []string{}, stdoutDestCst},
+		{"single library dest → its default", []string{"s3parquet"}, "s3parquet:resolved"},
+		{"multiple library dests → kafka (full flavor)", []string{"kafka", "nats"}, destCst},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := defaultDestFor(tt.libs, lookup); got != tt.want {
+				t.Errorf("defaultDestFor(%v) = %q, want %q", tt.libs, got, tt.want)
+			}
+		})
+	}
+}

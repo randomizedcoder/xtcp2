@@ -80,4 +80,5 @@ func (d *nsqDest) Close() error {
 
 func init() {
 	RegisterDestination("nsq", newNSQDest)
+	RegisterLibraryDefaultDest("nsq", "nsq:nsqd:4150")
 }
