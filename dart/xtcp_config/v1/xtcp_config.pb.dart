@@ -381,6 +381,12 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? ioUringRecvBatchSize,
     $core.int? ioUringCqeBatchSize,
     $core.String? csvColumns,
+    $core.int? pollJitterPct,
+    $2.Duration? s3FlushInterval,
+    $core.int? s3FlushJitterPct,
+    $core.int? s3FlushThresholdJitterPct,
+    $core.int? s3UploadMaxAttempts,
+    $2.Duration? s3UploadBackoffCap,
   }) {
     final $result = create();
     if (nlTimeoutMilliseconds != null) {
@@ -527,6 +533,24 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (csvColumns != null) {
       $result.csvColumns = csvColumns;
     }
+    if (pollJitterPct != null) {
+      $result.pollJitterPct = pollJitterPct;
+    }
+    if (s3FlushInterval != null) {
+      $result.s3FlushInterval = s3FlushInterval;
+    }
+    if (s3FlushJitterPct != null) {
+      $result.s3FlushJitterPct = s3FlushJitterPct;
+    }
+    if (s3FlushThresholdJitterPct != null) {
+      $result.s3FlushThresholdJitterPct = s3FlushThresholdJitterPct;
+    }
+    if (s3UploadMaxAttempts != null) {
+      $result.s3UploadMaxAttempts = s3UploadMaxAttempts;
+    }
+    if (s3UploadBackoffCap != null) {
+      $result.s3UploadBackoffCap = s3UploadBackoffCap;
+    }
     return $result;
   }
   XtcpConfig._() : super();
@@ -582,6 +606,12 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..a<$core.int>(211, _omitFieldNames ? '' : 'ioUringRecvBatchSize', $pb.PbFieldType.OU3)
     ..a<$core.int>(212, _omitFieldNames ? '' : 'ioUringCqeBatchSize', $pb.PbFieldType.OU3)
     ..aOS(220, _omitFieldNames ? '' : 'csvColumns')
+    ..a<$core.int>(221, _omitFieldNames ? '' : 'pollJitterPct', $pb.PbFieldType.OU3)
+    ..aOM<$2.Duration>(222, _omitFieldNames ? '' : 's3FlushInterval', subBuilder: $2.Duration.create)
+    ..a<$core.int>(223, _omitFieldNames ? '' : 's3FlushJitterPct', $pb.PbFieldType.OU3)
+    ..a<$core.int>(224, _omitFieldNames ? '' : 's3FlushThresholdJitterPct', $pb.PbFieldType.OU3)
+    ..a<$core.int>(225, _omitFieldNames ? '' : 's3UploadMaxAttempts', $pb.PbFieldType.OU3)
+    ..aOM<$2.Duration>(226, _omitFieldNames ? '' : 's3UploadBackoffCap', subBuilder: $2.Duration.create)
     ..hasRequiredFields = false
   ;
 
@@ -1204,6 +1234,82 @@ class XtcpConfig extends $pb.GeneratedMessage {
   $core.bool hasCsvColumns() => $_has(47);
   @$pb.TagNumber(220)
   void clearCsvColumns() => clearField(220);
+
+  /// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
+  /// both the startup delay before the first poll and each subsequent tick.
+  /// 0 disables (immediate first poll, fixed interval). Default 20.
+  @$pb.TagNumber(221)
+  $core.int get pollJitterPct => $_getIZ(48);
+  @$pb.TagNumber(221)
+  set pollJitterPct($core.int v) { $_setUnsignedInt32(48, v); }
+  @$pb.TagNumber(221)
+  $core.bool hasPollJitterPct() => $_has(48);
+  @$pb.TagNumber(221)
+  void clearPollJitterPct() => clearField(221);
+
+  /// s3parquet staleness ceiling: force-flush the in-memory Parquet object
+  /// after this long even if it hasn't reached the byte cap, bounding upload
+  /// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
+  @$pb.TagNumber(222)
+  $2.Duration get s3FlushInterval => $_getN(49);
+  @$pb.TagNumber(222)
+  set s3FlushInterval($2.Duration v) { setField(222, v); }
+  @$pb.TagNumber(222)
+  $core.bool hasS3FlushInterval() => $_has(49);
+  @$pb.TagNumber(222)
+  void clearS3FlushInterval() => clearField(222);
+  @$pb.TagNumber(222)
+  $2.Duration ensureS3FlushInterval() => $_ensure(49);
+
+  /// Maximum jitter as a percent of s3_flush_interval, applied to the first
+  /// timed flush and each interval so the fleet doesn't ceiling-flush in
+  /// lockstep. 0 disables. Default 20.
+  @$pb.TagNumber(223)
+  $core.int get s3FlushJitterPct => $_getIZ(50);
+  @$pb.TagNumber(223)
+  set s3FlushJitterPct($core.int v) { $_setUnsignedInt32(50, v); }
+  @$pb.TagNumber(223)
+  $core.bool hasS3FlushJitterPct() => $_has(50);
+  @$pb.TagNumber(223)
+  void clearS3FlushJitterPct() => clearField(223);
+
+  /// Per-object downward jitter as a percent of the s3parquet byte cap: each
+  /// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
+  /// size-cap upload path even under uniform load. Downward-only, so an
+  /// object never exceeds the in-memory byte bound. 0 disables. Default 20.
+  @$pb.TagNumber(224)
+  $core.int get s3FlushThresholdJitterPct => $_getIZ(51);
+  @$pb.TagNumber(224)
+  set s3FlushThresholdJitterPct($core.int v) { $_setUnsignedInt32(51, v); }
+  @$pb.TagNumber(224)
+  $core.bool hasS3FlushThresholdJitterPct() => $_has(51);
+  @$pb.TagNumber(224)
+  void clearS3FlushThresholdJitterPct() => clearField(224);
+
+  /// Maximum S3 upload attempts (original + retries) before dropping the
+  /// object. Retries use full-jitter exponential backoff. Default 10.
+  @$pb.TagNumber(225)
+  $core.int get s3UploadMaxAttempts => $_getIZ(52);
+  @$pb.TagNumber(225)
+  set s3UploadMaxAttempts($core.int v) { $_setUnsignedInt32(52, v); }
+  @$pb.TagNumber(225)
+  $core.bool hasS3UploadMaxAttempts() => $_has(52);
+  @$pb.TagNumber(225)
+  void clearS3UploadMaxAttempts() => clearField(225);
+
+  /// Cap on a single upload retry's backoff window (full jitter draws in
+  /// [0, window], window grows exponentially up to this cap). 0 = derive as
+  /// clamp(poll_frequency/10, 1s, 1h).
+  @$pb.TagNumber(226)
+  $2.Duration get s3UploadBackoffCap => $_getN(53);
+  @$pb.TagNumber(226)
+  set s3UploadBackoffCap($2.Duration v) { setField(226, v); }
+  @$pb.TagNumber(226)
+  $core.bool hasS3UploadBackoffCap() => $_has(53);
+  @$pb.TagNumber(226)
+  void clearS3UploadBackoffCap() => clearField(226);
+  @$pb.TagNumber(226)
+  $2.Duration ensureS3UploadBackoffCap() => $_ensure(53);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

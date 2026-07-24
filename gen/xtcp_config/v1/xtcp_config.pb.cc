@@ -181,6 +181,8 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         poll_timeout_{nullptr},
         kafka_produce_timeout_{nullptr},
         enabled_deserializers_{nullptr},
+        s3_flush_interval_{nullptr},
+        s3_upload_backoff_cap_{nullptr},
         nl_timeout_milliseconds_{::uint64_t{0u}},
         max_loops_{::uint64_t{0u}},
         netlinkers_{0u},
@@ -204,7 +206,11 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         ipv6_hop_limit_{0u},
         grpc_port_{0u},
         io_uring_recv_batch_size_{0u},
-        io_uring_cqe_batch_size_{0u} {}
+        io_uring_cqe_batch_size_{0u},
+        poll_jitter_pct_{0u},
+        s3_flush_jitter_pct_{0u},
+        s3_flush_threshold_jitter_pct_{0u},
+        s3_upload_max_attempts_{0u} {}
 
 template <typename>
 PROTOBUF_CONSTEXPR XtcpConfig::XtcpConfig(::_pbi::ConstantInitialized)
@@ -450,6 +456,12 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_recv_batch_size_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.io_uring_cqe_batch_size_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.csv_columns_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_jitter_pct_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_flush_interval_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_flush_jitter_pct_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_flush_threshold_jitter_pct_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_upload_max_attempts_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.s3_upload_backoff_cap_),
         ~0u,
         0,
         1,
@@ -498,6 +510,12 @@ const ::uint32_t
         ~0u,
         ~0u,
         ~0u,
+        ~0u,
+        4,
+        ~0u,
+        ~0u,
+        ~0u,
+        5,
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _impl_._has_bits_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _internal_metadata_),
         ~0u,  // no _extensions_
@@ -529,9 +547,9 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 116, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {164, 174, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {176, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, 122, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {176, 186, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {188, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -564,7 +582,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\270\025\n\nXtcpConfi"
+    "nfig.v1.XtcpConfigR\006config\"\355\030\n\nXtcpConfi"
     "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
     "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
     "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
@@ -630,27 +648,37 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "\001\000R\024ioUringRecvBatchSize\022D\n\027io_uring_cqe"
     "_batch_size\030\324\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUri"
     "ngCqeBatchSize\022(\n\013csv_columns\030\334\001 \001(\tB\006\272H"
-    "\003\310\001\000R\ncsvColumns:s\272Hp\032n\n\017XtcpConfig.poll"
-    "\0222Poll timeout must be less than poll po"
-    "ll_frequency\032\'this.poll_frequency > this"
-    ".poll_timeout\"\237\001\n\024EnabledDeserializers\022K"
-    "\n\007enabled\030\001 \003(\01321.xtcp_config.v1.Enabled"
-    "Deserializers.EnabledEntryR\007enabled\032:\n\014E"
-    "nabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002"
-    " \001(\010R\005value:\0028\0012\341\002\n\rConfigService\022]\n\003Get"
-    "\022\032.xtcp_config.v1.GetRequest\032\033.xtcp_conf"
-    "ig.v1.GetResponse\"\035\202\323\344\223\002\027\032\022/ConfigServic"
-    "e/Get:\001*\022]\n\003Set\022\032.xtcp_config.v1.SetRequ"
-    "est\032\033.xtcp_config.v1.SetResponse\"\035\202\323\344\223\002\027"
-    "\032\022/ConfigService/Set:\001*\022\221\001\n\020SetPollFrequ"
-    "ency\022\'.xtcp_config.v1.SetPollFrequencyRe"
-    "quest\032(.xtcp_config.v1.SetPollFrequencyR"
-    "esponse\"*\202\323\344\223\002$\032\037/ConfigService/SetPollF"
-    "requency:\001*B\215\001\n\022com.xtcp_config.v1B\017Xtcp"
-    "ConfigProtoP\001Z\021./pkg/xtcp_config\242\002\003XXX\252\002"
-    "\rXtcpConfig.V1\312\002\rXtcpConfig\\V1\342\002\031XtcpCon"
-    "fig\\V1\\GPBMetadata\352\002\016XtcpConfig::V1b\006pro"
-    "to3"
+    "\003\310\001\000R\ncsvColumns\0223\n\017poll_jitter_pct\030\335\001 \001"
+    "(\rB\n\272H\007*\002\030d\310\001\000R\rpollJitterPct\022S\n\021s3_flus"
+    "h_interval\030\336\001 \001(\0132\031.google.protobuf.Dura"
+    "tionB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\022:\n\023s3"
+    "_flush_jitter_pct\030\337\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\020s3"
+    "FlushJitterPct\022M\n\035s3_flush_threshold_jit"
+    "ter_pct\030\340\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThres"
+    "holdJitterPct\022B\n\026s3_upload_max_attempts\030"
+    "\341\001 \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttempt"
+    "s\022Z\n\025s3_upload_backoff_cap\030\342\001 \001(\0132\031.goog"
+    "le.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3Upl"
+    "oadBackoffCap:s\272Hp\032n\n\017XtcpConfig.poll\0222P"
+    "oll timeout must be less than poll poll_"
+    "frequency\032\'this.poll_frequency > this.po"
+    "ll_timeout\"\237\001\n\024EnabledDeserializers\022K\n\007e"
+    "nabled\030\001 \003(\01321.xtcp_config.v1.EnabledDes"
+    "erializers.EnabledEntryR\007enabled\032:\n\014Enab"
+    "ledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001("
+    "\010R\005value:\0028\0012\341\002\n\rConfigService\022]\n\003Get\022\032."
+    "xtcp_config.v1.GetRequest\032\033.xtcp_config."
+    "v1.GetResponse\"\035\202\323\344\223\002\027\032\022/ConfigService/G"
+    "et:\001*\022]\n\003Set\022\032.xtcp_config.v1.SetRequest"
+    "\032\033.xtcp_config.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/"
+    "ConfigService/Set:\001*\022\221\001\n\020SetPollFrequenc"
+    "y\022\'.xtcp_config.v1.SetPollFrequencyReque"
+    "st\032(.xtcp_config.v1.SetPollFrequencyResp"
+    "onse\"*\202\323\344\223\002$\032\037/ConfigService/SetPollFreq"
+    "uency:\001*B\215\001\n\022com.xtcp_config.v1B\017XtcpCon"
+    "figProtoP\001Z\021./pkg/xtcp_config\242\002\003XXX\252\002\rXt"
+    "cpConfig.V1\312\002\rXtcpConfig\\V1\342\002\031XtcpConfig"
+    "\\V1\\GPBMetadata\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -662,7 +690,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    4163,
+    4600,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -2118,6 +2146,16 @@ void XtcpConfig::clear_kafka_produce_timeout() {
   if (_impl_.kafka_produce_timeout_ != nullptr) _impl_.kafka_produce_timeout_->Clear();
   _impl_._has_bits_[0] &= ~0x00000004u;
 }
+void XtcpConfig::clear_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_flush_interval_ != nullptr) _impl_.s3_flush_interval_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000010u;
+}
+void XtcpConfig::clear_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_upload_backoff_cap_ != nullptr) _impl_.s3_upload_backoff_cap_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000020u;
+}
 XtcpConfig::XtcpConfig(::google::protobuf::Arena* arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
     : ::google::protobuf::Message(arena, _class_data_.base()) {
@@ -2179,13 +2217,19 @@ XtcpConfig::XtcpConfig(
   _impl_.enabled_deserializers_ = (cached_has_bits & 0x00000008u) ? ::google::protobuf::Message::CopyConstruct<::xtcp_config::v1::EnabledDeserializers>(
                               arena, *from._impl_.enabled_deserializers_)
                         : nullptr;
+  _impl_.s3_flush_interval_ = (cached_has_bits & 0x00000010u) ? ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(
+                              arena, *from._impl_.s3_flush_interval_)
+                        : nullptr;
+  _impl_.s3_upload_backoff_cap_ = (cached_has_bits & 0x00000020u) ? ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(
+                              arena, *from._impl_.s3_upload_backoff_cap_)
+                        : nullptr;
   ::memcpy(reinterpret_cast<char *>(&_impl_) +
                offsetof(Impl_, nl_timeout_milliseconds_),
            reinterpret_cast<const char *>(&from._impl_) +
                offsetof(Impl_, nl_timeout_milliseconds_),
-           offsetof(Impl_, io_uring_cqe_batch_size_) -
+           offsetof(Impl_, s3_upload_max_attempts_) -
                offsetof(Impl_, nl_timeout_milliseconds_) +
-               sizeof(Impl_::io_uring_cqe_batch_size_));
+               sizeof(Impl_::s3_upload_max_attempts_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.XtcpConfig)
 }
@@ -2219,9 +2263,9 @@ inline void XtcpConfig::SharedCtor(::_pb::Arena* arena) {
   ::memset(reinterpret_cast<char *>(&_impl_) +
                offsetof(Impl_, poll_frequency_),
            0,
-           offsetof(Impl_, io_uring_cqe_batch_size_) -
+           offsetof(Impl_, s3_upload_max_attempts_) -
                offsetof(Impl_, poll_frequency_) +
-               sizeof(Impl_::io_uring_cqe_batch_size_));
+               sizeof(Impl_::s3_upload_max_attempts_));
 }
 XtcpConfig::~XtcpConfig() {
   // @@protoc_insertion_point(destructor:xtcp_config.v1.XtcpConfig)
@@ -2255,6 +2299,8 @@ inline void XtcpConfig::SharedDtor(MessageLite& self) {
   delete this_._impl_.poll_timeout_;
   delete this_._impl_.kafka_produce_timeout_;
   delete this_._impl_.enabled_deserializers_;
+  delete this_._impl_.s3_flush_interval_;
+  delete this_._impl_.s3_upload_backoff_cap_;
   this_._impl_.~Impl_();
 }
 
@@ -2294,16 +2340,16 @@ const ::google::protobuf::internal::ClassData* XtcpConfig::GetClassData() const 
   return _class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 48, 4, 291, 29> XtcpConfig::_table_ = {
+const ::_pbi::TcParseTable<5, 54, 6, 291, 29> XtcpConfig::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_._has_bits_),
     0, // no _extensions_
-    220, 248,  // max_field_number, fast_idx_mask
+    226, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
     3757571583,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    48,  // num_field_entries
-    4,  // num_aux_entries
+    54,  // num_field_entries
+    6,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     _class_data_.base(),
     nullptr,  // post_loop_handler
@@ -2381,7 +2427,7 @@ const ::_pbi::TcParseTable<5, 48, 4, 291, 29> XtcpConfig::_table_ = {
   }}, {{
     40, 0, 12,
     62462, 3, 49135, 6, 65279, 8, 61435, 9, 65471, 11, 2050, 12,
-    48480, 26, 65279, 34, 4091, 35, 65468, 40, 58366, 43, 65519, 47,
+    48480, 26, 65279, 34, 4091, 35, 65468, 40, 58366, 43, 63503, 47,
     65535, 65535
   }}, {{
     // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2528,11 +2574,31 @@ const ::_pbi::TcParseTable<5, 48, 4, 291, 29> XtcpConfig::_table_ = {
     // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
     {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.csv_columns_), -1, 0,
     (0 | ::_fl::kFcSingular | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.poll_jitter_pct_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_interval_), _Internal::kHasBitsOffset + 4, 4,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+    // uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_jitter_pct_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_threshold_jitter_pct_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_max_attempts_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_backoff_cap_), _Internal::kHasBitsOffset + 5, 5,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
   }}, {{
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
     {::_pbi::TcParser::GetTable<::xtcp_config::v1::EnabledDeserializers>()},
+    {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+    {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
   }}, {{
     "\31\0\0\0\0\0\0\0\0\0\0\14\0\12\0\0\21\13\11\11\15\15\4\0\11\0\0\15\22\0\0\5\17\20\0\0\5\3\10\10\0\0\0\0\0\0\0\0\13\0\0\0\0\0\0\0"
     "xtcp_config.v1.XtcpConfig"
@@ -2587,7 +2653,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   _impl_.hostname_.ClearToEmpty();
   _impl_.csv_columns_.ClearToEmpty();
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000000fu) {
+  if (cached_has_bits & 0x0000003fu) {
     if (cached_has_bits & 0x00000001u) {
       ABSL_DCHECK(_impl_.poll_frequency_ != nullptr);
       _impl_.poll_frequency_->Clear();
@@ -2604,10 +2670,18 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
       ABSL_DCHECK(_impl_.enabled_deserializers_ != nullptr);
       _impl_.enabled_deserializers_->Clear();
     }
+    if (cached_has_bits & 0x00000010u) {
+      ABSL_DCHECK(_impl_.s3_flush_interval_ != nullptr);
+      _impl_.s3_flush_interval_->Clear();
+    }
+    if (cached_has_bits & 0x00000020u) {
+      ABSL_DCHECK(_impl_.s3_upload_backoff_cap_ != nullptr);
+      _impl_.s3_upload_backoff_cap_->Clear();
+    }
   }
   ::memset(&_impl_.nl_timeout_milliseconds_, 0, static_cast<::size_t>(
-      reinterpret_cast<char*>(&_impl_.io_uring_cqe_batch_size_) -
-      reinterpret_cast<char*>(&_impl_.nl_timeout_milliseconds_)) + sizeof(_impl_.io_uring_cqe_batch_size_));
+      reinterpret_cast<char*>(&_impl_.s3_upload_max_attempts_) -
+      reinterpret_cast<char*>(&_impl_.nl_timeout_milliseconds_)) + sizeof(_impl_.s3_upload_max_attempts_));
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -2984,6 +3058,48 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             target = stream->WriteStringMaybeAliased(220, _s, target);
           }
 
+          // uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
+          if (this_._internal_poll_jitter_pct() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                221, this_._internal_poll_jitter_pct(), target);
+          }
+
+          // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+          if (cached_has_bits & 0x00000010u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                222, *this_._impl_.s3_flush_interval_, this_._impl_.s3_flush_interval_->GetCachedSize(), target,
+                stream);
+          }
+
+          // uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+          if (this_._internal_s3_flush_jitter_pct() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                223, this_._internal_s3_flush_jitter_pct(), target);
+          }
+
+          // uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+          if (this_._internal_s3_flush_threshold_jitter_pct() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                224, this_._internal_s3_flush_threshold_jitter_pct(), target);
+          }
+
+          // uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+          if (this_._internal_s3_upload_max_attempts() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                225, this_._internal_s3_upload_max_attempts(), target);
+          }
+
+          // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+          if (cached_has_bits & 0x00000020u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                226, *this_._impl_.s3_upload_backoff_cap_, this_._impl_.s3_upload_backoff_cap_->GetCachedSize(), target,
+                stream);
+          }
+
           if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
             target =
                 ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -3111,7 +3227,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             }
           }
           cached_has_bits = this_._impl_._has_bits_[0];
-          if (cached_has_bits & 0x0000000fu) {
+          if (cached_has_bits & 0x0000003fu) {
             // .google.protobuf.Duration poll_frequency = 20 [json_name = "pollFrequency", (.buf.validate.field) = {
             if (cached_has_bits & 0x00000001u) {
               total_size += 2 +
@@ -3131,6 +3247,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
             if (cached_has_bits & 0x00000008u) {
               total_size += 2 +
                             ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.enabled_deserializers_);
+            }
+            // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+            if (cached_has_bits & 0x00000010u) {
+              total_size += 2 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.s3_flush_interval_);
+            }
+            // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+            if (cached_has_bits & 0x00000020u) {
+              total_size += 2 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.s3_upload_backoff_cap_);
             }
           }
            {
@@ -3251,6 +3377,26 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
               total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                               this_._internal_io_uring_cqe_batch_size());
             }
+            // uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
+            if (this_._internal_poll_jitter_pct() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_poll_jitter_pct());
+            }
+            // uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+            if (this_._internal_s3_flush_jitter_pct() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_s3_flush_jitter_pct());
+            }
+            // uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+            if (this_._internal_s3_flush_threshold_jitter_pct() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_s3_flush_threshold_jitter_pct());
+            }
+            // uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+            if (this_._internal_s3_upload_max_attempts() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_s3_upload_max_attempts());
+            }
           }
           return this_.MaybeComputeUnknownFieldsSize(total_size,
                                                      &this_._impl_._cached_size_);
@@ -3326,7 +3472,7 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
     _this->_internal_set_csv_columns(from._internal_csv_columns());
   }
   cached_has_bits = from._impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000000fu) {
+  if (cached_has_bits & 0x0000003fu) {
     if (cached_has_bits & 0x00000001u) {
       ABSL_DCHECK(from._impl_.poll_frequency_ != nullptr);
       if (_this->_impl_.poll_frequency_ == nullptr) {
@@ -3361,6 +3507,24 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
             ::google::protobuf::Message::CopyConstruct<::xtcp_config::v1::EnabledDeserializers>(arena, *from._impl_.enabled_deserializers_);
       } else {
         _this->_impl_.enabled_deserializers_->MergeFrom(*from._impl_.enabled_deserializers_);
+      }
+    }
+    if (cached_has_bits & 0x00000010u) {
+      ABSL_DCHECK(from._impl_.s3_flush_interval_ != nullptr);
+      if (_this->_impl_.s3_flush_interval_ == nullptr) {
+        _this->_impl_.s3_flush_interval_ =
+            ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(arena, *from._impl_.s3_flush_interval_);
+      } else {
+        _this->_impl_.s3_flush_interval_->MergeFrom(*from._impl_.s3_flush_interval_);
+      }
+    }
+    if (cached_has_bits & 0x00000020u) {
+      ABSL_DCHECK(from._impl_.s3_upload_backoff_cap_ != nullptr);
+      if (_this->_impl_.s3_upload_backoff_cap_ == nullptr) {
+        _this->_impl_.s3_upload_backoff_cap_ =
+            ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(arena, *from._impl_.s3_upload_backoff_cap_);
+      } else {
+        _this->_impl_.s3_upload_backoff_cap_->MergeFrom(*from._impl_.s3_upload_backoff_cap_);
       }
     }
   }
@@ -3436,6 +3600,18 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::goog
   if (from._internal_io_uring_cqe_batch_size() != 0) {
     _this->_impl_.io_uring_cqe_batch_size_ = from._impl_.io_uring_cqe_batch_size_;
   }
+  if (from._internal_poll_jitter_pct() != 0) {
+    _this->_impl_.poll_jitter_pct_ = from._impl_.poll_jitter_pct_;
+  }
+  if (from._internal_s3_flush_jitter_pct() != 0) {
+    _this->_impl_.s3_flush_jitter_pct_ = from._impl_.s3_flush_jitter_pct_;
+  }
+  if (from._internal_s3_flush_threshold_jitter_pct() != 0) {
+    _this->_impl_.s3_flush_threshold_jitter_pct_ = from._impl_.s3_flush_threshold_jitter_pct_;
+  }
+  if (from._internal_s3_upload_max_attempts() != 0) {
+    _this->_impl_.s3_upload_max_attempts_ = from._impl_.s3_upload_max_attempts_;
+  }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
 }
@@ -3475,8 +3651,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hostname_, &other->_impl_.hostname_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.csv_columns_, &other->_impl_.csv_columns_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.io_uring_cqe_batch_size_)
-      + sizeof(XtcpConfig::_impl_.io_uring_cqe_batch_size_)
+      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_max_attempts_)
+      + sizeof(XtcpConfig::_impl_.s3_upload_max_attempts_)
       - PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.poll_frequency_)>(
           reinterpret_cast<char*>(&_impl_.poll_frequency_),
           reinterpret_cast<char*>(&other->_impl_.poll_frequency_));

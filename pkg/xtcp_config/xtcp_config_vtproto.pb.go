@@ -312,6 +312,58 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.S3UploadBackoffCap != nil {
+		size, err := (*durationpb.Duration)(m.S3UploadBackoffCap).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0x92
+	}
+	if m.S3UploadMaxAttempts != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3UploadMaxAttempts))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0x88
+	}
+	if m.S3FlushThresholdJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushThresholdJitterPct))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0x80
+	}
+	if m.S3FlushJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushJitterPct))
+		i--
+		dAtA[i] = 0xd
+		i--
+		dAtA[i] = 0xf8
+	}
+	if m.S3FlushInterval != nil {
+		size, err := (*durationpb.Duration)(m.S3FlushInterval).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xd
+		i--
+		dAtA[i] = 0xf2
+	}
+	if m.PollJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PollJitterPct))
+		i--
+		dAtA[i] = 0xd
+		i--
+		dAtA[i] = 0xe8
+	}
 	if len(m.CsvColumns) > 0 {
 		i -= len(m.CsvColumns)
 		copy(dAtA[i:], m.CsvColumns)
@@ -1035,6 +1087,26 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	l = len(m.CsvColumns)
 	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.PollJitterPct != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.PollJitterPct))
+	}
+	if m.S3FlushInterval != nil {
+		l = (*durationpb.Duration)(m.S3FlushInterval).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.S3FlushJitterPct != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3FlushJitterPct))
+	}
+	if m.S3FlushThresholdJitterPct != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3FlushThresholdJitterPct))
+	}
+	if m.S3UploadMaxAttempts != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3UploadMaxAttempts))
+	}
+	if m.S3UploadBackoffCap != nil {
+		l = (*durationpb.Duration)(m.S3UploadBackoffCap).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -2852,6 +2924,154 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.CsvColumns = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 221:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PollJitterPct", wireType)
+			}
+			m.PollJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PollJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 222:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushInterval", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.S3FlushInterval == nil {
+				m.S3FlushInterval = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.S3FlushInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 223:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushJitterPct", wireType)
+			}
+			m.S3FlushJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3FlushJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 224:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushThresholdJitterPct", wireType)
+			}
+			m.S3FlushThresholdJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3FlushThresholdJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 225:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadMaxAttempts", wireType)
+			}
+			m.S3UploadMaxAttempts = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3UploadMaxAttempts |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 226:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadBackoffCap", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.S3UploadBackoffCap == nil {
+				m.S3UploadBackoffCap = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.S3UploadBackoffCap).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

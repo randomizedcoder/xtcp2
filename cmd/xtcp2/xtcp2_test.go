@@ -18,6 +18,9 @@ import (
 	"testing"
 	"time"
 
+	protovalidate "github.com/bufbuild/protovalidate-go"
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
@@ -177,7 +180,11 @@ func TestEnvOverridePolling(t *testing.T) {
 	t.Setenv("POLL_TIMEOUT", "2s")
 	t.Setenv("MAX_LOOPS", "100")
 	t.Setenv("MODULUS", "7")
+	t.Setenv("POLL_JITTER_PCT", "35")
 	envOverridePolling(c, 0)
+	if c.PollJitterPct != 35 {
+		t.Errorf("PollJitterPct = %d, want 35", c.PollJitterPct)
+	}
 	if c.NlTimeoutMilliseconds != 250 {
 		t.Errorf("NlTimeoutMilliseconds = %d, want 250", c.NlTimeoutMilliseconds)
 	}
@@ -234,10 +241,27 @@ func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	t.Setenv("MARSHAL", "protoJson")
 	t.Setenv("DEST", "null")
 	t.Setenv("DEST_WRITE_FILES", "3")
+	t.Setenv("S3_FLUSH_INTERVAL", "45m")
+	t.Setenv("S3_FLUSH_JITTER_PCT", "25")
+	t.Setenv("S3_FLUSH_THRESHOLD_JITTER_PCT", "15")
+	t.Setenv("S3_UPLOAD_MAX_ATTEMPTS", "7")
+	t.Setenv("S3_UPLOAD_BACKOFF_CAP", "90s")
 	envOverrideMarshalAndDest(c, 0)
 	if c.MarshalTo != "protoJson" ||
 		c.Dest != "null" || c.DestWriteFiles != 3 {
 		t.Errorf("envOverrideMarshalAndDest mismatch: %+v", c)
+	}
+	if c.S3FlushInterval.AsDuration() != 45*time.Minute {
+		t.Errorf("S3FlushInterval = %v, want 45m", c.S3FlushInterval.AsDuration())
+	}
+	if c.S3FlushJitterPct != 25 || c.S3FlushThresholdJitterPct != 15 {
+		t.Errorf("S3 flush jitter pcts = %d/%d, want 25/15", c.S3FlushJitterPct, c.S3FlushThresholdJitterPct)
+	}
+	if c.S3UploadMaxAttempts != 7 {
+		t.Errorf("S3UploadMaxAttempts = %d, want 7", c.S3UploadMaxAttempts)
+	}
+	if c.S3UploadBackoffCap.AsDuration() != 90*time.Second {
+		t.Errorf("S3UploadBackoffCap = %v, want 90s", c.S3UploadBackoffCap.AsDuration())
 	}
 }
 
@@ -737,6 +761,12 @@ func TestPrintFlags(t *testing.T) {
 	f.s3Region = &s
 	f.s3SkipBucketProbe = &b
 	f.s3ParquetFlushBytes = &n
+	f.pollJitterPct = &n
+	f.s3FlushInterval = &d
+	f.s3FlushJitterPct = &n
+	f.s3FlushThresholdJitterPct = &n
+	f.s3UploadMaxAttempts = &n
+	f.s3UploadBackoffCap = &d
 	f.pyroscopeUrl = &s
 	f.pyroscopeAppName = &s
 	f.pyroscopeSampleHz = &n
@@ -821,29 +851,41 @@ func TestBuildConfig(t *testing.T) {
 	iurb := uint(64)
 	iucb := uint(128)
 	ds := "info,cong"
+	pjp := uint(30)
+	sfi := 45 * time.Minute
+	sfj := uint(25)
+	sftj := uint(15)
+	suma := uint(7)
+	subc := 90 * time.Second
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
 		writeFiles: &wf, capturePath: &cp, modulus: &mod, marshal: &mar,
 		columns:            &cols,
 		envelopeFlushBytes: &wf, envelopeFlushRows: &wf,
-		kafkaCompression:    &mar,
-		s3Endpoint:          &mar,
-		s3Bucket:            &mar,
-		s3Prefix:            &mar,
-		s3AccessKey:         &mar,
-		s3SecretKey:         &mar,
-		s3Region:            &mar,
-		s3SkipBucketProbe:   &iu,
-		location:            &mar,
-		hostname:            &mar,
-		resolveContainerId:  &iu,
-		s3ParquetFlushBytes: &wf,
-		pyroscopeUrl:        &mar,
-		pyroscopeAppName:    &mar,
-		pyroscopeSampleHz:   &wf,
-		pyroscopeUploadSec:  &wf,
-		dest:                &dst, destWriteFiles: &dwf,
+		kafkaCompression:          &mar,
+		s3Endpoint:                &mar,
+		s3Bucket:                  &mar,
+		s3Prefix:                  &mar,
+		s3AccessKey:               &mar,
+		s3SecretKey:               &mar,
+		s3Region:                  &mar,
+		s3SkipBucketProbe:         &iu,
+		location:                  &mar,
+		hostname:                  &mar,
+		resolveContainerId:        &iu,
+		s3ParquetFlushBytes:       &wf,
+		pollJitterPct:             &pjp,
+		s3FlushInterval:           &sfi,
+		s3FlushJitterPct:          &sfj,
+		s3FlushThresholdJitterPct: &sftj,
+		s3UploadMaxAttempts:       &suma,
+		s3UploadBackoffCap:        &subc,
+		pyroscopeUrl:              &mar,
+		pyroscopeAppName:          &mar,
+		pyroscopeSampleHz:         &wf,
+		pyroscopeUploadSec:        &wf,
+		dest:                      &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
 		ipv4Ttl: &ttl, ipv6HopLimit: &hop,
@@ -884,6 +926,12 @@ func TestBuildConfig(t *testing.T) {
 		{"Ipv4Ttl", c.Ipv4Ttl, uint32(3)},
 		{"Ipv6HopLimit", c.Ipv6HopLimit, uint32(9)},
 		{"S3SkipBucketProbe", c.S3SkipBucketProbe, true},
+		{"PollJitterPct", c.PollJitterPct, uint32(30)},
+		{"S3FlushInterval", c.S3FlushInterval.AsDuration(), 45 * time.Minute},
+		{"S3FlushJitterPct", c.S3FlushJitterPct, uint32(25)},
+		{"S3FlushThresholdJitterPct", c.S3FlushThresholdJitterPct, uint32(15)},
+		{"S3UploadMaxAttempts", c.S3UploadMaxAttempts, uint32(7)},
+		{"S3UploadBackoffCap", c.S3UploadBackoffCap.AsDuration(), 90 * time.Second},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
@@ -892,6 +940,83 @@ func TestBuildConfig(t *testing.T) {
 	}
 	if c.EnabledDeserializers == nil || !c.EnabledDeserializers.Enabled["info"] {
 		t.Errorf("EnabledDeserializers should include info: %+v", c.EnabledDeserializers)
+	}
+}
+
+// validBaselineConfig returns an XtcpConfig that passes protovalidate, so
+// TestConfigValidation_bounds can mutate one field per case and attribute any
+// failure to that field. S3UploadMaxAttempts is set to a valid value because
+// its constraint is gte:1 (0 would fail).
+func validBaselineConfig() *xtcp_config.XtcpConfig {
+	return &xtcp_config.XtcpConfig{
+		NlTimeoutMilliseconds:  1000,
+		PollFrequency:          durationpb.New(10 * time.Second),
+		PollTimeout:            durationpb.New(5 * time.Second),
+		Netlinkers:             4,
+		NetlinkersDoneChanSize: 100,
+		NlmsgSeq:               1,
+		Modulus:                2,
+		MarshalTo:              "protobufList",
+		CapturePath:            "./",
+		Topic:                  "xtcp",
+		XtcpProtoFile:          "/x.proto",
+		KafkaSchemaUrl:         "http://localhost:18081",
+		Dest:                   "null",
+		DebugLevel:             11,
+		GrpcPort:               8889,
+		IoUringRecvBatchSize:   64,
+		IoUringCqeBatchSize:    128,
+		S3UploadMaxAttempts:    10,
+	}
+}
+
+// TestConfigValidation_bounds exercises the buf.validate constraints on the new
+// jitter/backoff fields: positive (in-range), boundary (edge values), and
+// negative (out-of-range) cases, plus the 0=derive corners for the durations.
+func TestConfigValidation_bounds(t *testing.T) {
+	if err := protovalidate.Validate(validBaselineConfig()); err != nil {
+		t.Fatalf("baseline config should be valid, got: %v", err)
+	}
+	tests := []struct {
+		name    string
+		mutate  func(*xtcp_config.XtcpConfig)
+		wantErr bool
+	}{
+		// poll_jitter_pct: lte 100
+		{"positive poll_jitter_pct=20", func(c *xtcp_config.XtcpConfig) { c.PollJitterPct = 20 }, false},
+		{"boundary poll_jitter_pct=0", func(c *xtcp_config.XtcpConfig) { c.PollJitterPct = 0 }, false},
+		{"boundary poll_jitter_pct=100", func(c *xtcp_config.XtcpConfig) { c.PollJitterPct = 100 }, false},
+		{"negative poll_jitter_pct=101", func(c *xtcp_config.XtcpConfig) { c.PollJitterPct = 101 }, true},
+		// s3_flush_jitter_pct: lte 100
+		{"boundary s3_flush_jitter_pct=100", func(c *xtcp_config.XtcpConfig) { c.S3FlushJitterPct = 100 }, false},
+		{"negative s3_flush_jitter_pct=101", func(c *xtcp_config.XtcpConfig) { c.S3FlushJitterPct = 101 }, true},
+		// s3_flush_threshold_jitter_pct: lte 100
+		{"boundary s3_flush_threshold_jitter_pct=100", func(c *xtcp_config.XtcpConfig) { c.S3FlushThresholdJitterPct = 100 }, false},
+		{"negative s3_flush_threshold_jitter_pct=101", func(c *xtcp_config.XtcpConfig) { c.S3FlushThresholdJitterPct = 101 }, true},
+		// s3_upload_max_attempts: gte 1, lte 100
+		{"boundary s3_upload_max_attempts=1", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 1 }, false},
+		{"boundary s3_upload_max_attempts=100", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 100 }, false},
+		{"negative s3_upload_max_attempts=0", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 0 }, true},
+		{"negative s3_upload_max_attempts=101", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 101 }, true},
+		// durations: gte 0, with 0 = derive (valid)
+		{"positive s3_flush_interval=45m", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(45 * time.Minute) }, false},
+		{"corner s3_flush_interval=0 (derive)", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(0) }, false},
+		{"negative s3_flush_interval<0", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(-time.Second) }, true},
+		{"positive s3_upload_backoff_cap=90s", func(c *xtcp_config.XtcpConfig) { c.S3UploadBackoffCap = durationpb.New(90 * time.Second) }, false},
+		{"negative s3_upload_backoff_cap<0", func(c *xtcp_config.XtcpConfig) { c.S3UploadBackoffCap = durationpb.New(-time.Second) }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaselineConfig()
+			tt.mutate(c)
+			err := protovalidate.Validate(c)
+			if tt.wantErr && err == nil {
+				t.Errorf("expected a validation error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected validation error: %v", err)
+			}
+		})
 	}
 }
 

@@ -37,7 +37,25 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	x.setReady(true)
 	defer x.setReady(false)
 
-	ticker := time.NewTicker(x.config.PollFrequency.AsDuration())
+	freq := x.config.PollFrequency.AsDuration()
+	pct := x.config.PollJitterPct
+
+	// Jittered startup delay: on a synchronized fleet start (batch reboot,
+	// container-runtime restart) this spreads the first poll — and, for
+	// streaming destinations, the first upload — across the fleet instead of
+	// firing everywhere at once. ctx-aware so shutdown during the delay exits
+	// cleanly. pct==0 skips it entirely (pre-jitter behavior: immediate poll).
+	if pct > 0 {
+		delay := computeStartupDelay(freq, pct, misc.JitterDuration)
+		if x.debugLevel > 10 {
+			log.Printf("Poller startup jitter delay:%s", delay.Round(time.Millisecond))
+		}
+		if !x.pollerSleep(ctx, delay) {
+			return
+		}
+	}
+
+	ticker := time.NewTicker(computePollInterval(freq, pct, misc.JitterDuration))
 	defer ticker.Stop()
 	x.pollTimeoutTimer = time.NewTimer(x.config.PollTimeout.AsDuration())
 	defer x.pollTimeoutTimer.Stop()
@@ -58,6 +76,9 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 			return
 		case <-ticker.C:
 			x.handlePollerTick(pollingLoops, count)
+			// Re-jitter the next interval so the cadence never re-synchronizes
+			// with any other periodic event. pct==0 → exactly PollFrequency.
+			ticker.Reset(computePollInterval(x.config.PollFrequency.AsDuration(), x.config.PollJitterPct, misc.JitterDuration))
 		case <-x.pollRequestCh:
 			next, polled := x.handlePollRequest(pollingLoops, count, lastPollTime)
 			if !polled {
@@ -149,13 +170,35 @@ func (x *XTCP) handlePollerTick(pollingLoops uint64, count int) {
 }
 
 // handleChangePollFrequency reacts to the gRPC-driven poll-frequency
-// change: resets the ticker to the new duration and counts the reset.
+// change: resets the ticker to the new duration (jittered like any other
+// interval) and counts the reset.
 func (x *XTCP) handleChangePollFrequency(d time.Duration, ticker *time.Ticker, pollingLoops uint64, count int) {
-	ticker.Reset(d)
+	interval := computePollInterval(d, x.config.PollJitterPct, misc.JitterDuration)
+	ticker.Reset(interval)
 	x.pC.WithLabelValues("Poller", "ticker.Reset", "count").Inc()
 	if x.debugLevel > 10 {
-		log.Printf("Poller pollingLoops:%d count:%d ticker.Reset:%s", pollingLoops, count, d.Round(time.Millisecond).String())
+		log.Printf("Poller pollingLoops:%d count:%d ticker.Reset:%s", pollingLoops, count, interval.Round(time.Millisecond).String())
 	}
+}
+
+// computeStartupDelay returns the randomized initial delay before the first
+// poll: a uniform draw in [0, freq*pct/100). pct==0 (or freq<=0) yields 0, so
+// the daemon polls immediately (the pre-jitter behavior). jitter is injected
+// (misc.JitterDuration in production) so unit tests can force an exact value.
+func computeStartupDelay(freq time.Duration, pct uint32, jitter func(time.Duration) time.Duration) time.Duration {
+	return jitter(misc.ScalePct(freq, pct))
+}
+
+// computePollInterval returns the next poll interval: freq shifted by a random
+// offset in [-max/2, +max/2) where max = freq*pct/100, so the mean stays freq
+// and the spread is ±max/2. pct==0 (or freq<=0) yields exactly freq. The result
+// is always > 0 for a valid freq since pct<=100 ⇒ max/2 <= freq/2.
+func computePollInterval(freq time.Duration, pct uint32, jitter func(time.Duration) time.Duration) time.Duration {
+	limit := misc.ScalePct(freq, pct)
+	if limit <= 0 {
+		return freq
+	}
+	return freq - limit/2 + jitter(limit)
 }
 
 // handleNetlinkerDone reacts to a per-fd "I'm done draining" signal
