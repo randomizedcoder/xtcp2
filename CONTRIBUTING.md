@@ -66,7 +66,7 @@ Run `nix flake show` for the complete, current list. The main groups:
 
 ### MicroVM integration tests (`nix build .#microvm-x86_64*` / `nix run .#microvm-x86_64-*`)
 
-Boot xtcp2 inside a QEMU microVM against a real kernel and real namespaces: `microvm-x86_64` (minimal lifecycle), `-coverage`, `-coverage-iouring`, `-soak`, `-tcp-stress`, `-clickhouse-pipeline`, `-clickhouse-pipeline-parquet`, `-s3parquet-pipeline`, `-s3parquet-long`, and `-capcheck-fail`. See [Testing](#testing) and [docs/integration-testing.md](docs/integration-testing.md).
+Boot xtcp2 inside a QEMU microVM against a real kernel and real namespaces: `microvm-x86_64` (minimal lifecycle), `-coverage`, `-coverage-iouring`, `-soak`, `-tcp-stress`, `-clickhouse-pipeline`, `-clickhouse-pipeline-parquet`, `-s3parquet-pipeline`, `-s3parquet-long`, `-capcheck-fail`, and `-discovery-bench` (namespace-discovery A/B benchmark: dir-scan vs `/proc`-scan on a real kernel). See [Testing](#testing) and [docs/integration-testing.md](docs/integration-testing.md).
 
 ### Utility apps (`nix run .#<name>`)
 
@@ -118,6 +118,7 @@ nix run .#microvm-x86_64-lifecycle                 # ~45s smoke test
 nix run .#microvm-x86_64-soak -- --duration 1h     # long-running stability
 nix run .#microvm-x86_64-tcp-stress -- --duration 180s
 nix run .#microvm-x86_64-clickhouse-pipeline       # full xtcp2 → redpanda → clickhouse stack
+nix run .#microvm-x86_64-discovery-bench -- --timeout 900  # ns-discovery A/B grid
 ```
 
 See [docs/integration-testing.md](docs/integration-testing.md) for the harness internals, flavor descriptions, and troubleshooting.

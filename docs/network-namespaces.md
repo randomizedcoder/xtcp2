@@ -64,4 +64,5 @@ The watched directories (`/run/netns/`, `/run/docker/netns/`) are built in, not 
 
 - [Netlink collection](netlink-collection.md) — what each per-namespace reader does.
 - [Performance](performance.md) — thread and parallelism tuning.
-- [Integration testing](integration-testing.md) — the microVM namespace-lifecycle and tcp-stress tests that exercise this path.
+- [Integration testing](integration-testing.md) — the microVM namespace-lifecycle, tcp-stress, and discovery-bench tests that exercise this path.
+- [Design: namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — proposed pull-based reconcile and the dir-scan vs `/proc`-scan discovery analysis.

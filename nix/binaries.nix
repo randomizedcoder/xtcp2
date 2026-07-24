@@ -132,6 +132,10 @@ let
   toolBinaryNames = [
     "tcp_server"
     "tcp_client"
+    # discovery-bench: namespace-discovery A/B benchmark (dir-scan vs /proc
+    # inode scan). Rides xtcp2AllPackage into the soak/tcp-stress/discovery-bench
+    # microvms so its root-only `grid` mode can run against a real kernel.
+    "discovery-bench"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -202,6 +206,7 @@ defaultBinaries
   # tools/ helper binaries (test utilities, default variant only).
   tcp_server = toolBinaries.tcp_server;
   tcp_client = toolBinaries.tcp_client;
+  discovery-bench = toolBinaries.discovery-bench;
 
   # Internal nested sets for downstream consumers (containers/).
   inherit

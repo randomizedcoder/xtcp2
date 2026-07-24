@@ -440,6 +440,17 @@ in
       program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
     };
 
+    # Namespace-discovery A/B benchmark: boots a root microvm that runs the
+    # discovery-bench grid (dir-scan vs /proc-scan, over an N×P sweep) against a
+    # real kernel, prints the per-cell JSON, then powers off. Pass
+    # `--timeout <sec>` to bound the wait. Not in `nix flake check` — holds a KVM
+    # slot for the sweep. Override the grid via DISCO_NS_GRID / DISCO_PID_GRID /
+    # DISCO_ITERS on the in-VM service if needed.
+    microvm-x86_64-discovery-bench = {
+      type = "app";
+      program = "${microvms.discoveryBench.x86_64.runner}/bin/xtcp2-discovery-bench-x86_64";
+    };
+
     quality-report = {
       type = "app";
       program = "${qualityReport}/bin/quality-report";
