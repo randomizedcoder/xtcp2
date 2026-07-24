@@ -12,6 +12,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
@@ -48,6 +49,14 @@ func newPollerFixture(t *testing.T) *XTCP {
 	nl := make([]byte, 16)
 	x.nlRequest = &nl
 	x.pollTimeoutTimer = time.NewTimer(time.Hour) // never fires during test
+	// The reconcileThenPoll path (initial poll + fresh handlePollRequest) runs a
+	// pre-poll reconcile, which scans /proc via nsScanner. Point it at an empty
+	// temp tree so no namespaces are discovered and the poll logic under test is
+	// unaffected.
+	proc := t.TempDir()
+	x.nsScanner = nsdiscover.NewScanner(proc)
+	x.nsResolver = nsdiscover.NewResolver(proc, nil)
+	t.Cleanup(func() { _ = x.nsScanner.Close() })
 	return x
 }
 
@@ -285,9 +294,38 @@ func TestObserveNetlinkerDone_knownFDMissingNS(t *testing.T) {
 // branch is covered by ns_test.go:TestHandlePollRequest_alreadyPolling.
 func TestHandlePollRequest_fresh(t *testing.T) {
 	x := newPollerFixture(t)
-	count, polled := x.handlePollRequest(1, 0, time.Now())
+	count, polled := x.handlePollRequest(context.Background(), 1, 0, time.Now())
 	if count != 0 || !polled {
 		t.Errorf("fresh: count=%d, polled=%v; want 0, true", count, polled)
+	}
+}
+
+// reconcileThenPoll runs a pre-poll reconcile before polling. Here /proc (the
+// fixture's empty temp tree) shows no live namespaces, so two stale nsMap
+// entries must be reconciled away (their cancel fired) BEFORE the poll — proving
+// discovery happens on the poll path, not only on the 5m background ticker.
+func TestReconcileThenPoll_reconcilesBeforePolling(t *testing.T) {
+	x := newPollerFixture(t)
+	var mu sync.Mutex
+	cancels := 0
+	for _, ino := range []uint64{4026531900, 4026531901} {
+		wrapped := func() { mu.Lock(); cancels++; mu.Unlock() }
+		name := "gone"
+		x.nsMap.Store(ino, netNSitem{inode: ino, name: &name, cancel: wrapped, socketFD: -1})
+	}
+
+	count := x.reconcileThenPoll(context.Background(), 1)
+
+	if count != 0 {
+		t.Errorf("count = %d, want 0 (stale entries reconciled away, none ready to poll)", count)
+	}
+	if n := lenSyncMap(x.nsMap); n != 0 {
+		t.Errorf("nsMap len = %d after pre-poll reconcile, want 0 (stale entries deleted)", n)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if cancels != 2 {
+		t.Errorf("cancels = %d, want 2 (both stale namespaces torn down)", cancels)
 	}
 }
 

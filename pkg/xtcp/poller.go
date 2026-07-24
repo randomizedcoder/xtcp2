@@ -60,7 +60,7 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	x.pollTimeoutTimer = time.NewTimer(x.config.PollTimeout.AsDuration())
 	defer x.pollTimeoutTimer.Stop()
 
-	count := x.pollAllNetlinkSockets(0)
+	count := x.reconcileThenPoll(ctx, 0)
 	lastPollTime := time.Now()
 
 	for pollingLoops := uint64(1); misc.MaxLoopsOrForEver(pollingLoops, x.config.MaxLoops); pollingLoops++ {
@@ -80,7 +80,7 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 			// with any other periodic event. pct==0 → exactly PollFrequency.
 			ticker.Reset(computePollInterval(x.config.PollFrequency.AsDuration(), x.config.PollJitterPct, misc.JitterDuration))
 		case <-x.pollRequestCh:
-			next, polled := x.handlePollRequest(pollingLoops, count, lastPollTime)
+			next, polled := x.handlePollRequest(ctx, pollingLoops, count, lastPollTime)
 			if !polled {
 				continue
 			}
@@ -239,7 +239,7 @@ func (x *XTCP) recordPollerCycleDuration(pollingLoops uint64) {
 // handlePollRequest reacts to a poll-request tick. Returns (newCount, true)
 // when a fresh dump was issued, or (count, false) when the previous dump
 // is still in flight and the request was coalesced.
-func (x *XTCP) handlePollRequest(pollingLoops uint64, count int, lastPollTime time.Time) (int, bool) {
+func (x *XTCP) handlePollRequest(ctx context.Context, pollingLoops uint64, count int, lastPollTime time.Time) (int, bool) {
 	x.pC.WithLabelValues("Poller", "pollRequestCh", "count").Inc()
 	if x.debugLevel > 10 {
 		log.Printf("Poller <-x.pollRequestCh pollingLoops:%d count:%d", pollingLoops, count)
@@ -256,7 +256,7 @@ func (x *XTCP) handlePollRequest(pollingLoops uint64, count int, lastPollTime ti
 		log.Printf("Poller <-ticker.C pollingLoops:%d timeSinceLastPoll:%0.3fs",
 			pollingLoops, time.Since(lastPollTime).Seconds())
 	}
-	return x.pollAllNetlinkSockets(pollingLoops), true
+	return x.reconcileThenPoll(ctx, pollingLoops), true
 }
 
 // observeNetlinkerDone records the per-fd poll→done latency and (at
@@ -288,6 +288,25 @@ func (x *XTCP) observeNetlinkerDone(d netlinkerDone, count int) {
 	x.pC.WithLabelValues("Poller", "fdToNsMap", "error").Inc()
 	log.Printf("Poller <-x.netlinkerDoneCh, count:%d fd:%d after: %0.3fs %dms",
 		count, d.fd, pTime.Seconds(), pTime.Milliseconds())
+}
+
+// reconcileThenPoll runs a pre-poll reconcile and then issues the dump against
+// every ready socket. The reconcile re-derives the live namespace set from /proc
+// immediately before polling, so a namespace that appeared since the last cycle
+// (e.g. a container that just started) is entered and gets a socket without
+// waiting up to reconcileFrequency (5m) for the background ticker — this ties
+// discovery cadence to poll cadence. reconcile is mutex-guarded, so it never
+// races the background mapReconciler or the shared, buffer-reusing nsScanner.
+//
+// A namespace discovered here is polled starting the NEXT cycle: its socket
+// opens asynchronously (netNamespaceInstance) and is still -1 (reserved, skipped
+// by pollAllNetlinkSockets) during this cycle.
+func (x *XTCP) reconcileThenPoll(ctx context.Context, pollingLoops uint64) (count int) {
+	dels, stores := x.reconcile(ctx)
+	if (dels > 0 || stores > 0) && x.debugLevel > 10 {
+		log.Printf("reconcileThenPoll pre-poll reconcile dels:%d stores:%d", dels, stores)
+	}
+	return x.pollAllNetlinkSockets(pollingLoops)
 }
 
 func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {

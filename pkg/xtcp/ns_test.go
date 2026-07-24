@@ -162,7 +162,7 @@ func TestHandlePollRequest_alreadyPolling(t *testing.T) {
 	x := newNsFixture(t)
 	// pollAllNetlinkSockets requires more state; skip by checking the
 	// already-polling early return.
-	_, polled := x.handlePollRequest(1, 5 /* count > 0 */, x.pollStartTime)
+	_, polled := x.handlePollRequest(context.Background(), 1, 5 /* count > 0 */, x.pollStartTime)
 	if polled {
 		t.Error("handlePollRequest should return polled=false when count>0")
 	}

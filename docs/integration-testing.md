@@ -309,9 +309,9 @@ The shared self-test (`nix/microvms/self-test.nix`) runs 10 checks in sequence o
 | 5 | `GRPC_ROUNDTRIP` | `xtcp2client -target 127.0.0.1 -port 8889` connects and produces output |
 | 6 | `NS_INSPECT` | `ns` namespace inspector binary runs |
 | 7 | `NSTEST` | `nsTest -help` works |
-| 8 | `NS_LIFECYCLE` | `ip netns add/delete` propagates → fsnotify event + `netNamespaceInstance` start counter both bump |
-| 9 | `NS_TRAFFIC` | TCP listener+client inside a fresh netns produces measurable Netlinker `packets` |
-| 10 | `NS_DOCKER` | Bind-mount under `/run/docker/netns/` fires the second `watchNsNamespace` goroutine end-to-end |
+| 8 | `NS_LIFECYCLE` | a netns holding a live process is discovered by the Method B `/proc` scan (pre-poll reconcile → `netNamespaceInstance` start); process exit + ns removal → reconcile `delete`. Both counters bump |
+| 9 | `NS_TRAFFIC` | TCP listener (the live process Method B keys on) + client inside a fresh netns produces measurable Netlinker `packets` |
+| 10 | `NS_DOCKER` | docker-style netns: bind-mount under `/run/docker/netns/` + a live process is discovered via `/proc` and named from the bind mount; `netNamespaceInstance` start + `delete` bump |
 | — | `OVERALL` | All of 1–10 passed |
 
 The **soak** flavor doesn't run the self-test; instead its runner sleeps for `--duration`, then prints:

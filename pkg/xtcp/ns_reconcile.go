@@ -56,6 +56,13 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 // pid on the next scan.
 func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 
+	// Serialize against the other caller (background mapReconciler vs. the
+	// Poller's pre-poll reconcile). Beyond keeping the nsMap diff coherent, this
+	// is REQUIRED for memory safety: discoverNamespaces drives nsScanner, which
+	// reuses buffers and a persistent /proc fd and must never run concurrently.
+	x.reconcileMu.Lock()
+	defer x.reconcileMu.Unlock()
+
 	startTime := time.Now()
 	defer func() {
 		x.pH.WithLabelValues("reconcile", "complete", "counter").Observe(time.Since(startTime).Seconds())

@@ -13,11 +13,12 @@
 #   XTCP2_SELF_TEST_GRPC_ROUNDTRIP_{PASS,FAIL} xtcp2 ↔ xtcp2client gRPC works
 #   XTCP2_SELF_TEST_NS_INSPECT_{PASS,FAIL}     ns inspector reads netns state
 #   XTCP2_SELF_TEST_NSTEST_{PASS,FAIL}         nsTest binary runs
-#   XTCP2_SELF_TEST_NS_LIFECYCLE_{PASS,FAIL}   ip netns add/delete propagates to
-#                                              xtcp2 (drives the fsnotify watch
-#                                              + nsAdd + nsDelete code paths,
-#                                              spawning a per-ns netlinker
-#                                              goroutine end-to-end)
+#   XTCP2_SELF_TEST_NS_LIFECYCLE_{PASS,FAIL}   a netns holding a live process is
+#                                              discovered by the Method B /proc
+#                                              scan (pre-poll reconcile → nsAdd,
+#                                              spawning a per-ns netlinker); when
+#                                              the process exits + the ns is
+#                                              removed, reconcile → nsDelete
 #   XTCP2_SELF_TEST_NS_TRAFFIC_{PASS,FAIL}     TCP socket created inside a fresh
 #                                              netns produces records via that
 #                                              ns's netlinker (drives the full
@@ -312,42 +313,45 @@ pkgs.writeShellApplication {
     fi
     if [ "$check7" -ne 0 ]; then overall_ok=0; fi
 
-    # ─── Check 8: ns lifecycle — ip netns add/delete propagates ──────────
-    # The xtcp2 daemon watches /run/netns/ via fsnotify. Creating a new
-    # netns SHOULD fire the watcher → nsAdd → openAndSetNSWithRetries →
-    # createNetlinkersAndStore (spawns a per-ns netlinker goroutine).
-    # Then deletion SHOULD tear it down via nsDelete.
-    #
-    # We assert the daemon noticed by reading two metric counters:
-    #   * the watchNamespaces "event" counter (the fsnotify callback)
-    #   * the netNamespaceInstance "start" counter (per-ns goroutine)
-    # Both should bump by ≥1 between before/after, and the netlinker
-    # count should drop back when we delete the ns.
-    echo "--- check 8: ns lifecycle (ip netns add/delete) ---"
+    # ─── Check 8: ns lifecycle — a namespace with a live process ─────────
+    # Method B discovers namespaces by scanning /proc/<pid>/ns/net on every
+    # pre-poll reconcile — there is no /run/netns fsnotify watcher any more.
+    # A namespace is only visible while it holds a LIVE PROCESS, so we keep one
+    # alive with `sleep` inside the ns; the daemon should enter it and spawn a
+    # per-ns netlinker (netNamespaceInstance "start"). When that process exits
+    # and the ns is removed, the next reconcile tears it down (the "delete"
+    # counter bumps).
+    echo "--- check 8: ns lifecycle (live process in a fresh netns) ---"
     check8=1
     if command -v ip >/dev/null 2>&1; then
       # The label keys are function/variable/type (see promLabels in
       # pkg/xtcp/prometheus.go). Prometheus prints labels alphabetically
       # (function, type, variable), so the helper takes the function/
       # variable filters as separate args.
-      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
       before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      before_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
       ip netns add xtcp_test_ns_a 2>&1 || true
       # Bring lo up so a subsequent socket inside the ns is meaningful.
       ip netns exec xtcp_test_ns_a ip link set lo up 2>&1 || true
-      # Give the daemon time to fsnotify + nsAdd + spawn netlinker.
-      sleep 3
-      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      # Hold the ns open with a live process so the /proc scan sees it.
+      ip netns exec xtcp_test_ns_a sleep 60 &
+      ns_a_pid=$!
+      # Give the daemon a couple of poll cycles (~2s each) to reconcile + enter.
+      sleep 6
       after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      # Drop the process (ns now has no live process) and remove the bind mount.
+      kill "$ns_a_pid" 2>/dev/null || true
+      wait "$ns_a_pid" 2>/dev/null || true
       ip netns delete xtcp_test_ns_a 2>&1 || true
-      sleep 3
-      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      # Give the daemon a couple of cycles to notice the ns is gone → nsDelete.
+      sleep 6
+      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
 
-      if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
-        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
         check8=0
       else
-        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
       fi
     else
       echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (ip not on PATH)"
@@ -355,11 +359,14 @@ pkgs.writeShellApplication {
     if [ "$check8" -ne 0 ]; then overall_ok=0; fi
 
     # ─── Check 9: TCP traffic inside a fresh netns — full netlinker path ─
-    # Creates a netns, brings up lo, starts a listening socket. xtcp2's
-    # per-ns netlinker SHOULD poll inet_diag and see the socket; the
-    # Deserialize loop SHOULD parse the response into TCPInfo / inet_diag
-    # attributes. We assert via the Netlinker "packets" counter for the
-    # per-ns netlinker fd: it must bump by ≥1 while the ns is live.
+    # Creates a netns, brings up lo, starts a listening socket. The listener is
+    # a LIVE PROCESS, so Method B's pre-poll reconcile discovers the ns via the
+    # /proc scan; xtcp2's per-ns netlinker then polls inet_diag and sees the
+    # socket, and the Deserialize loop parses the response into TCPInfo /
+    # inet_diag attributes. We assert via the Netlinker "packets" counter: it
+    # must bump by ≥1 while the ns is live. (The counter is process-wide, so the
+    # always-on host netlinker also drives it; this check confirms the netlinker
+    # path stays alive end-to-end while the ns exists, not per-ns isolation.)
     echo "--- check 9: TCP socket inside netns drives netlinker traffic ---"
     check9=1
     if command -v ip >/dev/null 2>&1 && command -v nc >/dev/null 2>&1; then
@@ -368,17 +375,19 @@ pkgs.writeShellApplication {
       before_packets=$(metric_value "xtcp_counts" 'variable="packets"')
       ip netns add xtcp_test_ns_b 2>&1 || true
       ip netns exec xtcp_test_ns_b ip link set lo up 2>&1 || true
-      # Listener in the ns. timeout bounds wall-clock so we don't leak
-      # a process if the check fails partway.
-      ip netns exec xtcp_test_ns_b timeout 10s nc -l 127.0.0.1 17322 >/dev/null 2>&1 &
+      # Listener in the ns — this is the live process Method B keys on. timeout
+      # bounds wall-clock so we don't leak a process if the check fails partway;
+      # it must outlast the discovery + poll window below.
+      ip netns exec xtcp_test_ns_b timeout 15s nc -l 127.0.0.1 17322 >/dev/null 2>&1 &
       ns_listener=$!
       sleep 1
       # Client also in the ns (loopback only — the ns has no real iface).
-      ip netns exec xtcp_test_ns_b sh -c '(echo hello; sleep 5) | nc -w 5 127.0.0.1 17322' >/dev/null 2>&1 &
+      ip netns exec xtcp_test_ns_b sh -c '(echo hello; sleep 8) | nc -w 8 127.0.0.1 17322' >/dev/null 2>&1 &
       ns_client=$!
 
-      # xtcp2 polls every 2s; give it two cycles to see the socket(s).
-      sleep 5
+      # xtcp2 polls every ~2s. Method B needs one pre-poll reconcile to discover
+      # the ns and a following cycle to poll its socket, so allow a few cycles.
+      sleep 8
       after_packets=$(metric_value "xtcp_counts" 'variable="packets"')
 
       # Tear down the listener + client and the ns itself.
@@ -397,43 +406,44 @@ pkgs.writeShellApplication {
     fi
     if [ "$check9" -ne 0 ]; then overall_ok=0; fi
 
-    # ─── Check 10: docker netns lifecycle — /run/docker/netns/ watch path ──
-    # xtcp2 probes /run/netns/ AND /run/docker/netns/ at startup
-    # (pkg/xtcp/init.go netNsCandidateDirs). When the coverage VM pre-
-    # creates the docker dir via tmpfiles, the daemon spawns a SECOND
-    # watchNsNamespace goroutine for it. Without exercising it the docker
-    # branch in watchNsNamespace stays at 0% coverage.
-    #
-    # We mimic docker's behavior — create a netns under /run/netns/ via
-    # the kernel's normal mechanism, then bind-mount it under
-    # /run/docker/netns/ to fire fsnotify Create on the docker dir.
-    # That's all docker actually does at the filesystem level when
-    # `docker run --network=…` spawns a container.
-    echo "--- check 10: docker netns lifecycle (/run/docker/netns/) ---"
+    # ─── Check 10: docker-style netns — /run/docker/netns/ bind mount ──────
+    # A container's netns is bind-mounted under /run/docker/netns/<id>. Under
+    # Method B the daemon discovers it by the LIVE PROCESS inside it (the /proc
+    # scan), and the resolver uses the /run/docker/netns bind mount for a
+    # best-effort NAME. We mimic docker: create a netns, bind it under
+    # /run/docker/netns/, and hold a live process in it. The daemon should enter
+    # it (netNamespaceInstance "start"); dropping the process + mount then tears
+    # it down (the "delete" counter bumps).
+    echo "--- check 10: docker-style netns (/run/docker/netns/ + live process) ---"
     check10=1
     if command -v ip >/dev/null 2>&1 && [ -d /run/docker/netns ]; then
-      before_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
       before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      before_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
 
       ip netns add xtcp_docker_ns 2>&1 || true
-      # mount --bind reuses the netns inode under the docker dir, so
-      # checkMountInfo can find it just like a docker-managed one.
+      # mount --bind reuses the netns inode under the docker dir, so the resolver
+      # can name it just like a docker-managed one.
       mount --bind /run/netns/xtcp_docker_ns /run/docker/netns/xtcp_docker_ns 2>&1 || true
-      sleep 3
-      after_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      ip netns exec xtcp_docker_ns ip link set lo up 2>&1 || true
+      # Live process holds the ns open for the /proc scan.
+      ip netns exec xtcp_docker_ns sleep 60 &
+      ns_d_pid=$!
+      sleep 6
       after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
 
+      kill "$ns_d_pid" 2>/dev/null || true
+      wait "$ns_d_pid" 2>/dev/null || true
       umount /run/docker/netns/xtcp_docker_ns 2>&1 || true
       rm -f /run/docker/netns/xtcp_docker_ns 2>&1 || true
       ip netns delete xtcp_docker_ns 2>&1 || true
-      sleep 3
-      after_delete_evt=$(metric_value "xtcp_counts" 'function="watchNamespaces"' 'variable="event"')
+      sleep 6
+      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
 
-      if [ "$after_evt" -gt "$before_evt" ] && [ "$after_inst" -gt "$before_inst" ] && [ "$after_delete_evt" -gt "$after_evt" ]; then
-        echo "XTCP2_SELF_TEST_NS_DOCKER_PASS  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
+        echo "XTCP2_SELF_TEST_NS_DOCKER_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
         check10=0
       else
-        echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (evt:$before_evt→$after_evt→$after_delete_evt inst:$before_inst→$after_inst)"
+        echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
       fi
     else
       echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (ip not on PATH or /run/docker/netns/ missing)"
