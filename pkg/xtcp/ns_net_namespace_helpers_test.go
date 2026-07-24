@@ -345,7 +345,7 @@ func TestOpenAndSetNSWithRetries_table(t *testing.T) {
 			var fd int
 			withFakeSyscalls(t, fake.syscalls(), func() {
 				fullNS := "/run/netns/" + ns
-				fd = x.openAndSetNSWithRetries(&fullNS)
+				fd = x.openAndSetNSWithRetries(&fullNS, true)
 			})
 			if fd != tc.wantFD {
 				t.Errorf("fd = %d, want %d", fd, tc.wantFD)
@@ -387,7 +387,7 @@ func TestOpenAndSetNSWithRetries_missingMountInfo(t *testing.T) {
 	var fd int
 	withFakeSyscalls(t, fake, func() {
 		ns := "/run/netns/never_mounted"
-		fd = x.openAndSetNSWithRetries(&ns)
+		fd = x.openAndSetNSWithRetries(&ns, true)
 	})
 	if fd != -1 {
 		t.Errorf("fd = %d, want -1 on missing mount-info", fd)
