@@ -106,11 +106,24 @@ pinning threads) — designed in [design-nonblocking-netlink.md](design-nonblock
 | `tcp-stress` | 3 h | **PASS** — 20/20 containers + per-container netns discovered, ~10.7 M packets, 0 panics/restarts |
 | `soak` (churn), `-netlinkers 4` | ~10 min | **FAIL** — thread-exhaustion crash-loop (~25 restarts) → root-caused the scaling model |
 | `soak` (churn), **`-netlinkers 1` + `-maxThreads 8000`** | **12 h** | **PASS** — 242,100 ns-churn events, **0 panics, 0 restarts, 0 thread-exhaustion, single xtcp2 process throughout** |
+| `soak` (churn), **Method B `/proc` discovery** (`netns_inode` rework, 6 h reconcile default) | **12 h** | **PASS** — 344,972 ns-churn events, **0 panics, 0 restarts**; RSS 9.8 MB → plateau **~30–34 MB** and threads 6 → **35**, both flat across 12 h (bounded oscillation, no leak) |
 
 The 12 h soak ran the worst case: ~200 namespaces churned at 100 ms add/delete.
 `pollDuration` under that storm stayed **bounded** at ~6–10 s (one reader
 draining many churning sockets) — a steady-state degradation, not a leak. Real
 deployments with stable containers and low churn do far less per-poll work.
+
+**Post-rework re-validation (Method B discovery).** After the namespace
+discovery/reconcile rework (scan `/proc/<pid>/ns/net` inodes, key records by the
+new `netns_inode` identity, 6 h background-reconcile default), a fresh 12 h soak
+on `main` confirms the new path is stable over time. The `xtcp2-resource-snapshot`
+service samples `rss_kb`/`threads` every 30 s, so the leak signal is directly
+visible: RSS ramps to ~32 MB in the first minutes then **oscillates in a bounded
+band** (GC sawtooth — mid-run samples sit *below* earlier ones, not a monotonic
+climb), and thread count pins flat at 35 for the full run. The 35-thread ceiling
+reflects the small *concurrent* namespace working set under fast add/delete churn
+(a leak would show either metric climbing without bound), consistent with the
+`ns × (netlinkers + 1)` model above.
 
 ## io_uring evaluation
 
@@ -196,6 +209,8 @@ nix run .#microvm-x86_64-tcp-stress -- --duration 3h   # container netns under l
 nix run .#microvm-x86_64-soak -- --duration 12h        # namespace churn stability
 ```
 
-The `soak` flavor uses `-netlinkers 1` / a raised `-maxThreads` when validating
-the high-namespace thread budget; adjust `nix/microvms/mkVm.nix`
-(`xtcp2BasicArgs`) to test other values.
+The `soak` flavor runs xtcp2 on its binary defaults (`-netlinkers 4`,
+`-maxThreads 2000`) via `xtcp2BasicArgs` in `nix/microvms/mkVm.nix` — that is the
+config behind the Method B 12 h re-validation above. To reproduce the earlier
+high-namespace thread-budget run (`-netlinkers 1` + a raised `-maxThreads`), or to
+test other values, override `xtcp2BasicArgs` there.
