@@ -515,15 +515,22 @@ rec {
 
         # Resource-snapshot trend (XTCP2_RES_SNAPSHOT from the in-VM
         # xtcp2-resource-snapshot service): rss_kb is the memory-growth signal,
-        # threads the OS-thread-leak signal. Over a churn soak both should stay
-        # bounded, not grow monotonically — a large positive delta is the leak
-        # tell. Reported (not gated): thread count legitimately fluctuates with
-        # per-ns netlinker spawn/teardown, so a human reads the trend.
+        # threads the OS-thread-leak signal. The first sample is cold-start, so
+        # the first->last delta always includes ramp-up to steady state (the
+        # daemon spawns per-ns netlinkers as it discovers the churn set) — a
+        # healthy run ramps then PLATEAUS. The leak tell is continued growth late
+        # in the run, so on a suspicious delta check whether rss_kb/threads are
+        # still climbing near the end (full per-30s series is in the transcript).
+        # Reported, not gated.
         snap_n=$(grep -cE 'XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null || true)
         echo "  res snapshots:    $snap_n"
-        if [ "$snap_n" -ge 2 ]; then
-          first=$(grep -E 'XTCP2_RES_SNAPSHOT' "$LOG" | head -1)
-          last=$(grep -E 'XTCP2_RES_SNAPSHOT' "$LOG" | tail -1)
+        if [ "''${snap_n:-0}" -ge 2 ]; then
+          # -m1 (stop at first) + tac|-m1 (first from the end) so we never scan
+          # the whole transcript, which is hundreds of MB on a multi-hour soak
+          # (a plain `grep|tail -1` there is slow enough to race VM teardown and
+          # drop these lines from the summary). Guarded so set -e can't abort.
+          first=$(grep -am1 'XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null || true)
+          last=$(tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_RES_SNAPSHOT' || true)
           rss0=$(printf '%s' "$first" | grep -oE 'rss_kb":[0-9]+' | grep -oE '[0-9]+' | head -1)
           rss1=$(printf '%s' "$last"  | grep -oE 'rss_kb":[0-9]+' | grep -oE '[0-9]+' | head -1)
           thr0=$(printf '%s' "$first" | grep -oE 'threads":[0-9]+' | grep -oE '[0-9]+' | head -1)
