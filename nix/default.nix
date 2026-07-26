@@ -311,6 +311,7 @@ in
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
+      microvm-x86_64-clickhouse-pipeline-stress = microvms.vmsClickPipeStress.x86_64;
       microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
@@ -407,6 +408,19 @@ in
     microvm-x86_64-clickhouse-pipeline = {
       type = "app";
       program = "${microvms.vmsClickPipe.x86_64}/bin/microvm-run";
+    };
+
+    # Full end-to-end integration stress test over the clickhouse-pipeline
+    # stack. Boots the same VM as `-clickhouse-pipeline` but wraps it in a
+    # duration-bounded runner that taps the serial console, prints a live
+    # ClickHouse row/netns heartbeat, and asserts records kept flowing
+    # end-to-end (rows grew, from ≥2 distinct netns_inode) with no panics
+    # and a bounded RSS/thread trend. Default 1h; pass `--duration 24h` for
+    # the production stress run or `--keep-alive` to poke it by hand. Not in
+    # `nix flake check` — holds a KVM slot for the full duration.
+    microvm-x86_64-clickhouse-pipeline-stress = {
+      type = "app";
+      program = "${microvms.clickPipeStress.x86_64.runner}/bin/xtcp2-clickpipe-stress-runner-x86_64";
     };
 
     # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a

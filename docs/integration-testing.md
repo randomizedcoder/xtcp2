@@ -128,6 +128,8 @@ host
 | `microvm-x86_64-soak` | `soak` | 1024 MiB | xtcp2 + nsTest + tcp_server/client + prom-scraper | Long-running stability (1h/12h+) |
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | 3072 MiB | xtcp2 + dockerd + N containers × M sockets | Per-container netns discovery under load |
 | `microvm-x86_64-clickhouse-pipeline` | `clickhouse-pipeline` | 3072 MiB | + Redpanda + ClickHouse + Prometheus + Grafana | Full xtcp2 → Kafka → ClickHouse data path |
+| `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | 8192 MiB | clickhouse-pipeline + N containers × M sockets + 1h TTL | Full pipeline **under TCP-stress load** — validates ProtobufList ingest at rate; 24h combined soak |
+| `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | 14 GiB CH | + in-VM MinIO (dedicated 16 GiB disk) | Mixed ClickHouse + S3/Parquet sink path |
 | `microvm-x86_64-discovery-bench` | `discovery-bench` | 4096 MiB | xtcp2 + `discovery-bench` grid | Namespace-discovery A/B benchmark (dir-scan vs `/proc`-scan) on a real kernel |
 
 Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and adds only what it needs. Common kernel cmdline / hypervisor / nic config stays identical across flavors.
@@ -136,7 +138,7 @@ Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and add
 
 ### xtcp2 daemon
 
-The thing under test. Watches `/run/netns/` and `/run/docker/netns/` via fsnotify, spawns a per-namespace netlinker that reads inet_diag via netlink, deserializes the wire format into `XtcpFlatRecord` protobuf, then ships the records to a configurable destination.
+The thing under test. Discovers every network namespace that has a live process by scanning `/proc/<pid>/ns/net` inodes (Method B — see below), spawns a per-namespace netlinker that reads inet_diag via netlink, deserializes the wire format into `XtcpFlatRecord` protobuf, then ships the records to a configurable destination.
 
 In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`, defined in `nix/modules/xtcp2-service.nix`). Per-flavor argument sets:
 
@@ -150,7 +152,7 @@ Grants: `CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_SYS_RESOURCE`. Limits: `TasksMax = 
 
 ### nsTest — namespace churn driver
 
-`cmd/nsTest/nsTest.go`. A tiny load generator that does `ip netns add nsN` / `ip netns del nsN` on a tight loop. Exercises the fsnotify watcher + `nsAdd` / `nsDelete` lifecycle inside xtcp2.
+`cmd/nsTest/nsTest.go`. A tiny load generator that does `ip netns add nsN` / `ip netns del nsN` on a tight loop. Exercises xtcp2's `/proc`-scan discovery + pre-poll reconcile + `nsAdd` / `nsDelete` lifecycle.
 
 Tunables (CLI flags):
 - `-initial` — initial namespace fill (default 1000)
@@ -180,14 +182,14 @@ Built via `pkgs.dockerTools.streamLayeredImage`. Bundles just the two tools from
 | `TCP_CONNECT` | 127.0.0.1 | Client target host |
 | `TCP_BIND` | 0.0.0.0 | Server listen address |
 
-In the `tcp-stress` and `clickhouse-pipeline` flavors, `dockerd` pre-loads this image at boot, then spawns N containers with `TCP_MODE=both`. Each container gets its own netns courtesy of docker's bridge network — xtcp2 discovers those via fsnotify on `/run/docker/netns/`.
+In the `tcp-stress` and `clickhouse-pipeline` flavors, `dockerd` pre-loads this image at boot, then spawns N containers with `TCP_MODE=both`. Each container gets its own netns courtesy of docker's bridge network — xtcp2 discovers those by scanning `/proc/<pid>/ns/net` (Method B), so it sees each container's namespace whether or not docker bind-mounts it under `/run/docker/netns/`.
 
 ### discovery-bench — namespace-discovery A/B
 
 `tools/discovery-bench/`. A re-runnable benchmark comparing the two ways xtcp2 can discover the set of network namespaces to poll:
 
-- **Method A — directory scan** (what xtcp2 does today, `pkg/xtcp/ns_discover.go`): `os.ReadDir(/run/netns, /run/docker/netns)`. Cost is O(named-namespaces); it only sees bind-mounted namespaces, so **anonymous** container/`unshare -n` netns are invisible to it.
-- **Method B — `/proc/<pid>/ns/net` inode scan**: walk `/proc`, dedup namespaces by inode. Cost is O(processes); it sees **every** namespace with a live process, including anonymous ones. Two sub-variants: `readlink`+parse vs `stat`→`Stat_t.Ino`.
+- **Method A — directory scan** (the legacy mechanism, since **replaced** by Method B): `os.ReadDir(/run/netns, /run/docker/netns)`. Cost is O(named-namespaces); it only sees bind-mounted namespaces, so **anonymous** container/`unshare -n` netns are invisible to it — the audit gap that motivated the switch.
+- **Method B — `/proc/<pid>/ns/net` inode scan** (**what xtcp2 does today**): walk `/proc`, dedup namespaces by inode. Cost is O(processes); it sees **every** namespace with a live process, including anonymous ones. Two sub-variants: `readlink`+parse vs `stat`→`Stat_t.Ino`.
 
 Modes: `measure` (time each method against the live system + a coverage diff + per-method skip counts), `grid` (root-only `N namespaces × P processes` sweep, one JSON line per cell). The **`discovery-bench` microVM flavor** runs `grid` on boot as root — so Method B's `/proc` scan sees every namespace with no ptrace-gated skips, and `ip netns` builds the controlled grid — emitting `DISCOBENCH_START` / `DISCOBENCH_GRID` (per cell) / `DISCOBENCH_DONE` sentinels to the serial console. The grid populates each cell with cheap `sleep infinity` processes (`ip netns exec <ns> sleep infinity` for the in-namespace ones), so P can reach thousands without the RSS a fleet of real binaries would cost. Grid sizes are overridable via the `DISCO_NS_GRID` / `DISCO_PID_GRID` / `DISCO_ITERS` service env.
 
@@ -211,7 +213,8 @@ A hermetic Go microbenchmark (the algorithmic O(namespaces) vs O(processes) shap
 
 Columnar OLAP DB consuming records from the Kafka topic.
 
-- Image: `clickhouse/clickhouse-server:25.3-alpine`
+- Image: `clickhouse/clickhouse-server:26.7-alpine` (`clickPipeClickhouseImage` in `nix/microvms/mkVm.nix`)
+  - **Must be ≥ 26.3.** The `ProtobufList` + Kafka-engine multi-message fix (ClickHouse [#98151](https://github.com/ClickHouse/ClickHouse/pull/98151), issue [#78746](https://github.com/ClickHouse/ClickHouse/issues/78746)) landed in `26.3.1.116` and was **not** backported. On 25.x, the second Kafka message per consumer throws `PROTOBUF_BAD_CAST` and ingestion stalls — see Troubleshooting below.
 - HTTP: `localhost:18123` (auth: `default` / `xtcp`)
 - Native: `localhost:19001`
 - Data volume: named `clickhouse_db`
@@ -246,9 +249,14 @@ ClickHouse decodes the wire format via:
 ```sql
 ENGINE = Kafka SETTINGS
   kafka_format = 'ProtobufList',
-  kafka_schema = 'xtcp_flat_record.proto:xtcp_flat_record.v1.Envelope',
+  kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
   ...
 ```
+
+Two things about that `kafka_schema` value are load-bearing and easy to get wrong (both have bitten us — see Troubleshooting):
+
+1. **Point at the ROW type `XtcpFlatRecord`, not the `Envelope` wrapper.** `ProtobufList` handles the envelope framing itself; naming `Envelope` yields `NO_COLUMNS_SERIALIZED_TO_PROTOBUF_FIELDS`.
+2. **Use the SIMPLE, unqualified name — do NOT prepend the proto package.** ClickHouse's resolver (`src/Formats/ProtobufSchemas.cpp`, `FileDescriptor::FindMessageTypeByName`) wants the name relative to the file's package. A package-qualified name like `xtcp_flat_record.v1.XtcpFlatRecord` **deterministically** fails with `Could not find a message named '…'` (BAD_ARGUMENTS), the consumer detaches, and ingestion stalls.
 
 Reference encoders (one Kafka, one HTTP) live at:
 
@@ -374,7 +382,7 @@ soakTcpConnect               = "127.0.0.1";
 
 ```nix
 tcpStressNumContainers       = 20;      # docker containers to spawn
-tcpStressSocketsPerContainer = 100;     # TCP_COUNT inside each
+tcpStressSocketsPerContainer = 250;     # TCP_COUNT inside each
 tcpStressClientSleep         = "5s";
 tcpStressPads                = 1024;
 ```
@@ -383,7 +391,7 @@ tcpStressPads                = 1024;
 
 ```nix
 clickPipeRedpandaImage    = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
-clickPipeClickhouseImage  = "clickhouse/clickhouse-server:25.3-alpine";
+clickPipeClickhouseImage  = "clickhouse/clickhouse-server:26.7-alpine";  # must be >= 26.3 (ProtobufList Kafka fix)
 clickPipeKafkaTopic       = "xtcp";
 clickPipeChPassword       = "xtcp";    # default user password
 ```
@@ -423,9 +431,10 @@ nix run .#microvm-x86_64-soak -- --duration 12h
 
 ```sh
 nix run .#microvm-x86_64-tcp-stress -- --duration 300s
-# transcript shows /run/docker/netns/<containerID> CREATE events
-# pinged by fsnotify, per-container netNamespaceInstance goroutines
-# spawned, inet_diag readout populating in each
+# xtcp2 discovers each container's netns via the /proc/<pid>/ns/net scan
+# (Method B — no inotify), spawns a per-container netNamespaceInstance,
+# and reads inet_diag in each. The runner asserts the running instance
+# count (XTCP2_NS_INSTANCES start=N) is >= the container count.
 ```
 
 ### Benchmark namespace discovery (dir-scan vs /proc-scan)
@@ -472,7 +481,22 @@ journalctl -u xtcp2 -n 100
 
 **`microvm-run: Address already in use`** A previous run's qemu didn't clean up. `fuser -k 12055/tcp 12056/tcp` (serial + virtio-console ports), then re-run.
 
-**`StorageKafka: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file`** Harmless startup-only artifact, not a runtime bug. The official ClickHouse docker entrypoint runs a temporary server on 127.0.0.1 to execute `/docker-entrypoint-initdb.d/*` (including our DDL that creates the kafka_engine table). When initdb finishes the entrypoint `SIGTERM`s that temporary server and starts the real one. The kafka consumer that was attached in the temp server's view tries to load the schema during the shutdown window and reports BAD_ARGUMENTS. The next-server-instance consumer recovers and proceeds normally. Look for the second `Application: Starting ClickHouse` line in `clickhouse-server.log` — every log entry after that is the real run. `system.kafka_consumers.exceptions` keeps the failed-during-shutdown entry visible (the array stores the most recent 10) which is confusing but cosmetic.
+**`StorageKafka: Could not find a message named 'xtcp_flat_record.v1.XtcpFlatRecord' in the schema file` (recurring at runtime)** **This is a real, fatal bug — not cosmetic.** *(An earlier version of this doc wrongly called it a harmless startup artifact; that misdiagnosis cost a lot of debugging time.)* If this error **recurs at runtime** (every consumer poll, in the `clickpipe-monitor`'s `XTCP2_CH_KAFKALOG` dump), the `kafka_schema` message name is **package-qualified** (`xtcp_flat_record.v1.XtcpFlatRecord`). ClickHouse's `ProtobufList` resolver cannot resolve a qualified name — it needs the **simple** name. Ingestion stalls at a fixed row count while `kafka_exc` may still read 0 (a detached consumer stops throwing). **Fix:** `kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord'` in `build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records_kafka.sql` (verify with `SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka`). Reproduce/verify the resolver behavior in seconds without a VM:
+
+```sh
+# FAILS (qualified) vs RESOLVES (simple), against the real proto:
+docker run --rm -w /s -v "$PWD/proto/xtcp_flat_record/v1":/s clickhouse/clickhouse-server:26.7-alpine \
+  clickhouse-local -q "SELECT toFloat64(1) AS timestamp_ns FORMAT ProtobufList" \
+  --format_schema='xtcp_flat_record.proto:XtcpFlatRecord'   # exit 0 = resolves
+```
+
+Note: a *single* `Could not find a message` line right at container init (during the entrypoint's temp-server → real-server handover) can be a benign one-shot. The tell is **recurrence**: benign = once at boot; bug = every poll forever. When in doubt, check whether `rows` is growing.
+
+**A schema/DDL change doesn't take effect on re-run (or the row count is frozen at a suspiciously round, identical number across runs)** Every `clickhouse-pipeline*` flavor mounts a **persistent** 16 GiB ext4 disk at `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` → `/var/lib/docker` (`nix/microvms/mkVm.nix`, `microvm.volumes` under `isAnyClickPipe`). That disk backs the `clickhouse_db` named volume. ClickHouse's docker entrypoint runs `/docker-entrypoint-initdb.d/*` **only when its data dir is empty**, so once `clickhouse_db` exists from a prior boot, **initdb is skipped** and your edited DDL (kafka_schema, columns, TTL, …) never runs — the old tables and old data persist across rebuilds and even ClickHouse version bumps. This once masked an entire debugging session: a plateau at exactly `64824` rows was frozen leftover data, not a live ceiling. **Fix while iterating on schema:** `rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running (it is `autoCreate`d fresh). The persistence is intentional for multi-hour soaks (survives in-VM reboots); it is only a footgun when the DDL changes.
+
+**Stress containers all report `FAILED to start`, and/or `dockerd: failed to validate image signature … expected image index descriptor, got manifest.v2+json`** Almost always a **stale/corrupt docker image store on the reused persistent disk** (previous point) — a prior build's `/var/lib/docker` left half-migrated image metadata. Wipe the same disk image (`rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img`) and re-run; on a fresh disk all containers start and the signature line, if it still appears, is a harmless warning (containers run regardless).
+
+**Row count plateaus with `disk` near 100% in the heartbeat** `/var/lib/docker` (the 16 GiB disk above) filled up — MergeTree parts + redpanda segment logs grow over a soak. When it saturates, the kafka_engine can't commit offsets, xtcp2's producer back-pressures, and ingestion silently plateaus (this exact failure froze a 12h run at ~18k rows and looked like a decode/consumer bug). The `clickpipe*` runner now surfaces this: each heartbeat prints `disk=N%`, the summary prints `docker disk % (last / peak)`, and it **FAILs at ≥95% / WARNs at ≥85%** (asserted on the peak, not just the final sample). **Fix:** grow the volume `size` in `nix/microvms/mkVm.nix`, or shorten the MergeTree TTL / redpanda retention. The `clickhouse-pipeline-stress` flavor already drops the records-table TTL to 1 hour for exactly this reason.
 
 **`Pushing N rows … took 37152 ms`** in the ClickHouse log The kafka_engine → MV → MergeTree path is slow per-batch (tens of seconds for a few k rows under the mixed `clickhouse-pipeline-parquet` flavor's load). That's why ch_rows appears to "halt" between 30-min probe intervals — it's not a halt, it's a long-running flush. Confirm with `SELECT num_messages_read, assignments.current_offset[1], last_poll_time FROM system.kafka_consumers` — if `last_poll_time` is recent the consumer is alive; the slowness is downstream of the consumer. Profiling the 122-column ZSTD MergeTree insert path is a known open follow-up.
 

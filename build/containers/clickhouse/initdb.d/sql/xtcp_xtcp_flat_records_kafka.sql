@@ -210,7 +210,19 @@ SETTINGS
   -- Envelope produces "NO_COLUMNS_SERIALIZED_TO_PROTOBUF_FIELDS" because
   -- Envelope only has the single 'row' field. See:
   -- build/containers/clickhouse/clickhouse_protolist_notes.md
-  kafka_schema = 'xtcp_flat_record.proto:xtcp_flat_record.v1.XtcpFlatRecord',
+  --
+  -- The message name here is the SIMPLE, unqualified type name
+  -- (XtcpFlatRecord) — do NOT prepend the proto package
+  -- (xtcp_flat_record.v1.). ClickHouse's ProtobufList resolver
+  -- (src/Formats/ProtobufSchemas.cpp) looks the name up via
+  -- FileDescriptor::FindMessageTypeByName, which expects the name
+  -- relative to the file's package; a package-qualified name such as
+  -- 'xtcp_flat_record.v1.XtcpFlatRecord' deterministically fails with
+  -- "Could not find a message named '...' in the schema file"
+  -- (BAD_ARGUMENTS), the consumer detaches, and ingestion stalls.
+  -- Regression introduced by 60da4c7 ("schema aligned with proto"),
+  -- reverted here.
+  kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord',
   kafka_format = 'ProtobufList',
   kafka_max_rows_per_message = 10000,
   kafka_num_consumers = 1,

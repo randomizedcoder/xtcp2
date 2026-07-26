@@ -124,6 +124,25 @@ let
       sink = "clickhouse-pipeline";
     };
 
+  # Full end-to-end integration stress test: clickhouse-pipeline stack +
+  # the tcp-stress socket-load containers. Needs tcpStressImage (to
+  # docker-load and spawn the load containers) in addition to the pipeline.
+  mkOneClickPipeStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "clickhouse-pipeline-stress";
+    };
+
   # Mixed: clickhouse-pipeline + MinIO + a second xtcp2 instance
   # writing parquet so ClickHouse can query both paths.
   mkOneClickPipeParquet =
@@ -224,6 +243,10 @@ let
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
+  vmsClickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneClickPipeStress
+  );
+
   vmsClickPipeParquet = lib.genAttrs constants.supportedArchs mkOneClickPipeParquet;
 
   vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
@@ -317,6 +340,22 @@ let
     };
   });
 
+  # Full end-to-end integration stress test: the dedicated
+  # clickhouse-pipeline-stress VM (redpanda + clickhouse + the tcp-stress
+  # socket-load containers + xtcp2), wrapped in a duration-bounded host
+  # runner that asserts records keep reaching ClickHouse over time from the
+  # load containers' namespaces. Gated on tcpStressImage (the load
+  # containers need the OCI image). Leaves the interactive
+  # `microvm-x86_64-clickhouse-pipeline` boot available unchanged.
+  clickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkClickPipeStressRunner {
+        inherit arch;
+        vm = vmsClickPipeStress.${arch};
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -340,6 +379,7 @@ in
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsClickPipeStress
     vmsClickPipeParquet
     vmsS3Parquet
     vmsS3ParquetLong
@@ -347,6 +387,7 @@ in
     vmsDiscoveryBench
     s3parquetLong
     discoveryBench
+    clickPipeStress
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage

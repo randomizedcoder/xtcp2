@@ -69,6 +69,21 @@
       # With the chatty-logs disable in place, 16384/12000m is generous
       # but cheap insurance.
       memClickPipeParquet = 16384;
+      # memClickPipeStress is used by sink="clickhouse-pipeline-stress": the
+      # full end-to-end integration stress test = the clickhouse-pipeline
+      # stack (ClickHouse + Redpanda + dockerd + xtcp2) PLUS the tcp-stress
+      # load containers (20 × 250 sockets ≈ 10k sockets). memClickPipe's
+      # 6144 MiB covers the pipeline; the load containers add ~1.5 GiB, so
+      # 8192 MiB leaves headroom for a 24h run.
+      #
+      # NOTE: the ClickHouse ingestion ceiling seen under load (~19-21k rows)
+      # is NOT a memory/OOM issue (kafka consumer reports 0 exceptions, and
+      # raising the CH cap to 14000m did not move the ceiling). It is the
+      # documented ClickHouse↔Kafka consumer rebalance loop — see
+      # kafka_client_tuning.xml. So this stays at the modest 8192 MiB; a
+      # bigger heap would only slow MV inserts and make the rebalance loop
+      # more likely.
+      memClickPipeStress = 8192;
       # memDiscoveryBench is used by sink="discovery-bench". The grid sweep
       # spawns up to a few thousand `sleep infinity` processes per cell (cheap,
       # shared libc pages) plus the created namespaces; 4096 MiB leaves clear
