@@ -29,8 +29,11 @@ Three complementary layers, all driven from the Nix flake (see
    load:
    - `clickhouse-pipeline` — the production path (protobufList → Kafka/Redpanda
      → ClickHouse), with end-to-end row reconciliation.
-   - `tcp-stress` — 20 docker containers × ~100 sockets (per-container
+   - `tcp-stress` — 20 docker containers × 250 sockets (per-container
      namespace discovery under load).
+   - `clickhouse-pipeline-stress` — both of the above at once: the full pipeline
+     under the container-stress load, for a long combined soak (see
+     [Combined stress soak](#combined-stress-soak-clickhouse-pipeline-stress)).
    - `soak` — continuous `ip netns add/del` churn (~200 namespaces) plus a
      persistent TCP socket population — the leak/thread shake-out.
 
@@ -65,6 +68,8 @@ essentially for free, and is now I/O-bound rather than marshalling-bound.
 | 4 | `tcp-stress` hard-coded host `:9090` hostfwd → qemu won't start on a box already running Prometheus | tcp-stress soak | #50 |
 | 5 | `soak` VM under-sized (1024 MiB) → `nsTest` load-gen OOM-loops, degrading churn | soak | #51 |
 | 6 | Soak runner under-reported xtcp2 restarts (missed Go `fatal error` exits → would falsely PASS) | soak crash-loop analysis | tracked (#54 plan) |
+| 7 | ProtobufList Kafka ingest stalled at a fixed row count: `kafka_schema` used a **package-qualified** message name (`xtcp_flat_record.v1.XtcpFlatRecord`); ClickHouse's ProtobufList resolver needs the **simple** name, so it threw `Could not find a message` (BAD_ARGUMENTS), the consumer detached, and ingest froze | `clickhouse-pipeline` "ceiling" + `clickhouse-local` repro against the real proto | simple name `XtcpFlatRecord` (regression from 60da4c7); also requires ClickHouse **≥ 26.3** for the multi-message fix (CH [#98151](https://github.com/ClickHouse/ClickHouse/pull/98151) / issue [#78746](https://github.com/ClickHouse/ClickHouse/issues/78746)) — see [integration-testing.md](integration-testing.md) |
+| 8 | Debugging red herring: the persistent `/var/lib/docker` disk backs `clickhouse_db`, so ClickHouse skips initdb on every reboot and edited DDL never runs — a schema fix silently had no effect and a frozen `64824` looked like a live ceiling | this campaign (fix wouldn't validate until the disk was wiped) | wipe `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` when iterating on DDL; documented in both test docs |
 
 > Note on #2: that fix is correct but was **not** the dominant thread consumer —
 > see the scaling model below. It was the soak finding the *real* limit that
@@ -107,6 +112,7 @@ pinning threads) — designed in [design-nonblocking-netlink.md](design-nonblock
 | `soak` (churn), `-netlinkers 4` | ~10 min | **FAIL** — thread-exhaustion crash-loop (~25 restarts) → root-caused the scaling model |
 | `soak` (churn), **`-netlinkers 1` + `-maxThreads 8000`** | **12 h** | **PASS** — 242,100 ns-churn events, **0 panics, 0 restarts, 0 thread-exhaustion, single xtcp2 process throughout** |
 | `soak` (churn), **Method B `/proc` discovery** (`netns_inode` rework, 6 h reconcile default) | **12 h** | **PASS** — 344,972 ns-churn events, **0 panics, 0 restarts**; RSS 9.8 MB → plateau **~30–34 MB** and threads 6 → **35**, both flat across 12 h (bounded oscillation, no leak) |
+| `clickhouse-pipeline-stress` (combined: TCP-stress load **and** ProtobufList→Kafka→ClickHouse, 1 h records TTL) | **~19.7 h** (of a 24 h target; ended by an external task-kill at t=70,800 s, **not** a pipeline failure — every process was healthy at the cut) | **PASS** — 20/20 containers × 250 sockets sustained, ProtobufList ingest continuous (consumer `msgs` 1 → **14,214** monotonic), **0 schema errors, 0 `PROTOBUF_BAD_CAST`, 0 `kafka_exc`, 0 rebalances, 0 panics**; RSS flat **~60 MB**, threads flat **131**, docker disk 13% → **31% peak** (linear, no saturation) |
 
 The 12 h soak ran the worst case: ~200 namespaces churned at 100 ms add/delete.
 `pollDuration` under that storm stayed **bounded** at ~6–10 s (one reader
@@ -124,6 +130,67 @@ climb), and thread count pins flat at 35 for the full run. The 35-thread ceiling
 reflects the small *concurrent* namespace working set under fast add/delete churn
 (a leak would show either metric climbing without bound), consistent with the
 `ns × (netlinkers + 1)` model above.
+
+### Combined stress soak (`clickhouse-pipeline-stress`)
+
+The heaviest single test: it runs the **full production data path and the
+per-container discovery load at the same time**, for a long duration, to prove
+the ProtobufList → Kafka → ClickHouse pipeline holds up *at rate* while xtcp2 is
+also churning through many container namespaces.
+
+**What it exercises.** One microVM boots the whole stack — Redpanda, ClickHouse
+(Kafka-engine → materialized view → MergeTree), Prometheus/Grafana — and then a
+load generator spawns **20 docker containers, each opening 250 real TCP sockets
+(5,000 sockets total)**. xtcp2 discovers each container's netns via the Method B
+`/proc/<pid>/ns/net` scan, reads `inet_diag` in every namespace, batches records
+into `ProtobufList` envelopes (one envelope per Kafka message, up to 768 KiB /
+10,000 rows), and produces to Redpanda. ClickHouse's Kafka engine decodes each
+envelope and the MV lands rows in the `xtcp_flat_records` MergeTree. The records
+table carries a **1-hour TTL** in this flavor so a multi-hour run stays
+disk-bounded instead of growing without limit.
+
+**How it works (the harness).** An in-VM `clickpipe-monitor` samples every 30 s
+and prints one `XTCP2_CLICKPIPE_ROWS` line to the serial console with
+`rows` (MergeTree count), distinct `netns_inode`, `kafka_exc` (consumer
+exceptions), `reb` (rebalance revocations), `msgs` (cumulative Kafka messages
+read), and `disk` (percent-used of the persistent `/var/lib/docker`). A separate
+`xtcp2-resource-snapshot` service samples `rss_kb`/`threads` every 30 s for the
+leak signal. The host runner taps the serial port (`--duration <Nh>` /
+`--keep-alive`), echoes a heartbeat, and at the end **asserts**: containers
+spawned, rows grew, `kafka_exc == 0`, no panics, distinct netns ≥ 2, and — added
+after this campaign — **docker disk peak `< 95%` (WARN ≥ 85%)**. Deep-dive
+consumer + ClickHouse-Kafka-log dumps are emitted **only on trouble** (a consumer
+exception, or `msgs` not advancing between samples), so a healthy multi-hour run
+stays quiet but a stall captures full diagnostics automatically.
+
+**What the ~19.7 h run proved.** Over 2,210 monitor samples and 2,357 resource
+snapshots: sustained `ProtobufList` ingestion with **zero** decode or consumer
+errors (`msgs` climbed monotonically to 14,214 — the true "data is flowing"
+signal), **flat resources** (threads pinned at 131, RSS oscillating ~55–66 MB
+with no upward drift — no leak), and a **healthy, linear disk trend** (13% → 31%
+peak, ~0.9%/h, never near the WARN line). The run ended ~4.3 h short of 24 h only
+because the background *task* was reaped externally; nothing in the pipeline
+failed.
+
+Two readings that are easy to get wrong on this flavor:
+
+- **`rows` oscillating in a band (here ~1.8–3.1 M) is *not* a stall** — it is the
+  1-hour TTL at steady state (delete rate ≈ ingest rate). The monotonic `msgs`
+  counter, not `rows`, is what proves ingestion is alive. The runner's
+  rows-grew assertion compares first vs. last, which still holds because the
+  band sits far above the initial 0.
+- **A frozen row count at a suspiciously round, *identical* number across runs**
+  means the persistent `/var/lib/docker` disk skipped ClickHouse initdb, so the
+  edited DDL never ran (see the ProtobufList bug below and
+  [integration-testing.md](integration-testing.md) troubleshooting). Wipe
+  `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` when iterating on schema.
+
+> **Why the disk assertion exists.** An earlier `clickhouse-pipeline` run froze
+> at ~18 k rows when `/var/lib/docker` filled: the Kafka engine could not commit
+> offsets, xtcp2's producer back-pressured, and ingestion plateaued — a
+> disk-full failure that looks exactly like a decode/consumer bug. The
+> per-heartbeat `disk=%` readout and the peak-based FAIL/WARN make that failure
+> mode self-identifying instead of a multi-hour red herring.
 
 ## io_uring evaluation
 
@@ -204,10 +271,17 @@ curl -s 'http://127.0.0.1:9088/debug/pprof/profile?seconds=45' > cpu.pprof
 go tool pprof -top cpu.pprof
 
 # MicroVM soaks (KVM; no sudo)
-nix run .#microvm-x86_64-clickhouse-pipeline           # production pipeline (interactive)
-nix run .#microvm-x86_64-tcp-stress -- --duration 3h   # container netns under load
-nix run .#microvm-x86_64-soak -- --duration 12h        # namespace churn stability
+nix run .#microvm-x86_64-clickhouse-pipeline                     # production pipeline (interactive)
+nix run .#microvm-x86_64-tcp-stress -- --duration 3h            # container netns under load
+nix run .#microvm-x86_64-soak -- --duration 12h                 # namespace churn stability
+nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --duration 24h   # combined: pipeline + stress load
 ```
+
+> **Iterating on ClickHouse DDL?** The `clickhouse-pipeline*` flavors mount a
+> *persistent* docker disk, so ClickHouse skips initdb once its data volume
+> exists and your edited schema won't take effect. `rm -f
+> /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running to force a
+> clean initdb (bug #8 above).
 
 The `soak` flavor runs xtcp2 on its binary defaults (`-netlinkers 4`,
 `-maxThreads 2000`) via `xtcp2BasicArgs` in `nix/microvms/mkVm.nix` — that is the
