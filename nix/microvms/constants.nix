@@ -84,6 +84,15 @@
       # bigger heap would only slow MV inserts and make the rebalance loop
       # more likely.
       memClickPipeStress = 8192;
+      # memS3ParquetStress is used by sink="s3parquet-stress": the parquet→S3
+      # upload path (xtcp2 → in-VM MinIO) under the SAME tcp-stress load as
+      # clickhouse-pipeline-stress (20 × 250 sockets), but WITHOUT ClickHouse /
+      # Redpanda / JVM. Footprint = dockerd + 20 load containers (~1.5 GiB) +
+      # MinIO server (~300 MiB, its data lives on a dedicated disk, not RAM) +
+      # xtcp2 with 64 MiB parquet write buffers (~300 MiB) + kernel/page cache.
+      # 6144 MiB leaves clear headroom for a 24h run; bump if xtcp2 or the load
+      # containers OOM.
+      memS3ParquetStress = 6144;
       # memDiscoveryBench is used by sink="discovery-bench". The grid sweep
       # spawns up to a few thousand `sleep infinity` processes per cell (cheap,
       # shared libc pages) plus the created namespaces; 4096 MiB leaves clear

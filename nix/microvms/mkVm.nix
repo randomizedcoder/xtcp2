@@ -74,19 +74,25 @@ let
   # check should refuse to start; the lifecycle test verifies the
   # expected error appears on the serial console.
   isCapCheckFail = sink == "capcheck-fail";
+  # s3parquet-stress = the parquet→S3 upload analog of clickhouse-pipeline-stress:
+  # xtcp2 writes Parquet to an in-VM MinIO under the SAME tcp-stress load
+  # (20 × 250 sockets), bounded to ~1h of retained objects (periodic mc rm),
+  # with the disk guard + RSS/thread leak check + a repeatable soak runner.
+  isS3ParquetStress = sink == "s3parquet-stress";
   # discovery-bench = a root VM that runs the namespace-discovery A/B grid
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
   isDiscoveryBench = sink == "discovery-bench";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
-  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet;
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress;
   # All flavors that bring up the redpanda + clickhouse docker stack.
   isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress;
   # Flavors that spawn the tcp-stress socket-load containers.
-  isAnyTcpStressLoad = isTcpStress || isClickPipeStress;
-  # Anything that needs dockerd inside the VM.
-  needsDocker = isTcpStress || isAnyClickPipe;
+  isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress;
+  # Anything that needs dockerd inside the VM (the tcp-stress load containers
+  # need it too, so s3parquet-stress pulls docker in even though its sink is MinIO).
+  needsDocker = isTcpStress || isAnyClickPipe || isS3ParquetStress;
   effectiveMem =
     if isClickPipeParquet then
       # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
@@ -95,6 +101,9 @@ let
     else if isClickPipeStress then
       # Pipeline stack + the tcp-stress load containers in one VM.
       cfg.memClickPipeStress
+    else if isS3ParquetStress then
+      # MinIO + xtcp2 (parquet) + the tcp-stress load containers, no CH/Redpanda.
+      cfg.memS3ParquetStress
     else if isAnyClickPipe then
       cfg.memClickPipe
     else if isAnyS3Parquet then
@@ -786,14 +795,14 @@ let
   # for goroutine/thread-leak diagnosis without an external dependency.
   s3ParquetModules = [
     (import ../modules/minio-bucket-bootstrap.nix {
-      # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
-      # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
-      # tell the bootstrap module not to also declare a tmpfs there.
-      # Other s3parquet flavors keep the tmpfs (short runs only).
-      useTmpfs = !isClickPipeParquet;
+      # The clickpipe-parquet AND s3parquet-stress flavors mount a dedicated
+      # ext4 disk at /var/lib/minio via microvm.volumes (see below) — tell the
+      # bootstrap module not to also declare a tmpfs there. The short-run
+      # s3parquet / s3parquet-long flavors keep the 512 MiB tmpfs.
+      useTmpfs = !isClickPipeParquet && !isS3ParquetStress;
     })
   ]
-  ++ lib.optionals isS3ParquetLong [
+  ++ lib.optionals (isS3ParquetLong || isS3ParquetStress) [
     (import ../modules/pyroscope-server.nix { })
   ];
 
@@ -874,7 +883,46 @@ let
         rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
         gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
         thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
-        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr}"
+        # Disk utilization of the MinIO data dir (integer percent, no % sign).
+        # For s3parquet-stress this is the dedicated ext4 disk that holds the
+        # parquet objects; the runner asserts it never saturates (a full disk
+        # would back-pressure uploads and stall ingest). For s3parquet-long it
+        # is the 512 MiB tmpfs — harmless, just reported.
+        disk=$(df --output=pcent /var/lib/minio 2>/dev/null | tail -1 | tr -dc '0-9')
+        disk=''${disk:-0}
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr} disk=''${disk}"
+      done
+    '';
+  };
+
+  # s3parquet-stress retention: the parquet path has no TTL of its own, so a
+  # long soak would grow the MinIO disk without bound. This is the direct
+  # analog of the clickhouse-pipeline-stress table's 1h TTL — every 10 min it
+  # deletes objects older than 1h, keeping ~1h of parquet retained so the disk
+  # sits at steady state and the disk guard stays meaningful at any duration.
+  s3ParquetRetentionScript = pkgs.writeShellApplication {
+    name = "xtcp2-s3parquet-retention";
+    runtimeInputs = with pkgs; [
+      coreutils
+      minio-client
+    ];
+    text = ''
+      # Wait for MinIO to be live, then (re)register the alias idempotently.
+      for _ in $(seq 1 60); do
+        if mc alias set local http://127.0.0.1:9000 xtcp2test xtcp2testsecret \
+             >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      echo "XTCP2_S3PARQUET_RETENTION start: deleting objects older than 1h every 600s"
+      while true; do
+        sleep 600
+        # --force is required for a non-interactive delete; --older-than 1h
+        # matches the object's last-modified. `|| true` so a transient MinIO
+        # blip doesn't kill the loop (systemd would restart, but keep it alive).
+        n=$(mc rm --recursive --force --older-than 1h local/xtcp2-records/ 2>/dev/null | wc -l || echo 0)
+        echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}"
       done
     '';
   };
@@ -909,6 +957,35 @@ let
     "http://127.0.0.1:14040"
     "-pyroscopeAppName"
     "xtcp2.s3parquet-long"
+  ];
+
+  # s3parquet-stress: same production parquet config as the long soak
+  # (64 MiB flush, 10s poll, Pyroscope leak diagnosis), but this flavor
+  # ALSO runs the tcp-stress load containers (20 × 250 sockets) so xtcp2
+  # is discovering many container netns and reading real socket load while
+  # uploading. Identical S3 target (in-VM MinIO); the difference from
+  # s3parquet-long is the load + the ~1h retention cleanup + the disk guard.
+  xtcp2S3ParquetStressArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "10s"
+    "-timeout"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "67108864"
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-stress"
   ];
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
@@ -1127,6 +1204,34 @@ in
                 fsType = "ext4";
                 label = "xtcp2minio";
               }
+            ]
+            ++ lib.optionals isS3ParquetStress [
+              {
+                # s3parquet-stress spawns the tcp-stress load containers, so it
+                # needs dockerd on a real disk for /var/lib/docker (the load
+                # image + 20 containers) — same rationale as the clickpipe
+                # docker disk above. Own image path so flavors never share
+                # state (a reused image once skipped ClickHouse initdb and
+                # corrupted the docker image store).
+                image = "/tmp/xtcp2-microvm-s3parquet-stress-docker.img";
+                mountPoint = "/var/lib/docker";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2s3pdock";
+              }
+              {
+                # Dedicated disk for the MinIO parquet objects. Bounded by the
+                # ~1h retention cleanup (xtcp2-s3parquet-retention.service), so
+                # 16 GiB is ample steady-state headroom; sparse file, grown
+                # incrementally. The disk guard asserts it never saturates.
+                image = "/tmp/xtcp2-microvm-s3parquet-stress-minio.img";
+                mountPoint = "/var/lib/minio";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2s3pmin";
+              }
             ];
           interfaces = [
             {
@@ -1171,8 +1276,8 @@ in
                 guest.port = 9001;
               }
             ]
-            ++ lib.optionals isS3ParquetLong [
-              # Pyroscope UI on the long-soak flavor so operators can
+            ++ lib.optionals (isS3ParquetLong || isS3ParquetStress) [
+              # Pyroscope UI on the long-soak / stress flavors so operators can
               # open http://127.0.0.1:14040 from the host and inspect
               # the live profile. Port shifted off the canonical 4040
               # because pyroscope was failing to bind it inside the
@@ -1396,6 +1501,10 @@ in
               # config is otherwise valid; the capability check is the
               # only thing that fails).
               xtcp2S3ParquetLongArgs
+            else if isS3ParquetStress then
+              # s3parquet-stress flavor: production parquet config under the
+              # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
+              xtcp2S3ParquetStressArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -1501,19 +1610,20 @@ in
           };
         };
 
-        # s3parquet-long: hourly file-count monitor. Sentinel format
-        # mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
+        # s3parquet-long / s3parquet-stress: MinIO upload monitor. Sentinel
+        # format mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
         # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
-        # (seconds) — the runner overrides per phase.
-        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf isS3ParquetLong {
-          description = "xtcp2 s3parquet-long — hourly MinIO file-count reporter";
+        # (seconds); the stress flavor uses a tight 30 s so the soak heartbeat
+        # and disk-guard track closely, the long flavor keeps the 60 s default.
+        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf (isS3ParquetLong || isS3ParquetStress) {
+          description = "xtcp2 s3parquet — MinIO upload-count + disk reporter";
           after = [
             "xtcp2.service"
             "multi-user.target"
           ];
           wants = [ "xtcp2.service" ];
           wantedBy = [ "multi-user.target" ];
-          environment.S3PARQUET_REPORT_INTERVAL = toString s3ParquetReportIntervalDefault;
+          environment.S3PARQUET_REPORT_INTERVAL = toString (if isS3ParquetStress then 30 else s3ParquetReportIntervalDefault);
           serviceConfig = {
             Type = "simple";
             ExecStart = "${s3ParquetMonitorScript}/bin/xtcp2-s3parquet-monitor";
@@ -1522,6 +1632,26 @@ in
             # sentinel stream.
             Restart = "on-failure";
             RestartSec = "5s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # s3parquet-stress: bounded ~1h object retention (analog of the
+        # clickhouse-stress 1h table TTL). Keeps the MinIO disk at steady state.
+        systemd.services.xtcp2-s3parquet-retention = lib.mkIf isS3ParquetStress {
+          description = "xtcp2 s3parquet-stress — delete parquet objects older than 1h";
+          after = [
+            "minio.service"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wants = [ "minio.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${s3ParquetRetentionScript}/bin/xtcp2-s3parquet-retention";
+            Restart = "on-failure";
+            RestartSec = "10s";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -1870,7 +2000,7 @@ in
         # to see long-term trends: rss_kb is the memory-growth signal, threads
         # the OS-thread-leak signal, CPU + ctxt round it out. Gated to the load
         # flavors (soak / tcp-stress).
-        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak || isAnyClickPipe) {
+        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak || isAnyClickPipe || isS3ParquetStress) {
           description = "xtcp2 — periodic CPU/ctxt/RSS/thread snapshots (leak-soak)";
           after = [ "xtcp2.service" ];
           wants = [ "xtcp2.service" ];

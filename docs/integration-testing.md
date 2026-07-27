@@ -46,7 +46,7 @@ nix run .#microvm-x86_64-lifecycle-coverage-iouring
 nix run .#microvm-x86_64-soak
 nix run .#microvm-x86_64-soak -- --duration 12h
 
-# Per-container netns stress: 20 docker containers × 100 sockets each
+# Per-container netns stress: 20 docker containers × 250 sockets each
 nix run .#microvm-x86_64-tcp-stress -- --duration 180s
 
 # Namespace-discovery A/B benchmark: dir-scan vs /proc-scan, on a real kernel
@@ -57,6 +57,11 @@ nix run .#microvm-x86_64-clickhouse-pipeline
 # Then in browser:
 open http://127.0.0.1:13000   # Grafana
 open http://127.0.0.1:18123   # ClickHouse HTTP (curl -u default:xtcp)
+
+# Combined stress soaks (pipeline/sink under the tcp-stress load) — 1h default,
+# pass --duration 24h for the production soak. See the disk-wipe caveat below.
+nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --duration 24h  # Kafka→ClickHouse
+nix run .#microvm-x86_64-s3parquet-stress -- --duration 24h           # Parquet→S3 (MinIO)
 ```
 
 ## Architecture
@@ -130,6 +135,7 @@ host
 | `microvm-x86_64-clickhouse-pipeline` | `clickhouse-pipeline` | 3072 MiB | + Redpanda + ClickHouse + Prometheus + Grafana | Full xtcp2 → Kafka → ClickHouse data path |
 | `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | 8192 MiB | clickhouse-pipeline + N containers × M sockets + 1h TTL | Full pipeline **under TCP-stress load** — validates ProtobufList ingest at rate; 24h combined soak |
 | `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | 14 GiB CH | + in-VM MinIO (dedicated 16 GiB disk) | Mixed ClickHouse + S3/Parquet sink path |
+| `microvm-x86_64-s3parquet-stress` | `s3parquet-stress` | 6144 MiB | xtcp2 (parquet) + in-VM MinIO (dedicated disk) + N containers × M sockets + 1h object retention | Parquet→S3 upload **under TCP-stress load** — the S3 analog of `clickhouse-pipeline-stress`; 24h soak |
 | `microvm-x86_64-discovery-bench` | `discovery-bench` | 4096 MiB | xtcp2 + `discovery-bench` grid | Namespace-discovery A/B benchmark (dir-scan vs `/proc`-scan) on a real kernel |
 
 Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and adds only what it needs. Common kernel cmdline / hypervisor / nic config stays identical across flavors.
@@ -492,7 +498,7 @@ docker run --rm -w /s -v "$PWD/proto/xtcp_flat_record/v1":/s clickhouse/clickhou
 
 Note: a *single* `Could not find a message` line right at container init (during the entrypoint's temp-server → real-server handover) can be a benign one-shot. The tell is **recurrence**: benign = once at boot; bug = every poll forever. When in doubt, check whether `rows` is growing.
 
-**A schema/DDL change doesn't take effect on re-run (or the row count is frozen at a suspiciously round, identical number across runs)** Every `clickhouse-pipeline*` flavor mounts a **persistent** 16 GiB ext4 disk at `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` → `/var/lib/docker` (`nix/microvms/mkVm.nix`, `microvm.volumes` under `isAnyClickPipe`). That disk backs the `clickhouse_db` named volume. ClickHouse's docker entrypoint runs `/docker-entrypoint-initdb.d/*` **only when its data dir is empty**, so once `clickhouse_db` exists from a prior boot, **initdb is skipped** and your edited DDL (kafka_schema, columns, TTL, …) never runs — the old tables and old data persist across rebuilds and even ClickHouse version bumps. This once masked an entire debugging session: a plateau at exactly `64824` rows was frozen leftover data, not a live ceiling. **Fix while iterating on schema:** `rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running (it is `autoCreate`d fresh). The persistence is intentional for multi-hour soaks (survives in-VM reboots); it is only a footgun when the DDL changes.
+**A schema/DDL change doesn't take effect on re-run (or the row count is frozen at a suspiciously round, identical number across runs)** Every `clickhouse-pipeline*` flavor mounts a **persistent** 16 GiB ext4 disk at `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` → `/var/lib/docker` (`nix/microvms/mkVm.nix`, `microvm.volumes` under `isAnyClickPipe`). That disk backs the `clickhouse_db` named volume. ClickHouse's docker entrypoint runs `/docker-entrypoint-initdb.d/*` **only when its data dir is empty**, so once `clickhouse_db` exists from a prior boot, **initdb is skipped** and your edited DDL (kafka_schema, columns, TTL, …) never runs — the old tables and old data persist across rebuilds and even ClickHouse version bumps. This once masked an entire debugging session: a plateau at exactly `64824` rows was frozen leftover data, not a live ceiling. **Fix while iterating on schema:** `rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running (it is `autoCreate`d fresh). The persistence is intentional for multi-hour soaks (survives in-VM reboots); it is only a footgun when the DDL changes. The `s3parquet-stress` flavor has the same model with its own disks — `rm -f /tmp/xtcp2-microvm-s3parquet-stress-*.img` for a clean docker image store + empty MinIO bucket before a fresh run.
 
 **Stress containers all report `FAILED to start`, and/or `dockerd: failed to validate image signature … expected image index descriptor, got manifest.v2+json`** Almost always a **stale/corrupt docker image store on the reused persistent disk** (previous point) — a prior build's `/var/lib/docker` left half-migrated image metadata. Wipe the same disk image (`rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img`) and re-run; on a fresh disk all containers start and the signature line, if it still appears, is a harmless warning (containers run regardless).
 

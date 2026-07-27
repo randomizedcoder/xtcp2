@@ -315,6 +315,7 @@ in
       microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
+      microvm-x86_64-s3parquet-stress = microvms.vmsS3ParquetStress.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
@@ -452,6 +453,19 @@ in
     microvm-x86_64-s3parquet-runner = {
       type = "app";
       program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
+    };
+
+    # Parquet→S3 upload stress soak: the s3parquet-long harness (in-VM MinIO +
+    # xtcp2 writing parquet) PLUS the tcp-stress load containers (20 × 250
+    # sockets) and a ~1h object-retention cleanup. Duration-bounded runner taps
+    # the serial console, prints an upload/disk heartbeat, and asserts uploads
+    # kept advancing, the MinIO disk stayed healthy, and RSS/threads stayed
+    # bounded, with no restarts/panics. Default 1h; pass `--duration 24h` for
+    # the production soak or `--keep-alive` to inspect MinIO by hand. Analog of
+    # `microvm-x86_64-clickhouse-pipeline-stress`. Not in `nix flake check`.
+    microvm-x86_64-s3parquet-stress = {
+      type = "app";
+      program = "${microvms.s3ParquetStress.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
     };
 
     # Namespace-discovery A/B benchmark: boots a root microvm that runs the

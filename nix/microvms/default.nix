@@ -190,6 +190,25 @@ let
       sink = "s3parquet-long";
     };
 
+  # s3parquet-long + the tcp-stress socket-load containers = the parquet→S3
+  # upload analog of clickhouse-pipeline-stress. Needs tcpStressImage (to
+  # docker-load and spawn the load containers).
+  mkOneS3ParquetStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "s3parquet-stress";
+    };
+
   # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
   # capability set so the startup capability check refuses to start
   # the daemon. Used to validate the fail-early diagnostic.
@@ -250,6 +269,10 @@ let
   vmsClickPipeParquet = lib.genAttrs constants.supportedArchs mkOneClickPipeParquet;
 
   vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
+
+  vmsS3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneS3ParquetStress
+  );
 
   vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
 
@@ -356,6 +379,19 @@ let
     })
   );
 
+  # Parquet→S3 upload stress soak: the s3parquet-stress VM (in-VM MinIO +
+  # xtcp2 writing parquet + the tcp-stress load containers), wrapped in a
+  # duration-bounded host runner that asserts uploads keep advancing and the
+  # MinIO disk stays healthy. Gated on tcpStressImage like clickPipeStress.
+  s3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkS3ParquetStressRunner {
+        inherit arch;
+        vm = vmsS3ParquetStress.${arch};
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -383,11 +419,13 @@ in
     vmsClickPipeParquet
     vmsS3Parquet
     vmsS3ParquetLong
+    vmsS3ParquetStress
     vmsCapCheckFail
     vmsDiscoveryBench
     s3parquetLong
     discoveryBench
     clickPipeStress
+    s3ParquetStress
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage
