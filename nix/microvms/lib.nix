@@ -159,16 +159,22 @@ rec {
         spawned=$(grep -cE 'stress-[0-9]+: started' "$LOG" 2>/dev/null || true)
         failed=$(grep -cE 'stress-[0-9]+: FAILED' "$LOG" 2>/dev/null || true)
         panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
-        # Per-container netns discovery — count how many distinct
-        # /run/docker/netns/<container-id> CREATE events fired in xtcp2.
-        ns_discovered=$(grep -cE 'watchNamespaces /run/docker/netns/.*Op\.String: CREATE' "$LOG" 2>/dev/null || true)
+        # Per-container netns discovery. Under Method B there is no inotify
+        # CREATE event to grep — xtcp2 discovers each container's netns by
+        # scanning /proc/<pid>/ns/net and starts one netNamespaceInstance
+        # per namespace. The prom-snapshot service exposes the running total
+        # as `XTCP2_NS_INSTANCES start=<N>` (host ns + one per container);
+        # take the latest.
+        ns_line=$(tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_NS_INSTANCES' || true)
+        ns_started=$(printf '%s' "$ns_line" | grep -oE 'start=[0-9]+' | cut -d= -f2 || true)
+        ns_started=''${ns_started:-0}
 
         echo "  xtcp2.service started:        $started_xtcp2"
         echo "  docker.service started:       $started_docker"
         echo "  oci image loaded:             $loaded_image"
         echo "  containers spawned OK:        $spawned"
         echo "  containers FAILED to start:   $failed"
-        echo "  per-container ns discovered:  $ns_discovered"
+        echo "  ns instances started:         $ns_started (host + per-container)"
         echo "  panics in transcript:         $panics"
 
         rc=0
@@ -176,11 +182,15 @@ rec {
         [ "$started_docker" -lt 1 ] && { echo "FAIL: docker didn't start"; rc=1; }
         [ "$loaded_image" -lt 1 ] && { echo "FAIL: oci image never loaded"; rc=1; }
         [ "$spawned" -lt 1 ] && { echo "FAIL: no containers spawned"; rc=1; }
-        [ "$ns_discovered" -lt "$spawned" ] && { echo "FAIL: xtcp2 saw $ns_discovered ns CREATE events but $spawned containers spawned"; rc=1; }
+        # Each spawned container's netns → one netNamespaceInstance start,
+        # plus the host ns, so a healthy run has ns_started >= spawned. (A 0
+        # here can also mean Prometheus/the snapshot service never came up —
+        # check the XTCP2_PROM_SNAPSHOT section below.)
+        [ "$ns_started" -lt "$spawned" ] && { echo "FAIL: xtcp2 started $ns_started ns instances but $spawned containers spawned — per-container discovery incomplete (or metrics unavailable)"; rc=1; }
         [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s)"; rc=1; }
 
         if [ "$rc" -eq 0 ]; then
-          echo "PASS: $spawned containers, xtcp2 discovered all $ns_discovered per-container netns"
+          echo "PASS: $spawned containers, xtcp2 started $ns_started per-namespace instances (host + all containers)"
         fi
         echo ""
 
@@ -204,6 +214,474 @@ rec {
           echo " --keep-alive: VM is still running."
           echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
           echo "   Prometheus (host-forwarded): curl 127.0.0.1:19090/api/v1/query?query=..."
+          echo "   Ctrl-C this runner to power the VM off."
+          echo "================================================"
+          wait "$vm_pid"
+        fi
+
+        exit "$rc"
+      '';
+    };
+
+  # Build the clickhouse-pipeline stress runner for a given arch. This is
+  # the full end-to-end integration stress test: boots the docker-in-VM
+  # flavor that runs redpanda + clickhouse + the tcp-stress containers,
+  # with xtcp2 producing inet_diag records into Kafka → ClickHouse. It
+  # taps the serial console for `--duration`, printing a heartbeat with
+  # the live ClickHouse row count + distinct-netns count, then asserts
+  # the pipeline actually moved data over time:
+  #   - the redpanda/clickhouse images pulled and the stack came up
+  #   - the stress containers spawned
+  #   - rows in xtcp.xtcp_flat_records grew across the run (records kept
+  #     flowing end-to-end, not just a one-shot burst)
+  #   - records landed from multiple distinct netns_inode values (the
+  #     Method B per-container discovery proof — under Method B there is
+  #     no inotify CREATE event to grep, so ClickHouse row provenance is
+  #     the discovery signal)
+  #   - no panics, and RSS/threads plateaued (leak check over the run)
+  #
+  # Usage:
+  #   nix run .#microvm-x86_64-clickhouse-pipeline-stress                  # default 1h
+  #   nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --duration 24h
+  #   nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --keep-alive  # poke it by hand
+  mkClickPipeStressRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-clickpipe-stress-runner-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        gawk
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        DURATION_SEC=3600  # default 1h — first boot must pull redpanda +
+                           # clickhouse, bring the stack up, then let rows
+                           # accumulate; 24h is the production stress run.
+        KEEP_ALIVE=0
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --duration)
+              d="$2"
+              DURATION_SEC=$(awk -v d="$d" '
+                BEGIN {
+                  n = d + 0
+                  u = d; sub(/^[0-9.]+/, "", u)
+                  mul = (u == "s" || u == "") ? 1 :
+                        (u == "m") ? 60 :
+                        (u == "h") ? 3600 : -1
+                  if (mul < 0) exit 1
+                  printf "%d", n * mul
+                }
+              ')
+              shift 2 ;;
+            --duration=*) d="''${1#--duration=}"; set -- --duration "$d" "''${@:2}" ;;
+            --keep-alive)
+              KEEP_ALIVE=1; shift ;;
+            -h|--help)
+              echo "usage: $0 [--duration <Nh|Nm|Ns>] [--keep-alive]"
+              echo "  --duration   how long to run before the summary (default 1h)"
+              echo "  --keep-alive don't power off after the summary — leave the VM"
+              echo "               up so you can 'docker exec clickhouse clickhouse-client'"
+              echo "               via the serial console. Ctrl-C to terminate."
+              exit 0 ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ "$DURATION_SEC" -lt 60 ]; then
+          echo "FATAL: --duration under 60s leaves no time for the stack to boot" >&2
+          exit 1
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-clickpipe-stress-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 clickhouse-pipeline stress — arch=${arch}"
+        echo " duration:   ''${DURATION_SEC}s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # Latest ClickHouse row/netns count, read cheaply from the tail of
+        # the (potentially huge) transcript — never a full scan.
+        latest_rows() {
+          tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_CLICKPIPE_ROWS' || true
+        }
+
+        elapsed=0
+        heartbeat_period=300
+        if [ "$DURATION_SEC" -lt 600 ]; then heartbeat_period=$DURATION_SEC; fi
+        while [ "$elapsed" -lt "$DURATION_SEC" ]; do
+          remaining=$((DURATION_SEC - elapsed))
+          step=$heartbeat_period
+          if [ "$step" -gt "$remaining" ]; then step=$remaining; fi
+          sleep "$step"
+          elapsed=$((elapsed + step))
+          if [ "$elapsed" -lt "$DURATION_SEC" ]; then
+            line=$(latest_rows)
+            rows=$(printf '%s' "$line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
+            nsc=$(printf '%s' "$line" | grep -oE 'netns=[0-9]+' | cut -d= -f2 || true)
+            kexc=$(printf '%s' "$line" | grep -oE 'kafka_exc=[0-9]+' | cut -d= -f2 || true)
+            disk=$(printf '%s' "$line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
+            pnc=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+            echo "  [t=$(printf %6d "$elapsed")s/$DURATION_SEC] clickhouse rows=''${rows:-?} netns=''${nsc:-?} kafka_exc=''${kexc:-?} disk=''${disk:-?}% panics=''${pnc:-0}"
+          fi
+        done
+
+        echo ""
+        echo "================================================"
+        echo " clickhouse-pipeline stress summary"
+        echo "================================================"
+
+        pull_fatal=$(grep -cE 'FATAL: docker (pull|not ready)' "$LOG" 2>/dev/null || true)
+        redpanda_up=$(grep -cE 'redpanda-0: started' "$LOG" 2>/dev/null || true)
+        spawned=$(grep -cE 'stress-[0-9]+: started' "$LOG" 2>/dev/null || true)
+        cfailed=$(grep -cE 'stress-[0-9]+: FAILED' "$LOG" 2>/dev/null || true)
+        panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+
+        first_line=$(grep -am1 'XTCP2_CLICKPIPE_ROWS' "$LOG" 2>/dev/null || true)
+        last_line=$(latest_rows)
+        rows_first=$(printf '%s' "$first_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
+        rows_last=$(printf '%s' "$last_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
+        netns_last=$(printf '%s' "$last_line" | grep -oE 'netns=[0-9]+' | cut -d= -f2 || true)
+        kexc_last=$(printf '%s' "$last_line" | grep -oE 'kafka_exc=[0-9]+' | cut -d= -f2 || true)
+        disk_last=$(printf '%s' "$last_line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
+        # Peak disk seen across the whole run, not just the last sample —
+        # a saturation event can recover (TTL delete / redpanda retention)
+        # yet still have frozen ingestion earlier, so assert on the max.
+        disk_peak=$(grep -oE 'disk=[0-9]+' "$LOG" 2>/dev/null | cut -d= -f2 | sort -n | tail -1 || true)
+        rows_first=''${rows_first:-0}
+        rows_last=''${rows_last:-0}
+        netns_last=''${netns_last:-0}
+        kexc_last=''${kexc_last:-0}
+        disk_last=''${disk_last:-0}
+        disk_peak=''${disk_peak:-0}
+
+        echo "  redpanda/clickhouse pull FATAL: $pull_fatal"
+        echo "  redpanda started:              $redpanda_up"
+        echo "  stress containers spawned:     $spawned"
+        echo "  stress containers FAILED:      $cfailed"
+        echo "  clickhouse rows first -> last: $rows_first -> $rows_last"
+        echo "  distinct netns (last sample):  $netns_last"
+        echo "  kafka consumer exceptions:     $kexc_last"
+        echo "  docker disk % (last / peak):    $disk_last / $disk_peak"
+        echo "  panics in transcript:          $panics"
+
+        # RSS/thread trend (leak check) — first/last XTCP2_RES_SNAPSHOT.
+        first_res=$(grep -am1 'XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null || true)
+        last_res=$(tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_RES_SNAPSHOT' || true)
+        if [ -n "$first_res" ] && [ -n "$last_res" ]; then
+          rss0=$(printf '%s' "$first_res" | grep -oE '"rss_kb":[0-9]+' | cut -d: -f2 || echo 0)
+          rss1=$(printf '%s' "$last_res"  | grep -oE '"rss_kb":[0-9]+' | cut -d: -f2 || echo 0)
+          thr0=$(printf '%s' "$first_res" | grep -oE '"threads":[0-9]+' | cut -d: -f2 || echo 0)
+          thr1=$(printf '%s' "$last_res"  | grep -oE '"threads":[0-9]+' | cut -d: -f2 || echo 0)
+          echo "  rss_kb trend:                  ''${rss0:-?} -> ''${rss1:-?}"
+          echo "  threads trend:                 ''${thr0:-?} -> ''${thr1:-?}"
+        fi
+        echo ""
+
+        rc=0
+        [ "$pull_fatal" -ne 0 ] && { echo "FAIL: redpanda/clickhouse image pull failed — pipeline never came up"; rc=1; }
+        [ "$spawned" -lt 1 ] && { echo "FAIL: no stress containers spawned"; rc=1; }
+        [ "$rows_last" -lt 1 ] && { echo "FAIL: 0 rows reached ClickHouse — no records made it end-to-end"; rc=1; }
+        [ "$rows_last" -le "$rows_first" ] && { echo "FAIL: ClickHouse rows did not grow ($rows_first -> $rows_last) — records stopped flowing"; rc=1; }
+        [ "$netns_last" -lt 2 ] && { echo "FAIL: records from only $netns_last distinct netns — per-container discovery not proven end-to-end"; rc=1; }
+        [ "$kexc_last" -ne 0 ] && { echo "FAIL: $kexc_last kafka consumer exception(s) — ClickHouse ingestion stalled (likely MEMORY_LIMIT_EXCEEDED)"; rc=1; }
+        # Disk saturation on /var/lib/docker freezes offset commits and back-
+        # pressures the producer — ingestion plateaus while looking like a
+        # decode/consumer bug. FAIL hard at >=95%; WARN early at >=85% so a
+        # 24h soak that is trending toward full is visible before it stalls.
+        [ "$disk_peak" -ge 95 ] && { echo "FAIL: docker disk hit ''${disk_peak}% — /var/lib/docker saturated, ingestion back-pressured (grow the volume or shorten TTL/retention)"; rc=1; }
+        [ "$disk_peak" -ge 85 ] && [ "$disk_peak" -lt 95 ] && echo "WARN: docker disk peaked at ''${disk_peak}% — approaching saturation; a longer soak may stall"
+        [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s) in transcript"; rc=1; }
+
+        if [ "$rc" -eq 0 ]; then
+          echo "PASS: pipeline moved $rows_last records to ClickHouse from $netns_last netns over ''${DURATION_SEC}s, $spawned containers, 0 panics"
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+
+        if [ "$KEEP_ALIVE" -eq 1 ]; then
+          echo ""
+          echo "================================================"
+          echo " --keep-alive: VM is still running."
+          echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
+          echo "   e.g. docker exec clickhouse clickhouse-client -q \\"
+          echo "        'SELECT count() FROM xtcp.xtcp_flat_records'"
+          echo "   Ctrl-C this runner to power the VM off."
+          echo "================================================"
+          wait "$vm_pid"
+        fi
+
+        exit "$rc"
+      '';
+    };
+
+  # Host runner for the s3parquet-stress flavor — the parquet→S3 analog of
+  # mkClickPipeStressRunner. Same serial-tap + disk-guard + leak-check shape,
+  # but it parses the XTCP2_S3PARQUET_HOURLY sentinel (files/bytes/rows/disk
+  # from xtcp2's own upload counters, which are monotonic and so unaffected by
+  # the 1h retention cleanup) and asserts on uploads + the MinIO disk instead
+  # of ClickHouse rows.
+  mkS3ParquetStressRunner =
+    {
+      arch,
+      vm,
+      # Default --duration when the caller passes none. The stress flavor uses
+      # 1h; the low-frequency flavor overrides to 2h so the ~hourly staleness
+      # timer flush is reliably captured even with no explicit --duration.
+      defaultDurationSec ? 3600,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-s3parquet-stress-runner-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        gawk
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        DURATION_SEC=${toString defaultDurationSec}
+        KEEP_ALIVE=0
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --duration)
+              d="$2"
+              DURATION_SEC=$(awk -v d="$d" '
+                BEGIN {
+                  n = d + 0
+                  u = d; sub(/^[0-9.]+/, "", u)
+                  mul = (u == "s" || u == "") ? 1 :
+                        (u == "m") ? 60 :
+                        (u == "h") ? 3600 : -1
+                  if (mul < 0) exit 1
+                  printf "%d", n * mul
+                }
+              ')
+              shift 2 ;;
+            --duration=*) d="''${1#--duration=}"; set -- --duration "$d" "''${@:2}" ;;
+            --keep-alive)
+              KEEP_ALIVE=1; shift ;;
+            -h|--help)
+              echo "usage: $0 [--duration <Nh|Nm|Ns>] [--keep-alive]"
+              echo "  --duration   how long to run before the summary (default 1h)"
+              echo "  --keep-alive don't power off after the summary — leave the VM"
+              echo "               up so you can inspect MinIO ('mc ls local/xtcp2-records')"
+              echo "               via the serial console. Ctrl-C to terminate."
+              exit 0 ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ "$DURATION_SEC" -lt 60 ]; then
+          echo "FATAL: --duration under 60s leaves no time for the stack to boot" >&2
+          exit 1
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-s3parquet-stress-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 s3parquet-stress — arch=${arch}"
+        echo " duration:   ''${DURATION_SEC}s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # Latest upload sentinel, read cheaply from the tail of the transcript.
+        latest_s3() {
+          tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_S3PARQUET_HOURLY' || true
+        }
+
+        elapsed=0
+        heartbeat_period=300
+        if [ "$DURATION_SEC" -lt 600 ]; then heartbeat_period=$DURATION_SEC; fi
+        while [ "$elapsed" -lt "$DURATION_SEC" ]; do
+          remaining=$((DURATION_SEC - elapsed))
+          step=$heartbeat_period
+          if [ "$step" -gt "$remaining" ]; then step=$remaining; fi
+          sleep "$step"
+          elapsed=$((elapsed + step))
+          if [ "$elapsed" -lt "$DURATION_SEC" ]; then
+            line=$(latest_s3)
+            files=$(printf '%s' "$line" | grep -oE 'files=[0-9]+' | cut -d= -f2 || true)
+            bytes=$(printf '%s' "$line" | grep -oE 'bytes=[0-9]+' | cut -d= -f2 || true)
+            rows=$(printf '%s' "$line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
+            disk=$(printf '%s' "$line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
+            pnc=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+            echo "  [t=$(printf %6d "$elapsed")s/$DURATION_SEC] parquet files=''${files:-?} rows=''${rows:-?} bytes=''${bytes:-?} disk=''${disk:-?}% panics=''${pnc:-0}"
+          fi
+        done
+
+        echo ""
+        echo "================================================"
+        echo " s3parquet-stress summary"
+        echo "================================================"
+
+        spawned=$(grep -cE 'stress-[0-9]+: started' "$LOG" 2>/dev/null || true)
+        cfailed=$(grep -cE 'stress-[0-9]+: FAILED' "$LOG" 2>/dev/null || true)
+        panics=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
+        # xtcp2 restart signal (a crash-loop would otherwise still upload
+        # some files and look like a pass).
+        restarts=$(grep -cE 'xtcp2\.service: Main process exited|xtcp2\.service: Start request repeated' "$LOG" 2>/dev/null || true)
+
+        first_line=$(grep -am1 'XTCP2_S3PARQUET_HOURLY' "$LOG" 2>/dev/null || true)
+        last_line=$(latest_s3)
+        files_first=$(printf '%s' "$first_line" | grep -oE 'files=[0-9]+' | cut -d= -f2 || true)
+        files_last=$(printf '%s' "$last_line" | grep -oE 'files=[0-9]+' | cut -d= -f2 || true)
+        rows_last=$(printf '%s' "$last_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
+        bytes_last=$(printf '%s' "$last_line" | grep -oE 'bytes=[0-9]+' | cut -d= -f2 || true)
+        disk_last=$(printf '%s' "$last_line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
+        # Peak MinIO disk across the whole run (not just the last sample) — a
+        # saturation event can recover after the retention sweep yet still have
+        # stalled uploads earlier, so assert on the max.
+        disk_peak=$(grep -oE 'disk=[0-9]+' "$LOG" 2>/dev/null | cut -d= -f2 | sort -n | tail -1 || true)
+        files_first=''${files_first:-0}
+        files_last=''${files_last:-0}
+        rows_last=''${rows_last:-0}
+        bytes_last=''${bytes_last:-0}
+        disk_last=''${disk_last:-0}
+        disk_peak=''${disk_peak:-0}
+
+        echo "  stress containers spawned:     $spawned"
+        echo "  stress containers FAILED:      $cfailed"
+        echo "  parquet files first -> last:   $files_first -> $files_last"
+        echo "  rows uploaded (last sample):   $rows_last"
+        echo "  bytes uploaded (last sample):  $bytes_last"
+        echo "  minio disk % (last / peak):    $disk_last / $disk_peak"
+        echo "  xtcp2 restarts:                $restarts"
+        echo "  panics in transcript:          $panics"
+
+        # RSS/thread trend (leak check) — first/last XTCP2_RES_SNAPSHOT.
+        first_res=$(grep -am1 'XTCP2_RES_SNAPSHOT' "$LOG" 2>/dev/null || true)
+        last_res=$(tac "$LOG" 2>/dev/null | grep -am1 'XTCP2_RES_SNAPSHOT' || true)
+        if [ -n "$first_res" ] && [ -n "$last_res" ]; then
+          rss0=$(printf '%s' "$first_res" | grep -oE '"rss_kb":[0-9]+' | cut -d: -f2 || echo 0)
+          rss1=$(printf '%s' "$last_res"  | grep -oE '"rss_kb":[0-9]+' | cut -d: -f2 || echo 0)
+          thr0=$(printf '%s' "$first_res" | grep -oE '"threads":[0-9]+' | cut -d: -f2 || echo 0)
+          thr1=$(printf '%s' "$last_res"  | grep -oE '"threads":[0-9]+' | cut -d: -f2 || echo 0)
+          echo "  rss_kb trend:                  ''${rss0:-?} -> ''${rss1:-?}"
+          echo "  threads trend:                 ''${thr0:-?} -> ''${thr1:-?}"
+        fi
+        echo ""
+
+        rc=0
+        [ "$spawned" -lt 1 ] && { echo "FAIL: no stress containers spawned"; rc=1; }
+        [ "$files_last" -lt 1 ] && { echo "FAIL: 0 parquet files uploaded — nothing reached MinIO"; rc=1; }
+        [ "$files_last" -le "$files_first" ] && { echo "FAIL: parquet uploads did not advance ($files_first -> $files_last files) — uploads stalled"; rc=1; }
+        [ "$restarts" -ne 0 ] && { echo "FAIL: $restarts xtcp2 restart(s) — daemon did not stay up"; rc=1; }
+        # Disk saturation on /var/lib/minio back-pressures uploads and stalls
+        # the producer. FAIL hard at >=95%; WARN early at >=85%.
+        [ "$disk_peak" -ge 95 ] && { echo "FAIL: minio disk hit ''${disk_peak}% — /var/lib/minio saturated, uploads back-pressured (grow the volume or shorten the retention window)"; rc=1; }
+        [ "$disk_peak" -ge 85 ] && [ "$disk_peak" -lt 95 ] && echo "WARN: minio disk peaked at ''${disk_peak}% — approaching saturation; a longer soak may stall"
+        [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s) in transcript"; rc=1; }
+
+        if [ "$rc" -eq 0 ]; then
+          echo "PASS: xtcp2 uploaded $files_last parquet files ($rows_last rows) to MinIO over ''${DURATION_SEC}s under $spawned stress containers, 0 restarts, 0 panics"
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+
+        if [ "$KEEP_ALIVE" -eq 1 ]; then
+          echo ""
+          echo "================================================"
+          echo " --keep-alive: VM is still running."
+          echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
+          echo "   MinIO API on the host: http://127.0.0.1:9000 (mc alias set …)"
+          echo "   Pyroscope UI on the host: http://127.0.0.1:14040"
           echo "   Ctrl-C this runner to power the VM off."
           echo "================================================"
           wait "$vm_pid"

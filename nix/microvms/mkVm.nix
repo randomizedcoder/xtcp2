@@ -57,6 +57,13 @@ let
   # an S3-engine table — same VM that runs the kafka path, validating
   # the "operator wants both pipelines on one host" deployment shape.
   isClickPipeParquet = sink == "clickhouse-pipeline-parquet";
+  # clickhouse-pipeline-stress = the full end-to-end integration stress
+  # test: the clickhouse-pipeline stack (redpanda + clickhouse + kafka +
+  # xtcp2) PLUS the tcp-stress load containers (20 × 250 sockets). Unlike
+  # the plain clickhouse-pipeline flavor (which only sees the redpanda/
+  # clickhouse infra netns), this drives real socket load through the
+  # discovery path and validates those records reach ClickHouse.
+  isClickPipeStress = sink == "clickhouse-pipeline-stress";
   # s3parquet = MinIO + xtcp2 writing Parquet directly to S3 (lifecycle).
   isS3Parquet = sink == "s3parquet";
   # s3parquet-long = same destination, no self-test, monitor service emits
@@ -67,22 +74,45 @@ let
   # check should refuse to start; the lifecycle test verifies the
   # expected error appears on the serial console.
   isCapCheckFail = sink == "capcheck-fail";
+  # s3parquet-stress = the parquet→S3 upload analog of clickhouse-pipeline-stress:
+  # xtcp2 writes Parquet to an in-VM MinIO under the SAME tcp-stress load
+  # (20 × 250 sockets), bounded to ~1h of retained objects (periodic mc rm),
+  # with the disk guard + RSS/thread leak check + a repeatable soak runner.
+  isS3ParquetStress = sink == "s3parquet-stress";
+  # s3parquet-lowfreq = the LOW-activity counterpart of s3parquet-stress: same
+  # parquet→MinIO sink and container load, but xtcp2 polls once an HOUR
+  # (-frequency 1h) with only 2 sockets/container. The 63 MiB byte cap is never
+  # reached, so parquet files finalize purely on the staleness TIMER
+  # (max(1h,30m)=1h) — this flavor verifies the bucket still fills under low
+  # poll frequency + low socket count. Lighter than stress (no dedicated disks,
+  # no retention).
+  isS3ParquetLowfreq = sink == "s3parquet-lowfreq";
   # discovery-bench = a root VM that runs the namespace-discovery A/B grid
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
   isDiscoveryBench = sink == "discovery-bench";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
-  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet;
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress || isS3ParquetLowfreq;
   # All flavors that bring up the redpanda + clickhouse docker stack.
-  isAnyClickPipe = isClickPipe || isClickPipeParquet;
-  # Anything that needs dockerd inside the VM.
-  needsDocker = isTcpStress || isAnyClickPipe;
+  isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress;
+  # Flavors that spawn the tcp-stress socket-load containers.
+  isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress || isS3ParquetLowfreq;
+  # Anything that needs dockerd inside the VM (the tcp-stress load containers
+  # need it too, so the s3parquet stress/lowfreq flavors pull docker in even
+  # though their sink is MinIO).
+  needsDocker = isTcpStress || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq;
   effectiveMem =
     if isClickPipeParquet then
       # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
       # MinIO + Pyroscope all in one VM.
       cfg.memClickPipeParquet
+    else if isClickPipeStress then
+      # Pipeline stack + the tcp-stress load containers in one VM.
+      cfg.memClickPipeStress
+    else if isS3ParquetStress then
+      # MinIO + xtcp2 (parquet) + the tcp-stress load containers, no CH/Redpanda.
+      cfg.memS3ParquetStress
     else if isAnyClickPipe then
       cfg.memClickPipe
     else if isAnyS3Parquet then
@@ -138,11 +168,17 @@ let
   # socket count is roughly numContainers * socketsPerContainer * 2
   # (server + accepted-conn pair per port). Each container gets its
   # own netns courtesy of docker's bridge network, exercising xtcp2's
-  # /run/docker/netns/ fsnotify watch under real socket load. Start
-  # small (numContainers=5 default) so the per-VM resource budget
-  # stays sane; bump up to 20+ once you've validated end-to-end.
+  # /proc/<pid>/ns/net scan discovery (Method B) under real socket load.
+  # Keep numContainers modest so the per-VM resource budget stays sane.
   tcpStressNumContainers = 20;
-  tcpStressSocketsPerContainer = 100;
+  # 250/container × 20 containers × 2 (server + accepted-conn) ≈ 10k sockets
+  # visible to xtcp2 — a 2.5× bump from the original 100 for the 24h
+  # clickhouse-pipeline stress run. Stays within the clickhouse-pipeline
+  # memory budget (see clickPipeClickhouseMemory / memClickPipe).
+  # The s3parquet-lowfreq flavor drops to 2/container (~40 sockets across the
+  # 20 netns) so the parquet byte cap is never reached and the staleness TIMER
+  # is the sole flush driver — the whole point of that flavor.
+  tcpStressSocketsPerContainer = if isS3ParquetLowfreq then 2 else 250;
   tcpStressClientSleep = "5s";
   tcpStressPads = 1024;
 
@@ -169,11 +205,16 @@ let
 
   clickPipeRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7";
   # ClickHouse uses MAJOR.MINOR.PATCH.SUBPATCH versioning; the precise
-  # numeric tag for the LTS 25.x line at any given point is hard to
-  # predict, so we use the floating "25.3-alpine" tag which Docker Hub
-  # repoints at the latest 25.3 LTS patch. Pin to a precise tag for
-  # reproducibility once you've validated which patch works.
-  clickPipeClickhouseImage = "clickhouse/clickhouse-server:25.3-alpine";
+  # numeric tag for an LTS line at any given point is hard to predict, so
+  # we use a floating "<major>.<minor>-alpine" tag which Docker Hub
+  # repoints at the latest patch. Pin to a precise tag for reproducibility
+  # once you've validated which patch works.
+  #
+  # Kafka-engine consumer-stall history under heavy ingest:
+  #   * 25.3  → stalls at ~19-21k rows (max.poll.interval.ms rebalance loop)
+  #   * 25.8  → ~3x better (~60k) but the consumer still silently detaches
+  #   * 26.7  → trying the latest stable to see if the detach is fixed
+  clickPipeClickhouseImage = "clickhouse/clickhouse-server:26.7-alpine";
   clickPipeKafkaTopic = "xtcp";
   # Bind the SQL initdb scripts from the repo into a nix-store path that
   # the clickhouse container can mount read-only. Anchored to the build/
@@ -206,6 +247,16 @@ let
     cp -r ${../../build/containers/clickhouse/initdb.d}/050_recreate_xtcp_xtcp_flat_records_mv.sql.sh $out/
     cp -r ${../../build/containers/clickhouse/initdb.d}/055_recreate_xtcp_xtcp_flat_records_errors_mv.sql.sh $out/
     cp -r ${../../build/containers/clickhouse/initdb.d}/sql $out/sql
+    ${lib.optionalString isClickPipeStress ''
+      # Stress flavor ONLY: shrink the records-table TTL from the canonical
+      # 1 MONTH (in sql/xtcp_xtcp_flat_records.sql, unchanged for prod) to
+      # 1 HOUR, so a 24h stress run keeps the MergeTree bounded to ~1h of
+      # data instead of growing unbounded under heavy ingest. Runs after the
+      # table is created (035) and before the MV (050). The clickhouse
+      # entrypoint executes *.sql files in the initdb dir in name order.
+      printf '%s\n' "ALTER TABLE xtcp.xtcp_flat_records MODIFY TTL toDateTime(timestamp_ns) + INTERVAL 1 HOUR DELETE;" \
+        > $out/045_stress_ttl_1h.sql
+    ''}
     # The init scripts write tracking files into out/; pre-create it
     # so they don't fail on the first run. Same as the compose flow.
     mkdir -p $out/out
@@ -231,9 +282,9 @@ let
   # are 1000 initial namespaces + 100ms sleep — which inside a microvm
   # creates an explosive boot-time spike (1000 × `ip netns add` back-to-back
   # before any churn). Soak runs benefit from a smaller initial fill and a
-  # bit more breathing room between iterations so the daemon's fsnotify
-  # watcher + nsAdd path runs continuously without ever being completely
-  # idle. Sized empirically — increase if you want harsher loading.
+  # bit more breathing room between iterations so the daemon's /proc-scan
+  # discovery + reconcile + nsAdd path runs continuously without ever being
+  # completely idle. Sized empirically — increase if you want harsher loading.
   # Soak workload sizing. The mixed clickpipe-parquet flavor runs
   # TWO xtcp2 instances tracking the same namespaces independently
   # (kafka path + parquet path), so each in-flight ns handler costs
@@ -442,8 +493,8 @@ let
       # Spawn N containers, each running TCP_MODE=both with M sockets.
       # No port publishing — each container has its own bridge netns,
       # so the in-container client just dials 127.0.0.1 inside that ns.
-      # The point is for xtcp2 to discover each container's netns via
-      # /run/docker/netns/ fsnotify and observe its sockets via inet_diag.
+      # The point is for xtcp2 to discover each container's netns via the
+      # /proc/<pid>/ns/net scan (Method B) and observe its sockets via inet_diag.
       n=${toString tcpStressNumContainers}
       m=${toString tcpStressSocketsPerContainer}
       sleep_dur=${tcpStressClientSleep}
@@ -680,11 +731,70 @@ let
         sleep 2
       done
       # Periodic snapshot — sentinel prefix lets the host runner grep
-      # without ambiguity.
+      # without ambiguity. prev_msgs drives the "only dump deep diagnostics
+      # when something looks wrong" gate at the bottom of the loop.
+      #
+      # NB: there is intentionally NO periodic `SYSTEM DROP FORMAT SCHEMA
+      # CACHE FOR Protobuf` here. An earlier version flushed the cache every
+      # loop on a "poisoned cache" theory — that theory was wrong. The real
+      # stall was a package-qualified kafka_schema message name that never
+      # resolves (fixed in sql/xtcp_xtcp_flat_records_kafka.sql). The cache
+      # is fine; do not reintroduce the flush.
+      prev_msgs=-1
       while true; do
         rows=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
           -q 'SELECT count() FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
-        echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows"
+        # Distinct netns_inode = how many network namespaces have landed
+        # records end-to-end. This is the Method B discovery proof: each
+        # tcp-stress container's netns should show up as a distinct inode
+        # once xtcp2 discovers it and its records reach ClickHouse.
+        nsc=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT uniqExact(netns_inode) FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
+        # Kafka consumer health: a non-zero count here means the Kafka-engine
+        # consumer hit an exception (e.g. MEMORY_LIMIT_EXCEEDED) — the signal
+        # that ingestion has stalled. 0 = healthy end-to-end ingest.
+        kexc=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT count() FROM system.kafka_consumers WHERE length(last_exception) > 0' 2>/dev/null || echo 0)
+        # Rebalance-loop diagnostics. reb = cumulative consumer-group
+        # rebalance revocations; if this climbs while rows stall, the
+        # consumer is in the documented max.poll.interval.ms rebalance
+        # death loop (see kafka_client_tuning.xml). msgs = kafka messages
+        # the consumer has actually read; if this freezes near one poll
+        # batch (~kafka_poll_max_batch_size) the consumer stopped polling.
+        reb=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT sum(num_rebalance_revocations) FROM system.kafka_consumers' 2>/dev/null || echo 0)
+        msgs=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT sum(num_messages_read) FROM system.kafka_consumers' 2>/dev/null || echo 0)
+        # Disk utilization of the persistent docker volume (/var/lib/docker,
+        # the 16 GiB ext4 disk that backs the clickhouse_db MergeTree +
+        # redpanda segment logs). This grows over a soak; if it saturates,
+        # the kafka_engine can't commit offsets, xtcp2's producer back-
+        # pressures, and ingestion silently plateaus — the exact failure
+        # that froze a 12h run at ~18k rows and reads like a decode/consumer
+        # bug when it is really disk-full. Surface it every heartbeat so the
+        # host runner can assert on it. Integer percent (no % sign).
+        disk=$(df --output=pcent /var/lib/docker 2>/dev/null | tail -1 | tr -dc '0-9')
+        disk=''${disk:-0}
+        echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows netns=$nsc kafka_exc=$kexc reb=$reb msgs=$msgs disk=$disk"
+        # Deep-dive diagnostics for the consumer-detach stall — ONLY when
+        # something looks wrong, so a healthy multi-hour soak stays quiet.
+        # Trouble = a consumer exception, or the cumulative messages-read
+        # count (monotonic) not advancing since the last sample = the
+        # consumer stopped polling. We gate on msgs, not rows, because the
+        # stress flavor's 1h TTL legitimately shrinks the row count at steady
+        # state and must not be mistaken for a stall. When it fires it dumps
+        # the full consumer row (incl. the exceptions array, which keeps the
+        # last ~10 errors even after last_exception clears) + the ClickHouse
+        # server-log Kafka lines (the actual reason the stream engine stops).
+        if [ "$kexc" -ne 0 ] || [ "$msgs" -le "$prev_msgs" ]; then
+          docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} -q \
+            "SELECT concat('used=', toString(is_currently_used), ' msgs=', toString(num_messages_read), ' commits=', toString(num_commits), ' reb=', toString(num_rebalance_revocations), ' lastpoll=', toString(last_poll_time), ' lastcommit=', toString(last_commit_time), ' exc=[', arrayStringConcat(arrayMap(x -> replaceAll(x, '\n', ' '), exceptions.text), ' || '), ']') FROM system.kafka_consumers" 2>/dev/null \
+            | sed 's/^/XTCP2_CH_CONSUMER /' || true
+          docker exec clickhouse sh -c \
+            "grep -iE 'StorageKafka|rdkafka|rebalance|assign|Committed|Stalled|Polled|DirectKafka' /var/log/clickhouse-server/clickhouse-server.log 2>/dev/null | tail -12" 2>/dev/null \
+            | sed 's/^/XTCP2_CH_KAFKALOG /' || true
+        fi
+        prev_msgs=$msgs
         sleep 30
       done
     '';
@@ -697,14 +807,14 @@ let
   # for goroutine/thread-leak diagnosis without an external dependency.
   s3ParquetModules = [
     (import ../modules/minio-bucket-bootstrap.nix {
-      # Mixed clickpipe-parquet flavor mounts a dedicated 16 GiB
-      # ext4 disk at /var/lib/minio via microvm.volumes (see above) —
-      # tell the bootstrap module not to also declare a tmpfs there.
-      # Other s3parquet flavors keep the tmpfs (short runs only).
-      useTmpfs = !isClickPipeParquet;
+      # The clickpipe-parquet AND s3parquet-stress flavors mount a dedicated
+      # ext4 disk at /var/lib/minio via microvm.volumes (see below) — tell the
+      # bootstrap module not to also declare a tmpfs there. The short-run
+      # s3parquet / s3parquet-long flavors keep the 512 MiB tmpfs.
+      useTmpfs = !isClickPipeParquet && !isS3ParquetStress;
     })
   ]
-  ++ lib.optionals isS3ParquetLong [
+  ++ lib.optionals (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) [
     (import ../modules/pyroscope-server.nix { })
   ];
 
@@ -785,7 +895,63 @@ let
         rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
         gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
         thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
-        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr}"
+        # Disk utilization of the MinIO data dir (integer percent, no % sign).
+        # For s3parquet-stress this is the dedicated ext4 disk that holds the
+        # parquet objects; the runner asserts it never saturates (a full disk
+        # would back-pressure uploads and stall ingest). For s3parquet-long it
+        # is the 512 MiB tmpfs — harmless, just reported.
+        disk=$(df --output=pcent /var/lib/minio 2>/dev/null | tail -1 | tr -dc '0-9')
+        disk=''${disk:-0}
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr} disk=''${disk}"
+      done
+    '';
+  };
+
+  # s3parquet-stress retention: the parquet path has no TTL of its own, so a
+  # long soak would grow the MinIO disk without bound. This is the direct
+  # analog of the clickhouse-pipeline-stress table's 1h TTL — every 10 min it
+  # deletes objects older than 1h, keeping ~1h of parquet retained so the disk
+  # sits at steady state and the disk guard stays meaningful at any duration.
+  s3ParquetRetentionScript = pkgs.writeShellApplication {
+    name = "xtcp2-s3parquet-retention";
+    runtimeInputs = with pkgs; [
+      coreutils
+      minio-client
+    ];
+    text = ''
+      # Address MinIO via the MC_HOST_<alias> env var — no `mc alias set` /
+      # persisted config needed. Also set HOME + MC_CONFIG_DIR explicitly:
+      # writeShellApplication runs with a minimal PATH that lacks `getent`, and
+      # with HOME unset mc shells out to `getent` to locate its config dir and
+      # aborts ("Unable to get mcConfigDir. exec: getent: not found") — which
+      # silently failed EVERY mc call (that was the real retention bug). With
+      # MC_CONFIG_DIR set, mc uses it directly and never calls getent.
+      export MC_HOST_local="http://xtcp2test:xtcp2testsecret@127.0.0.1:9000"
+      export HOME=/tmp/xtcp2-s3parquet-mc
+      export MC_CONFIG_DIR="$HOME/.mc"
+      mkdir -p "$MC_CONFIG_DIR"
+      # Retention window + sweep cadence are overridable (defaults = the 1h
+      # analog of the clickhouse-stress table TTL, swept every 10 min); a
+      # verification run can shorten both to see deletions without waiting 1h.
+      AGE="''${S3PARQUET_RETENTION_AGE:-1h}"
+      IVAL="''${S3PARQUET_RETENTION_INTERVAL:-600}"
+      # Wait for MinIO to answer (a credentialed list) before the loop.
+      for _ in $(seq 1 60); do
+        if mc ls local/ >/dev/null 2>&1; then break; fi
+        sleep 2
+      done
+      echo "XTCP2_S3PARQUET_RETENTION start: deleting objects older than $AGE every ''${IVAL}s"
+      while true; do
+        sleep "$IVAL"
+        # Capture stdout+stderr so a failure is visible on the console (as
+        # err=[...]) instead of a silent expired=0. `--force` is required for a
+        # non-interactive recursive delete; mc prints one "Removed ..." line
+        # per deleted object. `|| true` keeps the loop alive across a transient
+        # MinIO blip.
+        out=$(mc rm --recursive --force --older-than "$AGE" local/xtcp2-records/ 2>&1) || true
+        n=$(printf '%s\n' "$out" | grep -c '^Removed ' || true)
+        err=$(printf '%s\n' "$out" | grep -iE 'error|unable|fail' | head -1 || true)
+        echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}''${err:+ err=[''${err}]}"
       done
     '';
   };
@@ -820,6 +986,65 @@ let
     "http://127.0.0.1:14040"
     "-pyroscopeAppName"
     "xtcp2.s3parquet-long"
+  ];
+
+  # s3parquet-stress: same production parquet config as the long soak
+  # (64 MiB flush, 10s poll, Pyroscope leak diagnosis), but this flavor
+  # ALSO runs the tcp-stress load containers (20 × 250 sockets) so xtcp2
+  # is discovering many container netns and reading real socket load while
+  # uploading. Identical S3 target (in-VM MinIO); the difference from
+  # s3parquet-long is the load + the ~1h retention cleanup + the disk guard.
+  xtcp2S3ParquetStressArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "10s"
+    "-timeout"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "67108864"
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-stress"
+  ];
+
+  # s3parquet-lowfreq: low-activity counterpart — same parquet→MinIO sink and
+  # container load as stress, but poll ONCE AN HOUR (-frequency 1h) with only
+  # 2 sockets/container. -s3FlushInterval is intentionally left unset so it
+  # derives to max(1h,30m)=1h (the out-of-the-box staleness ceiling), and the
+  # 64 MiB byte cap is kept — with ~40 sockets that cap is never reached, so the
+  # staleness TIMER is the ONLY thing that finalizes a parquet object. This
+  # verifies the bucket still fills under low poll frequency + low socket count.
+  xtcp2S3ParquetLowfreqArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "1h"
+    "-timeout"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "67108864"
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-lowfreq"
   ];
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
@@ -1038,6 +1263,34 @@ in
                 fsType = "ext4";
                 label = "xtcp2minio";
               }
+            ]
+            ++ lib.optionals isS3ParquetStress [
+              {
+                # s3parquet-stress spawns the tcp-stress load containers, so it
+                # needs dockerd on a real disk for /var/lib/docker (the load
+                # image + 20 containers) — same rationale as the clickpipe
+                # docker disk above. Own image path so flavors never share
+                # state (a reused image once skipped ClickHouse initdb and
+                # corrupted the docker image store).
+                image = "/tmp/xtcp2-microvm-s3parquet-stress-docker.img";
+                mountPoint = "/var/lib/docker";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2s3pdock";
+              }
+              {
+                # Dedicated disk for the MinIO parquet objects. Bounded by the
+                # ~1h retention cleanup (xtcp2-s3parquet-retention.service), so
+                # 16 GiB is ample steady-state headroom; sparse file, grown
+                # incrementally. The disk guard asserts it never saturates.
+                image = "/tmp/xtcp2-microvm-s3parquet-stress-minio.img";
+                mountPoint = "/var/lib/minio";
+                size = 16384;
+                autoCreate = true;
+                fsType = "ext4";
+                label = "xtcp2s3pmin";
+              }
             ];
           interfaces = [
             {
@@ -1082,8 +1335,8 @@ in
                 guest.port = 9001;
               }
             ]
-            ++ lib.optionals isS3ParquetLong [
-              # Pyroscope UI on the long-soak flavor so operators can
+            ++ lib.optionals (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) [
+              # Pyroscope UI on the long-soak / stress flavors so operators can
               # open http://127.0.0.1:14040 from the host and inspect
               # the live profile. Port shifted off the canonical 4040
               # because pyroscope was failing to bind it inside the
@@ -1233,14 +1486,14 @@ in
           "kernel.io_uring_disabled" = 0;
         };
 
-        # xtcp2 enumerates network namespaces by listing /run/netns/ and
-        # /run/docker/netns/. If neither exists it fatal-exits with
-        # "neither network namespace directory exists.  ??!"
-        # (pkg/xtcp/init.go:130). Pre-create BOTH in every flavor so the
-        # daemon watches both fsnotify paths and the self-test's
-        # Check 10 (NS_DOCKER) has a target to bind-mount into. Creating
-        # an empty /run/docker/netns/ doesn't pull docker in — the
-        # daemon just sees an empty dir and starts a watcher on it.
+        # xtcp2 discovers namespaces via the /proc/<pid>/ns/net scan
+        # (Method B), but its name resolver still reads /run/netns/ and
+        # /run/docker/netns/ to map a discovered inode to a best-effort
+        # bind-mount NAME (xtcp2 now tolerates these dirs being absent —
+        # pkg/xtcp/init.go). Pre-create BOTH in every flavor so name
+        # resolution works and the self-test's Check 10 (NS_DOCKER) has a
+        # target to bind-mount into. Creating an empty /run/docker/netns/
+        # doesn't pull docker in — the daemon just reads an empty dir.
         systemd.tmpfiles.rules = [
           "d /run/netns 0755 root root -"
           "d /run/docker 0755 root root -"
@@ -1258,22 +1511,24 @@ in
           environment.GOCOVERDIR = coverDir;
         };
 
-        # Pre-create a test network namespace before xtcp2 starts. This
-        # makes the fsnotify-watch path fire a Create event for an actual
-        # namespace, which spawns netNamespaceInstance →
-        # openAndSetNSWithRetries → openDefaultNetLinkSocket inside that
-        # namespace. Otherwise those code paths stay at 0% even with
-        # coverage instrumentation.
+        # Hold a live process inside a test network namespace before xtcp2
+        # starts, so xtcp2's /proc/<pid>/ns/net scan (Method B) discovers it
+        # and exercises netNamespaceInstance → openAndSetNSWithRetries →
+        # openDefaultNetLinkSocket. NOTE: under Method B an empty
+        # `ip netns add` (no process in the ns) is invisible to the /proc
+        # scan — the namespace must hold a live process to be discovered — so
+        # this keeps a `sleep infinity` running inside it, not a bare oneshot.
+        # Otherwise those code paths stay at 0% even with coverage instrumentation.
         systemd.services.create-test-netns = lib.mkIf isCoverage {
-          description = "Create a test network namespace for xtcp2 coverage";
+          description = "Hold a live process in a test netns for xtcp2 coverage";
           wantedBy = [ "xtcp2.service" ];
           before = [ "xtcp2.service" ];
           after = [ "local-fs.target" ];
           serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            ExecStart = "${pkgs.iproute2}/bin/ip netns add xtcpcovns";
-            ExecStop = "${pkgs.iproute2}/bin/ip netns delete xtcpcovns";
+            Type = "simple";
+            ExecStartPre = "${pkgs.iproute2}/bin/ip netns add xtcpcovns";
+            ExecStart = "${pkgs.iproute2}/bin/ip netns exec xtcpcovns ${pkgs.coreutils}/bin/sleep infinity";
+            ExecStopPost = "${pkgs.iproute2}/bin/ip netns delete xtcpcovns";
           };
         };
 
@@ -1305,6 +1560,14 @@ in
               # config is otherwise valid; the capability check is the
               # only thing that fails).
               xtcp2S3ParquetLongArgs
+            else if isS3ParquetStress then
+              # s3parquet-stress flavor: production parquet config under the
+              # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
+              xtcp2S3ParquetStressArgs
+            else if isS3ParquetLowfreq then
+              # s3parquet-lowfreq: 1h poll + 2 sockets/container — timer-only
+              # parquet flush. Reuses mkS3ParquetStressRunner.
+              xtcp2S3ParquetLowfreqArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -1410,19 +1673,20 @@ in
           };
         };
 
-        # s3parquet-long: hourly file-count monitor. Sentinel format
-        # mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
+        # s3parquet-long / s3parquet-stress: MinIO upload monitor. Sentinel
+        # format mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
         # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
-        # (seconds) — the runner overrides per phase.
-        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf isS3ParquetLong {
-          description = "xtcp2 s3parquet-long — hourly MinIO file-count reporter";
+        # (seconds); the stress flavor uses a tight 30 s so the soak heartbeat
+        # and disk-guard track closely, the long flavor keeps the 60 s default.
+        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) {
+          description = "xtcp2 s3parquet — MinIO upload-count + disk reporter";
           after = [
             "xtcp2.service"
             "multi-user.target"
           ];
           wants = [ "xtcp2.service" ];
           wantedBy = [ "multi-user.target" ];
-          environment.S3PARQUET_REPORT_INTERVAL = toString s3ParquetReportIntervalDefault;
+          environment.S3PARQUET_REPORT_INTERVAL = toString (if isS3ParquetStress then 30 else s3ParquetReportIntervalDefault);
           serviceConfig = {
             Type = "simple";
             ExecStart = "${s3ParquetMonitorScript}/bin/xtcp2-s3parquet-monitor";
@@ -1431,6 +1695,30 @@ in
             # sentinel stream.
             Restart = "on-failure";
             RestartSec = "5s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # s3parquet-stress: bounded ~1h object retention (analog of the
+        # clickhouse-stress 1h table TTL). Keeps the MinIO disk at steady state.
+        systemd.services.xtcp2-s3parquet-retention = lib.mkIf isS3ParquetStress {
+          description = "xtcp2 s3parquet-stress — delete parquet objects older than 1h";
+          after = [
+            "minio.service"
+            "xtcp2-bucket-bootstrap.service"
+          ];
+          wants = [ "minio.service" ];
+          wantedBy = [ "multi-user.target" ];
+          # Production window: keep ~1h of objects, swept every 10 min (the
+          # script defaults). Override S3PARQUET_RETENTION_AGE /
+          # S3PARQUET_RETENTION_INTERVAL here to verify deletions in a short
+          # run (e.g. "10m" / "120" fires within a 1h run — validated 2026-07-28).
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${s3ParquetRetentionScript}/bin/xtcp2-s3parquet-retention";
+            Restart = "on-failure";
+            RestartSec = "10s";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -1581,8 +1869,8 @@ in
         # Phase D: Prometheus server inside the tcp-stress VM, scraping
         # xtcp2's /metrics endpoint every 15s. Lets us run a long-form
         # session (300s smoke → 12h) and inspect what counters did over
-        # time: per-ns Netlinker.p / .packets / start, watchNamespaces
-        # event/for, GC behaviour, etc. The server listens on
+        # time: per-ns Netlinker.p / .packets / start, netNamespaceInstance
+        # start, reconcile start/stores, GC behaviour, etc. The server listens on
         # 127.0.0.1:9090; the runner also includes a periodic snapshot
         # service that curls Prometheus and writes per-query JSON lines
         # to a file so the user sees concrete data even if they don't
@@ -1728,13 +2016,19 @@ in
                 # the current value of one summable counter. Prefix each
                 # line with a sentinel so the host runner can grep it
                 # out of the serial transcript without ambiguity.
+                ns_start=0
                 {
                   printf 'XTCP2_PROM_SNAPSHOT {"t":"%s"' "$ts"
+                  # netNamespaceInstance/start = per-namespace instances
+                  # started (Method B discovery signal). reconcile/start =
+                  # the pre-poll reconcile firing (replaced the removed
+                  # watchNamespaces inotify counter, which is dead under
+                  # Method B).
                   for q in \
                     'sum(xtcp_counts{variable="p"})' \
                     'sum(xtcp_counts{variable="packets"})' \
                     'sum(xtcp_counts{function="netNamespaceInstance",variable="start"})' \
-                    'sum(xtcp_counts{function="watchNamespaces",variable="event"})' \
+                    'sum(xtcp_counts{function="reconcile",variable="start"})' \
                     'sum(xtcp_counts{function="nsAdd",variable="store"})' \
                     'sum(xtcp_counts{variable="OrphanCQE"})' ; do
                     v=$(${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
@@ -1743,9 +2037,16 @@ in
                       | ${pkgs.jq}/bin/jq -r '.data.result[0].value[1] // "0"' 2>/dev/null \
                       || echo "0")
                     printf ',"%s":%s' "$q" "$v"
+                    case "$q" in *netNamespaceInstance*) ns_start="$v" ;; esac
                   done
                   printf '}\n'
                 }
+                # Clean, unambiguous per-namespace discovery signal for the
+                # host runner. Under Method B there is no inotify CREATE
+                # event to grep — xtcp2 starts one netNamespaceInstance per
+                # netns it discovers via /proc (host + each container). The
+                # tcp-stress runner asserts this is >= the container count.
+                printf 'XTCP2_NS_INSTANCES start=%s\n' "''${ns_start:-0}"
                 sleep 30
               done
             '';
@@ -1766,7 +2067,7 @@ in
         # to see long-term trends: rss_kb is the memory-growth signal, threads
         # the OS-thread-leak signal, CPU + ctxt round it out. Gated to the load
         # flavors (soak / tcp-stress).
-        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak) {
+        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq) {
           description = "xtcp2 — periodic CPU/ctxt/RSS/thread snapshots (leak-soak)";
           after = [ "xtcp2.service" ];
           wants = [ "xtcp2.service" ];
@@ -1804,7 +2105,7 @@ in
           };
         };
 
-        systemd.services.xtcp2-tcp-stress-load = lib.mkIf isTcpStress {
+        systemd.services.xtcp2-tcp-stress-load = lib.mkIf isAnyTcpStressLoad {
           description = "xtcp2 tcp-stress — load OCI image into docker";
           after = [ "docker.service" ];
           requires = [ "docker.service" ];
@@ -1818,7 +2119,7 @@ in
           };
         };
 
-        systemd.services.xtcp2-tcp-stress-spawn = lib.mkIf isTcpStress {
+        systemd.services.xtcp2-tcp-stress-spawn = lib.mkIf isAnyTcpStressLoad {
           description = "xtcp2 tcp-stress — spawn N stress containers";
           after = [
             "xtcp2-tcp-stress-load.service"

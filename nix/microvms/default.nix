@@ -124,6 +124,25 @@ let
       sink = "clickhouse-pipeline";
     };
 
+  # Full end-to-end integration stress test: clickhouse-pipeline stack +
+  # the tcp-stress socket-load containers. Needs tcpStressImage (to
+  # docker-load and spawn the load containers) in addition to the pipeline.
+  mkOneClickPipeStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "clickhouse-pipeline-stress";
+    };
+
   # Mixed: clickhouse-pipeline + MinIO + a second xtcp2 instance
   # writing parquet so ClickHouse can query both paths.
   mkOneClickPipeParquet =
@@ -169,6 +188,44 @@ let
         xtcp2AllPackage
         ;
       sink = "s3parquet-long";
+    };
+
+  # s3parquet-long + the tcp-stress socket-load containers = the parquet→S3
+  # upload analog of clickhouse-pipeline-stress. Needs tcpStressImage (to
+  # docker-load and spawn the load containers).
+  mkOneS3ParquetStress =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "s3parquet-stress";
+    };
+
+  # Low-activity counterpart of s3parquet-stress: 1h poll + 2 sockets/container,
+  # so parquet files flush on the staleness timer, not the byte cap. Same
+  # tcpStressImage (the load containers), reuses mkS3ParquetStressRunner.
+  mkOneS3ParquetLowfreq =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "s3parquet-lowfreq";
     };
 
   # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
@@ -224,9 +281,21 @@ let
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
+  vmsClickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneClickPipeStress
+  );
+
   vmsClickPipeParquet = lib.genAttrs constants.supportedArchs mkOneClickPipeParquet;
 
   vmsS3ParquetLong = lib.genAttrs constants.supportedArchs mkOneS3ParquetLong;
+
+  vmsS3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneS3ParquetStress
+  );
+
+  vmsS3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneS3ParquetLowfreq
+  );
 
   vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
 
@@ -317,6 +386,50 @@ let
     };
   });
 
+  # Full end-to-end integration stress test: the dedicated
+  # clickhouse-pipeline-stress VM (redpanda + clickhouse + the tcp-stress
+  # socket-load containers + xtcp2), wrapped in a duration-bounded host
+  # runner that asserts records keep reaching ClickHouse over time from the
+  # load containers' namespaces. Gated on tcpStressImage (the load
+  # containers need the OCI image). Leaves the interactive
+  # `microvm-x86_64-clickhouse-pipeline` boot available unchanged.
+  clickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkClickPipeStressRunner {
+        inherit arch;
+        vm = vmsClickPipeStress.${arch};
+      };
+    })
+  );
+
+  # Parquet→S3 upload stress soak: the s3parquet-stress VM (in-VM MinIO +
+  # xtcp2 writing parquet + the tcp-stress load containers), wrapped in a
+  # duration-bounded host runner that asserts uploads keep advancing and the
+  # MinIO disk stays healthy. Gated on tcpStressImage like clickPipeStress.
+  s3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkS3ParquetStressRunner {
+        inherit arch;
+        vm = vmsS3ParquetStress.${arch};
+      };
+    })
+  );
+
+  # Parquet→S3 low-activity verification: the s3parquet-lowfreq VM (1h poll,
+  # 2 sockets/container) wrapped in the SAME host runner as the stress flavor —
+  # it asserts uploads still advance (driven by the staleness timer, since the
+  # byte cap can't be reached with so few sockets).
+  s3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkS3ParquetStressRunner {
+        inherit arch;
+        vm = vmsS3ParquetLowfreq.${arch};
+        # 2h default so a no-arg run reliably captures the ~hourly timer flush.
+        defaultDurationSec = 7200;
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -340,13 +453,19 @@ in
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsClickPipeStress
     vmsClickPipeParquet
     vmsS3Parquet
     vmsS3ParquetLong
+    vmsS3ParquetStress
+    vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
     s3parquetLong
     discoveryBench
+    clickPipeStress
+    s3ParquetStress
+    s3ParquetLowfreq
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage
