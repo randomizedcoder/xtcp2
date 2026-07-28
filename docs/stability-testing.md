@@ -34,6 +34,9 @@ Three complementary layers, all driven from the Nix flake (see
    - `clickhouse-pipeline-stress` — both of the above at once: the full pipeline
      under the container-stress load, for a long combined soak (see
      [Combined stress soak](#combined-stress-soak-clickhouse-pipeline-stress)).
+   - `s3parquet-stress` — the same container-stress load driving the Parquet→S3
+     upload path (xtcp2 → in-VM MinIO), with ~1 h object retention (see
+     [Parquet→S3 stress soak](#parquets3-stress-soak-s3parquet-stress)).
    - `soak` — continuous `ip netns add/del` churn (~200 namespaces) plus a
      persistent TCP socket population — the leak/thread shake-out.
 
@@ -70,6 +73,7 @@ essentially for free, and is now I/O-bound rather than marshalling-bound.
 | 6 | Soak runner under-reported xtcp2 restarts (missed Go `fatal error` exits → would falsely PASS) | soak crash-loop analysis | tracked (#54 plan) |
 | 7 | ProtobufList Kafka ingest stalled at a fixed row count: `kafka_schema` used a **package-qualified** message name (`xtcp_flat_record.v1.XtcpFlatRecord`); ClickHouse's ProtobufList resolver needs the **simple** name, so it threw `Could not find a message` (BAD_ARGUMENTS), the consumer detached, and ingest froze | `clickhouse-pipeline` "ceiling" + `clickhouse-local` repro against the real proto | simple name `XtcpFlatRecord` (regression from 60da4c7); also requires ClickHouse **≥ 26.3** for the multi-message fix (CH [#98151](https://github.com/ClickHouse/ClickHouse/pull/98151) / issue [#78746](https://github.com/ClickHouse/ClickHouse/issues/78746)) — see [integration-testing.md](integration-testing.md) |
 | 8 | Debugging red herring: the persistent `/var/lib/docker` disk backs `clickhouse_db`, so ClickHouse skips initdb on every reboot and edited DDL never runs — a schema fix silently had no effect and a frozen `64824` looked like a live ceiling | this campaign (fix wouldn't validate until the disk was wiped) | wipe `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` when iterating on DDL; documented in both test docs |
+| 9 | `s3parquet-stress` retention deleted nothing (bucket would grow unbounded): `mc` aborts with `Unable to get mcConfigDir. exec: getent: not found` because `writeShellApplication`'s minimal PATH lacks `getent` and `$HOME` was unset, so **every** `mc` call failed — hidden by `2>/dev/null` as a silent `expired=0` | 6 h soak (retention swept 35× but `expired=0` every time; disk-full masked because 316 MB is tiny on 16 GB) → made `mc`'s stderr visible | set `HOME` + `MC_CONFIG_DIR` (mc then skips `getent`) + `MC_HOST` env alias; surface `mc` stderr as `err=[…]`; deletions verified in a short-window run |
 
 > Note on #2: that fix is correct but was **not** the dominant thread consumer —
 > see the scaling model below. It was the soak finding the *real* limit that
@@ -113,6 +117,7 @@ pinning threads) — designed in [design-nonblocking-netlink.md](design-nonblock
 | `soak` (churn), **`-netlinkers 1` + `-maxThreads 8000`** | **12 h** | **PASS** — 242,100 ns-churn events, **0 panics, 0 restarts, 0 thread-exhaustion, single xtcp2 process throughout** |
 | `soak` (churn), **Method B `/proc` discovery** (`netns_inode` rework, 6 h reconcile default) | **12 h** | **PASS** — 344,972 ns-churn events, **0 panics, 0 restarts**; RSS 9.8 MB → plateau **~30–34 MB** and threads 6 → **35**, both flat across 12 h (bounded oscillation, no leak) |
 | `clickhouse-pipeline-stress` (combined: TCP-stress load **and** ProtobufList→Kafka→ClickHouse, 1 h records TTL) | **~19.7 h** (of a 24 h target; ended by an external task-kill at t=70,800 s, **not** a pipeline failure — every process was healthy at the cut) | **PASS** — 20/20 containers × 250 sockets sustained, ProtobufList ingest continuous (consumer `msgs` 1 → **14,214** monotonic), **0 schema errors, 0 `PROTOBUF_BAD_CAST`, 0 `kafka_exc`, 0 rebalances, 0 panics**; RSS flat **~60 MB**, threads flat **131**, docker disk 13% → **31% peak** (linear, no saturation) |
+| `s3parquet-stress` (combined: TCP-stress load **and** Parquet→S3 upload to in-VM MinIO, ~1 h object retention) | **6 h** | **PASS** — 20/20 containers × 250 sockets, **81 parquet files / 5.27 M rows / ~305 MB** uploaded (monotonic, ~14 files/h; ~14× zstd/snappy compression), **0 restarts, 0 panics**; RSS bounded-oscillating **76–148 MB** (the 64 MiB parquet write buffer filling/flushing — no leak), threads flat **122**. Surfaced + fixed a retention bug (bug #9) — objects weren't being deleted; the fix was verified in-VM (deletions fire once objects age past the window). |
 
 The 12 h soak ran the worst case: ~200 namespaces churned at 100 ms add/delete.
 `pollDuration` under that storm stayed **bounded** at ~6–10 s (one reader
@@ -191,6 +196,47 @@ Two readings that are easy to get wrong on this flavor:
 > disk-full failure that looks exactly like a decode/consumer bug. The
 > per-heartbeat `disk=%` readout and the peak-based FAIL/WARN make that failure
 > mode self-identifying instead of a multi-hour red herring.
+
+### Parquet→S3 stress soak (`s3parquet-stress`)
+
+The S3-upload analog of the combined ClickHouse soak, built by crossing the
+existing `s3parquet-long` flavor (xtcp2 → Parquet → in-VM MinIO, upload monitor,
+Pyroscope) with the `clickhouse-pipeline-stress` load + disk-guard + leak-check.
+
+**What it exercises.** One microVM boots MinIO (S3-compatible, on a dedicated
+ext4 disk) and then the same 20 docker containers × 250 sockets. xtcp2 discovers
+each container netns, reads `inet_diag`, and writes **Parquet** — accumulating
+rows until the ~64 MiB (uncompressed-estimate) threshold, then finalizing a file
+and uploading it to MinIO via the S3 API (minio-go). MinIO has no TTL of its own,
+so a **retention job deletes objects older than ~1 h** every 10 min — the direct
+analog of the ClickHouse-stress table TTL — keeping the bucket at steady state.
+
+**How it works (harness).** The in-VM monitor scrapes xtcp2's own Prometheus
+counters (`destS3Parquet/upload`,`uploadBytes`,`uploadRows`) rather than `mc find`
+(too slow under load) and emits `XTCP2_S3PARQUET_HOURLY files=… bytes=… rows=…
+disk=…` every 30 s; `disk=` is the MinIO data disk. The host runner
+(`mkS3ParquetStressRunner`) taps the serial console, prints an upload/disk
+heartbeat, and asserts: containers spawned, **uploads advanced** (the monotonic
+`files` counter, unaffected by retention), MinIO disk peak `< 95 %` (WARN ≥ 85 %),
+0 restarts/panics, and a bounded RSS/thread trend.
+
+**6 h run.** PASS — 81 files / 5.27 M rows / ~305 MB uploaded (linear ~14 files/h,
+~14× compression), **0 restarts, 0 panics**, threads flat at 122, RSS
+oscillating 76–148 MB with no drift (the swing is the 64 MiB write buffer filling
+then flushing — the leak signal is the *baseline*, which is flat). As with the
+ClickHouse soak, `files`/`rows`/`bytes` are the flow signal, not the object count
+(retention removes aged objects).
+
+**Retention bug found here (bug #9).** The 6 h run also exposed that the retention
+job deleted **nothing** — it swept 35 times with `expired=0`. It looked harmless
+(disk stayed at 2 %) only because 6 h of parquet (~316 MB) is trivial on the 16 GB
+disk. Making `mc`'s stderr visible showed the cause: `mc` needs `getent` to locate
+its config dir when `$HOME` is unset, and the service's minimal PATH lacks it, so
+*every* `mc` call aborted. Fixed by setting `HOME`/`MC_CONFIG_DIR` (mc then skips
+`getent`) and addressing MinIO via `MC_HOST`; verified in-VM that deletions fire
+once objects age past the window. **Lesson (recurring in this campaign): a green
+soak can hide a broken safety mechanism — never let a subprocess's stderr go to
+`/dev/null`, and assert the mechanism actually did something.**
 
 ## io_uring evaluation
 
