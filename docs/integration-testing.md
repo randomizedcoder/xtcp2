@@ -62,6 +62,10 @@ open http://127.0.0.1:18123   # ClickHouse HTTP (curl -u default:xtcp)
 # pass --duration 24h for the production soak. See the disk-wipe caveat below.
 nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --duration 24h  # Kafka→ClickHouse
 nix run .#microvm-x86_64-s3parquet-stress -- --duration 24h           # Parquet→S3 (MinIO)
+
+# Low-activity Parquet→S3: 1h poll + 2 sockets/container — confirms files still
+# land via the staleness timer (not the byte cap). Defaults to a 2h run.
+nix run .#microvm-x86_64-s3parquet-lowfreq
 ```
 
 ## Architecture
@@ -136,6 +140,7 @@ host
 | `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | 8192 MiB | clickhouse-pipeline + N containers × M sockets + 1h TTL | Full pipeline **under TCP-stress load** — validates ProtobufList ingest at rate; 24h combined soak |
 | `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | 14 GiB CH | + in-VM MinIO (dedicated 16 GiB disk) | Mixed ClickHouse + S3/Parquet sink path |
 | `microvm-x86_64-s3parquet-stress` | `s3parquet-stress` | 6144 MiB | xtcp2 (parquet) + in-VM MinIO (dedicated disk) + N containers × M sockets + 1h object retention | Parquet→S3 upload **under TCP-stress load** — the S3 analog of `clickhouse-pipeline-stress`; 24h soak |
+| `microvm-x86_64-s3parquet-lowfreq` | `s3parquet-lowfreq` | 6144 MiB | xtcp2 (parquet, **1h poll**) + in-VM MinIO (tmpfs) + 20 containers × **2 sockets** | Parquet→S3 upload under **low poll frequency + low socket count** — verifies files still land via the **staleness timer** (not the byte cap). Run ~2h |
 | `microvm-x86_64-discovery-bench` | `discovery-bench` | 4096 MiB | xtcp2 + `discovery-bench` grid | Namespace-discovery A/B benchmark (dir-scan vs `/proc`-scan) on a real kernel |
 
 Each flavor inherits the shared base config from `nix/microvms/mkVm.nix` and adds only what it needs. Common kernel cmdline / hypervisor / nic config stays identical across flavors.

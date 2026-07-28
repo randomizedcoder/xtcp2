@@ -316,6 +316,7 @@ in
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
       microvm-x86_64-s3parquet-stress = microvms.vmsS3ParquetStress.x86_64;
+      microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
@@ -466,6 +467,18 @@ in
     microvm-x86_64-s3parquet-stress = {
       type = "app";
       program = "${microvms.s3ParquetStress.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
+    };
+
+    # Parquet→S3 LOW-activity verification: same MinIO + container harness as
+    # -s3parquet-stress, but xtcp2 polls once an hour with only 2 sockets per
+    # container, so the 63 MiB byte cap is never reached and parquet files
+    # finalize purely on the staleness TIMER. Confirms the bucket still fills
+    # under low poll frequency + low socket count. Reuses the stress runner;
+    # run ~2h (`--duration 2h`) so the ~hourly timer flush is captured (first
+    # file typically lands ~30 min in). Not in `nix flake check`.
+    microvm-x86_64-s3parquet-lowfreq = {
+      type = "app";
+      program = "${microvms.s3ParquetLowfreq.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
     };
 
     # Namespace-discovery A/B benchmark: boots a root microvm that runs the

@@ -209,6 +209,25 @@ let
       sink = "s3parquet-stress";
     };
 
+  # Low-activity counterpart of s3parquet-stress: 1h poll + 2 sockets/container,
+  # so parquet files flush on the staleness timer, not the byte cap. Same
+  # tcpStressImage (the load containers), reuses mkS3ParquetStressRunner.
+  mkOneS3ParquetLowfreq =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        tcpStressImage
+        ;
+      sink = "s3parquet-lowfreq";
+    };
+
   # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
   # capability set so the startup capability check refuses to start
   # the daemon. Used to validate the fail-early diagnostic.
@@ -272,6 +291,10 @@ let
 
   vmsS3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs mkOneS3ParquetStress
+  );
+
+  vmsS3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs mkOneS3ParquetLowfreq
   );
 
   vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
@@ -392,6 +415,21 @@ let
     })
   );
 
+  # Parquet→S3 low-activity verification: the s3parquet-lowfreq VM (1h poll,
+  # 2 sockets/container) wrapped in the SAME host runner as the stress flavor —
+  # it asserts uploads still advance (driven by the staleness timer, since the
+  # byte cap can't be reached with so few sockets).
+  s3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkS3ParquetStressRunner {
+        inherit arch;
+        vm = vmsS3ParquetLowfreq.${arch};
+        # 2h default so a no-arg run reliably captures the ~hourly timer flush.
+        defaultDurationSec = 7200;
+      };
+    })
+  );
+
   # nix flake check compatible derivations. Builds the launcher (cheap) and
   # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
   # will need to mark this check as host-only or use --keep-going.
@@ -420,12 +458,14 @@ in
     vmsS3Parquet
     vmsS3ParquetLong
     vmsS3ParquetStress
+    vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
     s3parquetLong
     discoveryBench
     clickPipeStress
     s3ParquetStress
+    s3ParquetLowfreq
     lifecycle
     lifecycleS3Parquet
     lifecycleCoverage

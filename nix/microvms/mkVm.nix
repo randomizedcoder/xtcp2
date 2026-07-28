@@ -79,20 +79,29 @@ let
   # (20 × 250 sockets), bounded to ~1h of retained objects (periodic mc rm),
   # with the disk guard + RSS/thread leak check + a repeatable soak runner.
   isS3ParquetStress = sink == "s3parquet-stress";
+  # s3parquet-lowfreq = the LOW-activity counterpart of s3parquet-stress: same
+  # parquet→MinIO sink and container load, but xtcp2 polls once an HOUR
+  # (-frequency 1h) with only 2 sockets/container. The 63 MiB byte cap is never
+  # reached, so parquet files finalize purely on the staleness TIMER
+  # (max(1h,30m)=1h) — this flavor verifies the bucket still fills under low
+  # poll frequency + low socket count. Lighter than stress (no dedicated disks,
+  # no retention).
+  isS3ParquetLowfreq = sink == "s3parquet-lowfreq";
   # discovery-bench = a root VM that runs the namespace-discovery A/B grid
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
   isDiscoveryBench = sink == "discovery-bench";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
-  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress;
+  isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress || isS3ParquetLowfreq;
   # All flavors that bring up the redpanda + clickhouse docker stack.
   isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress;
   # Flavors that spawn the tcp-stress socket-load containers.
-  isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress;
+  isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress || isS3ParquetLowfreq;
   # Anything that needs dockerd inside the VM (the tcp-stress load containers
-  # need it too, so s3parquet-stress pulls docker in even though its sink is MinIO).
-  needsDocker = isTcpStress || isAnyClickPipe || isS3ParquetStress;
+  # need it too, so the s3parquet stress/lowfreq flavors pull docker in even
+  # though their sink is MinIO).
+  needsDocker = isTcpStress || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq;
   effectiveMem =
     if isClickPipeParquet then
       # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
@@ -166,7 +175,10 @@ let
   # visible to xtcp2 — a 2.5× bump from the original 100 for the 24h
   # clickhouse-pipeline stress run. Stays within the clickhouse-pipeline
   # memory budget (see clickPipeClickhouseMemory / memClickPipe).
-  tcpStressSocketsPerContainer = 250;
+  # The s3parquet-lowfreq flavor drops to 2/container (~40 sockets across the
+  # 20 netns) so the parquet byte cap is never reached and the staleness TIMER
+  # is the sole flush driver — the whole point of that flavor.
+  tcpStressSocketsPerContainer = if isS3ParquetLowfreq then 2 else 250;
   tcpStressClientSleep = "5s";
   tcpStressPads = 1024;
 
@@ -802,7 +814,7 @@ let
       useTmpfs = !isClickPipeParquet && !isS3ParquetStress;
     })
   ]
-  ++ lib.optionals (isS3ParquetLong || isS3ParquetStress) [
+  ++ lib.optionals (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) [
     (import ../modules/pyroscope-server.nix { })
   ];
 
@@ -1003,6 +1015,36 @@ let
     "http://127.0.0.1:14040"
     "-pyroscopeAppName"
     "xtcp2.s3parquet-stress"
+  ];
+
+  # s3parquet-lowfreq: low-activity counterpart — same parquet→MinIO sink and
+  # container load as stress, but poll ONCE AN HOUR (-frequency 1h) with only
+  # 2 sockets/container. -s3FlushInterval is intentionally left unset so it
+  # derives to max(1h,30m)=1h (the out-of-the-box staleness ceiling), and the
+  # 64 MiB byte cap is kept — with ~40 sockets that cap is never reached, so the
+  # staleness TIMER is the ONLY thing that finalizes a parquet object. This
+  # verifies the bucket still fills under low poll frequency + low socket count.
+  xtcp2S3ParquetLowfreqArgs = [
+    "-dest"
+    "s3parquet:http://127.0.0.1:9000"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "1h"
+    "-timeout"
+    "5s"
+    "-s3Bucket"
+    "xtcp2-records"
+    "-s3AccessKey"
+    "xtcp2test"
+    "-s3SecretKey"
+    "xtcp2testsecret"
+    "-s3ParquetFlushBytes"
+    "67108864"
+    "-pyroscopeUrl"
+    "http://127.0.0.1:14040"
+    "-pyroscopeAppName"
+    "xtcp2.s3parquet-lowfreq"
   ];
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
@@ -1293,7 +1335,7 @@ in
                 guest.port = 9001;
               }
             ]
-            ++ lib.optionals (isS3ParquetLong || isS3ParquetStress) [
+            ++ lib.optionals (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) [
               # Pyroscope UI on the long-soak / stress flavors so operators can
               # open http://127.0.0.1:14040 from the host and inspect
               # the live profile. Port shifted off the canonical 4040
@@ -1522,6 +1564,10 @@ in
               # s3parquet-stress flavor: production parquet config under the
               # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
               xtcp2S3ParquetStressArgs
+            else if isS3ParquetLowfreq then
+              # s3parquet-lowfreq: 1h poll + 2 sockets/container — timer-only
+              # parquet flush. Reuses mkS3ParquetStressRunner.
+              xtcp2S3ParquetLowfreqArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -1632,7 +1678,7 @@ in
         # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
         # (seconds); the stress flavor uses a tight 30 s so the soak heartbeat
         # and disk-guard track closely, the long flavor keeps the 60 s default.
-        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf (isS3ParquetLong || isS3ParquetStress) {
+        systemd.services.xtcp2-s3parquet-monitor = lib.mkIf (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) {
           description = "xtcp2 s3parquet — MinIO upload-count + disk reporter";
           after = [
             "xtcp2.service"
@@ -2021,7 +2067,7 @@ in
         # to see long-term trends: rss_kb is the memory-growth signal, threads
         # the OS-thread-leak signal, CPU + ctxt round it out. Gated to the load
         # flavors (soak / tcp-stress).
-        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak || isAnyClickPipe || isS3ParquetStress) {
+        systemd.services.xtcp2-resource-snapshot = lib.mkIf (isTcpStress || isSoak || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq) {
           description = "xtcp2 — periodic CPU/ctxt/RSS/thread snapshots (leak-soak)";
           after = [ "xtcp2.service" ];
           wants = [ "xtcp2.service" ];

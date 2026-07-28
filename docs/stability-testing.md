@@ -118,6 +118,7 @@ pinning threads) — designed in [design-nonblocking-netlink.md](design-nonblock
 | `soak` (churn), **Method B `/proc` discovery** (`netns_inode` rework, 6 h reconcile default) | **12 h** | **PASS** — 344,972 ns-churn events, **0 panics, 0 restarts**; RSS 9.8 MB → plateau **~30–34 MB** and threads 6 → **35**, both flat across 12 h (bounded oscillation, no leak) |
 | `clickhouse-pipeline-stress` (combined: TCP-stress load **and** ProtobufList→Kafka→ClickHouse, 1 h records TTL) | **~19.7 h** (of a 24 h target; ended by an external task-kill at t=70,800 s, **not** a pipeline failure — every process was healthy at the cut) | **PASS** — 20/20 containers × 250 sockets sustained, ProtobufList ingest continuous (consumer `msgs` 1 → **14,214** monotonic), **0 schema errors, 0 `PROTOBUF_BAD_CAST`, 0 `kafka_exc`, 0 rebalances, 0 panics**; RSS flat **~60 MB**, threads flat **131**, docker disk 13% → **31% peak** (linear, no saturation) |
 | `s3parquet-stress` (combined: TCP-stress load **and** Parquet→S3 upload to in-VM MinIO, ~1 h object retention) | **6 h** | **PASS** — 20/20 containers × 250 sockets, **81 parquet files / 5.27 M rows / ~305 MB** uploaded (monotonic, ~14 files/h; ~14× zstd/snappy compression), **0 restarts, 0 panics**; RSS bounded-oscillating **76–148 MB** (the 64 MiB parquet write buffer filling/flushing — no leak), threads flat **122**. Surfaced + fixed a retention bug (bug #9) — objects weren't being deleted; the fix was verified in-VM (deletions fire once objects age past the window). |
+| `s3parquet-lowfreq` (Parquet→S3 under **low activity**: 1 h poll, 20 containers × **2 sockets**) | **~2 h** | **PASS** — verifies the **staleness-timer** flush path (the opposite of the byte-cap regime above). First parquet object landed at **~18 min** with **39 rows / ~32 KB** — i.e. 0.05 % of the 64 MiB byte cap, so only the timer could have flushed it. Confirms the S3 bucket fills even when poll frequency and socket count are low. 20/20 containers, 0 panics/restarts. |
 
 The 12 h soak ran the worst case: ~200 namespaces churned at 100 ms add/delete.
 `pollDuration` under that storm stayed **bounded** at ~6–10 s (one reader
@@ -237,6 +238,18 @@ its config dir when `$HOME` is unset, and the service's minimal PATH lacks it, s
 once objects age past the window. **Lesson (recurring in this campaign): a green
 soak can hide a broken safety mechanism — never let a subprocess's stderr go to
 `/dev/null`, and assert the mechanism actually did something.**
+
+**Low-activity counterpart (`s3parquet-lowfreq`).** The stress flavor drives files
+via the **63 MiB byte cap**. Its sibling `s3parquet-lowfreq` verifies the *other*
+flush trigger — the **staleness timer** — for a low-activity deployment: xtcp2
+polls once an hour with only 2 sockets/container, so the byte cap is unreachable
+and the parquet worker's independent flush timer (`max(PollFrequency, 30m)` = 1h;
+a real self-re-arming `time.Timer` in the worker `select{}`, fires regardless of
+record arrival) is the sole driver. Confirmed in-VM: the first object landed at
+~18 min with **39 rows / ~32 KB** — 0.05 % of the byte cap — proving the timer,
+not the size threshold, produced it. So a low-traffic host still ships data to S3
+roughly once per hour (an empty poll produces no object — the empty-buffer flush
+is a no-op). The two flavors together cover both parquet flush triggers.
 
 ## io_uring evaluation
 

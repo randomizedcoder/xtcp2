@@ -476,6 +476,10 @@ rec {
     {
       arch,
       vm,
+      # Default --duration when the caller passes none. The stress flavor uses
+      # 1h; the low-frequency flavor overrides to 2h so the ~hourly staleness
+      # timer flush is reliably captured even with no explicit --duration.
+      defaultDurationSec ? 3600,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -492,7 +496,7 @@ rec {
       text = ''
         set -u
 
-        DURATION_SEC=3600  # default 1h; 24h is the production stress soak.
+        DURATION_SEC=${toString defaultDurationSec}
         KEEP_ALIVE=0
         while [ $# -gt 0 ]; do
           case "$1" in
