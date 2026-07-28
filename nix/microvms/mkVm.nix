@@ -907,22 +907,39 @@ let
       minio-client
     ];
     text = ''
-      # Wait for MinIO to be live, then (re)register the alias idempotently.
+      # Address MinIO via the MC_HOST_<alias> env var — no `mc alias set` /
+      # persisted config needed. Also set HOME + MC_CONFIG_DIR explicitly:
+      # writeShellApplication runs with a minimal PATH that lacks `getent`, and
+      # with HOME unset mc shells out to `getent` to locate its config dir and
+      # aborts ("Unable to get mcConfigDir. exec: getent: not found") — which
+      # silently failed EVERY mc call (that was the real retention bug). With
+      # MC_CONFIG_DIR set, mc uses it directly and never calls getent.
+      export MC_HOST_local="http://xtcp2test:xtcp2testsecret@127.0.0.1:9000"
+      export HOME=/tmp/xtcp2-s3parquet-mc
+      export MC_CONFIG_DIR="$HOME/.mc"
+      mkdir -p "$MC_CONFIG_DIR"
+      # Retention window + sweep cadence are overridable (defaults = the 1h
+      # analog of the clickhouse-stress table TTL, swept every 10 min); a
+      # verification run can shorten both to see deletions without waiting 1h.
+      AGE="''${S3PARQUET_RETENTION_AGE:-1h}"
+      IVAL="''${S3PARQUET_RETENTION_INTERVAL:-600}"
+      # Wait for MinIO to answer (a credentialed list) before the loop.
       for _ in $(seq 1 60); do
-        if mc alias set local http://127.0.0.1:9000 xtcp2test xtcp2testsecret \
-             >/dev/null 2>&1; then
-          break
-        fi
+        if mc ls local/ >/dev/null 2>&1; then break; fi
         sleep 2
       done
-      echo "XTCP2_S3PARQUET_RETENTION start: deleting objects older than 1h every 600s"
+      echo "XTCP2_S3PARQUET_RETENTION start: deleting objects older than $AGE every ''${IVAL}s"
       while true; do
-        sleep 600
-        # --force is required for a non-interactive delete; --older-than 1h
-        # matches the object's last-modified. `|| true` so a transient MinIO
-        # blip doesn't kill the loop (systemd would restart, but keep it alive).
-        n=$(mc rm --recursive --force --older-than 1h local/xtcp2-records/ 2>/dev/null | wc -l || echo 0)
-        echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}"
+        sleep "$IVAL"
+        # Capture stdout+stderr so a failure is visible on the console (as
+        # err=[...]) instead of a silent expired=0. `--force` is required for a
+        # non-interactive recursive delete; mc prints one "Removed ..." line
+        # per deleted object. `|| true` keeps the loop alive across a transient
+        # MinIO blip.
+        out=$(mc rm --recursive --force --older-than "$AGE" local/xtcp2-records/ 2>&1) || true
+        n=$(printf '%s\n' "$out" | grep -c '^Removed ' || true)
+        err=$(printf '%s\n' "$out" | grep -iE 'error|unable|fail' | head -1 || true)
+        echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}''${err:+ err=[''${err}]}"
       done
     '';
   };
@@ -1647,6 +1664,10 @@ in
           ];
           wants = [ "minio.service" ];
           wantedBy = [ "multi-user.target" ];
+          # Production window: keep ~1h of objects, swept every 10 min (the
+          # script defaults). Override S3PARQUET_RETENTION_AGE /
+          # S3PARQUET_RETENTION_INTERVAL here to verify deletions in a short
+          # run (e.g. "10m" / "120" fires within a 1h run — validated 2026-07-28).
           serviceConfig = {
             Type = "simple";
             ExecStart = "${s3ParquetRetentionScript}/bin/xtcp2-s3parquet-retention";
