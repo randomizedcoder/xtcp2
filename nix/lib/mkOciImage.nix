@@ -28,6 +28,15 @@
 let
   contents = [
     binaries
+    # CA trust bundle. The image is otherwise scratch (binaries only), so
+    # without this Go's crypto/x509 has no roots and HTTPS to real endpoints
+    # — e.g. the s3parquet destination uploading to AWS S3 — fails with
+    # "x509: certificate signed by unknown authority". dockerTools.caCertificates
+    # installs the bundle at every standard path, including Go's default Linux
+    # location /etc/ssl/certs/ca-certificates.crt. (The microVM tests never
+    # caught this: they upload to in-VM MinIO over plain HTTP, so TLS is never
+    # exercised.)
+    pkgs.dockerTools.caCertificates
   ]
   ++ lib.optional (protoFile != null) (
     pkgs.runCommand "xtcp2-proto-payload" { } ''
@@ -49,6 +58,10 @@ pkgs.dockerTools.streamLayeredImage {
   config = {
     Entrypoint = [ entrypoint ];
     ExposedPorts = exposedPortsAttr;
+    # Point Go's crypto/x509 explicitly at the bundle shipped above — belt-and-
+    # suspenders alongside the standard /etc/ssl/certs path, so TLS verification
+    # works even if Go's default search paths ever change.
+    Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" ];
   }
   // lib.optionalAttrs (healthcheck != null) { Healthcheck = healthcheck; };
 }
