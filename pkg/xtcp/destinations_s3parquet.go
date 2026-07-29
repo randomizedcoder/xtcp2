@@ -524,6 +524,11 @@ func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *by
 			d.bucket, key, attempt, d.maxAttempts, errMsg)
 		if d.x.pC != nil {
 			d.x.pC.WithLabelValues("destS3Parquet", "uploadRetry", "error").Inc()
+			// Same failed attempt, broken down by a BOUNDED error class (never
+			// the raw error text) so cardinality stays fixed — lets a dashboard
+			// tell a TLS/cert failure apart from a timeout, DNS, or refused
+			// connection. See classifyUploadErr for the closed set of classes.
+			d.x.pC.WithLabelValues("destS3Parquet", "uploadErrorClass", classifyUploadErr(err)).Inc()
 		}
 		if attempt == d.maxAttempts {
 			break
@@ -536,9 +541,56 @@ func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *by
 	}
 	if d.x.pC != nil {
 		d.x.pC.WithLabelValues("destS3Parquet", "upload", "error").Inc()
+		// Quantify the data loss with fixed label values: upload/error counts
+		// the dropped OBJECT; these count the rows/bytes lost inside it, so a
+		// prolonged S3 outage's data loss is measurable, not just log-visible.
+		d.x.pC.WithLabelValues("destS3Parquet", "uploadRowsDropped", "error").Add(float64(rows))
+		d.x.pC.WithLabelValues("destS3Parquet", "uploadBytesDropped", "error").Add(float64(size))
 	}
 	log.Printf("destS3Parquet PUT %s/%s permanently failed after %d attempts; dropping %d rows",
 		d.bucket, key, d.maxAttempts, rows)
+}
+
+// s3 upload-error classes — a fixed, bounded set used as the `type` label of
+// the "uploadErrorClass" counter. Every upload error maps to exactly one of
+// these constants; the raw error string is NEVER used as a label value, so the
+// metric's cardinality is capped at this closed set no matter what S3 returns.
+const (
+	s3ErrClassTLS      = "tls"      // cert/verify failures (x509, tls:)
+	s3ErrClassTimeout  = "timeout"  // deadline exceeded / i/o timeout
+	s3ErrClassCanceled = "canceled" // context canceled (shutdown)
+	s3ErrClassDNS      = "dns"      // name resolution failure
+	s3ErrClassRefused  = "refused"  // connection refused
+	s3ErrClassOther    = "other"    // anything else (default)
+)
+
+// classifyUploadErr maps a PutObject failure to one of the fixed s3ErrClass*
+// categories. Context errors are matched structurally via errors.Is; the rest
+// fall back to substring checks on stable Go/minio error text. Anything
+// unrecognized is "other" — the label value is always drawn from the closed
+// const set above, so it cannot explode metric cardinality.
+func classifyUploadErr(err error) string {
+	switch {
+	case err == nil:
+		return s3ErrClassOther
+	case errors.Is(err, context.Canceled):
+		return s3ErrClassCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return s3ErrClassTimeout
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "x509:") || strings.Contains(msg, "tls:"):
+		return s3ErrClassTLS
+	case strings.Contains(msg, "no such host"):
+		return s3ErrClassDNS
+	case strings.Contains(msg, "connection refused"):
+		return s3ErrClassRefused
+	case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded"):
+		return s3ErrClassTimeout
+	default:
+		return s3ErrClassOther
+	}
 }
 
 // backoffWindow returns min(cap, base<<(attempt-1)) for attempt>=1, computed
