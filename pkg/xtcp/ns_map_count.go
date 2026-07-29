@@ -43,8 +43,12 @@ func (x *XTCP) nsMapCountReporter(ctx context.Context, wg *sync.WaitGroup) {
 			x.pG.Set(float64(mc))
 			x.pC.WithLabelValues("mapCountReporter", "tick", "count").Inc()
 
-			if x.debugLevel > 100 {
-				// debug code to check the counters work correctly
+			if x.debugLevel > 1000 {
+				// Very-high-debug counter-sanity logs, superseded by the
+				// x.pG gauge set above — kept only for deep debugging. Gated
+				// above the default -d 111 so they stay silent in normal
+				// operation; LenSyncMap() is an O(n) sync.Map scan, so it
+				// must stay inside this guard.
 				log.Printf("add MapCount(): %d\n", mc)
 				log.Printf("add LenSyncMap(): %d\n", x.LenSyncMap())
 			}
