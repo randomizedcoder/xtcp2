@@ -311,6 +311,7 @@ in
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
+      microvm-x86_64-clickhouse-pipeline-rate = microvms.vmsClickPipeRate.x86_64;
       microvm-x86_64-clickhouse-pipeline-stress = microvms.vmsClickPipeStress.x86_64;
       microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
@@ -423,6 +424,17 @@ in
     microvm-x86_64-clickhouse-pipeline-stress = {
       type = "app";
       program = "${microvms.clickPipeStress.x86_64.runner}/bin/xtcp2-clickpipe-stress-runner-x86_64";
+    };
+
+    # Runtime-control rate test. Boots the clickhouse-pipeline-rate VM, whose
+    # in-VM monitor drives xtcp2ctl through a baseline→fast→revert poll-frequency
+    # schedule plus a poll-burst, and asserts the ClickHouse ingest RATE responds
+    # and returns. Duration-bounded runner (~9 min); prints the per-phase
+    # XTCP2_RATE_* lines and passes only if every verdict is PASS. Not in
+    # `nix flake check` — holds a KVM slot.
+    microvm-x86_64-clickhouse-pipeline-rate-runner = {
+      type = "app";
+      program = "${microvms.clickPipeRate.x86_64.runner}/bin/xtcp2-clickpipe-rate-runner-x86_64";
     };
 
     # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a
