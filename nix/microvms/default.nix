@@ -194,6 +194,56 @@ let
       sink = "s3parquet";
     };
 
+  # valkey lifecycle flavor: native in-VM Valkey server + pre-subscribed
+  # consumer; xtcp2 PUBLISHes to the pub/sub channel and the self-test proves
+  # records are consumed back.
+  mkOneValkey =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "valkey";
+    };
+
+  # nats lifecycle flavor: native in-VM NATS server + pre-subscribed consumer.
+  mkOneNats =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "nats";
+    };
+
+  # nsq lifecycle flavor: native in-VM nsqd + an nsq_tail consumer.
+  mkOneNsq =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "nsq";
+    };
+
   mkOneS3ParquetLong =
     arch:
     import ./mkVm.nix {
@@ -322,6 +372,12 @@ let
 
   vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
 
+  vmsValkey = lib.genAttrs constants.supportedArchs mkOneValkey;
+
+  vmsNats = lib.genAttrs constants.supportedArchs mkOneNats;
+
+  vmsNsq = lib.genAttrs constants.supportedArchs mkOneNsq;
+
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
@@ -332,6 +388,39 @@ let
       # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
       # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
       sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
+    };
+  });
+
+  lifecycleValkey = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsValkey.${arch};
+      suffix = "-valkey";
+      # Baseline sentinels plus the valkey consume-back verdict. Valkey boots
+      # fast (native server, no docker), but the self-test waits up to ~60 s for
+      # the subscriber to accumulate messages, so keep a generous timeout.
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|VALKEY_CONSUME|OVERALL";
+      timeoutSec = 240;
+    };
+  });
+
+  lifecycleNats = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsNats.${arch};
+      suffix = "-nats";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NATS_CONSUME|OVERALL";
+      timeoutSec = 240;
+    };
+  });
+
+  lifecycleNsq = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsNsq.${arch};
+      suffix = "-nsq";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NSQ_CONSUME|OVERALL";
+      timeoutSec = 240;
     };
   });
 
@@ -490,6 +579,9 @@ in
     vmsClickPipeStress
     vmsClickPipeParquet
     vmsS3Parquet
+    vmsValkey
+    vmsNats
+    vmsNsq
     vmsS3ParquetLong
     vmsS3ParquetStress
     vmsS3ParquetLowfreq
@@ -503,6 +595,9 @@ in
     s3ParquetLowfreq
     lifecycle
     lifecycleS3Parquet
+    lifecycleValkey
+    lifecycleNats
+    lifecycleNsq
     lifecycleCoverage
     lifecycleCoverageIoUring
     soak
