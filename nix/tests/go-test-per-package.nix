@@ -43,6 +43,7 @@ let
     "tools-proto-field-audit" = "./tools/proto-field-audit/...";
     "cmd-xtcp2" = "./cmd/xtcp2/...";
     "cmd-xtcp2client" = "./cmd/xtcp2client/...";
+    "cmd-xtcp2ctl" = "./cmd/xtcp2ctl/...";
   };
 
   mkPkgTest =
