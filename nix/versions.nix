@@ -21,7 +21,18 @@
 
   # protobuf tooling
   buf = pkgs.buf;
-  protoc = pkgs.protobuf;
+  protoc = pkgs.protobuf; # also provides the protoc builtins (python/pyi/cpp)
+
+  # Local buf codegen plugins (nix-pinned) — used by nix/protos/buf-generate.nix
+  # so `buf generate` runs fully offline (no buf-cloud remote plugins). See
+  # buf.gen.yaml. grpc-gateway ships protoc-gen-grpc-gateway + protoc-gen-openapiv2;
+  # grpc ships grpc_python_plugin + grpc_cpp_plugin.
+  protoc-gen-go = pkgs.protoc-gen-go;
+  protoc-gen-go-grpc = pkgs.protoc-gen-go-grpc;
+  protoc-gen-go-vtproto = pkgs.protoc-gen-go-vtproto;
+  grpc-gateway = pkgs.grpc-gateway;
+  protoc-gen-dart = pkgs.protoc-gen-dart;
+  grpc = pkgs.grpc;
 
   # Static analysis
   golangci-lint = pkgs.golangci-lint;

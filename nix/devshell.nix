@@ -14,6 +14,9 @@
 let
   versions = import ./versions.nix { inherit pkgs; };
   packages = import ./packages.nix { inherit pkgs; };
+  # Same generator as `nix run .#regen-protos` — a single offline, nix-pinned
+  # implementation so the dev-shell helper and the flake app can't drift.
+  regenProtos = import ./protos/buf-generate.nix { inherit pkgs lib; };
 in
 pkgs.mkShell {
   name = "xtcp2-dev";
@@ -62,10 +65,7 @@ pkgs.mkShell {
         }
 
         regen-protos() {
-          ${versions.buf}/bin/buf dep update && \
-          ${versions.buf}/bin/buf lint && \
-          ${versions.buf}/bin/buf build && \
-          ${versions.buf}/bin/buf generate
+          ${regenProtos}/bin/regen-protos
         }
 
         lint-quick() {

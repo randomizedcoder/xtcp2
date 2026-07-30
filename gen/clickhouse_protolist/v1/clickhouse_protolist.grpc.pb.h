@@ -38,6 +38,7 @@
 #include <grpcpp/support/status.h>
 #include <grpcpp/support/stub_options.h>
 #include <grpcpp/support/sync_stream.h>
+#include <grpcpp/ports_def.inc>
 
 namespace clickhouse_protolist {
 namespace v1 {
@@ -46,4 +47,5 @@ namespace v1 {
 }  // namespace clickhouse_protolist
 
 
+#include <grpcpp/ports_undef.inc>
 #endif  // GRPC_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto__INCLUDED

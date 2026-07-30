@@ -26,9 +26,12 @@ DATE := $(shell date -u +"%Y-%m-%d-%H:%M")
 
 .PHONY: build
 
-build_and_deploy: builddocker check_protos deploy help
+# NB: the ClickHouse format schemas are generated + committed by `make protos`
+# (nix run .#regen-protos), so a clean checkout is always in sync — the deploy
+# targets no longer regenerate as a side effect (which would need the network).
+build_and_deploy: builddocker deploy help
 
-build_clickhouse_and_deploy: builddocker_clickhouse_debug check_protos deploy help
+build_clickhouse_and_deploy: builddocker_clickhouse_debug deploy help
 
 help:
 	@echo "Commands to try next:"
@@ -107,8 +110,11 @@ builddocker_clickhouse_debug:
 		--tag randomizedcoder/xtcp_clickhouse:${VERSION} --tag randomizedcoder/xtcp_clickhouse:latest \
 		.
 
+# Regenerate protobuf bindings (Go/Python/Dart/C++/OpenAPI) and re-sync the
+# ClickHouse format schemas from the canonical protos. Fully offline, nix-pinned
+# plugins. Replaces the old generate_protos.bash + check_protos.bash.
 check_protos:
-	./check_protos.bash
+	nix run .#regen-protos
 
 update_dependancies:
 
@@ -155,8 +161,7 @@ clear_docker_volumes:
 	docker volume ls
 
 protos:
-	./generate_protos.bash
-	./check_protos.bash
+	nix run .#regen-protos
 
 nuke_clickhouse:
 	rm -rf ./build/containers/clickhouse/db/*

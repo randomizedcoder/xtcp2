@@ -5,7 +5,7 @@ import grpc
 from xtcp_flat_record.v1 import xtcp_flat_record_pb2 as xtcp__flat__record_dot_v1_dot_xtcp__flat__record__pb2
 
 
-class XTCPFlatRecordServiceStub(object):
+class XTCPFlatRecordServiceStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -26,7 +26,7 @@ class XTCPFlatRecordServiceStub(object):
                 _registered_method=True)
 
 
-class XTCPFlatRecordServiceServicer(object):
+class XTCPFlatRecordServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
     def FlatRecords(self, request, context):
@@ -64,7 +64,7 @@ def add_XTCPFlatRecordServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class XTCPFlatRecordService(object):
+class XTCPFlatRecordService:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
