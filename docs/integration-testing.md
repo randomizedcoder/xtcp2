@@ -5,6 +5,7 @@ A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms alongside
 ## Table of contents
 
 - [Introduction](#introduction)
+- [Test surfaces at a glance](#test-surfaces-at-a-glance)
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
 - [Microvm flavors](#microvm-flavors)
@@ -33,6 +34,26 @@ This is the heavy integration-testing side of xtcp2. Unit tests live in `pkg/*/_
 Everything is packaged through the flake's microvm targets, so a single `nix run .#microvm-x86_64-<flavor>` invocation boots a fresh QEMU/KVM guest with the requested test scenario fully wired and ready to inspect.
 
 The environment is structured as a small set of **flavors** built from one shared `mkVm.nix`. Each flavor is gated by a `sink = "..."` predicate and assembles a different mix of services on top of the base xtcp2 daemon.
+
+## Test surfaces at a glance
+
+xtcp2's automated testing spans four layers; this document covers layers 2-3.
+
+1. **Unit / race / fuzz** — pure Go, no VM (`go test ./...`). See [testing-and-quality.md](testing-and-quality.md).
+2. **microVM integration flavors** (the bulk of this doc) — boot xtcp2 under a real kernel, real namespaces, real sockets, and (for the pipeline flavors) real Redpanda / ClickHouse / MinIO. Grouped by intent:
+
+   | Group | Flavors | What it exercises |
+   |---|---|---|
+   | **Lifecycle / self-test** | `-lifecycle` (+ `-coverage`, `-coverage-iouring`), `-lifecycle-s3parquet` | Fast (~1 min) assertion-scraped boot; `-lifecycle` runs in `nix flake check` |
+   | **Soak & long-running** | `-soak`, `-s3parquet-runner` (s3parquet-long) | Hours-long stability (churn / sustained upload). Methodology + measured results: [stability-testing.md](stability-testing.md) |
+   | **Stress (under socket load)** | `-tcp-stress`, `-clickhouse-pipeline-stress`, `-s3parquet-stress`, `-s3parquet-lowfreq` | 20 containers × 250 sockets; the `-stress` soaks run 24h |
+   | **S3 / MinIO (parquet)** | `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-clickhouse-pipeline-parquet` | xtcp2 → Parquet → in-VM MinIO, read back with duckdb / ClickHouse `s3()` |
+   | **ClickHouse pipeline** | `-clickhouse-pipeline` (+ `-parquet`, `-stress`, `-rate`) | xtcp2 → Redpanda (Kafka) → ClickHouse ProtobufList ingest |
+   | **Runtime control** | `-clickhouse-pipeline-rate` + self-test Checks 17-19 | Drives `xtcp2ctl` and asserts the daemon's live behaviour changes |
+   | **Specialized** | `-discovery-bench`, `-capcheck-fail` | Namespace-discovery A/B grid; startup capability-check refusal |
+
+3. **Non-VM flake checks** (`nix flake check`) — lint / audit / cli-help / capability-check + per-build-tag `go test`. See [Non-VM checks](#non-vm-checks-nix-flake-check).
+4. **docker-compose local stack** — a non-hermetic, hands-on version of the ClickHouse/Redpanda pipeline for local development (`make deploy`). Documented in [operations.md](operations.md); the microVM `clickhouse-pipeline*` flavors are the hermetic, CI-friendly equivalent.
 
 ## Quick start
 
@@ -621,3 +642,11 @@ Measured before/after on a fresh 31-min smoke:
 The throughput now matches xtcp2's actual production rate (~430 rows/sec) with the MV running in real-time and zero backlog. ClickHouse runs on ~300 MiB instead of needing 14 GiB.
 
 If you see new MEMORY_LIMIT_EXCEEDED entries with a different `kafka_*` setup, check `SHOW CREATE TABLE xtcp.xtcp_flat_records_kafka` and verify `kafka_max_block_size` is still at ~1024 — if it's reverted to the default 65,505 you'll see the OOM rate jump back to ~2/min.
+
+## See also
+
+- [Stability & soak testing](stability-testing.md) — soak methodology, the OS-thread scaling model, and measured 24h results for the `-soak` / `clickhouse-pipeline-stress` / `s3parquet-stress` runs.
+- [Operations notes](operations.md) — the non-hermetic docker-compose local pipeline (`make deploy`) and how to query the data.
+- [Testing & quality](testing-and-quality.md) — the unit / deserialization / benchmark / fuzz layer and the audit tools that back the non-VM flake checks.
+- [gRPC API](grpc-api.md) — the `ConfigService` / `xtcp2ctl` runtime-control surface exercised by the rate flavor and self-test Checks 17-19.
+- [Namespace discovery & reconcile](design-namespace-discovery-and-reconcile.md) — Method B (`/proc`-scan), the mechanism the NS_* checks and `discovery-bench` validate.
