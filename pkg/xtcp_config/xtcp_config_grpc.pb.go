@@ -32,6 +32,9 @@ const (
 	ConfigService_Get_FullMethodName              = "/xtcp_config.v1.ConfigService/Get"
 	ConfigService_Set_FullMethodName              = "/xtcp_config.v1.ConfigService/Set"
 	ConfigService_SetPollFrequency_FullMethodName = "/xtcp_config.v1.ConfigService/SetPollFrequency"
+	ConfigService_TriggerPoll_FullMethodName      = "/xtcp_config.v1.ConfigService/TriggerPoll"
+	ConfigService_TriggerPollBurst_FullMethodName = "/xtcp_config.v1.ConfigService/TriggerPollBurst"
+	ConfigService_SetS3Upload_FullMethodName      = "/xtcp_config.v1.ConfigService/SetS3Upload"
 )
 
 // ConfigServiceClient is the client API for ConfigService service.
@@ -41,6 +44,22 @@ type ConfigServiceClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	SetPollFrequency(ctx context.Context, in *SetPollFrequencyRequest, opts ...grpc.CallOption) (*SetPollFrequencyResponse, error)
+	// Trigger a single poll immediately, without changing the configured
+	// cadence. The polled records flow to the configured destination (and any
+	// connected PollFlatRecords stream). Coalesced if a dump is already in
+	// flight. For operator-driven on-demand snapshots.
+	TriggerPoll(ctx context.Context, in *TriggerPollRequest, opts ...grpc.CallOption) (*TriggerPollResponse, error)
+	// Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+	// 10s apart → a socket snapshot every 10s for a minute). Schedules the
+	// burst and returns immediately; records flow to the configured
+	// destination. `interval` must exceed poll_timeout so each poll completes
+	// before the next fires (no coalescing drop).
+	TriggerPollBurst(ctx context.Context, in *TriggerPollBurstRequest, opts ...grpc.CallOption) (*TriggerPollBurstResponse, error)
+	// Change the s3parquet upload timing at runtime: the staleness-flush timer
+	// and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+	// to S3 promptly during an investigation. Only effective when the
+	// destination is s3parquet.
+	SetS3Upload(ctx context.Context, in *SetS3UploadRequest, opts ...grpc.CallOption) (*SetS3UploadResponse, error)
 }
 
 type configServiceClient struct {
@@ -81,6 +100,36 @@ func (c *configServiceClient) SetPollFrequency(ctx context.Context, in *SetPollF
 	return out, nil
 }
 
+func (c *configServiceClient) TriggerPoll(ctx context.Context, in *TriggerPollRequest, opts ...grpc.CallOption) (*TriggerPollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TriggerPollResponse)
+	err := c.cc.Invoke(ctx, ConfigService_TriggerPoll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *configServiceClient) TriggerPollBurst(ctx context.Context, in *TriggerPollBurstRequest, opts ...grpc.CallOption) (*TriggerPollBurstResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TriggerPollBurstResponse)
+	err := c.cc.Invoke(ctx, ConfigService_TriggerPollBurst_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *configServiceClient) SetS3Upload(ctx context.Context, in *SetS3UploadRequest, opts ...grpc.CallOption) (*SetS3UploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetS3UploadResponse)
+	err := c.cc.Invoke(ctx, ConfigService_SetS3Upload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConfigServiceServer is the server API for ConfigService service.
 // All implementations must embed UnimplementedConfigServiceServer
 // for forward compatibility.
@@ -88,6 +137,22 @@ type ConfigServiceServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Set(context.Context, *SetRequest) (*SetResponse, error)
 	SetPollFrequency(context.Context, *SetPollFrequencyRequest) (*SetPollFrequencyResponse, error)
+	// Trigger a single poll immediately, without changing the configured
+	// cadence. The polled records flow to the configured destination (and any
+	// connected PollFlatRecords stream). Coalesced if a dump is already in
+	// flight. For operator-driven on-demand snapshots.
+	TriggerPoll(context.Context, *TriggerPollRequest) (*TriggerPollResponse, error)
+	// Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+	// 10s apart → a socket snapshot every 10s for a minute). Schedules the
+	// burst and returns immediately; records flow to the configured
+	// destination. `interval` must exceed poll_timeout so each poll completes
+	// before the next fires (no coalescing drop).
+	TriggerPollBurst(context.Context, *TriggerPollBurstRequest) (*TriggerPollBurstResponse, error)
+	// Change the s3parquet upload timing at runtime: the staleness-flush timer
+	// and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+	// to S3 promptly during an investigation. Only effective when the
+	// destination is s3parquet.
+	SetS3Upload(context.Context, *SetS3UploadRequest) (*SetS3UploadResponse, error)
 	mustEmbedUnimplementedConfigServiceServer()
 }
 
@@ -106,6 +171,15 @@ func (UnimplementedConfigServiceServer) Set(context.Context, *SetRequest) (*SetR
 }
 func (UnimplementedConfigServiceServer) SetPollFrequency(context.Context, *SetPollFrequencyRequest) (*SetPollFrequencyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetPollFrequency not implemented")
+}
+func (UnimplementedConfigServiceServer) TriggerPoll(context.Context, *TriggerPollRequest) (*TriggerPollResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TriggerPoll not implemented")
+}
+func (UnimplementedConfigServiceServer) TriggerPollBurst(context.Context, *TriggerPollBurstRequest) (*TriggerPollBurstResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TriggerPollBurst not implemented")
+}
+func (UnimplementedConfigServiceServer) SetS3Upload(context.Context, *SetS3UploadRequest) (*SetS3UploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetS3Upload not implemented")
 }
 func (UnimplementedConfigServiceServer) mustEmbedUnimplementedConfigServiceServer() {}
 func (UnimplementedConfigServiceServer) testEmbeddedByValue()                       {}
@@ -182,6 +256,60 @@ func _ConfigService_SetPollFrequency_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ConfigService_TriggerPoll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerPollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).TriggerPoll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConfigService_TriggerPoll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).TriggerPoll(ctx, req.(*TriggerPollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConfigService_TriggerPollBurst_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerPollBurstRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).TriggerPollBurst(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConfigService_TriggerPollBurst_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).TriggerPollBurst(ctx, req.(*TriggerPollBurstRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConfigService_SetS3Upload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetS3UploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).SetS3Upload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConfigService_SetS3Upload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).SetS3Upload(ctx, req.(*SetS3UploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ConfigService_ServiceDesc is the grpc.ServiceDesc for ConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -200,6 +328,18 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetPollFrequency",
 			Handler:    _ConfigService_SetPollFrequency_Handler,
+		},
+		{
+			MethodName: "TriggerPoll",
+			Handler:    _ConfigService_TriggerPoll_Handler,
+		},
+		{
+			MethodName: "TriggerPollBurst",
+			Handler:    _ConfigService_TriggerPollBurst_Handler,
+		},
+		{
+			MethodName: "SetS3Upload",
+			Handler:    _ConfigService_SetS3Upload_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

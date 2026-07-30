@@ -36,6 +36,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -44,6 +45,14 @@ const (
 
 	signalChannelSizeCst = 10
 	cancelSleepTimeCst   = 5 * time.Second
+
+	// reconfigureEnvKey carries a full XtcpConfig (protojson) across a
+	// soft-restart syscall.Exec. When set at startup it wins over flags/env.
+	reconfigureEnvKey = "XTCP_CONFIG_JSON"
+	// reconfigureGraceDelay is how long the reconfigure hook waits before
+	// cancelling the run context, so the gRPC Set response flushes to the
+	// client before graceful shutdown + re-exec begin.
+	reconfigureGraceDelay = 200 * time.Millisecond
 
 	promListenCst           = ":9088" // [::1]:9088
 	promPathCst             = "/metrics"
@@ -667,6 +676,20 @@ func runMain(ctx context.Context) int {
 		return 0
 	}
 
+	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
+	// config in the environment, that config wins over the flag/env-derived one.
+	// A malformed value is fatal — the restart intent is explicit, so silently
+	// falling back to the flag config would be surprising and wrong.
+	if envc, ok, err := loadReconfigureConfig(); err != nil {
+		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
+		return 1
+	} else if ok {
+		c = envc
+		if debugLevel > 10 {
+			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
+		}
+	}
+
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
 	if runtime.NumCPU() > int(*f.goMaxProcs) {
 		mp := runtime.GOMAXPROCS(int(*f.goMaxProcs))
@@ -722,6 +745,21 @@ func runMain(ctx context.Context) int {
 // and run RunWithPoller until ctx cancels the WG.
 func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
+
+	// Soft-restart wiring: the gRPC ConfigService.Set handler calls this hook
+	// with a validated new config. Record it, then (after a short grace so the
+	// Set response reaches the client) cancel the run context to start graceful
+	// shutdown. Buffered channel + non-blocking send: only the first request in
+	// a shutdown window is honoured.
+	restartCh := make(chan *xtcp_config.XtcpConfig, 1)
+	x.OnReconfigure(func(newCfg *xtcp_config.XtcpConfig) {
+		select {
+		case restartCh <- newCfg:
+		default:
+		}
+		time.AfterFunc(reconfigureGraceDelay, cancel)
+	})
+
 	if debugLevel > 10 {
 		log.Println("xtcp.Run(ctx, &wg)")
 	}
@@ -732,6 +770,74 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 		log.Println("xtcp.Run(ctx) complete. wg.Wait()")
 	}
 	wg.Wait()
+
+	// Graceful shutdown is complete here — the Poller's deferred flush and
+	// closeDestination have drained all buffered records, so no data is lost.
+	// If a reconfigure was requested, re-exec into the new config now (same
+	// binary, same container/PID). execSelfWithConfig returns only on error.
+	select {
+	case newCfg := <-restartCh:
+		execSelfWithConfig(newCfg)
+	default:
+	}
+}
+
+// loadReconfigureConfig returns the full XtcpConfig carried across a
+// soft-restart re-exec via the reconfigureEnvKey environment variable. ok is
+// false when the variable is unset/empty (normal first boot). A non-nil error
+// means the variable was present but unparseable.
+func loadReconfigureConfig() (c *xtcp_config.XtcpConfig, ok bool, err error) {
+	v, present := os.LookupEnv(reconfigureEnvKey)
+	if !present || v == "" {
+		return nil, false, nil
+	}
+	c = &xtcp_config.XtcpConfig{}
+	if err := protojson.Unmarshal([]byte(v), c); err != nil {
+		return nil, false, err
+	}
+	return c, true, nil
+}
+
+// execSelfWithConfig re-execs this binary in place (same PID/container),
+// carrying newCfg as protojson in reconfigureEnvKey so the fresh process boots
+// with it. os.Args is preserved, so all process-level flags carry unchanged;
+// only the XtcpConfig is overridden at startup. On success syscall.Exec does
+// not return; on failure it logs and returns so the caller exits normally.
+func execSelfWithConfig(newCfg *xtcp_config.XtcpConfig) {
+	exe, err := os.Executable()
+	if err != nil {
+		log.Printf("reconfigure: os.Executable failed, cannot re-exec: %v", err)
+		return
+	}
+	js, err := protojson.Marshal(newCfg)
+	if err != nil {
+		log.Printf("reconfigure: protojson.Marshal failed, cannot re-exec: %v", err)
+		return
+	}
+	env := append(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureEnvKey+"="+string(js))
+	log.Printf("reconfigure: re-exec %s (soft restart, config %d bytes)", exe, len(js))
+	// G702 is a false positive here: this is an intentional in-place restart of
+	// THIS binary (os.Executable), preserving our own os.Args and environment
+	// plus a config we validated and serialized ourselves — not execution of an
+	// external, attacker-chosen command. The new config was protovalidate'd in
+	// the Set handler before reaching this path.
+	if err := syscall.Exec(exe, os.Args, env); err != nil { //nolint:gosec // G702: re-exec of self with validated config; see comment above
+		log.Printf("reconfigure: syscall.Exec failed: %v", err)
+	}
+}
+
+// envWithoutKey returns env with any existing KEY=... entries for key removed,
+// so a re-exec replaces rather than duplicates the carried config.
+func envWithoutKey(env []string, key string) []string {
+	prefix := key + "="
+	out := env[:0:0]
+	for _, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // initSignalHandler sets up signal handling for the process, and

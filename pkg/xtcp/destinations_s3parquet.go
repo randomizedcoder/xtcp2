@@ -445,6 +445,25 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 			finalize() // no-op when the builder is empty
 			flushStop()
 			flushCh, flushStop = d.newTimer(nextFlushDelay(d.flushInterval, d.flushJitterPct, d.jitterDur))
+		case ctrl := <-d.x.setS3FlushCh:
+			// Runtime upload-timing change from the SetS3Upload gRPC. The
+			// worker is the only goroutine that touches flushInterval /
+			// threshold / the flush timer, so applying it here is race-free.
+			if ctrl.interval != nil {
+				d.flushInterval = *ctrl.interval
+				// Re-arm the staleness timer to the new interval so a
+				// shortened interval flushes buffered snapshots promptly.
+				flushStop()
+				flushCh, flushStop = d.newTimer(nextFlushDelay(d.flushInterval, d.flushJitterPct, d.jitterDur))
+			}
+			if ctrl.thresholdBytes != nil {
+				// Takes effect on the next startBuilder() (next object); the
+				// in-flight object keeps its already-jittered target.
+				d.threshold = int(*ctrl.thresholdBytes)
+			}
+			if d.x.pC != nil {
+				d.x.pC.WithLabelValues("destS3Parquet", "setS3Flush", "count").Inc()
+			}
 		}
 	}
 }

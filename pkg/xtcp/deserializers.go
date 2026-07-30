@@ -99,7 +99,12 @@ func (x *XTCP) InitDeserializers(wg *sync.WaitGroup) {
 	}
 
 	for _, e := range dispatchTable {
-		if _, exists := x.config.EnabledDeserializers.Enabled[e.key]; !exists {
+		// Register only groups explicitly enabled (key present AND true). The
+		// bool value is honoured, not just key existence, so a config with
+		// Enabled["bbr"]=false disables BBR — this is what lets a soft-restart
+		// (ConfigService.Set) turn an attribute group off, not only on. The
+		// CLI only ever writes true keys, so existing configs are unaffected.
+		if enabled, exists := x.config.EnabledDeserializers.Enabled[e.key]; !exists || !enabled {
 			continue
 		}
 		x.RTATypeDeserializer[e.enum] = e.fn

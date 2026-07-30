@@ -93,6 +93,86 @@ final $typed_data.Uint8List setPollFrequencyResponseDescriptor = $convert.base64
     'ChhTZXRQb2xsRnJlcXVlbmN5UmVzcG9uc2USMgoGY29uZmlnGAEgASgLMhoueHRjcF9jb25maW'
     'cudjEuWHRjcENvbmZpZ1IGY29uZmln');
 
+@$core.Deprecated('Use triggerPollRequestDescriptor instead')
+const TriggerPollRequest$json = {
+  '1': 'TriggerPollRequest',
+};
+
+/// Descriptor for `TriggerPollRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List triggerPollRequestDescriptor = $convert.base64Decode(
+    'ChJUcmlnZ2VyUG9sbFJlcXVlc3Q=');
+
+@$core.Deprecated('Use triggerPollResponseDescriptor instead')
+const TriggerPollResponse$json = {
+  '1': 'TriggerPollResponse',
+};
+
+/// Descriptor for `TriggerPollResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List triggerPollResponseDescriptor = $convert.base64Decode(
+    'ChNUcmlnZ2VyUG9sbFJlc3BvbnNl');
+
+@$core.Deprecated('Use triggerPollBurstRequestDescriptor instead')
+const TriggerPollBurstRequest$json = {
+  '1': 'TriggerPollBurstRequest',
+  '2': [
+    {'1': 'count', '3': 10, '4': 1, '5': 13, '8': {}, '10': 'count'},
+    {'1': 'interval', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'interval'},
+  ],
+};
+
+/// Descriptor for `TriggerPollBurstRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List triggerPollBurstRequestDescriptor = $convert.base64Decode(
+    'ChdUcmlnZ2VyUG9sbEJ1cnN0UmVxdWVzdBIjCgVjb3VudBgKIAEoDUINukgKyAEBKgUY6AcoAV'
+    'IFY291bnQSSQoIaW50ZXJ2YWwYFCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CErpI'
+    'D8gBAaoBCSIDCJAcMgIIAVIIaW50ZXJ2YWw=');
+
+@$core.Deprecated('Use triggerPollBurstResponseDescriptor instead')
+const TriggerPollBurstResponse$json = {
+  '1': 'TriggerPollBurstResponse',
+  '2': [
+    {'1': 'count', '3': 10, '4': 1, '5': 13, '10': 'count'},
+    {'1': 'interval', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '10': 'interval'},
+  ],
+};
+
+/// Descriptor for `TriggerPollBurstResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List triggerPollBurstResponseDescriptor = $convert.base64Decode(
+    'ChhUcmlnZ2VyUG9sbEJ1cnN0UmVzcG9uc2USFAoFY291bnQYCiABKA1SBWNvdW50EjUKCGludG'
+    'VydmFsGBQgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUghpbnRlcnZhbA==');
+
+@$core.Deprecated('Use setS3UploadRequestDescriptor instead')
+const SetS3UploadRequest$json = {
+  '1': 'SetS3UploadRequest',
+  '2': [
+    {'1': 's3_flush_interval', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 's3FlushInterval'},
+    {'1': 's3_parquet_flush_threshold_bytes', '3': 20, '4': 1, '5': 13, '8': {}, '10': 's3ParquetFlushThresholdBytes'},
+  ],
+  '7': {},
+};
+
+/// Descriptor for `SetS3UploadRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setS3UploadRequestDescriptor = $convert.base64Decode(
+    'ChJTZXRTM1VwbG9hZFJlcXVlc3QSUgoRczNfZmx1c2hfaW50ZXJ2YWwYCiABKAsyGS5nb29nbG'
+    'UucHJvdG9idWYuRHVyYXRpb25CC7pICMgBAKoBAjIAUg9zM0ZsdXNoSW50ZXJ2YWwSTgogczNf'
+    'cGFycXVldF9mbHVzaF90aHJlc2hvbGRfYnl0ZXMYFCABKA1CBrpIA8gBAFIcczNQYXJxdWV0Rm'
+    'x1c2hUaHJlc2hvbGRCeXRlczqoAbpIpAEaoQEKFlNldFMzVXBsb2FkLmF0TGVhc3RPbmUSPXNl'
+    'dCBzM19mbHVzaF9pbnRlcnZhbCBhbmQvb3IgczNfcGFycXVldF9mbHVzaF90aHJlc2hvbGRfYn'
+    'l0ZXMaSGhhcyh0aGlzLnMzX2ZsdXNoX2ludGVydmFsKSB8fCB0aGlzLnMzX3BhcnF1ZXRfZmx1'
+    'c2hfdGhyZXNob2xkX2J5dGVzID4gMA==');
+
+@$core.Deprecated('Use setS3UploadResponseDescriptor instead')
+const SetS3UploadResponse$json = {
+  '1': 'SetS3UploadResponse',
+  '2': [
+    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+  ],
+};
+
+/// Descriptor for `SetS3UploadResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setS3UploadResponseDescriptor = $convert.base64Decode(
+    'ChNTZXRTM1VwbG9hZFJlc3BvbnNlEjIKBmNvbmZpZxgBIAEoCzIaLnh0Y3BfY29uZmlnLnYxLl'
+    'h0Y3BDb25maWdSBmNvbmZpZw==');
+
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {
   '1': 'XtcpConfig',

@@ -145,10 +145,11 @@ func TestInitDeserializers_table(t *testing.T) {
 			wantCount: 1,
 		},
 		{
-			name:     "negative_value_false_should_still_register",
+			name:     "negative_value_false_does_not_register",
 			category: "negative",
-			// The dispatch logic uses `_, exists := ...; exists` not the
-			// map *value*, so any presence registers. Pin that contract.
+			// The dispatch logic honours the map *value*: a key present
+			// with value false is disabled, not registered. This is what
+			// lets ConfigService.Set turn an attribute group off.
 			build: func() *XTCP {
 				return &XTCP{
 					config: &xtcp_config.XtcpConfig{
@@ -161,7 +162,27 @@ func TestInitDeserializers_table(t *testing.T) {
 					},
 				}
 			},
-			wantKeys:  []string{dsKeyInfo, dsKeyBbr},
+			wantCount: 0,
+		},
+		{
+			name:     "negative_value_false_mixed_with_true",
+			category: "negative",
+			// Only the true-valued keys register; false-valued ones are
+			// disabled even though the key is present.
+			build: func() *XTCP {
+				return &XTCP{
+					config: &xtcp_config.XtcpConfig{
+						EnabledDeserializers: &xtcp_config.EnabledDeserializers{
+							Enabled: map[string]bool{
+								dsKeyInfo: true,
+								dsKeyBbr:  false,
+								dsKeyCong: true,
+							},
+						},
+					},
+				}
+			},
+			wantKeys:  []string{dsKeyInfo, dsKeyCong},
 			wantCount: 2,
 		},
 

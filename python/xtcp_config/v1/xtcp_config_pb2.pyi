@@ -45,6 +45,44 @@ class SetPollFrequencyResponse(_message.Message):
     config: XtcpConfig
     def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
 
+class TriggerPollRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class TriggerPollResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class TriggerPollBurstRequest(_message.Message):
+    __slots__ = ("count", "interval")
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    count: int
+    interval: _duration_pb2.Duration
+    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+
+class TriggerPollBurstResponse(_message.Message):
+    __slots__ = ("count", "interval")
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    count: int
+    interval: _duration_pb2.Duration
+    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+
+class SetS3UploadRequest(_message.Message):
+    __slots__ = ("s3_flush_interval", "s3_parquet_flush_threshold_bytes")
+    S3_FLUSH_INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    S3_PARQUET_FLUSH_THRESHOLD_BYTES_FIELD_NUMBER: _ClassVar[int]
+    s3_flush_interval: _duration_pb2.Duration
+    s3_parquet_flush_threshold_bytes: int
+    def __init__(self, s3_flush_interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ...) -> None: ...
+
+class SetS3UploadResponse(_message.Message):
+    __slots__ = ("config",)
+    CONFIG_FIELD_NUMBER: _ClassVar[int]
+    config: XtcpConfig
+    def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
+
 class XtcpConfig(_message.Message):
     __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "envelope_flush_threshold_bytes", "envelope_flush_threshold_rows", "kafka_compression", "s3_endpoint", "s3_bucket", "s3_prefix", "s3_access_key", "s3_secret_key", "s3_parquet_flush_threshold_bytes", "s3_region", "s3_skip_bucket_probe", "pyroscope_url", "pyroscope_app_name", "pyroscope_sample_hz", "pyroscope_upload_interval_sec", "dest", "dest_write_files", "topic", "xtcp_proto_file", "kafka_schema_url", "kafka_produce_timeout", "debug_level", "label", "tag", "location", "hostname", "resolve_container_id", "ipv4_ttl", "ipv6_hop_limit", "grpc_port", "enabled_deserializers", "io_uring", "io_uring_recv_batch_size", "io_uring_cqe_batch_size", "csv_columns", "poll_jitter_pct", "s3_flush_interval", "s3_flush_jitter_pct", "s3_flush_threshold_jitter_pct", "s3_upload_max_attempts", "s3_upload_backoff_cap", "reconcile_frequency", "reconcile_before_poll")
     NL_TIMEOUT_MILLISECONDS_FIELD_NUMBER: _ClassVar[int]

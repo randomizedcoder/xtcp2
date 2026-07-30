@@ -50,7 +50,10 @@ func TestNewXtcpConfigService_freshRegistry(t *testing.T) {
 	defer cancel()
 	ch := make(chan time.Duration, 1)
 	cfg := &xtcp_config.XtcpConfig{PollFrequency: nil}
-	got := NewXtcpConfigService(ctx, prometheus.NewRegistry(), cfg, &ch, 0)
+	pollCh := make(chan struct{}, 1)
+	burstCh := make(chan pollBurst, 1)
+	s3Ch := make(chan s3FlushControl, 1)
+	got := NewXtcpConfigService(ctx, prometheus.NewRegistry(), cfg, &ch, &pollCh, &burstCh, &s3Ch, nil, 0)
 	if got == nil {
 		t.Fatal("NewXtcpConfigService returned nil")
 	}
@@ -69,7 +72,10 @@ func TestNewXtcpConfigService_nilFallsBackToDefault(t *testing.T) {
 			t.Skipf("recovered from re-registration on default registry: %v", r)
 		}
 	}()
-	got := NewXtcpConfigService(ctx, nil, cfg, &ch, 0)
+	pollCh := make(chan struct{}, 1)
+	burstCh := make(chan pollBurst, 1)
+	s3Ch := make(chan s3FlushControl, 1)
+	got := NewXtcpConfigService(ctx, nil, cfg, &ch, &pollCh, &burstCh, &s3Ch, nil, 0)
 	if got == nil {
 		t.Fatal("NewXtcpConfigService returned nil")
 	}

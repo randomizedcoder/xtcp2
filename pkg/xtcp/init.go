@@ -19,6 +19,11 @@ const (
 	destinationReadyChSize    = 2
 	changePollFrequencyChSize = 2
 	pollRequestChSize         = 2
+	// pollBurstChSize is 1: a single pollBurstRunner consumes it, so at most
+	// one burst is queued/running — a concurrent TriggerPollBurst RPC is
+	// rejected rather than queued behind the first.
+	pollBurstChSize  = 1
+	setS3FlushChSize = 2
 )
 
 func (x *XTCP) Init(ctx context.Context) {
@@ -112,6 +117,8 @@ func (x *XTCP) initChannels() {
 	x.netlinkerDoneCh = make(chan netlinkerDone, int(x.config.NetlinkersDoneChanSize))
 	x.changePollFrequencyCh = make(chan time.Duration, changePollFrequencyChSize)
 	x.pollRequestCh = make(chan struct{}, pollRequestChSize)
+	x.pollBurstCh = make(chan pollBurst, pollBurstChSize)
+	x.setS3FlushCh = make(chan s3FlushControl, setS3FlushChSize)
 
 }
 

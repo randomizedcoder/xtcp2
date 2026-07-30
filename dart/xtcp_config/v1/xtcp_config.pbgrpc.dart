@@ -33,6 +33,18 @@ class ConfigServiceClient extends $grpc.Client {
       '/xtcp_config.v1.ConfigService/SetPollFrequency',
       ($0.SetPollFrequencyRequest value) => value.writeToBuffer(),
       ($core.List<$core.int> value) => $0.SetPollFrequencyResponse.fromBuffer(value));
+  static final _$triggerPoll = $grpc.ClientMethod<$0.TriggerPollRequest, $0.TriggerPollResponse>(
+      '/xtcp_config.v1.ConfigService/TriggerPoll',
+      ($0.TriggerPollRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.TriggerPollResponse.fromBuffer(value));
+  static final _$triggerPollBurst = $grpc.ClientMethod<$0.TriggerPollBurstRequest, $0.TriggerPollBurstResponse>(
+      '/xtcp_config.v1.ConfigService/TriggerPollBurst',
+      ($0.TriggerPollBurstRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.TriggerPollBurstResponse.fromBuffer(value));
+  static final _$setS3Upload = $grpc.ClientMethod<$0.SetS3UploadRequest, $0.SetS3UploadResponse>(
+      '/xtcp_config.v1.ConfigService/SetS3Upload',
+      ($0.SetS3UploadRequest value) => value.writeToBuffer(),
+      ($core.List<$core.int> value) => $0.SetS3UploadResponse.fromBuffer(value));
 
   ConfigServiceClient($grpc.ClientChannel channel,
       {$grpc.CallOptions? options,
@@ -50,6 +62,18 @@ class ConfigServiceClient extends $grpc.Client {
 
   $grpc.ResponseFuture<$0.SetPollFrequencyResponse> setPollFrequency($0.SetPollFrequencyRequest request, {$grpc.CallOptions? options}) {
     return $createUnaryCall(_$setPollFrequency, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.TriggerPollResponse> triggerPoll($0.TriggerPollRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$triggerPoll, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.TriggerPollBurstResponse> triggerPollBurst($0.TriggerPollBurstRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$triggerPollBurst, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.SetS3UploadResponse> setS3Upload($0.SetS3UploadRequest request, {$grpc.CallOptions? options}) {
+    return $createUnaryCall(_$setS3Upload, request, options: options);
   }
 }
 
@@ -79,6 +103,27 @@ abstract class ConfigServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.SetPollFrequencyRequest.fromBuffer(value),
         ($0.SetPollFrequencyResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.TriggerPollRequest, $0.TriggerPollResponse>(
+        'TriggerPoll',
+        triggerPoll_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.TriggerPollRequest.fromBuffer(value),
+        ($0.TriggerPollResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.TriggerPollBurstRequest, $0.TriggerPollBurstResponse>(
+        'TriggerPollBurst',
+        triggerPollBurst_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.TriggerPollBurstRequest.fromBuffer(value),
+        ($0.TriggerPollBurstResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SetS3UploadRequest, $0.SetS3UploadResponse>(
+        'SetS3Upload',
+        setS3Upload_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.SetS3UploadRequest.fromBuffer(value),
+        ($0.SetS3UploadResponse value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.GetResponse> get_Pre($grpc.ServiceCall call, $async.Future<$0.GetRequest> request) async {
@@ -93,7 +138,22 @@ abstract class ConfigServiceBase extends $grpc.Service {
     return setPollFrequency(call, await request);
   }
 
+  $async.Future<$0.TriggerPollResponse> triggerPoll_Pre($grpc.ServiceCall call, $async.Future<$0.TriggerPollRequest> request) async {
+    return triggerPoll(call, await request);
+  }
+
+  $async.Future<$0.TriggerPollBurstResponse> triggerPollBurst_Pre($grpc.ServiceCall call, $async.Future<$0.TriggerPollBurstRequest> request) async {
+    return triggerPollBurst(call, await request);
+  }
+
+  $async.Future<$0.SetS3UploadResponse> setS3Upload_Pre($grpc.ServiceCall call, $async.Future<$0.SetS3UploadRequest> request) async {
+    return setS3Upload(call, await request);
+  }
+
   $async.Future<$0.GetResponse> get($grpc.ServiceCall call, $0.GetRequest request);
   $async.Future<$0.SetResponse> set($grpc.ServiceCall call, $0.SetRequest request);
   $async.Future<$0.SetPollFrequencyResponse> setPollFrequency($grpc.ServiceCall call, $0.SetPollFrequencyRequest request);
+  $async.Future<$0.TriggerPollResponse> triggerPoll($grpc.ServiceCall call, $0.TriggerPollRequest request);
+  $async.Future<$0.TriggerPollBurstResponse> triggerPollBurst($grpc.ServiceCall call, $0.TriggerPollBurstRequest request);
+  $async.Future<$0.SetS3UploadResponse> setS3Upload($grpc.ServiceCall call, $0.SetS3UploadRequest request);
 }
