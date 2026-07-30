@@ -12,9 +12,9 @@ import (
 
 	_ "unsafe"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

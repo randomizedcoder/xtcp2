@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // ─── Pure helpers ────────────────────────────────────────────────────────

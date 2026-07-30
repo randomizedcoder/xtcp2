@@ -11,9 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 

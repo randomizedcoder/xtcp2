@@ -145,10 +145,10 @@ The aggregated linter/coverage status is regenerated into [docs/quality-report.m
 
 ## Protobuf
 
-The schemas live under `proto/`. Generated Go lands in `pkg/xtcp_config/`, `pkg/xtcp_flat_record/`, and `pkg/clickhouse_protolist/`. Regenerate after editing a `.proto`:
+The schemas live under `proto/`. All generated code lands in one `gen/` tree — Go in `gen/go/{xtcp_config,xtcp_flat_record,clickhouse_protolist}/`, plus `gen/python`, `gen/dart`, `gen/cpp`, `gen/openapi`. Generation uses local nix-pinned plugins (fully offline — no buf cloud). Regenerate after editing a `.proto`:
 
 ```sh
-regen-protos          # buf dep update → buf lint → buf build → buf generate
+regen-protos          # buf dep update → lint → build → generate (local plugins) → re-sync CH schemas
 # or:
 nix run .#regen-protos
 ```

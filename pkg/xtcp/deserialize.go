@@ -8,8 +8,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 

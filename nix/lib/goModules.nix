@@ -25,7 +25,8 @@ let
   # vendor/ tree.
   #
   # No `subPackages` restriction: we need the FULL module graph (every package
-  # in the repo, including pkg/clickhouse_protolist, pkg/xtcp_config, etc.) so
+  # in the repo, including the generated gen/go/clickhouse_protolist,
+  # gen/go/xtcp_config, etc.) so
   # that lint checks can type-check them. Restricting subPackages omits deps
   # of unbuilt packages from vendor/.
   parent = (pkgs.buildGoModule.override { inherit (versions) go; }) {

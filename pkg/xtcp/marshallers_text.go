@@ -3,8 +3,8 @@ package xtcp
 import (
 	"sync/atomic"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // registerTextEnvelopeMarshallers wires the line/tabular envelope marshallers

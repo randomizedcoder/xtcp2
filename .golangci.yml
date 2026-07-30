@@ -145,8 +145,6 @@ linters:
       - ".*\\.pb\\.go$"
       - ".*\\.pb\\.gw\\.go$"
       - "^gen/"
-      - "^dart/"
-      - "^python/"
     rules:
       # Test code: relax dup/funlen/gocyclo/errcheck/unused/goconst/noctx.
       # Repeated CLI-flag strings in -Args tests + net.Listen/DialTimeout

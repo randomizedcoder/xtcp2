@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // newValidationFixture returns the minimum XTCP shape validateInput

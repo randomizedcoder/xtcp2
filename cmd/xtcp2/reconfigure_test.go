@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 )

@@ -21,9 +21,9 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"google.golang.org/protobuf/encoding/protodelim"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // S3ParquetFlushThresholdBytesCst is the default soft cap (≈63 MiB) on

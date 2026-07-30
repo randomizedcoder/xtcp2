@@ -88,7 +88,7 @@ The per-socket record and its batch wrapper are defined in `proto/xtcp_flat_reco
 - `Envelope` — a batch: repeated `XtcpFlatRecord` rows plus metadata.
 - `XtcpFlatRecord` — one socket snapshot: timestamp, hostname, network namespace, TCP state, the `tcp_info` fields, congestion algorithm, and the optional attribute groups (skmem, shutdown, DCTCP, BBR, sockopt, class/cgroup IDs). The free-form `-label`/`-tag` and the `-location` value are embedded into every record; with `-resolveContainerId` the owning container's `container_id`/`container_runtime` (resolved from the socket's cgroup) are too.
 
-Generated Go types live in `pkg/xtcp_flat_record/`. For the full schema reference (all three protobufs, generated bindings, and how to regenerate) see [protobuf formats](protobuf-formats.md).
+Generated Go types live in `gen/go/xtcp_flat_record/`. For the full schema reference (all three protobufs, generated bindings, and how to regenerate) see [protobuf formats](protobuf-formats.md).
 
 ## Quick recipes
 

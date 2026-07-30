@@ -133,7 +133,7 @@ pkgs.runCommand "xtcp2-quality-report"
     # Mirrors nix/checks/gofmt.nix exclusions verbatim.
     gofmt_start=$(date +%s)
     gofmt -l . 2>&1 \
-      | grep -v -E '(^vendor/|\.pb\.go$|\.pb\.gw\.go$|^gen/|^dart/|^python/)' \
+      | grep -v -E '(^vendor/|\.pb\.go$|\.pb\.gw\.go$|^gen/)' \
       > "$RAW/gofmt.out" || true
     gofmt_end=$(date +%s)
     echo "gofmt=$((gofmt_end-gofmt_start))" >> "$RAW/runtimes.txt"
@@ -165,7 +165,7 @@ pkgs.runCommand "xtcp2-quality-report"
     runtool metrics-audit "$RAW/metrics-audit.out" -- \
       go run ./tools/metrics-audit -root .
     runtool proto-field-audit "$RAW/proto-field-audit.out" -- \
-      go run ./tools/proto-field-audit -proto-root proto -go-root pkg
+      go run ./tools/proto-field-audit -proto-root proto -go-root .
 
     # ── go test (some tests require KVM/netlink/caps; will fail in sandbox) ─
     # Coverage is collected against pkg/, tools/, cmd/ — excluding the

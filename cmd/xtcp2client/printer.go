@@ -6,8 +6,8 @@ import (
 	"log"
 	"sync"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // recordPrinter writes streamed records to an io.Writer in the chosen format,

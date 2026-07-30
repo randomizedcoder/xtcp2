@@ -8,7 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // With the constructor's new `reg` parameter, tests can pass a fresh

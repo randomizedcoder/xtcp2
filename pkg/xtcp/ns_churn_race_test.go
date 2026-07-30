@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"golang.org/x/sys/unix"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // TestNsChurn_deleteDuringInit_doesNotLeakThread is the regression test for the

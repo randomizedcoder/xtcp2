@@ -3,7 +3,7 @@ package xtcp
 import (
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // DeserializeAttribute: dispatches on Type using x.RTATypeDeserializer.

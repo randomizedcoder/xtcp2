@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // benchRecord is a realistically-populated record: an ESTABLISHED IPv4 socket
