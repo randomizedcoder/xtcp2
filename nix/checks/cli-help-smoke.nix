@@ -30,6 +30,7 @@ let
     "register_schema"
     "xtcp2"
     "xtcp2client"
+    "xtcp2ctl"
     "xtcp2_kafka_client"
   ];
 
