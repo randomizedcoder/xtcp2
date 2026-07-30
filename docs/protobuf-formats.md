@@ -20,19 +20,21 @@ how to regenerate everything.
 
 The canonical `.proto` sources live under [`proto/`](../proto); each is its own
 `<name>/v1/<name>.proto` module. `buf` (configured by [`buf.yaml`](../buf.yaml) and
-[`buf.gen.yaml`](../buf.gen.yaml)) compiles them and writes generated code into per-language
-trees. Generated files are committed, so a clean checkout builds without running `buf`.
+[`buf.gen.yaml`](../buf.gen.yaml)) compiles them and writes **all** generated code into a
+single [`gen/`](../gen) tree, one subdirectory per language (`gen/go`, `gen/python`,
+`gen/dart`, `gen/cpp`, `gen/openapi`). Generated files are committed, so a clean checkout
+builds without running `buf`.
 
 | Schema | Source | Generated Go |
 |---|---|---|
-| Config | [`proto/xtcp_config/v1/xtcp_config.proto`](../proto/xtcp_config/v1/xtcp_config.proto) | [`pkg/xtcp_config/`](../pkg/xtcp_config) |
-| Data export | [`proto/xtcp_flat_record/v1/xtcp_flat_record.proto`](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) | [`pkg/xtcp_flat_record/`](../pkg/xtcp_flat_record) |
-| ClickHouse test | [`proto/clickhouse_protolist/v1/clickhouse_protolist.proto`](../proto/clickhouse_protolist/v1/clickhouse_protolist.proto) | [`pkg/clickhouse_protolist/`](../pkg/clickhouse_protolist) |
+| Config | [`proto/xtcp_config/v1/xtcp_config.proto`](../proto/xtcp_config/v1/xtcp_config.proto) | [`gen/go/xtcp_config/`](../gen/go/xtcp_config) |
+| Data export | [`proto/xtcp_flat_record/v1/xtcp_flat_record.proto`](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) | [`gen/go/xtcp_flat_record/`](../gen/go/xtcp_flat_record) |
+| ClickHouse test | [`proto/clickhouse_protolist/v1/clickhouse_protolist.proto`](../proto/clickhouse_protolist/v1/clickhouse_protolist.proto) | [`gen/go/clickhouse_protolist/`](../gen/go/clickhouse_protolist) |
 
 ## Config: `xtcp_config`
 
 Source: [`proto/xtcp_config/v1/xtcp_config.proto`](../proto/xtcp_config/v1/xtcp_config.proto)
-· Generated Go: [`pkg/xtcp_config/`](../pkg/xtcp_config) (`xtcp_config.pb.go` messages,
+· Generated Go: [`gen/go/xtcp_config/`](../gen/go/xtcp_config) (`xtcp_config.pb.go` messages,
 `xtcp_config_grpc.pb.go` service stubs, `xtcp_config.pb.gw.go` REST gateway).
 
 The daemon's entire runtime configuration is the `XtcpConfig` message — every CLI flag in
@@ -61,7 +63,7 @@ operator-control workflow and the `xtcp2ctl` / `grpcurl` client usage.
 
 Source:
 [`proto/xtcp_flat_record/v1/xtcp_flat_record.proto`](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto)
-· Generated Go: [`pkg/xtcp_flat_record/`](../pkg/xtcp_flat_record).
+· Generated Go: [`gen/go/xtcp_flat_record/`](../gen/go/xtcp_flat_record).
 
 This is the exported TCP data. Two core messages:
 
@@ -90,7 +92,7 @@ gRPC path is per-record; the `Envelope` batch is only used by the destination pi
 
 Source:
 [`proto/clickhouse_protolist/v1/clickhouse_protolist.proto`](../proto/clickhouse_protolist/v1/clickhouse_protolist.proto)
-· Generated Go: [`pkg/clickhouse_protolist/`](../pkg/clickhouse_protolist).
+· Generated Go: [`gen/go/clickhouse_protolist/`](../gen/go/clickhouse_protolist).
 
 A tiny `Record { repeated uint32 my_uint32 }` + `Envelope { repeated Record rows }` used to
 validate ClickHouse's `ProtobufList` ingestion path in isolation (the `clickhouse_*` tools
@@ -98,15 +100,23 @@ under [`cmd/`](../cmd)). Not part of the live data path.
 
 ## Generated code
 
-[`buf.gen.yaml`](../buf.gen.yaml) drives generation for every schema into committed trees:
+[`buf.gen.yaml`](../buf.gen.yaml) drives generation for every schema into a single committed
+`gen/` tree. Every plugin is a **local, nix-pinned binary** (see [`nix/versions.nix`](../nix/versions.nix)),
+not a buf.build remote plugin — so generation runs fully offline and can't be rate-limited by
+buf's cloud. The plus-`grpc` C++/Python stubs come from `grpc_cpp_plugin` / `grpc_python_plugin`;
+the Python/C++ message code and OpenAPI use protoc builtins and grpc-gateway.
 
-| Language | Plugin(s) | Output |
+| Language | Plugin(s) (nixpkgs) | Output |
 |---|---|---|
-| Go | `protocolbuffers/go`, `grpc/go`, `grpc-ecosystem/gateway` | `pkg/<schema>/` (`*.pb.go`, `*_grpc.pb.go`, `*.pb.gw.go`) |
-| C++ | `protocolbuffers/cpp`, `grpc/cpp`, `bufbuild/validate-cpp` | [`gen/<schema>/v1/`](../gen) |
-| Python | `protocolbuffers/python`, `pyi`, `grpc/python` | [`python/<schema>/v1/`](../python) |
-| Dart | `protocolbuffers/dart` (`grpc`) | [`dart/<schema>/v1/`](../dart) |
-| OpenAPI 2.0 | `grpc-ecosystem/openapiv2` | `<schema>/v1/<schema>.swagger.json` |
+| Go | `protoc-gen-go`, `protoc-gen-go-vtproto`, `protoc-gen-go-grpc`, `protoc-gen-grpc-gateway` | [`gen/go/<schema>/`](../gen/go) (`*.pb.go`, `*_grpc.pb.go`, `*.pb.gw.go`, `*_vtproto.pb.go`) |
+| C++ | `protoc` (`--cpp_out`), `grpc_cpp_plugin` | [`gen/cpp/<schema>/v1/`](../gen/cpp) |
+| Python | `protoc` (`--python_out`/`--pyi_out`), `grpc_python_plugin` | [`gen/python/<schema>/v1/`](../gen/python) |
+| Dart | `protoc-gen-dart` (`grpc`) | [`gen/dart/<schema>/v1/`](../gen/dart) |
+| OpenAPI 2.0 | `protoc-gen-openapiv2` | [`gen/openapi/<schema>/v1/<schema>.swagger.json`](../gen/openapi) |
+
+> The `bufbuild/validate-cpp` plugin (protovalidate's C++ codegen) has no nixpkgs equivalent and
+> nothing in-repo consumes the C++ output, so it is intentionally not generated — C++ keeps message
+> and gRPC code. Go validation needs no plugin (`protovalidate-go` is runtime-reflection based).
 
 ## Rebuilding
 
@@ -118,15 +128,17 @@ nix run .#regen-protos        # buf dep update → buf lint → buf build → bu
 regen-protos
 ```
 
-This runs [`nix/protos/buf-generate.nix`](../nix/protos/buf-generate.nix). A standalone,
-Docker-based equivalent is [`generate_protos.bash`](../generate_protos.bash). After
-regenerating, review and commit the drift across `pkg/`, `gen/`, `python/`, `dart/`, and the
-`*.swagger.json` files.
+This runs [`nix/protos/buf-generate.nix`](../nix/protos/buf-generate.nix) with local nix-pinned
+plugins (no buf-cloud round-trip). After regenerating, review and commit the drift across the
+`gen/` tree (`gen/go`, `gen/cpp`, `gen/python`, `gen/dart`, `gen/openapi`).
 
 Notes:
 
-- The canonical record schema is mirrored for ClickHouse's format-schema mount and for a copy
-  under `cmd/`; [`check_protos.bash`](../check_protos.bash) keeps those copies in sync.
+- The generator also re-syncs the ClickHouse format schemas
+  (`build/containers/clickhouse/format_schemas/{xtcp_flat_record,clickhouse_protolist}.proto`)
+  from the canonical protos, so those mounts never drift. (This absorbed the old
+  `check_protos.bash`.) The daemon's `cmd/xtcp2/xtcp_flat_record.proto` is a symlink to the
+  canonical proto, so it stays in sync automatically.
 - Adding a field means regenerating **all** language bindings; commit them together.
 - `buf.validate` rules live in the `.proto` (e.g. `marshal_to` min length), so loosening or
   tightening a constraint is a proto edit + regen, not a Go change.

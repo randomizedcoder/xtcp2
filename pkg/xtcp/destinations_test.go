@@ -15,8 +15,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
 // xioRingNew creates a Ring sized small enough for tests. Returns the

@@ -12,8 +12,8 @@ import (
 	msgpack "github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/protobuf/encoding/protodelim"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // newMarshalFixture returns an XTCP with the prom counters registered

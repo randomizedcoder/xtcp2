@@ -14,8 +14,8 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 func TestNewGRPCClient(t *testing.T) {

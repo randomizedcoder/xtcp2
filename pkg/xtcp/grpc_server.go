@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 	grpchealth "google.golang.org/grpc/health"

@@ -1540,8 +1540,8 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x10xtcp_flat_record\x18\x01 \x01(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x0extcpFlatRecord2\xed\x01\n" +
 	"\x15XTCPFlatRecordService\x12b\n" +
 	"\vFlatRecords\x12'.xtcp_flat_record.v1.FlatRecordsRequest\x1a(.xtcp_flat_record.v1.FlatRecordsResponse0\x01\x12p\n" +
-	"\x0fPollFlatRecords\x12+.xtcp_flat_record.v1.PollFlatRecordsRequest\x1a,.xtcp_flat_record.v1.PollFlatRecordsResponse(\x010\x01B\xab\x01\n" +
-	"\x17com.xtcp_flat_record.v1B\x13XtcpFlatRecordProtoP\x01Z\x16./pkg/xtcp_flat_record\xa2\x02\x03XXX\xaa\x02\x11XtcpFlatRecord.V1\xca\x02\x11XtcpFlatRecord\\V1\xe2\x02\x1dXtcpFlatRecord\\V1\\GPBMetadata\xea\x02\x12XtcpFlatRecord::V1b\x06proto3"
+	"\x0fPollFlatRecords\x12+.xtcp_flat_record.v1.PollFlatRecordsRequest\x1a,.xtcp_flat_record.v1.PollFlatRecordsResponse(\x010\x01B\xae\x01\n" +
+	"\x17com.xtcp_flat_record.v1B\x13XtcpFlatRecordProtoP\x01Z\x19./gen/go/xtcp_flat_record\xa2\x02\x03XXX\xaa\x02\x11XtcpFlatRecord.V1\xca\x02\x11XtcpFlatRecord\\V1\xe2\x02\x1dXtcpFlatRecord\\V1\\GPBMetadata\xea\x02\x12XtcpFlatRecord::V1b\x06proto3"
 
 var (
 	file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescOnce sync.Once

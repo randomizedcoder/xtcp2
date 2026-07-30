@@ -2954,11 +2954,11 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "igService/TriggerPollBurst:\001*\022}\n\013SetS3Up"
     "load\022\".xtcp_config.v1.SetS3UploadRequest"
     "\032#.xtcp_config.v1.SetS3UploadResponse\"%\202"
-    "\323\344\223\002\037\032\032/ConfigService/SetS3Upload:\001*B\215\001\n"
-    "\022com.xtcp_config.v1B\017XtcpConfigProtoP\001Z\021"
-    "./pkg/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312"
-    "\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetad"
-    "ata\352\002\016XtcpConfig::V1b\006proto3"
+    "\323\344\223\002\037\032\032/ConfigService/SetS3Upload:\001*B\220\001\n"
+    "\022com.xtcp_config.v1B\017XtcpConfigProtoP\001Z\024"
+    "./gen/go/xtcp_config\242\002\003XXX\252\002\rXtcpConfig."
+    "V1\312\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMe"
+    "tadata\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] = {
@@ -2970,7 +2970,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    5868,
+    5871,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,

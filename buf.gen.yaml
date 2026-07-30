@@ -36,7 +36,7 @@ plugins:
   #--------------------------
   # OpenAPI v2 (swagger) — protoc-gen-openapiv2 (nixpkgs: grpc-gateway)
   - local: protoc-gen-openapiv2
-    out: .
+    out: gen/openapi
   #--------------------------
   # REST->gRPC gateway — protoc-gen-grpc-gateway (nixpkgs: grpc-gateway)
   - local: protoc-gen-grpc-gateway
@@ -46,7 +46,7 @@ plugins:
   #--------------------------
   # Dart (Flutter) — protoc-gen-dart (nixpkgs: protoc-gen-dart)
   - local: protoc-gen-dart
-    out: dart
+    out: gen/dart
     opt:
       # gRPC stubs
       - grpc
@@ -54,11 +54,11 @@ plugins:
   # Python — protoc builtins (--python_out / --pyi_out) + grpc_python_plugin
   # (nixpkgs: protobuf provides protoc; grpc provides grpc_python_plugin)
   - protoc_builtin: python
-    out: python
+    out: gen/python
   - protoc_builtin: pyi
-    out: python
+    out: gen/python
   - local: grpc_python_plugin
-    out: python
+    out: gen/python
   #--------------------------------
   # C++ — protoc builtin (--cpp_out) + grpc_cpp_plugin
   # (nixpkgs: protobuf provides protoc; grpc provides grpc_cpp_plugin)
@@ -68,8 +68,8 @@ plugins:
   # from-source protovalidate-cc build only if a real C++ consumer needs CEL
   # validation.
   - protoc_builtin: cpp
-    out: gen
+    out: gen/cpp
   - local: grpc_cpp_plugin
-    out: gen
+    out: gen/cpp
 
 # end

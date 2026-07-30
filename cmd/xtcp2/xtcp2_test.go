@@ -21,7 +21,7 @@ import (
 	protovalidate "github.com/bufbuild/protovalidate-go"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // envHelperReset tears down any flag-package state captured by other

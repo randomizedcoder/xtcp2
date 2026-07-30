@@ -88,7 +88,7 @@ The `pkg/recordfmt` benchmarks (added in PR #44) quantify the marshallers:
 
 **Expected gain:** lower CPU and allocs on the protobufList Kafka path; combined with P1-A, removes most of the reflective size cost entirely.
 
-**Files:** `buf.gen.yaml`, regenerated `pkg/xtcp_flat_record/*_vtproto.pb.go` (new), `pkg/recordfmt/marshal_envelope.go`, the P1 size-cap call site, and the `default.pgo` refresh afterward.
+**Files:** `buf.gen.yaml`, regenerated `gen/go/xtcp_flat_record/*_vtproto.pb.go` (new), `pkg/recordfmt/marshal_envelope.go`, the P1 size-cap call site, and the `default.pgo` refresh afterward.
 
 **Verification:** the protobufList round-trip test (parse the framed bytes back with `protodelim`, assert field equality); `benchstat` on `MarshalEnvelopeProtobufList` / `AppendEnvelopeProtobufList` off vs on.
 

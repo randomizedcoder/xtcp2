@@ -10,7 +10,7 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // parquetTagName extracts the column name from a parquet struct tag

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // Address family values from the kernel inet_diag message.

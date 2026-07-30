@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist"
+	"github.com/randomizedcoder/xtcp2/gen/go/clickhouse_protolist"
 	"google.golang.org/protobuf/proto"
 )
 
