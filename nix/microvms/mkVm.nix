@@ -108,6 +108,10 @@ let
   # PUBLISHes each record to a NATS subject and the self-test proves records
   # flow through end-to-end. Same shape as the valkey flavor.
   isNats = sink == "nats";
+  # nsq = a native in-VM nsqd + an nsq_tail consumer; xtcp2 PUBLISHes each record
+  # to an nsq topic and the self-test proves records are consumed (via nsqd's
+  # per-channel finish_count in /stats). Same shape as valkey/nats.
+  isNsq = sink == "nsq";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
   isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress || isS3ParquetLowfreq;
@@ -162,6 +166,9 @@ let
     valkeyChannel = valkeyTopic;
     runNatsCheck = isNats;
     natsSubject = natsTopic;
+    runNsqCheck = isNsq;
+    nsqTopic = nsqTopicName;
+    nsqChannel = nsqChannelName;
   };
 
   # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
@@ -1017,6 +1024,15 @@ let
     (import ../modules/nats-server.nix { subject = natsTopic; })
   ];
 
+  # nsq flavor: native nsqd + an nsq_tail consumer. topic/channel must match
+  # xtcp2NsqArgs and the self-test's /stats query.
+  nsqModules = [
+    (import ../modules/nsq-server.nix {
+      topic = nsqTopicName;
+      channel = nsqChannelName;
+    })
+  ];
+
   # Long-soak monitor: emit one sentinel line per
   # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
   # own Prometheus counters (destS3Parquet/upload + uploadBytes)
@@ -1390,6 +1406,23 @@ let
     "-timeout"
     "1s"
   ];
+
+  # nsq flavor: xtcp2 PUBLISHes each poll's records to the nsq topic
+  # `nsqTopicName`; the in-VM nsq_tail consumer reads them on `nsqChannelName`.
+  nsqTopicName = "xtcp2-records";
+  nsqChannelName = "selftest";
+  xtcp2NsqArgs = [
+    "-dest"
+    "nsq:127.0.0.1:4150"
+    "-marshal"
+    "protobufList"
+    "-topic"
+    nsqTopicName
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -1401,6 +1434,7 @@ in
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
   ++ lib.optionals isNats natsModules
+  ++ lib.optionals isNsq nsqModules
   ++ [
     (
       { config, ... }:
@@ -1828,6 +1862,10 @@ in
               # nats flavor: PUBLISH each poll's records to the in-VM NATS
               # subject; the self-test's subscriber counts deliveries.
               xtcp2NatsArgs
+            else if isNsq then
+              # nsq flavor: PUBLISH each poll's records to the in-VM nsqd topic;
+              # the self-test reads nsqd's per-channel finish_count.
+              xtcp2NsqArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not

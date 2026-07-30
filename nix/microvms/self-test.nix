@@ -62,6 +62,10 @@
 #   XTCP2_SELF_TEST_NATS_CONSUME_{PASS,FAIL}          (nats only)
 #                                              same round-trip via a real in-VM
 #                                              NATS server + subscriber
+#   XTCP2_SELF_TEST_NSQ_CONSUME_{PASS,FAIL}           (nsq only)
+#                                              records published to a real in-VM
+#                                              nsqd AND finished by an nsq_tail
+#                                              consumer (nsqd /stats finish_count)
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -119,6 +123,13 @@
   # nats-subscriber consumes the records back.
   runNatsCheck ? false,
   natsSubject ? "xtcp2-records",
+  # When true (set on the nsq flavor): the daemon PUBLISHes to a real in-VM nsqd
+  # topic and the nsq_tail consumer finishes the messages; the check reads nsqd's
+  # per-channel finish_count from /stats (deterministic — no output parsing).
+  runNsqCheck ? false,
+  nsqTopic ? "xtcp2-records",
+  nsqChannel ? "selftest",
+  nsqHttpPort ? 4151,
 }:
 
 pkgs.writeShellApplication {
@@ -654,6 +665,46 @@ pkgs.writeShellApplication {
           || echo "(no nats-subscriber journal)"
       fi
       if [ "$checkNats" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runNsqCheck ''
+      # ─── Check: nsq — records consumed from the queue ────────────────
+      # The daemon PUBLISHes each poll's records to a real in-VM nsqd topic; the
+      # nsq_tail consumer reads them on channel "${nsqChannel}" and FINISHes each,
+      # so nsqd's per-channel finish_count (from /stats) is a deterministic count
+      # of consumed records. Require BOTH the destNSQ publish counter AND that
+      # finish_count ≥1.
+      echo "--- check: nsq — records consumed from the queue ---"
+      checkNsq=1
+      qrecv=0
+      qpub=0
+      for _ in $(seq 1 60); do
+        qpub=$(metric_value "xtcp_counts" 'function="destNSQ"' 'variable="Publish"')
+        # nsqd's text /stats prints one line per channel:
+        #   [selftest ...] depth: 0 ... msgs: 58 ...
+        # `msgs` is the message_count the channel received (== consumed once
+        # depth returns to 0). Parse it from the "${nsqChannel}" line — robust
+        # across nsqd versions (the ?format=json field names have drifted).
+        qrecv=$(curl --silent --max-time 2 \
+          "http://127.0.0.1:${toString nsqHttpPort}/stats" 2>/dev/null \
+          | grep -F '${nsqChannel}' | grep -oE 'msgs: *[0-9]+' | head -n1 \
+          | grep -oE '[0-9]+')
+        qrecv=''${qrecv:-0}
+        if [ "$qpub" -ge 1 ] 2>/dev/null && [ "$qrecv" -ge 1 ] 2>/dev/null; then
+          break
+        fi
+        sleep 1
+      done
+      if [ "$qpub" -ge 1 ] 2>/dev/null && [ "$qrecv" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_NSQ_CONSUME_PASS  (published=$qpub, consumed=$qrecv, topic=${nsqTopic}, channel=${nsqChannel})"
+        checkNsq=0
+      else
+        echo "XTCP2_SELF_TEST_NSQ_CONSUME_FAIL  (published=$qpub, consumed=$qrecv, topic=${nsqTopic}, channel=${nsqChannel})"
+        echo "--- nsqd /stats (diagnostic) ---"
+        curl --silent --max-time 2 "http://127.0.0.1:${toString nsqHttpPort}/stats" 2>/dev/null | head -n 25 \
+          || echo "(nsqd /stats unreachable)"
+      fi
+      if [ "$checkNsq" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runClickhouseCheck ''

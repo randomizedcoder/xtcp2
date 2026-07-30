@@ -228,6 +228,22 @@ let
       sink = "nats";
     };
 
+  # nsq lifecycle flavor: native in-VM nsqd + an nsq_tail consumer.
+  mkOneNsq =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "nsq";
+    };
+
   mkOneS3ParquetLong =
     arch:
     import ./mkVm.nix {
@@ -360,6 +376,8 @@ let
 
   vmsNats = lib.genAttrs constants.supportedArchs mkOneNats;
 
+  vmsNsq = lib.genAttrs constants.supportedArchs mkOneNsq;
+
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
@@ -392,6 +410,16 @@ let
       vm = vmsNats.${arch};
       suffix = "-nats";
       sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NATS_CONSUME|OVERALL";
+      timeoutSec = 240;
+    };
+  });
+
+  lifecycleNsq = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsNsq.${arch};
+      suffix = "-nsq";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NSQ_CONSUME|OVERALL";
       timeoutSec = 240;
     };
   });
@@ -553,6 +581,7 @@ in
     vmsS3Parquet
     vmsValkey
     vmsNats
+    vmsNsq
     vmsS3ParquetLong
     vmsS3ParquetStress
     vmsS3ParquetLowfreq
@@ -568,6 +597,7 @@ in
     lifecycleS3Parquet
     lifecycleValkey
     lifecycleNats
+    lifecycleNsq
     lifecycleCoverage
     lifecycleCoverageIoUring
     soak

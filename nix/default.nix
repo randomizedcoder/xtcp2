@@ -317,6 +317,7 @@ in
       microvm-x86_64-s3parquet-pipeline = microvms.vmsS3Parquet.x86_64;
       microvm-x86_64-valkey = microvms.vmsValkey.x86_64;
       microvm-x86_64-nats = microvms.vmsNats.x86_64;
+      microvm-x86_64-nsq = microvms.vmsNsq.x86_64;
       microvm-x86_64-s3parquet-long = microvms.vmsS3ParquetLong.x86_64;
       microvm-x86_64-s3parquet-stress = microvms.vmsS3ParquetStress.x86_64;
       microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
@@ -336,6 +337,7 @@ in
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-valkey = microvms.lifecycleValkey.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nats = microvms.lifecycleNats.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-nsq = microvms.lifecycleNsq.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
 
@@ -387,6 +389,10 @@ in
     microvm-x86_64-lifecycle-nats = {
       type = "app";
       program = "${microvms.lifecycleNats.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-nats";
+    };
+    microvm-x86_64-lifecycle-nsq = {
+      type = "app";
+      program = "${microvms.lifecycleNsq.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-nsq";
     };
     microvm-x86_64-lifecycle-coverage = {
       type = "app";
