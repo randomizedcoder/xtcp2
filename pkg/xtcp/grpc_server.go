@@ -82,7 +82,7 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 	x.flatRecordService = NewXtcpFlatRecordService(ctx, x.registry, &x.pollRequestCh, x.debugLevel)
 	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(grpcServer, x.flatRecordService)
 
-	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, x.debugLevel)
+	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, &x.pollRequestCh, &x.pollBurstCh, &x.setS3FlushCh, x.reconfigureFunc, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
 
 	// Standard gRPC health service (grpc.health.v1) so k8s gRPC probes work.

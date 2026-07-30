@@ -111,6 +111,105 @@
           "ConfigService"
         ]
       }
+    },
+    "/ConfigService/SetS3Upload": {
+      "put": {
+        "summary": "Change the s3parquet upload timing at runtime: the staleness-flush timer\nand/or the byte-cap threshold. Lets an operator flush buffered snapshots\nto S3 promptly during an investigation. Only effective when the\ndestination is s3parquet.",
+        "operationId": "ConfigService_SetS3Upload",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetS3UploadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetS3UploadRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    },
+    "/ConfigService/TriggerPoll": {
+      "put": {
+        "summary": "Trigger a single poll immediately, without changing the configured\ncadence. The polled records flow to the configured destination (and any\nconnected PollFlatRecords stream). Coalesced if a dump is already in\nflight. For operator-driven on-demand snapshots.",
+        "operationId": "ConfigService_TriggerPoll",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TriggerPollResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1TriggerPollRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    },
+    "/ConfigService/TriggerPollBurst": {
+      "put": {
+        "summary": "Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls\n10s apart → a socket snapshot every 10s for a minute). Schedules the\nburst and returns immediately; records flow to the configured\ndestination. `interval` must exceed poll_timeout so each poll completes\nbefore the next fires (no coalescing drop).",
+        "operationId": "ConfigService_TriggerPollBurst",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TriggerPollBurstResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1TriggerPollBurstRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -201,6 +300,63 @@
           "$ref": "#/definitions/v1XtcpConfig"
         }
       }
+    },
+    "v1SetS3UploadRequest": {
+      "type": "object",
+      "properties": {
+        "s3FlushInterval": {
+          "type": "string",
+          "description": "New s3parquet staleness-flush timer. Optional; omit (or leave unset)\nto leave the timer unchanged. 0 = derive as max(poll_frequency, 30m)."
+        },
+        "s3ParquetFlushThresholdBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "New s3parquet byte-cap threshold before the worker finalizes and\nuploads an object. Optional; omit to leave unchanged. Takes effect on\nthe next parquet object. 0 = default (63 MiB)."
+        }
+      }
+    },
+    "v1SetS3UploadResponse": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1TriggerPollBurstRequest": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Number of polls to fire in the burst."
+        },
+        "interval": {
+          "type": "string",
+          "description": "Spacing between consecutive polls. Must exceed the running\npoll_timeout so each poll completes before the next fires; the\nhandler additionally rejects interval \u003c= poll_timeout at runtime."
+        }
+      }
+    },
+    "v1TriggerPollBurstResponse": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Echo of the accepted burst parameters (operator confirmation)."
+        },
+        "interval": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TriggerPollRequest": {
+      "type": "object",
+      "title": "empty"
+    },
+    "v1TriggerPollResponse": {
+      "type": "object",
+      "title": "empty"
     },
     "v1XtcpConfig": {
       "type": "object",

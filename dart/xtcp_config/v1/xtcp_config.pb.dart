@@ -330,6 +330,330 @@ class SetPollFrequencyResponse extends $pb.GeneratedMessage {
   XtcpConfig ensureConfig() => $_ensure(0);
 }
 
+class TriggerPollRequest extends $pb.GeneratedMessage {
+  factory TriggerPollRequest() => create();
+  TriggerPollRequest._() : super();
+  factory TriggerPollRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory TriggerPollRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TriggerPollRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  TriggerPollRequest clone() => TriggerPollRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  TriggerPollRequest copyWith(void Function(TriggerPollRequest) updates) => super.copyWith((message) => updates(message as TriggerPollRequest)) as TriggerPollRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollRequest create() => TriggerPollRequest._();
+  TriggerPollRequest createEmptyInstance() => create();
+  static $pb.PbList<TriggerPollRequest> createRepeated() => $pb.PbList<TriggerPollRequest>();
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TriggerPollRequest>(create);
+  static TriggerPollRequest? _defaultInstance;
+}
+
+class TriggerPollResponse extends $pb.GeneratedMessage {
+  factory TriggerPollResponse() => create();
+  TriggerPollResponse._() : super();
+  factory TriggerPollResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory TriggerPollResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TriggerPollResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  TriggerPollResponse clone() => TriggerPollResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  TriggerPollResponse copyWith(void Function(TriggerPollResponse) updates) => super.copyWith((message) => updates(message as TriggerPollResponse)) as TriggerPollResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollResponse create() => TriggerPollResponse._();
+  TriggerPollResponse createEmptyInstance() => create();
+  static $pb.PbList<TriggerPollResponse> createRepeated() => $pb.PbList<TriggerPollResponse>();
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TriggerPollResponse>(create);
+  static TriggerPollResponse? _defaultInstance;
+}
+
+class TriggerPollBurstRequest extends $pb.GeneratedMessage {
+  factory TriggerPollBurstRequest({
+    $core.int? count,
+    $2.Duration? interval,
+  }) {
+    final $result = create();
+    if (count != null) {
+      $result.count = count;
+    }
+    if (interval != null) {
+      $result.interval = interval;
+    }
+    return $result;
+  }
+  TriggerPollBurstRequest._() : super();
+  factory TriggerPollBurstRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory TriggerPollBurstRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TriggerPollBurstRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..a<$core.int>(10, _omitFieldNames ? '' : 'count', $pb.PbFieldType.OU3)
+    ..aOM<$2.Duration>(20, _omitFieldNames ? '' : 'interval', subBuilder: $2.Duration.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  TriggerPollBurstRequest clone() => TriggerPollBurstRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  TriggerPollBurstRequest copyWith(void Function(TriggerPollBurstRequest) updates) => super.copyWith((message) => updates(message as TriggerPollBurstRequest)) as TriggerPollBurstRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollBurstRequest create() => TriggerPollBurstRequest._();
+  TriggerPollBurstRequest createEmptyInstance() => create();
+  static $pb.PbList<TriggerPollBurstRequest> createRepeated() => $pb.PbList<TriggerPollBurstRequest>();
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollBurstRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstRequest>(create);
+  static TriggerPollBurstRequest? _defaultInstance;
+
+  /// Number of polls to fire in the burst.
+  @$pb.TagNumber(10)
+  $core.int get count => $_getIZ(0);
+  @$pb.TagNumber(10)
+  set count($core.int v) { $_setUnsignedInt32(0, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasCount() => $_has(0);
+  @$pb.TagNumber(10)
+  void clearCount() => clearField(10);
+
+  /// Spacing between consecutive polls. Must exceed the running
+  /// poll_timeout so each poll completes before the next fires; the
+  /// handler additionally rejects interval <= poll_timeout at runtime.
+  @$pb.TagNumber(20)
+  $2.Duration get interval => $_getN(1);
+  @$pb.TagNumber(20)
+  set interval($2.Duration v) { setField(20, v); }
+  @$pb.TagNumber(20)
+  $core.bool hasInterval() => $_has(1);
+  @$pb.TagNumber(20)
+  void clearInterval() => clearField(20);
+  @$pb.TagNumber(20)
+  $2.Duration ensureInterval() => $_ensure(1);
+}
+
+class TriggerPollBurstResponse extends $pb.GeneratedMessage {
+  factory TriggerPollBurstResponse({
+    $core.int? count,
+    $2.Duration? interval,
+  }) {
+    final $result = create();
+    if (count != null) {
+      $result.count = count;
+    }
+    if (interval != null) {
+      $result.interval = interval;
+    }
+    return $result;
+  }
+  TriggerPollBurstResponse._() : super();
+  factory TriggerPollBurstResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory TriggerPollBurstResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TriggerPollBurstResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..a<$core.int>(10, _omitFieldNames ? '' : 'count', $pb.PbFieldType.OU3)
+    ..aOM<$2.Duration>(20, _omitFieldNames ? '' : 'interval', subBuilder: $2.Duration.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  TriggerPollBurstResponse clone() => TriggerPollBurstResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  TriggerPollBurstResponse copyWith(void Function(TriggerPollBurstResponse) updates) => super.copyWith((message) => updates(message as TriggerPollBurstResponse)) as TriggerPollBurstResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollBurstResponse create() => TriggerPollBurstResponse._();
+  TriggerPollBurstResponse createEmptyInstance() => create();
+  static $pb.PbList<TriggerPollBurstResponse> createRepeated() => $pb.PbList<TriggerPollBurstResponse>();
+  @$core.pragma('dart2js:noInline')
+  static TriggerPollBurstResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstResponse>(create);
+  static TriggerPollBurstResponse? _defaultInstance;
+
+  /// Echo of the accepted burst parameters (operator confirmation).
+  @$pb.TagNumber(10)
+  $core.int get count => $_getIZ(0);
+  @$pb.TagNumber(10)
+  set count($core.int v) { $_setUnsignedInt32(0, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasCount() => $_has(0);
+  @$pb.TagNumber(10)
+  void clearCount() => clearField(10);
+
+  @$pb.TagNumber(20)
+  $2.Duration get interval => $_getN(1);
+  @$pb.TagNumber(20)
+  set interval($2.Duration v) { setField(20, v); }
+  @$pb.TagNumber(20)
+  $core.bool hasInterval() => $_has(1);
+  @$pb.TagNumber(20)
+  void clearInterval() => clearField(20);
+  @$pb.TagNumber(20)
+  $2.Duration ensureInterval() => $_ensure(1);
+}
+
+class SetS3UploadRequest extends $pb.GeneratedMessage {
+  factory SetS3UploadRequest({
+    $2.Duration? s3FlushInterval,
+    $core.int? s3ParquetFlushThresholdBytes,
+  }) {
+    final $result = create();
+    if (s3FlushInterval != null) {
+      $result.s3FlushInterval = s3FlushInterval;
+    }
+    if (s3ParquetFlushThresholdBytes != null) {
+      $result.s3ParquetFlushThresholdBytes = s3ParquetFlushThresholdBytes;
+    }
+    return $result;
+  }
+  SetS3UploadRequest._() : super();
+  factory SetS3UploadRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SetS3UploadRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetS3UploadRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..aOM<$2.Duration>(10, _omitFieldNames ? '' : 's3FlushInterval', subBuilder: $2.Duration.create)
+    ..a<$core.int>(20, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes', $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SetS3UploadRequest clone() => SetS3UploadRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SetS3UploadRequest copyWith(void Function(SetS3UploadRequest) updates) => super.copyWith((message) => updates(message as SetS3UploadRequest)) as SetS3UploadRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetS3UploadRequest create() => SetS3UploadRequest._();
+  SetS3UploadRequest createEmptyInstance() => create();
+  static $pb.PbList<SetS3UploadRequest> createRepeated() => $pb.PbList<SetS3UploadRequest>();
+  @$core.pragma('dart2js:noInline')
+  static SetS3UploadRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetS3UploadRequest>(create);
+  static SetS3UploadRequest? _defaultInstance;
+
+  /// New s3parquet staleness-flush timer. Optional; omit (or leave unset)
+  /// to leave the timer unchanged. 0 = derive as max(poll_frequency, 30m).
+  @$pb.TagNumber(10)
+  $2.Duration get s3FlushInterval => $_getN(0);
+  @$pb.TagNumber(10)
+  set s3FlushInterval($2.Duration v) { setField(10, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasS3FlushInterval() => $_has(0);
+  @$pb.TagNumber(10)
+  void clearS3FlushInterval() => clearField(10);
+  @$pb.TagNumber(10)
+  $2.Duration ensureS3FlushInterval() => $_ensure(0);
+
+  /// New s3parquet byte-cap threshold before the worker finalizes and
+  /// uploads an object. Optional; omit to leave unchanged. Takes effect on
+  /// the next parquet object. 0 = default (63 MiB).
+  @$pb.TagNumber(20)
+  $core.int get s3ParquetFlushThresholdBytes => $_getIZ(1);
+  @$pb.TagNumber(20)
+  set s3ParquetFlushThresholdBytes($core.int v) { $_setUnsignedInt32(1, v); }
+  @$pb.TagNumber(20)
+  $core.bool hasS3ParquetFlushThresholdBytes() => $_has(1);
+  @$pb.TagNumber(20)
+  void clearS3ParquetFlushThresholdBytes() => clearField(20);
+}
+
+class SetS3UploadResponse extends $pb.GeneratedMessage {
+  factory SetS3UploadResponse({
+    XtcpConfig? config,
+  }) {
+    final $result = create();
+    if (config != null) {
+      $result.config = config;
+    }
+    return $result;
+  }
+  SetS3UploadResponse._() : super();
+  factory SetS3UploadResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory SetS3UploadResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetS3UploadResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'), createEmptyInstance: create)
+    ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config', subBuilder: XtcpConfig.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  SetS3UploadResponse clone() => SetS3UploadResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  SetS3UploadResponse copyWith(void Function(SetS3UploadResponse) updates) => super.copyWith((message) => updates(message as SetS3UploadResponse)) as SetS3UploadResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetS3UploadResponse create() => SetS3UploadResponse._();
+  SetS3UploadResponse createEmptyInstance() => create();
+  static $pb.PbList<SetS3UploadResponse> createRepeated() => $pb.PbList<SetS3UploadResponse>();
+  @$core.pragma('dart2js:noInline')
+  static SetS3UploadResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetS3UploadResponse>(create);
+  static SetS3UploadResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  XtcpConfig get config => $_getN(0);
+  @$pb.TagNumber(1)
+  set config(XtcpConfig v) { setField(1, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasConfig() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfig() => clearField(1);
+  @$pb.TagNumber(1)
+  XtcpConfig ensureConfig() => $_ensure(0);
+}
+
 /// xtcp configuration
 class XtcpConfig extends $pb.GeneratedMessage {
   factory XtcpConfig({

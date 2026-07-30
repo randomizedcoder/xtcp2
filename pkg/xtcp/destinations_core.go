@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 )
 
 // Destination is the shipping target xtcp writes each marshaled record to.
@@ -17,6 +18,17 @@ import (
 type Destination interface {
 	Send(ctx context.Context, b *[]byte) (int, error)
 	Close() error
+}
+
+// s3FlushControl is a runtime s3parquet upload-timing change, carried on
+// x.setS3FlushCh from the gRPC ConfigService to the s3parquet worker. Each
+// field is a pointer so an unset field means "leave unchanged": interval
+// re-arms the staleness-flush timer; thresholdBytes changes the byte cap
+// (applied on the next parquet object). Defined here (untagged) so the
+// channel type compiles in every build, even those without s3parquet.
+type s3FlushControl struct {
+	interval       *time.Duration
+	thresholdBytes *uint32
 }
 
 // DestinationFactory builds a Destination for the running process. Called

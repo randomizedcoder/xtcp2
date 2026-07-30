@@ -79,6 +79,16 @@ type XTCP struct {
 	envelopeMu            sync.Mutex
 	changePollFrequencyCh chan time.Duration
 	pollRequestCh         chan struct{}
+	// pollBurstCh carries an operator-requested burst (N polls spaced
+	// interval apart) from the gRPC ConfigService to pollBurstRunner. Size 1
+	// + a single consumer means one burst runs at a time; a second request
+	// while one is in flight is rejected by the RPC (ResourceExhausted).
+	pollBurstCh chan pollBurst
+	// setS3FlushCh carries a runtime s3parquet upload-timing change from the
+	// gRPC ConfigService to the s3parquet worker's select. Non-s3 builds
+	// still allocate it (the field is untyped by any destination); nothing
+	// consumes it there, so the RPC's non-blocking send simply drops.
+	setS3FlushCh chan s3FlushControl
 
 	nlRequest *[]byte
 
@@ -147,6 +157,13 @@ type XTCP struct {
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
 	grpcHealth        *grpchealth.Server
+
+	// reconfigureFunc is the process-level "soft restart" hook. The gRPC
+	// ConfigService.Set handler calls it with a validated new config; the cmd
+	// layer (runDaemonDefault) wires it to record the config and trigger a
+	// graceful shutdown that ends in a syscall.Exec into the new config. nil
+	// when unset (embedded/test callers) — Set then returns Unavailable.
+	reconfigureFunc func(*xtcp_config.XtcpConfig)
 
 	pC *prometheus.CounterVec
 	pH *prometheus.SummaryVec
@@ -251,6 +268,14 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 	return x
 }
 
+// OnReconfigure registers the process-level soft-restart hook, invoked by the
+// gRPC ConfigService.Set handler with a validated new config. Must be called
+// after NewXTCP and before RunWithPoller, so it is set before the gRPC config
+// service is constructed in startGRPCflatRecordService. See cmd/xtcp2.
+func (x *XTCP) OnReconfigure(f func(*xtcp_config.XtcpConfig)) {
+	x.reconfigureFunc = f
+}
+
 func NewNsTestingXTCP(ctx context.Context, cancel context.CancelFunc, debugLevel uint32) *XTCP {
 
 	x := new(XTCP)
@@ -318,6 +343,12 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	if runPoller {
 		wg.Add(1)
 		go x.Poller(ctx, wg)
+
+		// pollBurstRunner drives operator-requested poll bursts (TriggerPollBurst
+		// gRPC) by poking pollRequestCh, which only the poller drains — so it
+		// only makes sense when the poller is running.
+		wg.Add(1)
+		go x.pollBurstRunner(ctx, wg)
 
 		if x.debugLevel > 10 {
 			log.Println("XTCP.Run() wg.Wait()")

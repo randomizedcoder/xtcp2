@@ -12,6 +12,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// pollBurst is an operator-requested burst of polls: fire count polls,
+// interval apart. Carried on x.pollBurstCh from the gRPC ConfigService to
+// pollBurstRunner.
+type pollBurst struct {
+	count    uint32
+	interval time.Duration
+}
+
 func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -166,6 +174,51 @@ func (x *XTCP) handlePollerTick(pollingLoops uint64, count int) {
 	case x.pollRequestCh <- struct{}{}:
 	default:
 		// non-blocking
+	}
+}
+
+// pollBurstRunner drives operator-requested poll bursts (TriggerPollBurst
+// gRPC). It receives a pollBurst and pokes pollRequestCh count times, interval
+// apart, so the poller issues a fresh dump each time. The RPC enforces
+// interval > poll_timeout, so each poll finishes (bounded by the poller's
+// pollTimeoutTimer) before the next poke — the poll is never coalesced away as
+// alreadyPolling. Runs one burst at a time (pollBurstCh is size 1 with this as
+// the sole consumer); a concurrent TriggerPollBurst is rejected by the RPC.
+// pollerSleep is ctx-aware, so shutdown mid-burst exits cleanly.
+func (x *XTCP) pollBurstRunner(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	if x.debugLevel > 10 {
+		log.Printf("pollBurstRunner started")
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case b := <-x.pollBurstCh:
+			x.pC.WithLabelValues("pollBurstRunner", "burst", "count").Inc()
+			if x.debugLevel > 10 {
+				log.Printf("pollBurstRunner burst count:%d interval:%s", b.count, b.interval)
+			}
+			for i := uint32(0); i < b.count; i++ {
+				select {
+				case x.pollRequestCh <- struct{}{}:
+					x.pC.WithLabelValues("pollBurstRunner", "poke", "count").Inc()
+				default:
+					// pollRequestCh already has a poll queued; this burst poke
+					// is subsumed by it. Count it so operators can see it.
+					x.pC.WithLabelValues("pollBurstRunner", "pokeDropped", "count").Inc()
+				}
+				// Space the polls, but not after the final one. Bail on
+				// shutdown (pollerSleep returns false when ctx is Done).
+				if i+1 < b.count {
+					if !x.pollerSleep(ctx, b.interval) {
+						return
+					}
+				}
+			}
+		}
 	}
 }
 

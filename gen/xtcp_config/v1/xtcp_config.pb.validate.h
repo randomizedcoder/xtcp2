@@ -32,6 +32,18 @@ extern bool Validate(const ::xtcp_config::v1::SetPollFrequencyRequest& m, pgv::V
 
 extern bool Validate(const ::xtcp_config::v1::SetPollFrequencyResponse& m, pgv::ValidationMsg* err);
 
+extern bool Validate(const ::xtcp_config::v1::TriggerPollRequest& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_config::v1::TriggerPollResponse& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_config::v1::TriggerPollBurstRequest& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_config::v1::TriggerPollBurstResponse& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_config::v1::SetS3UploadRequest& m, pgv::ValidationMsg* err);
+
+extern bool Validate(const ::xtcp_config::v1::SetS3UploadResponse& m, pgv::ValidationMsg* err);
+
 extern bool Validate(const ::xtcp_config::v1::XtcpConfig& m, pgv::ValidationMsg* err);
 
 extern bool Validate(const ::xtcp_config::v1::EnabledDeserializers& m, pgv::ValidationMsg* err);
@@ -48,6 +60,12 @@ X(::xtcp_config::v1::SetRequest) \
 X(::xtcp_config::v1::SetResponse) \
 X(::xtcp_config::v1::SetPollFrequencyRequest) \
 X(::xtcp_config::v1::SetPollFrequencyResponse) \
+X(::xtcp_config::v1::TriggerPollRequest) \
+X(::xtcp_config::v1::TriggerPollResponse) \
+X(::xtcp_config::v1::TriggerPollBurstRequest) \
+X(::xtcp_config::v1::TriggerPollBurstResponse) \
+X(::xtcp_config::v1::SetS3UploadRequest) \
+X(::xtcp_config::v1::SetS3UploadResponse) \
 X(::xtcp_config::v1::XtcpConfig) \
 X(::xtcp_config::v1::EnabledDeserializers) \
 

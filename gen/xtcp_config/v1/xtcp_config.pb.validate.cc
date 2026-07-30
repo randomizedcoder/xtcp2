@@ -25,6 +25,12 @@ pgv::Validator<::xtcp_config::v1::SetRequest> validator___xtcp_config__v1__SetRe
 pgv::Validator<::xtcp_config::v1::SetResponse> validator___xtcp_config__v1__SetResponse(static_cast<bool(*)(const ::xtcp_config::v1::SetResponse&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
 pgv::Validator<::xtcp_config::v1::SetPollFrequencyRequest> validator___xtcp_config__v1__SetPollFrequencyRequest(static_cast<bool(*)(const ::xtcp_config::v1::SetPollFrequencyRequest&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
 pgv::Validator<::xtcp_config::v1::SetPollFrequencyResponse> validator___xtcp_config__v1__SetPollFrequencyResponse(static_cast<bool(*)(const ::xtcp_config::v1::SetPollFrequencyResponse&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::TriggerPollRequest> validator___xtcp_config__v1__TriggerPollRequest(static_cast<bool(*)(const ::xtcp_config::v1::TriggerPollRequest&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::TriggerPollResponse> validator___xtcp_config__v1__TriggerPollResponse(static_cast<bool(*)(const ::xtcp_config::v1::TriggerPollResponse&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::TriggerPollBurstRequest> validator___xtcp_config__v1__TriggerPollBurstRequest(static_cast<bool(*)(const ::xtcp_config::v1::TriggerPollBurstRequest&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::TriggerPollBurstResponse> validator___xtcp_config__v1__TriggerPollBurstResponse(static_cast<bool(*)(const ::xtcp_config::v1::TriggerPollBurstResponse&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::SetS3UploadRequest> validator___xtcp_config__v1__SetS3UploadRequest(static_cast<bool(*)(const ::xtcp_config::v1::SetS3UploadRequest&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
+pgv::Validator<::xtcp_config::v1::SetS3UploadResponse> validator___xtcp_config__v1__SetS3UploadResponse(static_cast<bool(*)(const ::xtcp_config::v1::SetS3UploadResponse&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
 pgv::Validator<::xtcp_config::v1::XtcpConfig> validator___xtcp_config__v1__XtcpConfig(static_cast<bool(*)(const ::xtcp_config::v1::XtcpConfig&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
 pgv::Validator<::xtcp_config::v1::EnabledDeserializers> validator___xtcp_config__v1__EnabledDeserializers(static_cast<bool(*)(const ::xtcp_config::v1::EnabledDeserializers&, pgv::ValidationMsg*)>(::xtcp_config::v1::Validate));
 
@@ -324,6 +330,283 @@ bool Validate(const ::xtcp_config::v1::SetPollFrequencyResponse& m, pgv::Validat
 			{
 std::ostringstream msg("invalid ");
 msg << "SetPollFrequencyResponseValidationError" << "." << "Config";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+
+		
+	return true;
+}
+
+// Validate checks the field values on ::xtcp_config::v1::TriggerPollRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the return value is false and an error message is
+// written to the input string argument.
+
+
+bool Validate(const ::xtcp_config::v1::TriggerPollRequest& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;
+		
+	return true;
+}
+
+// Validate checks the field values on ::xtcp_config::v1::TriggerPollResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the return value is false and an error message is
+// written to the input string argument.
+
+
+bool Validate(const ::xtcp_config::v1::TriggerPollResponse& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;
+		
+	return true;
+}
+
+// Validate checks the field values on
+// ::xtcp_config::v1::TriggerPollBurstRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the return
+// value is false and an error message is written to the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::xtcp_config::v1::TriggerPollBurstRequest& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;// no validation rules for count
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_interval() && !pgv::BaseValidator::AbstractCheckMessage(m.interval(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "TriggerPollBurstRequestValidationError" << "." << "Interval";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+
+		
+	return true;
+}
+
+// Validate checks the field values on
+// ::xtcp_config::v1::TriggerPollBurstResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the return
+// value is false and an error message is written to the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::xtcp_config::v1::TriggerPollBurstResponse& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;// no validation rules for count
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_interval() && !pgv::BaseValidator::AbstractCheckMessage(m.interval(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "TriggerPollBurstResponseValidationError" << "." << "Interval";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+
+		
+	return true;
+}
+
+// Validate checks the field values on ::xtcp_config::v1::SetS3UploadRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the return value is false and an error message is
+// written to the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::xtcp_config::v1::SetS3UploadRequest& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_s3_flush_interval() && !pgv::BaseValidator::AbstractCheckMessage(m.s3_flush_interval(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "SetS3UploadRequestValidationError" << "." << "S3FlushInterval";
+msg << ": " << "embedded message failed validation";
+msg << " | caused by " << inner_err;
+*err = msg.str();
+return false;
+}
+		}
+	}
+	
+// no validation rules for s3_parquet_flush_threshold_bytes
+		
+	return true;
+}
+
+// Validate checks the field values on ::xtcp_config::v1::SetS3UploadResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the return value is false and an error message is
+// written to the input string argument.
+
+	
+
+	
+
+	
+
+	
+
+        
+
+	
+
+	
+
+	
+
+
+
+bool Validate(const ::xtcp_config::v1::SetS3UploadResponse& m, pgv::ValidationMsg* err) {
+	(void)m;
+	(void)err;
+	
+	
+	
+
+	
+	{
+		pgv::ValidationMsg inner_err;
+		if (m.has_config() && !pgv::BaseValidator::AbstractCheckMessage(m.config(), &inner_err)) {
+			{
+std::ostringstream msg("invalid ");
+msg << "SetS3UploadResponseValidationError" << "." << "Config";
 msg << ": " << "embedded message failed validation";
 msg << " | caused by " << inner_err;
 *err = msg.str();

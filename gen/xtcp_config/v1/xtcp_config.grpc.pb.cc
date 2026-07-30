@@ -26,6 +26,9 @@ static const char* ConfigService_method_names[] = {
   "/xtcp_config.v1.ConfigService/Get",
   "/xtcp_config.v1.ConfigService/Set",
   "/xtcp_config.v1.ConfigService/SetPollFrequency",
+  "/xtcp_config.v1.ConfigService/TriggerPoll",
+  "/xtcp_config.v1.ConfigService/TriggerPollBurst",
+  "/xtcp_config.v1.ConfigService/SetS3Upload",
 };
 
 std::unique_ptr< ConfigService::Stub> ConfigService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -38,6 +41,9 @@ ConfigService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& chan
   : channel_(channel), rpcmethod_Get_(ConfigService_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Set_(ConfigService_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_SetPollFrequency_(ConfigService_method_names[2], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_TriggerPoll_(ConfigService_method_names[3], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_TriggerPollBurst_(ConfigService_method_names[4], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetS3Upload_(ConfigService_method_names[5], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status ConfigService::Stub::Get(::grpc::ClientContext* context, const ::xtcp_config::v1::GetRequest& request, ::xtcp_config::v1::GetResponse* response) {
@@ -109,6 +115,75 @@ void ConfigService::Stub::async::SetPollFrequency(::grpc::ClientContext* context
   return result;
 }
 
+::grpc::Status ConfigService::Stub::TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::xtcp_config::v1::TriggerPollResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_TriggerPoll_, context, request, response);
+}
+
+void ConfigService::Stub::async::TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_TriggerPoll_, context, request, response, std::move(f));
+}
+
+void ConfigService::Stub::async::TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_TriggerPoll_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>* ConfigService::Stub::PrepareAsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::xtcp_config::v1::TriggerPollResponse, ::xtcp_config::v1::TriggerPollRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_TriggerPoll_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>* ConfigService::Stub::AsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncTriggerPollRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ConfigService::Stub::TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::xtcp_config::v1::TriggerPollBurstResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_TriggerPollBurst_, context, request, response);
+}
+
+void ConfigService::Stub::async::TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_TriggerPollBurst_, context, request, response, std::move(f));
+}
+
+void ConfigService::Stub::async::TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_TriggerPollBurst_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>* ConfigService::Stub::PrepareAsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::xtcp_config::v1::TriggerPollBurstResponse, ::xtcp_config::v1::TriggerPollBurstRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_TriggerPollBurst_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>* ConfigService::Stub::AsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncTriggerPollBurstRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ConfigService::Stub::SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::xtcp_config::v1::SetS3UploadResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_SetS3Upload_, context, request, response);
+}
+
+void ConfigService::Stub::async::SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_SetS3Upload_, context, request, response, std::move(f));
+}
+
+void ConfigService::Stub::async::SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_SetS3Upload_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* ConfigService::Stub::PrepareAsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::xtcp_config::v1::SetS3UploadResponse, ::xtcp_config::v1::SetS3UploadRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_SetS3Upload_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* ConfigService::Stub::AsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncSetS3UploadRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ConfigService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       ConfigService_method_names[0],
@@ -140,6 +215,36 @@ ConfigService::Service::Service() {
              ::xtcp_config::v1::SetPollFrequencyResponse* resp) {
                return service->SetPollFrequency(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ConfigService_method_names[3],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ConfigService::Service, ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ConfigService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::xtcp_config::v1::TriggerPollRequest* req,
+             ::xtcp_config::v1::TriggerPollResponse* resp) {
+               return service->TriggerPoll(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ConfigService_method_names[4],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ConfigService::Service, ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ConfigService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::xtcp_config::v1::TriggerPollBurstRequest* req,
+             ::xtcp_config::v1::TriggerPollBurstResponse* resp) {
+               return service->TriggerPollBurst(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ConfigService_method_names[5],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ConfigService::Service, ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ConfigService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::xtcp_config::v1::SetS3UploadRequest* req,
+             ::xtcp_config::v1::SetS3UploadResponse* resp) {
+               return service->SetS3Upload(ctx, req, resp);
+             }, this)));
 }
 
 ConfigService::Service::~Service() {
@@ -160,6 +265,27 @@ ConfigService::Service::~Service() {
 }
 
 ::grpc::Status ConfigService::Service::SetPollFrequency(::grpc::ServerContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ConfigService::Service::TriggerPoll(::grpc::ServerContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ConfigService::Service::TriggerPollBurst(::grpc::ServerContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ConfigService::Service::SetS3Upload(::grpc::ServerContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response) {
   (void) context;
   (void) request;
   (void) response;

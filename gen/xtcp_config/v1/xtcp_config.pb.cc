@@ -27,6 +27,42 @@ namespace _fl = ::google::protobuf::internal::field_layout;
 namespace xtcp_config {
 namespace v1 {
               template <typename>
+PROTOBUF_CONSTEXPR TriggerPollResponse::TriggerPollResponse(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(_class_data_.base()){}
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase() {
+}
+#endif  // PROTOBUF_CUSTOM_VTABLE
+struct TriggerPollResponseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR TriggerPollResponseDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~TriggerPollResponseDefaultTypeInternal() {}
+  union {
+    TriggerPollResponse _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TriggerPollResponseDefaultTypeInternal _TriggerPollResponse_default_instance_;
+              template <typename>
+PROTOBUF_CONSTEXPR TriggerPollRequest::TriggerPollRequest(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(_class_data_.base()){}
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase() {
+}
+#endif  // PROTOBUF_CUSTOM_VTABLE
+struct TriggerPollRequestDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR TriggerPollRequestDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~TriggerPollRequestDefaultTypeInternal() {}
+  union {
+    TriggerPollRequest _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TriggerPollRequestDefaultTypeInternal _TriggerPollRequest_default_instance_;
+              template <typename>
 PROTOBUF_CONSTEXPR GetRequest::GetRequest(::_pbi::ConstantInitialized)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
     : ::google::protobuf::internal::ZeroFieldsBase(_class_data_.base()){}
@@ -62,6 +98,84 @@ struct EnabledDeserializers_EnabledEntry_DoNotUseDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EnabledDeserializers_EnabledEntry_DoNotUseDefaultTypeInternal _EnabledDeserializers_EnabledEntry_DoNotUse_default_instance_;
+
+inline constexpr TriggerPollBurstResponse::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        interval_{nullptr},
+        count_{0u} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR TriggerPollBurstResponse::TriggerPollBurstResponse(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct TriggerPollBurstResponseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR TriggerPollBurstResponseDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~TriggerPollBurstResponseDefaultTypeInternal() {}
+  union {
+    TriggerPollBurstResponse _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TriggerPollBurstResponseDefaultTypeInternal _TriggerPollBurstResponse_default_instance_;
+
+inline constexpr TriggerPollBurstRequest::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        interval_{nullptr},
+        count_{0u} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR TriggerPollBurstRequest::TriggerPollBurstRequest(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct TriggerPollBurstRequestDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR TriggerPollBurstRequestDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~TriggerPollBurstRequestDefaultTypeInternal() {}
+  union {
+    TriggerPollBurstRequest _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TriggerPollBurstRequestDefaultTypeInternal _TriggerPollBurstRequest_default_instance_;
+
+inline constexpr SetS3UploadRequest::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        s3_flush_interval_{nullptr},
+        s3_parquet_flush_threshold_bytes_{0u} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR SetS3UploadRequest::SetS3UploadRequest(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct SetS3UploadRequestDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR SetS3UploadRequestDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~SetS3UploadRequestDefaultTypeInternal() {}
+  union {
+    SetS3UploadRequest _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 SetS3UploadRequestDefaultTypeInternal _SetS3UploadRequest_default_instance_;
 
 inline constexpr SetPollFrequencyRequest::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
@@ -234,6 +348,31 @@ struct XtcpConfigDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 XtcpConfigDefaultTypeInternal _XtcpConfig_default_instance_;
 
+inline constexpr SetS3UploadResponse::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        config_{nullptr} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR SetS3UploadResponse::SetS3UploadResponse(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct SetS3UploadResponseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR SetS3UploadResponseDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~SetS3UploadResponseDefaultTypeInternal() {}
+  union {
+    SetS3UploadResponse _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 SetS3UploadResponseDefaultTypeInternal _SetS3UploadResponse_default_instance_;
+
 inline constexpr SetResponse::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -402,6 +541,68 @@ const ::uint32_t
         ~0u,  // no sizeof(Split)
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetPollFrequencyResponse, _impl_.config_),
         0,
+        ~0u,  // no _has_bits_
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollRequest, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        ~0u,  // no _has_bits_
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollResponse, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstRequest, _impl_._has_bits_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstRequest, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstRequest, _impl_.count_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstRequest, _impl_.interval_),
+        ~0u,
+        0,
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstResponse, _impl_._has_bits_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstResponse, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstResponse, _impl_.count_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::TriggerPollBurstResponse, _impl_.interval_),
+        ~0u,
+        0,
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadRequest, _impl_._has_bits_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadRequest, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadRequest, _impl_.s3_flush_interval_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadRequest, _impl_.s3_parquet_flush_threshold_bytes_),
+        0,
+        ~0u,
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadResponse, _impl_._has_bits_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadResponse, _internal_metadata_),
+        ~0u,  // no _extensions_
+        ~0u,  // no _oneof_case_
+        ~0u,  // no _weak_field_map_
+        ~0u,  // no _inlined_string_donated_
+        ~0u,  // no _split_
+        ~0u,  // no sizeof(Split)
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetS3UploadResponse, _impl_.config_),
+        0,
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_._has_bits_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _internal_metadata_),
         ~0u,  // no _extensions_
@@ -553,9 +754,15 @@ static const ::_pbi::MigrationSchema
         {28, 37, -1, sizeof(::xtcp_config::v1::SetResponse)},
         {38, 48, -1, sizeof(::xtcp_config::v1::SetPollFrequencyRequest)},
         {50, 59, -1, sizeof(::xtcp_config::v1::SetPollFrequencyResponse)},
-        {60, 124, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {180, 190, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {192, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {60, -1, -1, sizeof(::xtcp_config::v1::TriggerPollRequest)},
+        {68, -1, -1, sizeof(::xtcp_config::v1::TriggerPollResponse)},
+        {76, 86, -1, sizeof(::xtcp_config::v1::TriggerPollBurstRequest)},
+        {88, 98, -1, sizeof(::xtcp_config::v1::TriggerPollBurstResponse)},
+        {100, 110, -1, sizeof(::xtcp_config::v1::SetS3UploadRequest)},
+        {112, 121, -1, sizeof(::xtcp_config::v1::SetS3UploadResponse)},
+        {122, 186, -1, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {242, 252, -1, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {254, -1, -1, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_GetRequest_default_instance_._instance,
@@ -564,6 +771,12 @@ static const ::_pb::Message* const file_default_instances[] = {
     &::xtcp_config::v1::_SetResponse_default_instance_._instance,
     &::xtcp_config::v1::_SetPollFrequencyRequest_default_instance_._instance,
     &::xtcp_config::v1::_SetPollFrequencyResponse_default_instance_._instance,
+    &::xtcp_config::v1::_TriggerPollRequest_default_instance_._instance,
+    &::xtcp_config::v1::_TriggerPollResponse_default_instance_._instance,
+    &::xtcp_config::v1::_TriggerPollBurstRequest_default_instance_._instance,
+    &::xtcp_config::v1::_TriggerPollBurstResponse_default_instance_._instance,
+    &::xtcp_config::v1::_SetS3UploadRequest_default_instance_._instance,
+    &::xtcp_config::v1::_SetS3UploadResponse_default_instance_._instance,
     &::xtcp_config::v1::_XtcpConfig_default_instance_._instance,
     &::xtcp_config::v1::_EnabledDeserializers_EnabledEntry_DoNotUse_default_instance_._instance,
     &::xtcp_config::v1::_EnabledDeserializers_default_instance_._instance,
@@ -588,107 +801,135 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " than poll poll_frequency\032\'this.poll_tim"
     "eout < this.poll_frequency\"N\n\030SetPollFre"
     "quencyResponse\0222\n\006config\030\001 \001(\0132\032.xtcp_co"
-    "nfig.v1.XtcpConfigR\006config\"\374\031\n\nXtcpConfi"
-    "g\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272H\0132"
-    "\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016pol"
-    "l_frequency\030\024 \001(\0132\031.google.protobuf.Dura"
-    "tionB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\rpollFrequency\022O"
-    "\n\014poll_timeout\030\036 \001(\0132\031.google.protobuf.D"
-    "urationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\013pollTimeout\022"
-    "+\n\tmax_loops\030( \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\000R\010maxL"
-    "oops\022,\n\nnetlinkers\0302 \001(\rB\014\272H\t*\004\030d(\001\310\001\001R\n"
-    "netlinkers\022H\n\031netlinkers_done_chan_size\030"
-    "3 \001(\rB\r\272H\n*\005\030\350\007(\001\310\001\001R\026netlinkersDoneChan"
-    "Size\022*\n\tnlmsg_seq\030< \001(\rB\r\272H\n*\005\030\220N(\000\310\001\001R\010"
-    "nlmsgSeq\022/\n\013packet_size\030F \001(\004B\016\272H\0132\006\030\300\204="
-    "(\000\310\001\000R\npacketSize\0226\n\020packet_size_mply\030P "
-    "\001(\rB\014\272H\t*\004\030d(\000\310\001\000R\016packetSizeMply\022.\n\013wri"
-    "te_files\030Z \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwriteFile"
-    "s\022/\n\014capture_path\030d \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\013c"
-    "apturePath\022(\n\007modulus\030n \001(\004B\016\272H\0132\006\030\300\204=(\001"
-    "\310\001\001R\007modulus\022+\n\nmarshal_to\030x \001(\tB\014\272H\tr\004\020"
-    "\003\030(\310\001\001R\tmarshalTo\022K\n\036envelope_flush_thre"
-    "shold_bytes\030z \001(\rB\006\272H\003\310\001\000R\033envelopeFlush"
-    "ThresholdBytes\022I\n\035envelope_flush_thresho"
-    "ld_rows\030{ \001(\rB\006\272H\003\310\001\000R\032envelopeFlushThre"
-    "sholdRows\0223\n\021kafka_compression\030| \001(\tB\006\272H"
-    "\003\310\001\000R\020kafkaCompression\022\'\n\013s3_endpoint\030} "
-    "\001(\tB\006\272H\003\310\001\000R\ns3Endpoint\022#\n\ts3_bucket\030~ \001"
-    "(\tB\006\272H\003\310\001\000R\010s3Bucket\022#\n\ts3_prefix\030\177 \001(\tB"
-    "\006\272H\003\310\001\000R\010s3Prefix\022+\n\rs3_access_key\030\200\001 \001("
-    "\tB\006\272H\003\310\001\000R\013s3AccessKey\022+\n\rs3_secret_key\030"
-    "\201\001 \001(\tB\006\272H\003\310\001\000R\013s3SecretKey\022O\n s3_parque"
-    "t_flush_threshold_bytes\030\204\001 \001(\rB\006\272H\003\310\001\000R\034"
-    "s3ParquetFlushThresholdBytes\022$\n\ts3_regio"
-    "n\030\205\001 \001(\tB\006\272H\003\310\001\000R\010s3Region\0228\n\024s3_skip_bu"
-    "cket_probe\030\206\001 \001(\010B\006\272H\003\310\001\000R\021s3SkipBucketP"
-    "robe\022,\n\rpyroscope_url\030\210\001 \001(\tB\006\272H\003\310\001\000R\014py"
-    "roscopeUrl\0225\n\022pyroscope_app_name\030\211\001 \001(\tB"
-    "\006\272H\003\310\001\000R\020pyroscopeAppName\0227\n\023pyroscope_s"
-    "ample_hz\030\212\001 \001(\rB\006\272H\003\310\001\000R\021pyroscopeSample"
-    "Hz\022J\n\035pyroscope_upload_interval_sec\030\213\001 \001"
-    "(\rB\006\272H\003\310\001\000R\032pyroscopeUploadIntervalSec\022\""
-    "\n\004dest\030\202\001 \001(\tB\r\272H\nr\005\020\004\030\200\001\310\001\001R\004dest\0228\n\020de"
-    "st_write_files\030\207\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\016de"
-    "stWriteFiles\022#\n\005topic\030\214\001 \001(\tB\014\272H\tr\004\020\001\030(\310"
-    "\001\000R\005topic\0225\n\017xtcp_proto_file\030\217\001 \001(\tB\014\272H\t"
-    "r\004\020\001\030P\310\001\000R\rxtcpProtoFile\0227\n\020kafka_schema"
-    "_url\030\221\001 \001(\tB\014\272H\tr\004\020\001\030<\310\001\000R\016kafkaSchemaUr"
-    "l\022`\n\025kafka_produce_timeout\030\226\001 \001(\0132\031.goog"
-    "le.protobuf.DurationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023"
-    "kafkaProduceTimeout\022/\n\013debug_level\030\240\001 \001("
-    "\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\022!\n\005label\030\252\001"
-    " \001(\tB\n\272H\007r\002\030(\310\001\000R\005label\022\035\n\003tag\030\264\001 \001(\tB\n\272"
-    "H\007r\002\030(\310\001\000R\003tag\022(\n\010location\030\265\001 \001(\tB\013\272H\010r\003"
-    "\030\375\001\310\001\000R\010location\022(\n\010hostname\030\266\001 \001(\tB\013\272H\010"
-    "r\003\030\375\001\310\001\000R\010hostname\0229\n\024resolve_container_"
-    "id\030\267\001 \001(\010B\006\272H\003\310\001\000R\022resolveContainerId\022\'\n"
-    "\010ipv4_ttl\030\270\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\007ipv4Ttl\0222"
-    "\n\016ipv6_hop_limit\030\271\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\014ip"
-    "v6HopLimit\022,\n\tgrpc_port\030\276\001 \001(\rB\016\272H\013*\006\030\377\377"
-    "\003(\001\310\001\001R\010grpcPort\022b\n\025enabled_deserializer"
-    "s\030\310\001 \001(\0132$.xtcp_config.v1.EnabledDeseria"
-    "lizersB\006\272H\003\310\001\000R\024enabledDeserializers\022\"\n\010"
-    "io_uring\030\322\001 \001(\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030io_u"
-    "ring_recv_batch_size\030\323\001 \001(\rB\r\272H\n*\005\030\200 (\001\310"
-    "\001\000R\024ioUringRecvBatchSize\022D\n\027io_uring_cqe"
-    "_batch_size\030\324\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUri"
-    "ngCqeBatchSize\022(\n\013csv_columns\030\334\001 \001(\tB\006\272H"
-    "\003\310\001\000R\ncsvColumns\0223\n\017poll_jitter_pct\030\335\001 \001"
-    "(\rB\n\272H\007*\002\030d\310\001\000R\rpollJitterPct\022S\n\021s3_flus"
-    "h_interval\030\336\001 \001(\0132\031.google.protobuf.Dura"
-    "tionB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\022:\n\023s3"
-    "_flush_jitter_pct\030\337\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\020s3"
-    "FlushJitterPct\022M\n\035s3_flush_threshold_jit"
-    "ter_pct\030\340\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThres"
-    "holdJitterPct\022B\n\026s3_upload_max_attempts\030"
-    "\341\001 \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttempt"
-    "s\022Z\n\025s3_upload_backoff_cap\030\342\001 \001(\0132\031.goog"
-    "le.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3Upl"
-    "oadBackoffCap\022X\n\023reconcile_frequency\030\343\001 "
-    "\001(\0132\031.google.protobuf.DurationB\013\272H\010\252\001\0022\000"
-    "\310\001\000R\022reconcileFrequency\0223\n\025reconcile_bef"
-    "ore_poll\030\344\001 \001(\010R\023reconcileBeforePoll:s\272H"
-    "p\032n\n\017XtcpConfig.poll\0222Poll timeout must "
-    "be less than poll poll_frequency\032\'this.p"
-    "oll_frequency > this.poll_timeout\"\237\001\n\024En"
-    "abledDeserializers\022K\n\007enabled\030\001 \003(\01321.xt"
-    "cp_config.v1.EnabledDeserializers.Enable"
-    "dEntryR\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001"
-    " \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\0012\341\002\n\r"
-    "ConfigService\022]\n\003Get\022\032.xtcp_config.v1.Ge"
-    "tRequest\032\033.xtcp_config.v1.GetResponse\"\035\202"
-    "\323\344\223\002\027\032\022/ConfigService/Get:\001*\022]\n\003Set\022\032.xt"
-    "cp_config.v1.SetRequest\032\033.xtcp_config.v1"
-    ".SetResponse\"\035\202\323\344\223\002\027\032\022/ConfigService/Set"
-    ":\001*\022\221\001\n\020SetPollFrequency\022\'.xtcp_config.v"
-    "1.SetPollFrequencyRequest\032(.xtcp_config."
-    "v1.SetPollFrequencyResponse\"*\202\323\344\223\002$\032\037/Co"
-    "nfigService/SetPollFrequency:\001*B\215\001\n\022com."
-    "xtcp_config.v1B\017XtcpConfigProtoP\001Z\021./pkg"
-    "/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtc"
-    "pConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002"
-    "\016XtcpConfig::V1b\006proto3"
+    "nfig.v1.XtcpConfigR\006config\"\024\n\022TriggerPol"
+    "lRequest\"\025\n\023TriggerPollResponse\"\211\001\n\027Trig"
+    "gerPollBurstRequest\022#\n\005count\030\n \001(\rB\r\272H\n*"
+    "\005\030\350\007(\001\310\001\001R\005count\022I\n\010interval\030\024 \001(\0132\031.goo"
+    "gle.protobuf.DurationB\022\272H\017\252\001\t\"\003\010\220\0342\002\010\001\310\001"
+    "\001R\010interval\"g\n\030TriggerPollBurstResponse\022"
+    "\024\n\005count\030\n \001(\rR\005count\0225\n\010interval\030\024 \001(\0132"
+    "\031.google.protobuf.DurationR\010interval\"\343\002\n"
+    "\022SetS3UploadRequest\022R\n\021s3_flush_interval"
+    "\030\n \001(\0132\031.google.protobuf.DurationB\013\272H\010\252\001"
+    "\0022\000\310\001\000R\017s3FlushInterval\022N\n s3_parquet_fl"
+    "ush_threshold_bytes\030\024 \001(\rB\006\272H\003\310\001\000R\034s3Par"
+    "quetFlushThresholdBytes:\250\001\272H\244\001\032\241\001\n\026SetS3"
+    "Upload.atLeastOne\022=set s3_flush_interval"
+    " and/or s3_parquet_flush_threshold_bytes"
+    "\032Hhas(this.s3_flush_interval) || this.s3"
+    "_parquet_flush_threshold_bytes > 0\"I\n\023Se"
+    "tS3UploadResponse\0222\n\006config\030\001 \001(\0132\032.xtcp"
+    "_config.v1.XtcpConfigR\006config\"\374\031\n\nXtcpCo"
+    "nfig\022F\n\027nl_timeout_milliseconds\030\n \001(\004B\016\272"
+    "H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds\022S\n\016"
+    "poll_frequency\030\024 \001(\0132\031.google.protobuf.D"
+    "urationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\rpollFrequenc"
+    "y\022O\n\014poll_timeout\030\036 \001(\0132\031.google.protobu"
+    "f.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\013pollTimeo"
+    "ut\022+\n\tmax_loops\030( \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\000R\010m"
+    "axLoops\022,\n\nnetlinkers\0302 \001(\rB\014\272H\t*\004\030d(\001\310\001"
+    "\001R\nnetlinkers\022H\n\031netlinkers_done_chan_si"
+    "ze\0303 \001(\rB\r\272H\n*\005\030\350\007(\001\310\001\001R\026netlinkersDoneC"
+    "hanSize\022*\n\tnlmsg_seq\030< \001(\rB\r\272H\n*\005\030\220N(\000\310\001"
+    "\001R\010nlmsgSeq\022/\n\013packet_size\030F \001(\004B\016\272H\0132\006\030"
+    "\300\204=(\000\310\001\000R\npacketSize\0226\n\020packet_size_mply"
+    "\030P \001(\rB\014\272H\t*\004\030d(\000\310\001\000R\016packetSizeMply\022.\n\013"
+    "write_files\030Z \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwriteF"
+    "iles\022/\n\014capture_path\030d \001(\tB\014\272H\tr\004\020\001\030P\310\001\000"
+    "R\013capturePath\022(\n\007modulus\030n \001(\004B\016\272H\0132\006\030\300\204"
+    "=(\001\310\001\001R\007modulus\022+\n\nmarshal_to\030x \001(\tB\014\272H\t"
+    "r\004\020\003\030(\310\001\001R\tmarshalTo\022K\n\036envelope_flush_t"
+    "hreshold_bytes\030z \001(\rB\006\272H\003\310\001\000R\033envelopeFl"
+    "ushThresholdBytes\022I\n\035envelope_flush_thre"
+    "shold_rows\030{ \001(\rB\006\272H\003\310\001\000R\032envelopeFlushT"
+    "hresholdRows\0223\n\021kafka_compression\030| \001(\tB"
+    "\006\272H\003\310\001\000R\020kafkaCompression\022\'\n\013s3_endpoint"
+    "\030} \001(\tB\006\272H\003\310\001\000R\ns3Endpoint\022#\n\ts3_bucket\030"
+    "~ \001(\tB\006\272H\003\310\001\000R\010s3Bucket\022#\n\ts3_prefix\030\177 \001"
+    "(\tB\006\272H\003\310\001\000R\010s3Prefix\022+\n\rs3_access_key\030\200\001"
+    " \001(\tB\006\272H\003\310\001\000R\013s3AccessKey\022+\n\rs3_secret_k"
+    "ey\030\201\001 \001(\tB\006\272H\003\310\001\000R\013s3SecretKey\022O\n s3_par"
+    "quet_flush_threshold_bytes\030\204\001 \001(\rB\006\272H\003\310\001"
+    "\000R\034s3ParquetFlushThresholdBytes\022$\n\ts3_re"
+    "gion\030\205\001 \001(\tB\006\272H\003\310\001\000R\010s3Region\0228\n\024s3_skip"
+    "_bucket_probe\030\206\001 \001(\010B\006\272H\003\310\001\000R\021s3SkipBuck"
+    "etProbe\022,\n\rpyroscope_url\030\210\001 \001(\tB\006\272H\003\310\001\000R"
+    "\014pyroscopeUrl\0225\n\022pyroscope_app_name\030\211\001 \001"
+    "(\tB\006\272H\003\310\001\000R\020pyroscopeAppName\0227\n\023pyroscop"
+    "e_sample_hz\030\212\001 \001(\rB\006\272H\003\310\001\000R\021pyroscopeSam"
+    "pleHz\022J\n\035pyroscope_upload_interval_sec\030\213"
+    "\001 \001(\rB\006\272H\003\310\001\000R\032pyroscopeUploadIntervalSe"
+    "c\022\"\n\004dest\030\202\001 \001(\tB\r\272H\nr\005\020\004\030\200\001\310\001\001R\004dest\0228\n"
+    "\020dest_write_files\030\207\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R"
+    "\016destWriteFiles\022#\n\005topic\030\214\001 \001(\tB\014\272H\tr\004\020\001"
+    "\030(\310\001\000R\005topic\0225\n\017xtcp_proto_file\030\217\001 \001(\tB\014"
+    "\272H\tr\004\020\001\030P\310\001\000R\rxtcpProtoFile\0227\n\020kafka_sch"
+    "ema_url\030\221\001 \001(\tB\014\272H\tr\004\020\001\030<\310\001\000R\016kafkaSchem"
+    "aUrl\022`\n\025kafka_produce_timeout\030\226\001 \001(\0132\031.g"
+    "oogle.protobuf.DurationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001"
+    "\000R\023kafkaProduceTimeout\022/\n\013debug_level\030\240\001"
+    " \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\022!\n\005label"
+    "\030\252\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\005label\022\035\n\003tag\030\264\001 \001(\t"
+    "B\n\272H\007r\002\030(\310\001\000R\003tag\022(\n\010location\030\265\001 \001(\tB\013\272H"
+    "\010r\003\030\375\001\310\001\000R\010location\022(\n\010hostname\030\266\001 \001(\tB\013"
+    "\272H\010r\003\030\375\001\310\001\000R\010hostname\0229\n\024resolve_contain"
+    "er_id\030\267\001 \001(\010B\006\272H\003\310\001\000R\022resolveContainerId"
+    "\022\'\n\010ipv4_ttl\030\270\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\007ipv4Tt"
+    "l\0222\n\016ipv6_hop_limit\030\271\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R"
+    "\014ipv6HopLimit\022,\n\tgrpc_port\030\276\001 \001(\rB\016\272H\013*\006"
+    "\030\377\377\003(\001\310\001\001R\010grpcPort\022b\n\025enabled_deseriali"
+    "zers\030\310\001 \001(\0132$.xtcp_config.v1.EnabledDese"
+    "rializersB\006\272H\003\310\001\000R\024enabledDeserializers\022"
+    "\"\n\010io_uring\030\322\001 \001(\010B\006\272H\003\310\001\000R\007ioUring\022F\n\030i"
+    "o_uring_recv_batch_size\030\323\001 \001(\rB\r\272H\n*\005\030\200 "
+    "(\001\310\001\000R\024ioUringRecvBatchSize\022D\n\027io_uring_"
+    "cqe_batch_size\030\324\001 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023io"
+    "UringCqeBatchSize\022(\n\013csv_columns\030\334\001 \001(\tB"
+    "\006\272H\003\310\001\000R\ncsvColumns\0223\n\017poll_jitter_pct\030\335"
+    "\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\rpollJitterPct\022S\n\021s3_f"
+    "lush_interval\030\336\001 \001(\0132\031.google.protobuf.D"
+    "urationB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\022:\n"
+    "\023s3_flush_jitter_pct\030\337\001 \001(\rB\n\272H\007*\002\030d\310\001\000R"
+    "\020s3FlushJitterPct\022M\n\035s3_flush_threshold_"
+    "jitter_pct\030\340\001 \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushTh"
+    "resholdJitterPct\022B\n\026s3_upload_max_attemp"
+    "ts\030\341\001 \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAtte"
+    "mpts\022Z\n\025s3_upload_backoff_cap\030\342\001 \001(\0132\031.g"
+    "oogle.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3"
+    "UploadBackoffCap\022X\n\023reconcile_frequency\030"
+    "\343\001 \001(\0132\031.google.protobuf.DurationB\013\272H\010\252\001"
+    "\0022\000\310\001\000R\022reconcileFrequency\0223\n\025reconcile_"
+    "before_poll\030\344\001 \001(\010R\023reconcileBeforePoll:"
+    "s\272Hp\032n\n\017XtcpConfig.poll\0222Poll timeout mu"
+    "st be less than poll poll_frequency\032\'thi"
+    "s.poll_frequency > this.poll_timeout\"\237\001\n"
+    "\024EnabledDeserializers\022K\n\007enabled\030\001 \003(\01321"
+    ".xtcp_config.v1.EnabledDeserializers.Ena"
+    "bledEntryR\007enabled\032:\n\014EnabledEntry\022\020\n\003ke"
+    "y\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\0012\363"
+    "\005\n\rConfigService\022]\n\003Get\022\032.xtcp_config.v1"
+    ".GetRequest\032\033.xtcp_config.v1.GetResponse"
+    "\"\035\202\323\344\223\002\027\032\022/ConfigService/Get:\001*\022]\n\003Set\022\032"
+    ".xtcp_config.v1.SetRequest\032\033.xtcp_config"
+    ".v1.SetResponse\"\035\202\323\344\223\002\027\032\022/ConfigService/"
+    "Set:\001*\022\221\001\n\020SetPollFrequency\022\'.xtcp_confi"
+    "g.v1.SetPollFrequencyRequest\032(.xtcp_conf"
+    "ig.v1.SetPollFrequencyResponse\"*\202\323\344\223\002$\032\037"
+    "/ConfigService/SetPollFrequency:\001*\022}\n\013Tr"
+    "iggerPoll\022\".xtcp_config.v1.TriggerPollRe"
+    "quest\032#.xtcp_config.v1.TriggerPollRespon"
+    "se\"%\202\323\344\223\002\037\032\032/ConfigService/TriggerPoll:\001"
+    "*\022\221\001\n\020TriggerPollBurst\022\'.xtcp_config.v1."
+    "TriggerPollBurstRequest\032(.xtcp_config.v1"
+    ".TriggerPollBurstResponse\"*\202\323\344\223\002$\032\037/Conf"
+    "igService/TriggerPollBurst:\001*\022}\n\013SetS3Up"
+    "load\022\".xtcp_config.v1.SetS3UploadRequest"
+    "\032#.xtcp_config.v1.SetS3UploadResponse\"%\202"
+    "\323\344\223\002\037\032\032/ConfigService/SetS3Upload:\001*B\215\001\n"
+    "\022com.xtcp_config.v1B\017XtcpConfigProtoP\001Z\021"
+    "./pkg/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312"
+    "\002\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetad"
+    "ata\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] =
     {
@@ -700,13 +941,13 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    4743,
+    5868,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps,
     3,
-    9,
+    15,
     schemas,
     file_default_instances,
     TableStruct_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto::offsets,
@@ -2129,6 +2370,1341 @@ void SetPollFrequencyResponse::InternalSwap(SetPollFrequencyResponse* PROTOBUF_R
 }
 
 ::google::protobuf::Metadata SetPollFrequencyResponse::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class TriggerPollRequest::_Internal {
+ public:
+};
+
+TriggerPollRequest::TriggerPollRequest(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.TriggerPollRequest)
+}
+TriggerPollRequest::TriggerPollRequest(
+    ::google::protobuf::Arena* arena,
+    const TriggerPollRequest& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  TriggerPollRequest* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.TriggerPollRequest)
+}
+
+inline void* TriggerPollRequest::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) TriggerPollRequest(arena);
+}
+constexpr auto TriggerPollRequest::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(TriggerPollRequest),
+                                            alignof(TriggerPollRequest));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull TriggerPollRequest::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_TriggerPollRequest_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &TriggerPollRequest::MergeImpl,
+        ::google::protobuf::internal::ZeroFieldsBase::GetNewImpl<TriggerPollRequest>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &TriggerPollRequest::SharedDtor,
+        ::google::protobuf::internal::ZeroFieldsBase::GetClearImpl<TriggerPollRequest>(), &TriggerPollRequest::ByteSizeLong,
+            &TriggerPollRequest::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(TriggerPollRequest, _impl_._cached_size_),
+        false,
+    },
+    &TriggerPollRequest::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* TriggerPollRequest::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 0, 0, 0, 2> TriggerPollRequest::_table_ = {
+  {
+    0,  // no _has_bits_
+    0, // no _extensions_
+    0, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967295,  // skipmap
+    offsetof(decltype(_table_), field_names),  // no field_entries
+    0,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::TriggerPollRequest>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    {::_pbi::TcParser::MiniParse, {}},
+  }}, {{
+    65535, 65535
+  }},
+  // no field_entries, or aux_entries
+  {{
+  }},
+};
+
+
+
+
+
+
+
+
+::google::protobuf::Metadata TriggerPollRequest::GetMetadata() const {
+  return ::google::protobuf::internal::ZeroFieldsBase::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class TriggerPollResponse::_Internal {
+ public:
+};
+
+TriggerPollResponse::TriggerPollResponse(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.TriggerPollResponse)
+}
+TriggerPollResponse::TriggerPollResponse(
+    ::google::protobuf::Arena* arena,
+    const TriggerPollResponse& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::internal::ZeroFieldsBase(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::internal::ZeroFieldsBase(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  TriggerPollResponse* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.TriggerPollResponse)
+}
+
+inline void* TriggerPollResponse::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) TriggerPollResponse(arena);
+}
+constexpr auto TriggerPollResponse::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(TriggerPollResponse),
+                                            alignof(TriggerPollResponse));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull TriggerPollResponse::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_TriggerPollResponse_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &TriggerPollResponse::MergeImpl,
+        ::google::protobuf::internal::ZeroFieldsBase::GetNewImpl<TriggerPollResponse>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &TriggerPollResponse::SharedDtor,
+        ::google::protobuf::internal::ZeroFieldsBase::GetClearImpl<TriggerPollResponse>(), &TriggerPollResponse::ByteSizeLong,
+            &TriggerPollResponse::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(TriggerPollResponse, _impl_._cached_size_),
+        false,
+    },
+    &TriggerPollResponse::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* TriggerPollResponse::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 0, 0, 0, 2> TriggerPollResponse::_table_ = {
+  {
+    0,  // no _has_bits_
+    0, // no _extensions_
+    0, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967295,  // skipmap
+    offsetof(decltype(_table_), field_names),  // no field_entries
+    0,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::TriggerPollResponse>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    {::_pbi::TcParser::MiniParse, {}},
+  }}, {{
+    65535, 65535
+  }},
+  // no field_entries, or aux_entries
+  {{
+  }},
+};
+
+
+
+
+
+
+
+
+::google::protobuf::Metadata TriggerPollResponse::GetMetadata() const {
+  return ::google::protobuf::internal::ZeroFieldsBase::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class TriggerPollBurstRequest::_Internal {
+ public:
+  using HasBits =
+      decltype(std::declval<TriggerPollBurstRequest>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_._has_bits_);
+};
+
+void TriggerPollBurstRequest::clear_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.interval_ != nullptr) _impl_.interval_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+TriggerPollBurstRequest::TriggerPollBurstRequest(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.TriggerPollBurstRequest)
+}
+inline PROTOBUF_NDEBUG_INLINE TriggerPollBurstRequest::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility, ::google::protobuf::Arena* arena,
+    const Impl_& from, const ::xtcp_config::v1::TriggerPollBurstRequest& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0} {}
+
+TriggerPollBurstRequest::TriggerPollBurstRequest(
+    ::google::protobuf::Arena* arena,
+    const TriggerPollBurstRequest& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  TriggerPollBurstRequest* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::uint32_t cached_has_bits = _impl_._has_bits_[0];
+  _impl_.interval_ = (cached_has_bits & 0x00000001u) ? ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(
+                              arena, *from._impl_.interval_)
+                        : nullptr;
+  _impl_.count_ = from._impl_.count_;
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.TriggerPollBurstRequest)
+}
+inline PROTOBUF_NDEBUG_INLINE TriggerPollBurstRequest::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* arena)
+      : _cached_size_{0} {}
+
+inline void TriggerPollBurstRequest::SharedCtor(::_pb::Arena* arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, interval_),
+           0,
+           offsetof(Impl_, count_) -
+               offsetof(Impl_, interval_) +
+               sizeof(Impl_::count_));
+}
+TriggerPollBurstRequest::~TriggerPollBurstRequest() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.TriggerPollBurstRequest)
+  SharedDtor(*this);
+}
+inline void TriggerPollBurstRequest::SharedDtor(MessageLite& self) {
+  TriggerPollBurstRequest& this_ = static_cast<TriggerPollBurstRequest&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  delete this_._impl_.interval_;
+  this_._impl_.~Impl_();
+}
+
+inline void* TriggerPollBurstRequest::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) TriggerPollBurstRequest(arena);
+}
+constexpr auto TriggerPollBurstRequest::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(TriggerPollBurstRequest),
+                                            alignof(TriggerPollBurstRequest));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull TriggerPollBurstRequest::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_TriggerPollBurstRequest_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &TriggerPollBurstRequest::MergeImpl,
+        ::google::protobuf::Message::GetNewImpl<TriggerPollBurstRequest>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &TriggerPollBurstRequest::SharedDtor,
+        ::google::protobuf::Message::GetClearImpl<TriggerPollBurstRequest>(), &TriggerPollBurstRequest::ByteSizeLong,
+            &TriggerPollBurstRequest::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_._cached_size_),
+        false,
+    },
+    &TriggerPollBurstRequest::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* TriggerPollBurstRequest::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<2, 2, 1, 0, 2> TriggerPollBurstRequest::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_._has_bits_),
+    0, // no _extensions_
+    20, 24,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294442495,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    2,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::TriggerPollBurstRequest>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // .google.protobuf.Duration interval = 20 [json_name = "interval", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastMtS2,
+     {418, 0, 0, PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.interval_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // uint32 count = 10 [json_name = "count", (.buf.validate.field) = {
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(TriggerPollBurstRequest, _impl_.count_), 63>(),
+     {80, 63, 0, PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.count_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // uint32 count = 10 [json_name = "count", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.count_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // .google.protobuf.Duration interval = 20 [json_name = "interval", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.interval_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+  }}, {{
+    {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+  }}, {{
+  }},
+};
+
+PROTOBUF_NOINLINE void TriggerPollBurstRequest::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.TriggerPollBurstRequest)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(_impl_.interval_ != nullptr);
+    _impl_.interval_->Clear();
+  }
+  _impl_.count_ = 0u;
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::uint8_t* TriggerPollBurstRequest::_InternalSerialize(
+            const MessageLite& base, ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) {
+          const TriggerPollBurstRequest& this_ = static_cast<const TriggerPollBurstRequest&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::uint8_t* TriggerPollBurstRequest::_InternalSerialize(
+            ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+          const TriggerPollBurstRequest& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.TriggerPollBurstRequest)
+          ::uint32_t cached_has_bits = 0;
+          (void)cached_has_bits;
+
+          // uint32 count = 10 [json_name = "count", (.buf.validate.field) = {
+          if (this_._internal_count() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                10, this_._internal_count(), target);
+          }
+
+          cached_has_bits = this_._impl_._has_bits_[0];
+          // .google.protobuf.Duration interval = 20 [json_name = "interval", (.buf.validate.field) = {
+          if (cached_has_bits & 0x00000001u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                20, *this_._impl_.interval_, this_._impl_.interval_->GetCachedSize(), target,
+                stream);
+          }
+
+          if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+            target =
+                ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+                    this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+          }
+          // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.TriggerPollBurstRequest)
+          return target;
+        }
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::size_t TriggerPollBurstRequest::ByteSizeLong(const MessageLite& base) {
+          const TriggerPollBurstRequest& this_ = static_cast<const TriggerPollBurstRequest&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::size_t TriggerPollBurstRequest::ByteSizeLong() const {
+          const TriggerPollBurstRequest& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.TriggerPollBurstRequest)
+          ::size_t total_size = 0;
+
+          ::uint32_t cached_has_bits = 0;
+          // Prevent compiler warnings about cached_has_bits being unused
+          (void)cached_has_bits;
+
+          ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+           {
+            // .google.protobuf.Duration interval = 20 [json_name = "interval", (.buf.validate.field) = {
+            cached_has_bits = this_._impl_._has_bits_[0];
+            if (cached_has_bits & 0x00000001u) {
+              total_size += 2 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.interval_);
+            }
+          }
+           {
+            // uint32 count = 10 [json_name = "count", (.buf.validate.field) = {
+            if (this_._internal_count() != 0) {
+              total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+                  this_._internal_count());
+            }
+          }
+          return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                                     &this_._impl_._cached_size_);
+        }
+
+void TriggerPollBurstRequest::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<TriggerPollBurstRequest*>(&to_msg);
+  auto& from = static_cast<const TriggerPollBurstRequest&>(from_msg);
+  ::google::protobuf::Arena* arena = _this->GetArena();
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.TriggerPollBurstRequest)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(from._impl_.interval_ != nullptr);
+    if (_this->_impl_.interval_ == nullptr) {
+      _this->_impl_.interval_ =
+          ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(arena, *from._impl_.interval_);
+    } else {
+      _this->_impl_.interval_->MergeFrom(*from._impl_.interval_);
+    }
+  }
+  if (from._internal_count() != 0) {
+    _this->_impl_.count_ = from._impl_.count_;
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void TriggerPollBurstRequest::CopyFrom(const TriggerPollBurstRequest& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.TriggerPollBurstRequest)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void TriggerPollBurstRequest::InternalSwap(TriggerPollBurstRequest* PROTOBUF_RESTRICT other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.count_)
+      + sizeof(TriggerPollBurstRequest::_impl_.count_)
+      - PROTOBUF_FIELD_OFFSET(TriggerPollBurstRequest, _impl_.interval_)>(
+          reinterpret_cast<char*>(&_impl_.interval_),
+          reinterpret_cast<char*>(&other->_impl_.interval_));
+}
+
+::google::protobuf::Metadata TriggerPollBurstRequest::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class TriggerPollBurstResponse::_Internal {
+ public:
+  using HasBits =
+      decltype(std::declval<TriggerPollBurstResponse>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_._has_bits_);
+};
+
+void TriggerPollBurstResponse::clear_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.interval_ != nullptr) _impl_.interval_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+TriggerPollBurstResponse::TriggerPollBurstResponse(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.TriggerPollBurstResponse)
+}
+inline PROTOBUF_NDEBUG_INLINE TriggerPollBurstResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility, ::google::protobuf::Arena* arena,
+    const Impl_& from, const ::xtcp_config::v1::TriggerPollBurstResponse& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0} {}
+
+TriggerPollBurstResponse::TriggerPollBurstResponse(
+    ::google::protobuf::Arena* arena,
+    const TriggerPollBurstResponse& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  TriggerPollBurstResponse* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::uint32_t cached_has_bits = _impl_._has_bits_[0];
+  _impl_.interval_ = (cached_has_bits & 0x00000001u) ? ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(
+                              arena, *from._impl_.interval_)
+                        : nullptr;
+  _impl_.count_ = from._impl_.count_;
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.TriggerPollBurstResponse)
+}
+inline PROTOBUF_NDEBUG_INLINE TriggerPollBurstResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* arena)
+      : _cached_size_{0} {}
+
+inline void TriggerPollBurstResponse::SharedCtor(::_pb::Arena* arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, interval_),
+           0,
+           offsetof(Impl_, count_) -
+               offsetof(Impl_, interval_) +
+               sizeof(Impl_::count_));
+}
+TriggerPollBurstResponse::~TriggerPollBurstResponse() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.TriggerPollBurstResponse)
+  SharedDtor(*this);
+}
+inline void TriggerPollBurstResponse::SharedDtor(MessageLite& self) {
+  TriggerPollBurstResponse& this_ = static_cast<TriggerPollBurstResponse&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  delete this_._impl_.interval_;
+  this_._impl_.~Impl_();
+}
+
+inline void* TriggerPollBurstResponse::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) TriggerPollBurstResponse(arena);
+}
+constexpr auto TriggerPollBurstResponse::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(TriggerPollBurstResponse),
+                                            alignof(TriggerPollBurstResponse));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull TriggerPollBurstResponse::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_TriggerPollBurstResponse_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &TriggerPollBurstResponse::MergeImpl,
+        ::google::protobuf::Message::GetNewImpl<TriggerPollBurstResponse>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &TriggerPollBurstResponse::SharedDtor,
+        ::google::protobuf::Message::GetClearImpl<TriggerPollBurstResponse>(), &TriggerPollBurstResponse::ByteSizeLong,
+            &TriggerPollBurstResponse::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_._cached_size_),
+        false,
+    },
+    &TriggerPollBurstResponse::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* TriggerPollBurstResponse::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<2, 2, 1, 0, 2> TriggerPollBurstResponse::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_._has_bits_),
+    0, // no _extensions_
+    20, 24,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294442495,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    2,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::TriggerPollBurstResponse>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // .google.protobuf.Duration interval = 20 [json_name = "interval"];
+    {::_pbi::TcParser::FastMtS2,
+     {418, 0, 0, PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.interval_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // uint32 count = 10 [json_name = "count"];
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(TriggerPollBurstResponse, _impl_.count_), 63>(),
+     {80, 63, 0, PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.count_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // uint32 count = 10 [json_name = "count"];
+    {PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.count_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+    // .google.protobuf.Duration interval = 20 [json_name = "interval"];
+    {PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.interval_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+  }}, {{
+    {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+  }}, {{
+  }},
+};
+
+PROTOBUF_NOINLINE void TriggerPollBurstResponse::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.TriggerPollBurstResponse)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(_impl_.interval_ != nullptr);
+    _impl_.interval_->Clear();
+  }
+  _impl_.count_ = 0u;
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::uint8_t* TriggerPollBurstResponse::_InternalSerialize(
+            const MessageLite& base, ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) {
+          const TriggerPollBurstResponse& this_ = static_cast<const TriggerPollBurstResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::uint8_t* TriggerPollBurstResponse::_InternalSerialize(
+            ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+          const TriggerPollBurstResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.TriggerPollBurstResponse)
+          ::uint32_t cached_has_bits = 0;
+          (void)cached_has_bits;
+
+          // uint32 count = 10 [json_name = "count"];
+          if (this_._internal_count() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                10, this_._internal_count(), target);
+          }
+
+          cached_has_bits = this_._impl_._has_bits_[0];
+          // .google.protobuf.Duration interval = 20 [json_name = "interval"];
+          if (cached_has_bits & 0x00000001u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                20, *this_._impl_.interval_, this_._impl_.interval_->GetCachedSize(), target,
+                stream);
+          }
+
+          if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+            target =
+                ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+                    this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+          }
+          // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.TriggerPollBurstResponse)
+          return target;
+        }
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::size_t TriggerPollBurstResponse::ByteSizeLong(const MessageLite& base) {
+          const TriggerPollBurstResponse& this_ = static_cast<const TriggerPollBurstResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::size_t TriggerPollBurstResponse::ByteSizeLong() const {
+          const TriggerPollBurstResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.TriggerPollBurstResponse)
+          ::size_t total_size = 0;
+
+          ::uint32_t cached_has_bits = 0;
+          // Prevent compiler warnings about cached_has_bits being unused
+          (void)cached_has_bits;
+
+          ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+           {
+            // .google.protobuf.Duration interval = 20 [json_name = "interval"];
+            cached_has_bits = this_._impl_._has_bits_[0];
+            if (cached_has_bits & 0x00000001u) {
+              total_size += 2 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.interval_);
+            }
+          }
+           {
+            // uint32 count = 10 [json_name = "count"];
+            if (this_._internal_count() != 0) {
+              total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+                  this_._internal_count());
+            }
+          }
+          return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                                     &this_._impl_._cached_size_);
+        }
+
+void TriggerPollBurstResponse::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<TriggerPollBurstResponse*>(&to_msg);
+  auto& from = static_cast<const TriggerPollBurstResponse&>(from_msg);
+  ::google::protobuf::Arena* arena = _this->GetArena();
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.TriggerPollBurstResponse)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(from._impl_.interval_ != nullptr);
+    if (_this->_impl_.interval_ == nullptr) {
+      _this->_impl_.interval_ =
+          ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(arena, *from._impl_.interval_);
+    } else {
+      _this->_impl_.interval_->MergeFrom(*from._impl_.interval_);
+    }
+  }
+  if (from._internal_count() != 0) {
+    _this->_impl_.count_ = from._impl_.count_;
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void TriggerPollBurstResponse::CopyFrom(const TriggerPollBurstResponse& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.TriggerPollBurstResponse)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void TriggerPollBurstResponse::InternalSwap(TriggerPollBurstResponse* PROTOBUF_RESTRICT other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.count_)
+      + sizeof(TriggerPollBurstResponse::_impl_.count_)
+      - PROTOBUF_FIELD_OFFSET(TriggerPollBurstResponse, _impl_.interval_)>(
+          reinterpret_cast<char*>(&_impl_.interval_),
+          reinterpret_cast<char*>(&other->_impl_.interval_));
+}
+
+::google::protobuf::Metadata TriggerPollBurstResponse::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class SetS3UploadRequest::_Internal {
+ public:
+  using HasBits =
+      decltype(std::declval<SetS3UploadRequest>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_._has_bits_);
+};
+
+void SetS3UploadRequest::clear_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_flush_interval_ != nullptr) _impl_.s3_flush_interval_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+SetS3UploadRequest::SetS3UploadRequest(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.SetS3UploadRequest)
+}
+inline PROTOBUF_NDEBUG_INLINE SetS3UploadRequest::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility, ::google::protobuf::Arena* arena,
+    const Impl_& from, const ::xtcp_config::v1::SetS3UploadRequest& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0} {}
+
+SetS3UploadRequest::SetS3UploadRequest(
+    ::google::protobuf::Arena* arena,
+    const SetS3UploadRequest& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SetS3UploadRequest* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::uint32_t cached_has_bits = _impl_._has_bits_[0];
+  _impl_.s3_flush_interval_ = (cached_has_bits & 0x00000001u) ? ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(
+                              arena, *from._impl_.s3_flush_interval_)
+                        : nullptr;
+  _impl_.s3_parquet_flush_threshold_bytes_ = from._impl_.s3_parquet_flush_threshold_bytes_;
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.SetS3UploadRequest)
+}
+inline PROTOBUF_NDEBUG_INLINE SetS3UploadRequest::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* arena)
+      : _cached_size_{0} {}
+
+inline void SetS3UploadRequest::SharedCtor(::_pb::Arena* arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, s3_flush_interval_),
+           0,
+           offsetof(Impl_, s3_parquet_flush_threshold_bytes_) -
+               offsetof(Impl_, s3_flush_interval_) +
+               sizeof(Impl_::s3_parquet_flush_threshold_bytes_));
+}
+SetS3UploadRequest::~SetS3UploadRequest() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.SetS3UploadRequest)
+  SharedDtor(*this);
+}
+inline void SetS3UploadRequest::SharedDtor(MessageLite& self) {
+  SetS3UploadRequest& this_ = static_cast<SetS3UploadRequest&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  delete this_._impl_.s3_flush_interval_;
+  this_._impl_.~Impl_();
+}
+
+inline void* SetS3UploadRequest::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) SetS3UploadRequest(arena);
+}
+constexpr auto SetS3UploadRequest::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(SetS3UploadRequest),
+                                            alignof(SetS3UploadRequest));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull SetS3UploadRequest::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_SetS3UploadRequest_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &SetS3UploadRequest::MergeImpl,
+        ::google::protobuf::Message::GetNewImpl<SetS3UploadRequest>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &SetS3UploadRequest::SharedDtor,
+        ::google::protobuf::Message::GetClearImpl<SetS3UploadRequest>(), &SetS3UploadRequest::ByteSizeLong,
+            &SetS3UploadRequest::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_._cached_size_),
+        false,
+    },
+    &SetS3UploadRequest::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* SetS3UploadRequest::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<2, 2, 1, 0, 2> SetS3UploadRequest::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_._has_bits_),
+    0, // no _extensions_
+    20, 24,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294442495,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    2,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::SetS3UploadRequest>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // uint32 s3_parquet_flush_threshold_bytes = 20 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastV32S2,
+     {416, 63, 0, PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_parquet_flush_threshold_bytes_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // .google.protobuf.Duration s3_flush_interval = 10 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+    {::_pbi::TcParser::FastMtS1,
+     {82, 0, 0, PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_flush_interval_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // .google.protobuf.Duration s3_flush_interval = 10 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_flush_interval_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+    // uint32 s3_parquet_flush_threshold_bytes = 20 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+    {PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_parquet_flush_threshold_bytes_), -1, 0,
+    (0 | ::_fl::kFcSingular | ::_fl::kUInt32)},
+  }}, {{
+    {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+  }}, {{
+  }},
+};
+
+PROTOBUF_NOINLINE void SetS3UploadRequest::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.SetS3UploadRequest)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(_impl_.s3_flush_interval_ != nullptr);
+    _impl_.s3_flush_interval_->Clear();
+  }
+  _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::uint8_t* SetS3UploadRequest::_InternalSerialize(
+            const MessageLite& base, ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) {
+          const SetS3UploadRequest& this_ = static_cast<const SetS3UploadRequest&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::uint8_t* SetS3UploadRequest::_InternalSerialize(
+            ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+          const SetS3UploadRequest& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.SetS3UploadRequest)
+          ::uint32_t cached_has_bits = 0;
+          (void)cached_has_bits;
+
+          cached_has_bits = this_._impl_._has_bits_[0];
+          // .google.protobuf.Duration s3_flush_interval = 10 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+          if (cached_has_bits & 0x00000001u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                10, *this_._impl_.s3_flush_interval_, this_._impl_.s3_flush_interval_->GetCachedSize(), target,
+                stream);
+          }
+
+          // uint32 s3_parquet_flush_threshold_bytes = 20 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+          if (this_._internal_s3_parquet_flush_threshold_bytes() != 0) {
+            target = stream->EnsureSpace(target);
+            target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+                20, this_._internal_s3_parquet_flush_threshold_bytes(), target);
+          }
+
+          if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+            target =
+                ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+                    this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+          }
+          // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.SetS3UploadRequest)
+          return target;
+        }
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::size_t SetS3UploadRequest::ByteSizeLong(const MessageLite& base) {
+          const SetS3UploadRequest& this_ = static_cast<const SetS3UploadRequest&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::size_t SetS3UploadRequest::ByteSizeLong() const {
+          const SetS3UploadRequest& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.SetS3UploadRequest)
+          ::size_t total_size = 0;
+
+          ::uint32_t cached_has_bits = 0;
+          // Prevent compiler warnings about cached_has_bits being unused
+          (void)cached_has_bits;
+
+          ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+           {
+            // .google.protobuf.Duration s3_flush_interval = 10 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+            cached_has_bits = this_._impl_._has_bits_[0];
+            if (cached_has_bits & 0x00000001u) {
+              total_size += 1 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.s3_flush_interval_);
+            }
+          }
+           {
+            // uint32 s3_parquet_flush_threshold_bytes = 20 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+            if (this_._internal_s3_parquet_flush_threshold_bytes() != 0) {
+              total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                              this_._internal_s3_parquet_flush_threshold_bytes());
+            }
+          }
+          return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                                     &this_._impl_._cached_size_);
+        }
+
+void SetS3UploadRequest::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<SetS3UploadRequest*>(&to_msg);
+  auto& from = static_cast<const SetS3UploadRequest&>(from_msg);
+  ::google::protobuf::Arena* arena = _this->GetArena();
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.SetS3UploadRequest)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(from._impl_.s3_flush_interval_ != nullptr);
+    if (_this->_impl_.s3_flush_interval_ == nullptr) {
+      _this->_impl_.s3_flush_interval_ =
+          ::google::protobuf::Message::CopyConstruct<::google::protobuf::Duration>(arena, *from._impl_.s3_flush_interval_);
+    } else {
+      _this->_impl_.s3_flush_interval_->MergeFrom(*from._impl_.s3_flush_interval_);
+    }
+  }
+  if (from._internal_s3_parquet_flush_threshold_bytes() != 0) {
+    _this->_impl_.s3_parquet_flush_threshold_bytes_ = from._impl_.s3_parquet_flush_threshold_bytes_;
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void SetS3UploadRequest::CopyFrom(const SetS3UploadRequest& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.SetS3UploadRequest)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void SetS3UploadRequest::InternalSwap(SetS3UploadRequest* PROTOBUF_RESTRICT other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_parquet_flush_threshold_bytes_)
+      + sizeof(SetS3UploadRequest::_impl_.s3_parquet_flush_threshold_bytes_)
+      - PROTOBUF_FIELD_OFFSET(SetS3UploadRequest, _impl_.s3_flush_interval_)>(
+          reinterpret_cast<char*>(&_impl_.s3_flush_interval_),
+          reinterpret_cast<char*>(&other->_impl_.s3_flush_interval_));
+}
+
+::google::protobuf::Metadata SetS3UploadRequest::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class SetS3UploadResponse::_Internal {
+ public:
+  using HasBits =
+      decltype(std::declval<SetS3UploadResponse>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(SetS3UploadResponse, _impl_._has_bits_);
+};
+
+SetS3UploadResponse::SetS3UploadResponse(::google::protobuf::Arena* arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.SetS3UploadResponse)
+}
+inline PROTOBUF_NDEBUG_INLINE SetS3UploadResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility, ::google::protobuf::Arena* arena,
+    const Impl_& from, const ::xtcp_config::v1::SetS3UploadResponse& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0} {}
+
+SetS3UploadResponse::SetS3UploadResponse(
+    ::google::protobuf::Arena* arena,
+    const SetS3UploadResponse& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, _class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SetS3UploadResponse* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::uint32_t cached_has_bits = _impl_._has_bits_[0];
+  _impl_.config_ = (cached_has_bits & 0x00000001u) ? ::google::protobuf::Message::CopyConstruct<::xtcp_config::v1::XtcpConfig>(
+                              arena, *from._impl_.config_)
+                        : nullptr;
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.SetS3UploadResponse)
+}
+inline PROTOBUF_NDEBUG_INLINE SetS3UploadResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* arena)
+      : _cached_size_{0} {}
+
+inline void SetS3UploadResponse::SharedCtor(::_pb::Arena* arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  _impl_.config_ = {};
+}
+SetS3UploadResponse::~SetS3UploadResponse() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.SetS3UploadResponse)
+  SharedDtor(*this);
+}
+inline void SetS3UploadResponse::SharedDtor(MessageLite& self) {
+  SetS3UploadResponse& this_ = static_cast<SetS3UploadResponse&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  delete this_._impl_.config_;
+  this_._impl_.~Impl_();
+}
+
+inline void* SetS3UploadResponse::PlacementNew_(const void*, void* mem,
+                                        ::google::protobuf::Arena* arena) {
+  return ::new (mem) SetS3UploadResponse(arena);
+}
+constexpr auto SetS3UploadResponse::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(SetS3UploadResponse),
+                                            alignof(SetS3UploadResponse));
+}
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::google::protobuf::internal::ClassDataFull SetS3UploadResponse::_class_data_ = {
+    ::google::protobuf::internal::ClassData{
+        &_SetS3UploadResponse_default_instance_._instance,
+        &_table_.header,
+        nullptr,  // OnDemandRegisterArenaDtor
+        nullptr,  // IsInitialized
+        &SetS3UploadResponse::MergeImpl,
+        ::google::protobuf::Message::GetNewImpl<SetS3UploadResponse>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        &SetS3UploadResponse::SharedDtor,
+        ::google::protobuf::Message::GetClearImpl<SetS3UploadResponse>(), &SetS3UploadResponse::ByteSizeLong,
+            &SetS3UploadResponse::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+        PROTOBUF_FIELD_OFFSET(SetS3UploadResponse, _impl_._cached_size_),
+        false,
+    },
+    &SetS3UploadResponse::kDescriptorMethods,
+    &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+    nullptr,  // tracker
+};
+const ::google::protobuf::internal::ClassData* SetS3UploadResponse::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(_class_data_.tc_table);
+  return _class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 1, 1, 0, 2> SetS3UploadResponse::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(SetS3UploadResponse, _impl_._has_bits_),
+    0, // no _extensions_
+    1, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967294,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    1,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    _class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::xtcp_config::v1::SetS3UploadResponse>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+    {::_pbi::TcParser::FastMtS1,
+     {10, 0, 0, PROTOBUF_FIELD_OFFSET(SetS3UploadResponse, _impl_.config_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+    {PROTOBUF_FIELD_OFFSET(SetS3UploadResponse, _impl_.config_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+  }}, {{
+    {::_pbi::TcParser::GetTable<::xtcp_config::v1::XtcpConfig>()},
+  }}, {{
+  }},
+};
+
+PROTOBUF_NOINLINE void SetS3UploadResponse::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.SetS3UploadResponse)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(_impl_.config_ != nullptr);
+    _impl_.config_->Clear();
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::uint8_t* SetS3UploadResponse::_InternalSerialize(
+            const MessageLite& base, ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) {
+          const SetS3UploadResponse& this_ = static_cast<const SetS3UploadResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::uint8_t* SetS3UploadResponse::_InternalSerialize(
+            ::uint8_t* target,
+            ::google::protobuf::io::EpsCopyOutputStream* stream) const {
+          const SetS3UploadResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.SetS3UploadResponse)
+          ::uint32_t cached_has_bits = 0;
+          (void)cached_has_bits;
+
+          cached_has_bits = this_._impl_._has_bits_[0];
+          // .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+          if (cached_has_bits & 0x00000001u) {
+            target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+                1, *this_._impl_.config_, this_._impl_.config_->GetCachedSize(), target,
+                stream);
+          }
+
+          if (PROTOBUF_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+            target =
+                ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+                    this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+          }
+          // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.SetS3UploadResponse)
+          return target;
+        }
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+        ::size_t SetS3UploadResponse::ByteSizeLong(const MessageLite& base) {
+          const SetS3UploadResponse& this_ = static_cast<const SetS3UploadResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+        ::size_t SetS3UploadResponse::ByteSizeLong() const {
+          const SetS3UploadResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.SetS3UploadResponse)
+          ::size_t total_size = 0;
+
+          ::uint32_t cached_has_bits = 0;
+          // Prevent compiler warnings about cached_has_bits being unused
+          (void)cached_has_bits;
+
+           {
+            // .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+            cached_has_bits = this_._impl_._has_bits_[0];
+            if (cached_has_bits & 0x00000001u) {
+              total_size += 1 +
+                            ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.config_);
+            }
+          }
+          return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                                     &this_._impl_._cached_size_);
+        }
+
+void SetS3UploadResponse::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<SetS3UploadResponse*>(&to_msg);
+  auto& from = static_cast<const SetS3UploadResponse&>(from_msg);
+  ::google::protobuf::Arena* arena = _this->GetArena();
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.SetS3UploadResponse)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(from._impl_.config_ != nullptr);
+    if (_this->_impl_.config_ == nullptr) {
+      _this->_impl_.config_ =
+          ::google::protobuf::Message::CopyConstruct<::xtcp_config::v1::XtcpConfig>(arena, *from._impl_.config_);
+    } else {
+      _this->_impl_.config_->MergeFrom(*from._impl_.config_);
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void SetS3UploadResponse::CopyFrom(const SetS3UploadResponse& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.SetS3UploadResponse)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void SetS3UploadResponse::InternalSwap(SetS3UploadResponse* PROTOBUF_RESTRICT other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  swap(_impl_.config_, other->_impl_.config_);
+}
+
+::google::protobuf::Metadata SetS3UploadResponse::GetMetadata() const {
   return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
 }
 // ===================================================================

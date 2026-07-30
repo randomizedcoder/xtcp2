@@ -55,6 +55,40 @@ service ConfigService {
     };
   };
 
+  // Trigger a single poll immediately, without changing the configured
+  // cadence. The polled records flow to the configured destination (and any
+  // connected PollFlatRecords stream). Coalesced if a dump is already in
+  // flight. For operator-driven on-demand snapshots.
+  rpc TriggerPoll(TriggerPollRequest) returns (TriggerPollResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/TriggerPoll"
+      body : "*"
+    };
+  };
+
+  // Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+  // 10s apart → a socket snapshot every 10s for a minute). Schedules the
+  // burst and returns immediately; records flow to the configured
+  // destination. `interval` must exceed poll_timeout so each poll completes
+  // before the next fires (no coalescing drop).
+  rpc TriggerPollBurst(TriggerPollBurstRequest) returns (TriggerPollBurstResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/TriggerPollBurst"
+      body : "*"
+    };
+  };
+
+  // Change the s3parquet upload timing at runtime: the staleness-flush timer
+  // and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+  // to S3 promptly during an investigation. Only effective when the
+  // destination is s3parquet.
+  rpc SetS3Upload(SetS3UploadRequest) returns (SetS3UploadResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/SetS3Upload"
+      body : "*"
+    };
+  };
+
 }
 
 message GetRequest {
@@ -112,6 +146,76 @@ message SetPollFrequencyRequest {
 };
 
 message SetPollFrequencyResponse {
+	XtcpConfig config                                = 1;
+};
+
+message TriggerPollRequest {
+	// empty
+};
+
+message TriggerPollResponse {
+	// empty
+};
+
+message TriggerPollBurstRequest {
+
+	// Number of polls to fire in the burst.
+	uint32 count                                     = 10 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 1000
+	}];
+
+	// Spacing between consecutive polls. Must exceed the running
+	// poll_timeout so each poll completes before the next fires; the
+	// handler additionally rejects interval <= poll_timeout at runtime.
+	google.protobuf.Duration interval                = 20 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).duration = {
+			gte: {
+				seconds: 1
+			}
+			lte: {
+				seconds: 3600 // 3600s = 1 hour
+			}
+	}];
+
+};
+
+message TriggerPollBurstResponse {
+	// Echo of the accepted burst parameters (operator confirmation).
+	uint32 count                                     = 10;
+	google.protobuf.Duration interval                = 20;
+};
+
+message SetS3UploadRequest {
+
+	// New s3parquet staleness-flush timer. Optional; omit (or leave unset)
+	// to leave the timer unchanged. 0 = derive as max(poll_frequency, 30m).
+	google.protobuf.Duration s3_flush_interval       = 10 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	// New s3parquet byte-cap threshold before the worker finalizes and
+	// uploads an object. Optional; omit to leave unchanged. Takes effect on
+	// the next parquet object. 0 = default (63 MiB).
+	uint32 s3_parquet_flush_threshold_bytes          = 20 [
+		(buf.validate.field).required = false
+	];
+
+	// At least one field must be set — otherwise the RPC is a no-op.
+	option (buf.validate.message).cel = {
+		id: "SetS3Upload.atLeastOne",
+		message: "set s3_flush_interval and/or s3_parquet_flush_threshold_bytes",
+		expression: "has(this.s3_flush_interval) || this.s3_parquet_flush_threshold_bytes > 0"
+	};
+
+};
+
+message SetS3UploadResponse {
 	XtcpConfig config                                = 1;
 };
 

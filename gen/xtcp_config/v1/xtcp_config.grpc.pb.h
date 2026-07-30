@@ -70,6 +70,40 @@ class ConfigService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetPollFrequencyResponse>> PrepareAsyncSetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetPollFrequencyResponse>>(PrepareAsyncSetPollFrequencyRaw(context, request, cq));
     }
+    // Trigger a single poll immediately, without changing the configured
+    // cadence. The polled records flow to the configured destination (and any
+    // connected PollFlatRecords stream). Coalesced if a dump is already in
+    // flight. For operator-driven on-demand snapshots.
+    virtual ::grpc::Status TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::xtcp_config::v1::TriggerPollResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>> AsyncTriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>>(AsyncTriggerPollRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>> PrepareAsyncTriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>>(PrepareAsyncTriggerPollRaw(context, request, cq));
+    }
+    // Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+    // 10s apart → a socket snapshot every 10s for a minute). Schedules the
+    // burst and returns immediately; records flow to the configured
+    // destination. `interval` must exceed poll_timeout so each poll completes
+    // before the next fires (no coalescing drop).
+    virtual ::grpc::Status TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::xtcp_config::v1::TriggerPollBurstResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>> AsyncTriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>>(AsyncTriggerPollBurstRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>> PrepareAsyncTriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>>(PrepareAsyncTriggerPollBurstRaw(context, request, cq));
+    }
+    // Change the s3parquet upload timing at runtime: the staleness-flush timer
+    // and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+    // to S3 promptly during an investigation. Only effective when the
+    // destination is s3parquet.
+    virtual ::grpc::Status SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::xtcp_config::v1::SetS3UploadResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>> AsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>>(AsyncSetS3UploadRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>> PrepareAsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>>(PrepareAsyncSetS3UploadRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
@@ -79,6 +113,25 @@ class ConfigService final {
       virtual void Set(::grpc::ClientContext* context, const ::xtcp_config::v1::SetRequest* request, ::xtcp_config::v1::SetResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void SetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void SetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Trigger a single poll immediately, without changing the configured
+      // cadence. The polled records flow to the configured destination (and any
+      // connected PollFlatRecords stream). Coalesced if a dump is already in
+      // flight. For operator-driven on-demand snapshots.
+      virtual void TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+      // 10s apart → a socket snapshot every 10s for a minute). Schedules the
+      // burst and returns immediately; records flow to the configured
+      // destination. `interval` must exceed poll_timeout so each poll completes
+      // before the next fires (no coalescing drop).
+      virtual void TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Change the s3parquet upload timing at runtime: the staleness-flush timer
+      // and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+      // to S3 promptly during an investigation. Only effective when the
+      // destination is s3parquet.
+      virtual void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -90,6 +143,12 @@ class ConfigService final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetResponse>* PrepareAsyncSetRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetPollFrequencyResponse>* AsyncSetPollFrequencyRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetPollFrequencyResponse>* PrepareAsyncSetPollFrequencyRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>* AsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollResponse>* PrepareAsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>* AsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>* PrepareAsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>* AsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>* PrepareAsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -115,6 +174,27 @@ class ConfigService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetPollFrequencyResponse>> PrepareAsyncSetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetPollFrequencyResponse>>(PrepareAsyncSetPollFrequencyRaw(context, request, cq));
     }
+    ::grpc::Status TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::xtcp_config::v1::TriggerPollResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>> AsyncTriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>>(AsyncTriggerPollRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>> PrepareAsyncTriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>>(PrepareAsyncTriggerPollRaw(context, request, cq));
+    }
+    ::grpc::Status TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::xtcp_config::v1::TriggerPollBurstResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>> AsyncTriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>>(AsyncTriggerPollBurstRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>> PrepareAsyncTriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>>(PrepareAsyncTriggerPollBurstRaw(context, request, cq));
+    }
+    ::grpc::Status SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::xtcp_config::v1::SetS3UploadResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>> AsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>>(AsyncSetS3UploadRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>> PrepareAsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>>(PrepareAsyncSetS3UploadRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
@@ -124,6 +204,12 @@ class ConfigService final {
       void Set(::grpc::ClientContext* context, const ::xtcp_config::v1::SetRequest* request, ::xtcp_config::v1::SetResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
       void SetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response, std::function<void(::grpc::Status)>) override;
       void SetPollFrequency(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, std::function<void(::grpc::Status)>) override;
+      void TriggerPoll(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, std::function<void(::grpc::Status)>) override;
+      void TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, std::function<void(::grpc::Status)>) override;
+      void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -141,9 +227,18 @@ class ConfigService final {
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetResponse>* PrepareAsyncSetRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetPollFrequencyResponse>* AsyncSetPollFrequencyRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetPollFrequencyResponse>* PrepareAsyncSetPollFrequencyRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>* AsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollResponse>* PrepareAsyncTriggerPollRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>* AsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>* PrepareAsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* AsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* PrepareAsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_Get_;
     const ::grpc::internal::RpcMethod rpcmethod_Set_;
     const ::grpc::internal::RpcMethod rpcmethod_SetPollFrequency_;
+    const ::grpc::internal::RpcMethod rpcmethod_TriggerPoll_;
+    const ::grpc::internal::RpcMethod rpcmethod_TriggerPollBurst_;
+    const ::grpc::internal::RpcMethod rpcmethod_SetS3Upload_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -154,6 +249,22 @@ class ConfigService final {
     virtual ::grpc::Status Get(::grpc::ServerContext* context, const ::xtcp_config::v1::GetRequest* request, ::xtcp_config::v1::GetResponse* response);
     virtual ::grpc::Status Set(::grpc::ServerContext* context, const ::xtcp_config::v1::SetRequest* request, ::xtcp_config::v1::SetResponse* response);
     virtual ::grpc::Status SetPollFrequency(::grpc::ServerContext* context, const ::xtcp_config::v1::SetPollFrequencyRequest* request, ::xtcp_config::v1::SetPollFrequencyResponse* response);
+    // Trigger a single poll immediately, without changing the configured
+    // cadence. The polled records flow to the configured destination (and any
+    // connected PollFlatRecords stream). Coalesced if a dump is already in
+    // flight. For operator-driven on-demand snapshots.
+    virtual ::grpc::Status TriggerPoll(::grpc::ServerContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response);
+    // Trigger a burst of `count` polls spaced `interval` apart (e.g. 6 polls
+    // 10s apart → a socket snapshot every 10s for a minute). Schedules the
+    // burst and returns immediately; records flow to the configured
+    // destination. `interval` must exceed poll_timeout so each poll completes
+    // before the next fires (no coalescing drop).
+    virtual ::grpc::Status TriggerPollBurst(::grpc::ServerContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response);
+    // Change the s3parquet upload timing at runtime: the staleness-flush timer
+    // and/or the byte-cap threshold. Lets an operator flush buffered snapshots
+    // to S3 promptly during an investigation. Only effective when the
+    // destination is s3parquet.
+    virtual ::grpc::Status SetS3Upload(::grpc::ServerContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_Get : public BaseClass {
@@ -215,7 +326,67 @@ class ConfigService final {
       ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_Get<WithAsyncMethod_Set<WithAsyncMethod_SetPollFrequency<Service > > > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodAsync(3);
+    }
+    ~WithAsyncMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestTriggerPoll(::grpc::ServerContext* context, ::xtcp_config::v1::TriggerPollRequest* request, ::grpc::ServerAsyncResponseWriter< ::xtcp_config::v1::TriggerPollResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodAsync(4);
+    }
+    ~WithAsyncMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestTriggerPollBurst(::grpc::ServerContext* context, ::xtcp_config::v1::TriggerPollBurstRequest* request, ::grpc::ServerAsyncResponseWriter< ::xtcp_config::v1::TriggerPollBurstResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodAsync(5);
+    }
+    ~WithAsyncMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetS3Upload(::grpc::ServerContext* context, ::xtcp_config::v1::SetS3UploadRequest* request, ::grpc::ServerAsyncResponseWriter< ::xtcp_config::v1::SetS3UploadResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_Get<WithAsyncMethod_Set<WithAsyncMethod_SetPollFrequency<WithAsyncMethod_TriggerPoll<WithAsyncMethod_TriggerPollBurst<WithAsyncMethod_SetS3Upload<Service > > > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_Get : public BaseClass {
    private:
@@ -297,7 +468,88 @@ class ConfigService final {
     virtual ::grpc::ServerUnaryReactor* SetPollFrequency(
       ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::SetPollFrequencyRequest* /*request*/, ::xtcp_config::v1::SetPollFrequencyResponse* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_Get<WithCallbackMethod_Set<WithCallbackMethod_SetPollFrequency<Service > > > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodCallback(3,
+          new ::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::xtcp_config::v1::TriggerPollRequest* request, ::xtcp_config::v1::TriggerPollResponse* response) { return this->TriggerPoll(context, request, response); }));}
+    void SetMessageAllocatorFor_TriggerPoll(
+        ::grpc::MessageAllocator< ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* TriggerPoll(
+      ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodCallback(4,
+          new ::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response) { return this->TriggerPollBurst(context, request, response); }));}
+    void SetMessageAllocatorFor_TriggerPollBurst(
+        ::grpc::MessageAllocator< ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(4);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* TriggerPollBurst(
+      ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodCallback(5,
+          new ::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response) { return this->SetS3Upload(context, request, response); }));}
+    void SetMessageAllocatorFor_SetS3Upload(
+        ::grpc::MessageAllocator< ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(5);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* SetS3Upload(
+      ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_Get<WithCallbackMethod_Set<WithCallbackMethod_SetPollFrequency<WithCallbackMethod_TriggerPoll<WithCallbackMethod_TriggerPollBurst<WithCallbackMethod_SetS3Upload<Service > > > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_Get : public BaseClass {
@@ -346,6 +598,57 @@ class ConfigService final {
     }
     // disable synchronous version of this method
     ::grpc::Status SetPollFrequency(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetPollFrequencyRequest* /*request*/, ::xtcp_config::v1::SetPollFrequencyResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodGeneric(3);
+    }
+    ~WithGenericMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodGeneric(4);
+    }
+    ~WithGenericMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodGeneric(5);
+    }
+    ~WithGenericMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -408,6 +711,66 @@ class ConfigService final {
     }
     void RequestSetPollFrequency(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodRaw(3);
+    }
+    ~WithRawMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestTriggerPoll(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodRaw(4);
+    }
+    ~WithRawMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestTriggerPollBurst(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodRaw(5);
+    }
+    ~WithRawMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetS3Upload(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -474,6 +837,72 @@ class ConfigService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* SetPollFrequency(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodRawCallback(3,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->TriggerPoll(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* TriggerPoll(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodRawCallback(4,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->TriggerPollBurst(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* TriggerPollBurst(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodRawCallback(5,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->SetS3Upload(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* SetS3Upload(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -557,9 +986,90 @@ class ConfigService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedSetPollFrequency(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::SetPollFrequencyRequest,::xtcp_config::v1::SetPollFrequencyResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<Service > > > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_TriggerPoll : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_TriggerPoll() {
+      ::grpc::Service::MarkMethodStreamed(3,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::xtcp_config::v1::TriggerPollRequest, ::xtcp_config::v1::TriggerPollResponse>* streamer) {
+                       return this->StreamedTriggerPoll(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_TriggerPoll() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status TriggerPoll(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollRequest* /*request*/, ::xtcp_config::v1::TriggerPollResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedTriggerPoll(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::TriggerPollRequest,::xtcp_config::v1::TriggerPollResponse>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_TriggerPollBurst : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_TriggerPollBurst() {
+      ::grpc::Service::MarkMethodStreamed(4,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::xtcp_config::v1::TriggerPollBurstRequest, ::xtcp_config::v1::TriggerPollBurstResponse>* streamer) {
+                       return this->StreamedTriggerPollBurst(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_TriggerPollBurst() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status TriggerPollBurst(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::TriggerPollBurstRequest* /*request*/, ::xtcp_config::v1::TriggerPollBurstResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedTriggerPollBurst(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::TriggerPollBurstRequest,::xtcp_config::v1::TriggerPollBurstResponse>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_SetS3Upload : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_SetS3Upload() {
+      ::grpc::Service::MarkMethodStreamed(5,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::xtcp_config::v1::SetS3UploadRequest, ::xtcp_config::v1::SetS3UploadResponse>* streamer) {
+                       return this->StreamedSetS3Upload(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_SetS3Upload() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedSetS3Upload(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::SetS3UploadRequest,::xtcp_config::v1::SetS3UploadResponse>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<Service > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<Service > > > StreamedService;
+  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<Service > > > > > > StreamedService;
 };
 
 }  // namespace v1
