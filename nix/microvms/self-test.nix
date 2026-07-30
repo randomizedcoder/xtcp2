@@ -54,6 +54,11 @@
 #   XTCP2_SELF_TEST_S3PARQUET_ROWS_{PASS,FAIL}        (s3parquet only)
 #                                              duckdb decodes the file and
 #                                              returns ≥1 row
+#   XTCP2_SELF_TEST_VALKEY_CONSUME_{PASS,FAIL}        (valkey only)
+#                                              ≥1 record published to a real
+#                                              in-VM Valkey server AND consumed
+#                                              back by the pre-subscribed
+#                                              in-VM subscriber (pub/sub round-trip)
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -99,6 +104,13 @@
   s3Bucket ? "xtcp2-records",
   s3AccessKey ? "xtcp2test",
   s3SecretKey ? "xtcp2testsecret",
+  # When true (set on the valkey flavor), adds a check that records the daemon
+  # PUBLISHed to the in-VM Valkey channel were actually consumed back by the
+  # pre-subscribed valkey-subscriber (valkey-server.nix logs them to
+  # /run/xtcp2-valkey-sub.out). pub/sub has no retention, so a real subscriber
+  # is the only way to prove end-to-end delivery.
+  runValkeyCheck ? false,
+  valkeyChannel ? "xtcp2-records",
 }:
 
 pkgs.writeShellApplication {
@@ -559,6 +571,48 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (no parquet object to test)"
       fi
       if [ "$check14" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runValkeyCheck ''
+      # ─── Check: valkey — records consumed back via pub/sub ───────────
+      # The daemon PUBLISHes each poll's records to the Valkey channel;
+      # the pre-subscribed valkey-subscriber (valkey-server.nix) logs every
+      # delivered message to /run/xtcp2-valkey-sub.out. Counting the "message"
+      # reply markers proves records flowed xtcp2 → valkey → subscriber
+      # end-to-end (pub/sub has no retention, so this is the real proof, not
+      # just that the PUBLISH command returned OK). The daemon's own
+      # destValKey publish counter is reported as a cross-check.
+      # Genuine end-to-end consume-back: the daemon constructs the dest (which
+      # Pings a REAL in-VM valkey-server) and PUBLISHes each poll's records; the
+      # pre-subscribed valkey-subscriber (running valkey-cli under a PTY so it
+      # flushes per message) logs every delivery to the journal. We require BOTH
+      # the daemon's publish counter (function="destValKey",variable="Publish")
+      # AND the subscriber's delivered-message count to be ≥1 — proving records
+      # flowed xtcp2 → valkey → subscriber, not just that PUBLISH returned OK.
+      echo "--- check: valkey — records consumed back via pub/sub ---"
+      checkValkey=1
+      recv=0
+      pub=0
+      for _ in $(seq 1 60); do
+        pub=$(metric_value "xtcp_counts" 'function="destValKey"' 'variable="Publish"')
+        recv=$(journalctl -u valkey-subscriber.service -o cat --no-pager 2>/dev/null \
+          | grep -c '"message"')
+        recv=''${recv:-0}
+        if [ "$pub" -ge 1 ] 2>/dev/null && [ "$recv" -ge 1 ] 2>/dev/null; then
+          break
+        fi
+        sleep 1
+      done
+      if [ "$pub" -ge 1 ] 2>/dev/null && [ "$recv" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_VALKEY_CONSUME_PASS  (published=$pub, consumed=$recv, channel=${valkeyChannel})"
+        checkValkey=0
+      else
+        echo "XTCP2_SELF_TEST_VALKEY_CONSUME_FAIL  (published=$pub, consumed=$recv, channel=${valkeyChannel})"
+        echo "--- valkey-subscriber journal tail (diagnostic) ---"
+        journalctl -u valkey-subscriber.service -o cat --no-pager 2>/dev/null | tail -n 20 \
+          || echo "(no valkey-subscriber journal)"
+      fi
+      if [ "$checkValkey" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runClickhouseCheck ''
