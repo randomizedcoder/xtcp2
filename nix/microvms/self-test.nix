@@ -59,6 +59,9 @@
 #                                              in-VM Valkey server AND consumed
 #                                              back by the pre-subscribed
 #                                              in-VM subscriber (pub/sub round-trip)
+#   XTCP2_SELF_TEST_NATS_CONSUME_{PASS,FAIL}          (nats only)
+#                                              same round-trip via a real in-VM
+#                                              NATS server + subscriber
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #
 # Each check is independent: failure of one does not skip the others, so the
@@ -111,6 +114,11 @@
   # is the only way to prove end-to-end delivery.
   runValkeyCheck ? false,
   valkeyChannel ? "xtcp2-records",
+  # When true (set on the nats flavor), adds the analog of the valkey check: the
+  # daemon PUBLISHes to a real in-VM NATS subject and the pre-subscribed
+  # nats-subscriber consumes the records back.
+  runNatsCheck ? false,
+  natsSubject ? "xtcp2-records",
 }:
 
 pkgs.writeShellApplication {
@@ -613,6 +621,39 @@ pkgs.writeShellApplication {
           || echo "(no valkey-subscriber journal)"
       fi
       if [ "$checkValkey" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runNatsCheck ''
+      # ─── Check: nats — records consumed back via a subject ───────────
+      # Analog of the valkey check. The daemon PUBLISHes each poll's records to
+      # a NATS subject on a real in-VM nats-server; the pre-subscribed
+      # nats-subscriber (natscli under a PTY) logs one "Received on" header per
+      # delivered message to the journal. Require BOTH the daemon's destNATS
+      # publish counter AND the subscriber's delivery count ≥1.
+      echo "--- check: nats — records consumed back via a subject ---"
+      checkNats=1
+      nrecv=0
+      npub=0
+      for _ in $(seq 1 60); do
+        npub=$(metric_value "xtcp_counts" 'function="destNATS"' 'variable="Publish"')
+        nrecv=$(journalctl -u nats-subscriber.service -o cat --no-pager 2>/dev/null \
+          | grep -c 'Received on')
+        nrecv=''${nrecv:-0}
+        if [ "$npub" -ge 1 ] 2>/dev/null && [ "$nrecv" -ge 1 ] 2>/dev/null; then
+          break
+        fi
+        sleep 1
+      done
+      if [ "$npub" -ge 1 ] 2>/dev/null && [ "$nrecv" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_NATS_CONSUME_PASS  (published=$npub, consumed=$nrecv, subject=${natsSubject})"
+        checkNats=0
+      else
+        echo "XTCP2_SELF_TEST_NATS_CONSUME_FAIL  (published=$npub, consumed=$nrecv, subject=${natsSubject})"
+        echo "--- nats-subscriber journal tail (diagnostic) ---"
+        journalctl -u nats-subscriber.service -o cat --no-pager 2>/dev/null | tail -n 20 \
+          || echo "(no nats-subscriber journal)"
+      fi
+      if [ "$checkNats" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runClickhouseCheck ''

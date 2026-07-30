@@ -212,6 +212,22 @@ let
       sink = "valkey";
     };
 
+  # nats lifecycle flavor: native in-VM NATS server + pre-subscribed consumer.
+  mkOneNats =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "nats";
+    };
+
   mkOneS3ParquetLong =
     arch:
     import ./mkVm.nix {
@@ -342,6 +358,8 @@ let
 
   vmsValkey = lib.genAttrs constants.supportedArchs mkOneValkey;
 
+  vmsNats = lib.genAttrs constants.supportedArchs mkOneNats;
+
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
@@ -364,6 +382,16 @@ let
       # fast (native server, no docker), but the self-test waits up to ~60 s for
       # the subscriber to accumulate messages, so keep a generous timeout.
       sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|VALKEY_CONSUME|OVERALL";
+      timeoutSec = 240;
+    };
+  });
+
+  lifecycleNats = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsNats.${arch};
+      suffix = "-nats";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NATS_CONSUME|OVERALL";
       timeoutSec = 240;
     };
   });
@@ -524,6 +552,7 @@ in
     vmsClickPipeParquet
     vmsS3Parquet
     vmsValkey
+    vmsNats
     vmsS3ParquetLong
     vmsS3ParquetStress
     vmsS3ParquetLowfreq
@@ -538,6 +567,7 @@ in
     lifecycle
     lifecycleS3Parquet
     lifecycleValkey
+    lifecycleNats
     lifecycleCoverage
     lifecycleCoverageIoUring
     soak

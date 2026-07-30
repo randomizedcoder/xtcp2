@@ -104,6 +104,10 @@ let
   # self-test proves records flow through end-to-end. No docker, no persistence;
   # a lightweight lifecycle flavor (falls through to the default mem budget).
   isValkey = sink == "valkey";
+  # nats = a native in-VM NATS server + a pre-subscribed consumer; xtcp2
+  # PUBLISHes each record to a NATS subject and the self-test proves records
+  # flow through end-to-end. Same shape as the valkey flavor.
+  isNats = sink == "nats";
   # Convenience predicate — most plumbing (minio module, port forwards,
   # mem budget, daemon args base) is shared.
   isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress || isS3ParquetLowfreq;
@@ -156,6 +160,8 @@ let
     runS3ParquetCheck = isS3Parquet;
     runValkeyCheck = isValkey;
     valkeyChannel = valkeyTopic;
+    runNatsCheck = isNats;
+    natsSubject = natsTopic;
   };
 
   # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
@@ -1005,6 +1011,12 @@ let
     (import ../modules/valkey-server.nix { channel = valkeyTopic; })
   ];
 
+  # nats flavor: a native NATS server + a pre-subscribed consumer. Subject must
+  # match xtcp2NatsArgs' -topic.
+  natsModules = [
+    (import ../modules/nats-server.nix { subject = natsTopic; })
+  ];
+
   # Long-soak monitor: emit one sentinel line per
   # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
   # own Prometheus counters (destS3Parquet/upload + uploadBytes)
@@ -1362,6 +1374,22 @@ let
     "-timeout"
     "1s"
   ];
+
+  # nats flavor: xtcp2 PUBLISHes each poll's records to the NATS subject
+  # `natsTopic` (-topic maps to config.Topic, the subject natsDest publishes to).
+  natsTopic = "xtcp2-records";
+  xtcp2NatsArgs = [
+    "-dest"
+    "nats:127.0.0.1:4222"
+    "-marshal"
+    "protobufList"
+    "-topic"
+    natsTopic
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+  ];
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
@@ -1372,6 +1400,7 @@ in
   ]
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
+  ++ lib.optionals isNats natsModules
   ++ [
     (
       { config, ... }:
@@ -1795,6 +1824,10 @@ in
               # valkey flavor: PUBLISH each poll's records to the in-VM Valkey
               # pub/sub channel; the self-test's subscriber counts deliveries.
               xtcp2ValkeyArgs
+            else if isNats then
+              # nats flavor: PUBLISH each poll's records to the in-VM NATS
+              # subject; the self-test's subscriber counts deliveries.
+              xtcp2NatsArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
