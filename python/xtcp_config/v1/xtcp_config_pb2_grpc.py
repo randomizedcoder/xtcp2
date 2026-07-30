@@ -5,7 +5,7 @@ import grpc
 from xtcp_config.v1 import xtcp_config_pb2 as xtcp__config_dot_v1_dot_xtcp__config__pb2
 
 
-class ConfigServiceStub(object):
+class ConfigServiceStub:
     """https://protobuf.dev/programming-guides/proto3/#scalar
 
     """
@@ -48,7 +48,7 @@ class ConfigServiceStub(object):
                 _registered_method=True)
 
 
-class ConfigServiceServicer(object):
+class ConfigServiceServicer:
     """https://protobuf.dev/programming-guides/proto3/#scalar
 
     """
@@ -143,7 +143,7 @@ def add_ConfigServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class ConfigService(object):
+class ConfigService:
     """https://protobuf.dev/programming-guides/proto3/#scalar
 
     """

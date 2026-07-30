@@ -1,3 +1,5 @@
+import datetime
+
 from google.protobuf import duration_pb2 as _duration_pb2
 from google.api import annotations_pb2 as _annotations_pb2
 from buf.validate import validate_pb2 as _validate_pb2
@@ -37,7 +39,7 @@ class SetPollFrequencyRequest(_message.Message):
     POLL_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     poll_frequency: _duration_pb2.Duration
     poll_timeout: _duration_pb2.Duration
-    def __init__(self, poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+    def __init__(self, poll_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ...) -> None: ...
 
 class SetPollFrequencyResponse(_message.Message):
     __slots__ = ("config",)
@@ -59,7 +61,7 @@ class TriggerPollBurstRequest(_message.Message):
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
     count: int
     interval: _duration_pb2.Duration
-    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ...) -> None: ...
 
 class TriggerPollBurstResponse(_message.Message):
     __slots__ = ("count", "interval")
@@ -67,7 +69,7 @@ class TriggerPollBurstResponse(_message.Message):
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
     count: int
     interval: _duration_pb2.Duration
-    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+    def __init__(self, count: _Optional[int] = ..., interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ...) -> None: ...
 
 class SetS3UploadRequest(_message.Message):
     __slots__ = ("s3_flush_interval", "s3_parquet_flush_threshold_bytes")
@@ -75,7 +77,7 @@ class SetS3UploadRequest(_message.Message):
     S3_PARQUET_FLUSH_THRESHOLD_BYTES_FIELD_NUMBER: _ClassVar[int]
     s3_flush_interval: _duration_pb2.Duration
     s3_parquet_flush_threshold_bytes: int
-    def __init__(self, s3_flush_interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ...) -> None: ...
+    def __init__(self, s3_flush_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ...) -> None: ...
 
 class SetS3UploadResponse(_message.Message):
     __slots__ = ("config",)
@@ -197,7 +199,7 @@ class XtcpConfig(_message.Message):
     s3_upload_backoff_cap: _duration_pb2.Duration
     reconcile_frequency: _duration_pb2.Duration
     reconcile_before_poll: bool
-    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., envelope_flush_threshold_bytes: _Optional[int] = ..., envelope_flush_threshold_rows: _Optional[int] = ..., kafka_compression: _Optional[str] = ..., s3_endpoint: _Optional[str] = ..., s3_bucket: _Optional[str] = ..., s3_prefix: _Optional[str] = ..., s3_access_key: _Optional[str] = ..., s3_secret_key: _Optional[str] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ..., s3_region: _Optional[str] = ..., s3_skip_bucket_probe: bool = ..., pyroscope_url: _Optional[str] = ..., pyroscope_app_name: _Optional[str] = ..., pyroscope_sample_hz: _Optional[int] = ..., pyroscope_upload_interval_sec: _Optional[int] = ..., dest: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., topic: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., location: _Optional[str] = ..., hostname: _Optional[str] = ..., resolve_container_id: bool = ..., ipv4_ttl: _Optional[int] = ..., ipv6_hop_limit: _Optional[int] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ..., io_uring: bool = ..., io_uring_recv_batch_size: _Optional[int] = ..., io_uring_cqe_batch_size: _Optional[int] = ..., csv_columns: _Optional[str] = ..., poll_jitter_pct: _Optional[int] = ..., s3_flush_interval: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., s3_flush_jitter_pct: _Optional[int] = ..., s3_flush_threshold_jitter_pct: _Optional[int] = ..., s3_upload_max_attempts: _Optional[int] = ..., s3_upload_backoff_cap: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., reconcile_frequency: _Optional[_Union[_duration_pb2.Duration, _Mapping]] = ..., reconcile_before_poll: bool = ...) -> None: ...
+    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., modulus: _Optional[int] = ..., marshal_to: _Optional[str] = ..., envelope_flush_threshold_bytes: _Optional[int] = ..., envelope_flush_threshold_rows: _Optional[int] = ..., kafka_compression: _Optional[str] = ..., s3_endpoint: _Optional[str] = ..., s3_bucket: _Optional[str] = ..., s3_prefix: _Optional[str] = ..., s3_access_key: _Optional[str] = ..., s3_secret_key: _Optional[str] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ..., s3_region: _Optional[str] = ..., s3_skip_bucket_probe: _Optional[bool] = ..., pyroscope_url: _Optional[str] = ..., pyroscope_app_name: _Optional[str] = ..., pyroscope_sample_hz: _Optional[int] = ..., pyroscope_upload_interval_sec: _Optional[int] = ..., dest: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., topic: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., debug_level: _Optional[int] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., location: _Optional[str] = ..., hostname: _Optional[str] = ..., resolve_container_id: _Optional[bool] = ..., ipv4_ttl: _Optional[int] = ..., ipv6_hop_limit: _Optional[int] = ..., grpc_port: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ..., io_uring: _Optional[bool] = ..., io_uring_recv_batch_size: _Optional[int] = ..., io_uring_cqe_batch_size: _Optional[int] = ..., csv_columns: _Optional[str] = ..., poll_jitter_pct: _Optional[int] = ..., s3_flush_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., s3_flush_jitter_pct: _Optional[int] = ..., s3_flush_threshold_jitter_pct: _Optional[int] = ..., s3_upload_max_attempts: _Optional[int] = ..., s3_upload_backoff_cap: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., reconcile_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., reconcile_before_poll: _Optional[bool] = ...) -> None: ...
 
 class EnabledDeserializers(_message.Message):
     __slots__ = ("enabled",)
@@ -207,7 +209,7 @@ class EnabledDeserializers(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: bool
-        def __init__(self, key: _Optional[str] = ..., value: bool = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[bool] = ...) -> None: ...
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     enabled: _containers.ScalarMap[str, bool]
     def __init__(self, enabled: _Optional[_Mapping[str, bool]] = ...) -> None: ...

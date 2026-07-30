@@ -44,6 +44,7 @@
 #include <grpcpp/support/status.h>
 #include <grpcpp/support/stub_options.h>
 #include <grpcpp/support/sync_stream.h>
+#include <grpcpp/ports_def.inc>
 
 namespace xtcp_flat_record {
 namespace v1 {
@@ -395,4 +396,5 @@ class XTCPFlatRecordService final {
 }  // namespace xtcp_flat_record
 
 
+#include <grpcpp/ports_undef.inc>
 #endif  // GRPC_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto__INCLUDED

@@ -1,13 +1,15 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: xtcp_config/v1/xtcp_config.proto
-//
-// @dart = 2.12
+// Generated from xtcp_config/v1/xtcp_config.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
@@ -19,14 +21,21 @@ const GetRequest$json = {
 };
 
 /// Descriptor for `GetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List getRequestDescriptor = $convert.base64Decode(
-    'CgpHZXRSZXF1ZXN0');
+final $typed_data.Uint8List getRequestDescriptor =
+    $convert.base64Decode('CgpHZXRSZXF1ZXN0');
 
 @$core.Deprecated('Use getResponseDescriptor instead')
 const GetResponse$json = {
   '1': 'GetResponse',
   '2': [
-    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
   ],
 };
 
@@ -39,7 +48,14 @@ final $typed_data.Uint8List getResponseDescriptor = $convert.base64Decode(
 const SetRequest$json = {
   '1': 'SetRequest',
   '2': [
-    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
   ],
 };
 
@@ -52,7 +68,14 @@ final $typed_data.Uint8List setRequestDescriptor = $convert.base64Decode(
 const SetResponse$json = {
   '1': 'SetResponse',
   '2': [
-    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
   ],
 };
 
@@ -65,8 +88,24 @@ final $typed_data.Uint8List setResponseDescriptor = $convert.base64Decode(
 const SetPollFrequencyRequest$json = {
   '1': 'SetPollFrequencyRequest',
   '2': [
-    {'1': 'poll_frequency', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'pollFrequency'},
-    {'1': 'poll_timeout', '3': 30, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'pollTimeout'},
+    {
+      '1': 'poll_frequency',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'pollFrequency'
+    },
+    {
+      '1': 'poll_timeout',
+      '3': 30,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'pollTimeout'
+    },
   ],
   '7': {},
 };
@@ -84,14 +123,22 @@ final $typed_data.Uint8List setPollFrequencyRequestDescriptor = $convert.base64D
 const SetPollFrequencyResponse$json = {
   '1': 'SetPollFrequencyResponse',
   '2': [
-    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
   ],
 };
 
 /// Descriptor for `SetPollFrequencyResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List setPollFrequencyResponseDescriptor = $convert.base64Decode(
-    'ChhTZXRQb2xsRnJlcXVlbmN5UmVzcG9uc2USMgoGY29uZmlnGAEgASgLMhoueHRjcF9jb25maW'
-    'cudjEuWHRjcENvbmZpZ1IGY29uZmln');
+final $typed_data.Uint8List setPollFrequencyResponseDescriptor =
+    $convert.base64Decode(
+        'ChhTZXRQb2xsRnJlcXVlbmN5UmVzcG9uc2USMgoGY29uZmlnGAEgASgLMhoueHRjcF9jb25maW'
+        'cudjEuWHRjcENvbmZpZ1IGY29uZmln');
 
 @$core.Deprecated('Use triggerPollRequestDescriptor instead')
 const TriggerPollRequest$json = {
@@ -99,8 +146,8 @@ const TriggerPollRequest$json = {
 };
 
 /// Descriptor for `TriggerPollRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List triggerPollRequestDescriptor = $convert.base64Decode(
-    'ChJUcmlnZ2VyUG9sbFJlcXVlc3Q=');
+final $typed_data.Uint8List triggerPollRequestDescriptor =
+    $convert.base64Decode('ChJUcmlnZ2VyUG9sbFJlcXVlc3Q=');
 
 @$core.Deprecated('Use triggerPollResponseDescriptor instead')
 const TriggerPollResponse$json = {
@@ -108,15 +155,23 @@ const TriggerPollResponse$json = {
 };
 
 /// Descriptor for `TriggerPollResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List triggerPollResponseDescriptor = $convert.base64Decode(
-    'ChNUcmlnZ2VyUG9sbFJlc3BvbnNl');
+final $typed_data.Uint8List triggerPollResponseDescriptor =
+    $convert.base64Decode('ChNUcmlnZ2VyUG9sbFJlc3BvbnNl');
 
 @$core.Deprecated('Use triggerPollBurstRequestDescriptor instead')
 const TriggerPollBurstRequest$json = {
   '1': 'TriggerPollBurstRequest',
   '2': [
     {'1': 'count', '3': 10, '4': 1, '5': 13, '8': {}, '10': 'count'},
-    {'1': 'interval', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'interval'},
+    {
+      '1': 'interval',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'interval'
+    },
   ],
 };
 
@@ -131,21 +186,44 @@ const TriggerPollBurstResponse$json = {
   '1': 'TriggerPollBurstResponse',
   '2': [
     {'1': 'count', '3': 10, '4': 1, '5': 13, '10': 'count'},
-    {'1': 'interval', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '10': 'interval'},
+    {
+      '1': 'interval',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '10': 'interval'
+    },
   ],
 };
 
 /// Descriptor for `TriggerPollBurstResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List triggerPollBurstResponseDescriptor = $convert.base64Decode(
-    'ChhUcmlnZ2VyUG9sbEJ1cnN0UmVzcG9uc2USFAoFY291bnQYCiABKA1SBWNvdW50EjUKCGludG'
-    'VydmFsGBQgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUghpbnRlcnZhbA==');
+final $typed_data.Uint8List triggerPollBurstResponseDescriptor =
+    $convert.base64Decode(
+        'ChhUcmlnZ2VyUG9sbEJ1cnN0UmVzcG9uc2USFAoFY291bnQYCiABKA1SBWNvdW50EjUKCGludG'
+        'VydmFsGBQgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUghpbnRlcnZhbA==');
 
 @$core.Deprecated('Use setS3UploadRequestDescriptor instead')
 const SetS3UploadRequest$json = {
   '1': 'SetS3UploadRequest',
   '2': [
-    {'1': 's3_flush_interval', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 's3FlushInterval'},
-    {'1': 's3_parquet_flush_threshold_bytes', '3': 20, '4': 1, '5': 13, '8': {}, '10': 's3ParquetFlushThresholdBytes'},
+    {
+      '1': 's3_flush_interval',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 's3FlushInterval'
+    },
+    {
+      '1': 's3_parquet_flush_threshold_bytes',
+      '3': 20,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 's3ParquetFlushThresholdBytes'
+    },
   ],
   '7': {},
 };
@@ -164,7 +242,14 @@ final $typed_data.Uint8List setS3UploadRequestDescriptor = $convert.base64Decode
 const SetS3UploadResponse$json = {
   '1': 'SetS3UploadResponse',
   '2': [
-    {'1': 'config', '3': 1, '4': 1, '5': 11, '6': '.xtcp_config.v1.XtcpConfig', '10': 'config'},
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
   ],
 };
 
@@ -177,62 +262,313 @@ final $typed_data.Uint8List setS3UploadResponseDescriptor = $convert.base64Decod
 const XtcpConfig$json = {
   '1': 'XtcpConfig',
   '2': [
-    {'1': 'nl_timeout_milliseconds', '3': 10, '4': 1, '5': 4, '8': {}, '10': 'nlTimeoutMilliseconds'},
-    {'1': 'poll_frequency', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'pollFrequency'},
-    {'1': 'poll_timeout', '3': 30, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'pollTimeout'},
+    {
+      '1': 'nl_timeout_milliseconds',
+      '3': 10,
+      '4': 1,
+      '5': 4,
+      '8': {},
+      '10': 'nlTimeoutMilliseconds'
+    },
+    {
+      '1': 'poll_frequency',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'pollFrequency'
+    },
+    {
+      '1': 'poll_timeout',
+      '3': 30,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'pollTimeout'
+    },
     {'1': 'max_loops', '3': 40, '4': 1, '5': 4, '8': {}, '10': 'maxLoops'},
     {'1': 'netlinkers', '3': 50, '4': 1, '5': 13, '8': {}, '10': 'netlinkers'},
-    {'1': 'netlinkers_done_chan_size', '3': 51, '4': 1, '5': 13, '8': {}, '10': 'netlinkersDoneChanSize'},
+    {
+      '1': 'netlinkers_done_chan_size',
+      '3': 51,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'netlinkersDoneChanSize'
+    },
     {'1': 'nlmsg_seq', '3': 60, '4': 1, '5': 13, '8': {}, '10': 'nlmsgSeq'},
     {'1': 'packet_size', '3': 70, '4': 1, '5': 4, '8': {}, '10': 'packetSize'},
-    {'1': 'packet_size_mply', '3': 80, '4': 1, '5': 13, '8': {}, '10': 'packetSizeMply'},
+    {
+      '1': 'packet_size_mply',
+      '3': 80,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'packetSizeMply'
+    },
     {'1': 'write_files', '3': 90, '4': 1, '5': 13, '8': {}, '10': 'writeFiles'},
-    {'1': 'capture_path', '3': 100, '4': 1, '5': 9, '8': {}, '10': 'capturePath'},
+    {
+      '1': 'capture_path',
+      '3': 100,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'capturePath'
+    },
     {'1': 'modulus', '3': 110, '4': 1, '5': 4, '8': {}, '10': 'modulus'},
     {'1': 'marshal_to', '3': 120, '4': 1, '5': 9, '8': {}, '10': 'marshalTo'},
-    {'1': 'envelope_flush_threshold_bytes', '3': 122, '4': 1, '5': 13, '8': {}, '10': 'envelopeFlushThresholdBytes'},
-    {'1': 'envelope_flush_threshold_rows', '3': 123, '4': 1, '5': 13, '8': {}, '10': 'envelopeFlushThresholdRows'},
-    {'1': 'kafka_compression', '3': 124, '4': 1, '5': 9, '8': {}, '10': 'kafkaCompression'},
+    {
+      '1': 'envelope_flush_threshold_bytes',
+      '3': 122,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'envelopeFlushThresholdBytes'
+    },
+    {
+      '1': 'envelope_flush_threshold_rows',
+      '3': 123,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'envelopeFlushThresholdRows'
+    },
+    {
+      '1': 'kafka_compression',
+      '3': 124,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'kafkaCompression'
+    },
     {'1': 's3_endpoint', '3': 125, '4': 1, '5': 9, '8': {}, '10': 's3Endpoint'},
     {'1': 's3_bucket', '3': 126, '4': 1, '5': 9, '8': {}, '10': 's3Bucket'},
     {'1': 's3_prefix', '3': 127, '4': 1, '5': 9, '8': {}, '10': 's3Prefix'},
-    {'1': 's3_access_key', '3': 128, '4': 1, '5': 9, '8': {}, '10': 's3AccessKey'},
-    {'1': 's3_secret_key', '3': 129, '4': 1, '5': 9, '8': {}, '10': 's3SecretKey'},
-    {'1': 's3_parquet_flush_threshold_bytes', '3': 132, '4': 1, '5': 13, '8': {}, '10': 's3ParquetFlushThresholdBytes'},
+    {
+      '1': 's3_access_key',
+      '3': 128,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 's3AccessKey'
+    },
+    {
+      '1': 's3_secret_key',
+      '3': 129,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 's3SecretKey'
+    },
+    {
+      '1': 's3_parquet_flush_threshold_bytes',
+      '3': 132,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 's3ParquetFlushThresholdBytes'
+    },
     {'1': 's3_region', '3': 133, '4': 1, '5': 9, '8': {}, '10': 's3Region'},
-    {'1': 's3_skip_bucket_probe', '3': 134, '4': 1, '5': 8, '8': {}, '10': 's3SkipBucketProbe'},
-    {'1': 'pyroscope_url', '3': 136, '4': 1, '5': 9, '8': {}, '10': 'pyroscopeUrl'},
-    {'1': 'pyroscope_app_name', '3': 137, '4': 1, '5': 9, '8': {}, '10': 'pyroscopeAppName'},
-    {'1': 'pyroscope_sample_hz', '3': 138, '4': 1, '5': 13, '8': {}, '10': 'pyroscopeSampleHz'},
-    {'1': 'pyroscope_upload_interval_sec', '3': 139, '4': 1, '5': 13, '8': {}, '10': 'pyroscopeUploadIntervalSec'},
+    {
+      '1': 's3_skip_bucket_probe',
+      '3': 134,
+      '4': 1,
+      '5': 8,
+      '8': {},
+      '10': 's3SkipBucketProbe'
+    },
+    {
+      '1': 'pyroscope_url',
+      '3': 136,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'pyroscopeUrl'
+    },
+    {
+      '1': 'pyroscope_app_name',
+      '3': 137,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'pyroscopeAppName'
+    },
+    {
+      '1': 'pyroscope_sample_hz',
+      '3': 138,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'pyroscopeSampleHz'
+    },
+    {
+      '1': 'pyroscope_upload_interval_sec',
+      '3': 139,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'pyroscopeUploadIntervalSec'
+    },
     {'1': 'dest', '3': 130, '4': 1, '5': 9, '8': {}, '10': 'dest'},
-    {'1': 'dest_write_files', '3': 135, '4': 1, '5': 13, '8': {}, '10': 'destWriteFiles'},
+    {
+      '1': 'dest_write_files',
+      '3': 135,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'destWriteFiles'
+    },
     {'1': 'topic', '3': 140, '4': 1, '5': 9, '8': {}, '10': 'topic'},
-    {'1': 'xtcp_proto_file', '3': 143, '4': 1, '5': 9, '8': {}, '10': 'xtcpProtoFile'},
-    {'1': 'kafka_schema_url', '3': 145, '4': 1, '5': 9, '8': {}, '10': 'kafkaSchemaUrl'},
-    {'1': 'kafka_produce_timeout', '3': 150, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'kafkaProduceTimeout'},
-    {'1': 'debug_level', '3': 160, '4': 1, '5': 13, '8': {}, '10': 'debugLevel'},
+    {
+      '1': 'xtcp_proto_file',
+      '3': 143,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'xtcpProtoFile'
+    },
+    {
+      '1': 'kafka_schema_url',
+      '3': 145,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'kafkaSchemaUrl'
+    },
+    {
+      '1': 'kafka_produce_timeout',
+      '3': 150,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'kafkaProduceTimeout'
+    },
+    {
+      '1': 'debug_level',
+      '3': 160,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'debugLevel'
+    },
     {'1': 'label', '3': 170, '4': 1, '5': 9, '8': {}, '10': 'label'},
     {'1': 'tag', '3': 180, '4': 1, '5': 9, '8': {}, '10': 'tag'},
     {'1': 'location', '3': 181, '4': 1, '5': 9, '8': {}, '10': 'location'},
     {'1': 'hostname', '3': 182, '4': 1, '5': 9, '8': {}, '10': 'hostname'},
-    {'1': 'resolve_container_id', '3': 183, '4': 1, '5': 8, '8': {}, '10': 'resolveContainerId'},
+    {
+      '1': 'resolve_container_id',
+      '3': 183,
+      '4': 1,
+      '5': 8,
+      '8': {},
+      '10': 'resolveContainerId'
+    },
     {'1': 'ipv4_ttl', '3': 184, '4': 1, '5': 13, '8': {}, '10': 'ipv4Ttl'},
-    {'1': 'ipv6_hop_limit', '3': 185, '4': 1, '5': 13, '8': {}, '10': 'ipv6HopLimit'},
+    {
+      '1': 'ipv6_hop_limit',
+      '3': 185,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'ipv6HopLimit'
+    },
     {'1': 'grpc_port', '3': 190, '4': 1, '5': 13, '8': {}, '10': 'grpcPort'},
-    {'1': 'enabled_deserializers', '3': 200, '4': 1, '5': 11, '6': '.xtcp_config.v1.EnabledDeserializers', '8': {}, '10': 'enabledDeserializers'},
+    {
+      '1': 'enabled_deserializers',
+      '3': 200,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.EnabledDeserializers',
+      '8': {},
+      '10': 'enabledDeserializers'
+    },
     {'1': 'io_uring', '3': 210, '4': 1, '5': 8, '8': {}, '10': 'ioUring'},
-    {'1': 'io_uring_recv_batch_size', '3': 211, '4': 1, '5': 13, '8': {}, '10': 'ioUringRecvBatchSize'},
-    {'1': 'io_uring_cqe_batch_size', '3': 212, '4': 1, '5': 13, '8': {}, '10': 'ioUringCqeBatchSize'},
+    {
+      '1': 'io_uring_recv_batch_size',
+      '3': 211,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'ioUringRecvBatchSize'
+    },
+    {
+      '1': 'io_uring_cqe_batch_size',
+      '3': 212,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'ioUringCqeBatchSize'
+    },
     {'1': 'csv_columns', '3': 220, '4': 1, '5': 9, '8': {}, '10': 'csvColumns'},
-    {'1': 'poll_jitter_pct', '3': 221, '4': 1, '5': 13, '8': {}, '10': 'pollJitterPct'},
-    {'1': 's3_flush_interval', '3': 222, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 's3FlushInterval'},
-    {'1': 's3_flush_jitter_pct', '3': 223, '4': 1, '5': 13, '8': {}, '10': 's3FlushJitterPct'},
-    {'1': 's3_flush_threshold_jitter_pct', '3': 224, '4': 1, '5': 13, '8': {}, '10': 's3FlushThresholdJitterPct'},
-    {'1': 's3_upload_max_attempts', '3': 225, '4': 1, '5': 13, '8': {}, '10': 's3UploadMaxAttempts'},
-    {'1': 's3_upload_backoff_cap', '3': 226, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 's3UploadBackoffCap'},
-    {'1': 'reconcile_frequency', '3': 227, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'reconcileFrequency'},
-    {'1': 'reconcile_before_poll', '3': 228, '4': 1, '5': 8, '10': 'reconcileBeforePoll'},
+    {
+      '1': 'poll_jitter_pct',
+      '3': 221,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'pollJitterPct'
+    },
+    {
+      '1': 's3_flush_interval',
+      '3': 222,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 's3FlushInterval'
+    },
+    {
+      '1': 's3_flush_jitter_pct',
+      '3': 223,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 's3FlushJitterPct'
+    },
+    {
+      '1': 's3_flush_threshold_jitter_pct',
+      '3': 224,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 's3FlushThresholdJitterPct'
+    },
+    {
+      '1': 's3_upload_max_attempts',
+      '3': 225,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 's3UploadMaxAttempts'
+    },
+    {
+      '1': 's3_upload_backoff_cap',
+      '3': 226,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 's3UploadBackoffCap'
+    },
+    {
+      '1': 'reconcile_frequency',
+      '3': 227,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'reconcileFrequency'
+    },
+    {
+      '1': 'reconcile_before_poll',
+      '3': 228,
+      '4': 1,
+      '5': 8,
+      '10': 'reconcileBeforePoll'
+    },
   ],
   '7': {},
 };
@@ -304,7 +640,14 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
 const EnabledDeserializers$json = {
   '1': 'EnabledDeserializers',
   '2': [
-    {'1': 'enabled', '3': 1, '4': 3, '5': 11, '6': '.xtcp_config.v1.EnabledDeserializers.EnabledEntry', '10': 'enabled'},
+    {
+      '1': 'enabled',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.xtcp_config.v1.EnabledDeserializers.EnabledEntry',
+      '10': 'enabled'
+    },
   ],
   '3': [EnabledDeserializers_EnabledEntry$json],
 };
@@ -324,4 +667,3 @@ final $typed_data.Uint8List enabledDeserializersDescriptor = $convert.base64Deco
     'ChRFbmFibGVkRGVzZXJpYWxpemVycxJLCgdlbmFibGVkGAEgAygLMjEueHRjcF9jb25maWcudj'
     'EuRW5hYmxlZERlc2VyaWFsaXplcnMuRW5hYmxlZEVudHJ5UgdlbmFibGVkGjoKDEVuYWJsZWRF'
     'bnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCFIFdmFsdWU6AjgB');
-

@@ -43,6 +43,9 @@ func request_XTCPFlatRecordService_FlatRecords_0(ctx context.Context, marshaler 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
 	stream, err := client.FlatRecords(ctx, &protoReq)
 	if err != nil {
 		return nil, metadata, err

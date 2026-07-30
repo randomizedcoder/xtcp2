@@ -35,6 +35,7 @@
 #include <grpcpp/support/status.h>
 #include <grpcpp/support/stub_options.h>
 #include <grpcpp/support/sync_stream.h>
+#include <grpcpp/ports_def.inc>
 
 namespace xtcp_config {
 namespace v1 {
@@ -1076,4 +1077,5 @@ class ConfigService final {
 }  // namespace xtcp_config
 
 
+#include <grpcpp/ports_undef.inc>
 #endif  // GRPC_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto__INCLUDED
