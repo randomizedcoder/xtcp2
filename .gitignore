@@ -2,6 +2,9 @@
 result
 result-*
 
+# buf on-disk module cache (repopulated by `buf dep update`; digests pinned in buf.lock)
+/v3/
+
 # cmd/* binaries built at repo root by `go build ./cmd/<name>`
 /clickhouse_http_insert_protobuflist
 /clickhouse_protobuflist
