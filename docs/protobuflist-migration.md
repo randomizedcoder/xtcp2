@@ -1,5 +1,21 @@
 # ProtobufList Migration Plan: xtcp → Redpanda → ClickHouse
 
+> **✅ Completed — historical plan.** This migration has landed: `protobufList`
+> (the `Envelope { repeated XtcpFlatRecord row }` batch) is implemented and is the
+> default marshaller; `ProtobufSingle` is removed. This document is kept for the
+> design rationale and phase history — the "current state" descriptions below
+> describe the *pre-migration* codebase, not today's.
+>
+> **⚠️ Superseded guidance:** any `kafka_schema` value shown in this plan that
+> points at the **`Envelope`** message or a **package-qualified** name (e.g.
+> `xtcp_flat_record.v1.Envelope`) is **wrong** and will stall ingestion. The
+> shipped, correct value points at the **row** type with its **simple** name:
+> `kafka_schema = 'xtcp_flat_record.proto:XtcpFlatRecord'` — see the comment block
+> in [`build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records_kafka.sql`](../build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records_kafka.sql)
+> and the ProtobufList section of [integration-testing.md](integration-testing.md).
+> The current marshaller set is `protobufList, protoJson, protoText, msgpack,
+> jsonl, csv, tsv, humanize` (not just the three named in the phases below).
+
 ## Context
 
 The xtcp daemon currently writes one protobuf record per Kafka message (`ProtobufSingle`). ClickHouse's Kafka engine consumes each message and inserts via a Materialized View; ClickHouse's internal Kafka driver batches inserts so writes to the MergeTree are amortized, but every record still incurs Kafka protocol overhead and franz-go batch-header overhead.

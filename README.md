@@ -121,6 +121,7 @@ The daemon is `xtcp2`; the repo also ships supporting tools under `cmd/`:
 |---|---|
 | `xtcp2` | The main daemon. |
 | `xtcp2client` | gRPC client; streams live `XtcpFlatRecord`s from a running daemon. |
+| `xtcp2ctl` | gRPC control CLI; changes a running daemon's config over `ConfigService` (poll cadence, on-demand polls/bursts, S3 upload timing, soft-restart reconfigure). |
 | `xtcp2_kafka_client` | Kafka consumer that decodes xtcp2's protobufList messages. |
 | `ns` | Namespace inspector — lists/reads netns state the way the daemon sees it. |
 | `nsTest` | Namespace churn driver for soak/stress testing. |

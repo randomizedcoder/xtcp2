@@ -40,16 +40,22 @@ The daemon's entire runtime configuration is the `XtcpConfig` message — every 
 marshaller, destination, Kafka/S3/Pyroscope settings, io_uring tuning, …). It also defines a
 **`ConfigService`** for runtime control:
 
-| RPC | Purpose |
-|---|---|
-| `Get(GetRequest) → GetResponse` | Read the live `XtcpConfig`. |
-| `Set(SetRequest) → SetResponse` | Replace the configuration. |
-| `SetPollFrequency(SetPollFrequencyRequest) → SetPollFrequencyResponse` | Change just the poll interval. |
+| RPC | Purpose | Disruption |
+|---|---|---|
+| `Get(GetRequest) → GetResponse` | Read the live `XtcpConfig` (S3 credentials redacted). | none |
+| `SetPollFrequency(SetPollFrequencyRequest) → SetPollFrequencyResponse` | Change the poll frequency + timeout live. | none (hot) |
+| `TriggerPoll(TriggerPollRequest) → TriggerPollResponse` | Trigger a single poll immediately, without changing the cadence. | none (hot) |
+| `TriggerPollBurst(TriggerPollBurstRequest) → TriggerPollBurstResponse` | Schedule `count` polls `interval` apart (e.g. a socket snapshot every 10s for a minute). | none (hot) |
+| `SetS3Upload(SetS3UploadRequest) → SetS3UploadResponse` | Change the s3parquet flush timer and/or byte cap live. | none (hot) |
+| `Set(SetRequest) → SetResponse` | Validate and apply a full new `XtcpConfig` via a graceful **soft restart** — re-exec (`syscall.Exec`) in place, same container/PID. | brief (soft restart) |
 
-Fields carry [`buf.validate`](https://github.com/bufbuild/protovalidate) CEL constraints that
-are enforced at startup (and on `Set`): e.g. numeric ranges, `marshal_to` length 3–40, and a
-message-level rule that **`poll_frequency > poll_timeout`**. Invalid config makes the daemon
-refuse to start with a precise message. See [grpc-api.md](grpc-api.md) for the service usage.
+The "hot" RPCs change a running daemon with no restart; `Set` re-execs for config baked in at
+startup (exported field groups, `tag`/`location`/`hostname`, marshaller, destination). Fields carry
+[`buf.validate`](https://github.com/bufbuild/protovalidate) CEL constraints that are enforced at
+startup and on every RPC — e.g. numeric ranges, `marshal_to` length 3–40, and a message-level rule
+that **`poll_frequency > poll_timeout`**. Invalid config makes the daemon refuse to start (or the RPC
+return `InvalidArgument`) with a precise message. See [grpc-api.md](grpc-api.md) for the full runtime
+operator-control workflow and the `xtcp2ctl` / `grpcurl` client usage.
 
 ## Data export: `xtcp_flat_record`
 
