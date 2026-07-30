@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 )
 
 // InputValidation wraps validateInput in a log.Fatalf-on-error envelope.

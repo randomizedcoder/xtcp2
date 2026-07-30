@@ -518,19 +518,19 @@ const char descriptor_table_protodef_clickhouse_5fprotolist_2fv1_2fclickhouse_5f
     "\006Record\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32\"o\n\010"
     "Envelope\022<\n\004rows\030\001 \003(\0132(.clickhouse_prot"
     "olist.v1.Envelope.RecordR\004rows\032%\n\006Record"
-    "\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32B\314\001\n\033com.cl"
+    "\022\033\n\tmy_uint32\030\001 \001(\rR\010myUint32B\317\001\n\033com.cl"
     "ickhouse_protolist.v1B\030ClickhouseProtoli"
-    "stProtoP\001Z\032./pkg/clickhouse_protolist\242\002\003"
-    "CXX\252\002\026ClickhouseProtolist.V1\312\002\026Clickhous"
-    "eProtolist\\V1\342\002\"ClickhouseProtolist\\V1\\G"
-    "PBMetadata\352\002\027ClickhouseProtolist::V1b\006pr"
-    "oto3"
+    "stProtoP\001Z\035./gen/go/clickhouse_protolist"
+    "\242\002\003CXX\252\002\026ClickhouseProtolist.V1\312\002\026Clickh"
+    "ouseProtolist\\V1\342\002\"ClickhouseProtolist\\V"
+    "1\\GPBMetadata\352\002\027ClickhouseProtolist::V1b"
+    "\006proto3"
 };
 static ::absl::once_flag descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto = {
     false,
     false,
-    444,
+    447,
     descriptor_table_protodef_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto,
     "clickhouse_protolist/v1/clickhouse_protolist.proto",
     &descriptor_table_clickhouse_5fprotolist_2fv1_2fclickhouse_5fprotolist_2eproto_once,

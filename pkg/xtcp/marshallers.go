@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protowire"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
 )
 
 // Canonical Marshaller names. Aliased to recordfmt's format constants so the

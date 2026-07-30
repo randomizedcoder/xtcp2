@@ -2,7 +2,6 @@ module github.com/randomizedcoder/xtcp2
 
 go 1.25
 
-//replace ./pkg/xtcp_config => ./pkg/xtcp_config
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250307204501-0409229c3780.1

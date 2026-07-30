@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist"
+	"github.com/randomizedcoder/xtcp2/gen/go/clickhouse_protolist"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kprom"

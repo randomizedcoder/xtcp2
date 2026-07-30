@@ -31,11 +31,11 @@ import (
 	"github.com/pkg/profile"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 )

@@ -1436,8 +1436,8 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x10SetPollFrequency\x12'.xtcp_config.v1.SetPollFrequencyRequest\x1a(.xtcp_config.v1.SetPollFrequencyResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/ConfigService/SetPollFrequency\x12}\n" +
 	"\vTriggerPoll\x12\".xtcp_config.v1.TriggerPollRequest\x1a#.xtcp_config.v1.TriggerPollResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/TriggerPoll\x12\x91\x01\n" +
 	"\x10TriggerPollBurst\x12'.xtcp_config.v1.TriggerPollBurstRequest\x1a(.xtcp_config.v1.TriggerPollBurstResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/ConfigService/TriggerPollBurst\x12}\n" +
-	"\vSetS3Upload\x12\".xtcp_config.v1.SetS3UploadRequest\x1a#.xtcp_config.v1.SetS3UploadResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/SetS3UploadB\x8d\x01\n" +
-	"\x12com.xtcp_config.v1B\x0fXtcpConfigProtoP\x01Z\x11./pkg/xtcp_config\xa2\x02\x03XXX\xaa\x02\rXtcpConfig.V1\xca\x02\rXtcpConfig\\V1\xe2\x02\x19XtcpConfig\\V1\\GPBMetadata\xea\x02\x0eXtcpConfig::V1b\x06proto3"
+	"\vSetS3Upload\x12\".xtcp_config.v1.SetS3UploadRequest\x1a#.xtcp_config.v1.SetS3UploadResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/SetS3UploadB\x90\x01\n" +
+	"\x12com.xtcp_config.v1B\x0fXtcpConfigProtoP\x01Z\x14./gen/go/xtcp_config\xa2\x02\x03XXX\xaa\x02\rXtcpConfig.V1\xca\x02\rXtcpConfig\\V1\xe2\x02\x19XtcpConfig\\V1\\GPBMetadata\xea\x02\x0eXtcpConfig::V1b\x06proto3"
 
 var (
 	file_xtcp_config_v1_xtcp_config_proto_rawDescOnce sync.Once

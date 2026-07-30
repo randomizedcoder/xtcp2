@@ -68,7 +68,7 @@ pkgs.writeShellApplication {
 
     go tool covdata textfmt -i "$VMDIRS" -o "$VM_PROFILE"
 
-    skipPkg='github.com/randomizedcoder/xtcp2/pkg/xtcp_config|github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record|github.com/randomizedcoder/xtcp2/pkg/clickhouse_protolist'
+    skipPkg='github.com/randomizedcoder/xtcp2/gen/go/xtcp_config|github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record|github.com/randomizedcoder/xtcp2/gen/go/clickhouse_protolist'
     VM_FILTERED=$(mktemp)
     trap 'rm -f "$VM_PROFILE" "$VM_FILTERED"' EXIT
     grep -vE "$skipPkg" "$VM_PROFILE" > "$VM_FILTERED" || true

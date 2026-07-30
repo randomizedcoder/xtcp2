@@ -177,8 +177,8 @@ const file_clickhouse_protolist_v1_clickhouse_protolist_proto_rawDesc = "" +
 	"\bEnvelope\x12<\n" +
 	"\x04rows\x18\x01 \x03(\v2(.clickhouse_protolist.v1.Envelope.RecordR\x04rows\x1a%\n" +
 	"\x06Record\x12\x1b\n" +
-	"\tmy_uint32\x18\x01 \x01(\rR\bmyUint32B\xcc\x01\n" +
-	"\x1bcom.clickhouse_protolist.v1B\x18ClickhouseProtolistProtoP\x01Z\x1a./pkg/clickhouse_protolist\xa2\x02\x03CXX\xaa\x02\x16ClickhouseProtolist.V1\xca\x02\x16ClickhouseProtolist\\V1\xe2\x02\"ClickhouseProtolist\\V1\\GPBMetadata\xea\x02\x17ClickhouseProtolist::V1b\x06proto3"
+	"\tmy_uint32\x18\x01 \x01(\rR\bmyUint32B\xcf\x01\n" +
+	"\x1bcom.clickhouse_protolist.v1B\x18ClickhouseProtolistProtoP\x01Z\x1d./gen/go/clickhouse_protolist\xa2\x02\x03CXX\xaa\x02\x16ClickhouseProtolist.V1\xca\x02\x16ClickhouseProtolist\\V1\xe2\x02\"ClickhouseProtolist\\V1\\GPBMetadata\xea\x02\x17ClickhouseProtolist::V1b\x06proto3"
 
 var (
 	file_clickhouse_protolist_v1_clickhouse_protolist_proto_rawDescOnce sync.Once

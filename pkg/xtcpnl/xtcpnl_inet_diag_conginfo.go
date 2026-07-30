@@ -3,7 +3,7 @@ package xtcpnl
 import (
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L134

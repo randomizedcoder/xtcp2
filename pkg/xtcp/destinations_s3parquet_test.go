@@ -20,8 +20,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/encoding/protodelim"
 
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
 // ─── fake uploader ───────────────────────────────────────────────────────

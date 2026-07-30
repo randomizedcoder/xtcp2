@@ -104,10 +104,12 @@ message XtcpFlatRecord {
 
 ### Regeneration
 
-- `nix build .#buf-generate` (per `nix/protos/buf-generate.nix`) or invoke `generate_protos.bash`.
+- `nix run .#regen-protos` (per `nix/protos/buf-generate.nix`; local offline plugins). _(The old
+  `generate_protos.bash` / `check_protos.bash` scripts have been retired; the schema re-sync is now
+  folded into `regen-protos`.)_
 - Regenerated artifacts to verify:
-  - `pkg/xtcp_flat_record/xtcp_flat_record.pb.go` — `type Envelope struct { Row []*XtcpFlatRecord }`; no `Envelope_XtcpFlatRecord` type.
-  - Python bindings if they exist in tree (`python/xtcp_flat_record/` or similar).
+  - `gen/go/xtcp_flat_record/xtcp_flat_record.pb.go` — `type Envelope struct { Row []*XtcpFlatRecord }`; no `Envelope_XtcpFlatRecord` type.
+  - Python bindings (`gen/python/xtcp_flat_record/`).
   - Dart bindings if they exist (`dart/xtcp_flat_record/`).
 
 **Definition of done:**

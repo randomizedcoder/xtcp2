@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcp_config"
 )
 
 // TestBackgroundReconcileFrequency: nil config → package default; a configured

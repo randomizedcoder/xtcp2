@@ -19,7 +19,7 @@ pkgs.runCommand "xtcp2-gofmt"
   ''
     cp -r $src/. ./xtcp2 && chmod -R +w ./xtcp2
     cd ./xtcp2
-    unformatted=$(gofmt -l . 2>&1 | grep -v -E '(^vendor/|\.pb\.go$|\.pb\.gw\.go$|^gen/|^dart/|^python/)' || true)
+    unformatted=$(gofmt -l . 2>&1 | grep -v -E '(^vendor/|\.pb\.go$|\.pb\.gw\.go$|^gen/)' || true)
     if [ -n "$unformatted" ]; then
       echo "gofmt: the following files are not formatted:" >&2
       echo "$unformatted" >&2

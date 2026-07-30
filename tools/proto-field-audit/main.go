@@ -3,8 +3,10 @@
 // Cross-checks proto field declarations against the Go code that fills them.
 //
 // For each *.proto under proto/, parses field names declared in messages.
-// Then AST-walks Go source under pkg/ looking for `.Set<Field>(` or
-// `.<Field> =` references. Reports any proto field never written in Go.
+// Then AST-walks Go source under the module (pkg/, gen/, cmd/, …) looking for
+// `.Set<Field>(` or `.<Field> =` references. Reports any proto field never
+// written in Go. (Generated bindings live in gen/go/, so the default scan root
+// is the module root rather than pkg/.)
 //
 // This is the inverse of the existing Rust proto-audit tool in the sibling
 // xdp2 repo (which audits which kernel structs map to which proto fields).
@@ -37,7 +39,7 @@ func runMain(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("proto-field-audit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	protoRoot := fs.String("proto-root", "proto", "directory containing *.proto")
-	goRoot := fs.String("go-root", "pkg", "directory containing Go source")
+	goRoot := fs.String("go-root", ".", "directory containing Go source (module root; generated bindings live in gen/go/)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
