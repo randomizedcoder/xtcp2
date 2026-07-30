@@ -26,6 +26,17 @@
 #                                              Deserialize on real netlink
 #                                              bytes — the main reason this
 #                                              exists)
+#   XTCP2_SELF_TEST_CTL_HOT_{PASS,FAIL}        xtcp2ctl set-poll-frequency is
+#                                              reflected by a later `get` and
+#                                              bumps the Poller ticker.Reset
+#                                              counter (hot change, no restart)
+#   XTCP2_SELF_TEST_CTL_TRIGGER_{PASS,FAIL}    xtcp2ctl trigger-poll + poll-burst
+#                                              advance the Poller pollRequestCh
+#                                              counter with the ticker parked
+#   XTCP2_SELF_TEST_CTL_RESTART_{PASS,FAIL}    xtcp2ctl reconfigure = in-place
+#                                              soft restart (syscall.Exec): same
+#                                              MainPID, `get` + streamed records
+#                                              carry the new tag (non-coverage)
 #   XTCP2_SELF_TEST_NS_ANONYMOUS_{PASS,FAIL}   an anonymous `unshare -n` netns
 #                                              (no /run/netns bind mount) held by
 #                                              a live process is discovered by
@@ -106,6 +117,7 @@ pkgs.writeShellApplication {
     docker # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
     minio-client # mc — only used by Check 13/14 (s3parquet); harmless otherwise
     duckdb # used by Check 14 to decode the Parquet file
+    jq # used by Check 19 to edit the config JSON for the reconfigure soft restart
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -226,6 +238,7 @@ pkgs.writeShellApplication {
     binaries=(
       xtcp2
       xtcp2client
+      xtcp2ctl
       xtcp2_kafka_client
       clickhouse_protobuflist
       clickhouse_protobuflist_db
@@ -253,7 +266,7 @@ pkgs.writeShellApplication {
       fi
     done
     if [ "$check4" -eq 0 ]; then
-      echo "XTCP2_SELF_TEST_BINARIES_HELP_PASS  (10 binaries OK)"
+      echo "XTCP2_SELF_TEST_BINARIES_HELP_PASS  (11 binaries OK)"
     else
       echo "XTCP2_SELF_TEST_BINARIES_HELP_FAIL  (failed:$failed_help)"
       overall_ok=0
@@ -638,6 +651,118 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_FAIL  (rows=$parquetRows)"
       fi
       if [ "$check15" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    # ─── Checks 17-19: xtcp2ctl runtime operator control ─────────────────
+    # Prove the new control CLI actually CHANGES daemon behavior, not just
+    # that the RPC returns OK. Run LAST because check 17 parks the poll ticker
+    # at 1h (to isolate check 18), which would starve the kafka/s3 checks above
+    # if it ran earlier.
+    #   17 CTL_HOT     — set-poll-frequency is reflected by a later `get` AND
+    #                    bumps the Poller ticker.Reset counter (poller re-read
+    #                    config and reset its ticker).
+    #   18 CTL_TRIGGER — with the ticker parked at 1h, trigger-poll + poll-burst
+    #                    are the ONLY thing that can advance the Poller
+    #                    pollRequestCh counter, so a clean delta proves the
+    #                    on-demand polls really ran.
+    #   19 CTL_RESTART — reconfigure (soft restart via syscall.Exec) with a new
+    #                    tag: MainPID is unchanged (in-place re-exec, NOT a
+    #                    systemd restart), `get` reflects the new tag, and freshly
+    #                    streamed records carry it. Skipped under coverage (a
+    #                    re-exec drops pre-exec -cover counters).
+    CTL=(-target 127.0.0.1 -port ${toString grpcPort})
+
+    echo "--- check 17: xtcp2ctl set-poll-frequency (hot change, no restart) ---"
+    check17=1
+    if command -v xtcp2ctl >/dev/null 2>&1; then
+      before_reset=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="ticker.Reset"')
+      # Park the ticker at 1h with a 1s timeout: the long frequency isolates
+      # check 18, and the small timeout lets the burst there use a 2s interval
+      # (burst interval must exceed poll_timeout).
+      xtcp2ctl set-poll-frequency -frequency 3600s -timeout 1s "''${CTL[@]}" >/tmp/ctl.log 2>&1
+      sp_rc=$?
+      got=$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null)
+      after_reset=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="ticker.Reset"')
+      if [ "$sp_rc" -eq 0 ] && printf '%s' "$got" | grep -q '"3600s"' && [ "$after_reset" -gt "$before_reset" ]; then
+        echo "XTCP2_SELF_TEST_CTL_HOT_PASS  (get shows 3600s, ticker.Reset $before_reset→$after_reset)"
+        check17=0
+      else
+        echo "XTCP2_SELF_TEST_CTL_HOT_FAIL  (sp_rc=$sp_rc, ticker.Reset $before_reset→$after_reset)"
+        printf '%s\n' "$got" | head -n 3
+      fi
+    else
+      echo "XTCP2_SELF_TEST_CTL_HOT_FAIL  (xtcp2ctl not on PATH)"
+    fi
+    if [ "$check17" -ne 0 ]; then overall_ok=0; fi
+
+    echo "--- check 18: xtcp2ctl trigger-poll + poll-burst drive on-demand polls ---"
+    check18=1
+    if command -v xtcp2ctl >/dev/null 2>&1; then
+      sleep 3   # let any in-flight poll from the pre-3600s cadence drain
+      before_poll=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollRequestCh"')
+      xtcp2ctl trigger-poll "''${CTL[@]}" >/dev/null 2>&1
+      xtcp2ctl poll-burst -count 4 -interval 2s "''${CTL[@]}" >/dev/null 2>&1
+      sleep 10  # 4 polls × 2s spacing + slack
+      after_poll=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollRequestCh"')
+      delta=$((after_poll - before_poll))
+      # Ticker parked at 1h, so 1 (trigger) + 4 (burst) = 5 on-demand pokes are
+      # the only possible source. Require >=4 (tolerate one timing slip).
+      if [ "$delta" -ge 4 ]; then
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_PASS  (pollRequestCh +$delta from trigger+burst, ticker parked)"
+        check18=0
+      else
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (pollRequestCh +$delta, expected >=4)"
+      fi
+    else
+      echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (xtcp2ctl not on PATH)"
+    fi
+    if [ "$check18" -ne 0 ]; then overall_ok=0; fi
+
+    ${lib.optionalString (!coverageEnabled) ''
+      echo "--- check 19: xtcp2ctl reconfigure = soft restart (same PID, new tag in records) ---"
+      check19=1
+      if command -v xtcp2ctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        reconf_tag="INC-SELFTEST-9f3a"
+        pid_before=$(systemctl show -p MainPID --value xtcp2)
+        xtcp2ctl get "''${CTL[@]}" > /tmp/xtcp2-cfg.json 2>/dev/null
+        jq --arg t "$reconf_tag" '.tag = $t' /tmp/xtcp2-cfg.json > /tmp/xtcp2-cfg.new.json 2>/tmp/jq.err
+        if [ ! -s /tmp/xtcp2-cfg.new.json ]; then
+          echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (could not build new config: $(head -n1 /tmp/jq.err 2>/dev/null))"
+        else
+          xtcp2ctl reconfigure -file /tmp/xtcp2-cfg.new.json "''${CTL[@]}" >/tmp/reconf.log 2>&1
+          # Wait for the daemon to re-exec and come back serving the new tag.
+          back=0
+          for _ in $(seq 1 30); do
+            if xtcp2ctl get "''${CTL[@]}" 2>/dev/null | grep -q "$reconf_tag"; then back=1; break; fi
+            sleep 1
+          done
+          pid_after=$(systemctl show -p MainPID --value xtcp2)
+          # Freshly streamed records must carry the new tag. Give the daemon a
+          # live socket to report, then poll-stream briefly and grep the output.
+          nc -l 127.0.0.1 17325 >/dev/null 2>&1 &
+          rl=$!
+          ( echo hi | nc -w 6 127.0.0.1 17325 >/dev/null 2>&1 ) &
+          rc_pid=$!
+          sleep 1
+          timeout 6s xtcp2client -poll -pollFrequency 1s -json \
+            -target 127.0.0.1 -port ${toString grpcPort} >/tmp/xtcp2client-tag.log 2>&1
+          kill "$rl" "$rc_pid" 2>/dev/null || true
+          rec_ok=0
+          if grep -q "$reconf_tag" /tmp/xtcp2client-tag.log 2>/dev/null; then rec_ok=1; fi
+
+          if [ "$back" -eq 1 ] && [ -n "$pid_after" ] && [ "$pid_after" = "$pid_before" ] \
+             && systemctl is-active --quiet xtcp2 && [ "$rec_ok" -eq 1 ]; then
+            echo "XTCP2_SELF_TEST_CTL_RESTART_PASS  (soft restart: MainPID stayed $pid_before, records now carry tag=$reconf_tag)"
+            check19=0
+          else
+            echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (back=$back, pid $pid_before→$pid_after, active=$(systemctl is-active xtcp2 || true), recTag=$rec_ok)"
+            head -n 5 /tmp/reconf.log 2>/dev/null || true
+          fi
+        fi
+      else
+        echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (xtcp2ctl or jq not on PATH)"
+      fi
+      if [ "$check19" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     echo "================================================"

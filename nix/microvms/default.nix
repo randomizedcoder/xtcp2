@@ -124,6 +124,25 @@ let
       sink = "clickhouse-pipeline";
     };
 
+  # Runtime-control rate test: the clickhouse-pipeline stack + a steady
+  # 100-connection tcp load + an in-VM monitor that drives xtcp2ctl and
+  # asserts the ClickHouse ingest rate responds. Host runner is duration-
+  # bounded (mkClickPipeRateRunner). No tcp-stress image needed.
+  mkOneClickPipeRate =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "clickhouse-pipeline-rate";
+    };
+
   # Full end-to-end integration stress test: clickhouse-pipeline stack +
   # the tcp-stress socket-load containers. Needs tcpStressImage (to
   # docker-load and spawn the load containers) in addition to the pipeline.
@@ -281,6 +300,8 @@ let
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
+  vmsClickPipeRate = lib.genAttrs constants.supportedArchs mkOneClickPipeRate;
+
   vmsClickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs mkOneClickPipeStress
   );
@@ -310,7 +331,7 @@ let
       # Surface every sentinel the self-test emits so a real failure in
       # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
       # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
     };
   });
 
@@ -322,7 +343,7 @@ let
       # The two s3parquet-specific sentinels alongside the baseline set.
       # 240 s timeout because the worker accumulates rows for several
       # poll cycles before triggering the 1 MiB-threshold finalize.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
       timeoutSec = 240;
     };
   });
@@ -339,7 +360,7 @@ let
         # outcome visible. Without this the default filter hides
         # them; the checks still execute (and the daemon exercises the
         # corresponding code paths) but the harness output is misleading.
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
       };
     })
   );
@@ -351,7 +372,7 @@ let
         vm = vmsCoverageIoUring.${arch};
         suffix = "-coverage-iouring";
         scrapeCoverage = true;
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|OVERALL";
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
       };
     })
   );
@@ -383,6 +404,18 @@ let
     runner = microvmLib.mkDiscoveryBenchRunner {
       inherit arch;
       vm = vmsDiscoveryBench.${arch};
+    };
+  });
+
+  # Runtime-control rate test runner: boots the clickhouse-pipeline-rate VM,
+  # waits for the in-VM monitor's XTCP2_RATE_DONE (or --timeout), and passes
+  # only if the ingest rate responded to set-poll-frequency + poll-burst.
+  # No tcpStressImage needed (the steady load is the default-ns tcp_server/
+  # tcp_client pair, not the load containers).
+  clickPipeRate = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkClickPipeRateRunner {
+      inherit arch;
+      vm = vmsClickPipeRate.${arch};
     };
   });
 
@@ -453,6 +486,7 @@ in
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsClickPipeRate
     vmsClickPipeStress
     vmsClickPipeParquet
     vmsS3Parquet
@@ -463,6 +497,7 @@ in
     vmsDiscoveryBench
     s3parquetLong
     discoveryBench
+    clickPipeRate
     clickPipeStress
     s3ParquetStress
     s3ParquetLowfreq

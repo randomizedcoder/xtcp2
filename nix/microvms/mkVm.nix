@@ -87,6 +87,14 @@ let
   # poll frequency + low socket count. Lighter than stress (no dedicated disks,
   # no retention).
   isS3ParquetLowfreq = sink == "s3parquet-lowfreq";
+  # clickhouse-pipeline-rate = the runtime-control behavioral test: the
+  # clickhouse-pipeline stack (redpanda + clickhouse + kafka + xtcp2) PLUS a
+  # steady 100-connection tcp_server/tcp_client load (a stable rate
+  # denominator). A dedicated in-VM monitor drives xtcp2ctl through a
+  # baseline→fast→revert poll-frequency schedule plus a poll-burst, and asserts
+  # the RATE of rows arriving in xtcp.xtcp_flat_records responds and returns —
+  # end-to-end proof the operator-control CLI changes live daemon behavior.
+  isClickPipeRate = sink == "clickhouse-pipeline-rate";
   # discovery-bench = a root VM that runs the namespace-discovery A/B grid
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
@@ -95,7 +103,7 @@ let
   # mem budget, daemon args base) is shared.
   isAnyS3Parquet = isS3Parquet || isS3ParquetLong || isCapCheckFail || isClickPipeParquet || isS3ParquetStress || isS3ParquetLowfreq;
   # All flavors that bring up the redpanda + clickhouse docker stack.
-  isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress;
+  isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress || isClickPipeRate;
   # Flavors that spawn the tcp-stress socket-load containers.
   isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress || isS3ParquetLowfreq;
   # Anything that needs dockerd inside the VM (the tcp-stress load containers
@@ -800,6 +808,172 @@ let
     '';
   };
 
+  # clickhouse-pipeline-rate flavor: the runtime-control behavioral test.
+  # A dedicated monitor drives xtcp2ctl through a poll-frequency schedule and
+  # asserts the RATE of rows arriving in xtcp.xtcp_flat_records responds:
+  #   BASELINE(10s) → FAST(1s, ~10× faster) → REVERT(10s, back down)
+  # then a poll-burst (6 polls, 10s apart) with the ticker parked. Rate is the
+  # ClickHouse row-count delta over a fixed window (default 60s); a steady
+  # 100-connection tcp load keeps rows-per-poll stable so rate tracks only the
+  # frequency. Emits per-phase data + PASS/FAIL verdict sentinels + a terminal
+  # XTCP2_RATE_DONE the host runner (lib.nix mkClickPipeRateRunner) waits on.
+  clickPipeRateScript = pkgs.writeShellApplication {
+    name = "xtcp2-clickpipe-rate";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      docker
+      gawk
+      gnugrep
+      xtcp2AllPackage # provides xtcp2ctl
+    ];
+    text = ''
+      # Never abort mid-schedule — we want to reach XTCP2_RATE_DONE so the host
+      # runner never blocks to timeout on a single transient hiccup.
+      set +e
+
+      WINDOW=''${RATE_WINDOW_SEC:-180}  # per-phase measurement window (seconds)
+      SETTLE=''${RATE_SETTLE_SEC:-30}   # settle after a frequency change before measuring
+      TOL=''${RATE_TOL_PCT:-10}         # ± tolerance percent for the quantitative asserts
+      GPORT=${toString cfg.grpcPort}
+      PROM="http://127.0.0.1:${toString cfg.promPort}/metrics"
+
+      ch_rows() {
+        docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT count() FROM xtcp.xtcp_flat_records' 2>/dev/null | tr -dc '0-9'
+      }
+      # Sum a Poller counter row (function="Poller",variable=$1) from /metrics.
+      # Handles integer or scientific-notation values (awk coerces both).
+      poller_counter() {
+        curl --silent --fail --max-time 3 "$PROM" 2>/dev/null \
+          | awk -v v="variable=\"$1\"" '
+              /^xtcp_counts/ && index($0,"function=\"Poller\"")>0 && index($0,v)>0 { s += $NF + 0 }
+              END { printf "%d", s+0 }'
+      }
+      setfreq() { xtcp2ctl set-poll-frequency -frequency "$1" -timeout "$2" -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1; }
+      # within_tol ACTUAL EXPECTED → true when |actual-expected|*100/expected <= TOL.
+      within_tol() {
+        local a="$1" e="$2" d
+        [ "$e" -le 0 ] && return 1
+        d=$(( a >= e ? a - e : e - a ))
+        [ $(( d * 100 / e )) -le "$TOL" ]
+      }
+      verdict() { # NAME OK MSG
+        if [ "$2" -eq 1 ]; then echo "XTCP2_RATE_''${1}_PASS ($3)"; else echo "XTCP2_RATE_''${1}_FAIL ($3)"; fi
+      }
+
+      # measure PHASE FREQ_SECONDS → samples (ClickHouse rows, produced rows,
+      # poll count) across one window and sets the globals M_CH / M_PRODUCED /
+      # M_POLLS / M_EXPECTED / M_N. N = produced/polls = sockets-per-poll (the
+      # daemon's own socket estimate). Jitter is disabled, so M_POLLS ≈ W/f.
+      measure() {
+        local phase="$1" fsec="$2" t0 e0 k0 t1 e1 k1
+        t0=$(ch_rows); t0=''${t0:-0}; e0=$(poller_counter envelopeRows); k0=$(poller_counter ticker)
+        sleep "$WINDOW"
+        t1=$(ch_rows); t1=''${t1:-0}; e1=$(poller_counter envelopeRows); k1=$(poller_counter ticker)
+        M_CH=$(( t1 - t0 )); M_PRODUCED=$(( e1 - e0 )); M_POLLS=$(( k1 - k0 ))
+        M_EXPECTED=$(( WINDOW / fsec ))
+        if [ "$M_POLLS" -gt 0 ]; then M_N=$(( M_PRODUCED / M_POLLS )); else M_N=0; fi
+        echo "XTCP2_RATE_$phase $(date -u +%FT%TZ) freq=''${fsec}s window=''${WINDOW}s polls=$M_POLLS expected_polls=$M_EXPECTED sockets_per_poll=$M_N produced=$M_PRODUCED ch_delta=$M_CH"
+      }
+
+      echo "XTCP2_RATE_START $(date -u +%FT%TZ) window=''${WINDOW}s settle=''${SETTLE}s tol=''${TOL}% grpc=$GPORT"
+
+      # ── Ready gate: xtcp2 metrics up AND rows already flowing into ClickHouse.
+      ready=0
+      for _ in $(seq 1 90); do
+        if curl --silent --fail --max-time 3 "$PROM" 2>/dev/null | grep -q '^xtcp_'; then
+          r=$(ch_rows); r=''${r:-0}
+          if [ "$r" -gt 0 ]; then ready=1; break; fi
+        fi
+        sleep 2
+      done
+      if [ "$ready" -ne 1 ]; then
+        echo "XTCP2_RATE_OVERALL_FAIL (pipeline not ready: no rows in ClickHouse within 180s)"
+        echo "XTCP2_RATE_DONE"
+        exit 1
+      fi
+
+      # ── Phase 1: BASELINE (10s) — defines the reference socket estimate.
+      setfreq 10s 2s;   sleep "$SETTLE"; measure BASELINE 10
+      base_polls=$M_POLLS; base_exp=$M_EXPECTED; base_ch=$M_CH; base_prod=$M_PRODUCED; NCALIB=$M_N
+      # ── Phase 2: FAST (1s) — ~10× the poll rate.
+      setfreq 1s 500ms; sleep "$SETTLE"; measure FAST 1
+      fast_polls=$M_POLLS; fast_exp=$M_EXPECTED; fast_ch=$M_CH; fast_prod=$M_PRODUCED; fast_n=$M_N
+      # ── Phase 3: REVERT (10s) — rate returns to baseline.
+      setfreq 10s 2s;   sleep "$SETTLE"; measure REVERT 10
+      rev_polls=$M_POLLS; rev_exp=$M_EXPECTED; rev_ch=$M_CH; rev_prod=$M_PRODUCED; rev_n=$M_N
+
+      # CADENCE: the actual poll count each window matched window/frequency —
+      # i.e. set-poll-frequency really changed the poll rate (quantitatively).
+      cad_ok=1
+      within_tol "$base_polls" "$base_exp" || cad_ok=0
+      within_tol "$fast_polls" "$fast_exp" || cad_ok=0
+      within_tol "$rev_polls" "$rev_exp"  || cad_ok=0
+      verdict CADENCE "$cad_ok" "polls vs W/f: base=$base_polls/$base_exp fast=$fast_polls/$fast_exp revert=$rev_polls/$rev_exp"
+
+      # PREDICT (the headline): ClickHouse rows in the FAST and REVERT windows
+      # matched the prediction from the socket estimate + the known frequency:
+      # expected = NCALIB × (window/freq).
+      fast_pred=$(( NCALIB * fast_exp )); rev_pred=$(( NCALIB * rev_exp ))
+      pred_ok=1
+      within_tol "$fast_ch" "$fast_pred" || pred_ok=0
+      within_tol "$rev_ch" "$rev_pred"  || pred_ok=0
+      verdict PREDICT "$pred_ok" "ch vs N*W/f (N=$NCALIB): fast=$fast_ch/$fast_pred revert=$rev_ch/$rev_pred"
+
+      # DELIVERY: every row the daemon produced reached ClickHouse (no loss /
+      # consumer stall) — ch_delta ≈ produced each phase.
+      del_ok=1
+      within_tol "$base_ch" "$base_prod" || del_ok=0
+      within_tol "$fast_ch" "$fast_prod" || del_ok=0
+      within_tol "$rev_ch" "$rev_prod"  || del_ok=0
+      verdict DELIVERY "$del_ok" "ch vs produced: base=$base_ch/$base_prod fast=$fast_ch/$fast_prod revert=$rev_ch/$rev_prod"
+
+      # SOCKETS: the socket estimate stayed stable across phases, so the rate
+      # change is attributable to frequency, not socket drift.
+      soc_ok=1
+      within_tol "$fast_n" "$NCALIB" || soc_ok=0
+      within_tol "$rev_n" "$NCALIB"  || soc_ok=0
+      verdict SOCKETS "$soc_ok" "sockets/poll stable: calib=$NCALIB fast=$fast_n revert=$rev_n"
+
+      # ── Phase 4: BURST. Park the ticker at 1h (1s timeout lets a 10s burst
+      # interval satisfy interval>poll_timeout). Measure one poll's rows via the
+      # daemon counter (no lag), then fire 6 polls 10s apart and confirm the
+      # poll counter advanced by >=6 and 6× the rows were produced AND delivered.
+      setfreq 3600s 1s; sleep "$SETTLE"
+      pe0=$(poller_counter envelopeRows)
+      xtcp2ctl trigger-poll -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1
+      sleep 8
+      pe1=$(poller_counter envelopeRows)
+      perpoll=$(( pe1 - pe0 ))
+
+      pr0=$(poller_counter pollRequestCh); be0=$(poller_counter envelopeRows)
+      bc0=$(ch_rows); bc0=''${bc0:-0}
+      xtcp2ctl poll-burst -count 6 -interval 10s -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1
+      sleep 80   # 6 × 10s spacing + ClickHouse consume lag
+      pr1=$(poller_counter pollRequestCh); be1=$(poller_counter envelopeRows)
+      bc1=$(ch_rows); bc1=''${bc1:-0}
+      pollreq_delta=$(( pr1 - pr0 )); burst_prod=$(( be1 - be0 )); burst_ch=$(( bc1 - bc0 ))
+      burst_exp=$(( 6 * perpoll ))
+      echo "XTCP2_RATE_BURST $(date -u +%FT%TZ) perpoll=$perpoll pollreq_delta=$pollreq_delta produced=$burst_prod ch_delta=$burst_ch expected=$burst_exp"
+
+      burst_ok=1
+      [ "$pollreq_delta" -ge 6 ] || burst_ok=0
+      [ "$perpoll" -gt 0 ] || burst_ok=0
+      within_tol "$burst_prod" "$burst_exp" || burst_ok=0
+      within_tol "$burst_ch" "$burst_prod"  || burst_ok=0
+      verdict BURST "$burst_ok" "6 polls: pollreq_delta=$pollreq_delta produced=$burst_prod/~$burst_exp ch=$burst_ch"
+
+      if [ "$cad_ok" -eq 1 ] && [ "$pred_ok" -eq 1 ] && [ "$del_ok" -eq 1 ] \
+         && [ "$soc_ok" -eq 1 ] && [ "$burst_ok" -eq 1 ]; then
+        echo "XTCP2_RATE_OVERALL_PASS"
+      else
+        echo "XTCP2_RATE_OVERALL_FAIL (cadence=$cad_ok predict=$pred_ok delivery=$del_ok sockets=$soc_ok burst=$burst_ok)"
+      fi
+      echo "XTCP2_RATE_DONE"
+    '';
+  };
+
   # s3parquet flavor: in-VM MinIO + bucket bootstrap. The xtcp2 daemon
   # talks to MinIO directly via the minio-go client; no proto-desc file
   # or unixgram socket required. The long-soak variant additionally
@@ -1114,6 +1288,18 @@ let
     "2s"
     "-kafkaSchemaUrl"
     "http://localhost:18081"
+  ];
+
+  # clickhouse-pipeline-rate flavor: same kafka pipeline, but poll jitter is
+  # DISABLED so each measurement window's poll count is exactly window/frequency.
+  # The rate monitor predicts expected rows = sockets_per_poll × (window/freq)
+  # and asserts ClickHouse matches within tolerance — jitter's ±20% cadence
+  # variance would defeat that tight prediction. The rate *behavior* is
+  # identical; only the variance is removed. The monitor overrides -frequency
+  # at runtime via xtcp2ctl, so the 5s here is just the pre-baseline cadence.
+  xtcp2ClickPipeRateArgs = xtcp2ClickPipeArgs ++ [
+    "-pollJitterPct"
+    "0"
   ];
 
   xtcp2CoverageArgs =
@@ -1543,6 +1729,10 @@ in
           extraArgs =
             if isCoverage then
               xtcp2CoverageArgs
+            else if isClickPipeRate then
+              # Rate test: kafka pipeline with poll jitter disabled for a
+              # deterministic per-window poll count (see xtcp2ClickPipeRateArgs).
+              xtcp2ClickPipeRateArgs
             else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               # The mixed flavor uses these args for its primary xtcp2
@@ -1630,7 +1820,7 @@ in
         # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
         # boot or via a systemd.path gate. Skipped on long-running flavors
         # (soak / s3parquet-long), which run heartbeat services instead.
-        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak && !isS3ParquetLong) {
+        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate) {
           description = "xtcp2 microvm self-test";
           after = [
             "xtcp2.service"
@@ -1751,7 +1941,7 @@ in
         # bytes-sent / segs-out for the parser to chew on. The two units
         # below run alongside the nsTest churn for the soak flavor.
         systemd.services.xtcp2-soak-tcp-server =
-          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet || isClickPipeRate)
             {
               description = "xtcp2 soak — tcp_server echo listeners";
               after = [ "network-online.target" ];
@@ -1826,7 +2016,7 @@ in
         };
 
         systemd.services.xtcp2-soak-tcp-client =
-          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet)
+          lib.mkIf (isSoak || isS3ParquetLong || isClickPipeParquet || isClickPipeRate)
             {
               description = "xtcp2 soak — tcp_client traffic generators";
               # tcp_server takes a moment to bind all N ports — gate the
@@ -2185,6 +2375,32 @@ in
             ExecStart = "${clickPipeMonitorScript}/bin/xtcp2-clickpipe-monitor";
             Restart = "on-failure";
             RestartSec = "10s";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # clickhouse-pipeline-rate flavor: the runtime-control rate test driver.
+        # Runs the baseline→fast→revert→burst schedule against the live daemon
+        # via xtcp2ctl and prints XTCP2_RATE_* sentinels the host runner scrapes.
+        # Ordered after the pipeline is up + xtcp2 is serving gRPC.
+        systemd.services.xtcp2-clickpipe-rate = lib.mkIf isClickPipeRate {
+          description = "xtcp2 clickhouse-pipeline-rate — runtime-control rate test";
+          after = [
+            "xtcp2-clickpipe-up.service"
+            "xtcp2.service"
+            "xtcp2-soak-tcp-client.service"
+          ];
+          requires = [ "xtcp2-clickpipe-up.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            # oneshot: the schedule runs once to XTCP2_RATE_DONE and exits.
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${clickPipeRateScript}/bin/xtcp2-clickpipe-rate";
+            # ~15 min schedule (3×180s windows + settles + burst) + readiness
+            # headroom. The host runner's --timeout bounds the overall run.
+            TimeoutStartSec = "1900";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };

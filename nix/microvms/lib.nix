@@ -834,6 +834,148 @@ rec {
       '';
     };
 
+  # mkClickPipeRateRunner — host runner for the clickhouse-pipeline-rate flavor.
+  # Mirrors mkDiscoveryBenchRunner (boot, tail both consoles, wait for a DONE
+  # sentinel or --timeout, power off). The in-VM xtcp2-clickpipe-rate monitor
+  # drives xtcp2ctl through a poll-frequency schedule and emits XTCP2_RATE_*
+  # sentinels; this runner surfaces the per-phase data lines and passes only if
+  # all three verdicts (INCREASE / REVERT / BURST) are PASS.
+  mkClickPipeRateRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-clickpipe-rate-runner-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        # ~15 min schedule (3×180s windows + settles + burst) + docker/
+        # ClickHouse/Redpanda first-boot pulls. Override with --timeout.
+        TIMEOUT_SEC=1800
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>]"
+              echo "  Boots the clickhouse-pipeline-rate microvm, which drives"
+              echo "  xtcp2ctl through a baseline→fast→revert poll-frequency"
+              echo "  schedule + a poll-burst, and asserts the ClickHouse ingest"
+              echo "  rate responds. Prints the per-phase XTCP2_RATE_* lines."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-clickpipe-rate-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 microvm clickhouse-pipeline-rate — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # Wait for the schedule to finish (XTCP2_RATE_DONE) or the timeout.
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'XTCP2_RATE_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: XTCP2_RATE_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " clickhouse-pipeline-rate results"
+        echo "================================================"
+        grep -E 'XTCP2_RATE_(START|BASELINE|FAST|REVERT|BURST) ' "$LOG" 2>/dev/null || true
+        grep -E 'XTCP2_RATE_(CADENCE|PREDICT|DELIVERY|SOCKETS|BURST|OVERALL)_(PASS|FAIL)' "$LOG" 2>/dev/null || true
+
+        rc=0
+        if grep -qE 'XTCP2_RATE_(CADENCE|PREDICT|DELIVERY|SOCKETS|BURST|OVERALL)_FAIL' "$LOG" 2>/dev/null; then
+          echo "FAIL: at least one rate verdict failed"
+          rc=1
+        elif grep -q 'XTCP2_RATE_CADENCE_PASS' "$LOG" 2>/dev/null \
+          && grep -q 'XTCP2_RATE_PREDICT_PASS' "$LOG" 2>/dev/null \
+          && grep -q 'XTCP2_RATE_DELIVERY_PASS' "$LOG" 2>/dev/null \
+          && grep -q 'XTCP2_RATE_SOCKETS_PASS' "$LOG" 2>/dev/null \
+          && grep -q 'XTCP2_RATE_BURST_PASS' "$LOG" 2>/dev/null; then
+          echo "PASS: predicted ClickHouse rows from the socket estimate matched actual across baseline/fast/revert + burst"
+        else
+          echo "FAIL: not all rate verdict sentinels present"
+          rc=1
+        fi
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        exit "$rc"
+      '';
+    };
+
   mkSoakRunner =
     {
       arch,
