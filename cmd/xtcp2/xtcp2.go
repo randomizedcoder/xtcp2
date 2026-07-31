@@ -13,18 +13,17 @@ import (
 	runtimeDebug "runtime/debug"
 	"strconv"
 	"strings"
+	// net/http/pprof is imported for its Index/Cmdline/Profile/Symbol/Trace
+	// handlers, which initPromHandler registers EXPLICITLY on the prom mux (not
+	// via the usual blank side-effect import, which would register on
+	// http.DefaultServeMux implicitly and trip gosec G108). /debug/pprof is
+	// served on the same /metrics listener — handy for on-demand forensic stack
+	// snapshots without a separate debug HTTP server. Pyroscope provides the
+	// continuous profiles; pprof here is the on-demand complement.
+	"net/http/pprof"
 	"sync"
 	"syscall"
 	"time"
-
-	// Side-effect import: registers /debug/pprof/* handlers on
-	// http.DefaultServeMux. promHandlerStarter listens on /metrics
-	// via the same mux, so /debug/pprof/goroutine etc. are reachable
-	// on the prom port — handy when forensic stack snapshots are
-	// needed without standing up a separate debug-only HTTP server.
-	// Pyroscope provides continuous profiles; pprof here is the
-	// on-demand /debug/pprof endpoints the Go stdlib registers.
-	_ "net/http/pprof" //nolint:gosec // /metrics port is bound to lo / VM-only in deployments
 
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/grafana/pyroscope-go"
@@ -889,7 +888,14 @@ func awaitSignalAndShutdown(
 var fatalf = log.Fatalf
 
 func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit uint32) {
-	http.Handle(promPath, promhttp.HandlerFor(
+	// A dedicated mux (not http.DefaultServeMux) for this listener. This is what
+	// lets pprof be registered EXPLICITLY below without the blank
+	// `_ "net/http/pprof"` side-effect import (which trips gosec G108): that
+	// import's init() registers /debug/pprof/* on DefaultServeMux, so serving
+	// our own mux both keeps DefaultServeMux out of the request path and avoids
+	// a double-registration panic.
+	mux := http.NewServeMux()
+	mux.Handle(promPath, promhttp.HandlerFor(
 		prometheus.DefaultGatherer,
 		promhttp.HandlerOpts{
 			EnableOpenMetrics:   promEnableOpenMetrics,
@@ -897,17 +903,26 @@ func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit u
 		},
 	))
 	// Liveness + readiness for container/k8s deployment, on the same listener.
-	http.HandleFunc("/healthz", health.Healthz)
-	http.HandleFunc("/readyz", health.Readyz)
-	go servePromHandler(promListen, ipv4TTL, ipv6HopLimit)
+	mux.HandleFunc("/healthz", health.Healthz)
+	mux.HandleFunc("/readyz", health.Readyz)
+	// pprof on the prom listener for on-demand forensic stack snapshots.
+	// pprof.Index also serves the named runtime profiles
+	// (/debug/pprof/goroutine, /heap, …).
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	go servePromHandler(mux, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 // servePromHandler runs the prom HTTP server on promListen. On
 // ListenAndServe failure it invokes fatalf (default log.Fatalf in
 // production, swapped to a capture by tests). Extracted from
 // initPromHandler so tests can drive the error path in isolation.
-func servePromHandler(promListen string, ipv4TTL, ipv6HopLimit uint32) {
+func servePromHandler(handler http.Handler, promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	srv := &http.Server{
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

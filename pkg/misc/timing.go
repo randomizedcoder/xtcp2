@@ -2,7 +2,8 @@ package misc
 
 import (
 	"context"
-	"math/rand/v2"
+	"crypto/rand"
+	"encoding/binary"
 	"time"
 )
 
@@ -11,28 +12,43 @@ import (
 // timers synchronize (thundering herd), so poll scheduling, S3 flushing, and
 // upload retry backoff all draw jitter from these helpers.
 //
-// Randomness comes from math/rand/v2's top-level functions, which are seeded
-// from a per-process random source and are safe for concurrent use. Per-process
-// seeding is exactly what the threat model needs: even a fleet of identically
-// configured processes started at the same instant draws independent jitter.
+// Randomness comes from crypto/rand, which is backed by a fast per-process
+// userspace CSPRNG (Go 1.24+) and is safe for concurrent use — so it needs no
+// seeding, and even a fleet of identically configured processes started at the
+// same instant draws independent jitter. These are low-frequency draws (per
+// poll cycle / per S3 flush), so the CSPRNG cost is irrelevant.
 
-// JitterDuration returns a uniform random duration in [0, limit). A
+// randUint64 returns a random uint64 from crypto/rand. The read cannot fail in
+// practice (the userspace generator has no error path once initialised); on the
+// theoretical error it returns 0, which the jitter helpers treat as "no jitter"
+// this cycle — harmless, since a single skipped jitter draw only momentarily
+// reduces spread and can't corrupt anything.
+func randUint64() uint64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(b[:])
+}
+
+// JitterDuration returns a uniform-ish random duration in [0, limit). A
 // non-positive limit returns 0, so callers can pass a "disabled" (zero) window
-// without a guard.
+// without a guard. (The modulo reduction is negligibly biased — irrelevant for
+// spreading a thundering herd.)
 func JitterDuration(limit time.Duration) time.Duration {
 	if limit <= 0 {
 		return 0
 	}
-	return time.Duration(rand.Int64N(int64(limit)))
+	return time.Duration(randUint64() % uint64(limit))
 }
 
-// JitterIntN returns a uniform random int in [0, limit). A non-positive limit
-// returns 0. Used for the per-object S3 byte-threshold jitter.
+// JitterIntN returns a uniform-ish random int in [0, limit). A non-positive
+// limit returns 0. Used for the per-object S3 byte-threshold jitter.
 func JitterIntN(limit int) int {
 	if limit <= 0 {
 		return 0
 	}
-	return rand.IntN(limit)
+	return int(randUint64() % uint64(limit))
 }
 
 // SleepCtx sleeps for d, or until ctx is done, whichever comes first. It

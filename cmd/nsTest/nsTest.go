@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -482,11 +481,11 @@ func runVariedClient(ctx context.Context, c net.Conn, profileIdx int) {
 
 	payload := make([]byte, payloadSize)
 	if _, err := cryptoRand.Read(payload); err != nil {
-		// Fall back to math/rand if /dev/urandom is unhappy. Doesn't
-		// matter cryptographically; we just want bytes.
-		rng := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // not security-relevant
+		// crypto/rand can't fail in practice; if it ever did, the payload
+		// content is irrelevant for soak traffic, so a cheap deterministic
+		// fill is fine (we only need bytes on the wire, not randomness).
 		for i := range payload {
-			payload[i] = byte(rng.Intn(256))
+			payload[i] = byte(i)
 		}
 	}
 	readBuf := make([]byte, payloadSize)

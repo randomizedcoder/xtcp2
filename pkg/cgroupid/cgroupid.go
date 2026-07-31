@@ -99,7 +99,7 @@ func (r *Resolver) rebuild() {
 	defer r.rebuildMu.Unlock()
 
 	m := make(map[uint64]Entry)
-	_ = filepath.WalkDir(r.root, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(r.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable subtrees, keep walking
 		}
@@ -125,6 +125,13 @@ func (r *Resolver) rebuild() {
 		m[st.Ino] = Entry{ContainerID: id, Runtime: runtime}
 		return nil
 	})
+	// The per-entry callback swallows its own errors (returns nil to keep
+	// walking), so WalkDir only errors if the cgroup root itself became
+	// unwalkable (e.g. removed). In that case m is empty/partial — keep the
+	// previous snapshot rather than swapping in a map that lost every mapping.
+	if walkErr != nil {
+		return
+	}
 
 	r.snapshot.Store(&m)
 	r.lastBuildNano.Store(time.Now().UnixNano())

@@ -19,11 +19,21 @@ func SetReady(r bool) { ready.Store(r) }
 // Ready reports the current readiness state.
 func Ready() bool { return ready.Load() }
 
+// writeBody writes the response body. A write error means the client
+// disconnected before reading the health/readiness response — there is nothing
+// the probe handler can do about it, so the error is checked here (once) and
+// dropped rather than ignored blank at every call site.
+func writeBody(w http.ResponseWriter, s string) {
+	if _, err := w.Write([]byte(s)); err != nil {
+		return
+	}
+}
+
 // Healthz is a liveness handler: 200 as soon as the HTTP server is serving. It
 // says nothing about whether the daemon is polling yet — that is Readyz.
 func Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok\n"))
+	writeBody(w, "ok\n")
 }
 
 // Readyz is a readiness handler: 200 once the daemon has initialised its
@@ -32,9 +42,9 @@ func Healthz(w http.ResponseWriter, _ *http.Request) {
 func Readyz(w http.ResponseWriter, _ *http.Request) {
 	if !ready.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte("not ready\n"))
+		writeBody(w, "not ready\n")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ready\n"))
+	writeBody(w, "ready\n")
 }

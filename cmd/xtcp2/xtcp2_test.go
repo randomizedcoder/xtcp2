@@ -474,7 +474,7 @@ func TestServePromHandler_bindError(t *testing.T) {
 	}
 	t.Cleanup(func() { fatalf = prev })
 
-	servePromHandler("invalid-host:-1", 0, 0)
+	servePromHandler(http.NewServeMux(), "invalid-host:-1", 0, 0)
 	if !strings.Contains(captured, "prometheus error") {
 		t.Errorf("fatalf not invoked; got %q", captured)
 	}
