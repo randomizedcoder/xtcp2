@@ -42,7 +42,7 @@ const (
 	// soft-restart syscall.Exec. When set at startup it wins over flags/env.
 	reconfigureEnvKey = "XTCP_CONFIG_JSON"
 	// reconfigureGraceDelay is how long the reconfigure hook waits before
-	// cancelling the run context, so the gRPC Set response flushes to the
+	// canceling the run context, so the gRPC Set response flushes to the
 	// client before graceful shutdown + re-exec begin.
 	reconfigureGraceDelay = 200 * time.Millisecond
 
@@ -349,7 +349,7 @@ func defineFlags() *mainFlags {
 	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
-	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from travelling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
+	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
@@ -742,7 +742,7 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 	// with a validated new config. Record it, then (after a short grace so the
 	// Set response reaches the client) cancel the run context to start graceful
 	// shutdown. Buffered channel + non-blocking send: only the first request in
-	// a shutdown window is honoured.
+	// a shutdown window is honored.
 	restartCh := make(chan *xtcp_config.XtcpConfig, 1)
 	x.OnReconfigure(func(newCfg *xtcp_config.XtcpConfig) {
 		select {

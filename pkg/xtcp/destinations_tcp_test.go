@@ -10,7 +10,7 @@ import (
 )
 
 // TestTCPDest_send drives the tcp destination against a real in-process TCP
-// listener and asserts the marshalled payload arrives verbatim (framing is the
+// listener and asserts the marshaled payload arrives verbatim (framing is the
 // marshaller's job, so tcpDest writes bytes unchanged).
 func TestTCPDest_send(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

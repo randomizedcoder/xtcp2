@@ -63,7 +63,7 @@ func New(root string) *Resolver {
 }
 
 // Resolve returns the container id + runtime for a socket's cgroup id, or empty
-// strings when the cgroup isn't a recognised container (host process, cgroup v1,
+// strings when the cgroup isn't a recognized container (host process, cgroup v1,
 // or a container that appeared after the last build). On a miss it schedules a
 // debounced rebuild so subsequent cycles resolve newly-started containers. It is
 // safe for concurrent use and never blocks on the filesystem.
@@ -152,7 +152,7 @@ func parseContainerFromPath(rel string) (containerID, runtime string) {
 }
 
 // parseLeaf extracts a container id + runtime from a single cgroup path
-// component. It recognises the common systemd-driver scope names and the
+// component. It recognizes the common systemd-driver scope names and the
 // cgroupfs-driver bare-hex leaf. Returns "" when the component isn't a
 // container cgroup.
 func parseLeaf(name string) (containerID, runtime string) {
@@ -172,7 +172,7 @@ func parseLeaf(name string) (containerID, runtime string) {
 			return "", ""
 		}
 		// Only a valid 64-hex id counts; otherwise it's not a container scope
-		// we recognise (don't report a runtime with an empty id).
+		// we recognize (don't report a runtime with an empty id).
 		if id := validHex(hexPart); id != "" {
 			return id, rt
 		}

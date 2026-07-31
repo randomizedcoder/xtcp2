@@ -19,7 +19,7 @@ import (
 // poll cycle / per S3 flush), so the CSPRNG cost is irrelevant.
 
 // randUint64 returns a random uint64 from crypto/rand. The read cannot fail in
-// practice (the userspace generator has no error path once initialised); on the
+// practice (the userspace generator has no error path once initialized); on the
 // theoretical error it returns 0, which the jitter helpers treat as "no jitter"
 // this cycle — harmless, since a single skipped jitter draw only momentarily
 // reduces spread and can't corrupt anything.

@@ -128,7 +128,7 @@ func (x *XTCP) InitMarshallers(wg *sync.WaitGroup) {
 // envelope-based, so every -marshal value resolves here.
 //
 // Any destination is permitted: kafka receives the bytes via Produce, null
-// discards them, other destinations get the marshalled batch as one record.
+// discards them, other destinations get the marshaled batch as one record.
 func (x *XTCP) InitEnvelopeMarshallers(wg *sync.WaitGroup) {
 
 	defer wg.Done()

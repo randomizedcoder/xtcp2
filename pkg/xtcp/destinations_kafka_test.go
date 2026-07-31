@@ -227,7 +227,7 @@ func TestGetLatestSchemaID_buildsURL(t *testing.T) {
 	}
 }
 
-// TestGetLatestSchemaID_ctxCancel verifies the 10s ceiling honours
+// TestGetLatestSchemaID_ctxCancel verifies the 10s ceiling honors
 // caller ctx cancel.
 func TestGetLatestSchemaID_ctxCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -652,7 +652,7 @@ func TestPingKafkaWithRetries_ctxCancelAbortsSleep(t *testing.T) {
 	}
 	d := newKafkaDestForTest(t, fake)
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // pre-cancelled → first sleep aborts
+	cancel() // pre-canceled → first sleep aborts
 	err := d.pingKafkaWithRetries(ctx, 10, 100*time.Millisecond)
 	if err == nil {
 		t.Error("expected ctx-cancel err")

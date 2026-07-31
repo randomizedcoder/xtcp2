@@ -52,7 +52,7 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 	x.incrementStoreAndGenerationCounts()
 
 	// If a delete raced in between the guard above and the Store, undo it so
-	// we don't leave a stale entry (with a real fd) for a cancelled namespace.
+	// we don't leave a stale entry (with a real fd) for a canceled namespace.
 	if nsCtx.Err() != nil {
 		x.nsMap.Delete(inode)
 		x.fdToNsMap.Delete(fd)

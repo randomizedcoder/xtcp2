@@ -436,7 +436,7 @@ func runGridCell(ctx context.Context, procRoot string, dirs []string, iters, n, 
 }
 
 // spawnHeld starts a long-lived child in its own process group (Setpgid) so the
-// whole group can be signalled at teardown — `ip netns exec` forks, so killing
+// whole group can be signaled at teardown — `ip netns exec` forks, so killing
 // just the leader would orphan the actual `sleep`.
 func spawnHeld(ctx context.Context, stderr io.Writer, name string, args ...string) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, name, args...)

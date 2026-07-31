@@ -46,7 +46,7 @@ func (a *redisClientAdapter) Ping(ctx context.Context) error {
 
 func (a *redisClientAdapter) Close() error { return a.c.Close() }
 
-// valkeyDest publishes each marshalled record to a Valkey (Redis-protocol)
+// valkeyDest publishes each marshaled record to a Valkey (Redis-protocol)
 // pub/sub channel.
 type valkeyDest struct {
 	x      *XTCP

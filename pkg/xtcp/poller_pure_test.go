@@ -336,9 +336,9 @@ func TestReconcileThenPoll_reconcilesBeforePolling(t *testing.T) {
 func TestReconcileThenPoll_skipsReconcileWhenDisabled(t *testing.T) {
 	x := newPollerFixture(t)
 	x.config.ReconcileBeforePoll = false
-	cancelled := false
+	canceled := false
 	name := "keep"
-	x.nsMap.Store(uint64(4026531950), netNSitem{inode: 4026531950, name: &name, cancel: func() { cancelled = true }, socketFD: -1})
+	x.nsMap.Store(uint64(4026531950), netNSitem{inode: 4026531950, name: &name, cancel: func() { canceled = true }, socketFD: -1})
 
 	count := x.reconcileThenPoll(context.Background(), 1)
 
@@ -348,7 +348,7 @@ func TestReconcileThenPoll_skipsReconcileWhenDisabled(t *testing.T) {
 	if _, ok := x.nsMap.Load(uint64(4026531950)); !ok {
 		t.Error("entry should survive: pre-poll reconcile must be skipped when disabled")
 	}
-	if cancelled {
+	if canceled {
 		t.Error("cancel must not fire when pre-poll reconcile is disabled")
 	}
 }

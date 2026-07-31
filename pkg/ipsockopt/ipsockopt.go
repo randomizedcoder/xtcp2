@@ -1,6 +1,6 @@
 // Package ipsockopt clamps the outgoing IPv4 TTL / IPv6 unicast hop limit on a
 // listening socket, so a listener's replies can't travel far if the host is
-// unexpectedly internet-exposed. It is the per-listener analogue of a host-level
+// unexpectedly internet-exposed. It is the per-listener analog of a host-level
 // nftables TTL clamp, and mirrors prometheus/exporter-toolkit#396.
 //
 // The option is set on the listening socket via net.ListenConfig.Control (before

@@ -27,7 +27,7 @@ import (
 //
 // The fix creates+stores the cancel in nsAdd before launching the goroutine, so
 // nsDelete can always reach it, and netNamespaceInstance aborts its init when
-// the context is already cancelled. This test forces the race deterministically
+// the context is already canceled. This test forces the race deterministically
 // by blocking the openAndSetnsSyscalls.open seam mid-init, deleting the ns, then
 // releasing the seam, and asserts the goroutine actually exits (no leak).
 func TestNsChurn_deleteDuringInit_doesNotLeakThread(t *testing.T) {

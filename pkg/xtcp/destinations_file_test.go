@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestFileDest_send drives the file destination and asserts the marshalled
+// TestFileDest_send drives the file destination and asserts the marshaled
 // payload is appended verbatim to the target file. newFileDest returns the
 // shared writerDest, so Send reports the byte count.
 func TestFileDest_send(t *testing.T) {

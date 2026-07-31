@@ -11,7 +11,7 @@ import (
 )
 
 // TestHTTPDest_send drives the http destination against a real httptest server
-// and asserts the marshalled payload arrives verbatim as the POST body. The
+// and asserts the marshaled payload arrives verbatim as the POST body. The
 // same factory backs the https scheme.
 func TestHTTPDest_send(t *testing.T) {
 	bodyCh := make(chan []byte, 1)

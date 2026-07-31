@@ -38,7 +38,7 @@ type kafkaProducer interface {
 	AllowRebalance()
 }
 
-// kafkaDest produces each marshalled record to a Kafka topic via franz-go.
+// kafkaDest produces each marshaled record to a Kafka topic via franz-go.
 // Construction registers the proto schema with the Schema Registry, dials
 // the broker, and primes a sync.Pool of kgo.Record so each send avoids
 // allocation.

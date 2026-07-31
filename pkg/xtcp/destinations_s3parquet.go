@@ -104,7 +104,7 @@ type s3ParquetDest struct {
 	sleep     func(context.Context, time.Duration) bool
 	newTimer  func(time.Duration) (<-chan time.Time, func() bool)
 
-	// queueCh carries marshalled envelopes from Send to the worker.
+	// queueCh carries marshaled envelopes from Send to the worker.
 	// IMPORTANT: never closed by Close (sending on a closed channel
 	// panics, and Close races with concurrent Sends). The worker exits
 	// via closedCh instead, draining queueCh's residual items first.
@@ -123,7 +123,7 @@ type s3ParquetDest struct {
 // itself doesn't treat this as fatal (shutdown is in progress).
 var errSendOnClosed = errors.New("s3parquet destination closed")
 
-// envelopeBytes is the queue payload — pointer to the pooled marshalled
+// envelopeBytes is the queue payload — pointer to the pooled marshaled
 // envelope. The worker is responsible for returning *buf to destBytesPool
 // after consuming it.
 type envelopeBytes struct {
@@ -255,7 +255,7 @@ func resolveBackoffCap(c *xtcp_config.XtcpConfig) time.Duration {
 	return capDur
 }
 
-// Send enqueues the marshalled envelope for the background worker. The
+// Send enqueues the marshaled envelope for the background worker. The
 // fast path is a non-blocking channel send (queue has slack); if the
 // worker is behind (e.g. mid-upload), Send falls back to a blocking
 // send and bumps queueFull so operators can spot the back-pressure.
@@ -332,14 +332,14 @@ func (d *s3ParquetDest) Close() error {
 }
 
 // worker is the only goroutine that touches the Parquet builder.
-// Receives marshalled envelopes from queueCh, decodes them, appends each
+// Receives marshaled envelopes from queueCh, decodes them, appends each
 // row to the in-memory writer, and finalizes + uploads when the
 // accumulated byte threshold is reached. On queue close (Close was
 // called) finalizes whatever's left and exits.
 //
 // ctx is the daemon run context; the upload derives from it via
 // context.WithoutCancel (see finalize) so the final shutdown flush isn't
-// aborted when the daemon ctx is cancelled.
+// aborted when the daemon ctx is canceled.
 func (d *s3ParquetDest) worker(ctx context.Context) {
 	defer close(d.workerDone)
 
@@ -378,7 +378,7 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 			return
 		}
 		// WithoutCancel is deliberate: on shutdown the daemon ctx is
-		// cancelled, but the final partial-Parquet flush (driven by Close)
+		// canceled, but the final partial-Parquet flush (driven by Close)
 		// must still upload. Strip cancellation while keeping the 60s
 		// deadline + any ctx values. Mirrors the poller's shutdown flush
 		// (poller.go's context.WithoutCancel).

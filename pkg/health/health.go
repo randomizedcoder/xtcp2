@@ -1,7 +1,7 @@
 // Package health exposes liveness/readiness for containerised deployment
 // (Docker healthcheck, Kubernetes httpGet probes). Readiness is a single
 // process-wide flag — there is one xtcp2 daemon per process — that the daemon
-// flips true once it has initialised its destination and netlinkers and started
+// flips true once it has initialized its destination and netlinkers and started
 // polling, and false on shutdown. The gRPC health service (see grpc_server.go)
 // is driven from the same flag.
 package health
@@ -36,7 +36,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request) {
 	writeBody(w, "ok\n")
 }
 
-// Readyz is a readiness handler: 200 once the daemon has initialised its
+// Readyz is a readiness handler: 200 once the daemon has initialized its
 // destination + netlinkers and started polling, else 503 (and again on
 // shutdown) — so an orchestrator holds traffic/rollout until xtcp2 is live.
 func Readyz(w http.ResponseWriter, _ *http.Request) {
