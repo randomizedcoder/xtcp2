@@ -7,20 +7,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof" // registered explicitly on the prom mux in initPromHandler (see there)
 	"os"
 	"os/signal"
 	"runtime"
 	runtimeDebug "runtime/debug"
 	"strconv"
 	"strings"
-	// net/http/pprof is imported for its Index/Cmdline/Profile/Symbol/Trace
-	// handlers, which initPromHandler registers EXPLICITLY on the prom mux (not
-	// via the usual blank side-effect import, which would register on
-	// http.DefaultServeMux implicitly and trip gosec G108). /debug/pprof is
-	// served on the same /metrics listener — handy for on-demand forensic stack
-	// snapshots without a separate debug HTTP server. Pyroscope provides the
-	// continuous profiles; pprof here is the on-demand complement.
-	"net/http/pprof"
 	"sync"
 	"syscall"
 	"time"
