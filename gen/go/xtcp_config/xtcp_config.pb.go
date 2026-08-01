@@ -729,7 +729,10 @@ type XtcpConfig struct {
 	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
 	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
 	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
-	// max_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes).
+	// max_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the
+	// http(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES
+	// and S3 endpoints the INSERT query + FORMAT + format_schema + auth query
+	// params routinely run ~150+ chars, which the old 128 cap rejected.
 	Dest string `protobuf:"bytes,130,opt,name=dest,proto3" json:"dest,omitempty"`
 	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
 	// xtcp will capture this many examples of the marshalled data
@@ -1385,7 +1388,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x13pyroscope_sample_hz\x18\x8a\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +
 	"\x1dpyroscope_upload_interval_sec\x18\x8b\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1apyroscopeUploadIntervalSec\x12\"\n" +
 	"\x04dest\x18\x82\x01 \x01(\tB\r\xbaH\n" +
-	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x01R\x04dest\x128\n" +
+	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x04R\x04dest\x128\n" +
 	"\x10dest_write_files\x18\x87\x01 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\x0edestWriteFiles\x12#\n" +
 	"\x05topic\x18\x8c\x01 \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18(R\x05topic\x125\n" +

@@ -1,0 +1,24 @@
+<clickhouse>
+  <!--
+    Allow the `default` user to connect from any source network.
+
+    The clickhouse-server image restricts `default` to localhost *inside the
+    container* (<networks> ::1 / 127.0.0.1). Queries via `docker exec` (the
+    kafka-path self-test checks) satisfy that, but the clickhouse-http flavor's
+    xtcp2 runs on the VM HOST and reaches ClickHouse through the docker
+    `-p 18123:8123` proxy, so ClickHouse sees the connection from the docker
+    gateway IP and rejects it as an auth failure — closing the connection while
+    the daemon is still writing the request body.
+
+    Authentication is still enforced: CLICKHOUSE_PASSWORD sets the default
+    user's password, and a wrong password is rejected. This only widens the
+    allowed source network, which is fine for an ephemeral in-VM test server.
+  -->
+  <users>
+    <default>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+    </default>
+  </users>
+</clickhouse>

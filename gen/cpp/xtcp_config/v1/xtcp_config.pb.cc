@@ -2888,7 +2888,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "e_sample_hz\030\212\001 \001(\rB\006\272H\003\310\001\000R\021pyroscopeSam"
     "pleHz\022J\n\035pyroscope_upload_interval_sec\030\213"
     "\001 \001(\rB\006\272H\003\310\001\000R\032pyroscopeUploadIntervalSe"
-    "c\022\"\n\004dest\030\202\001 \001(\tB\r\272H\nr\005\020\004\030\200\001\310\001\001R\004dest\0228\n"
+    "c\022\"\n\004dest\030\202\001 \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004dest\0228\n"
     "\020dest_write_files\030\207\001 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R"
     "\016destWriteFiles\022#\n\005topic\030\214\001 \001(\tB\014\272H\tr\004\020\001"
     "\030(\310\001\000R\005topic\0225\n\017xtcp_proto_file\030\217\001 \001(\tB\014"

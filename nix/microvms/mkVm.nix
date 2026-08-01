@@ -55,6 +55,11 @@ let
   # configured with -dest kafka:localhost:19092 so the records flow
   # through the same pipeline as the production compose.
   isClickPipe = sink == "clickhouse-pipeline";
+  # clickhouse-http = the same redpanda+clickhouse stack, but xtcp2 inserts
+  # DIRECTLY into ClickHouse over its HTTP interface (localhost:18123),
+  # bypassing Kafka entirely — the non-Kafka ingestion path, which had no e2e
+  # coverage. redpanda stays up (idle) so the kafka-engine table is happy.
+  isClickHttp = sink == "clickhouse-http";
   # clickhouse-pipeline + s3parquet mixed: existing redpanda + clickhouse
   # stack PLUS in-VM MinIO + a second xtcp2 instance writing parquet.
   # ClickHouse can query the parquet files via the s3() table function /
@@ -126,7 +131,8 @@ let
     || isS3ParquetStress
     || isS3ParquetLowfreq;
   # All flavors that bring up the redpanda + clickhouse docker stack.
-  isAnyClickPipe = isClickPipe || isClickPipeParquet || isClickPipeStress || isClickPipeRate;
+  isAnyClickPipe =
+    isClickPipe || isClickPipeParquet || isClickPipeStress || isClickPipeRate || isClickHttp;
   # Flavors that spawn the tcp-stress socket-load containers.
   isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress || isS3ParquetLowfreq;
   # Anything that needs dockerd inside the VM (the tcp-stress load containers
@@ -168,7 +174,10 @@ let
     grpcPort = cfg.grpcPort;
     coverageEnabled = isCoverage;
     inherit coverDir;
-    runClickhouseCheck = isAnyClickPipe;
+    # The kafka-oriented rows+errors check (Check 11) runs on the kafka
+    # flavors; the http-direct flavor runs its own CLICKHOUSE_HTTP check.
+    runClickhouseCheck = isAnyClickPipe && !isClickHttp;
+    runClickhouseHttpCheck = isClickHttp;
     runClickhouseParquetCheck = isClickPipeParquet;
     clickhousePassword = clickPipeChPassword;
     runS3ParquetCheck = isS3Parquet;
@@ -316,6 +325,21 @@ let
        $out/limit_memory.xml
     cp ${../../build/containers/clickhouse/config.d/kafka_client_tuning.xml} \
        $out/kafka_client_tuning.xml
+    cp ${../../build/containers/clickhouse/config.d/listen.xml} \
+       $out/listen.xml
+    chmod -R a+rX $out
+  '';
+
+  # users.d override: allow the `default` user to connect from any source
+  # network. The image restricts it to localhost-inside-container, which blocks
+  # the clickhouse-http flavor's host-side xtcp2 (host → docker -p proxy → the
+  # container sees the docker gateway IP). Auth is still enforced by
+  # CLICKHOUSE_PASSWORD. Mounted read-WRITE (the entrypoint writes the password
+  # file default-user.xml into users.d; a read-only mount makes it exit).
+  clickPipeUsersD = pkgs.runCommand "xtcp2-clickhouse-users-d" { } ''
+    mkdir -p $out
+    cp ${../../build/containers/clickhouse/users.d/allow-host.xml} \
+       $out/allow-host.xml
     chmod -R a+rX $out
   '';
 
@@ -707,6 +731,14 @@ let
       rm -rf "$configDRo"
       mkdir -p "$configDRo"
       cp ${clickPipeConfigD}/* "$configDRo"/
+      # users.d mount: read-WRITE — our allow-host.xml lives here AND the image
+      # entrypoint writes default-user.xml (the CLICKHOUSE_PASSWORD file) here,
+      # so a read-only mount makes the container exit.
+      usersDRw=/var/lib/xtcp2-clickhouse-users-d
+      rm -rf "$usersDRw"
+      mkdir -p "$usersDRw"
+      cp ${clickPipeUsersD}/* "$usersDRw"/
+      chmod -R u+w "$usersDRw"
       docker rm -f clickhouse 2>/dev/null || true
       # --add-host host.docker.internal:host-gateway gives ClickHouse a
       # routable name for the VM host (where the in-VM MinIO listens
@@ -730,6 +762,7 @@ let
         -v "$initdbRw":/docker-entrypoint-initdb.d:rw \
         -v "$schemasRw":/var/lib/clickhouse/format_schemas:rw \
         -v "$configDRo":/etc/clickhouse-server/config.d:ro \
+        -v "$usersDRw":/etc/clickhouse-server/users.d:rw \
         --restart on-failure \
         ${clickPipeClickhouseImage} >/dev/null
       echo "clickhouse: started"
@@ -1378,6 +1411,31 @@ let
     "0"
   ];
 
+  # clickhouse-http flavor: xtcp2 inserts DIRECTLY into ClickHouse over HTTP,
+  # no Kafka. The http dest POSTs the marshalled batch to the VERBATIM -dest
+  # URL (destinations_http.go), so the whole ClickHouse insert is baked into
+  # -dest: the INSERT query, FORMAT ProtobufList, the existing format_schema
+  # mount (same .proto the kafka-engine table uses), and auth via &password.
+  # Spaces are '+'-encoded, NOT %20: ExecStart is subject to systemd specifier
+  # expansion, and a bare '%' would be mangled/rejected; ClickHouse's HTTP
+  # interface decodes '+' as space in the query param, and Go's url.Parse keeps
+  # '+' literal in the raw query, so it round-trips. protobufList matches by
+  # field NUMBER via the schema (avoids JSONEachRow column-name mismatch).
+  # Inserts land in the base MergeTree xtcp.xtcp_flat_records (independent of
+  # the idle kafka table + MV). CH HTTP is published at 127.0.0.1:18123.
+  # 127.0.0.1, NOT localhost: docker -p 18123:8123 binds IPv4 only, but Go's
+  # resolver tries ::1 (IPv6) first for "localhost" → connection dropped.
+  xtcp2ClickHttpArgs = [
+    "-dest"
+    "http://127.0.0.1:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=xtcp_flat_record.proto:XtcpFlatRecord&password=${clickPipeChPassword}"
+    "-marshal"
+    "protobufList"
+    "-frequency"
+    "5s"
+    "-timeout"
+    "2s"
+  ];
+
   xtcp2CoverageArgs =
     xtcp2BasicArgs
     # sink=coverage-iouring adds -ioUring so the netlinkerIoUring code
@@ -1864,6 +1922,11 @@ in
               # Rate test: kafka pipeline with poll jitter disabled for a
               # deterministic per-window poll count (see xtcp2ClickPipeRateArgs).
               xtcp2ClickPipeRateArgs
+            else if isClickHttp then
+              # Direct HTTP→ClickHouse: insert straight into CH over HTTP,
+              # bypassing Kafka (must come before isAnyClickPipe, which it is
+              # a member of, so it doesn't fall into the kafka-dest branch).
+              xtcp2ClickHttpArgs
             else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               # The mixed flavor uses these args for its primary xtcp2
