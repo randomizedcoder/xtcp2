@@ -167,49 +167,88 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 		log.Printf("pollMode starting")
 	}
 
+	// Reconnect loop: each pollSession owns one dial + one PollFlatRecords
+	// stream and runs until that stream breaks. A dropped connection — e.g.
+	// the daemon soft-restarts / re-execs, or the network blips — ends the
+	// session, and we back off (ctx-cancellable) and re-dial rather than
+	// going silent. This mirrors listenMode's singleStreamingClient. Only
+	// ctx cancellation or the complete signal stops the loop.
+	for i := 0; ; i++ {
+		if !pollSession(ctx, addr, complete, pollFrequency, printer, debugLevel) {
+			return
+		}
+
+		sleepTime := reconnectTimeVar + (time.Duration(FastRandN(JitterSleepMaxMs)) * time.Millisecond)
+		if debugLevel > 10 {
+			log.Printf("pollMode: stream broke, reconnecting i:%d after %0.3fs", i, sleepTime.Seconds())
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-*complete:
+			return
+		case <-time.After(sleepTime):
+		}
+	}
+}
+
+// pollSession runs a single PollFlatRecords connection: dial, open the bidi
+// stream, send an immediate poll request, then send one request per tick
+// while a receiver goroutine prints incoming records. It returns true if the
+// session ended because the stream/connection broke (the caller should
+// reconnect), or false if ctx was canceled or the complete signal fired (the
+// caller should stop).
+func pollSession(ctx context.Context, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) (reconnect bool) {
+
 	conn := newGRPCClient(addr)
-	// Close the conn + Stop the ticker on the way out. Previously
-	// pollMode returned with both leaked — fine in a one-shot CLI run
-	// but the daemon-embedded usage (and the test harness) leaked one
-	// conn + one *time.Ticker per pollMode invocation.
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
-			log.Printf("pollMode: conn close: %v", cerr)
+			log.Printf("pollSession: conn close: %v", cerr)
 		}
 	}()
 
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
 
+	// Session-scoped ctx so the receiver goroutine and the send loop tear
+	// each other down the moment either notices the stream is gone.
+	sessionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream, err := client.PollFlatRecords(sessionCtx)
+	if err != nil {
+		// Demoted from log.Fatalf: a dial/open failure is reconnectable —
+		// return true so the caller backs off and re-dials.
+		log.Printf("pollSession: client.PollFlatRecords err: %v", err)
+		return true
+	}
+
+	// Receiver goroutine: prints records until the stream ends, then cancels
+	// sessionCtx so the send loop below notices immediately.
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		pollStreamRecv(sessionCtx, printer, &stream, debugLevel)
+	}()
+
 	ticker := time.NewTicker(pollFrequency)
 	defer ticker.Stop()
 
-	// shortCtx, cancel := context.WithTimeout(ctx, pollFrequency-time.Duration(10*time.Millisecond))
-	// defer cancel()
-
-	stream, err := client.PollFlatRecords(ctx)
-	if err != nil {
-		// Demoted from log.Fatalf: Fatalf calls os.Exit so the deferred
-		// ticker.Stop() above would never run. Log + return so the
-		// defers fire and the caller can decide what to do next.
-		log.Printf("pollMode: client.PollFlatRecords err: %v", err)
-		return
-	}
-
-	// recvCh := make(chan *xtcp_flat_record.FlatRecordsResponse)
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go pollStreamRecv(ctx, wg, printer, &stream, debugLevel)
-
 	// Kick an immediate poll request so records start flowing on connect
 	// instead of only after a full pollFrequency (the first ticker tick).
-	// This pokes the daemon's on-demand poll right away and makes -poll
-	// responsive from the first second. A failed initial send is non-fatal:
-	// the daemon also self-polls on its own cadence, and the ticker loop
-	// below handles a broken stream (and ctx cancellation) uniformly.
+	// The daemon also self-polls on its own cadence, so a failed initial
+	// send just means we reconnect.
 	if serr := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); serr != nil {
-		log.Printf("pollMode: initial stream.Send err:%v", serr)
+		log.Printf("pollSession: initial stream.Send err:%v — reconnecting", serr)
+		cancel()
+		wg.Wait()
+		return true
 	}
 
+	// Default: the session ends by reconnecting. Only an explicit stop
+	// signal (parent ctx / complete) flips this to false.
+	reconnect = true
 breakPoint:
 	for i := 0; ; i++ {
 
@@ -219,82 +258,74 @@ breakPoint:
 
 		select {
 		case <-ctx.Done():
+			reconnect = false
 			break breakPoint
 
 		case <-*complete:
+			reconnect = false
+			break breakPoint
+
+		case <-sessionCtx.Done():
+			// The receiver saw the stream end (io.EOF / error) and canceled
+			// sessionCtx — reconnect. But sessionCtx is also canceled when
+			// the parent ctx is, so if the parent is done we must stop, not
+			// reconnect.
+			if ctxDone(ctx) {
+				reconnect = false
+			}
 			break breakPoint
 
 		case <-ticker.C:
 			if serr := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); serr != nil {
-				log.Printf("pollMode i:%d stream.Send err:%v — stopping poll loop", i, serr)
+				log.Printf("pollMode i:%d stream.Send err:%v — reconnecting", i, serr)
 				break breakPoint
 			}
 			if debugLevel > 10 {
 				log.Printf("pollMode i:%d <-ticker.C, send", i)
 			}
-			// default:
-			// non-blocking
 		}
 
 	}
 
+	cancel()
 	wg.Wait()
+	return reconnect
 }
 
 func pollStreamRecv(
 	ctx context.Context,
-	wg *sync.WaitGroup,
 	printer *recordPrinter,
-	// recvCh chan *xtcp_flat_record.FlatRecordsResponse,
 	stream *grpc.BidiStreamingClient[xtcp_flat_record.PollFlatRecordsRequest, xtcp_flat_record.PollFlatRecordsResponse],
 	debugLevel uint) {
-
-	defer wg.Done()
 
 	if debugLevel > 10 {
 		log.Printf("pollStreamRecv started")
 	}
 
-breakPoint:
 	for i := 0; ; i++ {
 		pollFlatRecordsResponse, err := (*stream).Recv()
 		if debugLevel > 10 {
 			log.Printf("pollStreamRecv i:%d .Recv()", i)
 		}
-		if err == io.EOF {
-			if debugLevel > 10 {
-				log.Println("pollStreamRecv io.EOF")
-			}
-			break breakPoint
-		}
-
 		if err != nil {
+			// io.EOF = the server closed the stream (e.g. daemon restart);
+			// any other error = a broken stream. A gRPC stream never recovers
+			// once Recv errors, so return and let pollSession reconnect. (The
+			// old code retried Recv on the dead stream forever, which never
+			// produced another record and only kept the loop busy.)
 			if debugLevel > 10 {
-				log.Printf("pollStreamRecv err:%v", err)
+				if err == io.EOF {
+					log.Println("pollStreamRecv io.EOF")
+				} else {
+					log.Printf("pollStreamRecv err:%v", err)
+				}
 			}
-
-			// A broken stream typically returns the same error immediately
-			// on every subsequent Recv (e.g. "rpc error: stream closed").
-			// The previous code looped without backoff, pegging a CPU core
-			// at 100% until ctx was canceled. Sleep briefly between
-			// retries so the loop is ctx-cancellable AND non-spinny.
-			select {
-			case <-ctx.Done():
-				break breakPoint
-			case <-time.After(100 * time.Millisecond):
-			}
-			continue
+			return
 		}
-		// log.Printf("rec:%v", rec)
 		printPollFlatRecordsResponse(pollFlatRecordsResponse, 1, printer, debugLevel)
 
-		// recvCh <- rec
-
-		select {
-		case <-ctx.Done():
-			break breakPoint
-		default:
-			// non-blocking
+		if ctxDone(ctx) {
+			return
 		}
 	}
 }
