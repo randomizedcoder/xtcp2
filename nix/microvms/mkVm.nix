@@ -45,6 +45,10 @@ let
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
+  # minimal = the lifecycle correctness gate. Unlike soak (which shares the
+  # basic `-dest null` args), minimal writes jsonl to a file so the self-test
+  # can validate the daemon's serialized output content (OUTPUT_CONTENT check).
+  isMinimal = sink == "minimal";
   isTcpStress = sink == "tcp-stress";
   # clickhouse-pipeline = tcp-stress + redpanda + clickhouse + kafka
   # destination. Same docker setup but two extra containers + xtcp2
@@ -175,6 +179,9 @@ let
     runNsqCheck = isNsq;
     nsqTopic = nsqTopicName;
     nsqChannel = nsqChannelName;
+    # minimal flavor only: validate the daemon's jsonl file-dest output.
+    runFileOutputCheck = isMinimal;
+    inherit fileOutputPath;
   };
 
   # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
@@ -1314,6 +1321,28 @@ let
     "1s"
   ];
 
+  # Where the minimal flavor writes its jsonl records (daemon file dest) and
+  # where the OUTPUT_CONTENT self-test check reads them back. Both xtcp2 and
+  # the self-test run as root, so a 0600 file under /var/log is readable.
+  fileOutputPath = "/var/log/xtcp2.jsonl";
+
+  # minimal (lifecycle) flavor: same fast cadence as basic, but write records
+  # as jsonl to a file so the self-test's OUTPUT_CONTENT check can validate the
+  # daemon's serialized output (jsonl marshaller → file destination → record
+  # field population). Soak deliberately stays on `-dest null` (a file dest
+  # would grow unbounded over a multi-hour soak). The file is small over the
+  # ~90 s self-test (2 s cadence, tiny records).
+  xtcp2FileArgs = [
+    "-dest"
+    "file:${fileOutputPath}"
+    "-marshal"
+    "jsonl"
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+  ];
+
   # Phase E: xtcp2 produces directly into the in-VM redpanda. external
   # advertise addr is localhost:19092 so we dial that. -topic matches
   # the clickhouse kafka-engine table's kafka_topic_list. -xtcpProtoFile
@@ -1872,6 +1901,10 @@ in
               # nsq flavor: PUBLISH each poll's records to the in-VM nsqd topic;
               # the self-test reads nsqd's per-channel finish_count.
               xtcp2NsqArgs
+            else if isMinimal then
+              # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
+              # can validate the daemon's serialized output.
+              xtcp2FileArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not

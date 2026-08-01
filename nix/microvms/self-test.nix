@@ -131,6 +131,12 @@
   nsqTopic ? "xtcp2-records",
   nsqChannel ? "selftest",
   nsqHttpPort ? 4151,
+  # When true (set on the minimal/lifecycle flavor, whose daemon writes jsonl
+  # to fileOutputPath), the OUTPUT_CONTENT check validates the daemon's
+  # serialized file output. Other flavors use non-file dests, so the file
+  # wouldn't exist — hence the gate.
+  runFileOutputCheck ? false,
+  fileOutputPath ? "/var/log/xtcp2.jsonl",
 }:
 
 pkgs.writeShellApplication {
@@ -366,6 +372,104 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_POLL_STREAM_FAIL  (xtcp2client not on PATH)"
     fi
     if [ "$check5b" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 5c: health/readiness endpoints + -healthcheck mode ─────────
+    # Validates the container-orchestration surface (pkg/health HTTP handlers +
+    # the -healthcheck self-probe used by the scratch-image Docker HEALTHCHECK,
+    # cmd/xtcp2 runHealthcheck). None of these were exercised before. The
+    # daemon is polling by now (Check 1 confirmed active), so /readyz is 200.
+    echo "--- check 5c: health endpoints (/healthz, /readyz) + -healthcheck ---"
+    check5c=1
+    hz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+      "http://127.0.0.1:${toString promPort}/healthz" 2>/dev/null || echo 000)
+    rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+      "http://127.0.0.1:${toString promPort}/readyz" 2>/dev/null || echo 000)
+    # -healthcheck probes /readyz itself and exits 0 (ready) / 1 (not); it does
+    # NOT start the daemon. Uses -promListen to find the port.
+    hc_rc=1
+    if command -v xtcp2 >/dev/null 2>&1; then
+      xtcp2 -healthcheck -promListen "127.0.0.1:${toString promPort}" \
+        >/tmp/xtcp2-healthcheck.log 2>&1
+      hc_rc=$?
+    fi
+    if [ "$hz" = "200" ] && [ "$rz" = "200" ] && [ "$hc_rc" -eq 0 ]; then
+      echo "XTCP2_SELF_TEST_HEALTH_PASS  (healthz=$hz readyz=$rz healthcheck_rc=$hc_rc)"
+      check5c=0
+    else
+      echo "XTCP2_SELF_TEST_HEALTH_FAIL  (healthz=$hz readyz=$rz healthcheck_rc=$hc_rc)"
+      head -n 5 /tmp/xtcp2-healthcheck.log 2>/dev/null || true
+    fi
+    if [ "$check5c" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 5d: daemon jsonl file-dest output content ──────────────────
+    # (minimal flavor only — its daemon writes jsonl to fileOutputPath). Every
+    # existing check asserts counters; this validates the daemon's SERIALIZED
+    # output (jsonl marshaller → file destination → record field population).
+    ${lib.optionalString runFileOutputCheck ''
+      echo "--- check 5d: daemon jsonl output content (${fileOutputPath}) ---"
+      check5d=1
+      # Wait for the file to appear + accrue at least one record.
+      for _ in $(seq 1 20); do
+        if [ -s "${fileOutputPath}" ]; then break; fi
+        sleep 1
+      done
+      # Snapshot, then validate only COMPLETE lines: `wc -l` counts newline-
+      # terminated lines, so a partial trailing line the daemon is mid-appending
+      # is excluded by `head -n $total` — no read/write race.
+      cp "${fileOutputPath}" /tmp/xtcp2-out.snap 2>/dev/null || true
+      total=$(wc -l < /tmp/xtcp2-out.snap 2>/dev/null || echo 0)
+      total=''${total:-0}
+      good=0
+      bad=0
+      while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        # protojson: camelCase keys, zero-values omitted, but hostname is
+        # always populated (x.hostname stamped on every record).
+        if printf '%s\n' "$line" \
+          | jq -e 'has("hostname") and (.hostname | length > 0)' >/dev/null 2>&1; then
+          good=$((good + 1))
+        else
+          bad=$((bad + 1))
+        fi
+      done < <(head -n "$total" /tmp/xtcp2-out.snap 2>/dev/null)
+      if [ "$good" -ge 1 ] && [ "$bad" -eq 0 ]; then
+        echo "XTCP2_SELF_TEST_OUTPUT_CONTENT_PASS  (jsonl records=$good, malformed=$bad)"
+        check5d=0
+      else
+        echo "XTCP2_SELF_TEST_OUTPUT_CONTENT_FAIL  (jsonl records=$good, malformed=$bad, lines=$total)"
+        head -n 3 /tmp/xtcp2-out.snap 2>/dev/null || echo "(no file)"
+      fi
+      if [ "$check5d" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    # ─── Check 5e: xtcp2client listen mode streams records ────────────────
+    # Parallel to POLL_STREAM (5b) but for FlatRecords server-push (listen)
+    # mode — no -poll. The daemon broadcasts each polled record to registered
+    # listen clients; assert >=1 record printed AND the frSent counter grew.
+    # Check 5 only asserts "some output" (includes the client's own logs).
+    echo "--- check 5e: xtcp2client listen mode streams records ---"
+    check5e=1
+    if command -v xtcp2client >/dev/null 2>&1; then
+      before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
+      timeout 12s xtcp2client -format json \
+        -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2listen.log 2>&1
+      rc=$?
+      after_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
+      recs=$(grep -c '^{' /tmp/xtcp2listen.log 2>/dev/null || true)
+      recs=''${recs:-0}
+      if { [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; } \
+         && [ "$recs" -ge 1 ] 2>/dev/null \
+         && [ "$after_fr" -gt "$before_fr" ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_LISTEN_STREAM_PASS  (records=$recs, frSent $before_fr->$after_fr, rc=$rc)"
+        check5e=0
+      else
+        echo "XTCP2_SELF_TEST_LISTEN_STREAM_FAIL  (records=$recs, frSent $before_fr->$after_fr, rc=$rc)"
+        head -n 15 /tmp/xtcp2listen.log 2>/dev/null || true
+      fi
+    else
+      echo "XTCP2_SELF_TEST_LISTEN_STREAM_FAIL  (xtcp2client not on PATH)"
+    fi
+    if [ "$check5e" -ne 0 ]; then overall_ok=0; fi
 
     # ─── Check 6: ns inspector reads netns state ─────────────────────────
     echo "--- check 6: ns inspector ---"
