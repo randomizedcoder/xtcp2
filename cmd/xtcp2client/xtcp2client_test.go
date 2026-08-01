@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -368,6 +369,82 @@ func TestPollMode_recordingServer(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Skip("pollMode doesn't exit on cancel alone")
+	}
+}
+
+// countingPollServer records how many PollFlatRecords streams are opened
+// and ends each one immediately (returns nil → the client sees io.EOF),
+// simulating a daemon that drops the stream — e.g. a soft-restart re-exec.
+// A resilient -poll client must re-dial and open a NEW stream each time; a
+// client with no reconnect connects once and then stops.
+type countingPollServer struct {
+	xtcp_flat_record.UnimplementedXTCPFlatRecordServiceServer
+	conns atomic.Int32
+}
+
+func (s *countingPollServer) PollFlatRecords(_ xtcp_flat_record.XTCPFlatRecordService_PollFlatRecordsServer) error {
+	s.conns.Add(1)
+	return nil // end the stream immediately, forcing the client to reconnect
+}
+
+func startPollServer(t *testing.T, impl xtcp_flat_record.XTCPFlatRecordServiceServer) (addr string, cleanup func()) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := grpc.NewServer()
+	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, impl)
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	return lis.Addr().String(), func() {
+		srv.Stop()
+		_ = lis.Close()
+	}
+}
+
+// TestPollMode_reconnectsOnStreamBreak: when the daemon drops the poll
+// stream (server ends each RPC immediately), a long-running -poll client
+// must re-dial and open a fresh stream rather than going silent. The server
+// counts connections; the client should make several. Pre-fix pollMode
+// opens exactly one stream then returns, so conns stays 1 → this fails.
+func TestPollMode_reconnectsOnStreamBreak(t *testing.T) {
+	srv := &countingPollServer{}
+	addr, cleanup := startPollServer(t, srv)
+	defer cleanup()
+
+	// Shrink the reconnect backoff + jitter so the test doesn't wait the
+	// production 10s between re-dials.
+	origReconnect, origJitter := reconnectTimeVar, JitterSleepMaxMs
+	reconnectTimeVar = 20 * time.Millisecond
+	JitterSleepMaxMs = 1
+	defer func() { reconnectTimeVar, JitterSleepMaxMs = origReconnect, origJitter }()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	complete := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
+		close(done)
+	}()
+
+	// Wait for the client to reconnect at least twice.
+	deadline := time.Now().Add(3 * time.Second)
+	for srv.conns.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	got := srv.conns.Load()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Error("pollMode did not exit after ctx cancel")
+	}
+
+	if got < 2 {
+		t.Errorf("PollFlatRecords connections = %d, want >= 2 (client must reconnect after the stream breaks)", got)
 	}
 }
 
