@@ -107,7 +107,11 @@ func (s *xtcpFlatRecordService) FlatRecords(
 
 	ctx := stream.Context()
 
-	s.FlatRecordsClients.Store(&stream, true)
+	// Store a per-stream send mutex (not a bare bool): flatRecordServiceSend
+	// fans out from many parallel Netlinker goroutines, and gRPC forbids
+	// concurrent SendMsg on a single stream — the mutex serializes sends to
+	// THIS stream while different streams still send in parallel.
+	s.FlatRecordsClients.Store(&stream, new(sync.Mutex))
 	s.frStoreCount.Add(1)
 	defer func() {
 		s.FlatRecordsClients.Delete(&stream)
@@ -139,7 +143,9 @@ func (s *xtcpFlatRecordService) PollFlatRecords(
 
 	ctx := stream.Context()
 
-	s.PollFlatRecordsClients.Store(&stream, true)
+	// Per-stream send mutex — see the FlatRecords handler above for why a
+	// mutex and not a bool.
+	s.PollFlatRecordsClients.Store(&stream, new(sync.Mutex))
 	s.pfrStoreCount.Add(1)
 	defer func() {
 		s.PollFlatRecordsClients.Delete(&stream)
@@ -268,7 +274,15 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 			if !ok {
 				return true
 			}
-			if err := (*stream).Send(xtcpFlatRecordsResponse); err != nil { // <<------------------------- Send
+			// Serialize concurrent sends to this stream (see the Store site).
+			mu, ok := v.(*sync.Mutex)
+			if !ok {
+				return true
+			}
+			mu.Lock()
+			err := (*stream).Send(xtcpFlatRecordsResponse) // <<------------------------- Send
+			mu.Unlock()
+			if err != nil {
 				x.pC.WithLabelValues("flatRecordServiceSend", "frSend", "error").Inc()
 			}
 			x.pC.WithLabelValues("flatRecordServiceSend", "frSent", "count").Inc()
@@ -298,7 +312,15 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 			if !ok {
 				return true
 			}
-			if err := (*stream).Send(pollResp); err != nil { // <<------------------------- Send
+			// Serialize concurrent sends to this stream (see the Store site).
+			mu, ok := v.(*sync.Mutex)
+			if !ok {
+				return true
+			}
+			mu.Lock()
+			err := (*stream).Send(pollResp) // <<------------------------- Send
+			mu.Unlock()
+			if err != nil {
 				x.pC.WithLabelValues("flatRecordServiceSend", "pfrSend", "error").Inc()
 			}
 			x.pC.WithLabelValues("flatRecordServiceSend", "pfrSent", "count").Inc()

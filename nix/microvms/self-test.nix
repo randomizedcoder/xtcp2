@@ -329,6 +329,44 @@ pkgs.writeShellApplication {
     fi
     if [ "$check5" -ne 0 ]; then overall_ok=0; fi
 
+    # ─── Check 5b: xtcp2client -poll streams live flat records ────────────
+    # Regression guard for the PollFlatRecords bidi stream. This stream
+    # historically delivered ZERO records to `-poll` clients — the reason
+    # CTL_RESTART's Check 19 verifies the soft restart via `get` rather than
+    # by streaming. Assert the client prints at least one record AND the
+    # daemon's pfr broadcast counter (flatRecordServiceSend/pfrSent, on the
+    # main xtcp_counts vec) actually advanced — belt-and-suspenders, like the
+    # broker consume checks. The daemon self-polls every -frequency (5s in the
+    # lifecycle config) so records flow regardless of client sends; a short
+    # -pollFrequency also pokes on-demand polls. Coverage-safe (no re-exec).
+    echo "--- check 5b: xtcp2client -poll streams records (port ${toString grpcPort}) ---"
+    check5b=1
+    if command -v xtcp2client >/dev/null 2>&1; then
+      before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      timeout 12s xtcp2client -poll -pollFrequency 2s -format json \
+        -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2poll.log 2>&1
+      rc=$?
+      after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      # Records are single-line JSON objects (printer.record); client debug
+      # logs carry a "YYYY/MM/DD" timestamp prefix, so match only '{'-leading
+      # lines to count records without counting logs.
+      recs=$(grep -c '^{' /tmp/xtcp2poll.log 2>/dev/null || true)
+      recs=''${recs:-0}
+      if { [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; } \
+         && [ "$recs" -ge 1 ] 2>/dev/null \
+         && [ "$after_pfr" -gt "$before_pfr" ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_POLL_STREAM_PASS  (records=$recs, pfrSent $before_pfr->$after_pfr, rc=$rc)"
+        check5b=0
+      else
+        echo "XTCP2_SELF_TEST_POLL_STREAM_FAIL  (records=$recs, pfrSent $before_pfr->$after_pfr, rc=$rc)"
+        echo "--- xtcp2poll.log (head) ---"
+        head -n 15 /tmp/xtcp2poll.log 2>/dev/null || true
+      fi
+    else
+      echo "XTCP2_SELF_TEST_POLL_STREAM_FAIL  (xtcp2client not on PATH)"
+    fi
+    if [ "$check5b" -ne 0 ]; then overall_ok=0; fi
+
     # ─── Check 6: ns inspector reads netns state ─────────────────────────
     echo "--- check 6: ns inspector ---"
     check6=1
