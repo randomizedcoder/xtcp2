@@ -22,7 +22,7 @@ type nsqProducer interface {
 	Stop()
 }
 
-// nsqDest publishes each marshalled record to an NSQ topic.
+// nsqDest publishes each marshaled record to an NSQ topic.
 type nsqDest struct {
 	x        *XTCP
 	producer nsqProducer

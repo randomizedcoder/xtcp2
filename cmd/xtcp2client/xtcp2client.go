@@ -200,6 +200,16 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 	wg.Add(1)
 	go pollStreamRecv(ctx, wg, printer, &stream, debugLevel)
 
+	// Kick an immediate poll request so records start flowing on connect
+	// instead of only after a full pollFrequency (the first ticker tick).
+	// This pokes the daemon's on-demand poll right away and makes -poll
+	// responsive from the first second. A failed initial send is non-fatal:
+	// the daemon also self-polls on its own cadence, and the ticker loop
+	// below handles a broken stream (and ctx cancellation) uniformly.
+	if serr := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); serr != nil {
+		log.Printf("pollMode: initial stream.Send err:%v", serr)
+	}
+
 breakPoint:
 	for i := 0; ; i++ {
 

@@ -58,7 +58,7 @@ func (x *XTCP) mapReconciler(ctx context.Context, wg *sync.WaitGroup) {
 
 // reconcile converges nsMap with the live namespace set from /proc:
 //   - inodes in nsMap that are no longer live are deleted (their per-ns ctx is
-//     cancelled, tearing down the netlinkers + closing the socket);
+//     canceled, tearing down the netlinkers + closing the socket);
 //   - live inodes not yet in nsMap are added via nsAdd (which enters the
 //     namespace by /proc/<pid>/ns/net and opens its netlink socket);
 //   - inodes present in both are left alone — the inode IS the identity, so

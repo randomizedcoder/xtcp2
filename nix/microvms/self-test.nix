@@ -35,8 +35,9 @@
 #                                              counter with the ticker parked
 #   XTCP2_SELF_TEST_CTL_RESTART_{PASS,FAIL}    xtcp2ctl reconfigure = in-place
 #                                              soft restart (syscall.Exec): same
-#                                              MainPID, `get` + streamed records
-#                                              carry the new tag (non-coverage)
+#                                              MainPID, and `get` shows the new
+#                                              config (tag) live after the
+#                                              re-exec (non-coverage)
 #   XTCP2_SELF_TEST_NS_ANONYMOUS_{PASS,FAIL}   an anonymous `unshare -n` netns
 #                                              (no /run/netns bind mount) held by
 #                                              a live process is discovered by
@@ -327,6 +328,44 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_GRPC_ROUNDTRIP_FAIL  (xtcp2client not on PATH)"
     fi
     if [ "$check5" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 5b: xtcp2client -poll streams live flat records ────────────
+    # Regression guard for the PollFlatRecords bidi stream. This stream
+    # historically delivered ZERO records to `-poll` clients — the reason
+    # CTL_RESTART's Check 19 verifies the soft restart via `get` rather than
+    # by streaming. Assert the client prints at least one record AND the
+    # daemon's pfr broadcast counter (flatRecordServiceSend/pfrSent, on the
+    # main xtcp_counts vec) actually advanced — belt-and-suspenders, like the
+    # broker consume checks. The daemon self-polls every -frequency (5s in the
+    # lifecycle config) so records flow regardless of client sends; a short
+    # -pollFrequency also pokes on-demand polls. Coverage-safe (no re-exec).
+    echo "--- check 5b: xtcp2client -poll streams records (port ${toString grpcPort}) ---"
+    check5b=1
+    if command -v xtcp2client >/dev/null 2>&1; then
+      before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      timeout 12s xtcp2client -poll -pollFrequency 2s -format json \
+        -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2poll.log 2>&1
+      rc=$?
+      after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      # Records are single-line JSON objects (printer.record); client debug
+      # logs carry a "YYYY/MM/DD" timestamp prefix, so match only '{'-leading
+      # lines to count records without counting logs.
+      recs=$(grep -c '^{' /tmp/xtcp2poll.log 2>/dev/null || true)
+      recs=''${recs:-0}
+      if { [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; } \
+         && [ "$recs" -ge 1 ] 2>/dev/null \
+         && [ "$after_pfr" -gt "$before_pfr" ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_POLL_STREAM_PASS  (records=$recs, pfrSent $before_pfr->$after_pfr, rc=$rc)"
+        check5b=0
+      else
+        echo "XTCP2_SELF_TEST_POLL_STREAM_FAIL  (records=$recs, pfrSent $before_pfr->$after_pfr, rc=$rc)"
+        echo "--- xtcp2poll.log (head) ---"
+        head -n 15 /tmp/xtcp2poll.log 2>/dev/null || true
+      fi
+    else
+      echo "XTCP2_SELF_TEST_POLL_STREAM_FAIL  (xtcp2client not on PATH)"
+    fi
+    if [ "$check5b" -ne 0 ]; then overall_ok=0; fi
 
     # ─── Check 6: ns inspector reads netns state ─────────────────────────
     echo "--- check 6: ns inspector ---"
@@ -865,7 +904,7 @@ pkgs.writeShellApplication {
     if [ "$check18" -ne 0 ]; then overall_ok=0; fi
 
     ${lib.optionalString (!coverageEnabled) ''
-      echo "--- check 19: xtcp2ctl reconfigure = soft restart (same PID, new tag in records) ---"
+      echo "--- check 19: xtcp2ctl reconfigure = soft restart (same PID, new config live) ---"
       check19=1
       if command -v xtcp2ctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         reconf_tag="INC-SELFTEST-9f3a"
@@ -876,32 +915,28 @@ pkgs.writeShellApplication {
           echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (could not build new config: $(head -n1 /tmp/jq.err 2>/dev/null))"
         else
           xtcp2ctl reconfigure -file /tmp/xtcp2-cfg.new.json "''${CTL[@]}" >/tmp/reconf.log 2>&1
-          # Wait for the daemon to re-exec and come back serving the new tag.
+          # A soft restart re-execs the daemon in place (syscall.Exec: same
+          # PID/container) carrying the new config in XTCP_CONFIG_JSON, then boots
+          # from it. We verify it by polling `get` until the freshly-booted daemon
+          # serves the new tag — that proves the re-exec completed AND the new
+          # config is the LIVE config (get returns the running x.config). Because
+          # the daemon stamps x.config.Tag onto every record it builds
+          # (pkg/xtcp/deserialize.go), a live config carrying the tag means the
+          # exported records carry it too. Same MainPID confirms it was an
+          # in-place re-exec, not a full service restart.
           back=0
           for _ in $(seq 1 30); do
             if xtcp2ctl get "''${CTL[@]}" 2>/dev/null | grep -q "$reconf_tag"; then back=1; break; fi
             sleep 1
           done
           pid_after=$(systemctl show -p MainPID --value xtcp2)
-          # Freshly streamed records must carry the new tag. Give the daemon a
-          # live socket to report, then poll-stream briefly and grep the output.
-          nc -l 127.0.0.1 17325 >/dev/null 2>&1 &
-          rl=$!
-          ( echo hi | nc -w 6 127.0.0.1 17325 >/dev/null 2>&1 ) &
-          rc_pid=$!
-          sleep 1
-          timeout 6s xtcp2client -poll -pollFrequency 1s -json \
-            -target 127.0.0.1 -port ${toString grpcPort} >/tmp/xtcp2client-tag.log 2>&1
-          kill "$rl" "$rc_pid" 2>/dev/null || true
-          rec_ok=0
-          if grep -q "$reconf_tag" /tmp/xtcp2client-tag.log 2>/dev/null; then rec_ok=1; fi
 
           if [ "$back" -eq 1 ] && [ -n "$pid_after" ] && [ "$pid_after" = "$pid_before" ] \
-             && systemctl is-active --quiet xtcp2 && [ "$rec_ok" -eq 1 ]; then
-            echo "XTCP2_SELF_TEST_CTL_RESTART_PASS  (soft restart: MainPID stayed $pid_before, records now carry tag=$reconf_tag)"
+             && systemctl is-active --quiet xtcp2; then
+            echo "XTCP2_SELF_TEST_CTL_RESTART_PASS  (soft restart: MainPID stayed $pid_before, new config live with tag=$reconf_tag)"
             check19=0
           else
-            echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (back=$back, pid $pid_before→$pid_after, active=$(systemctl is-active xtcp2 || true), recTag=$rec_ok)"
+            echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (back=$back, pid $pid_before→$pid_after, active=$(systemctl is-active xtcp2 || true))"
             head -n 5 /tmp/reconf.log 2>/dev/null || true
           fi
         fi

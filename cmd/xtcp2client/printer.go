@@ -68,13 +68,11 @@ func (p *recordPrinter) record(r *xtcp_flat_record.XtcpFlatRecord) {
 		p.write(b)
 
 	default: // json, humanize — one object per line
-		var b []byte
-		var err error
+		marshal := recordfmt.MarshalJSON
 		if p.format == recordfmt.FormatHumanize {
-			b, err = recordfmt.MarshalHumanizedJSON(r)
-		} else {
-			b, err = recordfmt.MarshalJSON(r)
+			marshal = recordfmt.MarshalHumanizedJSON
 		}
+		b, err := marshal(r)
 		if err != nil {
 			log.Printf("xtcp2client: format %s: %v", p.format, err)
 			return

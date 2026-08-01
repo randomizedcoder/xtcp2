@@ -147,7 +147,7 @@ func TestInitDeserializers_table(t *testing.T) {
 		{
 			name:     "negative_value_false_does_not_register",
 			category: "negative",
-			// The dispatch logic honours the map *value*: a key present
+			// The dispatch logic honors the map *value*: a key present
 			// with value false is disabled, not registered. This is what
 			// lets ConfigService.Set turn an attribute group off.
 			build: func() *XTCP {

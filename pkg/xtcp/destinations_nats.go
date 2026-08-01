@@ -28,7 +28,7 @@ type natsPublisher interface {
 	Close()
 }
 
-// natsDest publishes each marshalled record to a NATS subject.
+// natsDest publishes each marshaled record to a NATS subject.
 type natsDest struct {
 	x      *XTCP
 	client natsPublisher

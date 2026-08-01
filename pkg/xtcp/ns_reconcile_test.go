@@ -83,7 +83,7 @@ func newReconcileTestXTCP(t *testing.T, proc string) *XTCP {
 }
 
 // TestReconcile_deletesGoneNamespaces: nsMap holds inodes that /proc no longer
-// shows → reconcile deletes them (cancelling their ctx) and returns the count.
+// shows → reconcile deletes them (canceling their ctx) and returns the count.
 func TestReconcile_deletesGoneNamespaces(t *testing.T) {
 	x := newReconcileTestXTCP(t, t.TempDir()) // empty /proc → nothing live
 
@@ -134,7 +134,7 @@ func TestReconcile_keepsTrackedNamespaces(t *testing.T) {
 
 // TestReconcile_addsNewNamespaces: /proc shows namespaces not in nsMap →
 // reconcile calls nsAdd for each, reserving an entry keyed by inode. The ctx is
-// pre-cancelled so each spawned netNamespaceInstance aborts right after the
+// pre-canceled so each spawned netNamespaceInstance aborts right after the
 // (faked) open; nsAdd still reserves the inode slot synchronously, which is what
 // we assert. We join the goroutines (via the "end" counter) before the fake seam
 // is restored so they never read it concurrently with the restore.

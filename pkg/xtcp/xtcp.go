@@ -319,7 +319,16 @@ func (x *XTCP) RunNoPoller(ctx context.Context, wg *sync.WaitGroup) {
 
 func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 
+	// wg is the CALLER's WaitGroup — it tracks Run's own completion, so it is
+	// Done'd exactly once, when Run returns. The worker goroutines below get a
+	// SEPARATE inner WaitGroup that Run waits on itself. Sharing one WaitGroup
+	// for both purposes deadlocks: Run's wait would also count the caller's
+	// pending Add(1), which is only released by this defer AFTER the wait — so
+	// on shutdown the counter can never reach zero and graceful shutdown (the
+	// deferred destination flush + the reconfigure re-exec) never runs.
 	defer wg.Done()
+
+	var workers sync.WaitGroup
 
 	x.pC.WithLabelValues("Run", "start", "counter").Inc()
 
@@ -327,8 +336,8 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 
 	x.openDefaultNetLinkSocket(ctx)
 
-	wg.Add(1)
-	go x.nsMapCountReporter(ctx, wg)
+	workers.Add(1)
+	go x.nsMapCountReporter(ctx, &workers)
 
 	// Namespace discovery is reconcile(): a /proc scan re-derives ground truth
 	// (incl. anonymous namespaces) and converges nsMap — there is no inotify
@@ -337,28 +346,24 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	// background mapReconciler ticks slowly as a floor — and is the ONLY driver
 	// when the poller is disabled (runPoller=false). reconcile is mutex-guarded,
 	// so the two never race the shared nsScanner.
-	wg.Add(1)
-	go x.mapReconciler(ctx, wg)
+	workers.Add(1)
+	go x.mapReconciler(ctx, &workers)
 
 	if runPoller {
-		wg.Add(1)
-		go x.Poller(ctx, wg)
+		workers.Add(1)
+		go x.Poller(ctx, &workers)
 
 		// pollBurstRunner drives operator-requested poll bursts (TriggerPollBurst
 		// gRPC) by poking pollRequestCh, which only the poller drains — so it
 		// only makes sense when the poller is running.
-		wg.Add(1)
-		go x.pollBurstRunner(ctx, wg)
-
-		if x.debugLevel > 10 {
-			log.Println("XTCP.Run() wg.Wait()")
-		}
+		workers.Add(1)
+		go x.pollBurstRunner(ctx, &workers)
 	}
 
 	if x.debugLevel > 10 {
-		log.Println("XTCP.Run() wg.Wait()")
+		log.Println("XTCP.Run() workers.Wait()")
 	}
-	wg.Wait()
+	workers.Wait()
 
 	x.cancel()
 

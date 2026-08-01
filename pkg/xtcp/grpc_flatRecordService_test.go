@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -272,6 +273,95 @@ func TestFlatRecordServiceSend_pfrStream(t *testing.T) {
 		t.Errorf("Recv: %v", rerr)
 	} else if resp.GetXtcpFlatRecord().GetHostname() != "pfr-test" {
 		t.Errorf("hostname = %q, want pfr-test", resp.GetXtcpFlatRecord().GetHostname())
+	}
+}
+
+// TestFlatRecordServiceSend_pfrConcurrent reproduces the production
+// condition that the single-threaded tests never exercise: a PollFlatRecords
+// stream held open while flatRecordServiceSend fires from many goroutines at
+// once (in the daemon, one per parallel Netlinker — see
+// ns_createNetlinkersAndStore.go / deserialize.go). gRPC forbids concurrent
+// SendMsg on a single stream; without the per-stream send lock these racing
+// sends corrupt the stream's HTTP/2 framing (flagged by `go test -race`) and
+// records silently fail to arrive — the root cause of `xtcp2client -poll`
+// delivering zero records. The client must receive every record and the run
+// must be race-clean.
+func TestFlatRecordServiceSend_pfrConcurrent(t *testing.T) {
+	const senders = 64
+
+	srvSvc := newFlatRecordServiceFixture(t)
+	conn, cleanup := setupBufconnServer(t, srvSvc)
+	defer cleanup()
+
+	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := client.PollFlatRecords(ctx)
+	if err != nil {
+		t.Fatalf("PollFlatRecords: %v", err)
+	}
+	// Send one request so the server-side handler registers the stream in
+	// PollFlatRecordsClients before we start broadcasting.
+	if err := stream.Send(&xtcp_flat_record.PollFlatRecordsRequest{}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for srvSvc.pfrMapCount() != 1 {
+		if time.Now().After(deadline) {
+			t.Fatalf("pfrMapCount = %d, want 1 after open stream", srvSvc.pfrMapCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// Receiver goroutine: count records the client actually receives.
+	received := make(chan struct{}, senders)
+	go func() {
+		for {
+			if _, rerr := stream.Recv(); rerr != nil {
+				return
+			}
+			received <- struct{}{}
+		}
+	}()
+
+	// An XTCP whose flatRecordServiceSend fans out to the open pfr stream.
+	reg := prometheus.NewRegistry()
+	x := &XTCP{flatRecordService: srvSvc}
+	x.pC = promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{Subsystem: "xtcp_send_conc_test",
+			Name: promNameCounts, Help: "test"},
+		promLabels,
+	)
+	x.pH = promauto.With(reg).NewSummaryVec(
+		prometheus.SummaryOpts{Subsystem: "xtcp_send_conc_test",
+			Name: promNameHistograms, Help: "test",
+			Objectives: map[float64]float64{0.5: quantileError},
+			MaxAge:     summaryVecMaxAge},
+		promLabels,
+	)
+
+	// Fire flatRecordServiceSend concurrently — the exact race the daemon
+	// hits when many Netlinker goroutines deliver records at the same time.
+	var wg sync.WaitGroup
+	wg.Add(senders)
+	for i := 0; i < senders; i++ {
+		go func() {
+			defer wg.Done()
+			x.flatRecordServiceSend(&xtcp_flat_record.XtcpFlatRecord{Hostname: "conc"})
+		}()
+	}
+	wg.Wait()
+
+	// Every broadcast record must reach the client.
+	got := 0
+	timeout := time.After(5 * time.Second)
+	for got < senders {
+		select {
+		case <-received:
+			got++
+		case <-timeout:
+			t.Fatalf("received %d/%d records before timeout", got, senders)
+		}
 	}
 }
 
