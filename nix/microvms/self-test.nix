@@ -424,16 +424,31 @@ pkgs.writeShellApplication {
       # Hold the ns open with a live process so the /proc scan sees it.
       ip netns exec xtcp_test_ns_a sleep 60 &
       ns_a_pid=$!
-      # Give the daemon a couple of poll cycles (~2s each) to reconcile + enter.
-      sleep 6
-      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      # Poll for the daemon to reconcile + enter the ns (netlinker start).
+      # A retry loop, not a fixed sleep: the reconcile fires once per poll
+      # cycle and that cadence is jittered (pollJitterPct), so a fixed 6s
+      # wait races the jitter and intermittently samples before the counter
+      # ticks — the NS_LIFECYCLE flake. Break as soon as it advances (so the
+      # happy path is faster than the old fixed wait) and cap the wait well
+      # above a jittered cycle. The sleep 60 above outlives this loop.
+      after_inst=$before_inst
+      for _ in $(seq 1 20); do
+        after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+        if [ "$after_inst" -gt "$before_inst" ] 2>/dev/null; then break; fi
+        sleep 1
+      done
       # Drop the process (ns now has no live process) and remove the bind mount.
       kill "$ns_a_pid" 2>/dev/null || true
       wait "$ns_a_pid" 2>/dev/null || true
       ip netns delete xtcp_test_ns_a 2>&1 || true
-      # Give the daemon a couple of cycles to notice the ns is gone → nsDelete.
-      sleep 6
-      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+      # Poll for the daemon to notice the ns is gone (nsDelete) — same
+      # jittered-cadence retry loop as the instantiate side above.
+      after_del=$before_del
+      for _ in $(seq 1 20); do
+        after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+        if [ "$after_del" -gt "$before_del" ] 2>/dev/null; then break; fi
+        sleep 1
+      done
 
       if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
         echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
