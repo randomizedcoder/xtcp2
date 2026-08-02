@@ -230,6 +230,24 @@ let
       sink = "valkey";
     };
 
+  # tcp-sink lifecycle flavor: xtcp2 streams jsonl over the raw TCP dest to an
+  # in-VM ncat receiver; the self-test validates the received records +
+  # destTCP counter (RAW_SOCKET). Native, no docker/broker.
+  mkOneTcpSink =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "tcp-sink";
+    };
+
   # nats lifecycle flavor: native in-VM NATS server + pre-subscribed consumer.
   mkOneNats =
     arch:
@@ -394,6 +412,8 @@ let
 
   vmsValkey = lib.genAttrs constants.supportedArchs mkOneValkey;
 
+  vmsTcpSink = lib.genAttrs constants.supportedArchs mkOneTcpSink;
+
   vmsNats = lib.genAttrs constants.supportedArchs mkOneNats;
 
   vmsNsq = lib.genAttrs constants.supportedArchs mkOneNsq;
@@ -420,6 +440,18 @@ let
       # fast (native server, no docker), but the self-test waits up to ~60 s for
       # the subscriber to accumulate messages, so keep a generous timeout.
       sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|VALKEY_CONSUME|OVERALL";
+      timeoutSec = 240;
+    };
+  });
+
+  lifecycleTcpSink = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsTcpSink.${arch};
+      suffix = "-tcp-sink";
+      # Baseline sentinels plus the raw-socket verdict. Native (no docker), but
+      # the self-test waits for records to stream over TCP + reach the sink.
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|RAW_SOCKET|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
       timeoutSec = 240;
     };
   });
@@ -615,6 +647,7 @@ in
     vmsClickPipeParquet
     vmsS3Parquet
     vmsValkey
+    vmsTcpSink
     vmsNats
     vmsNsq
     vmsS3ParquetLong
@@ -632,6 +665,7 @@ in
     lifecycleClickHttp
     lifecycleS3Parquet
     lifecycleValkey
+    lifecycleTcpSink
     lifecycleNats
     lifecycleNsq
     lifecycleCoverage

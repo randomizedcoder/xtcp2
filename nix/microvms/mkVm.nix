@@ -45,6 +45,13 @@ let
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
+  # tcp-sink = a lightweight lifecycle flavor that proves the raw `tcp`
+  # destination end-to-end: xtcp2 streams jsonl records over TCP to an in-VM
+  # ncat receiver (dual-stack), and the self-test validates the received
+  # records + the destTCP send counter. No docker, no broker.
+  isTcpSink = sink == "tcp-sink";
+  tcpSinkPort = 13001;
+  tcpSinkFile = "/tmp/xtcp2-tcp-sink.out";
   # minimal = the lifecycle correctness gate. Unlike soak (which shares the
   # basic `-dest null` args), minimal writes jsonl to a file so the self-test
   # can validate the daemon's serialized output content (OUTPUT_CONTENT check).
@@ -191,6 +198,9 @@ let
     # minimal flavor only: validate the daemon's jsonl file-dest output.
     runFileOutputCheck = isMinimal;
     inherit fileOutputPath;
+    # tcp-sink flavor only: validate records received over the raw TCP dest.
+    runRawSocketCheck = isTcpSink;
+    inherit tcpSinkFile;
   };
 
   # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
@@ -1366,6 +1376,22 @@ let
   # the self-test run as root, so a 0600 file under /var/log is readable.
   fileOutputPath = "/var/log/xtcp2.jsonl";
 
+  # tcp-sink flavor: stream jsonl records over the raw TCP destination to the
+  # in-VM ncat receiver. `localhost` (dual-stack) resolves to 127.0.0.1 AND
+  # ::1; the sink listens on [::] (dual-stack), so whichever family Go's
+  # resolver picks reaches it. jsonl is newline-delimited so the receiver can
+  # count/validate records.
+  xtcp2TcpSinkArgs = [
+    "-dest"
+    "tcp:localhost:${toString tcpSinkPort}"
+    "-marshal"
+    "jsonl"
+    "-frequency"
+    "2s"
+    "-timeout"
+    "1s"
+  ];
+
   # minimal (lifecycle) flavor: same fast cadence as basic, but write records
   # as jsonl to a file so the self-test's OUTPUT_CONTENT check can validate the
   # daemon's serialized output (jsonl marshaller → file destination → record
@@ -1988,6 +2014,9 @@ in
               # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
               # can validate the daemon's serialized output.
               xtcp2FileArgs
+            else if isTcpSink then
+              # tcp-sink: stream jsonl over the raw TCP dest to the ncat sink.
+              xtcp2TcpSinkArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -2063,6 +2092,28 @@ in
             RemainAfterExit = true;
             ExecStart = "${selfTest}/bin/xtcp2-self-test";
             StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # tcp-sink flavor: a dual-stack ncat receiver that appends everything
+        # xtcp2 streams over the raw TCP destination to tcpSinkFile, for the
+        # RAW_SOCKET self-test check to count + validate. Listens on [::]
+        # (bindv6only=0 → also accepts IPv4-mapped) so `localhost` on the daemon
+        # side reaches it on either family. Ordered before xtcp2 so the dest
+        # dial doesn't race a missing listener (xtcp2's Restart=on-failure also
+        # covers the race).
+        systemd.services.xtcp2-tcp-sink = lib.mkIf isTcpSink {
+          description = "xtcp2 tcp-sink — dual-stack ncat receiver for the raw TCP dest";
+          before = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.writeShellScript "xtcp2-tcp-sink" ''
+              exec ${pkgs.nmap}/bin/ncat --listen --keep-open :: ${toString tcpSinkPort} > ${tcpSinkFile}
+            ''}";
+            Restart = "on-failure";
+            RestartSec = "1s";
             StandardError = "journal+console";
           };
         };
