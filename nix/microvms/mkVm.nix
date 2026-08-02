@@ -1422,12 +1422,13 @@ let
   # '+' literal in the raw query, so it round-trips. protobufList matches by
   # field NUMBER via the schema (avoids JSONEachRow column-name mismatch).
   # Inserts land in the base MergeTree xtcp.xtcp_flat_records (independent of
-  # the idle kafka table + MV). CH HTTP is published at 127.0.0.1:18123.
-  # 127.0.0.1, NOT localhost: docker -p 18123:8123 binds IPv4 only, but Go's
-  # resolver tries ::1 (IPv6) first for "localhost" → connection dropped.
+  # the idle kafka table + MV). CH HTTP is published at localhost:18123.
+  # `localhost` (dual-stack) resolves to both 127.0.0.1 and ::1; ClickHouse
+  # binds 0.0.0.0 + :: (config.d/listen.xml), so whichever family Go's resolver
+  # picks reaches ClickHouse through the docker -p forward.
   xtcp2ClickHttpArgs = [
     "-dest"
-    "http://127.0.0.1:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=xtcp_flat_record.proto:XtcpFlatRecord&password=${clickPipeChPassword}"
+    "http://localhost:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=xtcp_flat_record.proto:XtcpFlatRecord&password=${clickPipeChPassword}"
     "-marshal"
     "protobufList"
     "-frequency"

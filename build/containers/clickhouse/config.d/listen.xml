@@ -14,6 +14,13 @@
     reach ClickHouse from the host. Auth is still enforced (CLICKHOUSE_PASSWORD
     + the users.d networks allowance); this only widens the bind interface,
     which is fine for an ephemeral in-VM test server.
+
+    Dual-stack: bind both IPv4 (0.0.0.0) and IPv6 (::) so the container is
+    reachable on either family (the daemon dials `localhost`, which resolves to
+    both 127.0.0.1 and ::1). listen_try tolerates a family being unavailable
+    (e.g. IPv6 disabled in the VM) instead of refusing to start.
   -->
   <listen_host>0.0.0.0</listen_host>
+  <listen_host>::</listen_host>
+  <listen_try>1</listen_try>
 </clickhouse>
