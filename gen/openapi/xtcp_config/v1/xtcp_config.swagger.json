@@ -489,7 +489,7 @@
         },
         "dest": {
           "type": "string",
-          "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 128 leaves room for unixgram: (9 bytes) + Linux sun_path (108 bytes)."
+          "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the\nhttp(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES\nand S3 endpoints the INSERT query + FORMAT + format_schema + auth query\nparams routinely run ~150+ chars, which the old 128 cap rejected."
         },
         "destWriteFiles": {
           "type": "integer",

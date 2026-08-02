@@ -1,0 +1,26 @@
+<clickhouse>
+  <!--
+    Bind the HTTP (8123) + native (9000) interfaces on all addresses so the
+    container is reachable from the VM host via the docker `-p` port forwards
+    (e.g. the clickhouse-http flavor's xtcp2 inserts over http://127.0.0.1:18123).
+
+    The clickhouse-server image ships /etc/clickhouse-server/config.d/
+    docker_related_config.xml which sets listen_host to 0.0.0.0 for exactly this
+    reason — but bind-mounting our own config.d over that directory SHADOWS it,
+    so ClickHouse falls back to the built-in default of localhost-only
+    (127.0.0.1 + ::1) and host-side HTTP connections get an empty reply. The
+    kafka-path flavors never noticed because they query via `docker exec`
+    (localhost inside the container); the clickhouse-http flavor is the first to
+    reach ClickHouse from the host. Auth is still enforced (CLICKHOUSE_PASSWORD
+    + the users.d networks allowance); this only widens the bind interface,
+    which is fine for an ephemeral in-VM test server.
+
+    Dual-stack: bind both IPv4 (0.0.0.0) and IPv6 (::) so the container is
+    reachable on either family (the daemon dials `localhost`, which resolves to
+    both 127.0.0.1 and ::1). listen_try tolerates a family being unavailable
+    (e.g. IPv6 disabled in the VM) instead of refusing to start.
+  -->
+  <listen_host>0.0.0.0</listen_host>
+  <listen_host>::</listen_host>
+  <listen_try>1</listen_try>
+</clickhouse>

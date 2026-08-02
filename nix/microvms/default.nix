@@ -124,6 +124,24 @@ let
       sink = "clickhouse-pipeline";
     };
 
+  # Same redpanda+clickhouse stack as clickhouse-pipeline, but xtcp2 inserts
+  # DIRECTLY into ClickHouse over HTTP (bypassing Kafka) — the non-Kafka
+  # ingestion path. Self-test emits CLICKHOUSE_HTTP.
+  mkOneClickHttp =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "clickhouse-http";
+    };
+
   # Runtime-control rate test: the clickhouse-pipeline stack + a steady
   # 100-connection tcp load + an in-VM monitor that drives xtcp2ctl and
   # asserts the ClickHouse ingest rate responds. Host runner is duration-
@@ -350,6 +368,8 @@ let
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
+  vmsClickHttp = lib.genAttrs constants.supportedArchs mkOneClickHttp;
+
   vmsClickPipeRate = lib.genAttrs constants.supportedArchs mkOneClickPipeRate;
 
   vmsClickPipeStress = lib.optionalAttrs (tcpStressImage != null) (
@@ -434,6 +454,20 @@ let
       # poll cycles before triggering the 1 MiB-threshold finalize.
       sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
       timeoutSec = 240;
+    };
+  });
+
+  # Direct HTTP→ClickHouse lifecycle test: boots the clickhouse-http VM
+  # (redpanda + clickhouse + xtcp2 inserting over HTTP) and greps the
+  # self-test's CLICKHOUSE_HTTP verdict. Generous timeout: docker image pulls +
+  # ClickHouse init + the first HTTP insert landing rows takes several minutes.
+  lifecycleClickHttp = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsClickHttp.${arch};
+      suffix = "-clickhouse-http";
+      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|CLICKHOUSE_HTTP|OVERALL";
+      timeoutSec = 1200;
     };
   });
 
@@ -575,6 +609,7 @@ in
     vmsSoak
     vmsTcpStress
     vmsClickPipe
+    vmsClickHttp
     vmsClickPipeRate
     vmsClickPipeStress
     vmsClickPipeParquet
@@ -594,6 +629,7 @@ in
     s3ParquetStress
     s3ParquetLowfreq
     lifecycle
+    lifecycleClickHttp
     lifecycleS3Parquet
     lifecycleValkey
     lifecycleNats

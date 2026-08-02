@@ -311,6 +311,7 @@ in
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
+      microvm-x86_64-clickhouse-http = microvms.vmsClickHttp.x86_64;
       microvm-x86_64-clickhouse-pipeline-rate = microvms.vmsClickPipeRate.x86_64;
       microvm-x86_64-clickhouse-pipeline-stress = microvms.vmsClickPipeStress.x86_64;
       microvm-x86_64-clickhouse-pipeline-parquet = microvms.vmsClickPipeParquet.x86_64;
@@ -335,6 +336,7 @@ in
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-clickhouse-http = microvms.lifecycleClickHttp.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-valkey = microvms.lifecycleValkey.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nats = microvms.lifecycleNats.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nsq = microvms.lifecycleNsq.x86_64.fullTest;
@@ -381,6 +383,10 @@ in
     microvm-x86_64-lifecycle-s3parquet = {
       type = "app";
       program = "${microvms.lifecycleS3Parquet.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-s3parquet";
+    };
+    microvm-x86_64-lifecycle-clickhouse-http = {
+      type = "app";
+      program = "${microvms.lifecycleClickHttp.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-clickhouse-http";
     };
     microvm-x86_64-lifecycle-valkey = {
       type = "app";

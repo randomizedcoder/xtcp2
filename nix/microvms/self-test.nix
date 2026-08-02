@@ -94,6 +94,10 @@
   # → _error column populated; main MV filters them out → 0 rows in
   # the destination table).
   runClickhouseCheck ? false,
+  # When true (clickhouse-http flavor), adds Check 11h: xtcp2 inserts directly
+  # into ClickHouse over HTTP (no Kafka), asserting rows arrived AND the
+  # destHTTP POST-success counter advanced.
+  runClickhouseHttpCheck ? false,
   # When true (clickhouse-pipeline-parquet flavor only), the self-test
   # also queries the in-VM MinIO via ClickHouse's s3() table function
   # and asserts count() > 0 against the parquet objects xtcp2 wrote.
@@ -863,6 +867,47 @@ pkgs.writeShellApplication {
           || echo "(nsqd /stats unreachable)"
       fi
       if [ "$checkNsq" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runClickhouseHttpCheck ''
+      # ─── Check 11h: xtcp2 → ClickHouse over HTTP (direct, no Kafka) ───
+      # The http destination POSTs each protobufList envelope straight to
+      # ClickHouse's HTTP interface (INSERT … FORMAT ProtobufList into the base
+      # MergeTree). PASS requires rows in xtcp.xtcp_flat_records AND the daemon's
+      # destHTTP POST-success counter advanced — proving ingestion came via HTTP
+      # (this flavor configures no kafka dest at all).
+      echo "--- check 11h: direct HTTP → ClickHouse ---"
+      check11h=1
+      chq() {
+        docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+          -q "$1" 2>/dev/null | tr -d '\r\n' || echo 0
+      }
+      # Baseline the row count first: assert rows GROW during the window so a
+      # non-empty starting table can't produce a false pass. The definitive
+      # signal is still the destHTTP POST-success counter (fresh per boot).
+      rows_before=$(chq "SELECT count() FROM xtcp.xtcp_flat_records")
+      rows_before=''${rows_before:-0}
+      rows=$rows_before
+      for _ in $(seq 1 30); do
+        rows=$(chq "SELECT count() FROM xtcp.xtcp_flat_records")
+        rows=''${rows:-0}
+        if [ "$rows" -gt "$rows_before" ] 2>/dev/null; then break; fi
+        sleep 2
+      done
+      posts=$(metric_value "xtcp_counts" 'function="destHTTP"' 'variable="posts"')
+      if [ "$rows" -gt "$rows_before" ] 2>/dev/null && [ "''${posts:-0}" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_HTTP_PASS  (rows $rows_before->$rows, destHTTP_posts=$posts)"
+        check11h=0
+      else
+        errs=$(metric_value "xtcp_counts" 'function="destHTTP"' 'type="error"')
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_HTTP_FAIL  (rows $rows_before->$rows, destHTTP_posts=$posts, destHTTP_errors=$errs)"
+        journalctl -u xtcp2 --no-pager 2>/dev/null | grep -i 'destHTTP' | tail -n 3 || true
+        echo "  -- clickhouse-server errors (docker logs):"
+        docker logs clickhouse 2>&1 | grep -iE 'error|exception|DECIMAL|Protobuf|Cannot' | tail -n 8 || true
+        echo "  -- direct HTTP probe from the VM host (auth + a trivial insert):"
+        curl -sS -m5 "http://127.0.0.1:18123/?query=SELECT+1&password=${clickhousePassword}" 2>&1 | head -2 || true
+      fi
+      if [ "$check11h" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runClickhouseCheck ''
