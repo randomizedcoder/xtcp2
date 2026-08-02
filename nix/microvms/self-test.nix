@@ -141,6 +141,11 @@
   # wouldn't exist — hence the gate.
   runFileOutputCheck ? false,
   fileOutputPath ? "/var/log/xtcp2.jsonl",
+  # When true (tcp-sink flavor), the RAW_SOCKET check validates the records
+  # xtcp2 streamed over the raw TCP destination to the in-VM ncat receiver
+  # (written to tcpSinkFile).
+  runRawSocketCheck ? false,
+  tcpSinkFile ? "/tmp/xtcp2-tcp-sink.out",
 }:
 
 pkgs.writeShellApplication {
@@ -474,6 +479,49 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_LISTEN_STREAM_FAIL  (xtcp2client not on PATH)"
     fi
     if [ "$check5e" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 5f: raw TCP destination → in-VM ncat sink ──────────────────
+    # (tcp-sink flavor only). xtcp2 streams jsonl records over `-dest tcp:...`
+    # to a dual-stack ncat receiver; validate the received records ARE
+    # well-formed jsonl (send + receipt) AND the destTCP write counter grew.
+    # tcp/udp/unix dests were Go-component-only before this.
+    ${lib.optionalString runRawSocketCheck ''
+      echo "--- check 5f: raw TCP dest → ncat sink (${tcpSinkFile}) ---"
+      check5f=1
+      # Wait for records to arrive at the sink file.
+      for _ in $(seq 1 20); do
+        if [ -s "${tcpSinkFile}" ]; then break; fi
+        sleep 1
+      done
+      # destTCP Writes counter (>=1 = the daemon's send side ran). Not a growth
+      # check: the daemon has usually already flushed its writes by the time
+      # this check runs, so require the counter to be non-zero, not growing.
+      writes=$(metric_value "xtcp_counts" 'function="destTCP"' 'variable="Writes"')
+      # Snapshot + validate only complete lines (drop a partial trailing line —
+      # ncat may be mid-write). Same wc -l / head -n idiom as OUTPUT_CONTENT.
+      cp "${tcpSinkFile}" /tmp/xtcp2-tcpsink.snap 2>/dev/null || true
+      total=$(wc -l < /tmp/xtcp2-tcpsink.snap 2>/dev/null || echo 0)
+      total=''${total:-0}
+      good=0
+      bad=0
+      while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        if printf '%s\n' "$line" \
+          | jq -e 'has("hostname") and (.hostname | length > 0)' >/dev/null 2>&1; then
+          good=$((good + 1))
+        else
+          bad=$((bad + 1))
+        fi
+      done < <(head -n "$total" /tmp/xtcp2-tcpsink.snap 2>/dev/null)
+      if [ "$good" -ge 1 ] && [ "$bad" -eq 0 ] && [ "''${writes:-0}" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_RAW_SOCKET_PASS  (records=$good, destTCP_Writes=$writes)"
+        check5f=0
+      else
+        echo "XTCP2_SELF_TEST_RAW_SOCKET_FAIL  (records=$good, malformed=$bad, destTCP_Writes=$writes)"
+        head -n 3 /tmp/xtcp2-tcpsink.snap 2>/dev/null || echo "(no sink file)"
+      fi
+      if [ "$check5f" -ne 0 ]; then overall_ok=0; fi
+    ''}
 
     # ─── Check 6: ns inspector reads netns state ─────────────────────────
     echo "--- check 6: ns inspector ---"
