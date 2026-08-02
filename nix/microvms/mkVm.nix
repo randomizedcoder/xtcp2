@@ -49,9 +49,61 @@ let
   # destination end-to-end: xtcp2 streams jsonl records over TCP to an in-VM
   # ncat receiver (dual-stack), and the self-test validates the received
   # records + the destTCP send counter. No docker, no broker.
-  isTcpSink = sink == "tcp-sink";
-  tcpSinkPort = 13001;
-  tcpSinkFile = "/tmp/xtcp2-tcp-sink.out";
+  # socket-sink flavors: <scheme>-sink proves the raw tcp/udp/unix/unixgram
+  # destination end-to-end. xtcp2 streams jsonl records over the dest to a
+  # dual-stack ncat receiver, which writes everything to socketSinkFile for the
+  # RAW_SOCKET self-test check to validate. No docker, no broker.
+  socketSinkScheme =
+    if sink == "tcp-sink" then
+      "tcp"
+    else if sink == "udp-sink" then
+      "udp"
+    else if sink == "unix-sink" then
+      "unix"
+    else if sink == "unixgram-sink" then
+      "unixgram"
+    else
+      "";
+  isSocketSink = socketSinkScheme != "";
+  socketSinkPort = 13001; # inet dests (tcp/udp)
+  socketSinkPath = "/run/xtcp2-sink.sock"; # unix dests
+  socketSinkFile = "/tmp/xtcp2-socket-sink.out";
+  # -dest value per scheme. `localhost` (dual-stack) for inet dests.
+  socketSinkDest =
+    if socketSinkScheme == "tcp" then
+      "tcp:localhost:${toString socketSinkPort}"
+    else if socketSinkScheme == "udp" then
+      "udp:localhost:${toString socketSinkPort}"
+    else
+      "${socketSinkScheme}:${socketSinkPath}"; # unix:/path or unixgram:/path
+  # ncat receiver invocation per scheme (its stdout is redirected to
+  # socketSinkFile by the service). inet dests listen dual-stack on ::
+  # (bindv6only=0 also accepts IPv4-mapped); unix dests bind the socket path.
+  socketSinkReceiverCmd =
+    if socketSinkScheme == "tcp" then
+      "${pkgs.nmap}/bin/ncat --listen --keep-open :: ${toString socketSinkPort}"
+    else if socketSinkScheme == "udp" then
+      "${pkgs.nmap}/bin/ncat --udp --listen --keep-open :: ${toString socketSinkPort}"
+    else if socketSinkScheme == "unix" then
+      "${pkgs.nmap}/bin/ncat --unixsock --listen --keep-open ${socketSinkPath}"
+    else
+      # unixgram: ncat can't LISTEN on a unix DATAGRAM socket (`--unixsock
+      # --udp --listen` fails with "connect: Invalid argument"), so use socat's
+      # UNIX-RECV, which binds a unix datagram socket and streams received
+      # datagrams to stdout (-u = unidirectional recv→stdout).
+      "${pkgs.socat}/bin/socat -u UNIX-RECV:${socketSinkPath} -";
+  # Send-side Writes counter (function, variable) per scheme. udp is labelled
+  # under the legacy Inetdiager/udpWrites; the rest are destXxx/Writes.
+  socketSinkMetricFn =
+    if socketSinkScheme == "udp" then
+      "Inetdiager"
+    else if socketSinkScheme == "tcp" then
+      "destTCP"
+    else if socketSinkScheme == "unix" then
+      "destUnix"
+    else
+      "destUnixGram";
+  socketSinkMetricVar = if socketSinkScheme == "udp" then "udpWrites" else "Writes";
   # minimal = the lifecycle correctness gate. Unlike soak (which shares the
   # basic `-dest null` args), minimal writes jsonl to a file so the self-test
   # can validate the daemon's serialized output content (OUTPUT_CONTENT check).
@@ -199,8 +251,13 @@ let
     runFileOutputCheck = isMinimal;
     inherit fileOutputPath;
     # tcp-sink flavor only: validate records received over the raw TCP dest.
-    runRawSocketCheck = isTcpSink;
-    inherit tcpSinkFile;
+    runRawSocketCheck = isSocketSink;
+    inherit
+      socketSinkScheme
+      socketSinkFile
+      socketSinkMetricFn
+      socketSinkMetricVar
+      ;
   };
 
   # Default monitor cadence for the s3parquet-long flavor. 60 s is fast
@@ -1376,14 +1433,13 @@ let
   # the self-test run as root, so a 0600 file under /var/log is readable.
   fileOutputPath = "/var/log/xtcp2.jsonl";
 
-  # tcp-sink flavor: stream jsonl records over the raw TCP destination to the
-  # in-VM ncat receiver. `localhost` (dual-stack) resolves to 127.0.0.1 AND
-  # ::1; the sink listens on [::] (dual-stack), so whichever family Go's
-  # resolver picks reaches it. jsonl is newline-delimited so the receiver can
-  # count/validate records.
-  xtcp2TcpSinkArgs = [
+  # socket-sink flavors: stream jsonl records over the raw socket destination
+  # (tcp/udp/unix/unixgram) to the in-VM ncat receiver. For inet dests,
+  # `localhost` (dual-stack) resolves to 127.0.0.1 AND ::1 and the sink listens
+  # on [::], so whichever family Go's resolver picks reaches it.
+  xtcp2SocketSinkArgs = [
     "-dest"
-    "tcp:localhost:${toString tcpSinkPort}"
+    socketSinkDest
     "-marshal"
     "jsonl"
     "-frequency"
@@ -2014,9 +2070,10 @@ in
               # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
               # can validate the daemon's serialized output.
               xtcp2FileArgs
-            else if isTcpSink then
-              # tcp-sink: stream jsonl over the raw TCP dest to the ncat sink.
-              xtcp2TcpSinkArgs
+            else if isSocketSink then
+              # socket-sink: stream jsonl over the raw tcp/udp/unix/unixgram
+              # dest to the ncat sink.
+              xtcp2SocketSinkArgs
             else
               # Soak reuses the basic args (`-dest null`, fast frequency).
               # The point of soak is namespace + netlink churn, not
@@ -2096,21 +2153,23 @@ in
           };
         };
 
-        # tcp-sink flavor: a dual-stack ncat receiver that appends everything
-        # xtcp2 streams over the raw TCP destination to tcpSinkFile, for the
-        # RAW_SOCKET self-test check to count + validate. Listens on [::]
-        # (bindv6only=0 → also accepts IPv4-mapped) so `localhost` on the daemon
-        # side reaches it on either family. Ordered before xtcp2 so the dest
-        # dial doesn't race a missing listener (xtcp2's Restart=on-failure also
-        # covers the race).
-        systemd.services.xtcp2-tcp-sink = lib.mkIf isTcpSink {
-          description = "xtcp2 tcp-sink — dual-stack ncat receiver for the raw TCP dest";
+        # socket-sink flavors: an ncat receiver that appends everything xtcp2
+        # streams over the raw socket destination (tcp/udp/unix/unixgram) to
+        # socketSinkFile, for the RAW_SOCKET self-test check to count +
+        # validate. inet dests listen dual-stack on [::] (bindv6only=0 → also
+        # accepts IPv4-mapped) so `localhost` on the daemon side reaches it on
+        # either family. Ordered before xtcp2 so the dest dial doesn't race a
+        # missing listener (xtcp2's Restart=on-failure also covers the race).
+        systemd.services.xtcp2-socket-sink = lib.mkIf isSocketSink {
+          description = "xtcp2 socket-sink — ncat receiver for the raw ${socketSinkScheme} dest";
           before = [ "xtcp2.service" ];
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
-            ExecStart = "${pkgs.writeShellScript "xtcp2-tcp-sink" ''
-              exec ${pkgs.nmap}/bin/ncat --listen --keep-open :: ${toString tcpSinkPort} > ${tcpSinkFile}
+            ExecStart = "${pkgs.writeShellScript "xtcp2-socket-sink" ''
+              # A stale unix socket path would make ncat fail to bind on restart.
+              rm -f ${socketSinkPath} 2>/dev/null || true
+              exec ${socketSinkReceiverCmd} > ${socketSinkFile}
             ''}";
             Restart = "on-failure";
             RestartSec = "1s";

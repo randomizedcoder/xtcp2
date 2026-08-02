@@ -230,11 +230,12 @@ let
       sink = "valkey";
     };
 
-  # tcp-sink lifecycle flavor: xtcp2 streams jsonl over the raw TCP dest to an
-  # in-VM ncat receiver; the self-test validates the received records +
-  # destTCP counter (RAW_SOCKET). Native, no docker/broker.
-  mkOneTcpSink =
-    arch:
+  # socket-sink lifecycle flavors: xtcp2 streams jsonl over the raw
+  # tcp/udp/unix/unixgram dest to an in-VM ncat receiver; the self-test
+  # validates the received records + the per-scheme send counter (RAW_SOCKET).
+  # Native, no docker/broker.
+  mkOneSocketSink =
+    sinkName: arch:
     import ./mkVm.nix {
       inherit
         pkgs
@@ -245,8 +246,12 @@ let
         xtcp2Package
         xtcp2AllPackage
         ;
-      sink = "tcp-sink";
+      sink = sinkName;
     };
+  mkOneTcpSink = mkOneSocketSink "tcp-sink";
+  mkOneUdpSink = mkOneSocketSink "udp-sink";
+  mkOneUnixSink = mkOneSocketSink "unix-sink";
+  mkOneUnixgramSink = mkOneSocketSink "unixgram-sink";
 
   # nats lifecycle flavor: native in-VM NATS server + pre-subscribed consumer.
   mkOneNats =
@@ -413,6 +418,9 @@ let
   vmsValkey = lib.genAttrs constants.supportedArchs mkOneValkey;
 
   vmsTcpSink = lib.genAttrs constants.supportedArchs mkOneTcpSink;
+  vmsUdpSink = lib.genAttrs constants.supportedArchs mkOneUdpSink;
+  vmsUnixSink = lib.genAttrs constants.supportedArchs mkOneUnixSink;
+  vmsUnixgramSink = lib.genAttrs constants.supportedArchs mkOneUnixgramSink;
 
   vmsNats = lib.genAttrs constants.supportedArchs mkOneNats;
 
@@ -444,17 +452,24 @@ let
     };
   });
 
-  lifecycleTcpSink = lib.genAttrs constants.supportedArchs (arch: {
-    fullTest = microvmLib.mkLifecycleFullTest {
-      inherit arch;
-      vm = vmsTcpSink.${arch};
-      suffix = "-tcp-sink";
-      # Baseline sentinels plus the raw-socket verdict. Native (no docker), but
-      # the self-test waits for records to stream over TCP + reach the sink.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|RAW_SOCKET|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
-      timeoutSec = 240;
-    };
-  });
+  # Lifecycle runner for a socket-sink flavor (tcp/udp/unix/unixgram). Baseline
+  # sentinels plus the raw-socket verdict. Native (no docker), but the self-test
+  # waits for records to stream over the socket + reach the sink.
+  mkLifecycleSocketSink =
+    vmsAttr: suffixName:
+    lib.genAttrs constants.supportedArchs (arch: {
+      fullTest = microvmLib.mkLifecycleFullTest {
+        inherit arch;
+        vm = vmsAttr.${arch};
+        suffix = suffixName;
+        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|RAW_SOCKET|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
+        timeoutSec = 240;
+      };
+    });
+  lifecycleTcpSink = mkLifecycleSocketSink vmsTcpSink "-tcp-sink";
+  lifecycleUdpSink = mkLifecycleSocketSink vmsUdpSink "-udp-sink";
+  lifecycleUnixSink = mkLifecycleSocketSink vmsUnixSink "-unix-sink";
+  lifecycleUnixgramSink = mkLifecycleSocketSink vmsUnixgramSink "-unixgram-sink";
 
   lifecycleNats = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -648,6 +663,9 @@ in
     vmsS3Parquet
     vmsValkey
     vmsTcpSink
+    vmsUdpSink
+    vmsUnixSink
+    vmsUnixgramSink
     vmsNats
     vmsNsq
     vmsS3ParquetLong
@@ -666,6 +684,9 @@ in
     lifecycleS3Parquet
     lifecycleValkey
     lifecycleTcpSink
+    lifecycleUdpSink
+    lifecycleUnixSink
+    lifecycleUnixgramSink
     lifecycleNats
     lifecycleNsq
     lifecycleCoverage
