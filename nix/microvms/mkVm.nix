@@ -824,6 +824,13 @@ let
         # once xtcp2 discovers it and its records reach ClickHouse.
         nsc=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
           -q 'SELECT uniqExact(netns_inode) FROM xtcp.xtcp_flat_records' 2>/dev/null || echo 0)
+        # Distinct non-empty container_id = per-container ENRICHMENT proof.
+        # With -resolveContainerId (the stress flavor), records from the
+        # tcp-stress load containers' sockets carry the owning docker
+        # container_id, resolved from the socket's cgroup v2 id (pkg/cgroupid).
+        # 0 when resolution is disabled (the other clickpipe flavors).
+        cid=$(docker exec clickhouse clickhouse-client --password ${clickPipeChPassword} \
+          -q 'SELECT uniqExact(container_id) FROM xtcp.xtcp_flat_records WHERE length(container_id) > 0' 2>/dev/null || echo 0)
         # Kafka consumer health: a non-zero count here means the Kafka-engine
         # consumer hit an exception (e.g. MEMORY_LIMIT_EXCEEDED) — the signal
         # that ingestion has stalled. 0 = healthy end-to-end ingest.
@@ -849,7 +856,7 @@ let
         # host runner can assert on it. Integer percent (no % sign).
         disk=$(df --output=pcent /var/lib/docker 2>/dev/null | tail -1 | tr -dc '0-9')
         disk=''${disk:-0}
-        echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows netns=$nsc kafka_exc=$kexc reb=$reb msgs=$msgs disk=$disk"
+        echo "XTCP2_CLICKPIPE_ROWS $(date -u +%FT%TZ) rows=$rows netns=$nsc container_id=$cid kafka_exc=$kexc reb=$reb msgs=$msgs disk=$disk"
         # Deep-dive diagnostics for the consumer-detach stall — ONLY when
         # something looks wrong, so a healthy multi-hour soak stays quiet.
         # Trouble = a consumer exception, or the cumulative messages-read
@@ -1411,6 +1418,15 @@ let
     "0"
   ];
 
+  # clickhouse-pipeline-stress: same kafka pipeline, but enable container-id
+  # resolution so records from the tcp-stress load containers carry their
+  # docker container_id/runtime (resolved from the socket's cgroup v2 id via
+  # pkg/cgroupid). The stress monitor asserts distinct container_ids land in
+  # ClickHouse — the enrichment analog of the netns-diversity check.
+  xtcp2ClickPipeStressArgs = xtcp2ClickPipeArgs ++ [
+    "-resolveContainerId"
+  ];
+
   # clickhouse-http flavor: xtcp2 inserts DIRECTLY into ClickHouse over HTTP,
   # no Kafka. The http dest POSTs the marshalled batch to the VERBATIM -dest
   # URL (destinations_http.go), so the whole ClickHouse insert is baked into
@@ -1928,6 +1944,9 @@ in
               # bypassing Kafka (must come before isAnyClickPipe, which it is
               # a member of, so it doesn't fall into the kafka-dest branch).
               xtcp2ClickHttpArgs
+            else if isClickPipeStress then
+              # Kafka pipeline + container-id resolution (before isAnyClickPipe).
+              xtcp2ClickPipeStressArgs
             else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               # The mixed flavor uses these args for its primary xtcp2

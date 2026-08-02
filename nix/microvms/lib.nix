@@ -393,6 +393,7 @@ rec {
         rows_first=$(printf '%s' "$first_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
         rows_last=$(printf '%s' "$last_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
         netns_last=$(printf '%s' "$last_line" | grep -oE 'netns=[0-9]+' | cut -d= -f2 || true)
+        cid_last=$(printf '%s' "$last_line" | grep -oE 'container_id=[0-9]+' | cut -d= -f2 || true)
         kexc_last=$(printf '%s' "$last_line" | grep -oE 'kafka_exc=[0-9]+' | cut -d= -f2 || true)
         disk_last=$(printf '%s' "$last_line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
         # Peak disk seen across the whole run, not just the last sample —
@@ -402,6 +403,7 @@ rec {
         rows_first=''${rows_first:-0}
         rows_last=''${rows_last:-0}
         netns_last=''${netns_last:-0}
+        cid_last=''${cid_last:-0}
         kexc_last=''${kexc_last:-0}
         disk_last=''${disk_last:-0}
         disk_peak=''${disk_peak:-0}
@@ -412,6 +414,7 @@ rec {
         echo "  stress containers FAILED:      $cfailed"
         echo "  clickhouse rows first -> last: $rows_first -> $rows_last"
         echo "  distinct netns (last sample):  $netns_last"
+        echo "  distinct container_id (last):  $cid_last"
         echo "  kafka consumer exceptions:     $kexc_last"
         echo "  docker disk % (last / peak):    $disk_last / $disk_peak"
         echo "  panics in transcript:          $panics"
@@ -435,6 +438,7 @@ rec {
         [ "$rows_last" -lt 1 ] && { echo "FAIL: 0 rows reached ClickHouse — no records made it end-to-end"; rc=1; }
         [ "$rows_last" -le "$rows_first" ] && { echo "FAIL: ClickHouse rows did not grow ($rows_first -> $rows_last) — records stopped flowing"; rc=1; }
         [ "$netns_last" -lt 2 ] && { echo "FAIL: records from only $netns_last distinct netns — per-container discovery not proven end-to-end"; rc=1; }
+        [ "$cid_last" -lt 1 ] && { echo "FAIL: 0 distinct container_id — container-id enrichment (-resolveContainerId) not proven end-to-end"; rc=1; }
         [ "$kexc_last" -ne 0 ] && { echo "FAIL: $kexc_last kafka consumer exception(s) — ClickHouse ingestion stalled (likely MEMORY_LIMIT_EXCEEDED)"; rc=1; }
         # Disk saturation on /var/lib/docker freezes offset commits and back-
         # pressures the producer — ingestion plateaus while looking like a
