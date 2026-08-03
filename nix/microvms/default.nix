@@ -500,6 +500,7 @@ let
       extraSentinels = [
         "S3PARQUET_FILES"
         "S3PARQUET_ROWS"
+        "S3PARQUET_EVENTDATE"
       ];
       timeoutSec = 240;
     };

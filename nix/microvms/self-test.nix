@@ -808,6 +808,31 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (no parquet object to test)"
       fi
       if [ "$check14" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 14b: s3parquet event_date column present + well-formed ─
+      # Proves the derived event_date column shipped end-to-end: every value is
+      # YYYY-MM-DD and there is ≥1 distinct date. Exact per-row timestamp↔date
+      # correctness is covered by the Go readback unit test; here we stay
+      # TZ-robust and only check well-formedness + presence.
+      echo "--- check 14b: s3parquet — event_date column present ---"
+      check14b=1
+      if [ -s /tmp/xtcp2-s3p.parquet ]; then
+        edMalformed=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM read_parquet('/tmp/xtcp2-s3p.parquet') WHERE event_date NOT SIMILAR TO '[0-9]{4}-[0-9]{2}-[0-9]{2}'" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        edDistinct=$(duckdb -noheader -list \
+          -c "SELECT count(DISTINCT event_date) FROM read_parquet('/tmp/xtcp2-s3p.parquet')" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        if [ "''${edMalformed:-1}" = "0" ] && [ "''${edDistinct:-0}" -ge 1 ] 2>/dev/null; then
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0)"
+          check14b=0
+        else
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct)"
+        fi
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
+      fi
+      if [ "$check14b" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runValkeyCheck ''

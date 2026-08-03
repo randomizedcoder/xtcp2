@@ -36,7 +36,7 @@ xtcp/host=web-01/date=2026-06-19/hour=14/1750345200_9f3a1c20.parquet
 - `date=` / `hour=` — **UTC** wall clock at write time, ready for partition pruning (`WHERE date = '...' AND hour = '...'`).
 - The file name is `<unix-seconds>_<random-hex>.parquet` — unique, append-only; xtcp2 never rewrites a file.
 
-These partition keys are part of the **path, not the file** (standard Hive convention). Most engines (Spark, Trino/Athena, DuckDB, BigQuery external tables) expose `host`, `date`, `hour` as virtual columns automatically when you point them at `<prefix>/`.
+These partition keys are part of the **path, not the file** (standard Hive convention). Most engines (Spark, Trino/Athena, DuckDB, BigQuery external tables) expose `host`, `date`, `hour` as virtual columns automatically when you point them at `<prefix>/`. Readers that only see the file (e.g. Snowflake Snowpipe, or a file copied out of its prefix) instead get the per-sample date from the real **`event_date`** column — see [the columns that matter](#start-here-the-columns-that-matter).
 
 ## File size, cadence, and compression
 
@@ -68,41 +68,42 @@ df = dataset.to_table(columns=["timestamp_ns","hostname","tcp_info_rtt"]).to_pan
 -- partitions (host string, date string, hour string); project columns you need.
 ```
 
-**Always select only the columns you need** — there are 122, and columnar pruning is where Parquet earns its keep. Likewise filter on `date`/`hour` for partition pruning.
+**Always select only the columns you need** — there are 123, and columnar pruning is where Parquet earns its keep. Likewise filter on the `event_date` column (or the `date`/`hour` path partitions) for pruning.
 
-## Loading into Snowflake
+## Loading into Snowflake (Snowpipe → managed table)
 
-If your platform team already manages an S3 storage integration, ingesting is a few statements. The column names match the Parquet schema, so name-based matching does the mapping for you.
+The recommended path is **Snowpipe continuously loading into a managed table**, clustered on `(event_date, location)`. A managed (native) table is what makes clustering possible for date/DC pruning, and it **auto-absorbs our additive schema changes** — new columns we add over time land as `MATCH_BY_COLUMN_NAME` extra columns instead of being ignored (as they would be by an external table's fixed typed columns). Because `event_date`, `hostname`, and `location` are all **real columns**, Snowpipe maps them **by name** — no `metadata$filename` path parsing needed.
 
 ```sql
--- One-time: a Parquet file format and an external stage over the prefix.
--- STORAGE_INTEGRATION is the bucket grant your platform team provisions.
+-- One-time: Parquet file format + an external stage over the prefix.
 CREATE OR REPLACE FILE FORMAT xtcp_parquet TYPE = PARQUET;
 
 CREATE OR REPLACE STAGE xtcp_stage
   URL = 's3://bucket/xtcp/'
-  STORAGE_INTEGRATION = my_s3_int
+  STORAGE_INTEGRATION = my_s3_int          -- bucket grant from your platform team
   FILE_FORMAT = xtcp_parquet;
 
--- Auto-create a table whose columns mirror the Parquet schema.
+-- Managed table whose columns mirror the Parquet schema, clustered for pruning.
 CREATE OR REPLACE TABLE xtcp_flat_records
   USING TEMPLATE (
     SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*))
     FROM TABLE(INFER_SCHEMA(LOCATION => '@xtcp_stage', FILE_FORMAT => 'xtcp_parquet'))
-  );
+  )
+  CLUSTER BY (event_date, location);       -- date + DC pruning without path parsing
 
--- Load. MATCH_BY_COLUMN_NAME maps Parquet columns → table columns by name.
-COPY INTO xtcp_flat_records
+-- Continuous ingestion: Snowpipe auto-ingests new objects (via S3 event
+-- notification). MATCH_BY_COLUMN_NAME maps Parquet columns → table columns by
+-- name, so additive schema changes flow in without editing the pipe.
+CREATE OR REPLACE PIPE xtcp_pipe AUTO_INGEST = TRUE AS
+  COPY INTO xtcp_flat_records
   FROM @xtcp_stage
   FILE_FORMAT = (TYPE = PARQUET)
   MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 ```
 
-For **continuous, query-in-place** ingestion instead of a one-shot load, define an external table with `AUTO_REFRESH = TRUE` (backed by Snowpipe + an S3 event notification) over the same stage.
+Notes:
 
-Two Snowflake-specific notes:
-
-- **Partitions live in the path, not the file.** Snowflake won't surface `host`/`date`/`hour` automatically the way Spark/Trino do — derive them from `metadata$filename` (e.g. `REGEXP_SUBSTR(metadata$filename, 'date=([^/]+)', 1, 1, 'e', 1)`) as virtual columns on an external table, or as extra columns during `COPY` via a transform. They make great clustering/pruning keys.
+- **Cluster on `event_date` (the column), not the path.** `event_date` is the per-sample UTC date; it prunes the same way the `date=` prefix does for S3 readers. For exact sub-day or midnight-boundary filtering, use `timestamp_ns`. The `hour=` path segment is the only partition value with no column — derive it from `metadata$filename` only if you need hour-grain pruning.
 - **The two IP-address columns load as `BINARY`.** Decode them with `inet_diag_msg_family` as in the [cheat sheet](#decoding-cheat-sheet) — or, if you'd rather not decode in SQL, point the daemon at the humanized CSV/JSON output instead (see [output formats](output-and-destinations.md)).
 
 ## The grain: one row per socket per poll
@@ -121,6 +122,7 @@ If you're scoping an initial implementation, these are the high-value columns. E
 | Column | Type | Meaning |
 |---|---|---|
 | `timestamp_ns` | double | When the sample was taken — **Unix epoch nanoseconds, UTC**. Divide by 1e9 for seconds. |
+| `event_date` | string | UTC calendar date (`YYYY-MM-DD`) of this row's `timestamp_ns`. A real column (unlike the `date=` path partition) so column-only readers — Snowflake Snowpipe, or anyone reading a file out of its prefix — can prune/cluster on it. |
 | `hostname` | string | Emitting machine (also the `host=` partition). |
 | `netns` | string | Network namespace path — distinguishes host vs container/pod sockets. |
 | `inet_diag_msg_socket_cookie` | uint64 | Stable per-socket id; use to track one connection across polls. |
@@ -172,9 +174,9 @@ A few columns are stored as machine values for fidelity/size and need decoding f
 
 ## Full schema and column types
 
-The complete column list (122 columns) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns:
+The complete column list (123 columns) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns — the one exception is `event_date`, a Parquet-only derived column with no proto/ClickHouse counterpart:
 
-- **Metadata** — `timestamp_ns` (double), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
+- **Metadata** — `timestamp_ns` (double), `event_date` (string, derived — UTC date of `timestamp_ns`), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
 - **`inet_diag_msg_*`** — the socket id/4-tuple, state, queues, uid/inode, ASN annotations.
 - **`mem_info_*` / `sk_mem_info_*`** — socket memory accounting.
 - **`tcp_info_*`** — the bulk of the data: RTT, cwnd, ssthresh, MSS, windows, segment and byte counters, pacing/delivery rates, RTO stats, busy/limited times.
@@ -190,6 +192,7 @@ Column types are: `double` (timestamp only), `string` (hostname/netns/label/tag/
 - **Counters are cumulative**, per socket lifetime — delta between consecutive polls (matched by `inet_diag_msg_socket_cookie`) for per-interval rates, or `MAX()` for totals.
 - **Units differ**: RTTs are microseconds; rates are bytes/second; `snd_cwnd` is packets; byte counters are bytes. The per-column units are in the tables above.
 - **Per-algorithm columns are sparse-in-meaning**: `bbr_info_*` is only populated when the socket uses BBR, etc. Filter on `congestion_algorithm_string` before trusting them.
+- **`event_date` is per-sample, not the file's write date.** It's the UTC date of each row's own `timestamp_ns`, so it ≈ the `date=` path segment but can differ for a file that spans UTC midnight (the column is the more precise one). It's a distinct column name from the hive `date` partition, so `hive_partitioning = true` reads expose both without collision. An unset `timestamp_ns` (0) yields `1970-01-01`. For exact sub-day or boundary filtering, use `timestamp_ns`.
 - **Schema evolution**: new fields are *added* (never renamed/reordered in place), so plan for forward-compatible reads (select by name, tolerate new columns).
 
 ## Where the schema is defined
