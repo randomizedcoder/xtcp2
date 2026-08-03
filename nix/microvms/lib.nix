@@ -1436,16 +1436,47 @@ rec {
   # Parameters:
   #   arch         (string)  architecture key into constants.architectures
   #   vm           (drv)     microvm runner derivation
-  #   suffix       (string)  optional name suffix for the wrapper binary
-  #   sentinelRe   (string)  pipe-separated sentinel names to surface in the
-  #                          summary grep. Default matches the minimal flavor.
-  #   timeoutSec   (int)     overall scrape timeout in seconds.
+  #   suffix         (string)  optional name suffix for the wrapper binary
+  #   extraSentinels (list)    flavor-specific sentinel tokens surfaced in the
+  #                            summary grep on top of baseSentinels + OVERALL.
+  #   timeoutSec     (int)     overall scrape timeout in seconds.
+  # The self-test sentinels every lifecycle flavor emits (Checks 1-10 +
+  # the runtime-control ones). Each flavor's summary grep is
+  # `baseSentinels ++ its extraSentinels ++ [ "OVERALL" ]`, so a new
+  # baseline check is added in exactly one place instead of being copied
+  # into every caller's regex (where a single-token drift silently drops
+  # the check from the summary). NB this only affects the DISPLAYED
+  # summary — pass/fail keys solely on XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}.
+  baseSentinels = [
+    "SYSTEMD"
+    "METRICS"
+    "NETLINK"
+    "BINARIES_HELP"
+    "GRPC_ROUNDTRIP"
+    "POLL_STREAM"
+    "HEALTH"
+    "OUTPUT_CONTENT"
+    "LISTEN_STREAM"
+    "NS_INSPECT"
+    "NSTEST"
+    "NS_LIFECYCLE"
+    "NS_TRAFFIC"
+    "NS_DOCKER"
+    "NS_ANONYMOUS"
+    "CTL_HOT"
+    "CTL_TRIGGER"
+    "CTL_RESTART"
+  ];
+
   mkLifecycleFullTest =
     {
       arch,
       vm,
       suffix ? "",
-      sentinelRe ? "SYSTEMD|METRICS|NETLINK|OVERALL",
+      # Flavor-specific sentinel tokens surfaced in the summary in addition
+      # to baseSentinels (e.g. [ "VALKEY_CONSUME" ]). Order is irrelevant —
+      # the tokens become a regex alternation.
+      extraSentinels ? [ ],
       timeoutSec ? 180,
       # When true, after a passing OVERALL sentinel the runner also looks
       # for an XTCP2_COVERAGE_DUMP_START / _END block in the log, decodes
@@ -1456,6 +1487,7 @@ rec {
     }:
     let
       cfg = constants.architectures.${arch};
+      sentinelRe = lib.concatStringsSep "|" (baseSentinels ++ extraSentinels ++ [ "OVERALL" ]);
     in
     pkgs.writeShellApplication {
       name = "xtcp2-lifecycle-full-test-${arch}${suffix}";

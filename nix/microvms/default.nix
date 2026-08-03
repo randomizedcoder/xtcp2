@@ -432,10 +432,8 @@ let
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
       vm = vms.${arch};
-      # Surface every sentinel the self-test emits so a real failure in
-      # Check 4+ (BINARIES_HELP, GRPC_ROUNDTRIP, NS_*) doesn't hide
-      # behind an unhelpful OVERALL_FAIL with no breadcrumbs.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
+      # No flavor-specific tokens; baseSentinels already surfaces every
+      # check the minimal self-test emits (Check 4+ breadcrumbs included).
     };
   });
 
@@ -447,7 +445,7 @@ let
       # Baseline sentinels plus the valkey consume-back verdict. Valkey boots
       # fast (native server, no docker), but the self-test waits up to ~60 s for
       # the subscriber to accumulate messages, so keep a generous timeout.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|VALKEY_CONSUME|OVERALL";
+      extraSentinels = [ "VALKEY_CONSUME" ];
       timeoutSec = 240;
     };
   });
@@ -462,7 +460,7 @@ let
         inherit arch;
         vm = vmsAttr.${arch};
         suffix = suffixName;
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|RAW_SOCKET|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
+        extraSentinels = [ "RAW_SOCKET" ];
         timeoutSec = 240;
       };
     });
@@ -476,7 +474,7 @@ let
       inherit arch;
       vm = vmsNats.${arch};
       suffix = "-nats";
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NATS_CONSUME|OVERALL";
+      extraSentinels = [ "NATS_CONSUME" ];
       timeoutSec = 240;
     };
   });
@@ -486,7 +484,7 @@ let
       inherit arch;
       vm = vmsNsq.${arch};
       suffix = "-nsq";
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|NSQ_CONSUME|OVERALL";
+      extraSentinels = [ "NSQ_CONSUME" ];
       timeoutSec = 240;
     };
   });
@@ -499,7 +497,10 @@ let
       # The two s3parquet-specific sentinels alongside the baseline set.
       # 240 s timeout because the worker accumulates rows for several
       # poll cycles before triggering the 1 MiB-threshold finalize.
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|S3PARQUET_FILES|S3PARQUET_ROWS|OVERALL";
+      extraSentinels = [
+        "S3PARQUET_FILES"
+        "S3PARQUET_ROWS"
+      ];
       timeoutSec = 240;
     };
   });
@@ -513,7 +514,7 @@ let
       inherit arch;
       vm = vmsClickHttp.${arch};
       suffix = "-clickhouse-http";
-      sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|CLICKHOUSE_HTTP|OVERALL";
+      extraSentinels = [ "CLICKHOUSE_HTTP" ];
       timeoutSec = 1200;
     };
   });
@@ -525,12 +526,8 @@ let
         vm = vmsCoverage.${arch};
         suffix = "-coverage";
         scrapeCoverage = true;
-        # Surface the new NS_LIFECYCLE + NS_TRAFFIC sentinels from
-        # self-test.nix Checks 8+9 so the lifecycle output makes their
-        # outcome visible. Without this the default filter hides
-        # them; the checks still execute (and the daemon exercises the
-        # corresponding code paths) but the harness output is misleading.
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
+        # baseSentinels already surfaces NS_LIFECYCLE + NS_TRAFFIC (Checks
+        # 8+9) and every other check, so no extraSentinels needed here.
       };
     })
   );
@@ -542,7 +539,6 @@ let
         vm = vmsCoverageIoUring.${arch};
         suffix = "-coverage-iouring";
         scrapeCoverage = true;
-        sentinelRe = "SYSTEMD|METRICS|NETLINK|BINARIES_HELP|GRPC_ROUNDTRIP|POLL_STREAM|HEALTH|OUTPUT_CONTENT|LISTEN_STREAM|NS_INSPECT|NSTEST|NS_LIFECYCLE|NS_TRAFFIC|NS_DOCKER|NS_ANONYMOUS|CTL_HOT|CTL_TRIGGER|CTL_RESTART|OVERALL";
       };
     })
   );
