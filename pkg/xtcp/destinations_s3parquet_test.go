@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	dto "github.com/prometheus/client_model/go"
@@ -701,3 +702,76 @@ func promCounterValue(t *testing.T, x *XTCP, function, variable, typ string) flo
 // above; keep these "unused imports" defensive imports from leaking by
 // touching them here. Compiler errors on this line if either dep drops.
 var _ = bytes.NewReader
+
+// ─── event_date derived column ───────────────────────────────────────────
+
+// TestUtcDateFromNs pins the pure helper at UTC-day boundaries. Boundary cases
+// stay ≥1s off midnight: timestamp_ns is a float64, whose ~256ns granularity
+// near 2026 could otherwise round a sub-µs value across the day boundary.
+func TestUtcDateFromNs(t *testing.T) {
+	cases := []struct {
+		name string
+		ns   float64
+		want string
+	}{
+		{"epoch zero", 0, "1970-01-01"},
+		{"just before midnight", float64(time.Date(2026, 8, 2, 23, 59, 59, 0, time.UTC).UnixNano()), "2026-08-02"},
+		{"just after midnight", float64(time.Date(2026, 8, 3, 0, 0, 1, 0, time.UTC).UnixNano()), "2026-08-03"},
+		{"known midday", float64(time.Date(2026, 6, 19, 14, 30, 0, 0, time.UTC).UnixNano()), "2026-06-19"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			if got := utcDateFromNs(tc.ns); got != tc.want {
+				t.Errorf("utcDateFromNs(%v) = %q, want %q", tc.ns, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestS3ParquetDest_eventDatePerRow proves the written event_date column is
+// stamped per row from that row's own timestamp_ns (not constant-per-file): a
+// file whose rows straddle UTC midnight carries two distinct event_date values,
+// and every row's column equals utcDateFromNs of its own timestamp.
+func TestS3ParquetDest_eventDatePerRow(t *testing.T) {
+	beforeMidnight := time.Date(2026, 8, 2, 23, 59, 59, 0, time.UTC)
+	afterMidnight := time.Date(2026, 8, 3, 0, 0, 1, 0, time.UTC)
+	env := &xtcp_flat_record.Envelope{Row: []*xtcp_flat_record.XtcpFlatRecord{
+		{Hostname: "h", TimestampNs: float64(beforeMidnight.UnixNano())},
+		{Hostname: "h", TimestampNs: float64(afterMidnight.UnixNano())},
+		{Hostname: "h", TimestampNs: float64(afterMidnight.UnixNano())},
+	}}
+
+	d, upl, x := newS3ParquetFixture(t, 1<<30, nil) // huge threshold → flush on Close
+	buf := marshalEnvelopeBuf(t, x, env)
+	if _, err := d.Send(context.Background(), buf); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	calls := upl.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("uploads = %d, want 1", len(calls))
+	}
+	body := calls[0].body
+	rows, err := parquet.Read[ParquetRow](bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("parquet.Read: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("read %d rows, want 3", len(rows))
+	}
+
+	distinct := map[string]bool{}
+	for i, r := range rows {
+		if got := utcDateFromNs(r.TimestampNs); r.EventDate != got {
+			t.Errorf("row %d event_date = %q, want %q (from its timestamp_ns)", i, r.EventDate, got)
+		}
+		distinct[r.EventDate] = true
+	}
+	if len(distinct) != 2 {
+		t.Errorf("distinct event_date = %d, want 2 (per-row straddle)", len(distinct))
+	}
+}

@@ -32,6 +32,10 @@ import (
 // bounded above by this value. Operator-tunable via config / env / flag.
 const S3ParquetFlushThresholdBytesCst = 63 * 1024 * 1024
 
+// nsPerDayCst is one UTC day in nanoseconds — used to memoize the event_date
+// string across the many same-day rows in a file.
+const nsPerDayCst = 24 * 60 * 60 * 1_000_000_000
+
 // s3ParquetDestQueueCapacity bounds the in-flight backlog between
 // Send() and the worker. Full queue → Send blocks; queueFull counter
 // bumps so operators can spot back-pressure.
@@ -351,6 +355,9 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 		envelopeCt         int
 		effectiveThreshold int
 	)
+	// event_date memo (worker-lifetime; the date depends only on the timestamp).
+	lastDayIdx := int64(-1) // sentinel; ns=0 → idx 0, so the first row always formats
+	lastDate := ""
 	startBuilder := func() {
 		buf = new(bytes.Buffer)
 		writer = parquet.NewGenericWriter[ParquetRow](buf)
@@ -402,6 +409,13 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 		d.returnBuf(item.buf)
 		for _, row := range env.Row {
 			parquetRow := rowFromProto(row)
+			// Stamp the derived event_date, re-formatting only when the UTC day
+			// changes (≈once per file).
+			if idx := int64(row.TimestampNs) / nsPerDayCst; idx != lastDayIdx {
+				lastDayIdx = idx
+				lastDate = utcDateFromNs(row.TimestampNs)
+			}
+			parquetRow.EventDate = lastDate
 			if _, err := writer.Write([]ParquetRow{parquetRow}); err != nil {
 				if d.x.pC != nil {
 					d.x.pC.WithLabelValues("destS3Parquet", "write", "error").Inc()
@@ -718,6 +732,11 @@ func approxRowBytes(r *xtcp_flat_record.XtcpFlatRecord) int {
 		len(r.CongestionAlgorithmString)
 	n += len(r.InetDiagMsgSocketSource) + len(r.InetDiagMsgSocketDestination)
 	return n
+}
+
+// utcDateFromNs formats an epoch-ns timestamp as its UTC date (YYYY-MM-DD).
+func utcDateFromNs(ns float64) string {
+	return time.Unix(0, int64(ns)).UTC().Format("2006-01-02")
 }
 
 // rowFromProto translates one *xtcp_flat_record.XtcpFlatRecord into a

@@ -460,6 +460,7 @@ The `#` column mirrors the check labels in `self-test.nix`, which are lettered (
 | 12 | `CLICKHOUSE_RECONCILE` | Prom `envelopeRows` reconciles with the ClickHouse row count (within tolerance) | clickhouse-pipeline* |
 | 13 | `S3PARQUET_FILES` | ≥1 `.parquet` object lands in MinIO within 90s | s3parquet |
 | 14 | `S3PARQUET_ROWS` | duckdb decodes the parquet file and returns ≥1 row | s3parquet |
+| 14b | `S3PARQUET_EVENTDATE` | the derived `event_date` column is present, every value is `YYYY-MM-DD`, and ≥1 distinct date | s3parquet |
 | 15 | `CLICKHOUSE_PARQUET` | ClickHouse `s3()` table function reads the MinIO parquet, `count() > 0` | clickhouse-pipeline-parquet |
 | 16 | `NS_ANONYMOUS` | **the Method B audit-gap proof**: an anonymous `unshare -n` netns (no `/run/netns` bind mount) held by a live process is discovered purely via `/proc` — the exact case dir-scan/inotify was blind to | all |
 | 17 | `CTL_HOT` | `xtcp2ctl set-poll-frequency` is reflected by a later `get` + bumps the Poller `ticker.Reset` counter | all |

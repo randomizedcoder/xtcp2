@@ -13,6 +13,10 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
+// derivedColumns: ParquetRow columns not backed by a proto field. Excluded from
+// proto-parity; each must be present and must not shadow a proto field name.
+var derivedColumns = map[string]bool{"event_date": true}
+
 // parquetTagName extracts the column name from a parquet struct tag
 // (everything before the first comma). Returns "" if the tag is missing.
 func parquetTagName(field reflect.StructField) string {
@@ -52,8 +56,19 @@ func TestS3ParquetSchema_matchesProto(t *testing.T) {
 		parquetNames[name] = true
 	}
 
-	if len(protoNames) != len(parquetNames) {
-		t.Errorf("proto has %d fields, ParquetRow has %d columns", len(protoNames), len(parquetNames))
+	// Each derived column must be present and must not shadow a proto field.
+	for n := range derivedColumns {
+		if !parquetNames[n] {
+			t.Errorf("derived column %q missing from ParquetRow", n)
+		}
+		if protoNames[n] {
+			t.Errorf("column %q allowlisted as derived but is also a proto field", n)
+		}
+	}
+
+	if len(protoNames) != len(parquetNames)-len(derivedColumns) {
+		t.Errorf("proto has %d fields, ParquetRow has %d non-derived columns (+%d derived)",
+			len(protoNames), len(parquetNames)-len(derivedColumns), len(derivedColumns))
 	}
 
 	var missing, extra []string
@@ -63,7 +78,7 @@ func TestS3ParquetSchema_matchesProto(t *testing.T) {
 		}
 	}
 	for n := range parquetNames {
-		if !protoNames[n] {
+		if !protoNames[n] && !derivedColumns[n] {
 			extra = append(extra, n)
 		}
 	}
@@ -73,7 +88,7 @@ func TestS3ParquetSchema_matchesProto(t *testing.T) {
 		t.Errorf("proto fields NOT mirrored in ParquetRow: %v", missing)
 	}
 	if len(extra) > 0 {
-		t.Errorf("ParquetRow columns NOT in proto: %v", extra)
+		t.Errorf("ParquetRow columns NOT in proto and NOT allowlisted: %v", extra)
 	}
 }
 
@@ -118,6 +133,7 @@ func TestS3ParquetSchema_columnTypes(t *testing.T) {
 		wantKind parquet.Kind
 	}{
 		{"timestamp_ns", parquet.Double},
+		{"event_date", parquet.ByteArray},
 		{"hostname", parquet.ByteArray},
 		{"netns", parquet.ByteArray},
 		{"inet_diag_msg_socket_source", parquet.ByteArray},

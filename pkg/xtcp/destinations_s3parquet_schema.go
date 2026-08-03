@@ -16,12 +16,17 @@ package xtcp
 // Drift defense: TestS3ParquetSchema_matchesProto asserts that the set of
 // `parquet:` tag names here exactly matches the field-name set in
 // xtcp_flat_record.XtcpFlatRecord's proto descriptor. If you add a field
-// to the proto, that test fails until you mirror it here.
+// to the proto, that test fails until you mirror it here. The sole exception
+// is the derived event_date column (allowlisted in that test).
 type ParquetRow struct {
 	TimestampNs float64 `parquet:"timestamp_ns,snappy"`
 
 	Hostname string `parquet:"hostname,zstd"`
 	Location string `parquet:"location,zstd"`
+
+	// event_date: derived, not a proto field. Per-row UTC date of timestamp_ns,
+	// named event_date (not date) to avoid the hive path-segment collision.
+	EventDate string `parquet:"event_date,zstd"`
 
 	Netns            string `parquet:"netns,zstd"`
 	NetnsInode       uint64 `parquet:"netns_inode,snappy"`
