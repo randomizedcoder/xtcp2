@@ -272,6 +272,199 @@ let
       fi
     '';
   };
+
+  # Aggregator that drives the whole microVM integration suite from one
+  # command: `nix run .#integration-all`. KVM is a single slot, so every
+  # flavor runs SEQUENTIALLY.
+  #
+  #   default        the ~12 lifecycle flavors — each self-terminates on
+  #                  its XTCP2_SELF_TEST_OVERALL sentinel (minutes each).
+  #   --soak         additionally run the 6 duration-bounded runners at
+  #                  --duration each (soak + the stress/long flavors).
+  #   --duration D   per-soak duration (default 1h); ignored without --soak.
+  #
+  # Each runner already exits 0/1/2 = PASS/FAIL/TIMEOUT, so we just capture
+  # the code, keep going, and fold them into a summary + aggregate exit.
+  # Binaries are referenced by store path (lib.getExe), so building this
+  # derivation builds every VM it drives — no re-entrant `nix run`.
+  integrationAll =
+    let
+      # label → runner derivation. Order = run order.
+      lifecycleFlavors = [
+        {
+          label = "lifecycle";
+          drv = microvms.lifecycle.x86_64.fullTest;
+        }
+        {
+          label = "s3parquet";
+          drv = microvms.lifecycleS3Parquet.x86_64.fullTest;
+        }
+        {
+          label = "clickhouse-http";
+          drv = microvms.lifecycleClickHttp.x86_64.fullTest;
+        }
+        {
+          label = "valkey";
+          drv = microvms.lifecycleValkey.x86_64.fullTest;
+        }
+        {
+          label = "nats";
+          drv = microvms.lifecycleNats.x86_64.fullTest;
+        }
+        {
+          label = "nsq";
+          drv = microvms.lifecycleNsq.x86_64.fullTest;
+        }
+        {
+          label = "tcp-sink";
+          drv = microvms.lifecycleTcpSink.x86_64.fullTest;
+        }
+        {
+          label = "udp-sink";
+          drv = microvms.lifecycleUdpSink.x86_64.fullTest;
+        }
+        {
+          label = "unix-sink";
+          drv = microvms.lifecycleUnixSink.x86_64.fullTest;
+        }
+        {
+          label = "unixgram-sink";
+          drv = microvms.lifecycleUnixgramSink.x86_64.fullTest;
+        }
+        {
+          label = "coverage";
+          drv = microvms.lifecycleCoverage.x86_64.fullTest;
+        }
+        {
+          label = "coverage-iouring";
+          drv = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
+        }
+      ];
+      soakFlavors = [
+        {
+          label = "soak";
+          drv = microvms.soak.x86_64.runner;
+        }
+        {
+          label = "tcp-stress";
+          drv = microvms.tcpStress.x86_64.runner;
+        }
+        {
+          label = "clickhouse-pipeline-stress";
+          drv = microvms.clickPipeStress.x86_64.runner;
+        }
+        {
+          label = "s3parquet-long";
+          drv = microvms.s3parquetLong.x86_64.runner;
+        }
+        {
+          label = "s3parquet-stress";
+          drv = microvms.s3ParquetStress.x86_64.runner;
+        }
+        {
+          label = "s3parquet-lowfreq";
+          drv = microvms.s3ParquetLowfreq.x86_64.runner;
+        }
+      ];
+      toLine = f: "${f.label}\t${lib.getExe f.drv}";
+      lifecycleLines = lib.concatStringsSep "\n" (map toLine lifecycleFlavors);
+      soakLines = lib.concatStringsSep "\n" (map toLine soakFlavors);
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-integration-all";
+      runtimeInputs = with pkgs; [ coreutils ];
+      text = ''
+        SOAK=0
+        DURATION="1h"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --soak) SOAK=1; shift ;;
+            --duration) DURATION="$2"; shift 2 ;;
+            --duration=*) DURATION="''${1#--duration=}"; shift ;;
+            -h|--help)
+              printf '%s\n' \
+                "usage: integration-all [--soak] [--duration <1h|30m|...>]" \
+                "" \
+                "  Runs the xtcp2 microVM integration suite SEQUENTIALLY (KVM is single-slot)." \
+                "" \
+                "  default          the ~12 lifecycle flavors; each self-terminates on its" \
+                "                   XTCP2_SELF_TEST_OVERALL sentinel (minutes each; the" \
+                "                   clickhouse-http one can take up to ~20m)." \
+                "  --soak           additionally run the 6 duration-bounded runners:" \
+                "                   soak, tcp-stress, clickhouse-pipeline-stress," \
+                "                   s3parquet-long, s3parquet-stress, s3parquet-lowfreq." \
+                "  --duration <D>   per-soak duration (default 1h). Ignored without --soak." \
+                "" \
+                "  Prints a PASS/FAIL/TIMEOUT summary; exits non-zero if any flavor failed." \
+                "" \
+                "  NOT included (finite, not soaks - run directly if wanted):" \
+                "    .#microvm-x86_64-clickhouse-pipeline-rate-runner, .#microvm-x86_64-discovery-bench"
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 2 ;;
+          esac
+        done
+
+        LIFECYCLE_JOBS='${lifecycleLines}'
+        SOAK_JOBS='${soakLines}'
+
+        results=""
+        overall_rc=0
+
+        run_job() {
+          label="$1"
+          bin="$2"
+          shift 2
+          echo ""
+          echo "########################################################"
+          echo "# integration-all: $label"
+          echo "########################################################"
+          rc=0
+          "$bin" "$@" || rc=$?
+          case "$rc" in
+            0) verdict="PASS" ;;
+            1) verdict="FAIL" ;;
+            2) verdict="TIMEOUT" ;;
+            *) verdict="ERROR($rc)" ;;
+          esac
+          if [ "$rc" -ne 0 ]; then overall_rc=1; fi
+          results="''${results}''${label}\t''${verdict}\n"
+          echo "==> $label: $verdict (rc=$rc)"
+        }
+
+        echo "==> integration-all: lifecycle sweep (sequential)"
+        while IFS=$'\t' read -r label bin; do
+          [ -z "$label" ] && continue
+          run_job "$label" "$bin"
+        done < <(printf '%s\n' "$LIFECYCLE_JOBS")
+
+        if [ "$SOAK" = "1" ]; then
+          echo ""
+          echo "==> integration-all: soak/stress runners @ --duration $DURATION each"
+          while IFS=$'\t' read -r label bin; do
+            [ -z "$label" ] && continue
+            run_job "$label" "$bin" --duration "$DURATION"
+          done < <(printf '%s\n' "$SOAK_JOBS")
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " integration-all summary"
+        echo "================================================"
+        printf '%b' "$results" | while IFS=$'\t' read -r label verdict; do
+          [ -z "$label" ] && continue
+          printf '  %-32s %s\n' "$label" "$verdict"
+        done
+
+        echo ""
+        if [ "$overall_rc" -eq 0 ]; then
+          echo "ALL PASS"
+        else
+          echo "SOME FAILED"
+        fi
+        exit "$overall_rc"
+      '';
+    };
 in
 {
   packages =
@@ -328,6 +521,10 @@ in
       microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
 
+      # Whole-suite aggregator (see `apps.integration-all`). Buildable so
+      # `nix build .#integration-all` builds every VM it drives.
+      integration-all = integrationAll;
+
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
       xtcp-flat-record-desc = xtcpFlatRecordDescPackage;
@@ -383,6 +580,12 @@ in
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";
+    };
+    # Run the whole microVM integration suite sequentially. Lifecycle sweep
+    # by default; `-- --soak [--duration 1h]` adds the duration runners.
+    integration-all = {
+      type = "app";
+      program = "${integrationAll}/bin/xtcp2-integration-all";
     };
     microvm-x86_64-lifecycle = {
       type = "app";
