@@ -21,6 +21,12 @@
 #   oci-xtcp2-valkey    single xtcp2 binary, valkey only                  (~26 MiB)
 #   oci-xtcp2-s3parquet single xtcp2 binary, s3parquet only               (~26 MiB)
 #
+#   3. Client binaries — slim single-binary scratch images for the gRPC
+#      clients, for users who want just the client (not the fat image).
+#
+#   oci-xtcp2client     single xtcp2client binary (FlatRecords / poll)
+#   oci-xtcp2ctl        single xtcp2ctl binary (runtime control)
+#
 {
   pkgs,
   lib,
@@ -149,6 +155,22 @@ let
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
     };
+
+  # Slim single-binary images for the gRPC clients (xtcp2client, xtcp2ctl).
+  # Same scratch + CA-bundle base as the flavor images, carrying just the one
+  # client binary with its own entrypoint. No proto payload, no exposed ports,
+  # and no HEALTHCHECK: these dial the daemon and exit, they aren't long-running
+  # services. (The clients also ship inside the fat `oci-xtcp2` image — reach
+  # them there via `--entrypoint /bin/xtcp2client`; these images are for users
+  # who only want the client.)
+  mkClientImage =
+    name:
+    mkOciImage {
+      inherit name;
+      tag = "latest";
+      binaries = binaries.${name};
+      entrypoint = "/bin/${name}";
+    };
 in
 {
   oci-xtcp2 = mkFatImage {
@@ -170,6 +192,10 @@ in
   oci-xtcp2-nsq = mkFlavorImage "nsq";
   oci-xtcp2-valkey = mkFlavorImage "valkey";
   oci-xtcp2-s3parquet = mkFlavorImage "s3parquet";
+
+  # Slim per-client images (gRPC clients that talk to the daemon).
+  oci-xtcp2client = mkClientImage "xtcp2client";
+  oci-xtcp2ctl = mkClientImage "xtcp2ctl";
 
   # Phase B: tcp_server + tcp_client image, dispatched by TCP_MODE env.
   # Built so the Phase C docker-in-vm lifecycle harness can spin up

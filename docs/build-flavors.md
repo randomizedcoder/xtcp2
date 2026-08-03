@@ -72,6 +72,9 @@ The three "fat" images carry every cmd binary; the slim images carry only the si
 | `nix build .#oci-xtcp2-nats` | `xtcp2:nats` | only `xtcp2-nats` | 23 MiB |
 | `nix build .#oci-xtcp2-nsq` | `xtcp2:nsq` | only `xtcp2-nsq` | 22 MiB |
 | `nix build .#oci-xtcp2-valkey` | `xtcp2:valkey` | only `xtcp2-valkey` | 26 MiB |
+| `nix build .#oci-xtcp2-s3parquet` | `xtcp2:s3parquet` | only `xtcp2-s3parquet` | 26 MiB |
+| `nix build .#oci-xtcp2client` | `xtcp2client:latest` | only `xtcp2client` (gRPC record-stream client) | ~15 MiB |
+| `nix build .#oci-xtcp2ctl` | `xtcp2ctl:latest` | only `xtcp2ctl` (runtime-control client) | ~15 MiB |
 
 Images are built with `pkgs.dockerTools.streamLayeredImage`: `./result` is a script that streams a docker-loadable tarball on stdout.
 
@@ -85,6 +88,15 @@ docker run --rm xtcp2:kafka -dest kafka:broker:9092 -topic xtcp2
 nix build .#oci-xtcp2
 ./result | docker load
 docker run --rm --entrypoint /bin/register_schema xtcp2:latest -help
+
+# Slim client images (the gRPC clients, for users who only want the client)
+nix build .#oci-xtcp2client
+./result | docker load
+docker run --rm xtcp2client:latest -help
+docker run --rm xtcp2client:latest -target daemon-host -port 8889
+# xtcp2ctl is the runtime-control client:
+nix build .#oci-xtcp2ctl && ./result | docker load
+docker run --rm xtcp2ctl:latest -help
 ```
 
 ## Choosing a flavor

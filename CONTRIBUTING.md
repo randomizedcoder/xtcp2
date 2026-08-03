@@ -62,7 +62,7 @@ Run `nix flake show` for the complete, current list. The main groups:
 
 ### OCI images (`nix build .#oci-<name>`)
 
-`oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` (fat images with every binary), and the slim single-binary images `oci-xtcp2-min`, `oci-xtcp2-kafka`, `oci-xtcp2-nats`, `oci-xtcp2-nsq`, `oci-xtcp2-valkey`, plus `oci-xtcp2-tcp-stress` for load testing.
+`oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` (fat images with every binary), the slim single-binary daemon images `oci-xtcp2-min`, `oci-xtcp2-kafka`, `oci-xtcp2-nats`, `oci-xtcp2-nsq`, `oci-xtcp2-valkey`, `oci-xtcp2-s3parquet`, the slim client images `oci-xtcp2client` and `oci-xtcp2ctl`, plus `oci-xtcp2-tcp-stress` for load testing.
 
 ### MicroVM integration tests (`nix build .#microvm-x86_64*` / `nix run .#microvm-x86_64-*`)
 
