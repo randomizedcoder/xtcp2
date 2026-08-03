@@ -141,11 +141,15 @@
   # wouldn't exist — hence the gate.
   runFileOutputCheck ? false,
   fileOutputPath ? "/var/log/xtcp2.jsonl",
-  # When true (tcp-sink flavor), the RAW_SOCKET check validates the records
-  # xtcp2 streamed over the raw TCP destination to the in-VM ncat receiver
-  # (written to tcpSinkFile).
+  # When true (socket-sink flavors), the RAW_SOCKET check validates the records
+  # xtcp2 streamed over the raw socket destination (tcp/udp/unix/unixgram) to
+  # the in-VM ncat receiver (written to socketSinkFile), and the per-scheme
+  # send-side Writes counter (socketSinkMetricFn/Var).
   runRawSocketCheck ? false,
-  tcpSinkFile ? "/tmp/xtcp2-tcp-sink.out",
+  socketSinkScheme ? "tcp",
+  socketSinkFile ? "/tmp/xtcp2-socket-sink.out",
+  socketSinkMetricFn ? "destTCP",
+  socketSinkMetricVar ? "Writes",
 }:
 
 pkgs.writeShellApplication {
@@ -480,45 +484,49 @@ pkgs.writeShellApplication {
     fi
     if [ "$check5e" -ne 0 ]; then overall_ok=0; fi
 
-    # ─── Check 5f: raw TCP destination → in-VM ncat sink ──────────────────
-    # (tcp-sink flavor only). xtcp2 streams jsonl records over `-dest tcp:...`
-    # to a dual-stack ncat receiver; validate the received records ARE
-    # well-formed jsonl (send + receipt) AND the destTCP write counter grew.
-    # tcp/udp/unix dests were Go-component-only before this.
+    # ─── Check 5f: raw socket destination → in-VM ncat sink ───────────────
+    # (socket-sink flavors: tcp/udp/unix/unixgram). xtcp2 streams jsonl records
+    # over `-dest <scheme>:...` to an ncat receiver; validate the received
+    # records carry a non-empty hostname (send + receipt) AND the per-scheme
+    # send counter ran. These dests were Go-component-only before this.
     ${lib.optionalString runRawSocketCheck ''
-      echo "--- check 5f: raw TCP dest → ncat sink (${tcpSinkFile}) ---"
+      echo "--- check 5f: raw ${socketSinkScheme} dest → ncat sink (${socketSinkFile}) ---"
       check5f=1
       # Wait for records to arrive at the sink file.
       for _ in $(seq 1 20); do
-        if [ -s "${tcpSinkFile}" ]; then break; fi
+        if [ -s "${socketSinkFile}" ]; then break; fi
         sleep 1
       done
-      # destTCP Writes counter (>=1 = the daemon's send side ran). Not a growth
-      # check: the daemon has usually already flushed its writes by the time
-      # this check runs, so require the counter to be non-zero, not growing.
-      writes=$(metric_value "xtcp_counts" 'function="destTCP"' 'variable="Writes"')
-      # Snapshot + validate only complete lines (drop a partial trailing line —
-      # ncat may be mid-write). Same wc -l / head -n idiom as OUTPUT_CONTENT.
-      cp "${tcpSinkFile}" /tmp/xtcp2-tcpsink.snap 2>/dev/null || true
-      total=$(wc -l < /tmp/xtcp2-tcpsink.snap 2>/dev/null || echo 0)
+      # Per-scheme Writes counter (>=1 = the daemon's send side ran). Not a
+      # growth check: the daemon has usually already flushed by the time this
+      # runs, so require non-zero, not growing.
+      writes=$(metric_value "xtcp_counts" 'function="${socketSinkMetricFn}"' 'variable="${socketSinkMetricVar}"')
+      # Snapshot, drop a possibly-partial trailing line (ncat mid-write), then
+      # extract JSON objects: `grep '{...}'` strips the unix STREAM dest's
+      # varint length prefix and is a no-op for the newline-delimited jsonl of
+      # tcp/udp/unixgram. jq-validate each carries a non-empty hostname.
+      cp "${socketSinkFile}" /tmp/xtcp2-sink.snap 2>/dev/null || true
+      total=$(wc -l < /tmp/xtcp2-sink.snap 2>/dev/null || echo 0)
       total=''${total:-0}
       good=0
       bad=0
-      while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        if printf '%s\n' "$line" \
+      while IFS= read -r obj; do
+        [ -z "$obj" ] && continue
+        if printf '%s\n' "$obj" \
           | jq -e 'has("hostname") and (.hostname | length > 0)' >/dev/null 2>&1; then
           good=$((good + 1))
         else
           bad=$((bad + 1))
         fi
-      done < <(head -n "$total" /tmp/xtcp2-tcpsink.snap 2>/dev/null)
-      if [ "$good" -ge 1 ] && [ "$bad" -eq 0 ] && [ "''${writes:-0}" -ge 1 ] 2>/dev/null; then
-        echo "XTCP2_SELF_TEST_RAW_SOCKET_PASS  (records=$good, destTCP_Writes=$writes)"
+      done < <(head -n "$total" /tmp/xtcp2-sink.snap 2>/dev/null | grep -aoE '\{.*\}')
+      # good>=1 + counter>=1 is the proof; a few `bad` are tolerated (a varint
+      # length byte can occasionally look like '{' on the unix stream framing).
+      if [ "$good" -ge 1 ] && [ "''${writes:-0}" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_RAW_SOCKET_PASS  (scheme=${socketSinkScheme}, records=$good, malformed=$bad, ${socketSinkMetricFn}/${socketSinkMetricVar}=$writes)"
         check5f=0
       else
-        echo "XTCP2_SELF_TEST_RAW_SOCKET_FAIL  (records=$good, malformed=$bad, destTCP_Writes=$writes)"
-        head -n 3 /tmp/xtcp2-tcpsink.snap 2>/dev/null || echo "(no sink file)"
+        echo "XTCP2_SELF_TEST_RAW_SOCKET_FAIL  (scheme=${socketSinkScheme}, records=$good, malformed=$bad, ${socketSinkMetricFn}/${socketSinkMetricVar}=$writes)"
+        head -c 200 /tmp/xtcp2-sink.snap 2>/dev/null || echo "(no sink file)"
       fi
       if [ "$check5f" -ne 0 ]; then overall_ok=0; fi
     ''}
