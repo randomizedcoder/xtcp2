@@ -66,7 +66,7 @@ Run `nix flake show` for the complete, current list. The main groups:
 
 ### MicroVM integration tests (`nix build .#microvm-x86_64*` / `nix run .#microvm-x86_64-*`)
 
-Boot xtcp2 inside a QEMU microVM against a real kernel and real namespaces: `microvm-x86_64` (minimal lifecycle), `-coverage`, `-coverage-iouring`, `-soak`, `-tcp-stress`, `-clickhouse-pipeline`, `-clickhouse-pipeline-parquet`, `-s3parquet-pipeline`, `-s3parquet-long`, `-capcheck-fail`, and `-discovery-bench` (namespace-discovery A/B benchmark: dir-scan vs `/proc`-scan on a real kernel). See [Testing](#testing) and [docs/integration-testing.md](docs/integration-testing.md).
+Boot xtcp2 inside a QEMU microVM against a real kernel and real namespaces: `microvm-x86_64` (minimal lifecycle), `-coverage`, `-coverage-iouring`, `-soak`, `-tcp-stress`, `-clickhouse-pipeline`, `-clickhouse-pipeline-parquet`, `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-capcheck-fail`, and `-discovery-bench` (namespace-discovery A/B benchmark: dir-scan vs `/proc`-scan on a real kernel). Destination round-trip lifecycles — `-lifecycle-valkey`, `-lifecycle-nats`, `-lifecycle-nsq`, `-lifecycle-clickhouse-http`, and `-lifecycle-{tcp,udp,unix,unixgram}-sink` — boot a native in-VM broker / raw-socket receiver / direct HTTP→ClickHouse insert and assert the records arrived. Run the whole suite sequentially with **`nix run .#integration-all`** (`-- --soak` adds the 1h soaks). See [Testing](#testing) and [docs/integration-testing.md](docs/integration-testing.md).
 
 ### Utility apps (`nix run .#<name>`)
 
@@ -111,14 +111,17 @@ nix build .#test-proto-deserialize-golden   # decode known-good netlink fixtures
 
 ### Integration tests (microVM)
 
-These need KVM (`/dev/kvm`). They boot a VM, start the daemon, and run a battery of self-tests (systemd up, metrics endpoint, netlink readout, gRPC round-trip, namespace add/delete lifecycle, per-namespace traffic, and — for pipeline flavors — ClickHouse and S3/Parquet assertions):
+These need KVM (`/dev/kvm`). They boot a VM, start the daemon, and run a battery of self-tests (systemd up, metrics endpoint, netlink readout, gRPC round-trip, poll/listen record streaming, health probes, namespace add/delete lifecycle, per-namespace traffic, runtime-control reconfigure, and — per flavor — the destination round-trip: raw-socket/broker consume-back, ClickHouse, and S3/Parquet assertions):
 
 ```sh
 nix run .#microvm-x86_64-lifecycle                 # ~45s smoke test
+nix run .#microvm-x86_64-lifecycle-valkey          # native-broker consume-back (also -nats / -nsq)
+nix run .#microvm-x86_64-lifecycle-clickhouse-http # direct HTTP→ClickHouse ProtobufList insert
 nix run .#microvm-x86_64-soak -- --duration 1h     # long-running stability
 nix run .#microvm-x86_64-tcp-stress -- --duration 180s
 nix run .#microvm-x86_64-clickhouse-pipeline       # full xtcp2 → redpanda → clickhouse stack
 nix run .#microvm-x86_64-discovery-bench -- --timeout 900  # ns-discovery A/B grid
+nix run .#integration-all                          # every lifecycle flavor, sequentially
 ```
 
 See [docs/integration-testing.md](docs/integration-testing.md) for the harness internals, flavor descriptions, and troubleshooting.

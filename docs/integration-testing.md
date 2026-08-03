@@ -45,6 +45,7 @@ xtcp2's automated testing spans four layers; this document covers layers 2-3.
    | Group | Flavors | What it exercises |
    |---|---|---|
    | **Lifecycle / self-test** | `-lifecycle` (+ `-coverage`, `-coverage-iouring`), `-lifecycle-s3parquet` | Fast (~1 min) assertion-scraped boot; `-lifecycle` runs in `nix flake check` |
+   | **Destination lifecycle** | `-lifecycle-valkey`, `-lifecycle-nats`, `-lifecycle-nsq`, `-lifecycle-clickhouse-http`, `-lifecycle-{tcp,udp,unix,unixgram}-sink` | End-to-end destination round-trips: native in-VM broker / raw-socket receiver / direct HTTP→ClickHouse insert, each asserting the records arrived downstream |
    | **Soak & long-running** | `-soak`, `-s3parquet-runner` (s3parquet-long) | Hours-long stability (churn / sustained upload). Methodology + measured results: [stability-testing.md](stability-testing.md) |
    | **Stress (under socket load)** | `-tcp-stress`, `-clickhouse-pipeline-stress`, `-s3parquet-stress`, `-s3parquet-lowfreq` | 20 containers × 250 sockets; the `-stress` soaks run 24h |
    | **S3 / MinIO (parquet)** | `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-clickhouse-pipeline-parquet` | xtcp2 → Parquet → in-VM MinIO, read back with duckdb / ClickHouse `s3()` |
@@ -64,6 +65,18 @@ nix run .#microvm-x86_64-lifecycle
 # Same self-test but with coverage instrumentation; merged into quality-report
 nix run .#microvm-x86_64-lifecycle-coverage
 nix run .#microvm-x86_64-lifecycle-coverage-iouring
+
+# Destination round-trip lifecycles — native in-VM broker / raw-socket receiver /
+# direct HTTP→ClickHouse, each asserting the records arrived downstream
+nix run .#microvm-x86_64-lifecycle-valkey
+nix run .#microvm-x86_64-lifecycle-nats
+nix run .#microvm-x86_64-lifecycle-nsq
+nix run .#microvm-x86_64-lifecycle-clickhouse-http
+nix run .#microvm-x86_64-lifecycle-tcp-sink       # + udp-sink / unix-sink / unixgram-sink
+
+# Run the WHOLE suite: all lifecycle flavors sequentially (--soak adds the 1h soaks)
+nix run .#integration-all
+nix run .#integration-all -- --soak --duration 1h
 
 # Long-running stability soak (nsTest churn + tcp population) — 1h default
 nix run .#microvm-x86_64-soak
@@ -169,6 +182,11 @@ Two exposure shapes:
 | `microvm-x86_64-lifecycle-coverage` | `coverage` | runner | 1024 | xtcp2 built `-cover`; scrapes the coverage dump into `$XTCP2_COVERDIR`. |
 | `microvm-x86_64-lifecycle-coverage-iouring` | `coverage-iouring` | runner | 1024 | Coverage + `-ioUring` so the `netlinkerIoUring` path runs. |
 | `microvm-x86_64-lifecycle-s3parquet` | `s3parquet` | runner | 6144 | s3parquet lifecycle; adds the `S3PARQUET_FILES`/`S3PARQUET_ROWS` checks. |
+| `microvm-x86_64-lifecycle-clickhouse-http` | `clickhouse-http` | runner | 6144 | xtcp2 inserts **directly into ClickHouse over HTTP** (`FORMAT ProtobufList`, no Kafka); adds `CLICKHOUSE_HTTP` (rows grew **and** `destHTTP` posts). 1200 s timeout (docker pull + CH init). |
+| `microvm-x86_64-lifecycle-valkey` | `valkey` | runner | 1024 | Native in-VM Valkey + a pre-subscribed consumer; the daemon PUBLISHes each poll's records and `VALKEY_CONSUME` counts them back (pub/sub). |
+| `microvm-x86_64-lifecycle-nats` | `nats` | runner | 1024 | Native in-VM NATS server + subscriber; `NATS_CONSUME` counts consumed records. |
+| `microvm-x86_64-lifecycle-nsq` | `nsq` | runner | 1024 | Native in-VM nsqd + an `nsq_tail` consumer; `NSQ_CONSUME` reads nsqd's per-channel `finish_count`. |
+| `microvm-x86_64-lifecycle-{tcp,udp,unix,unixgram}-sink` | `{tcp,udp,unix,unixgram}-sink` | runner | 1024 | Raw-socket dest → an in-VM `ncat`/`socat` receiver; `RAW_SOCKET` validates the records arrived + the per-scheme `Writes` counter grew. Four flavors sharing one `mkLifecycleSocketSink` factory. |
 | `microvm-x86_64-s3parquet-pipeline` | `s3parquet` | raw boot | 6144 | The s3parquet lifecycle VM (in-VM MinIO, xtcp2 writes Parquet), booted directly. |
 | `microvm-x86_64-soak` | `soak` | runner | 3072 | xtcp2 (`-dest null`) + nsTest churn + tcp_server/client + /metrics scraper. Long stability (1h default, `--duration 24h`); asserts no panic/restart, ≥10 churn events, bounded RSS/threads. |
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | runner | 3072 | dockerd + 20 containers × 250 sockets, each its own netns. Asserts Method B discovered ≥ container-count namespaces, 0 panics. |
@@ -177,7 +195,7 @@ Two exposure shapes:
 | `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | raw boot | 16384 | clickpipe stack **+** in-VM MinIO + a 2nd xtcp2 writing Parquet; ClickHouse `s3()` reads it back (Check 15). |
 | `microvm-x86_64-clickhouse-pipeline-rate-runner` | `clickhouse-pipeline-rate` | runner | 6144 | **Runtime-control rate test** — drives `xtcp2ctl` and asserts the ClickHouse ingest *rate* matches a socket-count prediction. See below. |
 | `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | runner | 8192 | Full pipeline **under TCP-stress load** (20 × 250) with a 1h records-table TTL — ProtobufList ingest at rate, disk/RSS guards; 24h soak. |
-| `microvm-x86_64-s3parquet-runner` | `s3parquet-long` | runner | 6144 | Parquet→S3 soak (63 MiB flush, 10s poll, Pyroscope); scrapes `XTCP2_S3PARQUET_HOURLY`, asserts files advanced + no leak. `--duration 12h`. |
+| `microvm-x86_64-s3parquet-runner` | `s3parquet-long` | runner | 6144 | Parquet→S3 soak (64 MiB flush, 10s poll, Pyroscope); scrapes `XTCP2_S3PARQUET_HOURLY`, asserts files advanced + no leak. `--duration 12h`. |
 | `microvm-x86_64-s3parquet-stress` | `s3parquet-stress` | runner | 6144 | Parquet→S3 **under TCP-stress load** + ~1h object retention — the S3 analog of `clickhouse-pipeline-stress`; 24h soak. |
 | `microvm-x86_64-s3parquet-lowfreq` | `s3parquet-lowfreq` | runner | 6144 | Parquet→S3 with **1h poll + 2 sockets/container** — the byte cap is never hit, so files land purely via the **staleness timer**. ~2h. |
 | `microvm-x86_64-capcheck-fail` | `capcheck-fail` | raw boot | 6144 | An s3parquet-long VM with `CAP_SYS_ADMIN` **dropped** — xtcp2's startup capability check must refuse to start (inspect the serial console). Sub-second non-VM analog: the `capability-check-*` flake checks. |
@@ -211,9 +229,12 @@ In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`, defined
 
 | Flavor | `-dest` | Notes |
 |---|---|---|
-| minimal / soak / tcp-stress / coverage | `null` | No downstream; the point is the netlink readout |
+| minimal / soak / tcp-stress / coverage | `null` | No downstream; the point is the netlink readout (minimal also writes a `file:` dest for the `OUTPUT_CONTENT` check) |
 | clickhouse-pipeline / -stress / -rate | `kafka:localhost:19092` | Real Kafka → ClickHouse destination (rate disables poll jitter via `-pollJitterPct 0`) |
+| clickhouse-http | `http://localhost:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=…&password=…` | Direct HTTP→ClickHouse ProtobufList insert (no Kafka); the daemon POSTs the batch to the verbatim URL |
 | s3parquet / -long / -stress / -lowfreq | `s3parquet:http://127.0.0.1:9000` | In-VM MinIO; parquet upload path |
+| valkey / nats / nsq | `valkey:127.0.0.1:6379` / `nats:127.0.0.1:4222` / `nsq:127.0.0.1:4150` | Native in-VM broker; `-topic xtcp2-records`, `-marshal protobufList` |
+| tcp-sink / udp-sink / unix-sink / unixgram-sink | `tcp:localhost:13001` / `udp:localhost:13001` / `unix:/run/xtcp2-sink.sock` / `unixgram:/run/xtcp2-sink.sock` | Raw socket → an in-VM `ncat`/`socat` receiver |
 
 Grants: `CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_SYS_RESOURCE`. Limits: `TasksMax = 8192` (raised from systemd's default ~1100 after the 1h soak hit the cgroup ceiling). Go-runtime cap: `-maxThreads 2000` (via `runtime/debug.SetMaxThreads`).
 
@@ -413,7 +434,9 @@ WHERE timestamp_ns > now() - INTERVAL 5 MINUTE
 
 ## Lifecycle phases
 
-The shared self-test (`nix/microvms/self-test.nix`) runs a sequence of checks on every lifecycle boot. Each emits a sentinel line on the serial console that the host harness greps: `XTCP2_SELF_TEST_<NAME>_(PASS|FAIL)`. Checks are independent — a failure in one doesn't skip later ones, so an `OVERALL_FAIL` pinpoints exactly what broke. Baseline checks (1-10, 16) and the runtime-control checks (17-19) run on every boot; the ClickHouse/S3 checks (11-15) run only on the flavor that provides that backend.
+The shared self-test (`nix/microvms/self-test.nix`) runs a sequence of checks on every lifecycle boot. Each emits a sentinel line on the serial console that the host harness greps: `XTCP2_SELF_TEST_<NAME>_(PASS|FAIL)`. Checks are independent — a failure in one doesn't skip later ones, so an `OVERALL_FAIL` pinpoints exactly what broke. The baseline checks — 1-10 plus `POLL_STREAM`/`HEALTH`/`LISTEN_STREAM` (5b/5c/5e), `NS_ANONYMOUS` (16), and the runtime-control checks (17-19) — run on every lifecycle boot. The rest are flavor-gated: `OUTPUT_CONTENT` (5d, minimal), `RAW_SOCKET` (5f, socket sinks), the ClickHouse/S3 checks (11-15, 11h), and the broker `*_CONSUME` checks.
+
+The `#` column mirrors the check labels in `self-test.nix`, which are lettered (5b, 5c, …, 11h) where checks were inserted between existing ones — treat it as indicative, not a stable index. What each run actually surfaces in its summary is `baseSentinels` (18 tokens in `nix/microvms/lib.nix`) plus the flavor's `extraSentinels` (in `nix/microvms/default.nix`) plus `OVERALL`; that regex is **display-only** — pass/fail keys solely on `OVERALL`.
 
 | # | Sentinel | Checks | Runs on |
 |---|---|---|---|
@@ -422,12 +445,18 @@ The shared self-test (`nix/microvms/self-test.nix`) runs a sequence of checks on
 | 3 | `NETLINK` | `xtcp_counts{variable="p"}` advances → daemon parsed ≥1 inet_diag socket end-to-end | all |
 | 4 | `BINARIES_HELP` | All **11** cmd binaries respond to `-help` (xtcp2, xtcp2client, **xtcp2ctl**, xtcp2_kafka_client, clickhouse_protobuflist[_db], clickhouse_http_insert_protobuflist, kafka_to_clickhouse, ns, nsTest, register_schema) | all |
 | 5 | `GRPC_ROUNDTRIP` | `xtcp2client -target 127.0.0.1 -port 8889` connects and produces output | all |
+| 5b | `POLL_STREAM` | `xtcp2client -poll` (PollFlatRecords bidi stream) delivers ≥1 record **and** the `pfrSent` counter grows | all |
+| 5c | `HEALTH` | `/healthz` + `/readyz` return 200 **and** `xtcp2 -healthcheck` exits 0 (the container-orchestration path) | all |
+| 5d | `OUTPUT_CONTENT` | the daemon's serialized `jsonl` file output has ≥1 line, each valid JSON with a non-empty `.hostname` | minimal |
+| 5e | `LISTEN_STREAM` | `xtcp2client` listen mode (FlatRecords server-stream) delivers ≥1 record **and** the `frSent` counter grows | all |
+| 5f | `RAW_SOCKET` | records reach the raw tcp/udp/unix/unixgram receiver (jsonl-validated) **and** the per-scheme `Writes` counter grows | `*-sink` |
 | 6 | `NS_INSPECT` | `ns` namespace inspector binary runs | all |
 | 7 | `NSTEST` | `nsTest -help` works | all |
 | 8 | `NS_LIFECYCLE` | a netns holding a live process is discovered by the Method B `/proc` scan (pre-poll reconcile → `netNamespaceInstance` start); process exit + ns removal → reconcile `delete`. Both counters bump | all |
 | 9 | `NS_TRAFFIC` | TCP listener (the live process Method B keys on) + client inside a fresh netns produces measurable Netlinker `packets` | all |
 | 10 | `NS_DOCKER` | docker-style netns: bind-mount under `/run/docker/netns/` + a live process is discovered via `/proc` and named from the bind mount; `netNamespaceInstance` start + `delete` bump | all |
 | 11 | `CLICKHOUSE_RECORDS` | `xtcp.xtcp_flat_records > 0` **and** `xtcp_flat_records_errors == 0` | clickhouse-pipeline* |
+| 11h | `CLICKHOUSE_HTTP` | rows **grew** in `xtcp.xtcp_flat_records` **and** `destHTTP` posts ≥1 — proving the direct HTTP ProtobufList insert path (not Kafka) | clickhouse-http |
 | 12 | `CLICKHOUSE_RECONCILE` | Prom `envelopeRows` reconciles with the ClickHouse row count (within tolerance) | clickhouse-pipeline* |
 | 13 | `S3PARQUET_FILES` | ≥1 `.parquet` object lands in MinIO within 90s | s3parquet |
 | 14 | `S3PARQUET_ROWS` | duckdb decodes the parquet file and returns ≥1 row | s3parquet |
@@ -436,7 +465,10 @@ The shared self-test (`nix/microvms/self-test.nix`) runs a sequence of checks on
 | 17 | `CTL_HOT` | `xtcp2ctl set-poll-frequency` is reflected by a later `get` + bumps the Poller `ticker.Reset` counter | all |
 | 18 | `CTL_TRIGGER` | with the ticker parked, `xtcp2ctl trigger-poll` + `poll-burst` advance the Poller `pollRequestCh` counter | all |
 | 19 | `CTL_RESTART` | `xtcp2ctl reconfigure` = in-place soft restart (`syscall.Exec`): same systemd MainPID, and the new `tag` shows up in `get` **and** streamed records (skipped under coverage — a re-exec drops `-cover` counters) | all (non-coverage) |
-| — | `OVERALL` | All checks passed | all |
+| — | `VALKEY_CONSUME` | `destValKey` `Publish` ≥1 **and** the pre-subscribed subscriber consumed ≥1 (pub/sub round-trip) | valkey |
+| — | `NATS_CONSUME` | `destNATS` `Publish` ≥1 **and** the nats subscriber received ≥1 | nats |
+| — | `NSQ_CONSUME` | `destNSQ` `Publish` ≥1 **and** nsqd's per-channel `finish_count` ≥1 | nsq |
+| — | `OVERALL` | All checks passed (the sole pass/fail key the host runner gates on) | all |
 
 The **soak** flavor doesn't run the self-test; instead its runner sleeps for `--duration`, then prints:
 

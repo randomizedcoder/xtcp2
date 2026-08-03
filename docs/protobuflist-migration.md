@@ -369,13 +369,13 @@ fi
 ```
 
 ### `nix/microvms/default.nix`
-Extend `sentinelRe` for the clickhouse-pipeline lifecycle to include `CLICKHOUSE_RECORDS` and `CLICKHOUSE_RECONCILE`.
+Surface `CLICKHOUSE_RECORDS` and `CLICKHOUSE_RECONCILE` in the lifecycle summary. (Note: the sentinel-regex mechanism was later refactored — a lifecycle flavor now passes only its extra tokens via `extraSentinels` in `nix/microvms/default.nix`, and `mkLifecycleFullTest` in `nix/microvms/lib.nix` assembles the display regex as `baseSentinels ++ extraSentinels ++ ["OVERALL"]`. There is no longer a hand-written `sentinelRe` string per flavor.)
 
 ### `nix/microvms/mkVm.nix`
 Pass `runClickhouseCheck = isClickPipe` into the self-test script substitution. Wire the `chPass` value from the existing clickhouse password var.
 
 ### Metric label note
-Prom labels print alphabetically, so the awk match must split by individual `function="..."`, `type="..."`, `variable="..."` lookups (not a single substring). The `metric_value` helper at `self-test.nix:88-102` already does this — reuse, don't rewrite.
+Prom labels print alphabetically, so the awk match must split by individual `function="..."`, `type="..."`, `variable="..."` lookups (not a single substring). The `metric_value` helper in `self-test.nix` already does this — reuse, don't rewrite.
 
 **Definition of done:**
 
