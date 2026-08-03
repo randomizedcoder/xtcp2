@@ -118,7 +118,7 @@
   s3SecretKey ? "xtcp2testsecret",
   # When true (set on the valkey flavor), adds a check that records the daemon
   # PUBLISHed to the in-VM Valkey channel were actually consumed back by the
-  # pre-subscribed valkey-subscriber (valkey-server.nix logs them to
+  # pre-subscribed valkey-subscriber (broker-server.nix logs them to
   # /run/xtcp2-valkey-sub.out). pub/sub has no retention, so a real subscriber
   # is the only way to prove end-to-end delivery.
   runValkeyCheck ? false,
@@ -813,7 +813,7 @@ pkgs.writeShellApplication {
     ${lib.optionalString runValkeyCheck ''
       # ─── Check: valkey — records consumed back via pub/sub ───────────
       # The daemon PUBLISHes each poll's records to the Valkey channel;
-      # the pre-subscribed valkey-subscriber (valkey-server.nix) logs every
+      # the pre-subscribed valkey-subscriber (broker-server.nix) logs every
       # delivered message to /run/xtcp2-valkey-sub.out. Counting the "message"
       # reply markers proves records flowed xtcp2 → valkey → subscriber
       # end-to-end (pub/sub has no retention, so this is the real proof, not

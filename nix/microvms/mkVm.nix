@@ -1132,24 +1132,72 @@ let
     (import ../modules/pyroscope-server.nix { })
   ];
 
-  # valkey flavor: a native Valkey server + a pre-subscribed consumer whose
-  # message count the self-test reads. Channel must match xtcp2ValkeyArgs' -topic.
+  # The broker flavors (valkey/nats/nsq) share one parameterized module
+  # (broker-server.nix): a native server + a pre-subscribed consumer whose
+  # delivery count the self-test reads. Ports and topics/channels must match
+  # the matching xtcp2*Args' -dest/-topic (and the self-test's queries).
+
+  # valkey: pub/sub. valkey-cli block-buffers stdout to a pipe, so both the
+  # readiness ping and the subscriber run bare / under a PTY (`unbuffer`)
+  # respectively — stdbuf can't defeat valkey-cli's internal buffering.
   valkeyModules = [
-    (import ../modules/valkey-server.nix { channel = valkeyTopic; })
+    (import ../modules/broker-server.nix {
+      serverName = "valkey-server";
+      consumerName = "valkey-subscriber";
+      label = "valkey";
+      serverExecStart = pkgs: ''
+        ${pkgs.valkey}/bin/valkey-server \
+          --bind 0.0.0.0 --port 6379 \
+          --protected-mode no --save "" --appendonly no
+      '';
+      readyCheck = pkgs: "${pkgs.valkey}/bin/valkey-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1";
+      consumerExec = pkgs: ''
+        exec ${pkgs.expect}/bin/unbuffer \
+          ${pkgs.valkey}/bin/valkey-cli -h 127.0.0.1 -p 6379 \
+          subscribe ${valkeyTopic}
+      '';
+    })
   ];
 
-  # nats flavor: a native NATS server + a pre-subscribed consumer. Subject must
-  # match xtcp2NatsArgs' -topic.
+  # nats: core NATS is fire-and-forget. Readiness via bash /dev/tcp (no extra
+  # tools); the subscriber (natscli) runs under a PTY so it flushes per message.
   natsModules = [
-    (import ../modules/nats-server.nix { subject = natsTopic; })
+    (import ../modules/broker-server.nix {
+      serverName = "nats-server";
+      consumerName = "nats-subscriber";
+      label = "nats";
+      serverExecStart = pkgs: "${pkgs.nats-server}/bin/nats-server --addr 0.0.0.0 --port 4222";
+      readyCheck = _pkgs: "(exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null";
+      consumerExec = pkgs: ''
+        exec ${pkgs.expect}/bin/unbuffer \
+          ${pkgs.natscli}/bin/nats --server nats://127.0.0.1:4222 \
+          sub ${natsTopic}
+      '';
+    })
   ];
 
-  # nsq flavor: native nsqd + an nsq_tail consumer. topic/channel must match
-  # xtcp2NsqArgs and the self-test's /stats query.
+  # nsq: nsqd + an nsq_tail consumer that FINISHes each message, so nsqd's
+  # per-channel finish_count (/stats) is a deterministic consumed count.
   nsqModules = [
-    (import ../modules/nsq-server.nix {
-      topic = nsqTopicName;
-      channel = nsqChannelName;
+    (import ../modules/broker-server.nix {
+      serverName = "nsqd";
+      consumerName = "nsq-consumer";
+      label = "nsq";
+      serverExecStart = pkgs: ''
+        ${pkgs.nsq}/bin/nsqd \
+          --tcp-address 0.0.0.0:4150 \
+          --http-address 0.0.0.0:4151 \
+          --data-path /var/lib/nsqd
+      '';
+      serverServiceConfig = {
+        StateDirectory = "nsqd";
+      };
+      readyCheck = _pkgs: "(exec 3<>/dev/tcp/127.0.0.1/4150) 2>/dev/null";
+      consumerExec = pkgs: ''
+        exec ${pkgs.nsq}/bin/nsq_tail \
+          --topic=${nsqTopicName} --channel=${nsqChannelName} \
+          --nsqd-tcp-address=127.0.0.1:4150
+      '';
     })
   ];
 
