@@ -184,6 +184,23 @@ Two exposure shapes:
 
 Coverage flavors exist only when the coverage build is enabled; the `tcp-stress` / `*-stress` / `-lowfreq` flavors require the OCI stress image (`containers.oci-xtcp2-tcp-stress`). Each flavor inherits the shared base from `nix/microvms/mkVm.nix` and adds only what it needs.
 
+### Running the whole suite — `integration-all`
+
+`nix run .#integration-all` drives the whole microVM suite from one command. Because `/dev/kvm` is a single slot, flavors run **sequentially**; each runner's exit code (`0`/`1`/`2` = PASS/FAIL/TIMEOUT) is captured, the run continues past failures, and a per-flavor summary plus an aggregate exit code are printed at the end.
+
+```sh
+nix run .#integration-all                          # ~12 lifecycle flavors (default)
+nix run .#integration-all -- --soak                # + the 6 duration runners @ 1h each
+nix run .#integration-all -- --soak --duration 30m # shorter soaks
+nix run .#integration-all -- --help
+```
+
+- **default** runs the lifecycle flavors (each self-terminates on its `XTCP2_SELF_TEST_OVERALL` sentinel; minutes each, though `clickhouse-http` can take up to ~20 min).
+- **`--soak`** additionally runs `soak`, `tcp-stress`, `clickhouse-pipeline-stress`, `s3parquet-long`, `s3parquet-stress`, and `s3parquet-lowfreq` at `--duration` each (default `1h`, so ~6 h wall-clock).
+- The finite, non-soak runners (`clickhouse-pipeline-rate-runner`, `discovery-bench`) are **not** included — run them directly.
+
+`nix build .#integration-all` builds every VM the target drives (each is referenced by store path), so it doubles as a "does the whole harness still build" check.
+
 ## Components
 
 ### xtcp2 daemon
