@@ -1339,96 +1339,65 @@ let
     '';
   };
 
-  # Args for the long-soak flavor. Production-sized 63 MiB flush
-  # threshold — at the steady ~1 MB/min raw-row rate seen in the 30 min
-  # smoke, a 12 h run produces ~12 finalized objects (multiple files in
-  # 12 h, matching the user's stated expectation). Drop to 1048576 for
-  # smoke runs that need a visible file count growing every minute.
-  # Poll rate 10 s keeps the daemon CPU-cheap over multi-hour runs.
-  xtcp2S3ParquetLongArgs = [
-    "-dest"
-    "s3parquet:http://127.0.0.1:9000"
-    "-marshal"
-    "protobufList"
-    "-frequency"
-    "10s"
-    "-timeout"
-    "5s"
-    "-s3Bucket"
-    "xtcp2-records"
-    "-s3AccessKey"
-    "xtcp2test"
-    "-s3SecretKey"
-    "xtcp2testsecret"
-    "-s3ParquetFlushBytes"
-    "67108864"
-    # Stream profile data to the in-VM Pyroscope server. Empty value
-    # would disable the agent — kept on for long soaks because that's
-    # where leak diagnosis lives.
-    "-pyroscopeUrl"
-    "http://127.0.0.1:14040"
-    "-pyroscopeAppName"
-    "xtcp2.s3parquet-long"
-  ];
+  # The three long-running s3parquet flavors (long/stress/lowfreq) share one
+  # production parquet→MinIO config — 64 MiB flush, 5s timeout, Pyroscope leak
+  # diagnosis streaming to the in-VM server — and differ ONLY in poll frequency
+  # and the Pyroscope app name. -s3FlushInterval is intentionally left unset so
+  # it derives to the out-of-the-box staleness ceiling.
+  #
+  # (The lifecycle s3parquet flavor is a different shape — 1 MiB flush, no
+  # Pyroscope — so it stays a separate list, xtcp2S3ParquetArgs below.)
+  mkS3ParquetArgs =
+    {
+      frequency,
+      pyroscopeAppName,
+    }:
+    [
+      "-dest"
+      "s3parquet:http://127.0.0.1:9000"
+      "-marshal"
+      "protobufList"
+      "-frequency"
+      frequency
+      "-timeout"
+      "5s"
+      "-s3Bucket"
+      "xtcp2-records"
+      "-s3AccessKey"
+      "xtcp2test"
+      "-s3SecretKey"
+      "xtcp2testsecret"
+      "-s3ParquetFlushBytes"
+      "67108864"
+      "-pyroscopeUrl"
+      "http://127.0.0.1:14040"
+      "-pyroscopeAppName"
+      pyroscopeAppName
+    ];
 
-  # s3parquet-stress: same production parquet config as the long soak
-  # (64 MiB flush, 10s poll, Pyroscope leak diagnosis), but this flavor
-  # ALSO runs the tcp-stress load containers (20 × 250 sockets) so xtcp2
-  # is discovering many container netns and reading real socket load while
-  # uploading. Identical S3 target (in-VM MinIO); the difference from
-  # s3parquet-long is the load + the ~1h retention cleanup + the disk guard.
-  xtcp2S3ParquetStressArgs = [
-    "-dest"
-    "s3parquet:http://127.0.0.1:9000"
-    "-marshal"
-    "protobufList"
-    "-frequency"
-    "10s"
-    "-timeout"
-    "5s"
-    "-s3Bucket"
-    "xtcp2-records"
-    "-s3AccessKey"
-    "xtcp2test"
-    "-s3SecretKey"
-    "xtcp2testsecret"
-    "-s3ParquetFlushBytes"
-    "67108864"
-    "-pyroscopeUrl"
-    "http://127.0.0.1:14040"
-    "-pyroscopeAppName"
-    "xtcp2.s3parquet-stress"
-  ];
+  # long-soak: at the steady ~1 MB/min raw-row rate seen in the 30 min smoke, a
+  # 12 h run produces ~12 finalized objects. 10s poll keeps the daemon CPU-cheap.
+  xtcp2S3ParquetLongArgs = mkS3ParquetArgs {
+    frequency = "10s";
+    pyroscopeAppName = "xtcp2.s3parquet-long";
+  };
 
-  # s3parquet-lowfreq: low-activity counterpart — same parquet→MinIO sink and
-  # container load as stress, but poll ONCE AN HOUR (-frequency 1h) with only
-  # 2 sockets/container. -s3FlushInterval is intentionally left unset so it
-  # derives to max(1h,30m)=1h (the out-of-the-box staleness ceiling), and the
-  # 64 MiB byte cap is kept — with ~40 sockets that cap is never reached, so the
-  # staleness TIMER is the ONLY thing that finalizes a parquet object. This
-  # verifies the bucket still fills under low poll frequency + low socket count.
-  xtcp2S3ParquetLowfreqArgs = [
-    "-dest"
-    "s3parquet:http://127.0.0.1:9000"
-    "-marshal"
-    "protobufList"
-    "-frequency"
-    "1h"
-    "-timeout"
-    "5s"
-    "-s3Bucket"
-    "xtcp2-records"
-    "-s3AccessKey"
-    "xtcp2test"
-    "-s3SecretKey"
-    "xtcp2testsecret"
-    "-s3ParquetFlushBytes"
-    "67108864"
-    "-pyroscopeUrl"
-    "http://127.0.0.1:14040"
-    "-pyroscopeAppName"
-    "xtcp2.s3parquet-lowfreq"
-  ];
+  # stress: same config as long, but this flavor ALSO runs the tcp-stress load
+  # containers (20 × 250 sockets), so xtcp2 discovers many container netns and
+  # reads real socket load while uploading (+ ~1h retention cleanup + disk guard).
+  xtcp2S3ParquetStressArgs = mkS3ParquetArgs {
+    frequency = "10s";
+    pyroscopeAppName = "xtcp2.s3parquet-stress";
+  };
+
+  # lowfreq: low-activity counterpart — same sink + container load as stress, but
+  # poll ONCE AN HOUR with only 2 sockets/container. The 64 MiB byte cap is never
+  # reached (~40 sockets), so the staleness TIMER is the only thing that finalizes
+  # a parquet object — verifies the bucket still fills under low poll + low count.
+  xtcp2S3ParquetLowfreqArgs = mkS3ParquetArgs {
+    frequency = "1h";
+    pyroscopeAppName = "xtcp2.s3parquet-lowfreq";
+  };
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
   # flavor. The primary instance writes to kafka (xtcp2ClickPipeArgs);
@@ -1612,57 +1581,51 @@ let
     "1048576"
   ];
 
-  # valkey flavor: xtcp2 PUBLISHes each poll's records to the Valkey pub/sub
-  # channel `valkeyTopic` (the -topic flag maps to config.Topic, which
-  # valkeyDest uses as the channel). protobufList keeps it consistent with the
-  # other destination flavors; the self-test counts delivered pub/sub messages,
-  # which is independent of payload encoding.
+  # The three broker flavors (valkey/nats/nsq) share one arg shape: publish
+  # each poll's records to <dest> on <topic> as protobufList, 2s poll / 1s
+  # timeout. protobufList keeps them consistent with the other flavors; the
+  # self-test counts delivered messages, independent of payload encoding.
+  # -topic maps to config.Topic (the pub/sub channel / subject / nsq topic).
+  mkBrokerArgs =
+    {
+      dest,
+      topic,
+    }:
+    [
+      "-dest"
+      dest
+      "-marshal"
+      "protobufList"
+      "-topic"
+      topic
+      "-frequency"
+      "2s"
+      "-timeout"
+      "1s"
+    ];
+
+  # valkey: xtcp2 PUBLISHes to the Valkey pub/sub channel `valkeyTopic`.
   valkeyTopic = "xtcp2-records";
-  xtcp2ValkeyArgs = [
-    "-dest"
-    "valkey:127.0.0.1:6379"
-    "-marshal"
-    "protobufList"
-    "-topic"
-    valkeyTopic
-    "-frequency"
-    "2s"
-    "-timeout"
-    "1s"
-  ];
+  xtcp2ValkeyArgs = mkBrokerArgs {
+    dest = "valkey:127.0.0.1:6379";
+    topic = valkeyTopic;
+  };
 
-  # nats flavor: xtcp2 PUBLISHes each poll's records to the NATS subject
-  # `natsTopic` (-topic maps to config.Topic, the subject natsDest publishes to).
+  # nats: xtcp2 PUBLISHes to the NATS subject `natsTopic`.
   natsTopic = "xtcp2-records";
-  xtcp2NatsArgs = [
-    "-dest"
-    "nats:127.0.0.1:4222"
-    "-marshal"
-    "protobufList"
-    "-topic"
-    natsTopic
-    "-frequency"
-    "2s"
-    "-timeout"
-    "1s"
-  ];
+  xtcp2NatsArgs = mkBrokerArgs {
+    dest = "nats:127.0.0.1:4222";
+    topic = natsTopic;
+  };
 
-  # nsq flavor: xtcp2 PUBLISHes each poll's records to the nsq topic
-  # `nsqTopicName`; the in-VM nsq_tail consumer reads them on `nsqChannelName`.
+  # nsq: xtcp2 PUBLISHes to the nsq topic `nsqTopicName`; the in-VM nsq_tail
+  # consumer reads them on `nsqChannelName`.
   nsqTopicName = "xtcp2-records";
   nsqChannelName = "selftest";
-  xtcp2NsqArgs = [
-    "-dest"
-    "nsq:127.0.0.1:4150"
-    "-marshal"
-    "protobufList"
-    "-topic"
-    nsqTopicName
-    "-frequency"
-    "2s"
-    "-timeout"
-    "1s"
-  ];
+  xtcp2NsqArgs = mkBrokerArgs {
+    dest = "nsq:127.0.0.1:4150";
+    topic = nsqTopicName;
+  };
 in
 (nixpkgs.lib.nixosSystem {
   inherit pkgs;
