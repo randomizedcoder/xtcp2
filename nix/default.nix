@@ -491,6 +491,11 @@ in
         oci-xtcp2-valkey
         oci-xtcp2-s3parquet
         ;
+      # Per-client OCI images (slim: single gRPC-client binary).
+      inherit (containers)
+        oci-xtcp2client
+        oci-xtcp2ctl
+        ;
 
       # Phase B: TCP-stress container for the multi-container test
       # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,
