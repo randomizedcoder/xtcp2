@@ -121,7 +121,7 @@ If you're scoping an initial implementation, these are the high-value columns. E
 ### Identity & time
 | Column | Type | Meaning |
 |---|---|---|
-| `timestamp_ns` | double | When the sample was taken — **Unix epoch nanoseconds, UTC**. Divide by 1e9 for seconds. |
+| `timestamp_ns` | int64 | When the sample was taken — **Unix epoch nanoseconds, UTC**. Divide by 1e9 for seconds. |
 | `event_date` | string | UTC calendar date (`YYYY-MM-DD`) of this row's `timestamp_ns`. A real column (unlike the `date=` path partition) so column-only readers — Snowflake Snowpipe, or anyone reading a file out of its prefix — can prune/cluster on it. |
 | `hostname` | string | Emitting machine (also the `host=` partition). |
 | `netns` | string | Network namespace path — distinguishes host vs container/pod sockets. |
@@ -170,13 +170,13 @@ A few columns are stored as machine values for fidelity/size and need decoding f
   | 6 | TIME_WAIT | 12 | NEW_SYN_RECV |
 
 - **Congestion algorithm**: prefer `congestion_algorithm_string` (the kernel name). The `congestion_algorithm_enum` integer is `0`=UNSPECIFIED, `1`=CUBIC, `2`=DCTCP, `3`=VEGAS, `4`=PRAGUE, `5`=BBR1, `6`=BBR2, `7`=BBR3.
-- **timestamp_ns** is a double; `to_timestamp(timestamp_ns / 1e9)` (or your engine's equivalent) gives a UTC timestamp.
+- **timestamp_ns** is an int64 of epoch nanoseconds; `to_timestamp(timestamp_ns / 1e9)` (or your engine's equivalent) gives a UTC timestamp.
 
 ## Full schema and column types
 
 The complete column list (123 columns) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns — the one exception is `event_date`, a Parquet-only derived column with no proto/ClickHouse counterpart:
 
-- **Metadata** — `timestamp_ns` (double), `event_date` (string, derived — UTC date of `timestamp_ns`), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
+- **Metadata** — `timestamp_ns` (int64), `event_date` (string, derived — UTC date of `timestamp_ns`), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
 - **`inet_diag_msg_*`** — the socket id/4-tuple, state, queues, uid/inode, ASN annotations.
 - **`mem_info_*` / `sk_mem_info_*`** — socket memory accounting.
 - **`tcp_info_*`** — the bulk of the data: RTT, cwnd, ssthresh, MSS, windows, segment and byte counters, pacing/delivery rates, RTO stats, busy/limited times.
@@ -184,7 +184,7 @@ The complete column list (123 columns) groups as follows; column names are the p
 - **Per-algorithm blocks** — `vegas_info_*`, `dctcp_info_*`, `bbr_info_*` (only meaningful when that algorithm is in use).
 - **QoS / misc** — `type_of_service`, `traffic_class`, `shutdown_state`, `class_id`, `sock_opt`, `c_group`.
 
-Column types are: `double` (timestamp only), `string` (hostname/netns/label/tag/congestion string), `bytes` (the two IP-address columns), `int32` (congestion enum), and `uint32`/`uint64` for everything else. The authoritative, field-by-field list with types and compression is the [`ParquetRow` struct](../pkg/xtcp/destinations_s3parquet_schema.go); field meanings are in the [protobuf schema](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) and [protobuf-formats.md](protobuf-formats.md).
+Column types are: `int64` (timestamp only), `string` (hostname/netns/label/tag/congestion string), `bytes` (the two IP-address columns), `int32` (congestion enum), and `uint32`/`uint64` for everything else. The authoritative, field-by-field list with types and compression is the [`ParquetRow` struct](../pkg/xtcp/destinations_s3parquet_schema.go); field meanings are in the [protobuf schema](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) and [protobuf-formats.md](protobuf-formats.md).
 
 ## Types, nulls, and gotchas
 

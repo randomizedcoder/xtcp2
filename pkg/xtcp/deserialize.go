@@ -55,7 +55,13 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		startPollTime = time.Now()
 	}
 
-	timestampNs := float64(startPollTime.UnixNano()) / 1e9
+	// True epoch nanoseconds, stamped verbatim from the poll time. Earlier
+	// this divided by 1e9 (yielding fractional epoch SECONDS in a float64),
+	// which quietly served the ClickHouse numeric-DateTime64 path but made
+	// the field name/type a lie and collapsed the derived Parquet event_date
+	// to 1970-01-01. The ClickHouse MV now compensates with
+	// fromUnixTimestamp64Nano, so records carry honest int64 nanoseconds.
+	timestampNs := startPollTime.UnixNano()
 
 	offset := 0
 	length := 0

@@ -74,7 +74,7 @@ class Envelope extends $pb.GeneratedMessage {
 
 class XtcpFlatRecord extends $pb.GeneratedMessage {
   factory XtcpFlatRecord({
-    $core.double? timestampNs,
+    $fixnum.Int64? timestampNs,
     $core.String? hostname,
     $core.String? location,
     $core.String? netns,
@@ -382,7 +382,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_flat_record.v1'),
       createEmptyInstance: create)
-    ..aD(10, _omitFieldNames ? '' : 'timestampNs')
+    ..aInt64(10, _omitFieldNames ? '' : 'timestampNs')
     ..aOS(20, _omitFieldNames ? '' : 'hostname')
     ..aOS(21, _omitFieldNames ? '' : 'location')
     ..aOS(30, _omitFieldNames ? '' : 'netns')
@@ -667,9 +667,9 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   static XtcpFlatRecord? _defaultInstance;
 
   @$pb.TagNumber(10)
-  $core.double get timestampNs => $_getN(0);
+  $fixnum.Int64 get timestampNs => $_getI64(0);
   @$pb.TagNumber(10)
-  set timestampNs($core.double value) => $_setDouble(0, value);
+  set timestampNs($fixnum.Int64 value) => $_setInt64(0, value);
   @$pb.TagNumber(10)
   $core.bool hasTimestampNs() => $_has(0);
   @$pb.TagNumber(10)

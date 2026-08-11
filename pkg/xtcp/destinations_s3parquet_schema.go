@@ -19,7 +19,7 @@ package xtcp
 // to the proto, that test fails until you mirror it here. The sole exception
 // is the derived event_date column (allowlisted in that test).
 type ParquetRow struct {
-	TimestampNs float64 `parquet:"timestamp_ns,snappy"`
+	TimestampNs int64 `parquet:"timestamp_ns,snappy"`
 
 	Hostname string `parquet:"hostname,zstd"`
 	Location string `parquet:"location,zstd"`

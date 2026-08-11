@@ -174,7 +174,7 @@ func TestVTProtoConformance_XtcpFlatRecord_fixtures(t *testing.T) {
 		"ipv6": {InetDiagMsgFamily: 10,
 			InetDiagMsgSocketSource: bytes.Repeat([]byte{0xfe, 0x80}, 8)},
 		"maxvals": {TcpInfoBytesAcked: ^uint64(0), TcpInfoMaxPacingRate: ^uint64(0),
-			TimestampNs: 1.7976931348623157e308},
+			TimestampNs: 1<<63 - 1},
 		"full": fullRecord(),
 	}
 	for name, m := range cases {

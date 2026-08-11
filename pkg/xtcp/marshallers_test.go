@@ -30,7 +30,7 @@ func newMarshalFixture(t *testing.T) (*XTCP, *xtcp_flat_record.XtcpFlatRecord) {
 	r := &xtcp_flat_record.XtcpFlatRecord{
 		Hostname:     "test-host",
 		Netns:        "/run/netns/default",
-		TimestampNs:  1.23,
+		TimestampNs:  1_700_000_000_000_000_000,
 		SocketFd:     7,
 		NetlinkerId:  3,
 		TcpInfoState: 1,

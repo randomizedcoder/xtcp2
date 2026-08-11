@@ -39,7 +39,7 @@ final $typed_data.Uint8List envelopeDescriptor = $convert.base64Decode(
 const XtcpFlatRecord$json = {
   '1': 'XtcpFlatRecord',
   '2': [
-    {'1': 'timestamp_ns', '3': 10, '4': 1, '5': 1, '10': 'timestampNs'},
+    {'1': 'timestamp_ns', '3': 10, '4': 1, '5': 3, '10': 'timestampNs'},
     {'1': 'hostname', '3': 20, '4': 1, '5': 9, '10': 'hostname'},
     {'1': 'location', '3': 21, '4': 1, '5': 9, '10': 'location'},
     {'1': 'netns', '3': 30, '4': 1, '5': 9, '10': 'netns'},
@@ -685,7 +685,7 @@ const XtcpFlatRecord_CongestionAlgorithm$json = {
 
 /// Descriptor for `XtcpFlatRecord`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List xtcpFlatRecordDescriptor = $convert.base64Decode(
-    'Cg5YdGNwRmxhdFJlY29yZBIhCgx0aW1lc3RhbXBfbnMYCiABKAFSC3RpbWVzdGFtcE5zEhoKCG'
+    'Cg5YdGNwRmxhdFJlY29yZBIhCgx0aW1lc3RhbXBfbnMYCiABKANSC3RpbWVzdGFtcE5zEhoKCG'
     'hvc3RuYW1lGBQgASgJUghob3N0bmFtZRIaCghsb2NhdGlvbhgVIAEoCVIIbG9jYXRpb24SFAoF'
     'bmV0bnMYHiABKAlSBW5ldG5zEh8KC25ldG5zX2lub2RlGCEgASgEUgpuZXRuc0lub2RlEiEKDG'
     'NvbnRhaW5lcl9pZBgfIAEoCVILY29udGFpbmVySWQSKwoRY29udGFpbmVyX3J1bnRpbWUYICAB'

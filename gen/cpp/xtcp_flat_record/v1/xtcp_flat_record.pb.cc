@@ -82,9 +82,9 @@ constexpr XtcpFlatRecord::ParseTableT_ XtcpFlatRecord::InternalGenerateParseTabl
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
-      // double timestamp_ns = 10 [json_name = "timestampNs"];
-      {::_pbi::TcParser::FastF64S1,
-       {81, 8, 0,
+      // int64 timestamp_ns = 10 [json_name = "timestampNs"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(XtcpFlatRecord, _impl_.timestamp_ns_), 8>(),
+       {80, 8, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_)}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
@@ -194,8 +194,8 @@ constexpr XtcpFlatRecord::ParseTableT_ XtcpFlatRecord::InternalGenerateParseTabl
       65534, 125,
       65535, 65535
     }}, {{
-      // double timestamp_ns = 10 [json_name = "timestampNs"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+      // int64 timestamp_ns = 10 [json_name = "timestampNs"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
       // string hostname = 20 [json_name = "hostname"];
       {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.hostname_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string location = 21 [json_name = "location"];
@@ -492,7 +492,7 @@ inline constexpr XtcpFlatRecord::Impl_::Impl_(
         inet_diag_msg_socket_source_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        timestamp_ns_{0},
+        timestamp_ns_{::int64_t{0}},
         netns_inode_{::uint64_t{0u}},
         record_counter_{::uint64_t{0u}},
         nsid_{0u},
@@ -1707,7 +1707,7 @@ const char descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5fr
     "roto\022\023xtcp_flat_record.v1\"A\n\010Envelope\0225\n"
     "\003row\030\n \003(\0132#.xtcp_flat_record.v1.XtcpFla"
     "tRecordR\003row\"\2600\n\016XtcpFlatRecord\022!\n\014times"
-    "tamp_ns\030\n \001(\001R\013timestampNs\022\032\n\010hostname\030\024"
+    "tamp_ns\030\n \001(\003R\013timestampNs\022\032\n\010hostname\030\024"
     " \001(\tR\010hostname\022\032\n\010location\030\025 \001(\tR\010locati"
     "on\022\024\n\005netns\030\036 \001(\tR\005netns\022\037\n\013netns_inode\030"
     "! \001(\004R\nnetnsInode\022!\n\014container_id\030\037 \001(\tR"
@@ -2411,12 +2411,12 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   (void)cached_has_bits;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  // double timestamp_ns = 10 [json_name = "timestampNs"];
+  // int64 timestamp_ns = 10 [json_name = "timestampNs"];
   if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-    if (::absl::bit_cast<::uint64_t>(this_._internal_timestamp_ns()) != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
-          10, this_._internal_timestamp_ns(), target);
+    if (this_._internal_timestamp_ns() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt64ToArrayWithField<10>(
+              stream, this_._internal_timestamp_ns(), target);
     }
   }
 
@@ -3639,10 +3639,11 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    // double timestamp_ns = 10 [json_name = "timestampNs"];
+    // int64 timestamp_ns = 10 [json_name = "timestampNs"];
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (::absl::bit_cast<::uint64_t>(this_._internal_timestamp_ns()) != 0) {
-        total_size += 9;
+      if (this_._internal_timestamp_ns() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int64SizePlusOne(
+            this_._internal_timestamp_ns());
       }
     }
     // uint64 netns_inode = 33 [json_name = "netnsInode"];
@@ -4589,7 +4590,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (::absl::bit_cast<::uint64_t>(from._internal_timestamp_ns()) != 0) {
+      if (from._internal_timestamp_ns() != 0) {
         _this->_impl_.timestamp_ns_ = from._impl_.timestamp_ns_;
       }
     }

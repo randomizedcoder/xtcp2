@@ -20,8 +20,12 @@ DROP TABLE IF EXISTS xtcp.xtcp_flat_records_kafka;
 
 CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
 (
-    -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
-    timestamp_ns                                                DateTime64(9,'UTC') CODEC(DoubleDelta, LZ4),
+    -- Raw int64 epoch nanoseconds straight off the protobuf (the daemon now
+    -- stamps true UnixNano()). The MV converts this to DateTime64(9) via
+    -- fromUnixTimestamp64Nano when landing rows in xtcp.xtcp_flat_records;
+    -- ingesting a numeric value directly into DateTime64 would be read as
+    -- SECONDS, not nanoseconds.
+    timestamp_ns                                                Int64 CODEC(DoubleDelta, LZ4),
     -- sec                                                         DateTime64(3,'UTC') CODEC(DoubleDelta, LZ4),
     -- nsec                                                        Int64,
 

@@ -2,8 +2,10 @@ DROP TABLE IF EXISTS xtcp.xtcp_flat_records_kafka;
 
 CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
 (
-    -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
-    timestamp_ns                                                DateTime64(9,'UTC') CODEC(DoubleDelta, LZ4),
+    -- Raw int64 epoch nanoseconds off the protobuf; the MV converts to
+    -- DateTime64(9) via fromUnixTimestamp64Nano (see the non-testing kafka
+    -- table for the full rationale).
+    timestamp_ns                                                Int64 CODEC(DoubleDelta, LZ4),
 )
 ENGINE = Kafka
 SETTINGS

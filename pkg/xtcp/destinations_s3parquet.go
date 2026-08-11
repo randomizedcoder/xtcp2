@@ -411,7 +411,7 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 			parquetRow := rowFromProto(row)
 			// Stamp the derived event_date, re-formatting only when the UTC day
 			// changes (≈once per file).
-			if idx := int64(row.TimestampNs) / nsPerDayCst; idx != lastDayIdx {
+			if idx := row.TimestampNs / nsPerDayCst; idx != lastDayIdx {
 				lastDayIdx = idx
 				lastDate = utcDateFromNs(row.TimestampNs)
 			}
@@ -735,8 +735,8 @@ func approxRowBytes(r *xtcp_flat_record.XtcpFlatRecord) int {
 }
 
 // utcDateFromNs formats an epoch-ns timestamp as its UTC date (YYYY-MM-DD).
-func utcDateFromNs(ns float64) string {
-	return time.Unix(0, int64(ns)).UTC().Format("2006-01-02")
+func utcDateFromNs(ns int64) string {
+	return time.Unix(0, ns).UTC().Format("2006-01-02")
 }
 
 // rowFromProto translates one *xtcp_flat_record.XtcpFlatRecord into a
