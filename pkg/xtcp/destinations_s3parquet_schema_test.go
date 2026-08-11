@@ -132,7 +132,7 @@ func TestS3ParquetSchema_columnTypes(t *testing.T) {
 		col      string
 		wantKind parquet.Kind
 	}{
-		{"timestamp_ns", parquet.Double},
+		{"timestamp_ns", parquet.Int64},
 		{"event_date", parquet.ByteArray},
 		{"hostname", parquet.ByteArray},
 		{"netns", parquet.ByteArray},
