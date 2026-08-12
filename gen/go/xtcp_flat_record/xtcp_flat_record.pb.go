@@ -152,7 +152,7 @@ func (x *Envelope) GetRow() []*XtcpFlatRecord {
 
 type XtcpFlatRecord struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
-	TimestampNs float64                `protobuf:"fixed64,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
+	TimestampNs int64                  `protobuf:"varint,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
 	Hostname    string                 `protobuf:"bytes,20,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	// Deployment grouping / facility this daemon runs in — generic across
 	// operators (data center, PoP, region, site, …). Free-form; set via
@@ -341,7 +341,7 @@ func (*XtcpFlatRecord) Descriptor() ([]byte, []int) {
 	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *XtcpFlatRecord) GetTimestampNs() float64 {
+func (x *XtcpFlatRecord) GetTimestampNs() int64 {
 	if x != nil {
 		return x.TimestampNs
 	}
@@ -1393,7 +1393,7 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xb00\n" +
 	"\x0eXtcpFlatRecord\x12!\n" +
 	"\ftimestamp_ns\x18\n" +
-	" \x01(\x01R\vtimestampNs\x12\x1a\n" +
+	" \x01(\x03R\vtimestampNs\x12\x1a\n" +
 	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x1a\n" +
 	"\blocation\x18\x15 \x01(\tR\blocation\x12\x14\n" +
 	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x1f\n" +

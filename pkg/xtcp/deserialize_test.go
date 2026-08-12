@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"testing"
 
@@ -268,6 +269,77 @@ func TestDeserialize_stampsNetnsIdentity(t *testing.T) {
 		}
 		if r.Netns != nsName {
 			t.Errorf("row %d Netns=%q, want %q", i, r.Netns, nsName)
+		}
+	}
+}
+
+// TestDeserialize_stampsTimestampNs verifies that Deserialize stamps each
+// record's timestamp from the fd's poll time as a true epoch-NANOSECOND value
+// (not epoch seconds), preserving sub-second resolution. This is a regression
+// test for the units bug where the poll time was divided by 1e9 before being
+// stamped, so timestamp_ns actually held epoch seconds and every derived
+// event_date collapsed to 1970-01-01. It exercises the real stamping seam in
+// Deserialize — the existing parquet/date tests construct records directly with
+// UnixNano() and so never cover the production stamping path.
+//
+// Assertions wrap the value in int64(...) so they compile whether TimestampNs
+// is float64 (pre-fix) or int64 (post-fix).
+func TestDeserialize_stampsTimestampNs(t *testing.T) {
+	x := newTestDeserializeXTCP(t)
+	// Never flush during the test so the rows stay in currentEnvelope.
+	x.config.EnvelopeFlushThresholdRows = 1_000_000
+	x.config.EnvelopeFlushThresholdBytes = 1 << 30
+	x.currentEnvelope = &xtcp_flat_record.Envelope{}
+
+	// Install a known poll time (with a non-zero sub-second component) for the
+	// fd Deserialize will read (deserialize.go: x.pollTime.Load(d.fd)).
+	const fd = 0
+	pollTime := time.Date(2026, 8, 11, 12, 0, 0, 123456789, time.UTC)
+	x.pollTime.Store(fd, pollTime)
+	wantNs := pollTime.UnixNano() // exact epoch ns, ~1.75e18
+	const wantDate = "2026-08-11"
+
+	const fixture = "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet2.pcap"
+	f, err := os.Open(fixture)
+	if err != nil {
+		t.Fatalf("open %s: %v", fixture, err)
+	}
+	bs, err := io.ReadAll(f)
+	_ = f.Close()
+	if err != nil {
+		t.Fatalf("read %s: %v", fixture, err)
+	}
+	buf := bs[xtcpnl.PcapNetlinkOffsetCst:]
+
+	nsName := "test-ns-name"
+	n, errD := x.Deserialize(context.Background(), DeserializeArgs{
+		ns:             &nsName,
+		fd:             fd,
+		NLPacket:       &buf,
+		xtcpRecordPool: &x.xtcpRecordPool,
+		nlhPool:        &x.nlhPool,
+		rtaPool:        &x.rtaPool,
+		pC:             x.pC,
+		pH:             x.pH,
+		id:             0,
+	})
+	if errD != nil {
+		t.Fatalf("Deserialize err: %v (n=%d)", errD, n)
+	}
+	if n == 0 || len(x.currentEnvelope.Row) == 0 {
+		t.Fatalf("no records produced: n=%d rows=%d", n, len(x.currentEnvelope.Row))
+	}
+
+	for i, r := range x.currentEnvelope.Row {
+		gotNs := int64(r.TimestampNs)
+		if gotNs != wantNs {
+			t.Errorf("row %d TimestampNs = %d, want %d (exact epoch ns incl. sub-second)", i, gotNs, wantNs)
+		}
+		if gotNs < 1_000_000_000_000_000_000 { // < 1e18 → seconds/ms, not nanoseconds
+			t.Errorf("row %d TimestampNs = %d looks like seconds, want epoch nanoseconds (>= 1e18)", i, gotNs)
+		}
+		if gotDate := time.Unix(0, gotNs).UTC().Format("2006-01-02"); gotDate != wantDate {
+			t.Errorf("row %d derived date = %q, want %q (1970 exposes the seconds-vs-ns bug)", i, gotDate, wantDate)
 		}
 	}
 }

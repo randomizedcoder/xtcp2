@@ -5,12 +5,10 @@
 package xtcp_flat_record
 
 import (
-	binary "encoding/binary"
 	fmt "fmt"
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
-	math "math"
 )
 
 const (
@@ -991,10 +989,9 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa2
 	}
 	if m.TimestampNs != 0 {
-		i -= 8
-		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.TimestampNs))))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TimestampNs))
 		i--
-		dAtA[i] = 0x51
+		dAtA[i] = 0x50
 	}
 	return len(dAtA) - i, nil
 }
@@ -1174,7 +1171,7 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	var l int
 	_ = l
 	if m.TimestampNs != 0 {
-		n += 9
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.TimestampNs))
 	}
 	l = len(m.Hostname)
 	if l > 0 {
@@ -1728,16 +1725,24 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 10:
-			if wireType != 1 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TimestampNs", wireType)
 			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
+			m.TimestampNs = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TimestampNs |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
-			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.TimestampNs = float64(math.Float64frombits(v))
 		case 20:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)

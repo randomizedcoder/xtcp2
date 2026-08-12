@@ -80,13 +80,13 @@ func CongestionAlgorithmName(e xtcp_flat_record.XtcpFlatRecord_CongestionAlgorit
 	return strings.TrimPrefix(e.String(), "CONGESTION_ALGORITHM_")
 }
 
-// TimestampRFC3339 formats a record's timestamp_ns (Unix nanoseconds held as a
-// double) as RFC3339 with nanosecond precision in UTC. Zero → "".
-func TimestampRFC3339(ns float64) string {
+// TimestampRFC3339 formats a record's timestamp_ns (int64 Unix nanoseconds) as
+// RFC3339 with nanosecond precision in UTC. Zero → "".
+func TimestampRFC3339(ns int64) string {
 	if ns <= 0 {
 		return ""
 	}
-	sec := int64(ns) / 1e9
-	nsec := int64(ns) % 1e9
+	sec := ns / 1e9
+	nsec := ns % 1e9
 	return time.Unix(sec, nsec).UTC().Format(time.RFC3339Nano)
 }

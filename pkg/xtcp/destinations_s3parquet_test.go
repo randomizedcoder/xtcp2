@@ -163,7 +163,7 @@ func mkEnvelope(n int) *xtcp_flat_record.Envelope {
 		rows[i] = &xtcp_flat_record.XtcpFlatRecord{
 			Hostname:    "h",
 			Netns:       "/run/netns/test",
-			TimestampNs: float64(i),
+			TimestampNs: int64(i),
 			SocketFd:    uint64(i),
 		}
 	}
@@ -647,7 +647,7 @@ func BenchmarkSanitizeHostnameForS3Key(b *testing.B) {
 func BenchmarkRowFromProto(b *testing.B) {
 	r := &xtcp_flat_record.XtcpFlatRecord{
 		Hostname: "h", Netns: "/run/netns/test", Label: "lbl", Tag: "tag",
-		TimestampNs: 1.23, SocketFd: 42, NetlinkerId: 7,
+		TimestampNs: 1_700_000_000_000_000_000, SocketFd: 42, NetlinkerId: 7,
 		InetDiagMsgSocketSource:      []byte{1, 2, 3, 4},
 		InetDiagMsgSocketDestination: []byte{5, 6, 7, 8},
 	}
@@ -705,19 +705,19 @@ var _ = bytes.NewReader
 
 // ─── event_date derived column ───────────────────────────────────────────
 
-// TestUtcDateFromNs pins the pure helper at UTC-day boundaries. Boundary cases
-// stay ≥1s off midnight: timestamp_ns is a float64, whose ~256ns granularity
-// near 2026 could otherwise round a sub-µs value across the day boundary.
+// TestUtcDateFromNs pins the pure helper at UTC-day boundaries. timestamp_ns is
+// now an int64 of true epoch nanoseconds, so boundaries are exact; the epoch-zero
+// case documents the "unset → 1970-01-01" sentinel.
 func TestUtcDateFromNs(t *testing.T) {
 	cases := []struct {
 		name string
-		ns   float64
+		ns   int64
 		want string
 	}{
 		{"epoch zero", 0, "1970-01-01"},
-		{"just before midnight", float64(time.Date(2026, 8, 2, 23, 59, 59, 0, time.UTC).UnixNano()), "2026-08-02"},
-		{"just after midnight", float64(time.Date(2026, 8, 3, 0, 0, 1, 0, time.UTC).UnixNano()), "2026-08-03"},
-		{"known midday", float64(time.Date(2026, 6, 19, 14, 30, 0, 0, time.UTC).UnixNano()), "2026-06-19"},
+		{"just before midnight", time.Date(2026, 8, 2, 23, 59, 59, 999999999, time.UTC).UnixNano(), "2026-08-02"},
+		{"just after midnight", time.Date(2026, 8, 3, 0, 0, 0, 1, time.UTC).UnixNano(), "2026-08-03"},
+		{"known midday", time.Date(2026, 6, 19, 14, 30, 0, 0, time.UTC).UnixNano(), "2026-06-19"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -737,9 +737,9 @@ func TestS3ParquetDest_eventDatePerRow(t *testing.T) {
 	beforeMidnight := time.Date(2026, 8, 2, 23, 59, 59, 0, time.UTC)
 	afterMidnight := time.Date(2026, 8, 3, 0, 0, 1, 0, time.UTC)
 	env := &xtcp_flat_record.Envelope{Row: []*xtcp_flat_record.XtcpFlatRecord{
-		{Hostname: "h", TimestampNs: float64(beforeMidnight.UnixNano())},
-		{Hostname: "h", TimestampNs: float64(afterMidnight.UnixNano())},
-		{Hostname: "h", TimestampNs: float64(afterMidnight.UnixNano())},
+		{Hostname: "h", TimestampNs: beforeMidnight.UnixNano()},
+		{Hostname: "h", TimestampNs: afterMidnight.UnixNano()},
+		{Hostname: "h", TimestampNs: afterMidnight.UnixNano()},
 	}}
 
 	d, upl, x := newS3ParquetFixture(t, 1<<30, nil) // huge threshold → flush on Close

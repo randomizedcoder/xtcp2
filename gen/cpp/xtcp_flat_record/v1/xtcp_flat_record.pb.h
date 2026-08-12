@@ -594,14 +594,14 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_inet_diag_msg_socket_source();
 
   public:
-  // double timestamp_ns = 10 [json_name = "timestampNs"];
+  // int64 timestamp_ns = 10 [json_name = "timestampNs"];
   void clear_timestamp_ns() ;
-  [[nodiscard]] double timestamp_ns() const;
-  void set_timestamp_ns(double value);
+  [[nodiscard]] ::int64_t timestamp_ns() const;
+  void set_timestamp_ns(::int64_t value);
 
   private:
-  double _internal_timestamp_ns() const;
-  void _internal_set_timestamp_ns(double value);
+  ::int64_t _internal_timestamp_ns() const;
+  void _internal_set_timestamp_ns(::int64_t value);
 
   public:
   // uint64 netns_inode = 33 [json_name = "netnsInode"];
@@ -1825,7 +1825,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
     ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_source_;
-    double timestamp_ns_;
+    ::int64_t timestamp_ns_;
     ::uint64_t netns_inode_;
     ::uint64_t record_counter_;
     ::uint32_t nsid_;
@@ -2926,26 +2926,26 @@ Envelope::_internal_mutable_row() {
 
 // XtcpFlatRecord
 
-// double timestamp_ns = 10 [json_name = "timestampNs"];
+// int64 timestamp_ns = 10 [json_name = "timestampNs"];
 inline void XtcpFlatRecord::clear_timestamp_ns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.timestamp_ns_ = 0;
+  _impl_.timestamp_ns_ = ::int64_t{0};
   ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
-inline double XtcpFlatRecord::timestamp_ns() const {
+inline ::int64_t XtcpFlatRecord::timestamp_ns() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
   return _internal_timestamp_ns();
 }
-inline void XtcpFlatRecord::set_timestamp_ns(double value) {
+inline void XtcpFlatRecord::set_timestamp_ns(::int64_t value) {
   _internal_set_timestamp_ns(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
 }
-inline double XtcpFlatRecord::_internal_timestamp_ns() const {
+inline ::int64_t XtcpFlatRecord::_internal_timestamp_ns() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return _impl_.timestamp_ns_;
 }
-inline void XtcpFlatRecord::_internal_set_timestamp_ns(double value) {
+inline void XtcpFlatRecord::_internal_set_timestamp_ns(::int64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.timestamp_ns_ = value;
 }

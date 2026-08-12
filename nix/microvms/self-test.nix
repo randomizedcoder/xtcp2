@@ -809,25 +809,43 @@ pkgs.writeShellApplication {
       fi
       if [ "$check14" -ne 0 ]; then overall_ok=0; fi
 
-      # ─── Check 14b: s3parquet event_date column present + well-formed ─
-      # Proves the derived event_date column shipped end-to-end: every value is
-      # YYYY-MM-DD and there is ≥1 distinct date. Exact per-row timestamp↔date
-      # correctness is covered by the Go readback unit test; here we stay
-      # TZ-robust and only check well-formedness + presence.
-      echo "--- check 14b: s3parquet — event_date column present ---"
+      # ─── Check 14b: s3parquet event_date + timestamp_ns value correctness ─
+      # Proves the derived event_date column shipped end-to-end AND that the
+      # timestamps carry real values, not the seconds-vs-nanoseconds bug that
+      # collapsed every event_date to 1970-01-01:
+      #   - event_date is well-formed YYYY-MM-DD with ≥1 distinct value,
+      #   - no row is dated 1970-01-01 (the seconds-read-as-ns tell),
+      #   - every event_date is recent (≥ current_date-1, TZ slack),
+      #   - timestamp_ns is a true epoch-NANOSECOND magnitude (>= 1e18); a
+      #     seconds-valued column (~1.75e9) fails this.
+      # Comparisons are done inside duckdb and returned as integer counts, so we
+      # never do bash float arithmetic on the timestamp.
+      echo "--- check 14b: s3parquet — event_date + timestamp_ns correct ---"
       check14b=1
       if [ -s /tmp/xtcp2-s3p.parquet ]; then
+        pq="read_parquet('/tmp/xtcp2-s3p.parquet')"
         edMalformed=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM read_parquet('/tmp/xtcp2-s3p.parquet') WHERE event_date NOT SIMILAR TO '[0-9]{4}-[0-9]{2}-[0-9]{2}'" 2>/dev/null \
+          -c "SELECT count(*) FROM $pq WHERE event_date NOT SIMILAR TO '[0-9]{4}-[0-9]{2}-[0-9]{2}'" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
         edDistinct=$(duckdb -noheader -list \
-          -c "SELECT count(DISTINCT event_date) FROM read_parquet('/tmp/xtcp2-s3p.parquet')" 2>/dev/null \
+          -c "SELECT count(DISTINCT event_date) FROM $pq" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
-        if [ "''${edMalformed:-1}" = "0" ] && [ "''${edDistinct:-0}" -ge 1 ] 2>/dev/null; then
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0)"
+        edEpoch=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE event_date = '1970-01-01'" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        edStale=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE CAST(event_date AS DATE) < current_date - INTERVAL 1 DAY" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        tsSeconds=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE timestamp_ns < 1000000000000000000" 2>/dev/null \
+          | tail -n1 | tr -d '[:space:]')
+        if [ "''${edMalformed:-1}" = "0" ] && [ "''${edDistinct:-0}" -ge 1 ] 2>/dev/null \
+          && [ "''${edEpoch:-1}" = "0" ] && [ "''${edStale:-1}" = "0" ] \
+          && [ "''${tsSeconds:-1}" = "0" ]; then
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0, epoch1970=0, stale=0, secondsMagnitude=0)"
           check14b=0
         else
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct)"
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct, epoch1970=$edEpoch, stale=$edStale, secondsMagnitude=$tsSeconds)"
         fi
       else
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
@@ -1016,11 +1034,22 @@ pkgs.writeShellApplication {
       done
       errors=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
         -q "SELECT count() FROM xtcp.xtcp_flat_records_errors" 2>/dev/null | tr -d '\r\n' || echo "?")
-      if [ "''${rows:-0}" -gt 0 ] 2>/dev/null && [ "$errors" = "0" ]; then
-        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_PASS  (rows=$rows, errors=0)"
+      # timestamp_ns correctness guard: the Kafka table ingests the protobuf
+      # timestamp and the MV lands it in xtcp_flat_records.timestamp_ns
+      # (DateTime64(9,'UTC')). Assert (a) no row is implausibly dated (before
+      # 2000 or more than a day in the future) — catches a units/scale mistake
+      # in the ingest path — and (b) at least one row carries a sub-second
+      # (nanosecond) component, proving resolution survives end-to-end.
+      badTs=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+        -q "SELECT count() FROM xtcp.xtcp_flat_records WHERE timestamp_ns < toDateTime64('2000-01-01 00:00:00', 9, 'UTC') OR timestamp_ns > now64(9) + toIntervalDay(1)" 2>/dev/null | tr -d '\r\n' || echo "?")
+      subSec=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+        -q "SELECT count() FROM xtcp.xtcp_flat_records WHERE toUnixTimestamp64Nano(timestamp_ns) % 1000000000 <> 0" 2>/dev/null | tr -d '\r\n' || echo 0)
+      if [ "''${rows:-0}" -gt 0 ] 2>/dev/null && [ "$errors" = "0" ] \
+        && [ "$badTs" = "0" ] && [ "''${subSec:-0}" -gt 0 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_PASS  (rows=$rows, errors=0, badTs=0, subSecondRows=$subSec)"
         check11=0
       else
-        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_FAIL  (rows=$rows, errors=$errors)"
+        echo "XTCP2_SELF_TEST_CLICKHOUSE_RECORDS_FAIL  (rows=$rows, errors=$errors, badTs=$badTs, subSecondRows=$subSec)"
       fi
       if [ "$check11" -ne 0 ]; then overall_ok=0; fi
 

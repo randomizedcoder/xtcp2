@@ -48,7 +48,7 @@ message Envelope {
 };
 
 message XtcpFlatRecord {
-	double timestamp_ns                             = 10;
+	int64 timestamp_ns                              = 10;
 
 	// uint64 sec                                      = 11;
 	// uint64 nsec                                     = 12;
