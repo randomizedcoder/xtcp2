@@ -666,6 +666,7 @@ func TestGetDeserializers(t *testing.T) {
 		{name: "single", input: "info", want: []string{"info"}},
 		{name: "multiple", input: "info,cong,vegas", want: []string{"info", "cong", "vegas"}},
 		{name: "all_keyword", input: "all", want: nil /* checked separately */},
+		{name: "default_keyword", input: "default", want: nil /* checked separately */},
 		{name: "env_overrides_arg", input: "info", envSet: true, envOverride: "vegas",
 			want: []string{"vegas"}},
 	}
@@ -683,6 +684,22 @@ func TestGetDeserializers(t *testing.T) {
 			if tc.name == "all_keyword" {
 				if len(got.Enabled) < 5 {
 					t.Errorf("all_keyword should enable many deserializers; got %d", len(got.Enabled))
+				}
+				if !got.Enabled["meminfo"] {
+					t.Errorf("all_keyword should include meminfo (explicit opt-in); map=%+v", got.Enabled)
+				}
+				return
+			}
+			if tc.name == "default_keyword" {
+				if len(got.Enabled) < 5 {
+					t.Errorf("default_keyword should enable many deserializers; got %d", len(got.Enabled))
+				}
+				// meminfo is off by default (redundant with sk_mem_info).
+				if got.Enabled["meminfo"] {
+					t.Errorf("default_keyword should exclude meminfo; map=%+v", got.Enabled)
+				}
+				if !got.Enabled["skmem"] {
+					t.Errorf("default_keyword should include skmem; map=%+v", got.Enabled)
 				}
 				return
 			}

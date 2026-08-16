@@ -238,6 +238,15 @@ let
     runClickhouseCheck = isAnyClickPipe && !isClickHttp;
     runClickhouseHttpCheck = isClickHttp;
     runClickhouseParquetCheck = isClickPipeParquet;
+    # Enrichment end-to-end checks (ENRICH_NIC / ENRICH_CONTAINER / ENRICH_LLDP
+    # / ENRICH_BESTEFFORT_NEGATIVE) run on the plain clickhouse-pipeline flavor,
+    # whose xtcp2 carries -enrichContainer/-enrichNic/-enrichLldp and which has
+    # dockerd + lldpd + the kafka→ClickHouse path the checks query against.
+    runEnrichCheck = isClickPipe;
+    # idiag_ext request/response contract probe against the real kernel. Gated to
+    # the plain clickhouse-pipeline flavor (same as the enrich checks) so it runs
+    # in the routinely-exercised lifecycle-clickhouse-pipeline test.
+    runNlProbeCheck = isClickPipe;
     clickhousePassword = clickPipeChPassword;
     runS3ParquetCheck = isS3Parquet;
     runValkeyCheck = isValkey;
@@ -1505,6 +1514,38 @@ let
     "http://localhost:18081"
   ];
 
+  # Metadata-enrichment flags (best-effort, non-fatal). Turned on for the plain
+  # clickhouse-pipeline flavor so the ENRICH_* self-test checks can assert the
+  # enrichers reach ClickHouse end-to-end (see self-test.nix runEnrichCheck):
+  #   -enrichContainer : map each socket's netns → owning docker container via
+  #                      the Docker Engine API (/run/docker.sock), stamping
+  #                      container_id/name/image. dockerd is already up on this
+  #                      flavor (needsDocker), and the redpanda/clickhouse
+  #                      containers provide real container netns to discover.
+  #   -enrichNic       : read the uplink NIC identity (driver/model/pci/…) from
+  #                      sysfs+ethtool. The VM's virtio_net primary NIC populates
+  #                      uplink1_nic_driver — the most reliable enrichment check.
+  #   -enrichLldp      : read LLDP neighbors from lldpd's control socket
+  #                      (/run/lldpd.socket) once at startup. A single VM has no
+  #                      neighbor, so this only proves the read is wired + non-
+  #                      fatal; -lldpdVersionHint pins the 1.0.22 struct layout
+  #                      (pkg/lldp Layout1_0_22) matching the pinned nixpkgs
+  #                      lldpd so auto-detect can't guess wrong.
+  #   -populateNsid    : best-effort NETNSA_NSID into the nsid column.
+  # Socket paths are left at their defaults (docker /run/docker.sock, lldpd
+  # /run/lldpd.socket) which match the NixOS services below.
+  xtcp2EnrichArgs = [
+    "-enrichContainer"
+    "-enrichNic"
+    "-enrichLldp"
+    "-lldpdVersionHint"
+    "1.0.22"
+    "-populateNsid"
+  ];
+
+  # Plain clickhouse-pipeline flavor: kafka pipeline + metadata enrichment.
+  xtcp2ClickPipeEnrichArgs = xtcp2ClickPipeArgs ++ xtcp2EnrichArgs;
+
   # clickhouse-pipeline-rate flavor: same kafka pipeline, but poll jitter is
   # DISABLED so each measurement window's poll count is exactly window/frequency.
   # The rate monitor predicts expected rows = sockets_per_poll × (window/freq)
@@ -1992,9 +2033,35 @@ in
         # writes covcounters.* + covmeta files into this directory on clean
         # exit (SIGTERM via systemctl stop). The self-test scrapes those
         # files between XTCP2_COVERAGE_DUMP_{START,END} markers.
-        systemd.services.xtcp2 = lib.mkIf isCoverage {
-          environment.GOCOVERDIR = coverDir;
-        };
+        # GOCOVERDIR for coverage flavors + (clickhouse-pipeline) ordering after
+        # the enricher sockets. Merged because isCoverage and isClickPipe are
+        # mutually exclusive but both target systemd.services.xtcp2.
+        systemd.services.xtcp2 = lib.mkMerge [
+          (lib.mkIf isCoverage {
+            environment.GOCOVERDIR = coverDir;
+          })
+          # Order xtcp2 after lldpd + docker so the enricher sockets exist by the
+          # time xtcp2 reads LLDP/container metadata at startup. Both reads are
+          # best-effort, so this is about making the positive checks meaningful,
+          # not correctness.
+          (lib.mkIf isClickPipe {
+            after = [
+              "lldpd.service"
+              "docker.service"
+            ];
+            wants = [ "lldpd.service" ];
+          })
+        ];
+
+        # clickhouse-pipeline flavor: run lldpd so xtcp2's -enrichLldp has a real
+        # control socket (/run/lldpd.socket) to read. The NixOS lldpd module
+        # ships lldpd 1.0.22 (matching pkg/lldp Layout1_0_22 / -lldpdVersionHint
+        # above). A single VM has no LLDP peer, so this only proves the read path
+        # is wired and non-fatal — the ENRICH_LLDP self-test check asserts the
+        # best-effort contract (socket present + daemon healthy + records
+        # flowing), and ENRICH_BESTEFFORT_NEGATIVE proves a MISSING socket is
+        # also non-fatal.
+        services.lldpd.enable = lib.mkIf isClickPipe true;
 
         # Hold a live process inside a test network namespace before xtcp2
         # starts, so xtcp2's /proc/<pid>/ns/net scan (Method B) discovers it
@@ -2040,6 +2107,12 @@ in
             else if isClickPipeStress then
               # Kafka pipeline + container-id resolution (before isAnyClickPipe).
               xtcp2ClickPipeStressArgs
+            else if isClickPipe then
+              # Plain kafka pipeline + metadata enrichment (container/nic/lldp/
+              # nsid). Enrichers are best-effort; the ENRICH_* self-test checks
+              # assert they reach ClickHouse. Must precede isAnyClickPipe (of
+              # which isClickPipe is a member).
+              xtcp2ClickPipeEnrichArgs
             else if isAnyClickPipe then
               # Phase E: produce to redpanda → clickhouse via kafka dest.
               # The mixed flavor uses these args for its primary xtcp2

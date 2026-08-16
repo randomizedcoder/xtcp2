@@ -29,7 +29,7 @@ var mountInfoDir = "/proc/self/mountinfo"
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromName
 // https://pkg.go.dev/github.com/vishvananda/netns#GetFromPath
 // https://tip.golang.org/doc/go1.10#runtime
-func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string) {
+func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string, path string) {
 
 	startTime := time.Now()
 	x.pC.WithLabelValues("netNamespaceInstance", "start", "counter").Inc()
@@ -104,10 +104,16 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	// 	log.Printf("netNamespaceInstance after LockOSThread: %s", ns.name)
 	// }
 
-	// Enter the namespace by its representative pid's /proc/<pid>/ns/net handle.
-	// checkMount=false: unlike a /run/netns bind mount, this handle is valid the
-	// moment the pid is observable, so there is no mount-readiness gate.
-	handle := procNsPath(pid)
+	// Enter the namespace. Two handle sources (see nsIdentity / discoverNamespaces):
+	//   - path != "": a /run/netns or /run/docker/netns bind mount. Already mounted
+	//     when the scan found it, so no mount-readiness gate (checkMount=false).
+	//     This is the pid-less path that works without pid_mode:host.
+	//   - path == "": the /proc-scan path — enter by the representative pid's
+	//     /proc/<pid>/ns/net handle, valid the moment the pid is observable.
+	handle := path
+	if handle == "" {
+		handle = procNsPath(pid)
+	}
 	fd := x.openAndSetNSWithRetries(&handle, false)
 
 	// If the namespace was deleted during the (possibly slow, retrying) setns

@@ -78,3 +78,60 @@ func TestResolver_Name_syntheticFallback(t *testing.T) {
 		t.Fatalf("Name(fallback) = %q, want netns:[4026531840]", got)
 	}
 }
+
+func TestResolver_EachBindMount(t *testing.T) {
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
+
+	// Two named namespaces in dir1, one in dir2.
+	want := map[string]uint64{}
+	for dir, names := range map[string][]string{
+		dir1: {"nsA", "nsB"},
+		dir2: {"nsC"},
+	} {
+		for _, n := range names {
+			p := filepath.Join(dir, n)
+			if err := os.WriteFile(p, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var st unix.Stat_t
+			if err := unix.Stat(p, &st); err != nil {
+				t.Fatal(err)
+			}
+			want[p] = st.Ino
+		}
+	}
+	// A subdirectory must be ignored (not a namespace file).
+	if err := os.MkdirAll(filepath.Join(dir1, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewResolver(t.TempDir(), []string{dir1, dir2})
+	r.Refresh()
+
+	got := map[string]uint64{}
+	r.EachBindMount(func(inode uint64, path string) {
+		got[path] = inode
+	})
+
+	if len(got) != len(want) {
+		t.Fatalf("EachBindMount yielded %d entries, want %d: %v", len(got), len(want), got)
+	}
+	for p, ino := range want {
+		if got[p] != ino {
+			t.Fatalf("EachBindMount path %q inode = %d, want %d", p, got[p], ino)
+		}
+	}
+}
+
+func TestResolver_EachBindMount_missingDirs(t *testing.T) {
+	// No configured dirs and a nonexistent one: EachBindMount must be a clean
+	// no-op (best-effort — a host without /run/netns is normal).
+	r := NewResolver(t.TempDir(), []string{filepath.Join(t.TempDir(), "does-not-exist")})
+	r.Refresh()
+	n := 0
+	r.EachBindMount(func(uint64, string) { n++ })
+	if n != 0 {
+		t.Fatalf("EachBindMount over missing dir yielded %d entries, want 0", n)
+	}
+}

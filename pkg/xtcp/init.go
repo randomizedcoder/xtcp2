@@ -89,6 +89,7 @@ func (x *XTCP) Init(ctx context.Context) {
 
 	x.initHostname()
 	x.initContainerResolver()
+	x.initEnrichers(ctx)
 
 	wg.Wait()
 
@@ -241,8 +242,12 @@ func (x *XTCP) CreateNetLinkRequest(wg *sync.WaitGroup) (nlRequest *[]byte) {
 	req := xtcpnl.InetDiagReqV2{
 		SDiagFamily:   2, // #define AF_INET      2
 		SDiagProtocol: 6, // IPPROTO_TCP = 6
-		IDiagExt:      127,
-		IDiagStates:   4282318848, // This value is just copied from "ss" requests.  Previous xtcp just lit it up with 0xFF
+		// idiag_ext is derived from the enabled deserializers so we request
+		// exactly the optional attributes we will parse (was a hardcoded 127).
+		// meminfo is off by default — redundant with sk_mem_info — so bit 0 is
+		// normally clear; see IDiagExtFromEnabled. GetEnabled() is nil-safe.
+		IDiagExt:    IDiagExtFromEnabled(x.config.EnabledDeserializers.GetEnabled()),
+		IDiagStates: 4282318848, // This value is just copied from "ss" requests.  Previous xtcp just lit it up with 0xFF
 	}
 
 	requestBytes := make([]byte, xtcpnl.InetDiagRequestSizeCst)

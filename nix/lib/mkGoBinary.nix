@@ -48,7 +48,10 @@ in
   vendorHash ? versions.goVendorHash,
   commit ? "nix",
   date ? "1970-01-01-00:00",
-  version ? "0.0.0-nix",
+  # Defaults to the repo-root ./VERSION (hand-bumped semver). Normally supplied
+  # by binaries.nix, which reads the same file; this default only applies to a
+  # direct mkGoBinary call. Keep both in sync with ./VERSION as the source.
+  version ? lib.fileContents ../../VERSION,
   extraLdflags ? [ ],
   doCheck ? false,
   # When true, compile with `-cover` so the binary writes Go coverage

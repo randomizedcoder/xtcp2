@@ -78,6 +78,53 @@ func GetAllDeserializers() (deserializers []string) {
 	return deserializers
 }
 
+// deserializersOffByDefault lists supported deserializers that are NOT enabled
+// unless the operator asks for them explicitly ("-deserializers all", or by
+// naming them). meminfo duplicates sk_mem_info value-for-value (rmem→rmem_alloc,
+// wmem→wmem_queued, fmem→fwd_alloc, tmem→wmem_alloc), so by default we neither
+// request it from the kernel nor decode it — the same data is in sk_mem_info.
+var deserializersOffByDefault = map[string]bool{
+	dsKeyMemInfo: true,
+}
+
+// GetDefaultDeserializers returns every dispatchTable key except those in
+// deserializersOffByDefault. This is the set enabled by "-deserializers default".
+func GetDefaultDeserializers() (deserializers []string) {
+	deserializers = make([]string, 0, len(dispatchTable))
+	for _, e := range dispatchTable {
+		if deserializersOffByDefault[e.key] {
+			continue
+		}
+		deserializers = append(deserializers, e.key)
+	}
+	return deserializers
+}
+
+// IDiagExtFromEnabled derives the inet_diag request extension bitmask
+// (inet_diag_req_v2.idiag_ext) from the enabled deserializers, so the daemon
+// requests exactly the optional attributes it will actually parse — instead of
+// the historical hardcoded 127. Only extensions 1..8 map to a bit in the uint8
+// idiag_ext (bit N-1); higher-numbered attributes (DCTCP=9, BBR=16, CLASS_ID=17,
+// CGROUP_ID=21, SOCKOPT=22) are returned by the kernel regardless and are not
+// controllable here. A bit is set iff that extension's deserializer is enabled.
+//
+// Caveat, verified against net/ipv4/inet_diag.c (inet_diag_msg_attrs_fill): the
+// kernel does NOT actually gate INET_DIAG_SHUTDOWN (ext 8) on idiag_ext — it emits
+// it unconditionally — so setting bit 7 (which we do when `shut` is enabled) is a
+// harmless no-op. The genuinely gated, byte-saving bits are MEMINFO(1), INFO(2),
+// VEGASINFO(3), CONG(4), TOS(5), TCLASS(6, IPv6-only) and SKMEMINFO(7). Dropping
+// meminfo (bit 0) is what actually reduces the kernel→userland reply. The real
+// kernel behavior is asserted by tools/idiag-extprobe in the microvm self-test.
+func IDiagExtFromEnabled(enabled map[string]bool) uint8 {
+	var ext uint8
+	for _, e := range dispatchTable {
+		if e.enum >= 1 && e.enum <= 8 && enabled[e.key] {
+			ext |= uint8(1) << uint8(e.enum-1)
+		}
+	}
+	return ext
+}
+
 // InitDeserializers populates x.RTATypeDeserializer + x.RTATypeDeserializerStr
 // with each entry from dispatchTable whose key is enabled in
 // x.config.EnabledDeserializers.Enabled. The 13-block repetitive

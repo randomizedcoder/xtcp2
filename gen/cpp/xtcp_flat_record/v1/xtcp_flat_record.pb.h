@@ -347,133 +347,178 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
 
   // accessors -------------------------------------------------------
   enum : int {
+    kDaemonVersionFieldNumber = 2,
     kHostnameFieldNumber = 20,
     kLocationFieldNumber = 21,
     kNetnsFieldNumber = 30,
-    kContainerIdFieldNumber = 31,
-    kContainerRuntimeFieldNumber = 32,
+    kContainerIdFieldNumber = 40,
+    kContainerRuntimeFieldNumber = 41,
+    kContainerNameFieldNumber = 42,
+    kContainerImageFieldNumber = 43,
     kLabelFieldNumber = 50,
-    kTagFieldNumber = 60,
-    kInetDiagMsgSocketSourceFieldNumber = 107,
+    kTagFieldNumber = 51,
+    kUplink1NicModelFieldNumber = 102,
     kTimestampNsFieldNumber = 10,
-    kNetnsInodeFieldNumber = 33,
-    kRecordCounterFieldNumber = 70,
-    kNsidFieldNumber = 40,
-    kInetDiagMsgTimerFieldNumber = 103,
-    kNetlinkerIdFieldNumber = 90,
-    kInetDiagMsgSocketSourcePortFieldNumber = 105,
-    kInetDiagMsgSocketInterfaceFieldNumber = 109,
-    kInetDiagMsgWqueueFieldNumber = 115,
-    kInetDiagMsgSocketDestinationFieldNumber = 108,
-    kCongestionAlgorithmStringFieldNumber = 400,
-    kSocketFdFieldNumber = 80,
-    kInetDiagMsgFamilyFieldNumber = 101,
-    kInetDiagMsgStateFieldNumber = 102,
-    kInetDiagMsgRetransFieldNumber = 104,
-    kInetDiagMsgSocketDestinationPortFieldNumber = 106,
-    kInetDiagMsgSocketCookieFieldNumber = 110,
-    kInetDiagMsgSocketDestAsnFieldNumber = 111,
-    kInetDiagMsgSocketNextHopAsnFieldNumber = 112,
-    kInetDiagMsgExpiresFieldNumber = 113,
-    kInetDiagMsgRqueueFieldNumber = 114,
-    kInetDiagMsgUidFieldNumber = 116,
-    kInetDiagMsgInodeFieldNumber = 117,
-    kMemInfoRmemFieldNumber = 201,
-    kMemInfoWmemFieldNumber = 202,
-    kMemInfoFmemFieldNumber = 203,
-    kMemInfoTmemFieldNumber = 204,
-    kTcpInfoStateFieldNumber = 301,
-    kTcpInfoCaStateFieldNumber = 302,
-    kTcpInfoRetransmitsFieldNumber = 303,
-    kTcpInfoProbesFieldNumber = 304,
-    kTcpInfoBackoffFieldNumber = 305,
-    kTcpInfoOptionsFieldNumber = 306,
-    kTcpInfoSendScaleFieldNumber = 307,
-    kTcpInfoRcvScaleFieldNumber = 308,
-    kTcpInfoDeliveryRateAppLimitedFieldNumber = 309,
-    kTcpInfoFastOpenClientFailedFieldNumber = 310,
-    kTcpInfoRtoFieldNumber = 315,
-    kTcpInfoAtoFieldNumber = 316,
-    kTcpInfoSndMssFieldNumber = 317,
-    kTcpInfoRcvMssFieldNumber = 318,
-    kTcpInfoUnackedFieldNumber = 319,
-    kTcpInfoSackedFieldNumber = 320,
-    kTcpInfoLostFieldNumber = 321,
-    kTcpInfoRetransFieldNumber = 322,
-    kTcpInfoFacketsFieldNumber = 323,
-    kTcpInfoLastDataSentFieldNumber = 324,
-    kTcpInfoLastAckSentFieldNumber = 325,
-    kTcpInfoLastDataRecvFieldNumber = 326,
-    kTcpInfoLastAckRecvFieldNumber = 327,
-    kTcpInfoPmtuFieldNumber = 328,
-    kTcpInfoRcvSsthreshFieldNumber = 329,
-    kTcpInfoRttFieldNumber = 330,
-    kTcpInfoRttVarFieldNumber = 331,
-    kTcpInfoSndSsthreshFieldNumber = 332,
-    kTcpInfoSndCwndFieldNumber = 333,
-    kTcpInfoAdvMssFieldNumber = 334,
-    kTcpInfoReorderingFieldNumber = 335,
-    kTcpInfoRcvRttFieldNumber = 336,
-    kTcpInfoRcvSpaceFieldNumber = 337,
-    kTcpInfoTotalRetransFieldNumber = 338,
-    kTcpInfoPacingRateFieldNumber = 339,
-    kTcpInfoMaxPacingRateFieldNumber = 340,
-    kTcpInfoBytesAckedFieldNumber = 341,
-    kTcpInfoBytesReceivedFieldNumber = 342,
-    kTcpInfoSegsOutFieldNumber = 343,
-    kTcpInfoSegsInFieldNumber = 344,
-    kTcpInfoNotSentBytesFieldNumber = 345,
-    kTcpInfoMinRttFieldNumber = 346,
-    kTcpInfoDataSegsInFieldNumber = 347,
-    kTcpInfoDataSegsOutFieldNumber = 348,
-    kTcpInfoDeliveryRateFieldNumber = 349,
-    kTcpInfoBusyTimeFieldNumber = 350,
-    kTcpInfoRwndLimitedFieldNumber = 351,
-    kTcpInfoSndbufLimitedFieldNumber = 352,
-    kTcpInfoDeliveredFieldNumber = 353,
-    kTcpInfoDeliveredCeFieldNumber = 354,
-    kTcpInfoBytesSentFieldNumber = 355,
-    kTcpInfoBytesRetransFieldNumber = 356,
-    kTcpInfoDsackDupsFieldNumber = 357,
-    kTcpInfoReordSeenFieldNumber = 358,
-    kTcpInfoRcvOoopackFieldNumber = 359,
-    kTcpInfoSndWndFieldNumber = 360,
-    kTcpInfoRcvWndFieldNumber = 361,
-    kTcpInfoRehashFieldNumber = 362,
-    kTcpInfoTotalRtoFieldNumber = 363,
-    kTcpInfoTotalRtoRecoveriesFieldNumber = 364,
-    kTcpInfoTotalRtoTimeFieldNumber = 365,
-    kCongestionAlgorithmEnumFieldNumber = 401,
-    kTypeOfServiceFieldNumber = 501,
-    kTrafficClassFieldNumber = 502,
-    kSkMemInfoRmemAllocFieldNumber = 601,
-    kSkMemInfoRcvBufFieldNumber = 602,
-    kSkMemInfoWmemAllocFieldNumber = 603,
-    kSkMemInfoSndBufFieldNumber = 604,
-    kSkMemInfoFwdAllocFieldNumber = 605,
-    kSkMemInfoWmemQueuedFieldNumber = 606,
-    kSkMemInfoOptmemFieldNumber = 607,
-    kSkMemInfoBacklogFieldNumber = 608,
-    kSkMemInfoDropsFieldNumber = 609,
-    kShutdownStateFieldNumber = 700,
-    kVegasInfoEnabledFieldNumber = 801,
-    kVegasInfoRttCntFieldNumber = 802,
-    kVegasInfoRttFieldNumber = 803,
-    kVegasInfoMinRttFieldNumber = 804,
-    kDctcpInfoEnabledFieldNumber = 901,
-    kDctcpInfoCeStateFieldNumber = 902,
-    kDctcpInfoAlphaFieldNumber = 903,
-    kDctcpInfoAbEcnFieldNumber = 904,
-    kDctcpInfoAbTotFieldNumber = 905,
-    kBbrInfoBwLoFieldNumber = 1001,
-    kBbrInfoBwHiFieldNumber = 1002,
-    kBbrInfoMinRttFieldNumber = 1003,
-    kBbrInfoPacingGainFieldNumber = 1004,
-    kBbrInfoCwndGainFieldNumber = 1005,
-    kClassIdFieldNumber = 1101,
-    kSockOptFieldNumber = 1102,
-    kCGroupFieldNumber = 1203,
+    kSchemaVersionFieldNumber = 1,
+    kNsidFieldNumber = 32,
+    kNetnsInodeFieldNumber = 31,
+    kRecordCounterFieldNumber = 60,
+    kSocketFdFieldNumber = 61,
+    kUplink1NicPciVendorFieldNumber = 103,
+    kInetDiagMsgSocketInterfaceFieldNumber = 1009,
+    kUplink1IfnameFieldNumber = 100,
+    kUplink1NicDriverFieldNumber = 101,
+    kUplink1NicBusInfoFieldNumber = 105,
+    kUplink1NicFwVersionFieldNumber = 107,
+    kUplink1LldpChassisNameFieldNumber = 120,
+    kUplink1LldpChassisIdFieldNumber = 121,
+    kUplink1LldpMgmtIpFieldNumber = 122,
+    kUplink1LldpPortIdFieldNumber = 123,
+    kUplink1LldpPortDescrFieldNumber = 124,
+    kUplink2IfnameFieldNumber = 200,
+    kUplink2NicDriverFieldNumber = 201,
+    kUplink2NicModelFieldNumber = 202,
+    kUplink2NicBusInfoFieldNumber = 205,
+    kUplink2NicFwVersionFieldNumber = 207,
+    kUplink2LldpChassisNameFieldNumber = 220,
+    kUplink2LldpChassisIdFieldNumber = 221,
+    kUplink2LldpMgmtIpFieldNumber = 222,
+    kUplink2LldpPortIdFieldNumber = 223,
+    kUplink2LldpPortDescrFieldNumber = 224,
+    kInetDiagMsgSocketSourceFieldNumber = 1007,
+    kInetDiagMsgSocketDestinationFieldNumber = 1008,
+    kCongestionAlgorithmStringFieldNumber = 1300,
+    kNetlinkerIdFieldNumber = 62,
+    kUplink1NicPciDeviceFieldNumber = 104,
+    kUplink1NicSpeedMbpsFieldNumber = 106,
+    kUplink2NicPciVendorFieldNumber = 203,
+    kUplink2NicPciDeviceFieldNumber = 204,
+    kUplink2NicSpeedMbpsFieldNumber = 206,
+    kInetDiagMsgFamilyFieldNumber = 1001,
+    kInetDiagMsgStateFieldNumber = 1002,
+    kInetDiagMsgTimerFieldNumber = 1003,
+    kInetDiagMsgRetransFieldNumber = 1004,
+    kInetDiagMsgSocketSourcePortFieldNumber = 1005,
+    kInetDiagMsgSocketDestinationPortFieldNumber = 1006,
+    kInetDiagMsgExpiresFieldNumber = 1013,
+    kInetDiagMsgSocketCookieFieldNumber = 1010,
+    kInetDiagMsgSocketDestAsnFieldNumber = 1011,
+    kInetDiagMsgSocketNextHopAsnFieldNumber = 1012,
+    kInetDiagMsgRqueueFieldNumber = 1014,
+    kInetDiagMsgWqueueFieldNumber = 1015,
+    kInetDiagMsgUidFieldNumber = 1016,
+    kInetDiagMsgInodeFieldNumber = 1017,
+    kMemInfoRmemFieldNumber = 1101,
+    kMemInfoWmemFieldNumber = 1102,
+    kMemInfoFmemFieldNumber = 1103,
+    kMemInfoTmemFieldNumber = 1104,
+    kTcpInfoStateFieldNumber = 1201,
+    kTcpInfoCaStateFieldNumber = 1202,
+    kTcpInfoRetransmitsFieldNumber = 1203,
+    kTcpInfoProbesFieldNumber = 1204,
+    kTcpInfoBackoffFieldNumber = 1205,
+    kTcpInfoOptionsFieldNumber = 1206,
+    kTcpInfoSendScaleFieldNumber = 1207,
+    kTcpInfoRcvScaleFieldNumber = 1208,
+    kTcpInfoDeliveryRateAppLimitedFieldNumber = 1209,
+    kTcpInfoFastOpenClientFailedFieldNumber = 1210,
+    kTcpInfoRtoFieldNumber = 1215,
+    kTcpInfoAtoFieldNumber = 1216,
+    kTcpInfoSndMssFieldNumber = 1217,
+    kTcpInfoRcvMssFieldNumber = 1218,
+    kTcpInfoUnackedFieldNumber = 1219,
+    kTcpInfoSackedFieldNumber = 1220,
+    kTcpInfoLostFieldNumber = 1221,
+    kTcpInfoRetransFieldNumber = 1222,
+    kTcpInfoFacketsFieldNumber = 1223,
+    kTcpInfoLastDataSentFieldNumber = 1224,
+    kTcpInfoLastAckSentFieldNumber = 1225,
+    kTcpInfoLastDataRecvFieldNumber = 1226,
+    kTcpInfoLastAckRecvFieldNumber = 1227,
+    kTcpInfoPmtuFieldNumber = 1228,
+    kTcpInfoRcvSsthreshFieldNumber = 1229,
+    kTcpInfoRttFieldNumber = 1230,
+    kTcpInfoRttVarFieldNumber = 1231,
+    kTcpInfoSndSsthreshFieldNumber = 1232,
+    kTcpInfoSndCwndFieldNumber = 1233,
+    kTcpInfoAdvMssFieldNumber = 1234,
+    kTcpInfoReorderingFieldNumber = 1235,
+    kTcpInfoRcvRttFieldNumber = 1236,
+    kTcpInfoRcvSpaceFieldNumber = 1237,
+    kTcpInfoTotalRetransFieldNumber = 1238,
+    kTcpInfoPacingRateFieldNumber = 1239,
+    kTcpInfoMaxPacingRateFieldNumber = 1240,
+    kTcpInfoBytesAckedFieldNumber = 1241,
+    kTcpInfoBytesReceivedFieldNumber = 1242,
+    kTcpInfoSegsOutFieldNumber = 1243,
+    kTcpInfoSegsInFieldNumber = 1244,
+    kTcpInfoNotSentBytesFieldNumber = 1245,
+    kTcpInfoMinRttFieldNumber = 1246,
+    kTcpInfoDataSegsInFieldNumber = 1247,
+    kTcpInfoDataSegsOutFieldNumber = 1248,
+    kTcpInfoDeliveryRateFieldNumber = 1249,
+    kTcpInfoBusyTimeFieldNumber = 1250,
+    kTcpInfoRwndLimitedFieldNumber = 1251,
+    kTcpInfoSndbufLimitedFieldNumber = 1252,
+    kTcpInfoDeliveredFieldNumber = 1253,
+    kTcpInfoDeliveredCeFieldNumber = 1254,
+    kTcpInfoBytesSentFieldNumber = 1255,
+    kTcpInfoBytesRetransFieldNumber = 1256,
+    kTcpInfoDsackDupsFieldNumber = 1257,
+    kTcpInfoReordSeenFieldNumber = 1258,
+    kTcpInfoRcvOoopackFieldNumber = 1259,
+    kTcpInfoSndWndFieldNumber = 1260,
+    kTcpInfoRcvWndFieldNumber = 1261,
+    kTcpInfoRehashFieldNumber = 1262,
+    kTcpInfoTotalRtoFieldNumber = 1263,
+    kTcpInfoTotalRtoRecoveriesFieldNumber = 1264,
+    kTcpInfoTotalRtoTimeFieldNumber = 1265,
+    kCongestionAlgorithmEnumFieldNumber = 1301,
+    kTypeOfServiceFieldNumber = 1401,
+    kTrafficClassFieldNumber = 1402,
+    kSkMemInfoRmemAllocFieldNumber = 1501,
+    kSkMemInfoRcvBufFieldNumber = 1502,
+    kSkMemInfoWmemAllocFieldNumber = 1503,
+    kSkMemInfoSndBufFieldNumber = 1504,
+    kSkMemInfoFwdAllocFieldNumber = 1505,
+    kSkMemInfoWmemQueuedFieldNumber = 1506,
+    kSkMemInfoOptmemFieldNumber = 1507,
+    kSkMemInfoBacklogFieldNumber = 1508,
+    kSkMemInfoDropsFieldNumber = 1509,
+    kShutdownStateFieldNumber = 1600,
+    kVegasInfoEnabledFieldNumber = 1701,
+    kVegasInfoRttCntFieldNumber = 1702,
+    kVegasInfoRttFieldNumber = 1703,
+    kVegasInfoMinRttFieldNumber = 1704,
+    kDctcpInfoEnabledFieldNumber = 1801,
+    kDctcpInfoCeStateFieldNumber = 1802,
+    kDctcpInfoAlphaFieldNumber = 1803,
+    kDctcpInfoAbEcnFieldNumber = 1804,
+    kDctcpInfoAbTotFieldNumber = 1805,
+    kBbrInfoBwLoFieldNumber = 1901,
+    kBbrInfoBwHiFieldNumber = 1902,
+    kBbrInfoMinRttFieldNumber = 1903,
+    kBbrInfoPacingGainFieldNumber = 1904,
+    kBbrInfoCwndGainFieldNumber = 1905,
+    kClassIdFieldNumber = 2001,
+    kSockOptFieldNumber = 2002,
+    kCGroupFieldNumber = 2103,
   };
+  // string daemon_version = 2 [json_name = "daemonVersion"];
+  void clear_daemon_version() ;
+  [[nodiscard]] const ::std::string& daemon_version() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_daemon_version(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_daemon_version();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_daemon_version();
+  void set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_daemon_version() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_daemon_version(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_daemon_version();
+
+  public:
   // string hostname = 20 [json_name = "hostname"];
   void clear_hostname() ;
   [[nodiscard]] const ::std::string& hostname() const;
@@ -519,7 +564,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_netns();
 
   public:
-  // string container_id = 31 [json_name = "containerId"];
+  // string container_id = 40 [json_name = "containerId"];
   void clear_container_id() ;
   [[nodiscard]] const ::std::string& container_id() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -534,7 +579,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_container_id();
 
   public:
-  // string container_runtime = 32 [json_name = "containerRuntime"];
+  // string container_runtime = 41 [json_name = "containerRuntime"];
   void clear_container_runtime() ;
   [[nodiscard]] const ::std::string& container_runtime() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -547,6 +592,36 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   const ::std::string& _internal_container_runtime() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_container_runtime(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_container_runtime();
+
+  public:
+  // string container_name = 42 [json_name = "containerName"];
+  void clear_container_name() ;
+  [[nodiscard]] const ::std::string& container_name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_container_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_container_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_container_name();
+  void set_allocated_container_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_container_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_container_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_container_name();
+
+  public:
+  // string container_image = 43 [json_name = "containerImage"];
+  void clear_container_image() ;
+  [[nodiscard]] const ::std::string& container_image() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_container_image(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_container_image();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_container_image();
+  void set_allocated_container_image(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_container_image() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_container_image(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_container_image();
 
   public:
   // string label = 50 [json_name = "label"];
@@ -564,7 +639,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_label();
 
   public:
-  // string tag = 60 [json_name = "tag"];
+  // string tag = 51 [json_name = "tag"];
   void clear_tag() ;
   [[nodiscard]] const ::std::string& tag() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -579,7 +654,387 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_tag();
 
   public:
-  // bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
+  // string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
+  void clear_uplink1_nic_model() ;
+  [[nodiscard]] const ::std::string& uplink1_nic_model() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_nic_model(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_nic_model();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_nic_model();
+  void set_allocated_uplink1_nic_model(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_nic_model() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_nic_model(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_nic_model();
+
+  public:
+  // int64 timestamp_ns = 10 [json_name = "timestampNs"];
+  void clear_timestamp_ns() ;
+  [[nodiscard]] ::int64_t timestamp_ns() const;
+  void set_timestamp_ns(::int64_t value);
+
+  private:
+  ::int64_t _internal_timestamp_ns() const;
+  void _internal_set_timestamp_ns(::int64_t value);
+
+  public:
+  // uint32 schema_version = 1 [json_name = "schemaVersion"];
+  void clear_schema_version() ;
+  [[nodiscard]] ::uint32_t schema_version() const;
+  void set_schema_version(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_schema_version() const;
+  void _internal_set_schema_version(::uint32_t value);
+
+  public:
+  // uint32 nsid = 32 [json_name = "nsid"];
+  void clear_nsid() ;
+  [[nodiscard]] ::uint32_t nsid() const;
+  void set_nsid(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_nsid() const;
+  void _internal_set_nsid(::uint32_t value);
+
+  public:
+  // uint64 netns_inode = 31 [json_name = "netnsInode"];
+  void clear_netns_inode() ;
+  [[nodiscard]] ::uint64_t netns_inode() const;
+  void set_netns_inode(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_netns_inode() const;
+  void _internal_set_netns_inode(::uint64_t value);
+
+  public:
+  // uint64 record_counter = 60 [json_name = "recordCounter"];
+  void clear_record_counter() ;
+  [[nodiscard]] ::uint64_t record_counter() const;
+  void set_record_counter(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_record_counter() const;
+  void _internal_set_record_counter(::uint64_t value);
+
+  public:
+  // uint64 socket_fd = 61 [json_name = "socketFd"];
+  void clear_socket_fd() ;
+  [[nodiscard]] ::uint64_t socket_fd() const;
+  void set_socket_fd(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_socket_fd() const;
+  void _internal_set_socket_fd(::uint64_t value);
+
+  public:
+  // uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
+  void clear_uplink1_nic_pci_vendor() ;
+  [[nodiscard]] ::uint32_t uplink1_nic_pci_vendor() const;
+  void set_uplink1_nic_pci_vendor(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink1_nic_pci_vendor() const;
+  void _internal_set_uplink1_nic_pci_vendor(::uint32_t value);
+
+  public:
+  // uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
+  void clear_inet_diag_msg_socket_interface() ;
+  [[nodiscard]] ::uint32_t inet_diag_msg_socket_interface() const;
+  void set_inet_diag_msg_socket_interface(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_inet_diag_msg_socket_interface() const;
+  void _internal_set_inet_diag_msg_socket_interface(::uint32_t value);
+
+  public:
+  // string uplink1_ifname = 100 [json_name = "uplink1Ifname"];
+  void clear_uplink1_ifname() ;
+  [[nodiscard]] const ::std::string& uplink1_ifname() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_ifname(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_ifname();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_ifname();
+  void set_allocated_uplink1_ifname(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_ifname() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_ifname(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_ifname();
+
+  public:
+  // string uplink1_nic_driver = 101 [json_name = "uplink1NicDriver"];
+  void clear_uplink1_nic_driver() ;
+  [[nodiscard]] const ::std::string& uplink1_nic_driver() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_nic_driver(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_nic_driver();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_nic_driver();
+  void set_allocated_uplink1_nic_driver(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_nic_driver() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_nic_driver(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_nic_driver();
+
+  public:
+  // string uplink1_nic_bus_info = 105 [json_name = "uplink1NicBusInfo"];
+  void clear_uplink1_nic_bus_info() ;
+  [[nodiscard]] const ::std::string& uplink1_nic_bus_info() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_nic_bus_info(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_nic_bus_info();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_nic_bus_info();
+  void set_allocated_uplink1_nic_bus_info(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_nic_bus_info() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_nic_bus_info(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_nic_bus_info();
+
+  public:
+  // string uplink1_nic_fw_version = 107 [json_name = "uplink1NicFwVersion"];
+  void clear_uplink1_nic_fw_version() ;
+  [[nodiscard]] const ::std::string& uplink1_nic_fw_version() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_nic_fw_version(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_nic_fw_version();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_nic_fw_version();
+  void set_allocated_uplink1_nic_fw_version(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_nic_fw_version() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_nic_fw_version(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_nic_fw_version();
+
+  public:
+  // string uplink1_lldp_chassis_name = 120 [json_name = "uplink1LldpChassisName"];
+  void clear_uplink1_lldp_chassis_name() ;
+  [[nodiscard]] const ::std::string& uplink1_lldp_chassis_name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_lldp_chassis_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_lldp_chassis_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_lldp_chassis_name();
+  void set_allocated_uplink1_lldp_chassis_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_lldp_chassis_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_lldp_chassis_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_lldp_chassis_name();
+
+  public:
+  // string uplink1_lldp_chassis_id = 121 [json_name = "uplink1LldpChassisId"];
+  void clear_uplink1_lldp_chassis_id() ;
+  [[nodiscard]] const ::std::string& uplink1_lldp_chassis_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_lldp_chassis_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_lldp_chassis_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_lldp_chassis_id();
+  void set_allocated_uplink1_lldp_chassis_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_lldp_chassis_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_lldp_chassis_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_lldp_chassis_id();
+
+  public:
+  // string uplink1_lldp_mgmt_ip = 122 [json_name = "uplink1LldpMgmtIp"];
+  void clear_uplink1_lldp_mgmt_ip() ;
+  [[nodiscard]] const ::std::string& uplink1_lldp_mgmt_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_lldp_mgmt_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_lldp_mgmt_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_lldp_mgmt_ip();
+  void set_allocated_uplink1_lldp_mgmt_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_lldp_mgmt_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_lldp_mgmt_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_lldp_mgmt_ip();
+
+  public:
+  // string uplink1_lldp_port_id = 123 [json_name = "uplink1LldpPortId"];
+  void clear_uplink1_lldp_port_id() ;
+  [[nodiscard]] const ::std::string& uplink1_lldp_port_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_lldp_port_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_lldp_port_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_lldp_port_id();
+  void set_allocated_uplink1_lldp_port_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_lldp_port_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_lldp_port_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_lldp_port_id();
+
+  public:
+  // string uplink1_lldp_port_descr = 124 [json_name = "uplink1LldpPortDescr"];
+  void clear_uplink1_lldp_port_descr() ;
+  [[nodiscard]] const ::std::string& uplink1_lldp_port_descr() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink1_lldp_port_descr(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink1_lldp_port_descr();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink1_lldp_port_descr();
+  void set_allocated_uplink1_lldp_port_descr(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink1_lldp_port_descr() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink1_lldp_port_descr(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink1_lldp_port_descr();
+
+  public:
+  // string uplink2_ifname = 200 [json_name = "uplink2Ifname"];
+  void clear_uplink2_ifname() ;
+  [[nodiscard]] const ::std::string& uplink2_ifname() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_ifname(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_ifname();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_ifname();
+  void set_allocated_uplink2_ifname(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_ifname() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_ifname(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_ifname();
+
+  public:
+  // string uplink2_nic_driver = 201 [json_name = "uplink2NicDriver"];
+  void clear_uplink2_nic_driver() ;
+  [[nodiscard]] const ::std::string& uplink2_nic_driver() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_nic_driver(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_nic_driver();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_nic_driver();
+  void set_allocated_uplink2_nic_driver(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_nic_driver() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_nic_driver(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_nic_driver();
+
+  public:
+  // string uplink2_nic_model = 202 [json_name = "uplink2NicModel"];
+  void clear_uplink2_nic_model() ;
+  [[nodiscard]] const ::std::string& uplink2_nic_model() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_nic_model(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_nic_model();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_nic_model();
+  void set_allocated_uplink2_nic_model(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_nic_model() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_nic_model(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_nic_model();
+
+  public:
+  // string uplink2_nic_bus_info = 205 [json_name = "uplink2NicBusInfo"];
+  void clear_uplink2_nic_bus_info() ;
+  [[nodiscard]] const ::std::string& uplink2_nic_bus_info() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_nic_bus_info(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_nic_bus_info();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_nic_bus_info();
+  void set_allocated_uplink2_nic_bus_info(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_nic_bus_info() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_nic_bus_info(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_nic_bus_info();
+
+  public:
+  // string uplink2_nic_fw_version = 207 [json_name = "uplink2NicFwVersion"];
+  void clear_uplink2_nic_fw_version() ;
+  [[nodiscard]] const ::std::string& uplink2_nic_fw_version() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_nic_fw_version(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_nic_fw_version();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_nic_fw_version();
+  void set_allocated_uplink2_nic_fw_version(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_nic_fw_version() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_nic_fw_version(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_nic_fw_version();
+
+  public:
+  // string uplink2_lldp_chassis_name = 220 [json_name = "uplink2LldpChassisName"];
+  void clear_uplink2_lldp_chassis_name() ;
+  [[nodiscard]] const ::std::string& uplink2_lldp_chassis_name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_lldp_chassis_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_lldp_chassis_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_lldp_chassis_name();
+  void set_allocated_uplink2_lldp_chassis_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_lldp_chassis_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_lldp_chassis_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_lldp_chassis_name();
+
+  public:
+  // string uplink2_lldp_chassis_id = 221 [json_name = "uplink2LldpChassisId"];
+  void clear_uplink2_lldp_chassis_id() ;
+  [[nodiscard]] const ::std::string& uplink2_lldp_chassis_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_lldp_chassis_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_lldp_chassis_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_lldp_chassis_id();
+  void set_allocated_uplink2_lldp_chassis_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_lldp_chassis_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_lldp_chassis_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_lldp_chassis_id();
+
+  public:
+  // string uplink2_lldp_mgmt_ip = 222 [json_name = "uplink2LldpMgmtIp"];
+  void clear_uplink2_lldp_mgmt_ip() ;
+  [[nodiscard]] const ::std::string& uplink2_lldp_mgmt_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_lldp_mgmt_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_lldp_mgmt_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_lldp_mgmt_ip();
+  void set_allocated_uplink2_lldp_mgmt_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_lldp_mgmt_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_lldp_mgmt_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_lldp_mgmt_ip();
+
+  public:
+  // string uplink2_lldp_port_id = 223 [json_name = "uplink2LldpPortId"];
+  void clear_uplink2_lldp_port_id() ;
+  [[nodiscard]] const ::std::string& uplink2_lldp_port_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_lldp_port_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_lldp_port_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_lldp_port_id();
+  void set_allocated_uplink2_lldp_port_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_lldp_port_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_lldp_port_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_lldp_port_id();
+
+  public:
+  // string uplink2_lldp_port_descr = 224 [json_name = "uplink2LldpPortDescr"];
+  void clear_uplink2_lldp_port_descr() ;
+  [[nodiscard]] const ::std::string& uplink2_lldp_port_descr() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink2_lldp_port_descr(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_uplink2_lldp_port_descr();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_uplink2_lldp_port_descr();
+  void set_allocated_uplink2_lldp_port_descr(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_uplink2_lldp_port_descr() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_uplink2_lldp_port_descr(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_uplink2_lldp_port_descr();
+
+  public:
+  // bytes inet_diag_msg_socket_source = 1007 [json_name = "inetDiagMsgSocketSource"];
   void clear_inet_diag_msg_socket_source() ;
   [[nodiscard]] const ::std::string& inet_diag_msg_socket_source() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -594,97 +1049,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_inet_diag_msg_socket_source();
 
   public:
-  // int64 timestamp_ns = 10 [json_name = "timestampNs"];
-  void clear_timestamp_ns() ;
-  [[nodiscard]] ::int64_t timestamp_ns() const;
-  void set_timestamp_ns(::int64_t value);
-
-  private:
-  ::int64_t _internal_timestamp_ns() const;
-  void _internal_set_timestamp_ns(::int64_t value);
-
-  public:
-  // uint64 netns_inode = 33 [json_name = "netnsInode"];
-  void clear_netns_inode() ;
-  [[nodiscard]] ::uint64_t netns_inode() const;
-  void set_netns_inode(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_netns_inode() const;
-  void _internal_set_netns_inode(::uint64_t value);
-
-  public:
-  // uint64 record_counter = 70 [json_name = "recordCounter"];
-  void clear_record_counter() ;
-  [[nodiscard]] ::uint64_t record_counter() const;
-  void set_record_counter(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_record_counter() const;
-  void _internal_set_record_counter(::uint64_t value);
-
-  public:
-  // uint32 nsid = 40 [json_name = "nsid"];
-  void clear_nsid() ;
-  [[nodiscard]] ::uint32_t nsid() const;
-  void set_nsid(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_nsid() const;
-  void _internal_set_nsid(::uint32_t value);
-
-  public:
-  // uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
-  void clear_inet_diag_msg_timer() ;
-  [[nodiscard]] ::uint32_t inet_diag_msg_timer() const;
-  void set_inet_diag_msg_timer(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_inet_diag_msg_timer() const;
-  void _internal_set_inet_diag_msg_timer(::uint32_t value);
-
-  public:
-  // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
-  void clear_netlinker_id() ;
-  [[nodiscard]] ::uint64_t netlinker_id() const;
-  void set_netlinker_id(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_netlinker_id() const;
-  void _internal_set_netlinker_id(::uint64_t value);
-
-  public:
-  // uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
-  void clear_inet_diag_msg_socket_source_port() ;
-  [[nodiscard]] ::uint32_t inet_diag_msg_socket_source_port() const;
-  void set_inet_diag_msg_socket_source_port(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_inet_diag_msg_socket_source_port() const;
-  void _internal_set_inet_diag_msg_socket_source_port(::uint32_t value);
-
-  public:
-  // uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
-  void clear_inet_diag_msg_socket_interface() ;
-  [[nodiscard]] ::uint32_t inet_diag_msg_socket_interface() const;
-  void set_inet_diag_msg_socket_interface(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_inet_diag_msg_socket_interface() const;
-  void _internal_set_inet_diag_msg_socket_interface(::uint32_t value);
-
-  public:
-  // uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
-  void clear_inet_diag_msg_wqueue() ;
-  [[nodiscard]] ::uint32_t inet_diag_msg_wqueue() const;
-  void set_inet_diag_msg_wqueue(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_inet_diag_msg_wqueue() const;
-  void _internal_set_inet_diag_msg_wqueue(::uint32_t value);
-
-  public:
-  // bytes inet_diag_msg_socket_destination = 108 [json_name = "inetDiagMsgSocketDestination"];
+  // bytes inet_diag_msg_socket_destination = 1008 [json_name = "inetDiagMsgSocketDestination"];
   void clear_inet_diag_msg_socket_destination() ;
   [[nodiscard]] const ::std::string& inet_diag_msg_socket_destination() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -699,7 +1064,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_inet_diag_msg_socket_destination();
 
   public:
-  // string congestion_algorithm_string = 400 [json_name = "congestionAlgorithmString"];
+  // string congestion_algorithm_string = 1300 [json_name = "congestionAlgorithmString"];
   void clear_congestion_algorithm_string() ;
   [[nodiscard]] const ::std::string& congestion_algorithm_string() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -714,17 +1079,67 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   ::std::string* PROTOBUF_NONNULL _internal_mutable_congestion_algorithm_string();
 
   public:
-  // uint64 socket_fd = 80 [json_name = "socketFd"];
-  void clear_socket_fd() ;
-  [[nodiscard]] ::uint64_t socket_fd() const;
-  void set_socket_fd(::uint64_t value);
+  // uint64 netlinker_id = 62 [json_name = "netlinkerId"];
+  void clear_netlinker_id() ;
+  [[nodiscard]] ::uint64_t netlinker_id() const;
+  void set_netlinker_id(::uint64_t value);
 
   private:
-  ::uint64_t _internal_socket_fd() const;
-  void _internal_set_socket_fd(::uint64_t value);
+  ::uint64_t _internal_netlinker_id() const;
+  void _internal_set_netlinker_id(::uint64_t value);
 
   public:
-  // uint32 inet_diag_msg_family = 101 [json_name = "inetDiagMsgFamily"];
+  // uint32 uplink1_nic_pci_device = 104 [json_name = "uplink1NicPciDevice"];
+  void clear_uplink1_nic_pci_device() ;
+  [[nodiscard]] ::uint32_t uplink1_nic_pci_device() const;
+  void set_uplink1_nic_pci_device(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink1_nic_pci_device() const;
+  void _internal_set_uplink1_nic_pci_device(::uint32_t value);
+
+  public:
+  // uint32 uplink1_nic_speed_mbps = 106 [json_name = "uplink1NicSpeedMbps"];
+  void clear_uplink1_nic_speed_mbps() ;
+  [[nodiscard]] ::uint32_t uplink1_nic_speed_mbps() const;
+  void set_uplink1_nic_speed_mbps(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink1_nic_speed_mbps() const;
+  void _internal_set_uplink1_nic_speed_mbps(::uint32_t value);
+
+  public:
+  // uint32 uplink2_nic_pci_vendor = 203 [json_name = "uplink2NicPciVendor"];
+  void clear_uplink2_nic_pci_vendor() ;
+  [[nodiscard]] ::uint32_t uplink2_nic_pci_vendor() const;
+  void set_uplink2_nic_pci_vendor(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink2_nic_pci_vendor() const;
+  void _internal_set_uplink2_nic_pci_vendor(::uint32_t value);
+
+  public:
+  // uint32 uplink2_nic_pci_device = 204 [json_name = "uplink2NicPciDevice"];
+  void clear_uplink2_nic_pci_device() ;
+  [[nodiscard]] ::uint32_t uplink2_nic_pci_device() const;
+  void set_uplink2_nic_pci_device(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink2_nic_pci_device() const;
+  void _internal_set_uplink2_nic_pci_device(::uint32_t value);
+
+  public:
+  // uint32 uplink2_nic_speed_mbps = 206 [json_name = "uplink2NicSpeedMbps"];
+  void clear_uplink2_nic_speed_mbps() ;
+  [[nodiscard]] ::uint32_t uplink2_nic_speed_mbps() const;
+  void set_uplink2_nic_speed_mbps(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink2_nic_speed_mbps() const;
+  void _internal_set_uplink2_nic_speed_mbps(::uint32_t value);
+
+  public:
+  // uint32 inet_diag_msg_family = 1001 [json_name = "inetDiagMsgFamily"];
   void clear_inet_diag_msg_family() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_family() const;
   void set_inet_diag_msg_family(::uint32_t value);
@@ -734,7 +1149,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_family(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
+  // uint32 inet_diag_msg_state = 1002 [json_name = "inetDiagMsgState"];
   void clear_inet_diag_msg_state() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_state() const;
   void set_inet_diag_msg_state(::uint32_t value);
@@ -744,7 +1159,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_state(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_retrans = 104 [json_name = "inetDiagMsgRetrans"];
+  // uint32 inet_diag_msg_timer = 1003 [json_name = "inetDiagMsgTimer"];
+  void clear_inet_diag_msg_timer() ;
+  [[nodiscard]] ::uint32_t inet_diag_msg_timer() const;
+  void set_inet_diag_msg_timer(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_inet_diag_msg_timer() const;
+  void _internal_set_inet_diag_msg_timer(::uint32_t value);
+
+  public:
+  // uint32 inet_diag_msg_retrans = 1004 [json_name = "inetDiagMsgRetrans"];
   void clear_inet_diag_msg_retrans() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_retrans() const;
   void set_inet_diag_msg_retrans(::uint32_t value);
@@ -754,7 +1179,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_retrans(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_socket_destination_port = 106 [json_name = "inetDiagMsgSocketDestinationPort"];
+  // uint32 inet_diag_msg_socket_source_port = 1005 [json_name = "inetDiagMsgSocketSourcePort"];
+  void clear_inet_diag_msg_socket_source_port() ;
+  [[nodiscard]] ::uint32_t inet_diag_msg_socket_source_port() const;
+  void set_inet_diag_msg_socket_source_port(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_inet_diag_msg_socket_source_port() const;
+  void _internal_set_inet_diag_msg_socket_source_port(::uint32_t value);
+
+  public:
+  // uint32 inet_diag_msg_socket_destination_port = 1006 [json_name = "inetDiagMsgSocketDestinationPort"];
   void clear_inet_diag_msg_socket_destination_port() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_socket_destination_port() const;
   void set_inet_diag_msg_socket_destination_port(::uint32_t value);
@@ -764,37 +1199,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_socket_destination_port(::uint32_t value);
 
   public:
-  // uint64 inet_diag_msg_socket_cookie = 110 [json_name = "inetDiagMsgSocketCookie"];
-  void clear_inet_diag_msg_socket_cookie() ;
-  [[nodiscard]] ::uint64_t inet_diag_msg_socket_cookie() const;
-  void set_inet_diag_msg_socket_cookie(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_inet_diag_msg_socket_cookie() const;
-  void _internal_set_inet_diag_msg_socket_cookie(::uint64_t value);
-
-  public:
-  // uint64 inet_diag_msg_socket_dest_asn = 111 [json_name = "inetDiagMsgSocketDestAsn"];
-  void clear_inet_diag_msg_socket_dest_asn() ;
-  [[nodiscard]] ::uint64_t inet_diag_msg_socket_dest_asn() const;
-  void set_inet_diag_msg_socket_dest_asn(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_inet_diag_msg_socket_dest_asn() const;
-  void _internal_set_inet_diag_msg_socket_dest_asn(::uint64_t value);
-
-  public:
-  // uint64 inet_diag_msg_socket_next_hop_asn = 112 [json_name = "inetDiagMsgSocketNextHopAsn"];
-  void clear_inet_diag_msg_socket_next_hop_asn() ;
-  [[nodiscard]] ::uint64_t inet_diag_msg_socket_next_hop_asn() const;
-  void set_inet_diag_msg_socket_next_hop_asn(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_inet_diag_msg_socket_next_hop_asn() const;
-  void _internal_set_inet_diag_msg_socket_next_hop_asn(::uint64_t value);
-
-  public:
-  // uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
+  // uint32 inet_diag_msg_expires = 1013 [json_name = "inetDiagMsgExpires"];
   void clear_inet_diag_msg_expires() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_expires() const;
   void set_inet_diag_msg_expires(::uint32_t value);
@@ -804,7 +1209,37 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_expires(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_rqueue = 114 [json_name = "inetDiagMsgRqueue"];
+  // uint64 inet_diag_msg_socket_cookie = 1010 [json_name = "inetDiagMsgSocketCookie"];
+  void clear_inet_diag_msg_socket_cookie() ;
+  [[nodiscard]] ::uint64_t inet_diag_msg_socket_cookie() const;
+  void set_inet_diag_msg_socket_cookie(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_inet_diag_msg_socket_cookie() const;
+  void _internal_set_inet_diag_msg_socket_cookie(::uint64_t value);
+
+  public:
+  // uint64 inet_diag_msg_socket_dest_asn = 1011 [json_name = "inetDiagMsgSocketDestAsn"];
+  void clear_inet_diag_msg_socket_dest_asn() ;
+  [[nodiscard]] ::uint64_t inet_diag_msg_socket_dest_asn() const;
+  void set_inet_diag_msg_socket_dest_asn(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_inet_diag_msg_socket_dest_asn() const;
+  void _internal_set_inet_diag_msg_socket_dest_asn(::uint64_t value);
+
+  public:
+  // uint64 inet_diag_msg_socket_next_hop_asn = 1012 [json_name = "inetDiagMsgSocketNextHopAsn"];
+  void clear_inet_diag_msg_socket_next_hop_asn() ;
+  [[nodiscard]] ::uint64_t inet_diag_msg_socket_next_hop_asn() const;
+  void set_inet_diag_msg_socket_next_hop_asn(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_inet_diag_msg_socket_next_hop_asn() const;
+  void _internal_set_inet_diag_msg_socket_next_hop_asn(::uint64_t value);
+
+  public:
+  // uint32 inet_diag_msg_rqueue = 1014 [json_name = "inetDiagMsgRqueue"];
   void clear_inet_diag_msg_rqueue() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_rqueue() const;
   void set_inet_diag_msg_rqueue(::uint32_t value);
@@ -814,7 +1249,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_rqueue(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_uid = 116 [json_name = "inetDiagMsgUid"];
+  // uint32 inet_diag_msg_wqueue = 1015 [json_name = "inetDiagMsgWqueue"];
+  void clear_inet_diag_msg_wqueue() ;
+  [[nodiscard]] ::uint32_t inet_diag_msg_wqueue() const;
+  void set_inet_diag_msg_wqueue(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_inet_diag_msg_wqueue() const;
+  void _internal_set_inet_diag_msg_wqueue(::uint32_t value);
+
+  public:
+  // uint32 inet_diag_msg_uid = 1016 [json_name = "inetDiagMsgUid"];
   void clear_inet_diag_msg_uid() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_uid() const;
   void set_inet_diag_msg_uid(::uint32_t value);
@@ -824,7 +1269,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_uid(::uint32_t value);
 
   public:
-  // uint32 inet_diag_msg_inode = 117 [json_name = "inetDiagMsgInode"];
+  // uint32 inet_diag_msg_inode = 1017 [json_name = "inetDiagMsgInode"];
   void clear_inet_diag_msg_inode() ;
   [[nodiscard]] ::uint32_t inet_diag_msg_inode() const;
   void set_inet_diag_msg_inode(::uint32_t value);
@@ -834,7 +1279,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_msg_inode(::uint32_t value);
 
   public:
-  // uint32 mem_info_rmem = 201 [json_name = "memInfoRmem"];
+  // uint32 mem_info_rmem = 1101 [json_name = "memInfoRmem"];
   void clear_mem_info_rmem() ;
   [[nodiscard]] ::uint32_t mem_info_rmem() const;
   void set_mem_info_rmem(::uint32_t value);
@@ -844,7 +1289,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_mem_info_rmem(::uint32_t value);
 
   public:
-  // uint32 mem_info_wmem = 202 [json_name = "memInfoWmem"];
+  // uint32 mem_info_wmem = 1102 [json_name = "memInfoWmem"];
   void clear_mem_info_wmem() ;
   [[nodiscard]] ::uint32_t mem_info_wmem() const;
   void set_mem_info_wmem(::uint32_t value);
@@ -854,7 +1299,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_mem_info_wmem(::uint32_t value);
 
   public:
-  // uint32 mem_info_fmem = 203 [json_name = "memInfoFmem"];
+  // uint32 mem_info_fmem = 1103 [json_name = "memInfoFmem"];
   void clear_mem_info_fmem() ;
   [[nodiscard]] ::uint32_t mem_info_fmem() const;
   void set_mem_info_fmem(::uint32_t value);
@@ -864,7 +1309,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_mem_info_fmem(::uint32_t value);
 
   public:
-  // uint32 mem_info_tmem = 204 [json_name = "memInfoTmem"];
+  // uint32 mem_info_tmem = 1104 [json_name = "memInfoTmem"];
   void clear_mem_info_tmem() ;
   [[nodiscard]] ::uint32_t mem_info_tmem() const;
   void set_mem_info_tmem(::uint32_t value);
@@ -874,7 +1319,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_mem_info_tmem(::uint32_t value);
 
   public:
-  // uint32 tcp_info_state = 301 [json_name = "tcpInfoState"];
+  // uint32 tcp_info_state = 1201 [json_name = "tcpInfoState"];
   void clear_tcp_info_state() ;
   [[nodiscard]] ::uint32_t tcp_info_state() const;
   void set_tcp_info_state(::uint32_t value);
@@ -884,7 +1329,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_state(::uint32_t value);
 
   public:
-  // uint32 tcp_info_ca_state = 302 [json_name = "tcpInfoCaState"];
+  // uint32 tcp_info_ca_state = 1202 [json_name = "tcpInfoCaState"];
   void clear_tcp_info_ca_state() ;
   [[nodiscard]] ::uint32_t tcp_info_ca_state() const;
   void set_tcp_info_ca_state(::uint32_t value);
@@ -894,7 +1339,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_ca_state(::uint32_t value);
 
   public:
-  // uint32 tcp_info_retransmits = 303 [json_name = "tcpInfoRetransmits"];
+  // uint32 tcp_info_retransmits = 1203 [json_name = "tcpInfoRetransmits"];
   void clear_tcp_info_retransmits() ;
   [[nodiscard]] ::uint32_t tcp_info_retransmits() const;
   void set_tcp_info_retransmits(::uint32_t value);
@@ -904,7 +1349,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_retransmits(::uint32_t value);
 
   public:
-  // uint32 tcp_info_probes = 304 [json_name = "tcpInfoProbes"];
+  // uint32 tcp_info_probes = 1204 [json_name = "tcpInfoProbes"];
   void clear_tcp_info_probes() ;
   [[nodiscard]] ::uint32_t tcp_info_probes() const;
   void set_tcp_info_probes(::uint32_t value);
@@ -914,7 +1359,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_probes(::uint32_t value);
 
   public:
-  // uint32 tcp_info_backoff = 305 [json_name = "tcpInfoBackoff"];
+  // uint32 tcp_info_backoff = 1205 [json_name = "tcpInfoBackoff"];
   void clear_tcp_info_backoff() ;
   [[nodiscard]] ::uint32_t tcp_info_backoff() const;
   void set_tcp_info_backoff(::uint32_t value);
@@ -924,7 +1369,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_backoff(::uint32_t value);
 
   public:
-  // uint32 tcp_info_options = 306 [json_name = "tcpInfoOptions"];
+  // uint32 tcp_info_options = 1206 [json_name = "tcpInfoOptions"];
   void clear_tcp_info_options() ;
   [[nodiscard]] ::uint32_t tcp_info_options() const;
   void set_tcp_info_options(::uint32_t value);
@@ -934,7 +1379,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_options(::uint32_t value);
 
   public:
-  // uint32 tcp_info_send_scale = 307 [json_name = "tcpInfoSendScale"];
+  // uint32 tcp_info_send_scale = 1207 [json_name = "tcpInfoSendScale"];
   void clear_tcp_info_send_scale() ;
   [[nodiscard]] ::uint32_t tcp_info_send_scale() const;
   void set_tcp_info_send_scale(::uint32_t value);
@@ -944,7 +1389,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_send_scale(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_scale = 308 [json_name = "tcpInfoRcvScale"];
+  // uint32 tcp_info_rcv_scale = 1208 [json_name = "tcpInfoRcvScale"];
   void clear_tcp_info_rcv_scale() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_scale() const;
   void set_tcp_info_rcv_scale(::uint32_t value);
@@ -954,7 +1399,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_scale(::uint32_t value);
 
   public:
-  // uint32 tcp_info_delivery_rate_app_limited = 309 [json_name = "tcpInfoDeliveryRateAppLimited"];
+  // uint32 tcp_info_delivery_rate_app_limited = 1209 [json_name = "tcpInfoDeliveryRateAppLimited"];
   void clear_tcp_info_delivery_rate_app_limited() ;
   [[nodiscard]] ::uint32_t tcp_info_delivery_rate_app_limited() const;
   void set_tcp_info_delivery_rate_app_limited(::uint32_t value);
@@ -964,7 +1409,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_delivery_rate_app_limited(::uint32_t value);
 
   public:
-  // uint32 tcp_info_fast_open_client_failed = 310 [json_name = "tcpInfoFastOpenClientFailed"];
+  // uint32 tcp_info_fast_open_client_failed = 1210 [json_name = "tcpInfoFastOpenClientFailed"];
   void clear_tcp_info_fast_open_client_failed() ;
   [[nodiscard]] ::uint32_t tcp_info_fast_open_client_failed() const;
   void set_tcp_info_fast_open_client_failed(::uint32_t value);
@@ -974,7 +1419,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_fast_open_client_failed(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rto = 315 [json_name = "tcpInfoRto"];
+  // uint32 tcp_info_rto = 1215 [json_name = "tcpInfoRto"];
   void clear_tcp_info_rto() ;
   [[nodiscard]] ::uint32_t tcp_info_rto() const;
   void set_tcp_info_rto(::uint32_t value);
@@ -984,7 +1429,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rto(::uint32_t value);
 
   public:
-  // uint32 tcp_info_ato = 316 [json_name = "tcpInfoAto"];
+  // uint32 tcp_info_ato = 1216 [json_name = "tcpInfoAto"];
   void clear_tcp_info_ato() ;
   [[nodiscard]] ::uint32_t tcp_info_ato() const;
   void set_tcp_info_ato(::uint32_t value);
@@ -994,7 +1439,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_ato(::uint32_t value);
 
   public:
-  // uint32 tcp_info_snd_mss = 317 [json_name = "tcpInfoSndMss"];
+  // uint32 tcp_info_snd_mss = 1217 [json_name = "tcpInfoSndMss"];
   void clear_tcp_info_snd_mss() ;
   [[nodiscard]] ::uint32_t tcp_info_snd_mss() const;
   void set_tcp_info_snd_mss(::uint32_t value);
@@ -1004,7 +1449,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_snd_mss(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_mss = 318 [json_name = "tcpInfoRcvMss"];
+  // uint32 tcp_info_rcv_mss = 1218 [json_name = "tcpInfoRcvMss"];
   void clear_tcp_info_rcv_mss() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_mss() const;
   void set_tcp_info_rcv_mss(::uint32_t value);
@@ -1014,7 +1459,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_mss(::uint32_t value);
 
   public:
-  // uint32 tcp_info_unacked = 319 [json_name = "tcpInfoUnacked"];
+  // uint32 tcp_info_unacked = 1219 [json_name = "tcpInfoUnacked"];
   void clear_tcp_info_unacked() ;
   [[nodiscard]] ::uint32_t tcp_info_unacked() const;
   void set_tcp_info_unacked(::uint32_t value);
@@ -1024,7 +1469,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_unacked(::uint32_t value);
 
   public:
-  // uint32 tcp_info_sacked = 320 [json_name = "tcpInfoSacked"];
+  // uint32 tcp_info_sacked = 1220 [json_name = "tcpInfoSacked"];
   void clear_tcp_info_sacked() ;
   [[nodiscard]] ::uint32_t tcp_info_sacked() const;
   void set_tcp_info_sacked(::uint32_t value);
@@ -1034,7 +1479,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_sacked(::uint32_t value);
 
   public:
-  // uint32 tcp_info_lost = 321 [json_name = "tcpInfoLost"];
+  // uint32 tcp_info_lost = 1221 [json_name = "tcpInfoLost"];
   void clear_tcp_info_lost() ;
   [[nodiscard]] ::uint32_t tcp_info_lost() const;
   void set_tcp_info_lost(::uint32_t value);
@@ -1044,7 +1489,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_lost(::uint32_t value);
 
   public:
-  // uint32 tcp_info_retrans = 322 [json_name = "tcpInfoRetrans"];
+  // uint32 tcp_info_retrans = 1222 [json_name = "tcpInfoRetrans"];
   void clear_tcp_info_retrans() ;
   [[nodiscard]] ::uint32_t tcp_info_retrans() const;
   void set_tcp_info_retrans(::uint32_t value);
@@ -1054,7 +1499,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_retrans(::uint32_t value);
 
   public:
-  // uint32 tcp_info_fackets = 323 [json_name = "tcpInfoFackets"];
+  // uint32 tcp_info_fackets = 1223 [json_name = "tcpInfoFackets"];
   void clear_tcp_info_fackets() ;
   [[nodiscard]] ::uint32_t tcp_info_fackets() const;
   void set_tcp_info_fackets(::uint32_t value);
@@ -1064,7 +1509,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_fackets(::uint32_t value);
 
   public:
-  // uint32 tcp_info_last_data_sent = 324 [json_name = "tcpInfoLastDataSent"];
+  // uint32 tcp_info_last_data_sent = 1224 [json_name = "tcpInfoLastDataSent"];
   void clear_tcp_info_last_data_sent() ;
   [[nodiscard]] ::uint32_t tcp_info_last_data_sent() const;
   void set_tcp_info_last_data_sent(::uint32_t value);
@@ -1074,7 +1519,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_last_data_sent(::uint32_t value);
 
   public:
-  // uint32 tcp_info_last_ack_sent = 325 [json_name = "tcpInfoLastAckSent"];
+  // uint32 tcp_info_last_ack_sent = 1225 [json_name = "tcpInfoLastAckSent"];
   void clear_tcp_info_last_ack_sent() ;
   [[nodiscard]] ::uint32_t tcp_info_last_ack_sent() const;
   void set_tcp_info_last_ack_sent(::uint32_t value);
@@ -1084,7 +1529,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_last_ack_sent(::uint32_t value);
 
   public:
-  // uint32 tcp_info_last_data_recv = 326 [json_name = "tcpInfoLastDataRecv"];
+  // uint32 tcp_info_last_data_recv = 1226 [json_name = "tcpInfoLastDataRecv"];
   void clear_tcp_info_last_data_recv() ;
   [[nodiscard]] ::uint32_t tcp_info_last_data_recv() const;
   void set_tcp_info_last_data_recv(::uint32_t value);
@@ -1094,7 +1539,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_last_data_recv(::uint32_t value);
 
   public:
-  // uint32 tcp_info_last_ack_recv = 327 [json_name = "tcpInfoLastAckRecv"];
+  // uint32 tcp_info_last_ack_recv = 1227 [json_name = "tcpInfoLastAckRecv"];
   void clear_tcp_info_last_ack_recv() ;
   [[nodiscard]] ::uint32_t tcp_info_last_ack_recv() const;
   void set_tcp_info_last_ack_recv(::uint32_t value);
@@ -1104,7 +1549,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_last_ack_recv(::uint32_t value);
 
   public:
-  // uint32 tcp_info_pmtu = 328 [json_name = "tcpInfoPmtu"];
+  // uint32 tcp_info_pmtu = 1228 [json_name = "tcpInfoPmtu"];
   void clear_tcp_info_pmtu() ;
   [[nodiscard]] ::uint32_t tcp_info_pmtu() const;
   void set_tcp_info_pmtu(::uint32_t value);
@@ -1114,7 +1559,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_pmtu(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_ssthresh = 329 [json_name = "tcpInfoRcvSsthresh"];
+  // uint32 tcp_info_rcv_ssthresh = 1229 [json_name = "tcpInfoRcvSsthresh"];
   void clear_tcp_info_rcv_ssthresh() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_ssthresh() const;
   void set_tcp_info_rcv_ssthresh(::uint32_t value);
@@ -1124,7 +1569,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_ssthresh(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rtt = 330 [json_name = "tcpInfoRtt"];
+  // uint32 tcp_info_rtt = 1230 [json_name = "tcpInfoRtt"];
   void clear_tcp_info_rtt() ;
   [[nodiscard]] ::uint32_t tcp_info_rtt() const;
   void set_tcp_info_rtt(::uint32_t value);
@@ -1134,7 +1579,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rtt(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rtt_var = 331 [json_name = "tcpInfoRttVar"];
+  // uint32 tcp_info_rtt_var = 1231 [json_name = "tcpInfoRttVar"];
   void clear_tcp_info_rtt_var() ;
   [[nodiscard]] ::uint32_t tcp_info_rtt_var() const;
   void set_tcp_info_rtt_var(::uint32_t value);
@@ -1144,7 +1589,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rtt_var(::uint32_t value);
 
   public:
-  // uint32 tcp_info_snd_ssthresh = 332 [json_name = "tcpInfoSndSsthresh"];
+  // uint32 tcp_info_snd_ssthresh = 1232 [json_name = "tcpInfoSndSsthresh"];
   void clear_tcp_info_snd_ssthresh() ;
   [[nodiscard]] ::uint32_t tcp_info_snd_ssthresh() const;
   void set_tcp_info_snd_ssthresh(::uint32_t value);
@@ -1154,7 +1599,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_snd_ssthresh(::uint32_t value);
 
   public:
-  // uint32 tcp_info_snd_cwnd = 333 [json_name = "tcpInfoSndCwnd"];
+  // uint32 tcp_info_snd_cwnd = 1233 [json_name = "tcpInfoSndCwnd"];
   void clear_tcp_info_snd_cwnd() ;
   [[nodiscard]] ::uint32_t tcp_info_snd_cwnd() const;
   void set_tcp_info_snd_cwnd(::uint32_t value);
@@ -1164,7 +1609,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_snd_cwnd(::uint32_t value);
 
   public:
-  // uint32 tcp_info_adv_mss = 334 [json_name = "tcpInfoAdvMss"];
+  // uint32 tcp_info_adv_mss = 1234 [json_name = "tcpInfoAdvMss"];
   void clear_tcp_info_adv_mss() ;
   [[nodiscard]] ::uint32_t tcp_info_adv_mss() const;
   void set_tcp_info_adv_mss(::uint32_t value);
@@ -1174,7 +1619,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_adv_mss(::uint32_t value);
 
   public:
-  // uint32 tcp_info_reordering = 335 [json_name = "tcpInfoReordering"];
+  // uint32 tcp_info_reordering = 1235 [json_name = "tcpInfoReordering"];
   void clear_tcp_info_reordering() ;
   [[nodiscard]] ::uint32_t tcp_info_reordering() const;
   void set_tcp_info_reordering(::uint32_t value);
@@ -1184,7 +1629,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_reordering(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_rtt = 336 [json_name = "tcpInfoRcvRtt"];
+  // uint32 tcp_info_rcv_rtt = 1236 [json_name = "tcpInfoRcvRtt"];
   void clear_tcp_info_rcv_rtt() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_rtt() const;
   void set_tcp_info_rcv_rtt(::uint32_t value);
@@ -1194,7 +1639,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_rtt(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_space = 337 [json_name = "tcpInfoRcvSpace"];
+  // uint32 tcp_info_rcv_space = 1237 [json_name = "tcpInfoRcvSpace"];
   void clear_tcp_info_rcv_space() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_space() const;
   void set_tcp_info_rcv_space(::uint32_t value);
@@ -1204,7 +1649,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_space(::uint32_t value);
 
   public:
-  // uint32 tcp_info_total_retrans = 338 [json_name = "tcpInfoTotalRetrans"];
+  // uint32 tcp_info_total_retrans = 1238 [json_name = "tcpInfoTotalRetrans"];
   void clear_tcp_info_total_retrans() ;
   [[nodiscard]] ::uint32_t tcp_info_total_retrans() const;
   void set_tcp_info_total_retrans(::uint32_t value);
@@ -1214,7 +1659,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_total_retrans(::uint32_t value);
 
   public:
-  // uint64 tcp_info_pacing_rate = 339 [json_name = "tcpInfoPacingRate"];
+  // uint64 tcp_info_pacing_rate = 1239 [json_name = "tcpInfoPacingRate"];
   void clear_tcp_info_pacing_rate() ;
   [[nodiscard]] ::uint64_t tcp_info_pacing_rate() const;
   void set_tcp_info_pacing_rate(::uint64_t value);
@@ -1224,7 +1669,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_pacing_rate(::uint64_t value);
 
   public:
-  // uint64 tcp_info_max_pacing_rate = 340 [json_name = "tcpInfoMaxPacingRate"];
+  // uint64 tcp_info_max_pacing_rate = 1240 [json_name = "tcpInfoMaxPacingRate"];
   void clear_tcp_info_max_pacing_rate() ;
   [[nodiscard]] ::uint64_t tcp_info_max_pacing_rate() const;
   void set_tcp_info_max_pacing_rate(::uint64_t value);
@@ -1234,7 +1679,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_max_pacing_rate(::uint64_t value);
 
   public:
-  // uint64 tcp_info_bytes_acked = 341 [json_name = "tcpInfoBytesAcked"];
+  // uint64 tcp_info_bytes_acked = 1241 [json_name = "tcpInfoBytesAcked"];
   void clear_tcp_info_bytes_acked() ;
   [[nodiscard]] ::uint64_t tcp_info_bytes_acked() const;
   void set_tcp_info_bytes_acked(::uint64_t value);
@@ -1244,7 +1689,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_bytes_acked(::uint64_t value);
 
   public:
-  // uint64 tcp_info_bytes_received = 342 [json_name = "tcpInfoBytesReceived"];
+  // uint64 tcp_info_bytes_received = 1242 [json_name = "tcpInfoBytesReceived"];
   void clear_tcp_info_bytes_received() ;
   [[nodiscard]] ::uint64_t tcp_info_bytes_received() const;
   void set_tcp_info_bytes_received(::uint64_t value);
@@ -1254,7 +1699,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_bytes_received(::uint64_t value);
 
   public:
-  // uint32 tcp_info_segs_out = 343 [json_name = "tcpInfoSegsOut"];
+  // uint32 tcp_info_segs_out = 1243 [json_name = "tcpInfoSegsOut"];
   void clear_tcp_info_segs_out() ;
   [[nodiscard]] ::uint32_t tcp_info_segs_out() const;
   void set_tcp_info_segs_out(::uint32_t value);
@@ -1264,7 +1709,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_segs_out(::uint32_t value);
 
   public:
-  // uint32 tcp_info_segs_in = 344 [json_name = "tcpInfoSegsIn"];
+  // uint32 tcp_info_segs_in = 1244 [json_name = "tcpInfoSegsIn"];
   void clear_tcp_info_segs_in() ;
   [[nodiscard]] ::uint32_t tcp_info_segs_in() const;
   void set_tcp_info_segs_in(::uint32_t value);
@@ -1274,7 +1719,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_segs_in(::uint32_t value);
 
   public:
-  // uint32 tcp_info_not_sent_bytes = 345 [json_name = "tcpInfoNotSentBytes"];
+  // uint32 tcp_info_not_sent_bytes = 1245 [json_name = "tcpInfoNotSentBytes"];
   void clear_tcp_info_not_sent_bytes() ;
   [[nodiscard]] ::uint32_t tcp_info_not_sent_bytes() const;
   void set_tcp_info_not_sent_bytes(::uint32_t value);
@@ -1284,7 +1729,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_not_sent_bytes(::uint32_t value);
 
   public:
-  // uint32 tcp_info_min_rtt = 346 [json_name = "tcpInfoMinRtt"];
+  // uint32 tcp_info_min_rtt = 1246 [json_name = "tcpInfoMinRtt"];
   void clear_tcp_info_min_rtt() ;
   [[nodiscard]] ::uint32_t tcp_info_min_rtt() const;
   void set_tcp_info_min_rtt(::uint32_t value);
@@ -1294,7 +1739,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_min_rtt(::uint32_t value);
 
   public:
-  // uint32 tcp_info_data_segs_in = 347 [json_name = "tcpInfoDataSegsIn"];
+  // uint32 tcp_info_data_segs_in = 1247 [json_name = "tcpInfoDataSegsIn"];
   void clear_tcp_info_data_segs_in() ;
   [[nodiscard]] ::uint32_t tcp_info_data_segs_in() const;
   void set_tcp_info_data_segs_in(::uint32_t value);
@@ -1304,7 +1749,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_data_segs_in(::uint32_t value);
 
   public:
-  // uint32 tcp_info_data_segs_out = 348 [json_name = "tcpInfoDataSegsOut"];
+  // uint32 tcp_info_data_segs_out = 1248 [json_name = "tcpInfoDataSegsOut"];
   void clear_tcp_info_data_segs_out() ;
   [[nodiscard]] ::uint32_t tcp_info_data_segs_out() const;
   void set_tcp_info_data_segs_out(::uint32_t value);
@@ -1314,7 +1759,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_data_segs_out(::uint32_t value);
 
   public:
-  // uint64 tcp_info_delivery_rate = 349 [json_name = "tcpInfoDeliveryRate"];
+  // uint64 tcp_info_delivery_rate = 1249 [json_name = "tcpInfoDeliveryRate"];
   void clear_tcp_info_delivery_rate() ;
   [[nodiscard]] ::uint64_t tcp_info_delivery_rate() const;
   void set_tcp_info_delivery_rate(::uint64_t value);
@@ -1324,7 +1769,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_delivery_rate(::uint64_t value);
 
   public:
-  // uint64 tcp_info_busy_time = 350 [json_name = "tcpInfoBusyTime"];
+  // uint64 tcp_info_busy_time = 1250 [json_name = "tcpInfoBusyTime"];
   void clear_tcp_info_busy_time() ;
   [[nodiscard]] ::uint64_t tcp_info_busy_time() const;
   void set_tcp_info_busy_time(::uint64_t value);
@@ -1334,7 +1779,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_busy_time(::uint64_t value);
 
   public:
-  // uint64 tcp_info_rwnd_limited = 351 [json_name = "tcpInfoRwndLimited"];
+  // uint64 tcp_info_rwnd_limited = 1251 [json_name = "tcpInfoRwndLimited"];
   void clear_tcp_info_rwnd_limited() ;
   [[nodiscard]] ::uint64_t tcp_info_rwnd_limited() const;
   void set_tcp_info_rwnd_limited(::uint64_t value);
@@ -1344,7 +1789,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rwnd_limited(::uint64_t value);
 
   public:
-  // uint64 tcp_info_sndbuf_limited = 352 [json_name = "tcpInfoSndbufLimited"];
+  // uint64 tcp_info_sndbuf_limited = 1252 [json_name = "tcpInfoSndbufLimited"];
   void clear_tcp_info_sndbuf_limited() ;
   [[nodiscard]] ::uint64_t tcp_info_sndbuf_limited() const;
   void set_tcp_info_sndbuf_limited(::uint64_t value);
@@ -1354,7 +1799,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_sndbuf_limited(::uint64_t value);
 
   public:
-  // uint32 tcp_info_delivered = 353 [json_name = "tcpInfoDelivered"];
+  // uint32 tcp_info_delivered = 1253 [json_name = "tcpInfoDelivered"];
   void clear_tcp_info_delivered() ;
   [[nodiscard]] ::uint32_t tcp_info_delivered() const;
   void set_tcp_info_delivered(::uint32_t value);
@@ -1364,7 +1809,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_delivered(::uint32_t value);
 
   public:
-  // uint32 tcp_info_delivered_ce = 354 [json_name = "tcpInfoDeliveredCe"];
+  // uint32 tcp_info_delivered_ce = 1254 [json_name = "tcpInfoDeliveredCe"];
   void clear_tcp_info_delivered_ce() ;
   [[nodiscard]] ::uint32_t tcp_info_delivered_ce() const;
   void set_tcp_info_delivered_ce(::uint32_t value);
@@ -1374,7 +1819,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_delivered_ce(::uint32_t value);
 
   public:
-  // uint64 tcp_info_bytes_sent = 355 [json_name = "tcpInfoBytesSent"];
+  // uint64 tcp_info_bytes_sent = 1255 [json_name = "tcpInfoBytesSent"];
   void clear_tcp_info_bytes_sent() ;
   [[nodiscard]] ::uint64_t tcp_info_bytes_sent() const;
   void set_tcp_info_bytes_sent(::uint64_t value);
@@ -1384,7 +1829,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_bytes_sent(::uint64_t value);
 
   public:
-  // uint64 tcp_info_bytes_retrans = 356 [json_name = "tcpInfoBytesRetrans"];
+  // uint64 tcp_info_bytes_retrans = 1256 [json_name = "tcpInfoBytesRetrans"];
   void clear_tcp_info_bytes_retrans() ;
   [[nodiscard]] ::uint64_t tcp_info_bytes_retrans() const;
   void set_tcp_info_bytes_retrans(::uint64_t value);
@@ -1394,7 +1839,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_bytes_retrans(::uint64_t value);
 
   public:
-  // uint32 tcp_info_dsack_dups = 357 [json_name = "tcpInfoDsackDups"];
+  // uint32 tcp_info_dsack_dups = 1257 [json_name = "tcpInfoDsackDups"];
   void clear_tcp_info_dsack_dups() ;
   [[nodiscard]] ::uint32_t tcp_info_dsack_dups() const;
   void set_tcp_info_dsack_dups(::uint32_t value);
@@ -1404,7 +1849,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_dsack_dups(::uint32_t value);
 
   public:
-  // uint32 tcp_info_reord_seen = 358 [json_name = "tcpInfoReordSeen"];
+  // uint32 tcp_info_reord_seen = 1258 [json_name = "tcpInfoReordSeen"];
   void clear_tcp_info_reord_seen() ;
   [[nodiscard]] ::uint32_t tcp_info_reord_seen() const;
   void set_tcp_info_reord_seen(::uint32_t value);
@@ -1414,7 +1859,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_reord_seen(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_ooopack = 359 [json_name = "tcpInfoRcvOoopack"];
+  // uint32 tcp_info_rcv_ooopack = 1259 [json_name = "tcpInfoRcvOoopack"];
   void clear_tcp_info_rcv_ooopack() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_ooopack() const;
   void set_tcp_info_rcv_ooopack(::uint32_t value);
@@ -1424,7 +1869,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_ooopack(::uint32_t value);
 
   public:
-  // uint32 tcp_info_snd_wnd = 360 [json_name = "tcpInfoSndWnd"];
+  // uint32 tcp_info_snd_wnd = 1260 [json_name = "tcpInfoSndWnd"];
   void clear_tcp_info_snd_wnd() ;
   [[nodiscard]] ::uint32_t tcp_info_snd_wnd() const;
   void set_tcp_info_snd_wnd(::uint32_t value);
@@ -1434,7 +1879,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_snd_wnd(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rcv_wnd = 361 [json_name = "tcpInfoRcvWnd"];
+  // uint32 tcp_info_rcv_wnd = 1261 [json_name = "tcpInfoRcvWnd"];
   void clear_tcp_info_rcv_wnd() ;
   [[nodiscard]] ::uint32_t tcp_info_rcv_wnd() const;
   void set_tcp_info_rcv_wnd(::uint32_t value);
@@ -1444,7 +1889,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rcv_wnd(::uint32_t value);
 
   public:
-  // uint32 tcp_info_rehash = 362 [json_name = "tcpInfoRehash"];
+  // uint32 tcp_info_rehash = 1262 [json_name = "tcpInfoRehash"];
   void clear_tcp_info_rehash() ;
   [[nodiscard]] ::uint32_t tcp_info_rehash() const;
   void set_tcp_info_rehash(::uint32_t value);
@@ -1454,7 +1899,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_rehash(::uint32_t value);
 
   public:
-  // uint32 tcp_info_total_rto = 363 [json_name = "tcpInfoTotalRto"];
+  // uint32 tcp_info_total_rto = 1263 [json_name = "tcpInfoTotalRto"];
   void clear_tcp_info_total_rto() ;
   [[nodiscard]] ::uint32_t tcp_info_total_rto() const;
   void set_tcp_info_total_rto(::uint32_t value);
@@ -1464,7 +1909,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_total_rto(::uint32_t value);
 
   public:
-  // uint32 tcp_info_total_rto_recoveries = 364 [json_name = "tcpInfoTotalRtoRecoveries"];
+  // uint32 tcp_info_total_rto_recoveries = 1264 [json_name = "tcpInfoTotalRtoRecoveries"];
   void clear_tcp_info_total_rto_recoveries() ;
   [[nodiscard]] ::uint32_t tcp_info_total_rto_recoveries() const;
   void set_tcp_info_total_rto_recoveries(::uint32_t value);
@@ -1474,7 +1919,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_total_rto_recoveries(::uint32_t value);
 
   public:
-  // uint32 tcp_info_total_rto_time = 365 [json_name = "tcpInfoTotalRtoTime"];
+  // uint32 tcp_info_total_rto_time = 1265 [json_name = "tcpInfoTotalRtoTime"];
   void clear_tcp_info_total_rto_time() ;
   [[nodiscard]] ::uint32_t tcp_info_total_rto_time() const;
   void set_tcp_info_total_rto_time(::uint32_t value);
@@ -1484,7 +1929,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_total_rto_time(::uint32_t value);
 
   public:
-  // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 401 [json_name = "congestionAlgorithmEnum"];
+  // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 1301 [json_name = "congestionAlgorithmEnum"];
   void clear_congestion_algorithm_enum() ;
   [[nodiscard]] ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm congestion_algorithm_enum() const;
   void set_congestion_algorithm_enum(::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm value);
@@ -1494,7 +1939,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_congestion_algorithm_enum(::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm value);
 
   public:
-  // uint32 type_of_service = 501 [json_name = "typeOfService"];
+  // uint32 type_of_service = 1401 [json_name = "typeOfService"];
   void clear_type_of_service() ;
   [[nodiscard]] ::uint32_t type_of_service() const;
   void set_type_of_service(::uint32_t value);
@@ -1504,7 +1949,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_type_of_service(::uint32_t value);
 
   public:
-  // uint32 traffic_class = 502 [json_name = "trafficClass"];
+  // uint32 traffic_class = 1402 [json_name = "trafficClass"];
   void clear_traffic_class() ;
   [[nodiscard]] ::uint32_t traffic_class() const;
   void set_traffic_class(::uint32_t value);
@@ -1514,7 +1959,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_traffic_class(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_rmem_alloc = 601 [json_name = "skMemInfoRmemAlloc"];
+  // uint32 sk_mem_info_rmem_alloc = 1501 [json_name = "skMemInfoRmemAlloc"];
   void clear_sk_mem_info_rmem_alloc() ;
   [[nodiscard]] ::uint32_t sk_mem_info_rmem_alloc() const;
   void set_sk_mem_info_rmem_alloc(::uint32_t value);
@@ -1524,7 +1969,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_rmem_alloc(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_rcv_buf = 602 [json_name = "skMemInfoRcvBuf"];
+  // uint32 sk_mem_info_rcv_buf = 1502 [json_name = "skMemInfoRcvBuf"];
   void clear_sk_mem_info_rcv_buf() ;
   [[nodiscard]] ::uint32_t sk_mem_info_rcv_buf() const;
   void set_sk_mem_info_rcv_buf(::uint32_t value);
@@ -1534,7 +1979,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_rcv_buf(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_wmem_alloc = 603 [json_name = "skMemInfoWmemAlloc"];
+  // uint32 sk_mem_info_wmem_alloc = 1503 [json_name = "skMemInfoWmemAlloc"];
   void clear_sk_mem_info_wmem_alloc() ;
   [[nodiscard]] ::uint32_t sk_mem_info_wmem_alloc() const;
   void set_sk_mem_info_wmem_alloc(::uint32_t value);
@@ -1544,7 +1989,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_wmem_alloc(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_snd_buf = 604 [json_name = "skMemInfoSndBuf"];
+  // uint32 sk_mem_info_snd_buf = 1504 [json_name = "skMemInfoSndBuf"];
   void clear_sk_mem_info_snd_buf() ;
   [[nodiscard]] ::uint32_t sk_mem_info_snd_buf() const;
   void set_sk_mem_info_snd_buf(::uint32_t value);
@@ -1554,7 +1999,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_snd_buf(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_fwd_alloc = 605 [json_name = "skMemInfoFwdAlloc"];
+  // uint32 sk_mem_info_fwd_alloc = 1505 [json_name = "skMemInfoFwdAlloc"];
   void clear_sk_mem_info_fwd_alloc() ;
   [[nodiscard]] ::uint32_t sk_mem_info_fwd_alloc() const;
   void set_sk_mem_info_fwd_alloc(::uint32_t value);
@@ -1564,7 +2009,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_fwd_alloc(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_wmem_queued = 606 [json_name = "skMemInfoWmemQueued"];
+  // uint32 sk_mem_info_wmem_queued = 1506 [json_name = "skMemInfoWmemQueued"];
   void clear_sk_mem_info_wmem_queued() ;
   [[nodiscard]] ::uint32_t sk_mem_info_wmem_queued() const;
   void set_sk_mem_info_wmem_queued(::uint32_t value);
@@ -1574,7 +2019,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_wmem_queued(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_optmem = 607 [json_name = "skMemInfoOptmem"];
+  // uint32 sk_mem_info_optmem = 1507 [json_name = "skMemInfoOptmem"];
   void clear_sk_mem_info_optmem() ;
   [[nodiscard]] ::uint32_t sk_mem_info_optmem() const;
   void set_sk_mem_info_optmem(::uint32_t value);
@@ -1584,7 +2029,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_optmem(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_backlog = 608 [json_name = "skMemInfoBacklog"];
+  // uint32 sk_mem_info_backlog = 1508 [json_name = "skMemInfoBacklog"];
   void clear_sk_mem_info_backlog() ;
   [[nodiscard]] ::uint32_t sk_mem_info_backlog() const;
   void set_sk_mem_info_backlog(::uint32_t value);
@@ -1594,7 +2039,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_backlog(::uint32_t value);
 
   public:
-  // uint32 sk_mem_info_drops = 609 [json_name = "skMemInfoDrops"];
+  // uint32 sk_mem_info_drops = 1509 [json_name = "skMemInfoDrops"];
   void clear_sk_mem_info_drops() ;
   [[nodiscard]] ::uint32_t sk_mem_info_drops() const;
   void set_sk_mem_info_drops(::uint32_t value);
@@ -1604,7 +2049,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sk_mem_info_drops(::uint32_t value);
 
   public:
-  // uint32 shutdown_state = 700 [json_name = "shutdownState"];
+  // uint32 shutdown_state = 1600 [json_name = "shutdownState"];
   void clear_shutdown_state() ;
   [[nodiscard]] ::uint32_t shutdown_state() const;
   void set_shutdown_state(::uint32_t value);
@@ -1614,7 +2059,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_shutdown_state(::uint32_t value);
 
   public:
-  // uint32 vegas_info_enabled = 801 [json_name = "vegasInfoEnabled"];
+  // uint32 vegas_info_enabled = 1701 [json_name = "vegasInfoEnabled"];
   void clear_vegas_info_enabled() ;
   [[nodiscard]] ::uint32_t vegas_info_enabled() const;
   void set_vegas_info_enabled(::uint32_t value);
@@ -1624,7 +2069,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_vegas_info_enabled(::uint32_t value);
 
   public:
-  // uint32 vegas_info_rtt_cnt = 802 [json_name = "vegasInfoRttCnt"];
+  // uint32 vegas_info_rtt_cnt = 1702 [json_name = "vegasInfoRttCnt"];
   void clear_vegas_info_rtt_cnt() ;
   [[nodiscard]] ::uint32_t vegas_info_rtt_cnt() const;
   void set_vegas_info_rtt_cnt(::uint32_t value);
@@ -1634,7 +2079,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_vegas_info_rtt_cnt(::uint32_t value);
 
   public:
-  // uint32 vegas_info_rtt = 803 [json_name = "vegasInfoRtt"];
+  // uint32 vegas_info_rtt = 1703 [json_name = "vegasInfoRtt"];
   void clear_vegas_info_rtt() ;
   [[nodiscard]] ::uint32_t vegas_info_rtt() const;
   void set_vegas_info_rtt(::uint32_t value);
@@ -1644,7 +2089,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_vegas_info_rtt(::uint32_t value);
 
   public:
-  // uint32 vegas_info_min_rtt = 804 [json_name = "vegasInfoMinRtt"];
+  // uint32 vegas_info_min_rtt = 1704 [json_name = "vegasInfoMinRtt"];
   void clear_vegas_info_min_rtt() ;
   [[nodiscard]] ::uint32_t vegas_info_min_rtt() const;
   void set_vegas_info_min_rtt(::uint32_t value);
@@ -1654,7 +2099,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_vegas_info_min_rtt(::uint32_t value);
 
   public:
-  // uint32 dctcp_info_enabled = 901 [json_name = "dctcpInfoEnabled"];
+  // uint32 dctcp_info_enabled = 1801 [json_name = "dctcpInfoEnabled"];
   void clear_dctcp_info_enabled() ;
   [[nodiscard]] ::uint32_t dctcp_info_enabled() const;
   void set_dctcp_info_enabled(::uint32_t value);
@@ -1664,7 +2109,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_dctcp_info_enabled(::uint32_t value);
 
   public:
-  // uint32 dctcp_info_ce_state = 902 [json_name = "dctcpInfoCeState"];
+  // uint32 dctcp_info_ce_state = 1802 [json_name = "dctcpInfoCeState"];
   void clear_dctcp_info_ce_state() ;
   [[nodiscard]] ::uint32_t dctcp_info_ce_state() const;
   void set_dctcp_info_ce_state(::uint32_t value);
@@ -1674,7 +2119,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_dctcp_info_ce_state(::uint32_t value);
 
   public:
-  // uint32 dctcp_info_alpha = 903 [json_name = "dctcpInfoAlpha"];
+  // uint32 dctcp_info_alpha = 1803 [json_name = "dctcpInfoAlpha"];
   void clear_dctcp_info_alpha() ;
   [[nodiscard]] ::uint32_t dctcp_info_alpha() const;
   void set_dctcp_info_alpha(::uint32_t value);
@@ -1684,7 +2129,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_dctcp_info_alpha(::uint32_t value);
 
   public:
-  // uint32 dctcp_info_ab_ecn = 904 [json_name = "dctcpInfoAbEcn"];
+  // uint32 dctcp_info_ab_ecn = 1804 [json_name = "dctcpInfoAbEcn"];
   void clear_dctcp_info_ab_ecn() ;
   [[nodiscard]] ::uint32_t dctcp_info_ab_ecn() const;
   void set_dctcp_info_ab_ecn(::uint32_t value);
@@ -1694,7 +2139,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_dctcp_info_ab_ecn(::uint32_t value);
 
   public:
-  // uint32 dctcp_info_ab_tot = 905 [json_name = "dctcpInfoAbTot"];
+  // uint32 dctcp_info_ab_tot = 1805 [json_name = "dctcpInfoAbTot"];
   void clear_dctcp_info_ab_tot() ;
   [[nodiscard]] ::uint32_t dctcp_info_ab_tot() const;
   void set_dctcp_info_ab_tot(::uint32_t value);
@@ -1704,7 +2149,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_dctcp_info_ab_tot(::uint32_t value);
 
   public:
-  // uint32 bbr_info_bw_lo = 1001 [json_name = "bbrInfoBwLo"];
+  // uint32 bbr_info_bw_lo = 1901 [json_name = "bbrInfoBwLo"];
   void clear_bbr_info_bw_lo() ;
   [[nodiscard]] ::uint32_t bbr_info_bw_lo() const;
   void set_bbr_info_bw_lo(::uint32_t value);
@@ -1714,7 +2159,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_bbr_info_bw_lo(::uint32_t value);
 
   public:
-  // uint32 bbr_info_bw_hi = 1002 [json_name = "bbrInfoBwHi"];
+  // uint32 bbr_info_bw_hi = 1902 [json_name = "bbrInfoBwHi"];
   void clear_bbr_info_bw_hi() ;
   [[nodiscard]] ::uint32_t bbr_info_bw_hi() const;
   void set_bbr_info_bw_hi(::uint32_t value);
@@ -1724,7 +2169,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_bbr_info_bw_hi(::uint32_t value);
 
   public:
-  // uint32 bbr_info_min_rtt = 1003 [json_name = "bbrInfoMinRtt"];
+  // uint32 bbr_info_min_rtt = 1903 [json_name = "bbrInfoMinRtt"];
   void clear_bbr_info_min_rtt() ;
   [[nodiscard]] ::uint32_t bbr_info_min_rtt() const;
   void set_bbr_info_min_rtt(::uint32_t value);
@@ -1734,7 +2179,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_bbr_info_min_rtt(::uint32_t value);
 
   public:
-  // uint32 bbr_info_pacing_gain = 1004 [json_name = "bbrInfoPacingGain"];
+  // uint32 bbr_info_pacing_gain = 1904 [json_name = "bbrInfoPacingGain"];
   void clear_bbr_info_pacing_gain() ;
   [[nodiscard]] ::uint32_t bbr_info_pacing_gain() const;
   void set_bbr_info_pacing_gain(::uint32_t value);
@@ -1744,7 +2189,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_bbr_info_pacing_gain(::uint32_t value);
 
   public:
-  // uint32 bbr_info_cwnd_gain = 1005 [json_name = "bbrInfoCwndGain"];
+  // uint32 bbr_info_cwnd_gain = 1905 [json_name = "bbrInfoCwndGain"];
   void clear_bbr_info_cwnd_gain() ;
   [[nodiscard]] ::uint32_t bbr_info_cwnd_gain() const;
   void set_bbr_info_cwnd_gain(::uint32_t value);
@@ -1754,7 +2199,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_bbr_info_cwnd_gain(::uint32_t value);
 
   public:
-  // uint32 class_id = 1101 [json_name = "classId"];
+  // uint32 class_id = 2001 [json_name = "classId"];
   void clear_class_id() ;
   [[nodiscard]] ::uint32_t class_id() const;
   void set_class_id(::uint32_t value);
@@ -1764,7 +2209,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_class_id(::uint32_t value);
 
   public:
-  // uint32 sock_opt = 1102 [json_name = "sockOpt"];
+  // uint32 sock_opt = 2002 [json_name = "sockOpt"];
   void clear_sock_opt() ;
   [[nodiscard]] ::uint32_t sock_opt() const;
   void set_sock_opt(::uint32_t value);
@@ -1774,7 +2219,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_sock_opt(::uint32_t value);
 
   public:
-  // uint64 c_group = 1203 [json_name = "cGroup"];
+  // uint64 c_group = 2103 [json_name = "cGroup"];
   void clear_c_group() ;
   [[nodiscard]] ::uint64_t c_group() const;
   void set_c_group(::uint64_t value);
@@ -1788,9 +2233,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 126,
-                          0, 248,
-                          84>;
+      ::google::protobuf::internal::TcParseTable<5, 156,
+                          0, 727,
+                          103>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
   friend class ::google::protobuf::internal::TcParser;
@@ -1815,37 +2260,67 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
         ::google::protobuf::internal::InternalVisibility visibility,
         ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
         const XtcpFlatRecord& from_msg);
-    ::google::protobuf::internal::HasBits<4> _has_bits_;
+    ::google::protobuf::internal::HasBits<5> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr daemon_version_;
     ::google::protobuf::internal::ArenaStringPtr hostname_;
     ::google::protobuf::internal::ArenaStringPtr location_;
     ::google::protobuf::internal::ArenaStringPtr netns_;
     ::google::protobuf::internal::ArenaStringPtr container_id_;
     ::google::protobuf::internal::ArenaStringPtr container_runtime_;
+    ::google::protobuf::internal::ArenaStringPtr container_name_;
+    ::google::protobuf::internal::ArenaStringPtr container_image_;
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
-    ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_source_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_nic_model_;
     ::int64_t timestamp_ns_;
+    ::uint32_t schema_version_;
+    ::uint32_t nsid_;
     ::uint64_t netns_inode_;
     ::uint64_t record_counter_;
-    ::uint32_t nsid_;
-    ::uint32_t inet_diag_msg_timer_;
-    ::uint64_t netlinker_id_;
-    ::uint32_t inet_diag_msg_socket_source_port_;
+    ::uint64_t socket_fd_;
+    ::uint32_t uplink1_nic_pci_vendor_;
     ::uint32_t inet_diag_msg_socket_interface_;
-    ::uint32_t inet_diag_msg_wqueue_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_ifname_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_nic_driver_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_nic_bus_info_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_nic_fw_version_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_lldp_chassis_name_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_lldp_chassis_id_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_lldp_mgmt_ip_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_lldp_port_id_;
+    ::google::protobuf::internal::ArenaStringPtr uplink1_lldp_port_descr_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_ifname_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_nic_driver_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_nic_model_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_nic_bus_info_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_nic_fw_version_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_lldp_chassis_name_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_lldp_chassis_id_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_lldp_mgmt_ip_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_lldp_port_id_;
+    ::google::protobuf::internal::ArenaStringPtr uplink2_lldp_port_descr_;
+    ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_source_;
     ::google::protobuf::internal::ArenaStringPtr inet_diag_msg_socket_destination_;
     ::google::protobuf::internal::ArenaStringPtr congestion_algorithm_string_;
-    ::uint64_t socket_fd_;
+    ::uint64_t netlinker_id_;
+    ::uint32_t uplink1_nic_pci_device_;
+    ::uint32_t uplink1_nic_speed_mbps_;
+    ::uint32_t uplink2_nic_pci_vendor_;
+    ::uint32_t uplink2_nic_pci_device_;
+    ::uint32_t uplink2_nic_speed_mbps_;
     ::uint32_t inet_diag_msg_family_;
     ::uint32_t inet_diag_msg_state_;
+    ::uint32_t inet_diag_msg_timer_;
     ::uint32_t inet_diag_msg_retrans_;
+    ::uint32_t inet_diag_msg_socket_source_port_;
     ::uint32_t inet_diag_msg_socket_destination_port_;
+    ::uint32_t inet_diag_msg_expires_;
     ::uint64_t inet_diag_msg_socket_cookie_;
     ::uint64_t inet_diag_msg_socket_dest_asn_;
     ::uint64_t inet_diag_msg_socket_next_hop_asn_;
-    ::uint32_t inet_diag_msg_expires_;
     ::uint32_t inet_diag_msg_rqueue_;
+    ::uint32_t inet_diag_msg_wqueue_;
     ::uint32_t inet_diag_msg_uid_;
     ::uint32_t inet_diag_msg_inode_;
     ::uint32_t mem_info_rmem_;
@@ -2926,11 +3401,99 @@ Envelope::_internal_mutable_row() {
 
 // XtcpFlatRecord
 
+// uint32 schema_version = 1 [json_name = "schemaVersion"];
+inline void XtcpFlatRecord::clear_schema_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.schema_version_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+}
+inline ::uint32_t XtcpFlatRecord::schema_version() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.schema_version)
+  return _internal_schema_version();
+}
+inline void XtcpFlatRecord::set_schema_version(::uint32_t value) {
+  _internal_set_schema_version(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.schema_version)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_schema_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.schema_version_;
+}
+inline void XtcpFlatRecord::_internal_set_schema_version(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.schema_version_ = value;
+}
+
+// string daemon_version = 2 [json_name = "daemonVersion"];
+inline void XtcpFlatRecord::clear_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::std::string& XtcpFlatRecord::daemon_version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.daemon_version)
+  return _internal_daemon_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_daemon_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.daemon_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.daemon_version)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_daemon_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::std::string* _s = _internal_mutable_daemon_version();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.daemon_version)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_daemon_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.daemon_version_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_daemon_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.daemon_version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.daemon_version)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  auto* released = _impl_.daemon_version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  _impl_.daemon_version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.daemon_version_.IsDefault()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.daemon_version)
+}
+
 // int64 timestamp_ns = 10 [json_name = "timestampNs"];
 inline void XtcpFlatRecord::clear_timestamp_ns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.timestamp_ns_ = ::int64_t{0};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
 }
 inline ::int64_t XtcpFlatRecord::timestamp_ns() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
@@ -2938,7 +3501,7 @@ inline ::int64_t XtcpFlatRecord::timestamp_ns() const {
 }
 inline void XtcpFlatRecord::set_timestamp_ns(::int64_t value) {
   _internal_set_timestamp_ns(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.timestamp_ns)
 }
 inline ::int64_t XtcpFlatRecord::_internal_timestamp_ns() const {
@@ -2954,7 +3517,7 @@ inline void XtcpFlatRecord::_internal_set_timestamp_ns(::int64_t value) {
 inline void XtcpFlatRecord::clear_hostname() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.hostname_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
 }
 inline const ::std::string& XtcpFlatRecord::hostname() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -2964,13 +3527,13 @@ inline const ::std::string& XtcpFlatRecord::hostname() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_hostname(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   _impl_.hostname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.hostname)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_hostname()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::std::string* _s = _internal_mutable_hostname();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.hostname)
   return _s;
@@ -2990,10 +3553,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_hostnam
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_hostname() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.hostname)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   auto* released = _impl_.hostname_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.hostname_.Set("", GetArena());
@@ -3003,9 +3566,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_hostname() {
 inline void XtcpFlatRecord::set_allocated_hostname(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
   _impl_.hostname_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.hostname_.IsDefault()) {
@@ -3018,7 +3581,7 @@ inline void XtcpFlatRecord::set_allocated_hostname(::std::string* PROTOBUF_NULLA
 inline void XtcpFlatRecord::clear_location() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.location_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
 }
 inline const ::std::string& XtcpFlatRecord::location() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3028,13 +3591,13 @@ inline const ::std::string& XtcpFlatRecord::location() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_location(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   _impl_.location_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.location)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_location()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::std::string* _s = _internal_mutable_location();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.location)
   return _s;
@@ -3054,10 +3617,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_locatio
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_location() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.location)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   auto* released = _impl_.location_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.location_.Set("", GetArena());
@@ -3067,9 +3630,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_location() {
 inline void XtcpFlatRecord::set_allocated_location(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
   _impl_.location_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.location_.IsDefault()) {
@@ -3082,7 +3645,7 @@ inline void XtcpFlatRecord::set_allocated_location(::std::string* PROTOBUF_NULLA
 inline void XtcpFlatRecord::clear_netns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netns_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
 }
 inline const ::std::string& XtcpFlatRecord::netns() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3092,13 +3655,13 @@ inline const ::std::string& XtcpFlatRecord::netns() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_netns(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   _impl_.netns_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.netns)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_netns()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::std::string* _s = _internal_mutable_netns();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.netns)
   return _s;
@@ -3118,10 +3681,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_netns()
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_netns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.netns)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   auto* released = _impl_.netns_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.netns_.Set("", GetArena());
@@ -3131,9 +3694,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_netns() {
 inline void XtcpFlatRecord::set_allocated_netns(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
   _impl_.netns_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.netns_.IsDefault()) {
@@ -3142,11 +3705,11 @@ inline void XtcpFlatRecord::set_allocated_netns(::std::string* PROTOBUF_NULLABLE
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.netns)
 }
 
-// uint64 netns_inode = 33 [json_name = "netnsInode"];
+// uint64 netns_inode = 31 [json_name = "netnsInode"];
 inline void XtcpFlatRecord::clear_netns_inode() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netns_inode_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
 }
 inline ::uint64_t XtcpFlatRecord::netns_inode() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.netns_inode)
@@ -3154,7 +3717,7 @@ inline ::uint64_t XtcpFlatRecord::netns_inode() const {
 }
 inline void XtcpFlatRecord::set_netns_inode(::uint64_t value) {
   _internal_set_netns_inode(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.netns_inode)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_netns_inode() const {
@@ -3166,11 +3729,35 @@ inline void XtcpFlatRecord::_internal_set_netns_inode(::uint64_t value) {
   _impl_.netns_inode_ = value;
 }
 
-// string container_id = 31 [json_name = "containerId"];
+// uint32 nsid = 32 [json_name = "nsid"];
+inline void XtcpFlatRecord::clear_nsid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nsid_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+}
+inline ::uint32_t XtcpFlatRecord::nsid() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.nsid)
+  return _internal_nsid();
+}
+inline void XtcpFlatRecord::set_nsid(::uint32_t value) {
+  _internal_set_nsid(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.nsid)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_nsid() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.nsid_;
+}
+inline void XtcpFlatRecord::_internal_set_nsid(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nsid_ = value;
+}
+
+// string container_id = 40 [json_name = "containerId"];
 inline void XtcpFlatRecord::clear_container_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.container_id_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
 }
 inline const ::std::string& XtcpFlatRecord::container_id() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3180,13 +3767,13 @@ inline const ::std::string& XtcpFlatRecord::container_id() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_container_id(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   _impl_.container_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.container_id)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_container_id()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   ::std::string* _s = _internal_mutable_container_id();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.container_id)
   return _s;
@@ -3206,10 +3793,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_contain
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.container_id)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   auto* released = _impl_.container_id_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.container_id_.Set("", GetArena());
@@ -3219,9 +3806,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_id() {
 inline void XtcpFlatRecord::set_allocated_container_id(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   }
   _impl_.container_id_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.container_id_.IsDefault()) {
@@ -3230,11 +3817,11 @@ inline void XtcpFlatRecord::set_allocated_container_id(::std::string* PROTOBUF_N
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.container_id)
 }
 
-// string container_runtime = 32 [json_name = "containerRuntime"];
+// string container_runtime = 41 [json_name = "containerRuntime"];
 inline void XtcpFlatRecord::clear_container_runtime() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.container_runtime_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
 }
 inline const ::std::string& XtcpFlatRecord::container_runtime() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3244,13 +3831,13 @@ inline const ::std::string& XtcpFlatRecord::container_runtime() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_container_runtime(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   _impl_.container_runtime_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.container_runtime)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_container_runtime()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::std::string* _s = _internal_mutable_container_runtime();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.container_runtime)
   return _s;
@@ -3270,10 +3857,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_contain
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_runtime() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.container_runtime)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   auto* released = _impl_.container_runtime_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.container_runtime_.Set("", GetArena());
@@ -3283,9 +3870,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_runtim
 inline void XtcpFlatRecord::set_allocated_container_runtime(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   }
   _impl_.container_runtime_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.container_runtime_.IsDefault()) {
@@ -3294,35 +3881,139 @@ inline void XtcpFlatRecord::set_allocated_container_runtime(::std::string* PROTO
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.container_runtime)
 }
 
-// uint32 nsid = 40 [json_name = "nsid"];
-inline void XtcpFlatRecord::clear_nsid() {
+// string container_name = 42 [json_name = "containerName"];
+inline void XtcpFlatRecord::clear_container_name() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nsid_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  _impl_.container_name_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
 }
-inline ::uint32_t XtcpFlatRecord::nsid() const {
-  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.nsid)
-  return _internal_nsid();
+inline const ::std::string& XtcpFlatRecord::container_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.container_name)
+  return _internal_container_name();
 }
-inline void XtcpFlatRecord::set_nsid(::uint32_t value) {
-  _internal_set_nsid(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
-  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.nsid)
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_container_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  _impl_.container_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.container_name)
 }
-inline ::uint32_t XtcpFlatRecord::_internal_nsid() const {
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_container_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ::std::string* _s = _internal_mutable_container_name();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.container_name)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_container_name() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.nsid_;
+  return _impl_.container_name_.Get();
 }
-inline void XtcpFlatRecord::_internal_set_nsid(::uint32_t value) {
+inline void XtcpFlatRecord::_internal_set_container_name(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nsid_ = value;
+  _impl_.container_name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_container_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.container_name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.container_name)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000040U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  auto* released = _impl_.container_name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.container_name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_container_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  }
+  _impl_.container_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.container_name_.IsDefault()) {
+    _impl_.container_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.container_name)
+}
+
+// string container_image = 43 [json_name = "containerImage"];
+inline void XtcpFlatRecord::clear_container_image() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.container_image_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+}
+inline const ::std::string& XtcpFlatRecord::container_image() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.container_image)
+  return _internal_container_image();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_container_image(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  _impl_.container_image_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.container_image)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_container_image()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::std::string* _s = _internal_mutable_container_image();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.container_image)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_container_image() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.container_image_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_container_image(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.container_image_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_container_image() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.container_image_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_container_image() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.container_image)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000080U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  auto* released = _impl_.container_image_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.container_image_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_container_image(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  }
+  _impl_.container_image_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.container_image_.IsDefault()) {
+    _impl_.container_image_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.container_image)
 }
 
 // string label = 50 [json_name = "label"];
 inline void XtcpFlatRecord::clear_label() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.label_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
 inline const ::std::string& XtcpFlatRecord::label() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3332,13 +4023,13 @@ inline const ::std::string& XtcpFlatRecord::label() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_label(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   _impl_.label_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.label)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_label()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::std::string* _s = _internal_mutable_label();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.label)
   return _s;
@@ -3358,10 +4049,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_label()
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_label() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.label)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000100U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   auto* released = _impl_.label_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.label_.Set("", GetArena());
@@ -3371,9 +4062,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_label() {
 inline void XtcpFlatRecord::set_allocated_label(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   }
   _impl_.label_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.label_.IsDefault()) {
@@ -3382,11 +4073,11 @@ inline void XtcpFlatRecord::set_allocated_label(::std::string* PROTOBUF_NULLABLE
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.label)
 }
 
-// string tag = 60 [json_name = "tag"];
+// string tag = 51 [json_name = "tag"];
 inline void XtcpFlatRecord::clear_tag() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tag_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
 }
 inline const ::std::string& XtcpFlatRecord::tag() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3396,13 +4087,13 @@ inline const ::std::string& XtcpFlatRecord::tag() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_tag(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   _impl_.tag_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tag)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_tag()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::std::string* _s = _internal_mutable_tag();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.tag)
   return _s;
@@ -3422,10 +4113,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_tag() {
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_tag() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.tag)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000040U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000200U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   auto* released = _impl_.tag_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.tag_.Set("", GetArena());
@@ -3435,9 +4126,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_tag() {
 inline void XtcpFlatRecord::set_allocated_tag(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   }
   _impl_.tag_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.tag_.IsDefault()) {
@@ -3446,11 +4137,11 @@ inline void XtcpFlatRecord::set_allocated_tag(::std::string* PROTOBUF_NULLABLE v
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.tag)
 }
 
-// uint64 record_counter = 70 [json_name = "recordCounter"];
+// uint64 record_counter = 60 [json_name = "recordCounter"];
 inline void XtcpFlatRecord::clear_record_counter() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.record_counter_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
 }
 inline ::uint64_t XtcpFlatRecord::record_counter() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.record_counter)
@@ -3458,7 +4149,7 @@ inline ::uint64_t XtcpFlatRecord::record_counter() const {
 }
 inline void XtcpFlatRecord::set_record_counter(::uint64_t value) {
   _internal_set_record_counter(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.record_counter)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_record_counter() const {
@@ -3470,11 +4161,11 @@ inline void XtcpFlatRecord::_internal_set_record_counter(::uint64_t value) {
   _impl_.record_counter_ = value;
 }
 
-// uint64 socket_fd = 80 [json_name = "socketFd"];
+// uint64 socket_fd = 61 [json_name = "socketFd"];
 inline void XtcpFlatRecord::clear_socket_fd() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.socket_fd_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
 }
 inline ::uint64_t XtcpFlatRecord::socket_fd() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.socket_fd)
@@ -3482,7 +4173,7 @@ inline ::uint64_t XtcpFlatRecord::socket_fd() const {
 }
 inline void XtcpFlatRecord::set_socket_fd(::uint64_t value) {
   _internal_set_socket_fd(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.socket_fd)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_socket_fd() const {
@@ -3494,11 +4185,11 @@ inline void XtcpFlatRecord::_internal_set_socket_fd(::uint64_t value) {
   _impl_.socket_fd_ = value;
 }
 
-// uint64 netlinker_id = 90 [json_name = "netlinkerId"];
+// uint64 netlinker_id = 62 [json_name = "netlinkerId"];
 inline void XtcpFlatRecord::clear_netlinker_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netlinker_id_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
 }
 inline ::uint64_t XtcpFlatRecord::netlinker_id() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.netlinker_id)
@@ -3506,7 +4197,7 @@ inline ::uint64_t XtcpFlatRecord::netlinker_id() const {
 }
 inline void XtcpFlatRecord::set_netlinker_id(::uint64_t value) {
   _internal_set_netlinker_id(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.netlinker_id)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_netlinker_id() const {
@@ -3518,11 +4209,1435 @@ inline void XtcpFlatRecord::_internal_set_netlinker_id(::uint64_t value) {
   _impl_.netlinker_id_ = value;
 }
 
-// uint32 inet_diag_msg_family = 101 [json_name = "inetDiagMsgFamily"];
+// string uplink1_ifname = 100 [json_name = "uplink1Ifname"];
+inline void XtcpFlatRecord::clear_uplink1_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_ifname_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_ifname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname)
+  return _internal_uplink1_ifname();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_ifname(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  _impl_.uplink1_ifname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_ifname()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ::std::string* _s = _internal_mutable_uplink1_ifname();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_ifname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_ifname_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_ifname(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_ifname_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_ifname_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00080000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  auto* released = _impl_.uplink1_ifname_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_ifname_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_ifname(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  }
+  _impl_.uplink1_ifname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_ifname_.IsDefault()) {
+    _impl_.uplink1_ifname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname)
+}
+
+// string uplink1_nic_driver = 101 [json_name = "uplink1NicDriver"];
+inline void XtcpFlatRecord::clear_uplink1_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_driver_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_nic_driver() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver)
+  return _internal_uplink1_nic_driver();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_nic_driver(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  _impl_.uplink1_nic_driver_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_nic_driver()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ::std::string* _s = _internal_mutable_uplink1_nic_driver();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_nic_driver() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_driver_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_driver(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_driver_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_nic_driver_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00100000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  auto* released = _impl_.uplink1_nic_driver_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_nic_driver_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_nic_driver(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  }
+  _impl_.uplink1_nic_driver_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_nic_driver_.IsDefault()) {
+    _impl_.uplink1_nic_driver_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver)
+}
+
+// string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
+inline void XtcpFlatRecord::clear_uplink1_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_model_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_nic_model() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model)
+  return _internal_uplink1_nic_model();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_nic_model(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  _impl_.uplink1_nic_model_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_nic_model()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ::std::string* _s = _internal_mutable_uplink1_nic_model();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_nic_model() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_model_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_model(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_model_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_nic_model_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000400U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  auto* released = _impl_.uplink1_nic_model_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_nic_model_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_nic_model(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  }
+  _impl_.uplink1_nic_model_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_nic_model_.IsDefault()) {
+    _impl_.uplink1_nic_model_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model)
+}
+
+// uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
+inline void XtcpFlatRecord::clear_uplink1_nic_pci_vendor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_pci_vendor_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink1_nic_pci_vendor() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_pci_vendor)
+  return _internal_uplink1_nic_pci_vendor();
+}
+inline void XtcpFlatRecord::set_uplink1_nic_pci_vendor(::uint32_t value) {
+  _internal_set_uplink1_nic_pci_vendor(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_pci_vendor)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink1_nic_pci_vendor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_pci_vendor_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_pci_vendor(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_pci_vendor_ = value;
+}
+
+// uint32 uplink1_nic_pci_device = 104 [json_name = "uplink1NicPciDevice"];
+inline void XtcpFlatRecord::clear_uplink1_nic_pci_device() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_pci_device_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink1_nic_pci_device() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_pci_device)
+  return _internal_uplink1_nic_pci_device();
+}
+inline void XtcpFlatRecord::set_uplink1_nic_pci_device(::uint32_t value) {
+  _internal_set_uplink1_nic_pci_device(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_pci_device)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink1_nic_pci_device() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_pci_device_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_pci_device(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_pci_device_ = value;
+}
+
+// string uplink1_nic_bus_info = 105 [json_name = "uplink1NicBusInfo"];
+inline void XtcpFlatRecord::clear_uplink1_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_bus_info_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_nic_bus_info() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info)
+  return _internal_uplink1_nic_bus_info();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_nic_bus_info(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  _impl_.uplink1_nic_bus_info_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_nic_bus_info()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  ::std::string* _s = _internal_mutable_uplink1_nic_bus_info();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_nic_bus_info() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_bus_info_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_bus_info(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_bus_info_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_nic_bus_info_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00200000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+  auto* released = _impl_.uplink1_nic_bus_info_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_nic_bus_info_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_nic_bus_info(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+  }
+  _impl_.uplink1_nic_bus_info_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_nic_bus_info_.IsDefault()) {
+    _impl_.uplink1_nic_bus_info_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info)
+}
+
+// uint32 uplink1_nic_speed_mbps = 106 [json_name = "uplink1NicSpeedMbps"];
+inline void XtcpFlatRecord::clear_uplink1_nic_speed_mbps() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_speed_mbps_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink1_nic_speed_mbps() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_speed_mbps)
+  return _internal_uplink1_nic_speed_mbps();
+}
+inline void XtcpFlatRecord::set_uplink1_nic_speed_mbps(::uint32_t value) {
+  _internal_set_uplink1_nic_speed_mbps(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_speed_mbps)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink1_nic_speed_mbps() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_speed_mbps_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_speed_mbps(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_speed_mbps_ = value;
+}
+
+// string uplink1_nic_fw_version = 107 [json_name = "uplink1NicFwVersion"];
+inline void XtcpFlatRecord::clear_uplink1_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_fw_version_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_nic_fw_version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version)
+  return _internal_uplink1_nic_fw_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_nic_fw_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  _impl_.uplink1_nic_fw_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_nic_fw_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ::std::string* _s = _internal_mutable_uplink1_nic_fw_version();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_nic_fw_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_nic_fw_version_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_nic_fw_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_nic_fw_version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_nic_fw_version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00400000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  auto* released = _impl_.uplink1_nic_fw_version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_nic_fw_version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_nic_fw_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  }
+  _impl_.uplink1_nic_fw_version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_nic_fw_version_.IsDefault()) {
+    _impl_.uplink1_nic_fw_version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version)
+}
+
+// string uplink1_lldp_chassis_name = 120 [json_name = "uplink1LldpChassisName"];
+inline void XtcpFlatRecord::clear_uplink1_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_chassis_name_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_lldp_chassis_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name)
+  return _internal_uplink1_lldp_chassis_name();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_lldp_chassis_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  _impl_.uplink1_lldp_chassis_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_lldp_chassis_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  ::std::string* _s = _internal_mutable_uplink1_lldp_chassis_name();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_lldp_chassis_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_lldp_chassis_name_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_lldp_chassis_name(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_chassis_name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_lldp_chassis_name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00800000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  auto* released = _impl_.uplink1_lldp_chassis_name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_lldp_chassis_name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_lldp_chassis_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  }
+  _impl_.uplink1_lldp_chassis_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_lldp_chassis_name_.IsDefault()) {
+    _impl_.uplink1_lldp_chassis_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name)
+}
+
+// string uplink1_lldp_chassis_id = 121 [json_name = "uplink1LldpChassisId"];
+inline void XtcpFlatRecord::clear_uplink1_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_chassis_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_lldp_chassis_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id)
+  return _internal_uplink1_lldp_chassis_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_lldp_chassis_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  _impl_.uplink1_lldp_chassis_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_lldp_chassis_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ::std::string* _s = _internal_mutable_uplink1_lldp_chassis_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_lldp_chassis_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_lldp_chassis_id_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_lldp_chassis_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_chassis_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_lldp_chassis_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x01000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  auto* released = _impl_.uplink1_lldp_chassis_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_lldp_chassis_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_lldp_chassis_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  }
+  _impl_.uplink1_lldp_chassis_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_lldp_chassis_id_.IsDefault()) {
+    _impl_.uplink1_lldp_chassis_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id)
+}
+
+// string uplink1_lldp_mgmt_ip = 122 [json_name = "uplink1LldpMgmtIp"];
+inline void XtcpFlatRecord::clear_uplink1_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_mgmt_ip_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_lldp_mgmt_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip)
+  return _internal_uplink1_lldp_mgmt_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_lldp_mgmt_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  _impl_.uplink1_lldp_mgmt_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_lldp_mgmt_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ::std::string* _s = _internal_mutable_uplink1_lldp_mgmt_ip();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_lldp_mgmt_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_lldp_mgmt_ip_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_lldp_mgmt_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_mgmt_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_lldp_mgmt_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x02000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  auto* released = _impl_.uplink1_lldp_mgmt_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_lldp_mgmt_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_lldp_mgmt_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  }
+  _impl_.uplink1_lldp_mgmt_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_lldp_mgmt_ip_.IsDefault()) {
+    _impl_.uplink1_lldp_mgmt_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip)
+}
+
+// string uplink1_lldp_port_id = 123 [json_name = "uplink1LldpPortId"];
+inline void XtcpFlatRecord::clear_uplink1_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_port_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_lldp_port_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id)
+  return _internal_uplink1_lldp_port_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_lldp_port_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  _impl_.uplink1_lldp_port_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_lldp_port_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  ::std::string* _s = _internal_mutable_uplink1_lldp_port_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_lldp_port_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_lldp_port_id_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_lldp_port_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_port_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_lldp_port_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x04000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  auto* released = _impl_.uplink1_lldp_port_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_lldp_port_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_lldp_port_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  }
+  _impl_.uplink1_lldp_port_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_lldp_port_id_.IsDefault()) {
+    _impl_.uplink1_lldp_port_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id)
+}
+
+// string uplink1_lldp_port_descr = 124 [json_name = "uplink1LldpPortDescr"];
+inline void XtcpFlatRecord::clear_uplink1_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_port_descr_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink1_lldp_port_descr() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr)
+  return _internal_uplink1_lldp_port_descr();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink1_lldp_port_descr(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  _impl_.uplink1_lldp_port_descr_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink1_lldp_port_descr()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  ::std::string* _s = _internal_mutable_uplink1_lldp_port_descr();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink1_lldp_port_descr() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink1_lldp_port_descr_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink1_lldp_port_descr(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink1_lldp_port_descr_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink1_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink1_lldp_port_descr_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink1_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x08000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+  auto* released = _impl_.uplink1_lldp_port_descr_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink1_lldp_port_descr_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink1_lldp_port_descr(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+  }
+  _impl_.uplink1_lldp_port_descr_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink1_lldp_port_descr_.IsDefault()) {
+    _impl_.uplink1_lldp_port_descr_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr)
+}
+
+// string uplink2_ifname = 200 [json_name = "uplink2Ifname"];
+inline void XtcpFlatRecord::clear_uplink2_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_ifname_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_ifname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname)
+  return _internal_uplink2_ifname();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_ifname(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  _impl_.uplink2_ifname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_ifname()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  ::std::string* _s = _internal_mutable_uplink2_ifname();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_ifname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_ifname_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_ifname(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_ifname_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_ifname_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_ifname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x10000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+  auto* released = _impl_.uplink2_ifname_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_ifname_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_ifname(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+  }
+  _impl_.uplink2_ifname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_ifname_.IsDefault()) {
+    _impl_.uplink2_ifname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname)
+}
+
+// string uplink2_nic_driver = 201 [json_name = "uplink2NicDriver"];
+inline void XtcpFlatRecord::clear_uplink2_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_driver_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_nic_driver() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver)
+  return _internal_uplink2_nic_driver();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_nic_driver(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  _impl_.uplink2_nic_driver_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_nic_driver()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  ::std::string* _s = _internal_mutable_uplink2_nic_driver();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_nic_driver() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_driver_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_driver(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_driver_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_nic_driver_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_nic_driver() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x20000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  auto* released = _impl_.uplink2_nic_driver_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_nic_driver_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_nic_driver(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  }
+  _impl_.uplink2_nic_driver_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_nic_driver_.IsDefault()) {
+    _impl_.uplink2_nic_driver_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver)
+}
+
+// string uplink2_nic_model = 202 [json_name = "uplink2NicModel"];
+inline void XtcpFlatRecord::clear_uplink2_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_model_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_nic_model() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model)
+  return _internal_uplink2_nic_model();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_nic_model(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  _impl_.uplink2_nic_model_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_nic_model()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  ::std::string* _s = _internal_mutable_uplink2_nic_model();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_nic_model() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_model_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_model(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_model_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_nic_model_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_nic_model() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x40000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  auto* released = _impl_.uplink2_nic_model_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_nic_model_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_nic_model(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  }
+  _impl_.uplink2_nic_model_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_nic_model_.IsDefault()) {
+    _impl_.uplink2_nic_model_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model)
+}
+
+// uint32 uplink2_nic_pci_vendor = 203 [json_name = "uplink2NicPciVendor"];
+inline void XtcpFlatRecord::clear_uplink2_nic_pci_vendor() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_pci_vendor_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink2_nic_pci_vendor() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_pci_vendor)
+  return _internal_uplink2_nic_pci_vendor();
+}
+inline void XtcpFlatRecord::set_uplink2_nic_pci_vendor(::uint32_t value) {
+  _internal_set_uplink2_nic_pci_vendor(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_pci_vendor)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink2_nic_pci_vendor() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_pci_vendor_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_pci_vendor(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_pci_vendor_ = value;
+}
+
+// uint32 uplink2_nic_pci_device = 204 [json_name = "uplink2NicPciDevice"];
+inline void XtcpFlatRecord::clear_uplink2_nic_pci_device() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_pci_device_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink2_nic_pci_device() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_pci_device)
+  return _internal_uplink2_nic_pci_device();
+}
+inline void XtcpFlatRecord::set_uplink2_nic_pci_device(::uint32_t value) {
+  _internal_set_uplink2_nic_pci_device(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_pci_device)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink2_nic_pci_device() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_pci_device_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_pci_device(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_pci_device_ = value;
+}
+
+// string uplink2_nic_bus_info = 205 [json_name = "uplink2NicBusInfo"];
+inline void XtcpFlatRecord::clear_uplink2_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_bus_info_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_nic_bus_info() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info)
+  return _internal_uplink2_nic_bus_info();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_nic_bus_info(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  _impl_.uplink2_nic_bus_info_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_nic_bus_info()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  ::std::string* _s = _internal_mutable_uplink2_nic_bus_info();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_nic_bus_info() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_bus_info_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_bus_info(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_bus_info_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_nic_bus_info_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_nic_bus_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x80000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  auto* released = _impl_.uplink2_nic_bus_info_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_nic_bus_info_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_nic_bus_info(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  }
+  _impl_.uplink2_nic_bus_info_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_nic_bus_info_.IsDefault()) {
+    _impl_.uplink2_nic_bus_info_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info)
+}
+
+// uint32 uplink2_nic_speed_mbps = 206 [json_name = "uplink2NicSpeedMbps"];
+inline void XtcpFlatRecord::clear_uplink2_nic_speed_mbps() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_speed_mbps_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+}
+inline ::uint32_t XtcpFlatRecord::uplink2_nic_speed_mbps() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_speed_mbps)
+  return _internal_uplink2_nic_speed_mbps();
+}
+inline void XtcpFlatRecord::set_uplink2_nic_speed_mbps(::uint32_t value) {
+  _internal_set_uplink2_nic_speed_mbps(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_speed_mbps)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_uplink2_nic_speed_mbps() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_speed_mbps_;
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_speed_mbps(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_speed_mbps_ = value;
+}
+
+// string uplink2_nic_fw_version = 207 [json_name = "uplink2NicFwVersion"];
+inline void XtcpFlatRecord::clear_uplink2_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_fw_version_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_nic_fw_version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version)
+  return _internal_uplink2_nic_fw_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_nic_fw_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  _impl_.uplink2_nic_fw_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_nic_fw_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ::std::string* _s = _internal_mutable_uplink2_nic_fw_version();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_nic_fw_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_nic_fw_version_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_nic_fw_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_nic_fw_version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_nic_fw_version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_nic_fw_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  auto* released = _impl_.uplink2_nic_fw_version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_nic_fw_version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_nic_fw_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  }
+  _impl_.uplink2_nic_fw_version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_nic_fw_version_.IsDefault()) {
+    _impl_.uplink2_nic_fw_version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version)
+}
+
+// string uplink2_lldp_chassis_name = 220 [json_name = "uplink2LldpChassisName"];
+inline void XtcpFlatRecord::clear_uplink2_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_chassis_name_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_lldp_chassis_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name)
+  return _internal_uplink2_lldp_chassis_name();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_lldp_chassis_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  _impl_.uplink2_lldp_chassis_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_lldp_chassis_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ::std::string* _s = _internal_mutable_uplink2_lldp_chassis_name();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_lldp_chassis_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_lldp_chassis_name_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_lldp_chassis_name(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_chassis_name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_lldp_chassis_name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_lldp_chassis_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  auto* released = _impl_.uplink2_lldp_chassis_name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_lldp_chassis_name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_lldp_chassis_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  }
+  _impl_.uplink2_lldp_chassis_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_lldp_chassis_name_.IsDefault()) {
+    _impl_.uplink2_lldp_chassis_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name)
+}
+
+// string uplink2_lldp_chassis_id = 221 [json_name = "uplink2LldpChassisId"];
+inline void XtcpFlatRecord::clear_uplink2_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_chassis_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_lldp_chassis_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id)
+  return _internal_uplink2_lldp_chassis_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_lldp_chassis_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  _impl_.uplink2_lldp_chassis_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_lldp_chassis_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ::std::string* _s = _internal_mutable_uplink2_lldp_chassis_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_lldp_chassis_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_lldp_chassis_id_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_lldp_chassis_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_chassis_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_lldp_chassis_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_lldp_chassis_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  auto* released = _impl_.uplink2_lldp_chassis_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_lldp_chassis_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_lldp_chassis_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  }
+  _impl_.uplink2_lldp_chassis_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_lldp_chassis_id_.IsDefault()) {
+    _impl_.uplink2_lldp_chassis_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id)
+}
+
+// string uplink2_lldp_mgmt_ip = 222 [json_name = "uplink2LldpMgmtIp"];
+inline void XtcpFlatRecord::clear_uplink2_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_mgmt_ip_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_lldp_mgmt_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip)
+  return _internal_uplink2_lldp_mgmt_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_lldp_mgmt_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  _impl_.uplink2_lldp_mgmt_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_lldp_mgmt_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ::std::string* _s = _internal_mutable_uplink2_lldp_mgmt_ip();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_lldp_mgmt_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_lldp_mgmt_ip_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_lldp_mgmt_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_mgmt_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_lldp_mgmt_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_lldp_mgmt_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  auto* released = _impl_.uplink2_lldp_mgmt_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_lldp_mgmt_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_lldp_mgmt_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  }
+  _impl_.uplink2_lldp_mgmt_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_lldp_mgmt_ip_.IsDefault()) {
+    _impl_.uplink2_lldp_mgmt_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip)
+}
+
+// string uplink2_lldp_port_id = 223 [json_name = "uplink2LldpPortId"];
+inline void XtcpFlatRecord::clear_uplink2_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_port_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_lldp_port_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id)
+  return _internal_uplink2_lldp_port_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_lldp_port_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  _impl_.uplink2_lldp_port_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_lldp_port_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ::std::string* _s = _internal_mutable_uplink2_lldp_port_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_lldp_port_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_lldp_port_id_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_lldp_port_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_port_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_lldp_port_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_lldp_port_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  auto* released = _impl_.uplink2_lldp_port_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_lldp_port_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_lldp_port_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  }
+  _impl_.uplink2_lldp_port_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_lldp_port_id_.IsDefault()) {
+    _impl_.uplink2_lldp_port_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id)
+}
+
+// string uplink2_lldp_port_descr = 224 [json_name = "uplink2LldpPortDescr"];
+inline void XtcpFlatRecord::clear_uplink2_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_port_descr_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+}
+inline const ::std::string& XtcpFlatRecord::uplink2_lldp_port_descr() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr)
+  return _internal_uplink2_lldp_port_descr();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_uplink2_lldp_port_descr(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  _impl_.uplink2_lldp_port_descr_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_uplink2_lldp_port_descr()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  ::std::string* _s = _internal_mutable_uplink2_lldp_port_descr();
+  // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr)
+  return _s;
+}
+inline const ::std::string& XtcpFlatRecord::_internal_uplink2_lldp_port_descr() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink2_lldp_port_descr_.Get();
+}
+inline void XtcpFlatRecord::_internal_set_uplink2_lldp_port_descr(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink2_lldp_port_descr_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_uplink2_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.uplink2_lldp_port_descr_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_uplink2_lldp_port_descr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000020U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  auto* released = _impl_.uplink2_lldp_port_descr_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.uplink2_lldp_port_descr_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpFlatRecord::set_allocated_uplink2_lldp_port_descr(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  }
+  _impl_.uplink2_lldp_port_descr_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.uplink2_lldp_port_descr_.IsDefault()) {
+    _impl_.uplink2_lldp_port_descr_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr)
+}
+
+// uint32 inet_diag_msg_family = 1001 [json_name = "inetDiagMsgFamily"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_family() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_family_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_family() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_family)
@@ -3530,7 +5645,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_family() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_family(::uint32_t value) {
   _internal_set_inet_diag_msg_family(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_family)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_family() const {
@@ -3542,11 +5657,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_family(::uint32_t value)
   _impl_.inet_diag_msg_family_ = value;
 }
 
-// uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
+// uint32 inet_diag_msg_state = 1002 [json_name = "inetDiagMsgState"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_state)
@@ -3554,7 +5669,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_state() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_state(::uint32_t value) {
   _internal_set_inet_diag_msg_state(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_state() const {
@@ -3566,11 +5681,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_state(::uint32_t value) 
   _impl_.inet_diag_msg_state_ = value;
 }
 
-// uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
+// uint32 inet_diag_msg_timer = 1003 [json_name = "inetDiagMsgTimer"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_timer() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_timer_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_timer() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_timer)
@@ -3578,7 +5693,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_timer() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_timer(::uint32_t value) {
   _internal_set_inet_diag_msg_timer(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_timer)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_timer() const {
@@ -3590,11 +5705,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_timer(::uint32_t value) 
   _impl_.inet_diag_msg_timer_ = value;
 }
 
-// uint32 inet_diag_msg_retrans = 104 [json_name = "inetDiagMsgRetrans"];
+// uint32 inet_diag_msg_retrans = 1004 [json_name = "inetDiagMsgRetrans"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_retrans() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_retrans_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_retrans() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_retrans)
@@ -3602,7 +5717,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_retrans() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_retrans(::uint32_t value) {
   _internal_set_inet_diag_msg_retrans(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_retrans)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_retrans() const {
@@ -3614,11 +5729,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_retrans(::uint32_t value
   _impl_.inet_diag_msg_retrans_ = value;
 }
 
-// uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
+// uint32 inet_diag_msg_socket_source_port = 1005 [json_name = "inetDiagMsgSocketSourcePort"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_source_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_source_port_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_source_port() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source_port)
@@ -3626,7 +5741,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_source_port() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_source_port(::uint32_t value) {
   _internal_set_inet_diag_msg_socket_source_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source_port)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_socket_source_port() const {
@@ -3638,11 +5753,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_source_port(::uin
   _impl_.inet_diag_msg_socket_source_port_ = value;
 }
 
-// uint32 inet_diag_msg_socket_destination_port = 106 [json_name = "inetDiagMsgSocketDestinationPort"];
+// uint32 inet_diag_msg_socket_destination_port = 1006 [json_name = "inetDiagMsgSocketDestinationPort"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_destination_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_destination_port_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_destination_port() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination_port)
@@ -3650,7 +5765,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_destination_port() const 
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_destination_port(::uint32_t value) {
   _internal_set_inet_diag_msg_socket_destination_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination_port)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_socket_destination_port() const {
@@ -3662,11 +5777,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_destination_port(
   _impl_.inet_diag_msg_socket_destination_port_ = value;
 }
 
-// bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
+// bytes inet_diag_msg_socket_source = 1007 [json_name = "inetDiagMsgSocketSource"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_source() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_source_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
 }
 inline const ::std::string& XtcpFlatRecord::inet_diag_msg_socket_source() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3676,13 +5791,13 @@ inline const ::std::string& XtcpFlatRecord::inet_diag_msg_socket_source() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_inet_diag_msg_socket_source(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   _impl_.inet_diag_msg_socket_source_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_inet_diag_msg_socket_source()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   ::std::string* _s = _internal_mutable_inet_diag_msg_socket_source();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source)
   return _s;
@@ -3702,10 +5817,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_inet_di
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_inet_diag_msg_socket_source() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000080U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000040U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   auto* released = _impl_.inet_diag_msg_socket_source_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.inet_diag_msg_socket_source_.Set("", GetArena());
@@ -3715,9 +5830,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_inet_diag_msg_so
 inline void XtcpFlatRecord::set_allocated_inet_diag_msg_socket_source(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   }
   _impl_.inet_diag_msg_socket_source_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.inet_diag_msg_socket_source_.IsDefault()) {
@@ -3726,11 +5841,11 @@ inline void XtcpFlatRecord::set_allocated_inet_diag_msg_socket_source(::std::str
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_source)
 }
 
-// bytes inet_diag_msg_socket_destination = 108 [json_name = "inetDiagMsgSocketDestination"];
+// bytes inet_diag_msg_socket_destination = 1008 [json_name = "inetDiagMsgSocketDestination"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_destination() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_destination_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
 }
 inline const ::std::string& XtcpFlatRecord::inet_diag_msg_socket_destination() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -3740,13 +5855,13 @@ inline const ::std::string& XtcpFlatRecord::inet_diag_msg_socket_destination() c
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_inet_diag_msg_socket_destination(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   _impl_.inet_diag_msg_socket_destination_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_inet_diag_msg_socket_destination()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   ::std::string* _s = _internal_mutable_inet_diag_msg_socket_destination();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination)
   return _s;
@@ -3766,10 +5881,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_inet_di
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_inet_diag_msg_socket_destination() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00020000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000080U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   auto* released = _impl_.inet_diag_msg_socket_destination_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.inet_diag_msg_socket_destination_.Set("", GetArena());
@@ -3779,9 +5894,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_inet_diag_msg_so
 inline void XtcpFlatRecord::set_allocated_inet_diag_msg_socket_destination(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   }
   _impl_.inet_diag_msg_socket_destination_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.inet_diag_msg_socket_destination_.IsDefault()) {
@@ -3790,11 +5905,11 @@ inline void XtcpFlatRecord::set_allocated_inet_diag_msg_socket_destination(::std
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_destination)
 }
 
-// uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
+// uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_interface() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_interface_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_interface() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_interface)
@@ -3802,7 +5917,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_socket_interface() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_interface(::uint32_t value) {
   _internal_set_inet_diag_msg_socket_interface(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_interface)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_socket_interface() const {
@@ -3814,11 +5929,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_interface(::uint3
   _impl_.inet_diag_msg_socket_interface_ = value;
 }
 
-// uint64 inet_diag_msg_socket_cookie = 110 [json_name = "inetDiagMsgSocketCookie"];
+// uint64 inet_diag_msg_socket_cookie = 1010 [json_name = "inetDiagMsgSocketCookie"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_cookie() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_cookie_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
 }
 inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_cookie() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_cookie)
@@ -3826,7 +5941,7 @@ inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_cookie() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_cookie(::uint64_t value) {
   _internal_set_inet_diag_msg_socket_cookie(value);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_cookie)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_inet_diag_msg_socket_cookie() const {
@@ -3838,11 +5953,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_cookie(::uint64_t
   _impl_.inet_diag_msg_socket_cookie_ = value;
 }
 
-// uint64 inet_diag_msg_socket_dest_asn = 111 [json_name = "inetDiagMsgSocketDestAsn"];
+// uint64 inet_diag_msg_socket_dest_asn = 1011 [json_name = "inetDiagMsgSocketDestAsn"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_dest_asn() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_dest_asn_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
 }
 inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_dest_asn() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_dest_asn)
@@ -3850,7 +5965,7 @@ inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_dest_asn() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_dest_asn(::uint64_t value) {
   _internal_set_inet_diag_msg_socket_dest_asn(value);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_dest_asn)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_inet_diag_msg_socket_dest_asn() const {
@@ -3862,11 +5977,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_dest_asn(::uint64
   _impl_.inet_diag_msg_socket_dest_asn_ = value;
 }
 
-// uint64 inet_diag_msg_socket_next_hop_asn = 112 [json_name = "inetDiagMsgSocketNextHopAsn"];
+// uint64 inet_diag_msg_socket_next_hop_asn = 1012 [json_name = "inetDiagMsgSocketNextHopAsn"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_socket_next_hop_asn() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_socket_next_hop_asn_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
 }
 inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_next_hop_asn() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_next_hop_asn)
@@ -3874,7 +5989,7 @@ inline ::uint64_t XtcpFlatRecord::inet_diag_msg_socket_next_hop_asn() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_socket_next_hop_asn(::uint64_t value) {
   _internal_set_inet_diag_msg_socket_next_hop_asn(value);
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_next_hop_asn)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_inet_diag_msg_socket_next_hop_asn() const {
@@ -3886,11 +6001,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_socket_next_hop_asn(::ui
   _impl_.inet_diag_msg_socket_next_hop_asn_ = value;
 }
 
-// uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
+// uint32 inet_diag_msg_expires = 1013 [json_name = "inetDiagMsgExpires"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_expires() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_expires_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_expires() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_expires)
@@ -3898,7 +6013,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_expires() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_expires(::uint32_t value) {
   _internal_set_inet_diag_msg_expires(value);
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_expires)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_expires() const {
@@ -3910,11 +6025,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_expires(::uint32_t value
   _impl_.inet_diag_msg_expires_ = value;
 }
 
-// uint32 inet_diag_msg_rqueue = 114 [json_name = "inetDiagMsgRqueue"];
+// uint32 inet_diag_msg_rqueue = 1014 [json_name = "inetDiagMsgRqueue"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_rqueue() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_rqueue_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_rqueue() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_rqueue)
@@ -3922,7 +6037,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_rqueue() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_rqueue(::uint32_t value) {
   _internal_set_inet_diag_msg_rqueue(value);
-  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_rqueue)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_rqueue() const {
@@ -3934,11 +6049,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_rqueue(::uint32_t value)
   _impl_.inet_diag_msg_rqueue_ = value;
 }
 
-// uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
+// uint32 inet_diag_msg_wqueue = 1015 [json_name = "inetDiagMsgWqueue"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_wqueue() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_wqueue_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_wqueue() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_wqueue)
@@ -3946,7 +6061,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_wqueue() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_wqueue(::uint32_t value) {
   _internal_set_inet_diag_msg_wqueue(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_wqueue)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_wqueue() const {
@@ -3958,11 +6073,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_wqueue(::uint32_t value)
   _impl_.inet_diag_msg_wqueue_ = value;
 }
 
-// uint32 inet_diag_msg_uid = 116 [json_name = "inetDiagMsgUid"];
+// uint32 inet_diag_msg_uid = 1016 [json_name = "inetDiagMsgUid"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_uid() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_uid_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_uid() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_uid)
@@ -3970,7 +6085,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_uid() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_uid(::uint32_t value) {
   _internal_set_inet_diag_msg_uid(value);
-  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_uid)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_uid() const {
@@ -3982,11 +6097,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_uid(::uint32_t value) {
   _impl_.inet_diag_msg_uid_ = value;
 }
 
-// uint32 inet_diag_msg_inode = 117 [json_name = "inetDiagMsgInode"];
+// uint32 inet_diag_msg_inode = 1017 [json_name = "inetDiagMsgInode"];
 inline void XtcpFlatRecord::clear_inet_diag_msg_inode() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_msg_inode_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_msg_inode() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_inode)
@@ -3994,7 +6109,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_msg_inode() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_msg_inode(::uint32_t value) {
   _internal_set_inet_diag_msg_inode(value);
-  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_inode)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_msg_inode() const {
@@ -4006,11 +6121,11 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_msg_inode(::uint32_t value) 
   _impl_.inet_diag_msg_inode_ = value;
 }
 
-// uint32 mem_info_rmem = 201 [json_name = "memInfoRmem"];
+// uint32 mem_info_rmem = 1101 [json_name = "memInfoRmem"];
 inline void XtcpFlatRecord::clear_mem_info_rmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mem_info_rmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
 }
 inline ::uint32_t XtcpFlatRecord::mem_info_rmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_rmem)
@@ -4018,7 +6133,7 @@ inline ::uint32_t XtcpFlatRecord::mem_info_rmem() const {
 }
 inline void XtcpFlatRecord::set_mem_info_rmem(::uint32_t value) {
   _internal_set_mem_info_rmem(value);
-  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_rmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_mem_info_rmem() const {
@@ -4030,11 +6145,11 @@ inline void XtcpFlatRecord::_internal_set_mem_info_rmem(::uint32_t value) {
   _impl_.mem_info_rmem_ = value;
 }
 
-// uint32 mem_info_wmem = 202 [json_name = "memInfoWmem"];
+// uint32 mem_info_wmem = 1102 [json_name = "memInfoWmem"];
 inline void XtcpFlatRecord::clear_mem_info_wmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mem_info_wmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
 }
 inline ::uint32_t XtcpFlatRecord::mem_info_wmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_wmem)
@@ -4042,7 +6157,7 @@ inline ::uint32_t XtcpFlatRecord::mem_info_wmem() const {
 }
 inline void XtcpFlatRecord::set_mem_info_wmem(::uint32_t value) {
   _internal_set_mem_info_wmem(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_wmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_mem_info_wmem() const {
@@ -4054,11 +6169,11 @@ inline void XtcpFlatRecord::_internal_set_mem_info_wmem(::uint32_t value) {
   _impl_.mem_info_wmem_ = value;
 }
 
-// uint32 mem_info_fmem = 203 [json_name = "memInfoFmem"];
+// uint32 mem_info_fmem = 1103 [json_name = "memInfoFmem"];
 inline void XtcpFlatRecord::clear_mem_info_fmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mem_info_fmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
 }
 inline ::uint32_t XtcpFlatRecord::mem_info_fmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_fmem)
@@ -4066,7 +6181,7 @@ inline ::uint32_t XtcpFlatRecord::mem_info_fmem() const {
 }
 inline void XtcpFlatRecord::set_mem_info_fmem(::uint32_t value) {
   _internal_set_mem_info_fmem(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_fmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_mem_info_fmem() const {
@@ -4078,11 +6193,11 @@ inline void XtcpFlatRecord::_internal_set_mem_info_fmem(::uint32_t value) {
   _impl_.mem_info_fmem_ = value;
 }
 
-// uint32 mem_info_tmem = 204 [json_name = "memInfoTmem"];
+// uint32 mem_info_tmem = 1104 [json_name = "memInfoTmem"];
 inline void XtcpFlatRecord::clear_mem_info_tmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mem_info_tmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
 }
 inline ::uint32_t XtcpFlatRecord::mem_info_tmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_tmem)
@@ -4090,7 +6205,7 @@ inline ::uint32_t XtcpFlatRecord::mem_info_tmem() const {
 }
 inline void XtcpFlatRecord::set_mem_info_tmem(::uint32_t value) {
   _internal_set_mem_info_tmem(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.mem_info_tmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_mem_info_tmem() const {
@@ -4102,11 +6217,11 @@ inline void XtcpFlatRecord::_internal_set_mem_info_tmem(::uint32_t value) {
   _impl_.mem_info_tmem_ = value;
 }
 
-// uint32 tcp_info_state = 301 [json_name = "tcpInfoState"];
+// uint32 tcp_info_state = 1201 [json_name = "tcpInfoState"];
 inline void XtcpFlatRecord::clear_tcp_info_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_state)
@@ -4114,7 +6229,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_state() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_state(::uint32_t value) {
   _internal_set_tcp_info_state(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_state() const {
@@ -4126,11 +6241,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_state(::uint32_t value) {
   _impl_.tcp_info_state_ = value;
 }
 
-// uint32 tcp_info_ca_state = 302 [json_name = "tcpInfoCaState"];
+// uint32 tcp_info_ca_state = 1202 [json_name = "tcpInfoCaState"];
 inline void XtcpFlatRecord::clear_tcp_info_ca_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_ca_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000004U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_ca_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ca_state)
@@ -4138,7 +6253,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_ca_state() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_ca_state(::uint32_t value) {
   _internal_set_tcp_info_ca_state(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ca_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_ca_state() const {
@@ -4150,11 +6265,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_ca_state(::uint32_t value) {
   _impl_.tcp_info_ca_state_ = value;
 }
 
-// uint32 tcp_info_retransmits = 303 [json_name = "tcpInfoRetransmits"];
+// uint32 tcp_info_retransmits = 1203 [json_name = "tcpInfoRetransmits"];
 inline void XtcpFlatRecord::clear_tcp_info_retransmits() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_retransmits_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000008U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_retransmits() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_retransmits)
@@ -4162,7 +6277,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_retransmits() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_retransmits(::uint32_t value) {
   _internal_set_tcp_info_retransmits(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_retransmits)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_retransmits() const {
@@ -4174,11 +6289,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_retransmits(::uint32_t value)
   _impl_.tcp_info_retransmits_ = value;
 }
 
-// uint32 tcp_info_probes = 304 [json_name = "tcpInfoProbes"];
+// uint32 tcp_info_probes = 1204 [json_name = "tcpInfoProbes"];
 inline void XtcpFlatRecord::clear_tcp_info_probes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_probes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000010U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_probes() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_probes)
@@ -4186,7 +6301,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_probes() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_probes(::uint32_t value) {
   _internal_set_tcp_info_probes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_probes)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_probes() const {
@@ -4198,11 +6313,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_probes(::uint32_t value) {
   _impl_.tcp_info_probes_ = value;
 }
 
-// uint32 tcp_info_backoff = 305 [json_name = "tcpInfoBackoff"];
+// uint32 tcp_info_backoff = 1205 [json_name = "tcpInfoBackoff"];
 inline void XtcpFlatRecord::clear_tcp_info_backoff() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_backoff_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000020U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_backoff() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_backoff)
@@ -4210,7 +6325,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_backoff() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_backoff(::uint32_t value) {
   _internal_set_tcp_info_backoff(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_backoff)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_backoff() const {
@@ -4222,11 +6337,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_backoff(::uint32_t value) {
   _impl_.tcp_info_backoff_ = value;
 }
 
-// uint32 tcp_info_options = 306 [json_name = "tcpInfoOptions"];
+// uint32 tcp_info_options = 1206 [json_name = "tcpInfoOptions"];
 inline void XtcpFlatRecord::clear_tcp_info_options() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_options_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000040U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_options() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_options)
@@ -4234,7 +6349,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_options() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_options(::uint32_t value) {
   _internal_set_tcp_info_options(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000040U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_options)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_options() const {
@@ -4246,11 +6361,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_options(::uint32_t value) {
   _impl_.tcp_info_options_ = value;
 }
 
-// uint32 tcp_info_send_scale = 307 [json_name = "tcpInfoSendScale"];
+// uint32 tcp_info_send_scale = 1207 [json_name = "tcpInfoSendScale"];
 inline void XtcpFlatRecord::clear_tcp_info_send_scale() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_send_scale_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000080U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_send_scale() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_send_scale)
@@ -4258,7 +6373,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_send_scale() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_send_scale(::uint32_t value) {
   _internal_set_tcp_info_send_scale(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000080U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_send_scale)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_send_scale() const {
@@ -4270,11 +6385,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_send_scale(::uint32_t value) 
   _impl_.tcp_info_send_scale_ = value;
 }
 
-// uint32 tcp_info_rcv_scale = 308 [json_name = "tcpInfoRcvScale"];
+// uint32 tcp_info_rcv_scale = 1208 [json_name = "tcpInfoRcvScale"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_scale() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_scale_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000100U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_scale() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_scale)
@@ -4282,7 +6397,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_scale() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_scale(::uint32_t value) {
   _internal_set_tcp_info_rcv_scale(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_scale)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_scale() const {
@@ -4294,11 +6409,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_scale(::uint32_t value) {
   _impl_.tcp_info_rcv_scale_ = value;
 }
 
-// uint32 tcp_info_delivery_rate_app_limited = 309 [json_name = "tcpInfoDeliveryRateAppLimited"];
+// uint32 tcp_info_delivery_rate_app_limited = 1209 [json_name = "tcpInfoDeliveryRateAppLimited"];
 inline void XtcpFlatRecord::clear_tcp_info_delivery_rate_app_limited() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_delivery_rate_app_limited_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000200U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_delivery_rate_app_limited() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivery_rate_app_limited)
@@ -4306,7 +6421,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_delivery_rate_app_limited() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_delivery_rate_app_limited(::uint32_t value) {
   _internal_set_tcp_info_delivery_rate_app_limited(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivery_rate_app_limited)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivery_rate_app_limited() const {
@@ -4318,11 +6433,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_delivery_rate_app_limited(::u
   _impl_.tcp_info_delivery_rate_app_limited_ = value;
 }
 
-// uint32 tcp_info_fast_open_client_failed = 310 [json_name = "tcpInfoFastOpenClientFailed"];
+// uint32 tcp_info_fast_open_client_failed = 1210 [json_name = "tcpInfoFastOpenClientFailed"];
 inline void XtcpFlatRecord::clear_tcp_info_fast_open_client_failed() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_fast_open_client_failed_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000400U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_fast_open_client_failed() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_fast_open_client_failed)
@@ -4330,7 +6445,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_fast_open_client_failed() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_fast_open_client_failed(::uint32_t value) {
   _internal_set_tcp_info_fast_open_client_failed(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_fast_open_client_failed)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_fast_open_client_failed() const {
@@ -4342,11 +6457,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_fast_open_client_failed(::uin
   _impl_.tcp_info_fast_open_client_failed_ = value;
 }
 
-// uint32 tcp_info_rto = 315 [json_name = "tcpInfoRto"];
+// uint32 tcp_info_rto = 1215 [json_name = "tcpInfoRto"];
 inline void XtcpFlatRecord::clear_tcp_info_rto() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rto_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000800U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rto() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rto)
@@ -4354,7 +6469,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rto() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rto(::uint32_t value) {
   _internal_set_tcp_info_rto(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rto)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rto() const {
@@ -4366,11 +6481,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rto(::uint32_t value) {
   _impl_.tcp_info_rto_ = value;
 }
 
-// uint32 tcp_info_ato = 316 [json_name = "tcpInfoAto"];
+// uint32 tcp_info_ato = 1216 [json_name = "tcpInfoAto"];
 inline void XtcpFlatRecord::clear_tcp_info_ato() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_ato_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00001000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_ato() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ato)
@@ -4378,7 +6493,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_ato() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_ato(::uint32_t value) {
   _internal_set_tcp_info_ato(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ato)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_ato() const {
@@ -4390,11 +6505,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_ato(::uint32_t value) {
   _impl_.tcp_info_ato_ = value;
 }
 
-// uint32 tcp_info_snd_mss = 317 [json_name = "tcpInfoSndMss"];
+// uint32 tcp_info_snd_mss = 1217 [json_name = "tcpInfoSndMss"];
 inline void XtcpFlatRecord::clear_tcp_info_snd_mss() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_snd_mss_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00002000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_snd_mss() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_mss)
@@ -4402,7 +6517,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_snd_mss() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_snd_mss(::uint32_t value) {
   _internal_set_tcp_info_snd_mss(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_mss)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_snd_mss() const {
@@ -4414,11 +6529,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_snd_mss(::uint32_t value) {
   _impl_.tcp_info_snd_mss_ = value;
 }
 
-// uint32 tcp_info_rcv_mss = 318 [json_name = "tcpInfoRcvMss"];
+// uint32 tcp_info_rcv_mss = 1218 [json_name = "tcpInfoRcvMss"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_mss() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_mss_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00004000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_mss() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_mss)
@@ -4426,7 +6541,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_mss() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_mss(::uint32_t value) {
   _internal_set_tcp_info_rcv_mss(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_mss)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_mss() const {
@@ -4438,11 +6553,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_mss(::uint32_t value) {
   _impl_.tcp_info_rcv_mss_ = value;
 }
 
-// uint32 tcp_info_unacked = 319 [json_name = "tcpInfoUnacked"];
+// uint32 tcp_info_unacked = 1219 [json_name = "tcpInfoUnacked"];
 inline void XtcpFlatRecord::clear_tcp_info_unacked() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_unacked_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00008000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_unacked() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_unacked)
@@ -4450,7 +6565,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_unacked() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_unacked(::uint32_t value) {
   _internal_set_tcp_info_unacked(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_unacked)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_unacked() const {
@@ -4462,11 +6577,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_unacked(::uint32_t value) {
   _impl_.tcp_info_unacked_ = value;
 }
 
-// uint32 tcp_info_sacked = 320 [json_name = "tcpInfoSacked"];
+// uint32 tcp_info_sacked = 1220 [json_name = "tcpInfoSacked"];
 inline void XtcpFlatRecord::clear_tcp_info_sacked() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_sacked_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00010000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_sacked() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_sacked)
@@ -4474,7 +6589,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_sacked() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_sacked(::uint32_t value) {
   _internal_set_tcp_info_sacked(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_sacked)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_sacked() const {
@@ -4486,11 +6601,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_sacked(::uint32_t value) {
   _impl_.tcp_info_sacked_ = value;
 }
 
-// uint32 tcp_info_lost = 321 [json_name = "tcpInfoLost"];
+// uint32 tcp_info_lost = 1221 [json_name = "tcpInfoLost"];
 inline void XtcpFlatRecord::clear_tcp_info_lost() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_lost_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00020000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_lost() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_lost)
@@ -4498,7 +6613,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_lost() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_lost(::uint32_t value) {
   _internal_set_tcp_info_lost(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_lost)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_lost() const {
@@ -4510,11 +6625,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_lost(::uint32_t value) {
   _impl_.tcp_info_lost_ = value;
 }
 
-// uint32 tcp_info_retrans = 322 [json_name = "tcpInfoRetrans"];
+// uint32 tcp_info_retrans = 1222 [json_name = "tcpInfoRetrans"];
 inline void XtcpFlatRecord::clear_tcp_info_retrans() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_retrans_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_retrans() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_retrans)
@@ -4522,7 +6637,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_retrans() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_retrans(::uint32_t value) {
   _internal_set_tcp_info_retrans(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_retrans)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_retrans() const {
@@ -4534,11 +6649,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_retrans(::uint32_t value) {
   _impl_.tcp_info_retrans_ = value;
 }
 
-// uint32 tcp_info_fackets = 323 [json_name = "tcpInfoFackets"];
+// uint32 tcp_info_fackets = 1223 [json_name = "tcpInfoFackets"];
 inline void XtcpFlatRecord::clear_tcp_info_fackets() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_fackets_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00080000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_fackets() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_fackets)
@@ -4546,7 +6661,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_fackets() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_fackets(::uint32_t value) {
   _internal_set_tcp_info_fackets(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_fackets)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_fackets() const {
@@ -4558,11 +6673,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_fackets(::uint32_t value) {
   _impl_.tcp_info_fackets_ = value;
 }
 
-// uint32 tcp_info_last_data_sent = 324 [json_name = "tcpInfoLastDataSent"];
+// uint32 tcp_info_last_data_sent = 1224 [json_name = "tcpInfoLastDataSent"];
 inline void XtcpFlatRecord::clear_tcp_info_last_data_sent() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_last_data_sent_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00100000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_last_data_sent() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_data_sent)
@@ -4570,7 +6685,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_last_data_sent() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_last_data_sent(::uint32_t value) {
   _internal_set_tcp_info_last_data_sent(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_data_sent)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_last_data_sent() const {
@@ -4582,11 +6697,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_last_data_sent(::uint32_t val
   _impl_.tcp_info_last_data_sent_ = value;
 }
 
-// uint32 tcp_info_last_ack_sent = 325 [json_name = "tcpInfoLastAckSent"];
+// uint32 tcp_info_last_ack_sent = 1225 [json_name = "tcpInfoLastAckSent"];
 inline void XtcpFlatRecord::clear_tcp_info_last_ack_sent() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_last_ack_sent_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00200000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_last_ack_sent() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_ack_sent)
@@ -4594,7 +6709,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_last_ack_sent() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_last_ack_sent(::uint32_t value) {
   _internal_set_tcp_info_last_ack_sent(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_ack_sent)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_last_ack_sent() const {
@@ -4606,11 +6721,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_last_ack_sent(::uint32_t valu
   _impl_.tcp_info_last_ack_sent_ = value;
 }
 
-// uint32 tcp_info_last_data_recv = 326 [json_name = "tcpInfoLastDataRecv"];
+// uint32 tcp_info_last_data_recv = 1226 [json_name = "tcpInfoLastDataRecv"];
 inline void XtcpFlatRecord::clear_tcp_info_last_data_recv() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_last_data_recv_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00400000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_last_data_recv() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_data_recv)
@@ -4618,7 +6733,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_last_data_recv() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_last_data_recv(::uint32_t value) {
   _internal_set_tcp_info_last_data_recv(value);
-  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_data_recv)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_last_data_recv() const {
@@ -4630,11 +6745,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_last_data_recv(::uint32_t val
   _impl_.tcp_info_last_data_recv_ = value;
 }
 
-// uint32 tcp_info_last_ack_recv = 327 [json_name = "tcpInfoLastAckRecv"];
+// uint32 tcp_info_last_ack_recv = 1227 [json_name = "tcpInfoLastAckRecv"];
 inline void XtcpFlatRecord::clear_tcp_info_last_ack_recv() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_last_ack_recv_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00800000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_last_ack_recv() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_ack_recv)
@@ -4642,7 +6757,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_last_ack_recv() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_last_ack_recv(::uint32_t value) {
   _internal_set_tcp_info_last_ack_recv(value);
-  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_last_ack_recv)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_last_ack_recv() const {
@@ -4654,11 +6769,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_last_ack_recv(::uint32_t valu
   _impl_.tcp_info_last_ack_recv_ = value;
 }
 
-// uint32 tcp_info_pmtu = 328 [json_name = "tcpInfoPmtu"];
+// uint32 tcp_info_pmtu = 1228 [json_name = "tcpInfoPmtu"];
 inline void XtcpFlatRecord::clear_tcp_info_pmtu() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_pmtu_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x01000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_pmtu() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_pmtu)
@@ -4666,7 +6781,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_pmtu() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_pmtu(::uint32_t value) {
   _internal_set_tcp_info_pmtu(value);
-  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_pmtu)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_pmtu() const {
@@ -4678,11 +6793,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_pmtu(::uint32_t value) {
   _impl_.tcp_info_pmtu_ = value;
 }
 
-// uint32 tcp_info_rcv_ssthresh = 329 [json_name = "tcpInfoRcvSsthresh"];
+// uint32 tcp_info_rcv_ssthresh = 1229 [json_name = "tcpInfoRcvSsthresh"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_ssthresh() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_ssthresh_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x02000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_ssthresh() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_ssthresh)
@@ -4690,7 +6805,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_ssthresh() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_ssthresh(::uint32_t value) {
   _internal_set_tcp_info_rcv_ssthresh(value);
-  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_ssthresh)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_ssthresh() const {
@@ -4702,11 +6817,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_ssthresh(::uint32_t value
   _impl_.tcp_info_rcv_ssthresh_ = value;
 }
 
-// uint32 tcp_info_rtt = 330 [json_name = "tcpInfoRtt"];
+// uint32 tcp_info_rtt = 1230 [json_name = "tcpInfoRtt"];
 inline void XtcpFlatRecord::clear_tcp_info_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x04000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rtt)
@@ -4714,7 +6829,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rtt() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rtt(::uint32_t value) {
   _internal_set_tcp_info_rtt(value);
-  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rtt() const {
@@ -4726,11 +6841,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rtt(::uint32_t value) {
   _impl_.tcp_info_rtt_ = value;
 }
 
-// uint32 tcp_info_rtt_var = 331 [json_name = "tcpInfoRttVar"];
+// uint32 tcp_info_rtt_var = 1231 [json_name = "tcpInfoRttVar"];
 inline void XtcpFlatRecord::clear_tcp_info_rtt_var() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rtt_var_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x08000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rtt_var() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rtt_var)
@@ -4738,7 +6853,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rtt_var() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rtt_var(::uint32_t value) {
   _internal_set_tcp_info_rtt_var(value);
-  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rtt_var)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rtt_var() const {
@@ -4750,11 +6865,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rtt_var(::uint32_t value) {
   _impl_.tcp_info_rtt_var_ = value;
 }
 
-// uint32 tcp_info_snd_ssthresh = 332 [json_name = "tcpInfoSndSsthresh"];
+// uint32 tcp_info_snd_ssthresh = 1232 [json_name = "tcpInfoSndSsthresh"];
 inline void XtcpFlatRecord::clear_tcp_info_snd_ssthresh() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_snd_ssthresh_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x10000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_snd_ssthresh() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_ssthresh)
@@ -4762,7 +6877,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_snd_ssthresh() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_snd_ssthresh(::uint32_t value) {
   _internal_set_tcp_info_snd_ssthresh(value);
-  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_ssthresh)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_snd_ssthresh() const {
@@ -4774,11 +6889,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_snd_ssthresh(::uint32_t value
   _impl_.tcp_info_snd_ssthresh_ = value;
 }
 
-// uint32 tcp_info_snd_cwnd = 333 [json_name = "tcpInfoSndCwnd"];
+// uint32 tcp_info_snd_cwnd = 1233 [json_name = "tcpInfoSndCwnd"];
 inline void XtcpFlatRecord::clear_tcp_info_snd_cwnd() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_snd_cwnd_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x20000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_snd_cwnd() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_cwnd)
@@ -4786,7 +6901,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_snd_cwnd() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_snd_cwnd(::uint32_t value) {
   _internal_set_tcp_info_snd_cwnd(value);
-  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_cwnd)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_snd_cwnd() const {
@@ -4798,11 +6913,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_snd_cwnd(::uint32_t value) {
   _impl_.tcp_info_snd_cwnd_ = value;
 }
 
-// uint32 tcp_info_adv_mss = 334 [json_name = "tcpInfoAdvMss"];
+// uint32 tcp_info_adv_mss = 1234 [json_name = "tcpInfoAdvMss"];
 inline void XtcpFlatRecord::clear_tcp_info_adv_mss() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_adv_mss_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[2], 0x40000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_adv_mss() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_adv_mss)
@@ -4810,7 +6925,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_adv_mss() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_adv_mss(::uint32_t value) {
   _internal_set_tcp_info_adv_mss(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[2], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_adv_mss)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_adv_mss() const {
@@ -4822,11 +6937,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_adv_mss(::uint32_t value) {
   _impl_.tcp_info_adv_mss_ = value;
 }
 
-// uint32 tcp_info_reordering = 335 [json_name = "tcpInfoReordering"];
+// uint32 tcp_info_reordering = 1235 [json_name = "tcpInfoReordering"];
 inline void XtcpFlatRecord::clear_tcp_info_reordering() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_reordering_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[2], 0x80000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_reordering() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_reordering)
@@ -4834,7 +6949,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_reordering() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_reordering(::uint32_t value) {
   _internal_set_tcp_info_reordering(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[2], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_reordering)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_reordering() const {
@@ -4846,11 +6961,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_reordering(::uint32_t value) 
   _impl_.tcp_info_reordering_ = value;
 }
 
-// uint32 tcp_info_rcv_rtt = 336 [json_name = "tcpInfoRcvRtt"];
+// uint32 tcp_info_rcv_rtt = 1236 [json_name = "tcpInfoRcvRtt"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000001U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_rtt)
@@ -4858,7 +6973,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_rtt() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_rtt(::uint32_t value) {
   _internal_set_tcp_info_rcv_rtt(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_rtt() const {
@@ -4870,11 +6985,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_rtt(::uint32_t value) {
   _impl_.tcp_info_rcv_rtt_ = value;
 }
 
-// uint32 tcp_info_rcv_space = 337 [json_name = "tcpInfoRcvSpace"];
+// uint32 tcp_info_rcv_space = 1237 [json_name = "tcpInfoRcvSpace"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_space() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_space_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000002U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_space() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_space)
@@ -4882,7 +6997,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_space() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_space(::uint32_t value) {
   _internal_set_tcp_info_rcv_space(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_space)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_space() const {
@@ -4894,11 +7009,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_space(::uint32_t value) {
   _impl_.tcp_info_rcv_space_ = value;
 }
 
-// uint32 tcp_info_total_retrans = 338 [json_name = "tcpInfoTotalRetrans"];
+// uint32 tcp_info_total_retrans = 1238 [json_name = "tcpInfoTotalRetrans"];
 inline void XtcpFlatRecord::clear_tcp_info_total_retrans() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_total_retrans_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000004U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_total_retrans() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_retrans)
@@ -4906,7 +7021,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_total_retrans() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_total_retrans(::uint32_t value) {
   _internal_set_tcp_info_total_retrans(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_retrans)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_total_retrans() const {
@@ -4918,11 +7033,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_total_retrans(::uint32_t valu
   _impl_.tcp_info_total_retrans_ = value;
 }
 
-// uint64 tcp_info_pacing_rate = 339 [json_name = "tcpInfoPacingRate"];
+// uint64 tcp_info_pacing_rate = 1239 [json_name = "tcpInfoPacingRate"];
 inline void XtcpFlatRecord::clear_tcp_info_pacing_rate() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_pacing_rate_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000008U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_pacing_rate() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_pacing_rate)
@@ -4930,7 +7045,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_pacing_rate() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_pacing_rate(::uint64_t value) {
   _internal_set_tcp_info_pacing_rate(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_pacing_rate)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_pacing_rate() const {
@@ -4942,11 +7057,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_pacing_rate(::uint64_t value)
   _impl_.tcp_info_pacing_rate_ = value;
 }
 
-// uint64 tcp_info_max_pacing_rate = 340 [json_name = "tcpInfoMaxPacingRate"];
+// uint64 tcp_info_max_pacing_rate = 1240 [json_name = "tcpInfoMaxPacingRate"];
 inline void XtcpFlatRecord::clear_tcp_info_max_pacing_rate() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_max_pacing_rate_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000010U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_max_pacing_rate() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_max_pacing_rate)
@@ -4954,7 +7069,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_max_pacing_rate() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_max_pacing_rate(::uint64_t value) {
   _internal_set_tcp_info_max_pacing_rate(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_max_pacing_rate)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_max_pacing_rate() const {
@@ -4966,11 +7081,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_max_pacing_rate(::uint64_t va
   _impl_.tcp_info_max_pacing_rate_ = value;
 }
 
-// uint64 tcp_info_bytes_acked = 341 [json_name = "tcpInfoBytesAcked"];
+// uint64 tcp_info_bytes_acked = 1241 [json_name = "tcpInfoBytesAcked"];
 inline void XtcpFlatRecord::clear_tcp_info_bytes_acked() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_bytes_acked_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000020U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_acked() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_acked)
@@ -4978,7 +7093,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_acked() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_bytes_acked(::uint64_t value) {
   _internal_set_tcp_info_bytes_acked(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_acked)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_bytes_acked() const {
@@ -4990,11 +7105,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_bytes_acked(::uint64_t value)
   _impl_.tcp_info_bytes_acked_ = value;
 }
 
-// uint64 tcp_info_bytes_received = 342 [json_name = "tcpInfoBytesReceived"];
+// uint64 tcp_info_bytes_received = 1242 [json_name = "tcpInfoBytesReceived"];
 inline void XtcpFlatRecord::clear_tcp_info_bytes_received() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_bytes_received_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000040U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_received() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_received)
@@ -5002,7 +7117,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_received() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_bytes_received(::uint64_t value) {
   _internal_set_tcp_info_bytes_received(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000040U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_received)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_bytes_received() const {
@@ -5014,11 +7129,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_bytes_received(::uint64_t val
   _impl_.tcp_info_bytes_received_ = value;
 }
 
-// uint32 tcp_info_segs_out = 343 [json_name = "tcpInfoSegsOut"];
+// uint32 tcp_info_segs_out = 1243 [json_name = "tcpInfoSegsOut"];
 inline void XtcpFlatRecord::clear_tcp_info_segs_out() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_segs_out_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000080U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_segs_out() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_segs_out)
@@ -5026,7 +7141,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_segs_out() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_segs_out(::uint32_t value) {
   _internal_set_tcp_info_segs_out(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000080U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_segs_out)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_segs_out() const {
@@ -5038,11 +7153,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_segs_out(::uint32_t value) {
   _impl_.tcp_info_segs_out_ = value;
 }
 
-// uint32 tcp_info_segs_in = 344 [json_name = "tcpInfoSegsIn"];
+// uint32 tcp_info_segs_in = 1244 [json_name = "tcpInfoSegsIn"];
 inline void XtcpFlatRecord::clear_tcp_info_segs_in() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_segs_in_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000100U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_segs_in() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_segs_in)
@@ -5050,7 +7165,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_segs_in() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_segs_in(::uint32_t value) {
   _internal_set_tcp_info_segs_in(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_segs_in)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_segs_in() const {
@@ -5062,11 +7177,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_segs_in(::uint32_t value) {
   _impl_.tcp_info_segs_in_ = value;
 }
 
-// uint32 tcp_info_not_sent_bytes = 345 [json_name = "tcpInfoNotSentBytes"];
+// uint32 tcp_info_not_sent_bytes = 1245 [json_name = "tcpInfoNotSentBytes"];
 inline void XtcpFlatRecord::clear_tcp_info_not_sent_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_not_sent_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000200U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_not_sent_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_not_sent_bytes)
@@ -5074,7 +7189,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_not_sent_bytes() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_not_sent_bytes(::uint32_t value) {
   _internal_set_tcp_info_not_sent_bytes(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_not_sent_bytes)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_not_sent_bytes() const {
@@ -5086,11 +7201,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_not_sent_bytes(::uint32_t val
   _impl_.tcp_info_not_sent_bytes_ = value;
 }
 
-// uint32 tcp_info_min_rtt = 346 [json_name = "tcpInfoMinRtt"];
+// uint32 tcp_info_min_rtt = 1246 [json_name = "tcpInfoMinRtt"];
 inline void XtcpFlatRecord::clear_tcp_info_min_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_min_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000400U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_min_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_min_rtt)
@@ -5098,7 +7213,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_min_rtt() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_min_rtt(::uint32_t value) {
   _internal_set_tcp_info_min_rtt(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_min_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_min_rtt() const {
@@ -5110,11 +7225,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_min_rtt(::uint32_t value) {
   _impl_.tcp_info_min_rtt_ = value;
 }
 
-// uint32 tcp_info_data_segs_in = 347 [json_name = "tcpInfoDataSegsIn"];
+// uint32 tcp_info_data_segs_in = 1247 [json_name = "tcpInfoDataSegsIn"];
 inline void XtcpFlatRecord::clear_tcp_info_data_segs_in() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_data_segs_in_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00000800U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_data_segs_in() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_data_segs_in)
@@ -5122,7 +7237,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_data_segs_in() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_data_segs_in(::uint32_t value) {
   _internal_set_tcp_info_data_segs_in(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_data_segs_in)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_data_segs_in() const {
@@ -5134,11 +7249,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_data_segs_in(::uint32_t value
   _impl_.tcp_info_data_segs_in_ = value;
 }
 
-// uint32 tcp_info_data_segs_out = 348 [json_name = "tcpInfoDataSegsOut"];
+// uint32 tcp_info_data_segs_out = 1248 [json_name = "tcpInfoDataSegsOut"];
 inline void XtcpFlatRecord::clear_tcp_info_data_segs_out() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_data_segs_out_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00001000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_data_segs_out() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_data_segs_out)
@@ -5146,7 +7261,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_data_segs_out() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_data_segs_out(::uint32_t value) {
   _internal_set_tcp_info_data_segs_out(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_data_segs_out)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_data_segs_out() const {
@@ -5158,11 +7273,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_data_segs_out(::uint32_t valu
   _impl_.tcp_info_data_segs_out_ = value;
 }
 
-// uint64 tcp_info_delivery_rate = 349 [json_name = "tcpInfoDeliveryRate"];
+// uint64 tcp_info_delivery_rate = 1249 [json_name = "tcpInfoDeliveryRate"];
 inline void XtcpFlatRecord::clear_tcp_info_delivery_rate() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_delivery_rate_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00002000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_delivery_rate() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivery_rate)
@@ -5170,7 +7285,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_delivery_rate() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_delivery_rate(::uint64_t value) {
   _internal_set_tcp_info_delivery_rate(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivery_rate)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_delivery_rate() const {
@@ -5182,11 +7297,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_delivery_rate(::uint64_t valu
   _impl_.tcp_info_delivery_rate_ = value;
 }
 
-// uint64 tcp_info_busy_time = 350 [json_name = "tcpInfoBusyTime"];
+// uint64 tcp_info_busy_time = 1250 [json_name = "tcpInfoBusyTime"];
 inline void XtcpFlatRecord::clear_tcp_info_busy_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_busy_time_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00004000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_busy_time() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_busy_time)
@@ -5194,7 +7309,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_busy_time() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_busy_time(::uint64_t value) {
   _internal_set_tcp_info_busy_time(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_busy_time)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_busy_time() const {
@@ -5206,11 +7321,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_busy_time(::uint64_t value) {
   _impl_.tcp_info_busy_time_ = value;
 }
 
-// uint64 tcp_info_rwnd_limited = 351 [json_name = "tcpInfoRwndLimited"];
+// uint64 tcp_info_rwnd_limited = 1251 [json_name = "tcpInfoRwndLimited"];
 inline void XtcpFlatRecord::clear_tcp_info_rwnd_limited() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rwnd_limited_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00008000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_rwnd_limited() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rwnd_limited)
@@ -5218,7 +7333,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_rwnd_limited() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rwnd_limited(::uint64_t value) {
   _internal_set_tcp_info_rwnd_limited(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rwnd_limited)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_rwnd_limited() const {
@@ -5230,11 +7345,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rwnd_limited(::uint64_t value
   _impl_.tcp_info_rwnd_limited_ = value;
 }
 
-// uint64 tcp_info_sndbuf_limited = 352 [json_name = "tcpInfoSndbufLimited"];
+// uint64 tcp_info_sndbuf_limited = 1252 [json_name = "tcpInfoSndbufLimited"];
 inline void XtcpFlatRecord::clear_tcp_info_sndbuf_limited() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_sndbuf_limited_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00010000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_sndbuf_limited() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_sndbuf_limited)
@@ -5242,7 +7357,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_sndbuf_limited() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_sndbuf_limited(::uint64_t value) {
   _internal_set_tcp_info_sndbuf_limited(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_sndbuf_limited)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_sndbuf_limited() const {
@@ -5254,11 +7369,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_sndbuf_limited(::uint64_t val
   _impl_.tcp_info_sndbuf_limited_ = value;
 }
 
-// uint32 tcp_info_delivered = 353 [json_name = "tcpInfoDelivered"];
+// uint32 tcp_info_delivered = 1253 [json_name = "tcpInfoDelivered"];
 inline void XtcpFlatRecord::clear_tcp_info_delivered() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_delivered_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00020000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_delivered() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered)
@@ -5266,7 +7381,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_delivered() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_delivered(::uint32_t value) {
   _internal_set_tcp_info_delivered(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivered() const {
@@ -5278,11 +7393,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_delivered(::uint32_t value) {
   _impl_.tcp_info_delivered_ = value;
 }
 
-// uint32 tcp_info_delivered_ce = 354 [json_name = "tcpInfoDeliveredCe"];
+// uint32 tcp_info_delivered_ce = 1254 [json_name = "tcpInfoDeliveredCe"];
 inline void XtcpFlatRecord::clear_tcp_info_delivered_ce() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_delivered_ce_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_delivered_ce() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_ce)
@@ -5290,7 +7405,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_delivered_ce() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_delivered_ce(::uint32_t value) {
   _internal_set_tcp_info_delivered_ce(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_ce)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivered_ce() const {
@@ -5302,11 +7417,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_delivered_ce(::uint32_t value
   _impl_.tcp_info_delivered_ce_ = value;
 }
 
-// uint64 tcp_info_bytes_sent = 355 [json_name = "tcpInfoBytesSent"];
+// uint64 tcp_info_bytes_sent = 1255 [json_name = "tcpInfoBytesSent"];
 inline void XtcpFlatRecord::clear_tcp_info_bytes_sent() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_bytes_sent_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00080000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_sent() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_sent)
@@ -5314,7 +7429,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_sent() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_bytes_sent(::uint64_t value) {
   _internal_set_tcp_info_bytes_sent(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_sent)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_bytes_sent() const {
@@ -5326,11 +7441,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_bytes_sent(::uint64_t value) 
   _impl_.tcp_info_bytes_sent_ = value;
 }
 
-// uint64 tcp_info_bytes_retrans = 356 [json_name = "tcpInfoBytesRetrans"];
+// uint64 tcp_info_bytes_retrans = 1256 [json_name = "tcpInfoBytesRetrans"];
 inline void XtcpFlatRecord::clear_tcp_info_bytes_retrans() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_bytes_retrans_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[2], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00100000U);
 }
 inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_retrans() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_retrans)
@@ -5338,7 +7453,7 @@ inline ::uint64_t XtcpFlatRecord::tcp_info_bytes_retrans() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_bytes_retrans(::uint64_t value) {
   _internal_set_tcp_info_bytes_retrans(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_bytes_retrans)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_tcp_info_bytes_retrans() const {
@@ -5350,11 +7465,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_bytes_retrans(::uint64_t valu
   _impl_.tcp_info_bytes_retrans_ = value;
 }
 
-// uint32 tcp_info_dsack_dups = 357 [json_name = "tcpInfoDsackDups"];
+// uint32 tcp_info_dsack_dups = 1257 [json_name = "tcpInfoDsackDups"];
 inline void XtcpFlatRecord::clear_tcp_info_dsack_dups() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_dsack_dups_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00200000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_dsack_dups() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_dsack_dups)
@@ -5362,7 +7477,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_dsack_dups() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_dsack_dups(::uint32_t value) {
   _internal_set_tcp_info_dsack_dups(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_dsack_dups)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_dsack_dups() const {
@@ -5374,11 +7489,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_dsack_dups(::uint32_t value) 
   _impl_.tcp_info_dsack_dups_ = value;
 }
 
-// uint32 tcp_info_reord_seen = 358 [json_name = "tcpInfoReordSeen"];
+// uint32 tcp_info_reord_seen = 1258 [json_name = "tcpInfoReordSeen"];
 inline void XtcpFlatRecord::clear_tcp_info_reord_seen() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_reord_seen_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00400000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_reord_seen() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_reord_seen)
@@ -5386,7 +7501,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_reord_seen() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_reord_seen(::uint32_t value) {
   _internal_set_tcp_info_reord_seen(value);
-  SetHasBit(_impl_._has_bits_[2], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_reord_seen)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_reord_seen() const {
@@ -5398,11 +7513,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_reord_seen(::uint32_t value) 
   _impl_.tcp_info_reord_seen_ = value;
 }
 
-// uint32 tcp_info_rcv_ooopack = 359 [json_name = "tcpInfoRcvOoopack"];
+// uint32 tcp_info_rcv_ooopack = 1259 [json_name = "tcpInfoRcvOoopack"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_ooopack() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_ooopack_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x00800000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_ooopack() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_ooopack)
@@ -5410,7 +7525,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_ooopack() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_ooopack(::uint32_t value) {
   _internal_set_tcp_info_rcv_ooopack(value);
-  SetHasBit(_impl_._has_bits_[2], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_ooopack)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_ooopack() const {
@@ -5422,11 +7537,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_ooopack(::uint32_t value)
   _impl_.tcp_info_rcv_ooopack_ = value;
 }
 
-// uint32 tcp_info_snd_wnd = 360 [json_name = "tcpInfoSndWnd"];
+// uint32 tcp_info_snd_wnd = 1260 [json_name = "tcpInfoSndWnd"];
 inline void XtcpFlatRecord::clear_tcp_info_snd_wnd() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_snd_wnd_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x01000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_snd_wnd() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_wnd)
@@ -5434,7 +7549,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_snd_wnd() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_snd_wnd(::uint32_t value) {
   _internal_set_tcp_info_snd_wnd(value);
-  SetHasBit(_impl_._has_bits_[2], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_snd_wnd)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_snd_wnd() const {
@@ -5446,11 +7561,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_snd_wnd(::uint32_t value) {
   _impl_.tcp_info_snd_wnd_ = value;
 }
 
-// uint32 tcp_info_rcv_wnd = 361 [json_name = "tcpInfoRcvWnd"];
+// uint32 tcp_info_rcv_wnd = 1261 [json_name = "tcpInfoRcvWnd"];
 inline void XtcpFlatRecord::clear_tcp_info_rcv_wnd() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rcv_wnd_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x02000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_wnd() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_wnd)
@@ -5458,7 +7573,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rcv_wnd() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rcv_wnd(::uint32_t value) {
   _internal_set_tcp_info_rcv_wnd(value);
-  SetHasBit(_impl_._has_bits_[2], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rcv_wnd)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rcv_wnd() const {
@@ -5470,11 +7585,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rcv_wnd(::uint32_t value) {
   _impl_.tcp_info_rcv_wnd_ = value;
 }
 
-// uint32 tcp_info_rehash = 362 [json_name = "tcpInfoRehash"];
+// uint32 tcp_info_rehash = 1262 [json_name = "tcpInfoRehash"];
 inline void XtcpFlatRecord::clear_tcp_info_rehash() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_rehash_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x04000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_rehash() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rehash)
@@ -5482,7 +7597,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_rehash() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_rehash(::uint32_t value) {
   _internal_set_tcp_info_rehash(value);
-  SetHasBit(_impl_._has_bits_[2], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_rehash)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_rehash() const {
@@ -5494,11 +7609,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_rehash(::uint32_t value) {
   _impl_.tcp_info_rehash_ = value;
 }
 
-// uint32 tcp_info_total_rto = 363 [json_name = "tcpInfoTotalRto"];
+// uint32 tcp_info_total_rto = 1263 [json_name = "tcpInfoTotalRto"];
 inline void XtcpFlatRecord::clear_tcp_info_total_rto() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_total_rto_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x08000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto)
@@ -5506,7 +7621,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_total_rto(::uint32_t value) {
   _internal_set_tcp_info_total_rto(value);
-  SetHasBit(_impl_._has_bits_[2], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_total_rto() const {
@@ -5518,11 +7633,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_total_rto(::uint32_t value) {
   _impl_.tcp_info_total_rto_ = value;
 }
 
-// uint32 tcp_info_total_rto_recoveries = 364 [json_name = "tcpInfoTotalRtoRecoveries"];
+// uint32 tcp_info_total_rto_recoveries = 1264 [json_name = "tcpInfoTotalRtoRecoveries"];
 inline void XtcpFlatRecord::clear_tcp_info_total_rto_recoveries() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_total_rto_recoveries_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x10000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto_recoveries() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto_recoveries)
@@ -5530,7 +7645,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto_recoveries() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_total_rto_recoveries(::uint32_t value) {
   _internal_set_tcp_info_total_rto_recoveries(value);
-  SetHasBit(_impl_._has_bits_[2], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto_recoveries)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_total_rto_recoveries() const {
@@ -5542,11 +7657,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_total_rto_recoveries(::uint32
   _impl_.tcp_info_total_rto_recoveries_ = value;
 }
 
-// uint32 tcp_info_total_rto_time = 365 [json_name = "tcpInfoTotalRtoTime"];
+// uint32 tcp_info_total_rto_time = 1265 [json_name = "tcpInfoTotalRtoTime"];
 inline void XtcpFlatRecord::clear_tcp_info_total_rto_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tcp_info_total_rto_time_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[3], 0x20000000U);
 }
 inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto_time() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto_time)
@@ -5554,7 +7669,7 @@ inline ::uint32_t XtcpFlatRecord::tcp_info_total_rto_time() const {
 }
 inline void XtcpFlatRecord::set_tcp_info_total_rto_time(::uint32_t value) {
   _internal_set_tcp_info_total_rto_time(value);
-  SetHasBit(_impl_._has_bits_[2], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[3], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_total_rto_time)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_total_rto_time() const {
@@ -5566,11 +7681,11 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_total_rto_time(::uint32_t val
   _impl_.tcp_info_total_rto_time_ = value;
 }
 
-// string congestion_algorithm_string = 400 [json_name = "congestionAlgorithmString"];
+// string congestion_algorithm_string = 1300 [json_name = "congestionAlgorithmString"];
 inline void XtcpFlatRecord::clear_congestion_algorithm_string() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.congestion_algorithm_string_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
 }
 inline const ::std::string& XtcpFlatRecord::congestion_algorithm_string() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5580,13 +7695,13 @@ inline const ::std::string& XtcpFlatRecord::congestion_algorithm_string() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpFlatRecord::set_congestion_algorithm_string(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   _impl_.congestion_algorithm_string_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::mutable_congestion_algorithm_string()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   ::std::string* _s = _internal_mutable_congestion_algorithm_string();
   // @@protoc_insertion_point(field_mutable:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string)
   return _s;
@@ -5606,10 +7721,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpFlatRecord::_internal_mutable_congest
 inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_congestion_algorithm_string() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00040000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000100U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   auto* released = _impl_.congestion_algorithm_string_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.congestion_algorithm_string_.Set("", GetArena());
@@ -5619,9 +7734,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpFlatRecord::release_congestion_algor
 inline void XtcpFlatRecord::set_allocated_congestion_algorithm_string(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   }
   _impl_.congestion_algorithm_string_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.congestion_algorithm_string_.IsDefault()) {
@@ -5630,11 +7745,11 @@ inline void XtcpFlatRecord::set_allocated_congestion_algorithm_string(::std::str
   // @@protoc_insertion_point(field_set_allocated:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string)
 }
 
-// .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 401 [json_name = "congestionAlgorithmEnum"];
+// .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 1301 [json_name = "congestionAlgorithmEnum"];
 inline void XtcpFlatRecord::clear_congestion_algorithm_enum() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.congestion_algorithm_enum_ = 0;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[3], 0x40000000U);
 }
 inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord::congestion_algorithm_enum() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_enum)
@@ -5642,7 +7757,7 @@ inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord
 }
 inline void XtcpFlatRecord::set_congestion_algorithm_enum(::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm value) {
   _internal_set_congestion_algorithm_enum(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[3], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_enum)
 }
 inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord::_internal_congestion_algorithm_enum() const {
@@ -5654,11 +7769,11 @@ inline void XtcpFlatRecord::_internal_set_congestion_algorithm_enum(::xtcp_flat_
   _impl_.congestion_algorithm_enum_ = value;
 }
 
-// uint32 type_of_service = 501 [json_name = "typeOfService"];
+// uint32 type_of_service = 1401 [json_name = "typeOfService"];
 inline void XtcpFlatRecord::clear_type_of_service() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.type_of_service_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[3], 0x80000000U);
 }
 inline ::uint32_t XtcpFlatRecord::type_of_service() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.type_of_service)
@@ -5666,7 +7781,7 @@ inline ::uint32_t XtcpFlatRecord::type_of_service() const {
 }
 inline void XtcpFlatRecord::set_type_of_service(::uint32_t value) {
   _internal_set_type_of_service(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[3], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.type_of_service)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_type_of_service() const {
@@ -5678,11 +7793,11 @@ inline void XtcpFlatRecord::_internal_set_type_of_service(::uint32_t value) {
   _impl_.type_of_service_ = value;
 }
 
-// uint32 traffic_class = 502 [json_name = "trafficClass"];
+// uint32 traffic_class = 1402 [json_name = "trafficClass"];
 inline void XtcpFlatRecord::clear_traffic_class() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.traffic_class_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000001U);
 }
 inline ::uint32_t XtcpFlatRecord::traffic_class() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.traffic_class)
@@ -5690,7 +7805,7 @@ inline ::uint32_t XtcpFlatRecord::traffic_class() const {
 }
 inline void XtcpFlatRecord::set_traffic_class(::uint32_t value) {
   _internal_set_traffic_class(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.traffic_class)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_traffic_class() const {
@@ -5702,11 +7817,11 @@ inline void XtcpFlatRecord::_internal_set_traffic_class(::uint32_t value) {
   _impl_.traffic_class_ = value;
 }
 
-// uint32 sk_mem_info_rmem_alloc = 601 [json_name = "skMemInfoRmemAlloc"];
+// uint32 sk_mem_info_rmem_alloc = 1501 [json_name = "skMemInfoRmemAlloc"];
 inline void XtcpFlatRecord::clear_sk_mem_info_rmem_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_rmem_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000002U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_rmem_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rmem_alloc)
@@ -5714,7 +7829,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_rmem_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_rmem_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_rmem_alloc(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rmem_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_rmem_alloc() const {
@@ -5726,11 +7841,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_rmem_alloc(::uint32_t valu
   _impl_.sk_mem_info_rmem_alloc_ = value;
 }
 
-// uint32 sk_mem_info_rcv_buf = 602 [json_name = "skMemInfoRcvBuf"];
+// uint32 sk_mem_info_rcv_buf = 1502 [json_name = "skMemInfoRcvBuf"];
 inline void XtcpFlatRecord::clear_sk_mem_info_rcv_buf() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_rcv_buf_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000004U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_rcv_buf() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rcv_buf)
@@ -5738,7 +7853,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_rcv_buf() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_rcv_buf(::uint32_t value) {
   _internal_set_sk_mem_info_rcv_buf(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rcv_buf)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_rcv_buf() const {
@@ -5750,11 +7865,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_rcv_buf(::uint32_t value) 
   _impl_.sk_mem_info_rcv_buf_ = value;
 }
 
-// uint32 sk_mem_info_wmem_alloc = 603 [json_name = "skMemInfoWmemAlloc"];
+// uint32 sk_mem_info_wmem_alloc = 1503 [json_name = "skMemInfoWmemAlloc"];
 inline void XtcpFlatRecord::clear_sk_mem_info_wmem_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_wmem_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000008U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_alloc)
@@ -5762,7 +7877,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_wmem_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_wmem_alloc(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_wmem_alloc() const {
@@ -5774,11 +7889,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_wmem_alloc(::uint32_t valu
   _impl_.sk_mem_info_wmem_alloc_ = value;
 }
 
-// uint32 sk_mem_info_snd_buf = 604 [json_name = "skMemInfoSndBuf"];
+// uint32 sk_mem_info_snd_buf = 1504 [json_name = "skMemInfoSndBuf"];
 inline void XtcpFlatRecord::clear_sk_mem_info_snd_buf() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_snd_buf_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000010U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_snd_buf() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_snd_buf)
@@ -5786,7 +7901,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_snd_buf() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_snd_buf(::uint32_t value) {
   _internal_set_sk_mem_info_snd_buf(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_snd_buf)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_snd_buf() const {
@@ -5798,11 +7913,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_snd_buf(::uint32_t value) 
   _impl_.sk_mem_info_snd_buf_ = value;
 }
 
-// uint32 sk_mem_info_fwd_alloc = 605 [json_name = "skMemInfoFwdAlloc"];
+// uint32 sk_mem_info_fwd_alloc = 1505 [json_name = "skMemInfoFwdAlloc"];
 inline void XtcpFlatRecord::clear_sk_mem_info_fwd_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_fwd_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000020U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_fwd_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_fwd_alloc)
@@ -5810,7 +7925,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_fwd_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_fwd_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_fwd_alloc(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_fwd_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_fwd_alloc() const {
@@ -5822,11 +7937,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_fwd_alloc(::uint32_t value
   _impl_.sk_mem_info_fwd_alloc_ = value;
 }
 
-// uint32 sk_mem_info_wmem_queued = 606 [json_name = "skMemInfoWmemQueued"];
+// uint32 sk_mem_info_wmem_queued = 1506 [json_name = "skMemInfoWmemQueued"];
 inline void XtcpFlatRecord::clear_sk_mem_info_wmem_queued() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_wmem_queued_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000040U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_queued() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_queued)
@@ -5834,7 +7949,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_queued() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_wmem_queued(::uint32_t value) {
   _internal_set_sk_mem_info_wmem_queued(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000040U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_queued)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_wmem_queued() const {
@@ -5846,11 +7961,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_wmem_queued(::uint32_t val
   _impl_.sk_mem_info_wmem_queued_ = value;
 }
 
-// uint32 sk_mem_info_optmem = 607 [json_name = "skMemInfoOptmem"];
+// uint32 sk_mem_info_optmem = 1507 [json_name = "skMemInfoOptmem"];
 inline void XtcpFlatRecord::clear_sk_mem_info_optmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_optmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000080U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_optmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_optmem)
@@ -5858,7 +7973,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_optmem() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_optmem(::uint32_t value) {
   _internal_set_sk_mem_info_optmem(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000080U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_optmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_optmem() const {
@@ -5870,11 +7985,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_optmem(::uint32_t value) {
   _impl_.sk_mem_info_optmem_ = value;
 }
 
-// uint32 sk_mem_info_backlog = 608 [json_name = "skMemInfoBacklog"];
+// uint32 sk_mem_info_backlog = 1508 [json_name = "skMemInfoBacklog"];
 inline void XtcpFlatRecord::clear_sk_mem_info_backlog() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_backlog_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000100U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_backlog() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_backlog)
@@ -5882,7 +7997,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_backlog() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_backlog(::uint32_t value) {
   _internal_set_sk_mem_info_backlog(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_backlog)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_backlog() const {
@@ -5894,11 +8009,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_backlog(::uint32_t value) 
   _impl_.sk_mem_info_backlog_ = value;
 }
 
-// uint32 sk_mem_info_drops = 609 [json_name = "skMemInfoDrops"];
+// uint32 sk_mem_info_drops = 1509 [json_name = "skMemInfoDrops"];
 inline void XtcpFlatRecord::clear_sk_mem_info_drops() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_drops_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000200U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_drops() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_drops)
@@ -5906,7 +8021,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_drops() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_drops(::uint32_t value) {
   _internal_set_sk_mem_info_drops(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_drops)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_drops() const {
@@ -5918,11 +8033,11 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_drops(::uint32_t value) {
   _impl_.sk_mem_info_drops_ = value;
 }
 
-// uint32 shutdown_state = 700 [json_name = "shutdownState"];
+// uint32 shutdown_state = 1600 [json_name = "shutdownState"];
 inline void XtcpFlatRecord::clear_shutdown_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.shutdown_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000400U);
 }
 inline ::uint32_t XtcpFlatRecord::shutdown_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.shutdown_state)
@@ -5930,7 +8045,7 @@ inline ::uint32_t XtcpFlatRecord::shutdown_state() const {
 }
 inline void XtcpFlatRecord::set_shutdown_state(::uint32_t value) {
   _internal_set_shutdown_state(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.shutdown_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_shutdown_state() const {
@@ -5942,11 +8057,11 @@ inline void XtcpFlatRecord::_internal_set_shutdown_state(::uint32_t value) {
   _impl_.shutdown_state_ = value;
 }
 
-// uint32 vegas_info_enabled = 801 [json_name = "vegasInfoEnabled"];
+// uint32 vegas_info_enabled = 1701 [json_name = "vegasInfoEnabled"];
 inline void XtcpFlatRecord::clear_vegas_info_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_enabled_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00000800U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_enabled() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_enabled)
@@ -5954,7 +8069,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_enabled() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_enabled(::uint32_t value) {
   _internal_set_vegas_info_enabled(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_enabled)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_enabled() const {
@@ -5966,11 +8081,11 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_enabled(::uint32_t value) {
   _impl_.vegas_info_enabled_ = value;
 }
 
-// uint32 vegas_info_rtt_cnt = 802 [json_name = "vegasInfoRttCnt"];
+// uint32 vegas_info_rtt_cnt = 1702 [json_name = "vegasInfoRttCnt"];
 inline void XtcpFlatRecord::clear_vegas_info_rtt_cnt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_rtt_cnt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00001000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_rtt_cnt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt_cnt)
@@ -5978,7 +8093,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_rtt_cnt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_rtt_cnt(::uint32_t value) {
   _internal_set_vegas_info_rtt_cnt(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt_cnt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_rtt_cnt() const {
@@ -5990,11 +8105,11 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_rtt_cnt(::uint32_t value) {
   _impl_.vegas_info_rtt_cnt_ = value;
 }
 
-// uint32 vegas_info_rtt = 803 [json_name = "vegasInfoRtt"];
+// uint32 vegas_info_rtt = 1703 [json_name = "vegasInfoRtt"];
 inline void XtcpFlatRecord::clear_vegas_info_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00002000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt)
@@ -6002,7 +8117,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_rtt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_rtt(::uint32_t value) {
   _internal_set_vegas_info_rtt(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_rtt() const {
@@ -6014,11 +8129,11 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_rtt(::uint32_t value) {
   _impl_.vegas_info_rtt_ = value;
 }
 
-// uint32 vegas_info_min_rtt = 804 [json_name = "vegasInfoMinRtt"];
+// uint32 vegas_info_min_rtt = 1704 [json_name = "vegasInfoMinRtt"];
 inline void XtcpFlatRecord::clear_vegas_info_min_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_min_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00004000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_min_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_min_rtt)
@@ -6026,7 +8141,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_min_rtt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_min_rtt(::uint32_t value) {
   _internal_set_vegas_info_min_rtt(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_min_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_min_rtt() const {
@@ -6038,11 +8153,11 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_min_rtt(::uint32_t value) {
   _impl_.vegas_info_min_rtt_ = value;
 }
 
-// uint32 dctcp_info_enabled = 901 [json_name = "dctcpInfoEnabled"];
+// uint32 dctcp_info_enabled = 1801 [json_name = "dctcpInfoEnabled"];
 inline void XtcpFlatRecord::clear_dctcp_info_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_enabled_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00008000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_enabled() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_enabled)
@@ -6050,7 +8165,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_enabled() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_enabled(::uint32_t value) {
   _internal_set_dctcp_info_enabled(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_enabled)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_enabled() const {
@@ -6062,11 +8177,11 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_enabled(::uint32_t value) {
   _impl_.dctcp_info_enabled_ = value;
 }
 
-// uint32 dctcp_info_ce_state = 902 [json_name = "dctcpInfoCeState"];
+// uint32 dctcp_info_ce_state = 1802 [json_name = "dctcpInfoCeState"];
 inline void XtcpFlatRecord::clear_dctcp_info_ce_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ce_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00010000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ce_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ce_state)
@@ -6074,7 +8189,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ce_state() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ce_state(::uint32_t value) {
   _internal_set_dctcp_info_ce_state(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ce_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ce_state() const {
@@ -6086,11 +8201,11 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ce_state(::uint32_t value) 
   _impl_.dctcp_info_ce_state_ = value;
 }
 
-// uint32 dctcp_info_alpha = 903 [json_name = "dctcpInfoAlpha"];
+// uint32 dctcp_info_alpha = 1803 [json_name = "dctcpInfoAlpha"];
 inline void XtcpFlatRecord::clear_dctcp_info_alpha() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_alpha_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00020000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_alpha() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_alpha)
@@ -6098,7 +8213,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_alpha() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_alpha(::uint32_t value) {
   _internal_set_dctcp_info_alpha(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_alpha)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_alpha() const {
@@ -6110,11 +8225,11 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_alpha(::uint32_t value) {
   _impl_.dctcp_info_alpha_ = value;
 }
 
-// uint32 dctcp_info_ab_ecn = 904 [json_name = "dctcpInfoAbEcn"];
+// uint32 dctcp_info_ab_ecn = 1804 [json_name = "dctcpInfoAbEcn"];
 inline void XtcpFlatRecord::clear_dctcp_info_ab_ecn() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ab_ecn_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_ecn() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_ecn)
@@ -6122,7 +8237,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_ecn() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ab_ecn(::uint32_t value) {
   _internal_set_dctcp_info_ab_ecn(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_ecn)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ab_ecn() const {
@@ -6134,11 +8249,11 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ab_ecn(::uint32_t value) {
   _impl_.dctcp_info_ab_ecn_ = value;
 }
 
-// uint32 dctcp_info_ab_tot = 905 [json_name = "dctcpInfoAbTot"];
+// uint32 dctcp_info_ab_tot = 1805 [json_name = "dctcpInfoAbTot"];
 inline void XtcpFlatRecord::clear_dctcp_info_ab_tot() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ab_tot_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00080000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_tot() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_tot)
@@ -6146,7 +8261,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_tot() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ab_tot(::uint32_t value) {
   _internal_set_dctcp_info_ab_tot(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_tot)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ab_tot() const {
@@ -6158,11 +8273,11 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ab_tot(::uint32_t value) {
   _impl_.dctcp_info_ab_tot_ = value;
 }
 
-// uint32 bbr_info_bw_lo = 1001 [json_name = "bbrInfoBwLo"];
+// uint32 bbr_info_bw_lo = 1901 [json_name = "bbrInfoBwLo"];
 inline void XtcpFlatRecord::clear_bbr_info_bw_lo() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_bw_lo_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00100000U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_bw_lo() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_lo)
@@ -6170,7 +8285,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_bw_lo() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_bw_lo(::uint32_t value) {
   _internal_set_bbr_info_bw_lo(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_lo)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_bw_lo() const {
@@ -6182,11 +8297,11 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_bw_lo(::uint32_t value) {
   _impl_.bbr_info_bw_lo_ = value;
 }
 
-// uint32 bbr_info_bw_hi = 1002 [json_name = "bbrInfoBwHi"];
+// uint32 bbr_info_bw_hi = 1902 [json_name = "bbrInfoBwHi"];
 inline void XtcpFlatRecord::clear_bbr_info_bw_hi() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_bw_hi_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00200000U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_bw_hi() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_hi)
@@ -6194,7 +8309,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_bw_hi() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_bw_hi(::uint32_t value) {
   _internal_set_bbr_info_bw_hi(value);
-  SetHasBit(_impl_._has_bits_[3], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_hi)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_bw_hi() const {
@@ -6206,11 +8321,11 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_bw_hi(::uint32_t value) {
   _impl_.bbr_info_bw_hi_ = value;
 }
 
-// uint32 bbr_info_min_rtt = 1003 [json_name = "bbrInfoMinRtt"];
+// uint32 bbr_info_min_rtt = 1903 [json_name = "bbrInfoMinRtt"];
 inline void XtcpFlatRecord::clear_bbr_info_min_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_min_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00400000U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_min_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_min_rtt)
@@ -6218,7 +8333,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_min_rtt() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_min_rtt(::uint32_t value) {
   _internal_set_bbr_info_min_rtt(value);
-  SetHasBit(_impl_._has_bits_[3], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_min_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_min_rtt() const {
@@ -6230,11 +8345,11 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_min_rtt(::uint32_t value) {
   _impl_.bbr_info_min_rtt_ = value;
 }
 
-// uint32 bbr_info_pacing_gain = 1004 [json_name = "bbrInfoPacingGain"];
+// uint32 bbr_info_pacing_gain = 1904 [json_name = "bbrInfoPacingGain"];
 inline void XtcpFlatRecord::clear_bbr_info_pacing_gain() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_pacing_gain_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00800000U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_pacing_gain() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_pacing_gain)
@@ -6242,7 +8357,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_pacing_gain() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_pacing_gain(::uint32_t value) {
   _internal_set_bbr_info_pacing_gain(value);
-  SetHasBit(_impl_._has_bits_[3], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_pacing_gain)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_pacing_gain() const {
@@ -6254,11 +8369,11 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_pacing_gain(::uint32_t value)
   _impl_.bbr_info_pacing_gain_ = value;
 }
 
-// uint32 bbr_info_cwnd_gain = 1005 [json_name = "bbrInfoCwndGain"];
+// uint32 bbr_info_cwnd_gain = 1905 [json_name = "bbrInfoCwndGain"];
 inline void XtcpFlatRecord::clear_bbr_info_cwnd_gain() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_cwnd_gain_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x01000000U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_cwnd_gain() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_cwnd_gain)
@@ -6266,7 +8381,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_cwnd_gain() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_cwnd_gain(::uint32_t value) {
   _internal_set_bbr_info_cwnd_gain(value);
-  SetHasBit(_impl_._has_bits_[3], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_cwnd_gain)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_cwnd_gain() const {
@@ -6278,11 +8393,11 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_cwnd_gain(::uint32_t value) {
   _impl_.bbr_info_cwnd_gain_ = value;
 }
 
-// uint32 class_id = 1101 [json_name = "classId"];
+// uint32 class_id = 2001 [json_name = "classId"];
 inline void XtcpFlatRecord::clear_class_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.class_id_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x02000000U);
 }
 inline ::uint32_t XtcpFlatRecord::class_id() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.class_id)
@@ -6290,7 +8405,7 @@ inline ::uint32_t XtcpFlatRecord::class_id() const {
 }
 inline void XtcpFlatRecord::set_class_id(::uint32_t value) {
   _internal_set_class_id(value);
-  SetHasBit(_impl_._has_bits_[3], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.class_id)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_class_id() const {
@@ -6302,11 +8417,11 @@ inline void XtcpFlatRecord::_internal_set_class_id(::uint32_t value) {
   _impl_.class_id_ = value;
 }
 
-// uint32 sock_opt = 1102 [json_name = "sockOpt"];
+// uint32 sock_opt = 2002 [json_name = "sockOpt"];
 inline void XtcpFlatRecord::clear_sock_opt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sock_opt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[3], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x04000000U);
 }
 inline ::uint32_t XtcpFlatRecord::sock_opt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sock_opt)
@@ -6314,7 +8429,7 @@ inline ::uint32_t XtcpFlatRecord::sock_opt() const {
 }
 inline void XtcpFlatRecord::set_sock_opt(::uint32_t value) {
   _internal_set_sock_opt(value);
-  SetHasBit(_impl_._has_bits_[3], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sock_opt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sock_opt() const {
@@ -6326,11 +8441,11 @@ inline void XtcpFlatRecord::_internal_set_sock_opt(::uint32_t value) {
   _impl_.sock_opt_ = value;
 }
 
-// uint64 c_group = 1203 [json_name = "cGroup"];
+// uint64 c_group = 2103 [json_name = "cGroup"];
 inline void XtcpFlatRecord::clear_c_group() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.c_group_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[3], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x08000000U);
 }
 inline ::uint64_t XtcpFlatRecord::c_group() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.c_group)
@@ -6338,7 +8453,7 @@ inline ::uint64_t XtcpFlatRecord::c_group() const {
 }
 inline void XtcpFlatRecord::set_c_group(::uint64_t value) {
   _internal_set_c_group(value);
-  SetHasBit(_impl_._has_bits_[3], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[4], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.c_group)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_c_group() const {

@@ -764,6 +764,11 @@ type XtcpConfig struct {
 	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
 	// container id).
 	Hostname string `protobuf:"bytes,182,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Daemon build provenance stamped on every record's `daemon_version` field
+	// (git commit / date / version). Populated by the daemon from -ldflags build
+	// vars, not a user flag; informational only (debugging which binary produced a
+	// row). See XtcpFlatRecord.daemon_version.
+	DaemonVersion string `protobuf:"bytes,186,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
 	// Resolve each socket's owning container id from its cgroup (sets the
 	// record's container_id / container_runtime). Set via -resolveContainerId
 	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
@@ -839,8 +844,33 @@ type XtcpConfig struct {
 	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
 	// mutex-serialized with the background reconciler. Default true.
 	ReconcileBeforePoll bool `protobuf:"varint,228,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Enrich container/netns labels (container_id/name/image/runtime, netns name)
+	// by joining the socket's owning netns inode against the Docker Engine API
+	// index over docker_socket_path. Default false.
+	EnrichContainerEnable bool `protobuf:"varint,230,opt,name=enrich_container_enable,json=enrichContainerEnable,proto3" json:"enrich_container_enable,omitempty"`
+	// Docker Engine API unix socket. Default "/run/docker.sock".
+	DockerSocketPath string `protobuf:"bytes,231,opt,name=docker_socket_path,json=dockerSocketPath,proto3" json:"docker_socket_path,omitempty"`
+	// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
+	// (lldpd_socket_path) once at startup. Default false.
+	EnrichLldpEnable bool `protobuf:"varint,232,opt,name=enrich_lldp_enable,json=enrichLldpEnable,proto3" json:"enrich_lldp_enable,omitempty"`
+	// lldpd control socket. Default "/run/lldpd.socket".
+	LldpdSocketPath string `protobuf:"bytes,233,opt,name=lldpd_socket_path,json=lldpdSocketPath,proto3" json:"lldpd_socket_path,omitempty"`
+	// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
+	// descriptor for the wire parser. Empty = auto-detect. Default "".
+	LldpdVersionHint string `protobuf:"bytes,234,opt,name=lldpd_version_hint,json=lldpdVersionHint,proto3" json:"lldpd_version_hint,omitempty"`
+	// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
+	// the ethtool ioctl once at startup. Default false.
+	EnrichNicEnable bool `protobuf:"varint,235,opt,name=enrich_nic_enable,json=enrichNicEnable,proto3" json:"enrich_nic_enable,omitempty"`
+	// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
+	UplinkCount uint32 `protobuf:"varint,236,opt,name=uplink_count,json=uplinkCount,proto3" json:"uplink_count,omitempty"`
+	// Explicit uplink interface names, slot order. Empty = auto-detect from the
+	// default IPv4/IPv6 routes.
+	UplinkInterfaces []string `protobuf:"bytes,237,rep,name=uplink_interfaces,json=uplinkInterfaces,proto3" json:"uplink_interfaces,omitempty"`
+	// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
+	// Docker/containerd namespaces. Default false.
+	PopulateNsid  bool `protobuf:"varint,238,opt,name=populate_nsid,json=populateNsid,proto3" json:"populate_nsid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -1146,6 +1176,13 @@ func (x *XtcpConfig) GetHostname() string {
 	return ""
 }
 
+func (x *XtcpConfig) GetDaemonVersion() string {
+	if x != nil {
+		return x.DaemonVersion
+	}
+	return ""
+}
+
 func (x *XtcpConfig) GetResolveContainerId() bool {
 	if x != nil {
 		return x.ResolveContainerId
@@ -1265,6 +1302,69 @@ func (x *XtcpConfig) GetReconcileBeforePoll() bool {
 	return false
 }
 
+func (x *XtcpConfig) GetEnrichContainerEnable() bool {
+	if x != nil {
+		return x.EnrichContainerEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetDockerSocketPath() string {
+	if x != nil {
+		return x.DockerSocketPath
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetEnrichLldpEnable() bool {
+	if x != nil {
+		return x.EnrichLldpEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetLldpdSocketPath() string {
+	if x != nil {
+		return x.LldpdSocketPath
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetLldpdVersionHint() string {
+	if x != nil {
+		return x.LldpdVersionHint
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetEnrichNicEnable() bool {
+	if x != nil {
+		return x.EnrichNicEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetUplinkCount() uint32 {
+	if x != nil {
+		return x.UplinkCount
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetUplinkInterfaces() []string {
+	if x != nil {
+		return x.UplinkInterfaces
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetPopulateNsid() bool {
+	if x != nil {
+		return x.PopulateNsid
+	}
+	return false
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -1346,7 +1446,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	" s3_parquet_flush_threshold_bytes\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes:\xa8\x01\xbaH\xa4\x01\x1a\xa1\x01\n" +
 	"\x16SetS3Upload.atLeastOne\x12=set s3_flush_interval and/or s3_parquet_flush_threshold_bytes\x1aHhas(this.s3_flush_interval) || this.s3_parquet_flush_threshold_bytes > 0\"I\n" +
 	"\x13SetS3UploadResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xfc\x19\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xf9\x1d\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -1403,7 +1503,8 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x03tag\x18\xb4\x01 \x01(\tB\n" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12(\n" +
 	"\blocation\x18\xb5\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12(\n" +
-	"\bhostname\x18\xb6\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x129\n" +
+	"\bhostname\x18\xb6\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x123\n" +
+	"\x0edaemon_version\x18\xba\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\rdaemonVersion\x129\n" +
 	"\x14resolve_container_id\x18\xb7\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x12'\n" +
 	"\bipv4_ttl\x18\xb8\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
 	"\x0eipv6_hop_limit\x18\xb9\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12,\n" +
@@ -1426,7 +1527,16 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x16s3_upload_max_attempts\x18\xe1\x01 \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Z\n" +
 	"\x15s3_upload_backoff_cap\x18\xe2\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x12X\n" +
 	"\x13reconcile_frequency\x18\xe3\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x123\n" +
-	"\x15reconcile_before_poll\x18\xe4\x01 \x01(\bR\x13reconcileBeforePoll:s\xbaHp\x1an\n" +
+	"\x15reconcile_before_poll\x18\xe4\x01 \x01(\bR\x13reconcileBeforePoll\x127\n" +
+	"\x17enrich_container_enable\x18\xe6\x01 \x01(\bR\x15enrichContainerEnable\x127\n" +
+	"\x12docker_socket_path\x18\xe7\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x10dockerSocketPath\x12-\n" +
+	"\x12enrich_lldp_enable\x18\xe8\x01 \x01(\bR\x10enrichLldpEnable\x125\n" +
+	"\x11lldpd_socket_path\x18\xe9\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x0flldpdSocketPath\x126\n" +
+	"\x12lldpd_version_hint\x18\xea\x01 \x01(\tB\a\xbaH\x04r\x02\x18\x10R\x10lldpdVersionHint\x12+\n" +
+	"\x11enrich_nic_enable\x18\xeb\x01 \x01(\bR\x0fenrichNicEnable\x12+\n" +
+	"\fuplink_count\x18\xec\x01 \x01(\rB\a\xbaH\x04*\x02\x18\x02R\vuplinkCount\x126\n" +
+	"\x11uplink_interfaces\x18\xed\x01 \x03(\tB\b\xbaH\x05\x92\x01\x02\x10\x02R\x10uplinkInterfaces\x12$\n" +
+	"\rpopulate_nsid\x18\xee\x01 \x01(\bR\fpopulateNsid:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +

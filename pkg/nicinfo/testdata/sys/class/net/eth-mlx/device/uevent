@@ -1,0 +1,3 @@
+DRIVER=mlx5_core
+PCI_ID=15b3:a2dc
+PCI_SLOT_NAME=0000:01:00.0

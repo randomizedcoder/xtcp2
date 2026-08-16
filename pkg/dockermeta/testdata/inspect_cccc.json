@@ -1,0 +1,7 @@
+{
+  "Id": "cccc333333333333333333333333333333333333333333333333333333333333",
+  "Name": "/host-net-tool",
+  "Config": { "Image": "busybox:latest" },
+  "State": { "Pid": 9012, "Running": true },
+  "NetworkSettings": { "SandboxKey": "" }
+}

@@ -41,12 +41,29 @@ message Envelope {
 	repeated XtcpFlatRecord row                     = 10;
 };
 
+// Field-number layout (reorganised 2026-08 while the record had few consumers):
+//   metadata  ...  1-999   (identity + per-uplink network topology)
+//   payload   ... 1000+    (kernel inet_diag subsystems, one hundred-block each)
+// ClickHouse's Protobuf format maps columns by field NAME and Parquet uses its own
+// schema, so the wire-tag renumber does not break ingestion or historical Parquet.
 message XtcpFlatRecord {
+	// ---- metadata: record format provenance (1-2) ----------------------------
+	// Record format epoch. Stamped unconditionally into every record so consumers
+	// can route records to per-version tables and migrate/aggregate across them.
+	// 0 = pre-versioning daemons (this field absent on the wire → proto3 zero
+	// default), which acts as the "legacy" bucket. Bump the daemon-side constant
+	// (XtcpFlatRecordSchemaVersion) whenever the format changes meaningfully.
+	uint32 schema_version                           = 1;
+
+	// Daemon build provenance (git commit / build date / version, from -ldflags).
+	// Informational only — for debugging which binary produced a row; NOT used for
+	// routing (that is schema_version). Empty when built without ldflags.
+	string daemon_version                           = 2;
+
+	// ---- metadata: time (10) -------------------------------------------------
 	int64 timestamp_ns                              = 10;
 
-	// uint64 sec                                      = 11;
-	// uint64 nsec                                     = 12;
-
+	// ---- metadata: host identity (20s) ---------------------------------------
 	string hostname                                 = 20;
 
 	// Deployment grouping / facility this daemon runs in — generic across
@@ -55,164 +72,218 @@ message XtcpFlatRecord {
 	// daemon instance.
 	string location                                 = 21;
 
+	// ---- metadata: network namespace identity (30s) --------------------------
 	// network namespace — best-effort human name (bind-mount name, else a
 	// container-derived name, else "netns:[<inode>]"). Not a stable key; use
 	// netns_inode for identity.
 	string netns                                    = 30;
 
-	// network-namespace inode (from /proc/<pid>/ns/net). The stable identity of
-	// the namespace this socket lives in — unique per live namespace on the host
-	// for the daemon's lifetime, including the host/default namespace (its own
-	// self-inode). 0 only when the inode could not be determined.
-	uint64 netns_inode                              = 33;
+	// network-namespace inode (from /proc/<pid>/ns/net or the netns bind-mount).
+	// The stable identity of the namespace this socket lives in — unique per live
+	// namespace on the host for the daemon's lifetime, including the host/default
+	// namespace (its own self-inode). 0 only when the inode could not be
+	// determined. This is the canonical namespace key (prefer it over nsid).
+	uint64 netns_inode                              = 31;
 
-	// Container that owns the socket, resolved from the per-socket cgroup v2
-	// id (c_group) via the cgroup path (e.g. docker-<id>.scope). Empty when
-	// the socket isn't in a recognised container cgroup or resolution is
-	// disabled/unavailable. See container_runtime for the detected runtime.
-	string container_id                             = 31;
+	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID). Usually
+	// 0/unset for Docker/containerd namespaces unless assigned (e.g. ip netns
+	// set-id). Populated only when -populateNsid is enabled; netns_inode is the
+	// real stable key.
+	uint32 nsid                                     = 32;
 
-	// Container runtime detected while resolving container_id, e.g. "docker",
-	// "containerd", "crio", "kubepods". Empty when container_id is empty.
-	string container_runtime                        = 32;
+	// ---- metadata: container identity (40s) ----------------------------------
+	// Container that owns the socket. Resolved by joining the socket's owning
+	// netns inode against the Docker Engine API index (best-effort, over
+	// /run/docker.sock), falling back to the per-socket cgroup v2 id when the
+	// Docker index misses. Empty for host-namespace sockets or when enrichment
+	// is disabled/unavailable.
+	string container_id                             = 40;
 
-	// network namespace id
-	// TODO xtcp does not currently get the id
-	uint32 nsid                                     = 40;
+	// Container runtime, e.g. "docker", "containerd", "crio". Empty when
+	// container_id is empty.
+	string container_runtime                        = 41;
 
-	// free form string
+	// Container name (Docker Engine API, best-effort). Empty when unknown.
+	string container_name                           = 42;
+
+	// Container image (Docker Engine API, best-effort). Empty when unknown.
+	string container_image                          = 43;
+
+	// ---- metadata: free-form labels (50s) ------------------------------------
 	string label                                    = 50;
+	string tag                                      = 51;
 
-	// free form string
-	string tag                                      = 60;
+	// ---- metadata: record bookkeeping (60s) ----------------------------------
+	uint64 record_counter                           = 60;
+	uint64 socket_fd                                = 61;
+	uint64 netlinker_id                             = 62;
 
-	uint64 record_counter                           = 70;
+	// ---- metadata: host network topology, uplink slot 1 (100s) ---------------
+	// Static per boot; captured once at startup (best-effort). Hosts are
+	// dual-homed, so there are two fixed uplink slots. All values repeat on every
+	// record and dictionary-compress to ~nothing. NIC info: sysfs + ethtool
+	// ioctl. LLDP: lldpd control socket (/run/lldpd.socket).
+	string uplink1_ifname                           = 100;
+	string uplink1_nic_driver                       = 101;
+	string uplink1_nic_model                        = 102;
+	uint32 uplink1_nic_pci_vendor                   = 103; // PCI vendor id, e.g. 0x15b3
+	uint32 uplink1_nic_pci_device                   = 104; // PCI device id
+	string uplink1_nic_bus_info                     = 105; // PCI bus address
+	uint32 uplink1_nic_speed_mbps                   = 106;
+	string uplink1_nic_fw_version                   = 107;
+	string uplink1_lldp_chassis_name                = 120; // switch SysName
+	string uplink1_lldp_chassis_id                  = 121;
+	string uplink1_lldp_mgmt_ip                     = 122;
+	string uplink1_lldp_port_id                     = 123;
+	string uplink1_lldp_port_descr                  = 124;
 
-	uint64 socket_fd                                = 80;
+	// ---- metadata: host network topology, uplink slot 2 (200s) ---------------
+	string uplink2_ifname                           = 200;
+	string uplink2_nic_driver                       = 201;
+	string uplink2_nic_model                        = 202;
+	uint32 uplink2_nic_pci_vendor                   = 203;
+	uint32 uplink2_nic_pci_device                   = 204;
+	string uplink2_nic_bus_info                     = 205;
+	uint32 uplink2_nic_speed_mbps                   = 206;
+	string uplink2_nic_fw_version                   = 207;
+	string uplink2_lldp_chassis_name                = 220;
+	string uplink2_lldp_chassis_id                  = 221;
+	string uplink2_lldp_mgmt_ip                     = 222;
+	string uplink2_lldp_port_id                     = 223;
+	string uplink2_lldp_port_descr                  = 224;
 
-	uint64 netlinker_id                             = 90;
+	// ==== payload: kernel inet_diag subsystems (1000+) ========================
+	// inet_diag_msg inet_diag_msg                  = 1000;
 
-	// inet_diag_msg inet_diag_msg                  = 100;
+	uint32 inet_diag_msg_family                     = 1001; // uint8
+	uint32 inet_diag_msg_state                      = 1002; // uint8
+	uint32 inet_diag_msg_timer                      = 1003; // uint8
+	uint32 inet_diag_msg_retrans                    = 1004; // uint8
 
-	uint32 inet_diag_msg_family                     = 101; // uint8
-	uint32 inet_diag_msg_state                      = 102; // uint8
-	uint32 inet_diag_msg_timer                      = 103; // uint8
-	uint32 inet_diag_msg_retrans                    = 104; // uint8
+	uint32 inet_diag_msg_socket_source_port         = 1005; // __be16
+	uint32 inet_diag_msg_socket_destination_port    = 1006; // __be16
+	bytes inet_diag_msg_socket_source               = 1007;
+	bytes inet_diag_msg_socket_destination          = 1008;
+	uint32 inet_diag_msg_socket_interface           = 1009;
+	uint64 inet_diag_msg_socket_cookie              = 1010; // [2]uint32
+	uint64 inet_diag_msg_socket_dest_asn            = 1011;
+	uint64 inet_diag_msg_socket_next_hop_asn        = 1012;
 
-	uint32 inet_diag_msg_socket_source_port         = 105; // __be16
-	uint32 inet_diag_msg_socket_destination_port    = 106; // __be16
-	bytes inet_diag_msg_socket_source               = 107;
-	bytes inet_diag_msg_socket_destination          = 108;
-	uint32 inet_diag_msg_socket_interface           = 109;
-	uint64 inet_diag_msg_socket_cookie              = 110; // [2]uint32
-	uint64 inet_diag_msg_socket_dest_asn            = 111;
-	uint64 inet_diag_msg_socket_next_hop_asn        = 112;
-
-	uint32 inet_diag_msg_expires                    = 113;
-	uint32 inet_diag_msg_rqueue                     = 114;
-	uint32 inet_diag_msg_wqueue                     = 115;
-	uint32 inet_diag_msg_uid                        = 116;
-	uint32 inet_diag_msg_inode                      = 117;
+	uint32 inet_diag_msg_expires                    = 1013;
+	uint32 inet_diag_msg_rqueue                     = 1014;
+	uint32 inet_diag_msg_wqueue                     = 1015;
+	uint32 inet_diag_msg_uid                        = 1016;
+	uint32 inet_diag_msg_inode                      = 1017;
 
 	// might want to put more here
 	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
-	// mem_info mem_info                            = 200; // INET_DIAG_MEMINFO 1
+	// mem_info mem_info                            = 1100; // INET_DIAG_MEMINFO 1
 
-	uint32 mem_info_rmem                            = 201;
-	uint32 mem_info_wmem                            = 202;
-	uint32 mem_info_fmem                            = 203;
-	uint32 mem_info_tmem                            = 204;
+	// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
+	// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
+	// so these ship as 0 on current records. The same values live in sk_mem_info:
+	//   mem_info_rmem == sk_mem_info_rmem_alloc  (1501)
+	//   mem_info_wmem == sk_mem_info_wmem_queued (1506)
+	//   mem_info_fmem == sk_mem_info_fwd_alloc   (1505)
+	//   mem_info_tmem == sk_mem_info_wmem_alloc  (1503)
+	// Field numbers retained (never reused); enable with `-deserializers all`.
+	// (Not marked `[deprecated = true]` so the still-supported opt-in decode path
+	// and tests don't trip staticcheck SA1019.)
+	uint32 mem_info_rmem                            = 1101;
+	uint32 mem_info_wmem                            = 1102;
+	uint32 mem_info_fmem                            = 1103;
+	uint32 mem_info_tmem                            = 1104;
 
-	//tcp_info tcp_info                             = 300; // INET_DIAG_INFO 2
+	//tcp_info tcp_info                             = 1200; // INET_DIAG_INFO 2
 
-	uint32 tcp_info_state                           = 301; // uint8
-	uint32 tcp_info_ca_state                        = 302; // uint8
-	uint32 tcp_info_retransmits                     = 303; // uint8
-	uint32 tcp_info_probes                          = 304; // uint8
-	uint32 tcp_info_backoff                         = 305; // uint8
-	uint32 tcp_info_options                         = 306; // uint8
+	uint32 tcp_info_state                           = 1201; // uint8
+	uint32 tcp_info_ca_state                        = 1202; // uint8
+	uint32 tcp_info_retransmits                     = 1203; // uint8
+	uint32 tcp_info_probes                          = 1204; // uint8
+	uint32 tcp_info_backoff                         = 1205; // uint8
+	uint32 tcp_info_options                         = 1206; // uint8
 //	__u8	_snd_wscale : 4, _rcv_wscale : 4;
 //	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
-	uint32 tcp_info_send_scale                      = 307; // uint4
-	uint32 tcp_info_rcv_scale                       = 308; // uint4
-	uint32 tcp_info_delivery_rate_app_limited       = 309; // uint8
-	uint32 tcp_info_fast_open_client_failed         = 310; // uint8
+	uint32 tcp_info_send_scale                      = 1207; // uint4
+	uint32 tcp_info_rcv_scale                       = 1208; // uint4
+	uint32 tcp_info_delivery_rate_app_limited       = 1209; // uint8
+	uint32 tcp_info_fast_open_client_failed         = 1210; // uint8
 
-	uint32 tcp_info_rto                             = 315;
-	uint32 tcp_info_ato                             = 316;
-	uint32 tcp_info_snd_mss                         = 317;
-	uint32 tcp_info_rcv_mss                         = 318;
+	uint32 tcp_info_rto                             = 1215;
+	uint32 tcp_info_ato                             = 1216;
+	uint32 tcp_info_snd_mss                         = 1217;
+	uint32 tcp_info_rcv_mss                         = 1218;
 
-	uint32 tcp_info_unacked                         = 319;
-	uint32 tcp_info_sacked                          = 320;
-	uint32 tcp_info_lost                            = 321;
-	uint32 tcp_info_retrans                         = 322;
-	uint32 tcp_info_fackets                         = 323;
+	uint32 tcp_info_unacked                         = 1219;
+	uint32 tcp_info_sacked                          = 1220;
+	uint32 tcp_info_lost                            = 1221;
+	uint32 tcp_info_retrans                         = 1222;
+	uint32 tcp_info_fackets                         = 1223;
 
 	// Times
-	uint32 tcp_info_last_data_sent                  = 324;
-	uint32 tcp_info_last_ack_sent                   = 325;
-	uint32 tcp_info_last_data_recv                  = 326;
-	uint32 tcp_info_last_ack_recv                   = 327;
+	uint32 tcp_info_last_data_sent                  = 1224;
+	uint32 tcp_info_last_ack_sent                   = 1225;
+	uint32 tcp_info_last_data_recv                  = 1226;
+	uint32 tcp_info_last_ack_recv                   = 1227;
 
 	// Metrics
-	uint32 tcp_info_pmtu                            = 328;
-	uint32 tcp_info_rcv_ssthresh                    = 329;
-	uint32 tcp_info_rtt                             = 330;
-	uint32 tcp_info_rtt_var                         = 331;
-	uint32 tcp_info_snd_ssthresh                    = 332;
-	uint32 tcp_info_snd_cwnd                        = 333;
-	uint32 tcp_info_adv_mss                         = 334;
-	uint32 tcp_info_reordering                      = 335;
+	uint32 tcp_info_pmtu                            = 1228;
+	uint32 tcp_info_rcv_ssthresh                    = 1229;
+	uint32 tcp_info_rtt                             = 1230;
+	uint32 tcp_info_rtt_var                         = 1231;
+	uint32 tcp_info_snd_ssthresh                    = 1232;
+	uint32 tcp_info_snd_cwnd                        = 1233;
+	uint32 tcp_info_adv_mss                         = 1234;
+	uint32 tcp_info_reordering                      = 1235;
 
-	uint32 tcp_info_rcv_rtt                         = 336;
-	uint32 tcp_info_rcv_space                       = 337;
+	uint32 tcp_info_rcv_rtt                         = 1236;
+	uint32 tcp_info_rcv_space                       = 1237;
 
-	uint32 tcp_info_total_retrans                   = 338;
+	uint32 tcp_info_total_retrans                   = 1238;
 
-	uint64 tcp_info_pacing_rate                     = 339;
-	uint64 tcp_info_max_pacing_rate                 = 340;
-	uint64 tcp_info_bytes_acked                     = 341; // RFC4898 tcpEStatsAppHCThruOctetsAcked
-	uint64 tcp_info_bytes_received                  = 342; // RFC4898 tcpEStatsAppHCThruOctetsReceived
-	uint32 tcp_info_segs_out                        = 343; // RFC4898 tcpEStatsPerfSegsOut
-	uint32 tcp_info_segs_in                         = 344; // RFC4898 tcpEStatsPerfSegsIn
+	uint64 tcp_info_pacing_rate                     = 1239;
+	uint64 tcp_info_max_pacing_rate                 = 1240;
+	uint64 tcp_info_bytes_acked                     = 1241; // RFC4898 tcpEStatsAppHCThruOctetsAcked
+	uint64 tcp_info_bytes_received                  = 1242; // RFC4898 tcpEStatsAppHCThruOctetsReceived
+	uint32 tcp_info_segs_out                        = 1243; // RFC4898 tcpEStatsPerfSegsOut
+	uint32 tcp_info_segs_in                         = 1244; // RFC4898 tcpEStatsPerfSegsIn
 
-	uint32 tcp_info_not_sent_bytes                  = 345;
-	uint32 tcp_info_min_rtt                         = 346;
-	uint32 tcp_info_data_segs_in                    = 347; // RFC4898 tcpEStatsDataSegsIn
-	uint32 tcp_info_data_segs_out                   = 348; // RFC4898 tcpEStatsDataSegsOut
+	uint32 tcp_info_not_sent_bytes                  = 1245;
+	uint32 tcp_info_min_rtt                         = 1246;
+	uint32 tcp_info_data_segs_in                    = 1247; // RFC4898 tcpEStatsDataSegsIn
+	uint32 tcp_info_data_segs_out                   = 1248; // RFC4898 tcpEStatsDataSegsOut
 
-	uint64 tcp_info_delivery_rate                   = 349;
+	uint64 tcp_info_delivery_rate                   = 1249;
 
-	uint64 tcp_info_busy_time                       = 350; // Time (usec) busy sending data
-	uint64 tcp_info_rwnd_limited                    = 351; // Time (usec) limited by receive window
-	uint64 tcp_info_sndbuf_limited                  = 352; // Time (usec) limited by send buffer
+	uint64 tcp_info_busy_time                       = 1250; // Time (usec) busy sending data
+	uint64 tcp_info_rwnd_limited                    = 1251; // Time (usec) limited by receive window
+	uint64 tcp_info_sndbuf_limited                  = 1252; // Time (usec) limited by send buffer
 
 	//4.15 kernel tcp_info ends here, 5+ below
 
-	uint32 tcp_info_delivered                       = 353;
-	uint32 tcp_info_delivered_ce                    = 354;
+	uint32 tcp_info_delivered                       = 1253;
+	uint32 tcp_info_delivered_ce                    = 1254;
 
 	// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
-	uint64 tcp_info_bytes_sent                      = 355; // RFC4898 tcpEStatsPerfHCDataOctetsOut
-	uint64 tcp_info_bytes_retrans                   = 356; // RFC4898 tcpEStatsPerfOctetsRetrans
-	uint32 tcp_info_dsack_dups                      = 357; // RFC4898 tcpEStatsStackDSACKDups
-	uint32 tcp_info_reord_seen                      = 358; // reordering events seen
+	uint64 tcp_info_bytes_sent                      = 1255; // RFC4898 tcpEStatsPerfHCDataOctetsOut
+	uint64 tcp_info_bytes_retrans                   = 1256; // RFC4898 tcpEStatsPerfOctetsRetrans
+	uint32 tcp_info_dsack_dups                      = 1257; // RFC4898 tcpEStatsStackDSACKDups
+	uint32 tcp_info_reord_seen                      = 1258; // reordering events seen
 
-	uint32 tcp_info_rcv_ooopack                     = 359; // Out-of-order packets received
+	uint32 tcp_info_rcv_ooopack                     = 1259; // Out-of-order packets received
 
-	uint32 tcp_info_snd_wnd                         = 360; // peer's advertised receive window after scaling (bytes)
-	uint32 tcp_info_rcv_wnd                         = 361; // local advertised receive window after scaling (bytes)
-	uint32 tcp_info_rehash                          = 362; // PLB or timeout triggered rehash attempts
-	uint32 tcp_info_total_rto                       = 363; // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
-	uint32 tcp_info_total_rto_recoveries            = 364; // Total number of RTO recoveries, including any unfinished recovery
-	uint32 tcp_info_total_rto_time                  = 365; // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+	uint32 tcp_info_snd_wnd                         = 1260; // peer's advertised receive window after scaling (bytes)
+	uint32 tcp_info_rcv_wnd                         = 1261; // local advertised receive window after scaling (bytes)
+	uint32 tcp_info_rehash                          = 1262; // PLB or timeout triggered rehash attempts
+	uint32 tcp_info_total_rto                       = 1263; // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+	uint32 tcp_info_total_rto_recoveries            = 1264; // Total number of RTO recoveries, including any unfinished recovery
+	uint32 tcp_info_total_rto_time                  = 1265; // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
 
 
 	// Please note it's recommended to use the enum for efficency, but keeping the string
 	// just in case we need to quickly put a different algorithm in without updating the enum.
 	// Obviously it's optional, so it low cost.
-	string congestion_algorithm_string              = 400; // INET_DIAG_CONG 4
+	string congestion_algorithm_string              = 1300; // INET_DIAG_CONG 4
 	enum CongestionAlgorithm {
 		CONGESTION_ALGORITHM_UNSPECIFIED = 0;
 		CONGESTION_ALGORITHM_CUBIC       = 1;
@@ -223,51 +294,51 @@ message XtcpFlatRecord {
 		CONGESTION_ALGORITHM_BBR2        = 6;
 		CONGESTION_ALGORITHM_BBR3        = 7;
 	};
-	CongestionAlgorithm congestion_algorithm_enum   = 401; // INET_DIAG_CONG 4
+	CongestionAlgorithm congestion_algorithm_enum   = 1301; // INET_DIAG_CONG 4
 
-	uint32 type_of_service                          = 501; // INET_DIAG_TOS 5 uint8
-	uint32 traffic_class                            = 502; // INET_DIAG_TCLASS 6 uint8
+	uint32 type_of_service                          = 1401; // INET_DIAG_TOS 5 uint8
+	uint32 traffic_class                            = 1402; // INET_DIAG_TCLASS 6 uint8
 
-	// sk_mem_info sk_mem_info                      = 600; // INET_DIAG_SKMEMINFO 7
+	// sk_mem_info sk_mem_info                      = 1500; // INET_DIAG_SKMEMINFO 7
 
-	uint32 sk_mem_info_rmem_alloc                   = 601;
-	uint32 sk_mem_info_rcv_buf                      = 602;
-	uint32 sk_mem_info_wmem_alloc                   = 603;
-	uint32 sk_mem_info_snd_buf                      = 604;
-	uint32 sk_mem_info_fwd_alloc                    = 605;
-	uint32 sk_mem_info_wmem_queued                  = 606;
-	uint32 sk_mem_info_optmem                       = 607;
-	uint32 sk_mem_info_backlog                      = 608;
-	uint32 sk_mem_info_drops                        = 609;
+	uint32 sk_mem_info_rmem_alloc                   = 1501;
+	uint32 sk_mem_info_rcv_buf                      = 1502;
+	uint32 sk_mem_info_wmem_alloc                   = 1503;
+	uint32 sk_mem_info_snd_buf                      = 1504;
+	uint32 sk_mem_info_fwd_alloc                    = 1505;
+	uint32 sk_mem_info_wmem_queued                  = 1506;
+	uint32 sk_mem_info_optmem                       = 1507;
+	uint32 sk_mem_info_backlog                      = 1508;
+	uint32 sk_mem_info_drops                        = 1509;
 
-	uint32 shutdown_state                           = 700; // UNIX_DIAG_SHUTDOWN 8uint8
+	uint32 shutdown_state                           = 1600; // UNIX_DIAG_SHUTDOWN 8uint8
 
-	// vegas_info vegas_info                        = 800; // INET_DIAG_VEGASINFO
+	// vegas_info vegas_info                        = 1700; // INET_DIAG_VEGASINFO
 
-	uint32 vegas_info_enabled                       = 801;
-	uint32 vegas_info_rtt_cnt                       = 802;
-	uint32 vegas_info_rtt                           = 803;
-	uint32 vegas_info_min_rtt                       = 804;
+	uint32 vegas_info_enabled                       = 1701;
+	uint32 vegas_info_rtt_cnt                       = 1702;
+	uint32 vegas_info_rtt                           = 1703;
+	uint32 vegas_info_min_rtt                       = 1704;
 
-	// dctcp_info dctcp_info                        = 900; // INET_DIAG_DCTCPINFO
+	// dctcp_info dctcp_info                        = 1800; // INET_DIAG_DCTCPINFO
 
-	uint32 dctcp_info_enabled                       = 901;
-	uint32 dctcp_info_ce_state                      = 902;
-	uint32 dctcp_info_alpha                         = 903;
-	uint32 dctcp_info_ab_ecn                        = 904;
-	uint32 dctcp_info_ab_tot                        = 905;
+	uint32 dctcp_info_enabled                       = 1801;
+	uint32 dctcp_info_ce_state                      = 1802;
+	uint32 dctcp_info_alpha                         = 1803;
+	uint32 dctcp_info_ab_ecn                        = 1804;
+	uint32 dctcp_info_ab_tot                        = 1805;
 
-	// bbr_info bbr_info                            = 1000; // INET_DIAG_BBRINFO 16
+	// bbr_info bbr_info                            = 1900; // INET_DIAG_BBRINFO 16
 
-	uint32 bbr_info_bw_lo                           = 1001;
-	uint32 bbr_info_bw_hi                           = 1002;
-	uint32 bbr_info_min_rtt                         = 1003;
-	uint32 bbr_info_pacing_gain                     = 1004;
-	uint32 bbr_info_cwnd_gain                       = 1005;
+	uint32 bbr_info_bw_lo                           = 1901;
+	uint32 bbr_info_bw_hi                           = 1902;
+	uint32 bbr_info_min_rtt                         = 1903;
+	uint32 bbr_info_pacing_gain                     = 1904;
+	uint32 bbr_info_cwnd_gain                       = 1905;
 
-	uint32 class_id                                 = 1101; // INET_DIAG_CLASS_ID 17 uint32
-	uint32 sock_opt                                 = 1102; // INET_DIAG_SOCKOPT
-	uint64 c_group                                  = 1203; // INET_DIAG_BC_CGROUP_COND
+	uint32 class_id                                 = 2001; // INET_DIAG_CLASS_ID 17 uint32
+	uint32 sock_opt                                 = 2002; // INET_DIAG_SOCKOPT
+	uint64 c_group                                  = 2103; // INET_DIAG_BC_CGROUP_COND
 };
 
 service XTCPFlatRecordService {

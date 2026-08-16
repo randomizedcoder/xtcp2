@@ -23,6 +23,7 @@ type Resolver struct {
 	procRoot  string
 	netnsDirs []string
 	byInode   map[uint64]string // bind-mount name index, rebuilt by Refresh
+	pathByIno map[uint64]string // bind-mount path index, rebuilt by Refresh
 }
 
 // NewResolver builds a resolver reading pids under procRoot (typically "/proc")
@@ -34,15 +35,17 @@ func NewResolver(procRoot string, netnsDirs []string) *Resolver {
 		procRoot:  procRoot,
 		netnsDirs: netnsDirs,
 		byInode:   make(map[uint64]string),
+		pathByIno: make(map[uint64]string),
 	}
 }
 
-// Refresh rebuilds the inode→bind-name index by statting every entry under each
-// configured netns dir. Cheap (O(named namespaces)) and reuses the map. Call it
-// once per discovery scan before any Name lookups so freshly-named namespaces
-// are picked up.
+// Refresh rebuilds the inode→bind-name and inode→bind-path indexes by statting
+// every entry under each configured netns dir. Cheap (O(named namespaces)) and
+// reuses the maps. Call it once per discovery scan before any Name / EachBindMount
+// lookups so freshly-named namespaces are picked up.
 func (r *Resolver) Refresh() {
 	clear(r.byInode)
+	clear(r.pathByIno)
 	for _, dir := range r.netnsDirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -52,15 +55,28 @@ func (r *Resolver) Refresh() {
 			if e.IsDir() {
 				continue
 			}
+			path := filepath.Join(dir, e.Name())
 			var st unix.Stat_t
-			if err := unix.Stat(filepath.Join(dir, e.Name()), &st); err != nil {
+			if err := unix.Stat(path, &st); err != nil {
 				continue
 			}
-			// First name wins for a given inode (deterministic across dirs).
+			// First name/path wins for a given inode (deterministic across dirs).
 			if _, ok := r.byInode[st.Ino]; !ok {
 				r.byInode[st.Ino] = e.Name()
+				r.pathByIno[st.Ino] = path
 			}
 		}
+	}
+}
+
+// EachBindMount calls fn once per distinct network-namespace bind mount found by
+// the last Refresh, with the namespace inode and the bind-mount file path. The
+// path can be opened + setns'd into WITHOUT a live pid (no pid=host requirement),
+// which is how xtcp2 discovers container/pod namespaces that /proc-scan (Method B)
+// cannot see. Must be called after Refresh; not safe for concurrent use.
+func (r *Resolver) EachBindMount(fn func(inode uint64, path string)) {
+	for ino, path := range r.pathByIno {
+		fn(ino, path)
 	}
 }
 

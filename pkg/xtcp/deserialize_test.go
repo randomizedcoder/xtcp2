@@ -331,7 +331,7 @@ func TestDeserialize_stampsTimestampNs(t *testing.T) {
 	}
 
 	for i, r := range x.currentEnvelope.Row {
-		gotNs := int64(r.TimestampNs)
+		gotNs := r.TimestampNs
 		if gotNs != wantNs {
 			t.Errorf("row %d TimestampNs = %d, want %d (exact epoch ns incl. sub-second)", i, gotNs, wantNs)
 		}
@@ -341,6 +341,63 @@ func TestDeserialize_stampsTimestampNs(t *testing.T) {
 		if gotDate := time.Unix(0, gotNs).UTC().Format("2006-01-02"); gotDate != wantDate {
 			t.Errorf("row %d derived date = %q, want %q (1970 exposes the seconds-vs-ns bug)", i, gotDate, wantDate)
 		}
+	}
+}
+
+// TestDeserialize_stampsRecordProvenance asserts every emitted record carries the
+// format epoch (schema_version, unconditional so per-version routing is reliable)
+// and the daemon build provenance (daemon_version, from config).
+func TestDeserialize_stampsRecordProvenance(t *testing.T) {
+	x := newTestDeserializeXTCP(t)
+	x.config.EnvelopeFlushThresholdRows = 1_000_000
+	x.config.EnvelopeFlushThresholdBytes = 1 << 30
+	x.currentEnvelope = &xtcp_flat_record.Envelope{}
+
+	const wantDaemonVersion = "xtcp commit:testsha\tversion:test"
+	x.config.DaemonVersion = wantDaemonVersion
+
+	const fixture = "../xtcpnl/testdata/6_6_44/netlink_sock_diag_reply_single_packet2.pcap"
+	bs, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("read %s: %v", fixture, err)
+	}
+	buf := bs[xtcpnl.PcapNetlinkOffsetCst:]
+
+	nsName := "test-ns-name"
+	n, errD := x.Deserialize(context.Background(), DeserializeArgs{
+		ns:             &nsName,
+		fd:             0,
+		NLPacket:       &buf,
+		xtcpRecordPool: &x.xtcpRecordPool,
+		nlhPool:        &x.nlhPool,
+		rtaPool:        &x.rtaPool,
+		pC:             x.pC,
+		pH:             x.pH,
+		id:             0,
+	})
+	if errD != nil {
+		t.Fatalf("Deserialize err: %v (n=%d)", errD, n)
+	}
+	if n == 0 || len(x.currentEnvelope.Row) == 0 {
+		t.Fatalf("no records produced: n=%d rows=%d", n, len(x.currentEnvelope.Row))
+	}
+
+	for i, r := range x.currentEnvelope.Row {
+		if r.SchemaVersion != XtcpFlatRecordSchemaVersion {
+			t.Errorf("row %d SchemaVersion = %d, want %d", i, r.SchemaVersion, XtcpFlatRecordSchemaVersion)
+		}
+		if r.DaemonVersion != wantDaemonVersion {
+			t.Errorf("row %d DaemonVersion = %q, want %q", i, r.DaemonVersion, wantDaemonVersion)
+		}
+	}
+}
+
+// TestSchemaVersionConstant guards against an accidental bump: the current
+// (enrichment-era) format is epoch 1. Bumping this constant is a deliberate act
+// that must be paired with a new _vN table + MV in the ClickHouse initdb.
+func TestSchemaVersionConstant(t *testing.T) {
+	if XtcpFlatRecordSchemaVersion != 1 {
+		t.Errorf("XtcpFlatRecordSchemaVersion = %d, want 1 (bumping requires a matching _vN table + MV)", XtcpFlatRecordSchemaVersion)
 	}
 }
 

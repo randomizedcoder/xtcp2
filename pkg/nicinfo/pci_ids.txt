@@ -1,0 +1,23 @@
+# Embedded PCI id subset for the xtcp2 fleet NICs.
+#
+# Format (one entry per line): <vendorhex>:<devicehex> <model...>
+#   - vendor and device are bare 4-digit hex (no 0x prefix), lowercased.
+#   - everything after the first space is the human model string.
+# Blank lines and lines starting with '#' are ignored.
+#
+# Kept deliberately small: the production container rootfs is read-only, so we
+# embed just the fleet's known ids rather than shipping the full pci.ids DB.
+
+# Mellanox / NVIDIA (vendor 15b3) - ConnectX-6 / 6-Dx / 7 family
+15b3:1021 ConnectX-6
+15b3:101b ConnectX-6 Lx
+15b3:101d ConnectX-6 Dx
+15b3:a2dc ConnectX-7
+
+# Intel (vendor 8086)
+8086:159b E810
+8086:15ff X710
+8086:1521 I350
+
+# Broadcom (vendor 14e4)
+14e4:165f BCM5720

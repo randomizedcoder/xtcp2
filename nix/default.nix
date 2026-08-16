@@ -304,6 +304,10 @@ let
           drv = microvms.lifecycleClickHttp.x86_64.fullTest;
         }
         {
+          label = "clickhouse-pipeline";
+          drv = microvms.lifecycleClickPipe.x86_64.fullTest;
+        }
+        {
           label = "valkey";
           drv = microvms.lifecycleValkey.x86_64.fullTest;
         }
@@ -543,6 +547,7 @@ in
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-clickhouse-http = microvms.lifecycleClickHttp.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-clickhouse-pipeline = microvms.lifecycleClickPipe.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-valkey = microvms.lifecycleValkey.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-tcp-sink = microvms.lifecycleTcpSink.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-udp-sink = microvms.lifecycleUdpSink.x86_64.fullTest;
@@ -603,6 +608,10 @@ in
     microvm-x86_64-lifecycle-clickhouse-http = {
       type = "app";
       program = "${microvms.lifecycleClickHttp.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-clickhouse-http";
+    };
+    microvm-x86_64-lifecycle-clickhouse-pipeline = {
+      type = "app";
+      program = "${microvms.lifecycleClickPipe.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-clickhouse-pipeline";
     };
     microvm-x86_64-lifecycle-valkey = {
       type = "app";

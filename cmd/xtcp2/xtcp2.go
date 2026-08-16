@@ -172,10 +172,27 @@ const (
 	hostnameCst           = ""
 	resolveContainerIdCst = false
 
+	// Best-effort metadata enrichment (all off by default; a failed
+	// socket/sysfs read logs + bumps a counter and leaves the column empty).
+	// Socket-path defaults match the fleet (see the enrichment spec).
+	enrichContainerCst       = false
+	dockerSocketCst          = "/run/docker.sock"
+	enrichLldpCst            = false
+	lldpdSocketCst           = "/run/lldpd.socket"
+	lldpdVersionHintCst      = ""
+	enrichNicCst             = false
+	uplinkCountCst      uint = 2
+	// uplinkInterfacesCst is a comma-separated override for the uplink NIC
+	// selection; empty = auto-detect from the default routes.
+	uplinkInterfacesCst = ""
+	populateNsidCst     = false
+
 	ipv4TtlCst      uint = 0
 	ipv6HopLimitCst uint = 0
 
-	deserializersCst = "all"
+	// "default" enables every deserializer except the off-by-default ones
+	// (meminfo, redundant with sk_mem_info). Use "all" to force everything.
+	deserializersCst = "default"
 
 	grpcPortCst = 8889
 
@@ -256,6 +273,17 @@ type mainFlags struct {
 	location           *string
 	hostname           *string
 	resolveContainerId *bool
+
+	enrichContainer  *bool
+	dockerSocket     *string
+	enrichLldp       *bool
+	lldpdSocket      *string
+	lldpdVersionHint *string
+	enrichNic        *bool
+	uplinkCount      *uint
+	uplinkInterfaces *string
+	populateNsid     *bool
+
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
 	grpcPort           *uint
@@ -349,10 +377,11 @@ func defineFlags() *mainFlags {
 	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
+	defineEnrichmentFlags(f)
 	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
-	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Comma separated list of deserializers,%v", xtcp.GetAllDeserializers()))
+	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Deserializers to enable. 'default'=%v ; 'all'=%v ; ''=none ; or a comma-separated subset", xtcp.GetDefaultDeserializers(), xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
 	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
@@ -380,6 +409,21 @@ func defineFlags() *mainFlags {
 	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
 	f.ioUringCqeBatch = flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
 	return f
+}
+
+// defineEnrichmentFlags registers the best-effort metadata-enrichment flags.
+// Split out of defineFlags to keep that function under the funlen threshold and
+// to group the enrichment knobs together.
+func defineEnrichmentFlags(f *mainFlags) {
+	f.enrichContainer = flag.Bool("enrichContainer", enrichContainerCst, "best-effort: map each socket's netns to its owning container via the Docker Engine API, stamping container_id/runtime/name/image. Needs the docker socket mounted (see -dockerSocket). Non-fatal if unreachable. Falls back to ENRICH_CONTAINER env.")
+	f.dockerSocket = flag.String("dockerSocket", dockerSocketCst, "path to the Docker Engine API unix socket used by -enrichContainer. Falls back to DOCKER_SOCKET env.")
+	f.enrichLldp = flag.Bool("enrichLldp", enrichLldpCst, "best-effort: read LLDP neighbors from lldpd once at startup and stamp each uplink's switch/port (uplink*_lldp_*). Needs the lldpd control socket mounted (see -lldpdSocket). Non-fatal if unreachable. Falls back to ENRICH_LLDP env.")
+	f.lldpdSocket = flag.String("lldpdSocket", lldpdSocketCst, "path to the lldpd control unix socket used by -enrichLldp. Falls back to LLDPD_SOCKET env.")
+	f.lldpdVersionHint = flag.String("lldpdVersionHint", lldpdVersionHintCst, "optional lldpd version hint (e.g. \"1.0.18\") to disambiguate the control-protocol struct layout; empty = auto-detect. Falls back to LLDPD_VERSION_HINT env.")
+	f.enrichNic = flag.Bool("enrichNic", enrichNicCst, "best-effort: read NIC identity (driver/model/pci/speed/firmware) from sysfs+ethtool once at startup and stamp each uplink's nic_* columns. Non-fatal on read failure. Falls back to ENRICH_NIC env.")
+	f.uplinkCount = flag.Uint("uplinkCount", uplinkCountCst, "number of uplink slots to populate for LLDP/NIC enrichment (hosts are typically dual-homed = 2; max 2). Falls back to UPLINK_COUNT env.")
+	f.uplinkInterfaces = flag.String("uplinkInterfaces", uplinkInterfacesCst, "comma-separated explicit uplink interface names (e.g. \"eth0,eth1\") overriding default-route auto-detection for -enrichLldp/-enrichNic. Falls back to UPLINK_INTERFACES env.")
+	f.populateNsid = flag.Bool("populateNsid", populateNsidCst, "best-effort: query each namespace's NETNSA_NSID via rtnetlink into the nsid column (usually 0/unassigned for docker/containerd; netns_inode is the stable key). Falls back to POPULATE_NSID env.")
 }
 
 func printFlags(f *mainFlags) {
@@ -428,6 +472,15 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*promListen:", *f.promListen)
 	fmt.Println("*promPath:", *f.promPath)
 	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
+	fmt.Println("*enrichContainer:", *f.enrichContainer)
+	fmt.Println("*dockerSocket:", *f.dockerSocket)
+	fmt.Println("*enrichLldp:", *f.enrichLldp)
+	fmt.Println("*lldpdSocket:", *f.lldpdSocket)
+	fmt.Println("*lldpdVersionHint:", *f.lldpdVersionHint)
+	fmt.Println("*enrichNic:", *f.enrichNic)
+	fmt.Println("*uplinkCount:", *f.uplinkCount)
+	fmt.Println("*uplinkInterfaces:", *f.uplinkInterfaces)
+	fmt.Println("*populateNsid:", *f.populateNsid)
 	fmt.Println("*d:", *f.d)
 }
 
@@ -481,11 +534,22 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		Tag:                          *f.tag,
 		Location:                     *f.location,
 		Hostname:                     *f.hostname,
-		ResolveContainerId:           *f.resolveContainerId,
-		Ipv4Ttl:                      uint32(*f.ipv4Ttl),
-		Ipv6HopLimit:                 uint32(*f.ipv6HopLimit),
-		GrpcPort:                     uint32(*f.grpcPort),
-		EnabledDeserializers:         des,
+		// DaemonVersion: build provenance (-ldflags) stamped on every record.
+		DaemonVersion:         versionString(),
+		ResolveContainerId:    *f.resolveContainerId,
+		EnrichContainerEnable: *f.enrichContainer,
+		DockerSocketPath:      *f.dockerSocket,
+		EnrichLldpEnable:      *f.enrichLldp,
+		LldpdSocketPath:       *f.lldpdSocket,
+		LldpdVersionHint:      *f.lldpdVersionHint,
+		EnrichNicEnable:       *f.enrichNic,
+		UplinkCount:           uint32(*f.uplinkCount),
+		UplinkInterfaces:      splitCSV(*f.uplinkInterfaces),
+		PopulateNsid:          *f.populateNsid,
+		Ipv4Ttl:               uint32(*f.ipv4Ttl),
+		Ipv6HopLimit:          uint32(*f.ipv6HopLimit),
+		GrpcPort:              uint32(*f.grpcPort),
+		EnabledDeserializers:  des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
@@ -1112,6 +1176,22 @@ func envString(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
+// splitCSV parses a comma-separated flag/env value into a trimmed, non-empty
+// string slice (e.g. "eth0, eth1" -> ["eth0","eth1"]). An empty or all-blank
+// input yields nil so an unset -uplinkInterfaces leaves UplinkInterfaces unset.
+func splitCSV(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // envStringFromFile reads a secret from the file whose path is the value of
 // the `key` env var (the Docker `_FILE` convention, e.g.
 // S3_SECRET_KEY_FILE=/run/secrets/s3). This keeps the secret out of the
@@ -1345,6 +1425,42 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.ResolveContainerId = v
 		logEnv("CONTAINER_ID_RESOLVE", fmt.Sprintf("c.ResolveContainerId:%t", v), debugLevel)
 	}
+	if v, ok := envBool("ENRICH_CONTAINER"); ok {
+		c.EnrichContainerEnable = v
+		logEnv("ENRICH_CONTAINER", fmt.Sprintf("c.EnrichContainerEnable:%t", v), debugLevel)
+	}
+	if v, ok := envString("DOCKER_SOCKET"); ok {
+		c.DockerSocketPath = v
+		logEnv("DOCKER_SOCKET", fmt.Sprintf("c.DockerSocketPath:%s", v), debugLevel)
+	}
+	if v, ok := envBool("ENRICH_LLDP"); ok {
+		c.EnrichLldpEnable = v
+		logEnv("ENRICH_LLDP", fmt.Sprintf("c.EnrichLldpEnable:%t", v), debugLevel)
+	}
+	if v, ok := envString("LLDPD_SOCKET"); ok {
+		c.LldpdSocketPath = v
+		logEnv("LLDPD_SOCKET", fmt.Sprintf("c.LldpdSocketPath:%s", v), debugLevel)
+	}
+	if v, ok := envString("LLDPD_VERSION_HINT"); ok {
+		c.LldpdVersionHint = v
+		logEnv("LLDPD_VERSION_HINT", fmt.Sprintf("c.LldpdVersionHint:%s", v), debugLevel)
+	}
+	if v, ok := envBool("ENRICH_NIC"); ok {
+		c.EnrichNicEnable = v
+		logEnv("ENRICH_NIC", fmt.Sprintf("c.EnrichNicEnable:%t", v), debugLevel)
+	}
+	if v, ok := envUint32("UPLINK_COUNT"); ok {
+		c.UplinkCount = v
+		logEnv("UPLINK_COUNT", fmt.Sprintf("c.UplinkCount:%d", v), debugLevel)
+	}
+	if v, ok := envString("UPLINK_INTERFACES"); ok {
+		c.UplinkInterfaces = splitCSV(v)
+		logEnv("UPLINK_INTERFACES", fmt.Sprintf("c.UplinkInterfaces:%v", c.UplinkInterfaces), debugLevel)
+	}
+	if v, ok := envBool("POPULATE_NSID"); ok {
+		c.PopulateNsid = v
+		logEnv("POPULATE_NSID", fmt.Sprintf("c.PopulateNsid:%t", v), debugLevel)
+	}
 	if v, ok := envUint32("IPV4_TTL"); ok {
 		c.Ipv4Ttl = v
 		logEnv("IPV4_TTL", fmt.Sprintf("c.Ipv4Ttl:%d", v), debugLevel)
@@ -1403,7 +1519,17 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.Tag:", c.Tag)
 	fmt.Println("c.Location:", c.Location)
 	fmt.Println("c.Hostname:", c.Hostname)
+	fmt.Println("c.DaemonVersion:", c.DaemonVersion)
 	fmt.Println("c.ResolveContainerId:", c.ResolveContainerId)
+	fmt.Println("c.EnrichContainerEnable:", c.EnrichContainerEnable)
+	fmt.Println("c.DockerSocketPath:", c.DockerSocketPath)
+	fmt.Println("c.EnrichLldpEnable:", c.EnrichLldpEnable)
+	fmt.Println("c.LldpdSocketPath:", c.LldpdSocketPath)
+	fmt.Println("c.LldpdVersionHint:", c.LldpdVersionHint)
+	fmt.Println("c.EnrichNicEnable:", c.EnrichNicEnable)
+	fmt.Println("c.UplinkCount:", c.UplinkCount)
+	fmt.Println("c.UplinkInterfaces:", c.UplinkInterfaces)
+	fmt.Println("c.PopulateNsid:", c.PopulateNsid)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
 	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
 }
@@ -1420,6 +1546,13 @@ func getDeserializers(str string) *xtcp_config.EnabledDeserializers {
 
 	des := &xtcp_config.EnabledDeserializers{
 		Enabled: make(map[string]bool),
+	}
+
+	if str == "default" {
+		for _, item := range xtcp.GetDefaultDeserializers() {
+			des.Enabled[item] = true
+		}
+		return des
 	}
 
 	if str == "all" {

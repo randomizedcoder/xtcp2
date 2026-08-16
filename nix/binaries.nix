@@ -35,7 +35,11 @@
   giouring,
   commit ? "nix",
   date ? "1970-01-01-00:00",
-  version ? "0.0.0-nix",
+  # Release version stamped into main.version → the record's daemon_version.
+  # Sourced from the repo-root ./VERSION file (hand-bumped semver) so a pure
+  # nix build has a real version without needing git in the sandbox. The fleet
+  # build (runpod/xtcp2) can still override commit/date/version explicitly.
+  version ? lib.fileContents ../VERSION,
 }:
 
 let
@@ -137,6 +141,11 @@ let
     # inode scan). Rides xtcp2AllPackage into the soak/tcp-stress/discovery-bench
     # microvms so its root-only `grid` mode can run against a real kernel.
     "discovery-bench"
+    # idiag-extprobe: verifies against the real kernel that inet_diag_req_v2's
+    # idiag_ext bitmask gates which INET_DIAG_* attributes are returned ("what we
+    # ask for is what we get"). Rides xtcp2AllPackage into the clickhouse-pipeline
+    # microvm, where the self-test runs it as the IDIAG_EXT_PROBE check.
+    "idiag-extprobe"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:

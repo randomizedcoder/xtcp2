@@ -533,6 +533,10 @@
           "type": "string",
           "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."
         },
+        "daemonVersion": {
+          "type": "string",
+          "description": "Daemon build provenance stamped on every record's `daemon_version` field\n(git commit / date / version). Populated by the daemon from -ldflags build\nvars, not a user flag; informational only (debugging which binary produced a\nrow). See XtcpFlatRecord.daemon_version."
+        },
         "resolveContainerId": {
           "type": "boolean",
           "description": "Resolve each socket's owning container id from its cgroup (sets the\nrecord's container_id / container_runtime). Set via -resolveContainerId\nflag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it\nand run --cgroupns=host in a container)."
@@ -608,6 +612,46 @@
         "reconcileBeforePoll": {
           "type": "boolean",
           "description": "Run a namespace reconcile immediately before each poll cycle, so a\nnamespace that appeared since the last cycle is entered and gets a socket\nwithin ~1 poll interval instead of waiting for the background ticker. Ties\ndiscovery cadence to poll cadence; the /proc scan is zero-allocation and\nmutex-serialized with the background reconciler. Default true."
+        },
+        "enrichContainerEnable": {
+          "type": "boolean",
+          "description": "Enrich container/netns labels (container_id/name/image/runtime, netns name)\nby joining the socket's owning netns inode against the Docker Engine API\nindex over docker_socket_path. Default false."
+        },
+        "dockerSocketPath": {
+          "type": "string",
+          "description": "Docker Engine API unix socket. Default \"/run/docker.sock\"."
+        },
+        "enrichLldpEnable": {
+          "type": "boolean",
+          "description": "Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket\n(lldpd_socket_path) once at startup. Default false."
+        },
+        "lldpdSocketPath": {
+          "type": "string",
+          "description": "lldpd control socket. Default \"/run/lldpd.socket\"."
+        },
+        "lldpdVersionHint": {
+          "type": "string",
+          "description": "Optional lldpd version hint (\"1.0.13\"/\"1.0.18\") selecting the struct-layout\ndescriptor for the wire parser. Empty = auto-detect. Default \"\"."
+        },
+        "enrichNicEnable": {
+          "type": "boolean",
+          "description": "Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +\nthe ethtool ioctl once at startup. Default false."
+        },
+        "uplinkCount": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Number of host uplink slots to populate (dual-homed hosts = 2). Default 2."
+        },
+        "uplinkInterfaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Explicit uplink interface names, slot order. Empty = auto-detect from the\ndefault IPv4/IPv6 routes."
+        },
+        "populateNsid": {
+          "type": "boolean",
+          "description": "Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for\nDocker/containerd namespaces. Default false."
         }
       },
       "title": "xtcp configuration"

@@ -1,0 +1,8 @@
+{
+  "Id": "bbbb222222222222222222222222222222222222222222222222222222222222",
+  "Name": "/db",
+  "Config": { "Image": "" },
+  "Image": "postgres:16",
+  "State": { "Pid": 5678, "Running": true },
+  "NetworkSettings": { "SandboxKey": "/var/run/docker/netns/bbbbhash" }
+}

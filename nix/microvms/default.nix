@@ -520,6 +520,46 @@ let
     };
   });
 
+  # clickhouse-pipeline lifecycle test: boots the kafka→ClickHouse VM (redpanda +
+  # clickhouse + dockerd + lldpd + xtcp2 with the metadata enrichers on) and
+  # greps the pipeline + enrichment self-test verdicts. These sentinels are NOT
+  # in baseSentinels, so they must be listed here to surface a FAIL:
+  #   CLICKHOUSE_RECORDS/RECONCILE — rows flow end-to-end + reconcile with Prom.
+  #   SCHEMA_VERSION               — rows route to the per-version table (_v1),
+  #                                  legacy _v0 empty, Merge union + daemon_version.
+  #   ENRICH_NIC/CONTAINER/LLDP    — the enrichers (nic/container/lldp) land in
+  #                                  ClickHouse (or degrade best-effort).
+  #   ENRICH_BESTEFFORT_NEGATIVE   — missing enricher sockets are non-fatal.
+  # Generous timeout: first-boot docker image pulls + ClickHouse init + the
+  # kafka-engine consume lag + the enrichment queries' own retry windows.
+  lifecycleClickPipe = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsClickPipe.${arch};
+      suffix = "-clickhouse-pipeline";
+      # Discard the persistent /var/lib/docker disk (mkVm.nix microvm.volumes
+      # for isAnyClickPipe) between lifecycle runs so ClickHouse re-runs its
+      # initdb schema scripts against the current DDL — otherwise a disk left
+      # over from an earlier boot pins the table to a stale schema and new
+      # columns (e.g. the enrichment uplink_*/container_name fields) never
+      # appear. Path mirrors mkVm.nix's clickhouse-pipeline docker image.
+      resetDockerImg = "/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img";
+      extraSentinels = [
+        "CLICKHOUSE_RECORDS"
+        "CLICKHOUSE_RECONCILE"
+        "SCHEMA_VERSION"
+        "ENRICH_NIC"
+        "ENRICH_CONTAINER"
+        "ENRICH_LLDP"
+        "ENRICH_BESTEFFORT_NEGATIVE"
+        # idiag_ext request/response contract verified against the real kernel:
+        # bit-set ⟺ ext-gated attribute present; default ext=254 yields no MEMINFO.
+        "IDIAG_EXT_PROBE"
+      ];
+      timeoutSec = 1200;
+    };
+  });
+
   lifecycleCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs (arch: {
       fullTest = microvmLib.mkLifecycleFullTest {
@@ -678,6 +718,7 @@ in
     s3ParquetLowfreq
     lifecycle
     lifecycleClickHttp
+    lifecycleClickPipe
     lifecycleS3Parquet
     lifecycleValkey
     lifecycleTcpSink
