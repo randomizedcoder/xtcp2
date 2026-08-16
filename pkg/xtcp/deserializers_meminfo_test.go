@@ -32,12 +32,19 @@ func TestIDiagExtFromEnabled(t *testing.T) {
 	// Per-key: enabling exactly one deserializer sets exactly its bit when the
 	// extension is addressable (enum 1..8), and nothing otherwise.
 	t.Run("per-key", func(t *testing.T) {
+		vegasBit := uint8(1) << uint8(xtcpnl.VegasInfoEnumValueCst-1) // ext 3, bit 2
 		for _, e := range dispatchTable {
 			e := e
 			t.Run(e.key, func(t *testing.T) {
 				var want uint8
 				if e.enum >= 1 && e.enum <= 8 {
 					want = uint8(1) << uint8(e.enum-1)
+				}
+				// Congestion-control coupling: vegas/dctcp/bbr all request via the
+				// single VEGASINFO bit (ext 3). dctcp(9)/bbr(16) are unaddressable
+				// on their own, so enabling them must still set bit 2.
+				if e.key == dsKeyVegas || e.key == dsKeyDctcp || e.key == dsKeyBbr {
+					want |= vegasBit
 				}
 				if got := IDiagExtFromEnabled(enabledFromKeys(e.key)); got != want {
 					t.Errorf("IDiagExtFromEnabled({%s}) = %d, want %d (enum %d)", e.key, got, want, e.enum)
@@ -66,9 +73,17 @@ func TestIDiagExtFromEnabled(t *testing.T) {
 		{name: "skmem", enabled: enabledFromKeys(dsKeySkmem), want: 64},
 		// info=enum2 (bit 1) + tos=enum5 (bit 4) = 2 + 16 = 18.
 		{name: "info+tos", enabled: enabledFromKeys(dsKeyInfo, dsKeyTos), want: 18},
-		// A high-numbered attribute (bbr=enum16) is not addressable, so enabling it
-		// alongside an addressable one contributes no extra bit.
-		{name: "skmem+bbr-unaddressable", enabled: enabledFromKeys(dsKeySkmem, dsKeyBbr), want: 64},
+		// Congestion-control coupling: bbr(enum16) and dctcp(enum9) are unaddressable
+		// on their own, but the kernel gates ALL cc-info on the VEGASINFO bit
+		// (ext 3, bit 2 = 4), so enabling either must set bit 2 — otherwise a
+		// bbr-only config would silently request nothing (the footgun this guards).
+		{name: "bbr-only-sets-vegas-bit", enabled: enabledFromKeys(dsKeyBbr), want: 4},
+		{name: "dctcp-only-sets-vegas-bit", enabled: enabledFromKeys(dsKeyDctcp), want: 4},
+		// skmem(bit 6=64) + bbr → 64 + VEGASINFO bit (4) = 68.
+		{name: "skmem+bbr", enabled: enabledFromKeys(dsKeySkmem, dsKeyBbr), want: 68},
+		// cong (enum4, bit 3=8) is the algorithm NAME string, a separate bit; it must
+		// NOT pull in the VEGASINFO cc-info bit.
+		{name: "cong-only-no-vegas-bit", enabled: enabledFromKeys(dsKeyCong), want: 8},
 		// A key that is not in dispatchTable at all is ignored.
 		{name: "bogus-key-ignored", enabled: enabledFromKeys("not-a-real-key"), want: 0},
 	}
@@ -137,6 +152,9 @@ func TestCreateNetLinkRequest_idiagExtByte(t *testing.T) {
 		{name: "skmem-only", enabled: enabledFromKeys(dsKeySkmem), want: 64},
 		{name: "meminfo+skmem", enabled: enabledFromKeys(dsKeyMemInfo, dsKeySkmem), want: 65},
 		{name: "info-only", enabled: enabledFromKeys(dsKeyInfo), want: 2},
+		// bbr-only must serialize the VEGASINFO bit (4) so the kernel actually
+		// returns BBRINFO — the cc-info coupling, end-to-end on the wire byte.
+		{name: "bbr-only", enabled: enabledFromKeys(dsKeyBbr), want: 4},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

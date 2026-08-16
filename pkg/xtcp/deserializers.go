@@ -104,23 +104,45 @@ func GetDefaultDeserializers() (deserializers []string) {
 // (inet_diag_req_v2.idiag_ext) from the enabled deserializers, so the daemon
 // requests exactly the optional attributes it will actually parse — instead of
 // the historical hardcoded 127. Only extensions 1..8 map to a bit in the uint8
-// idiag_ext (bit N-1); higher-numbered attributes (DCTCP=9, BBR=16, CLASS_ID=17,
-// CGROUP_ID=21, SOCKOPT=22) are returned by the kernel regardless and are not
-// controllable here. A bit is set iff that extension's deserializer is enabled.
+// idiag_ext (bit N-1); higher-numbered attributes cannot be addressed directly.
+// A bit is set iff that extension's deserializer is enabled — plus the
+// congestion-control coupling described below.
+//
+// Congestion-control private state (VEGASINFO=3, DCTCPINFO=9, BBRINFO=16) is all
+// gated by ONE request bit — the VEGASINFO bit (ext 3, bit 2). The kernel calls
+// only the socket's own congestion module's get_info(sk, ext, …) and returns at
+// most one cc-info struct per socket (whichever matches its algorithm, or none
+// for cubic). Each module keys off the VEGASINFO bit: see net/ipv4/tcp_bbr.c
+// (bbr_get_info), net/ipv4/tcp_dctcp.c (dctcp_get_info), net/ipv4/tcp_vegas.c
+// (tcp_vegas_get_info) — and uapi/linux/inet_diag.h documents DCTCPINFO/BBRINFO
+// as "request as INET_DIAG_VEGASINFO". Because dctcp(9)/bbr(16) exceed the 8-bit
+// idiag_ext, the plain enum-bit loop would set no bit for them: enabling `bbr`
+// or `dctcp` (but not `vegas`) would silently return nothing. So we set the
+// VEGASINFO bit whenever ANY of vegas/dctcp/bbr is enabled. (`cong`, ext 4, is
+// the algorithm NAME string and is a separate, independent bit.)
 //
 // Caveat, verified against net/ipv4/inet_diag.c (inet_diag_msg_attrs_fill): the
-// kernel does NOT actually gate INET_DIAG_SHUTDOWN (ext 8) on idiag_ext — it emits
-// it unconditionally — so setting bit 7 (which we do when `shut` is enabled) is a
-// harmless no-op. The genuinely gated, byte-saving bits are MEMINFO(1), INFO(2),
-// VEGASINFO(3), CONG(4), TOS(5), TCLASS(6, IPv6-only) and SKMEMINFO(7). Dropping
-// meminfo (bit 0) is what actually reduces the kernel→userland reply. The real
-// kernel behavior is asserted by tools/idiag-extprobe in the microvm self-test.
+// kernel does NOT gate INET_DIAG_SHUTDOWN (ext 8) on idiag_ext — it emits it
+// unconditionally — so setting bit 7 (which we do when `shut` is enabled) is a
+// harmless no-op. CLASS_ID(17)/CGROUP_ID(21)/SOCKOPT(22) are likewise returned
+// regardless. The genuinely gated, byte-saving bits are MEMINFO(1), INFO(2),
+// VEGASINFO(3, and its cc-info family), CONG(4), TOS(5), TCLASS(6, IPv6-only) and
+// SKMEMINFO(7). Dropping meminfo (bit 0) is what reduces the kernel→userland
+// reply. The real kernel behavior is asserted by tools/idiag-extprobe in the
+// microvm self-test.
 func IDiagExtFromEnabled(enabled map[string]bool) uint8 {
 	var ext uint8
 	for _, e := range dispatchTable {
 		if e.enum >= 1 && e.enum <= 8 && enabled[e.key] {
 			ext |= uint8(1) << uint8(e.enum-1)
 		}
+	}
+	// Congestion-control coupling: any of vegas/dctcp/bbr is requested via the
+	// single VEGASINFO bit (ext 3). dctcp(9)/bbr(16) have no addressable bit of
+	// their own, so without this a bbr-only or dctcp-only config would request
+	// no cc-info at all.
+	if enabled[dsKeyVegas] || enabled[dsKeyDctcp] || enabled[dsKeyBbr] {
+		ext |= uint8(1) << uint8(xtcpnl.VegasInfoEnumValueCst-1)
 	}
 	return ext
 }

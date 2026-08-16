@@ -109,7 +109,7 @@ extension *N* you set **bit (N−1)**. Only extensions 1–8 fit in this octet:
 |---|---|---|---|---|---|
 | 0 (1)   | 1 | `MEMINFO`   | `meminfo` | 4×u32 socket memory (rmem/wmem/fmem/tmem). | Gated. **Off by default** — redundant with `skmem` (see above). |
 | 1 (2)   | 2 | `INFO`      | `info`    | The full `tcp_info` struct (RTT, cwnd, retransmits, delivery rate, …). | Gated; the kernel also requires a non-zero `idiag_info_size`, which holds for TCP. |
-| 2 (4)   | 3 | `VEGASINFO` | `vegas`   | TCP Vegas private state. | Gated **and** only emitted when the socket's congestion module supplies it (Vegas); absent otherwise even when requested. |
+| 2 (4)   | 3 | `VEGASINFO` | `vegas`   | Congestion-control private state — **this single bit requests it for *all* algorithms** (see the cc-info note below). | Gated; the kernel returns the one cc-info struct matching each socket's algorithm (Vegas/DCTCP/BBR), or none for cubic. |
 | 3 (8)   | 4 | `CONG`      | `cong`    | Congestion-control algorithm *name* string. | Gated. |
 | 4 (16)  | 5 | `TOS`       | `tos`     | IPv4 Type-of-Service byte. | Gated. |
 | 5 (32)  | 6 | `TCLASS`    | `tc`      | IPv6 Traffic Class byte. | Gated; **IPv6 sockets only** — never present on IPv4 sockets regardless of the bit. |
@@ -124,10 +124,29 @@ extension *N* you set **bit (N−1)**. Only extensions 1–8 fit in this octet:
 > (`inet_diag_msg_attrs_fill`), where the gated attributes sit under an explicit
 > `if (ext & (1 << (INET_DIAG_X - 1)))` guard and `SHUTDOWN` does not.
 
+> **The `VEGASINFO` bit is the single gate for *all* congestion-control info.**
+> There is no separate request bit per algorithm. The kernel calls only the
+> socket's own congestion module's `get_info(sk, ext, …)` and returns **at most one**
+> cc-info attribute per socket — the one matching that socket's algorithm, or
+> nothing for cubic (which has no `get_info`). Every cc module keys off the same
+> `INET_DIAG_VEGASINFO` bit: `tcp_bbr.c` emits `BBRINFO`, `tcp_dctcp.c` emits
+> `DCTCPINFO`, `tcp_vegas.c` emits `VEGASINFO` — all under `if (ext & (1 <<
+> (INET_DIAG_VEGASINFO - 1)))`. `uapi/linux/inet_diag.h` even annotates
+> `DCTCPINFO`/`BBRINFO` as *"request as INET_DIAG_VEGASINFO"*. Consequently the
+> `bbr` and `dctcp` deserializers (attribute numbers 16 and 9, both **beyond** the
+> 8-bit `idiag_ext`) have **no addressable bit of their own** — so `xtcp2` sets the
+> `VEGASINFO` bit whenever *any* of `vegas`/`dctcp`/`bbr` is enabled
+> (`IDiagExtFromEnabled`). Without that, a `-deserializers bbr` config would ask
+> for nothing and silently return no BBR data — a footgun the old hardcoded `127`
+> masked because it always set bit 2. (`CONG`, ext 4, is the algorithm *name*
+> string and is an independent bit.)
+
 Attributes numbered **above 8** — `DCTCPINFO` (9), `BBRINFO` (16), `CLASS_ID`
-(17), `CGROUP_ID` (21), `SOCKOPT` (22) — have no bit in this one-byte field, so
-they cannot be requested or suppressed here; the kernel returns them
-unconditionally and xtcp2 decodes them if the matching deserializer is enabled.
+(17), `CGROUP_ID` (21), `SOCKOPT` (22) — have no bit of their own in this
+one-byte field. `DCTCPINFO`/`BBRINFO` are requested indirectly via the
+`VEGASINFO` bit (above). `CLASS_ID`/`CGROUP_ID`/`SOCKOPT` are genuinely
+unconditional — the kernel always returns them and xtcp2 decodes them if the
+matching deserializer is enabled.
 
 **Worked example.** The default deserializer set (everything except `meminfo`)
 enables `info, vegas, cong, tos, tc, skmem, shut`, so bits 1–7 are set and bit 0
