@@ -852,41 +852,46 @@ pkgs.writeShellApplication {
 
       # ─── Check 14b: s3parquet event_date + timestamp_ns value correctness ─
       # Proves the derived event_date column shipped end-to-end AND that the
-      # timestamps carry real values, not the seconds-vs-nanoseconds bug that
-      # collapsed every event_date to 1970-01-01:
+      # timestamps are vaguely current — catching the seconds-vs-nanoseconds bug
+      # (which collapsed event_date to 1970-01-01) and any gross clock/epoch error
+      # such as the year being wrong. We take "now" from the host `date` and allow
+      # a generous ±12 h window: this is a sanity band, not a precise-time
+      # assertion, so normal poll/upload/skew latency never trips it while a
+      # seconds-valued (~1.75e9 = 1970) or wrong-year timestamp lands far outside.
       #   - event_date is well-formed YYYY-MM-DD with ≥1 distinct value,
-      #   - no row is dated 1970-01-01 (the seconds-read-as-ns tell),
-      #   - every event_date is recent (≥ current_date-1, TZ slack),
-      #   - timestamp_ns is a true epoch-NANOSECOND magnitude (>= 1e18); a
-      #     seconds-valued column (~1.75e9) fails this.
-      # Comparisons are done inside duckdb and returned as integer counts, so we
-      # never do bash float arithmetic on the timestamp.
+      #   - every event_date falls within [now-12h, now+12h] (by date), and
+      #   - every timestamp_ns falls within [now-12h, now+12h] as epoch ns.
+      # The window bounds are computed once in the shell (UTC) and the comparisons
+      # run inside duckdb returning integer counts, so we never do bash float
+      # arithmetic on the timestamp.
       echo "--- check 14b: s3parquet — event_date + timestamp_ns correct ---"
       check14b=1
       if [ -s /tmp/xtcp2-s3p.parquet ]; then
         pq="read_parquet('/tmp/xtcp2-s3p.parquet')"
+        now_s=$(date -u +%s)
+        win_s=43200  # ±12 h sanity band
+        lo_ns=$(( (now_s - win_s) * 1000000000 ))
+        hi_ns=$(( (now_s + win_s) * 1000000000 ))
+        lo_date=$(date -u -d "@$(( now_s - win_s ))" +%F)
+        hi_date=$(date -u -d "@$(( now_s + win_s ))" +%F)
         edMalformed=$(duckdb -noheader -list \
           -c "SELECT count(*) FROM $pq WHERE event_date NOT SIMILAR TO '[0-9]{4}-[0-9]{2}-[0-9]{2}'" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
         edDistinct=$(duckdb -noheader -list \
           -c "SELECT count(DISTINCT event_date) FROM $pq" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
-        edEpoch=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE event_date = '1970-01-01'" 2>/dev/null \
+        edWindow=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE CAST(event_date AS DATE) < DATE '$lo_date' OR CAST(event_date AS DATE) > DATE '$hi_date'" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
-        edStale=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE CAST(event_date AS DATE) < current_date - INTERVAL 1 DAY" 2>/dev/null \
-          | tail -n1 | tr -d '[:space:]')
-        tsSeconds=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE timestamp_ns < 1000000000000000000" 2>/dev/null \
+        tsWindow=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE timestamp_ns < $lo_ns OR timestamp_ns > $hi_ns" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
         if [ "''${edMalformed:-1}" = "0" ] && [ "''${edDistinct:-0}" -ge 1 ] 2>/dev/null \
-          && [ "''${edEpoch:-1}" = "0" ] && [ "''${edStale:-1}" = "0" ] \
-          && [ "''${tsSeconds:-1}" = "0" ]; then
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0, epoch1970=0, stale=0, secondsMagnitude=0)"
+          && [ "''${edWindow:-1}" = "0" ] && [ "''${tsWindow:-1}" = "0" ]; then
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0, window=[$lo_date..$hi_date]UTC, edOutOfWindow=0, tsOutOfWindow=0)"
           check14b=0
         else
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct, epoch1970=$edEpoch, stale=$edStale, secondsMagnitude=$tsSeconds)"
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct, window=[$lo_date..$hi_date]UTC, edOutOfWindow=$edWindow, tsOutOfWindow=$tsWindow)"
         fi
       else
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
