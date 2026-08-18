@@ -15,31 +15,91 @@
 -- https://altinity.com/blog/2019-7-new-encodings-to-improve-clickhouse
 -- https://altinity.com/blog/clickhouse-for-time-series
 
-DROP TABLE IF EXISTS xtcp.xtcp_flat_records;
+-- Per-version routing. Rows are fanned out by schema_version (see the versioned
+-- MVs in xtcp_xtcp_flat_records_mv.sql) into:
+--   xtcp.xtcp_flat_records_v0  — legacy / pre-versioning rows (schema_version = 0)
+--   xtcp.xtcp_flat_records_v1  — current format (schema_version = 1)
+-- xtcp.xtcp_flat_records is a Merge view over ^xtcp_flat_records_v[0-9]+$ so
+-- existing queries/dashboards that hit xtcp_flat_records transparently span every
+-- version. Adding a future epoch = add a _vN table (CREATE ... AS _v0) + a _vN MV;
+-- the Merge regex picks it up with no edit here. _v1 is created "AS _v0" so the two
+-- physical tables can never drift.
 
-CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
+DROP TABLE IF EXISTS xtcp.xtcp_flat_records;
+DROP TABLE IF EXISTS xtcp.xtcp_flat_records_v0;
+DROP TABLE IF EXISTS xtcp.xtcp_flat_records_v1;
+
+CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_v0
 (
     -- https://clickhouse.com/docs/en/sql-reference/data-types/datetime64
     timestamp_ns                                                DateTime64(9,'UTC') CODEC(DoubleDelta, LZ4),
     -- sec                                                         DateTime64(3,'UTC') CODEC(DoubleDelta, LZ4),
     -- nsec                                                        Int64,
 
+    -- ---- metadata: record format provenance (1-2) --------------------------
+    -- schema_version is the routing epoch (0 = legacy); daemon_version is build
+    -- provenance. Placed right after timestamp_ns to match the Kafka table +
+    -- positional MV expansion.
+    schema_version                                              UInt32 CODEC(LZ4),
+    daemon_version                                              LowCardinality(String),
+
+    -- ---- metadata: host identity (20s) -------------------------------------
     -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
     hostname                                                    LowCardinality(String),
     location                                                    LowCardinality(String),
 
+    -- ---- metadata: network namespace identity (30s) ------------------------
     netns                                                       String CODEC(ZSTD),
     netns_inode                                                 UInt64 CODEC(ZSTD),
-    container_id                                                String CODEC(ZSTD),
-    container_runtime                                           LowCardinality(String),
     nsid                                                        UInt32 CODEC(LZ4),
 
+    -- ---- metadata: container identity (40s) --------------------------------
+    container_id                                                String CODEC(ZSTD),
+    container_runtime                                           LowCardinality(String),
+    container_name                                              LowCardinality(String),
+    container_image                                             LowCardinality(String),
+
+    -- ---- metadata: free-form labels (50s) ----------------------------------
     label                                                       LowCardinality(String),
     tag                                                         LowCardinality(String),
 
+    -- ---- metadata: record bookkeeping (60s) --------------------------------
     record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
     socket_fd                                                   UInt64 CODEC(LZ4),
     netlinker_id                                                UInt64 CODEC(LZ4),
+
+    -- ---- metadata: host network topology, uplink slot 1 (100s) -------------
+    -- Static per boot: NIC via sysfs + ethtool, LLDP neighbor via lldpd. These
+    -- repeat on every record for a given host, so LowCardinality dictionary-
+    -- compresses them to ~nothing.
+    uplink1_ifname                                              LowCardinality(String),
+    uplink1_nic_driver                                          LowCardinality(String),
+    uplink1_nic_model                                           LowCardinality(String),
+    uplink1_nic_pci_vendor                                      UInt32 CODEC(LZ4),
+    uplink1_nic_pci_device                                      UInt32 CODEC(LZ4),
+    uplink1_nic_bus_info                                        LowCardinality(String),
+    uplink1_nic_speed_mbps                                      UInt32 CODEC(LZ4),
+    uplink1_nic_fw_version                                      LowCardinality(String),
+    uplink1_lldp_chassis_name                                   LowCardinality(String),
+    uplink1_lldp_chassis_id                                     LowCardinality(String),
+    uplink1_lldp_mgmt_ip                                        LowCardinality(String),
+    uplink1_lldp_port_id                                        LowCardinality(String),
+    uplink1_lldp_port_descr                                     LowCardinality(String),
+
+    -- ---- metadata: host network topology, uplink slot 2 (200s) -------------
+    uplink2_ifname                                              LowCardinality(String),
+    uplink2_nic_driver                                          LowCardinality(String),
+    uplink2_nic_model                                           LowCardinality(String),
+    uplink2_nic_pci_vendor                                      UInt32 CODEC(LZ4),
+    uplink2_nic_pci_device                                      UInt32 CODEC(LZ4),
+    uplink2_nic_bus_info                                        LowCardinality(String),
+    uplink2_nic_speed_mbps                                      UInt32 CODEC(LZ4),
+    uplink2_nic_fw_version                                      LowCardinality(String),
+    uplink2_lldp_chassis_name                                   LowCardinality(String),
+    uplink2_lldp_chassis_id                                     LowCardinality(String),
+    uplink2_lldp_mgmt_ip                                        LowCardinality(String),
+    uplink2_lldp_port_id                                        LowCardinality(String),
+    uplink2_lldp_port_descr                                     LowCardinality(String),
 
     inet_diag_msg_family                                        UInt32 CODEC(LZ4),
     inet_diag_msg_state                                         UInt32 CODEC(LZ4),
@@ -206,6 +266,17 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
   -- ORDER BY (sec, nsec, hostname, record_counter, netlinker_id, socket_fd)
   TTL toDateTime(timestamp_ns) + INTERVAL 1 MONTH DELETE;
   --TTL toDateTime(sec) + INTERVAL 2 MONTH DELETE;
+
+-- Current-format table: identical structure/engine/ORDER BY/TTL to _v0 (so the two
+-- physical tables can never drift), differing only in which rows the MVs route here.
+CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_v1 AS xtcp.xtcp_flat_records_v0;
+
+-- Cross-version query surface. Read-only Merge over every ^xtcp_flat_records_v[0-9]+$
+-- table (excludes _kafka, _errors, and the _mv views). Backward-compatible: queries
+-- against xtcp_flat_records keep working and now span all versions.
+CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
+  AS xtcp.xtcp_flat_records_v0
+  ENGINE = Merge('xtcp', '^xtcp_flat_records_v[0-9]+$');
 
 -- https://clickhouse.com/docs/integrations/kafka/kafka-table-engine#adding-kafka-metadata
 -- https://clickhouse.com/docs/engines/table-engines/integrations/kafka#virtual-columns

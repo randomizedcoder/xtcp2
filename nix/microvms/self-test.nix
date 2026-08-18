@@ -49,6 +49,27 @@
 #   XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_{PASS,FAIL} (clickhouse-pipeline only)
 #                                              Prom envelopeRows counter vs
 #                                              ClickHouse row count within 15%
+#   XTCP2_SELF_TEST_SCHEMA_VERSION_{PASS,FAIL} (clickhouse-pipeline only)
+#                                              per-version routing: rows land in
+#                                              xtcp_flat_records_v1 (schema_version
+#                                              =1), v0 empty, Merge union matches,
+#                                              daemon_version populated
+#   XTCP2_SELF_TEST_ENRICH_NIC_{PASS,FAIL}     (clickhouse-pipeline only) NIC
+#                                              enrichment: uplink1_nic_driver is
+#                                              populated in xtcp.xtcp_flat_records
+#   XTCP2_SELF_TEST_ENRICH_CONTAINER_{PASS,FAIL} (clickhouse-pipeline only)
+#                                              container enrichment: rows exist
+#                                              with container_id != '' AND
+#                                              netns != 'default' (docker-netns
+#                                              discovery + Docker API labels)
+#   XTCP2_SELF_TEST_ENRICH_LLDP_{PASS,FAIL}    (clickhouse-pipeline only)
+#                                              best-effort LLDP: lldpd socket
+#                                              present + daemon healthy + records
+#                                              flowing (no peer to assert against)
+#   XTCP2_SELF_TEST_ENRICH_BESTEFFORT_NEGATIVE_{PASS,FAIL} (clickhouse-pipeline
+#                                              only) enrichers pointed at missing
+#                                              sockets are non-fatal: a throwaway
+#                                              xtcp2 still starts + still produces
 #   XTCP2_SELF_TEST_S3PARQUET_FILES_{PASS,FAIL}       (s3parquet only)
 #                                              ≥1 .parquet object lands in
 #                                              the MinIO bucket within 90s
@@ -104,6 +125,19 @@
   # Validates the "operator queries parquet from inside ClickHouse"
   # deployment shape side-by-side with the kafka path.
   runClickhouseParquetCheck ? false,
+  # When true (clickhouse-pipeline flavor), adds the metadata-enrichment
+  # end-to-end checks. They assert the best-effort enrichers (pkg/dockermeta,
+  # pkg/nicinfo, pkg/lldp) flow onto the flat records and land in ClickHouse:
+  #   ENRICH_NIC                 uplink1_nic_driver populated (VM's virtio NIC)
+  #   ENRICH_CONTAINER           rows with container_id!='' AND netns!='default'
+  #                              (proves docker-netns discovery + Docker labels)
+  #   ENRICH_LLDP                best-effort contract: lldpd socket present +
+  #                              daemon healthy + records flowing (a lone VM has
+  #                              no LLDP peer, so a neighbor can't be asserted)
+  #   ENRICH_BESTEFFORT_NEGATIVE a throwaway xtcp2 with the enrichers pointed at
+  #                              NONEXISTENT docker/lldpd sockets still starts and
+  #                              still produces records (non-fatal degradation)
+  runEnrichCheck ? false,
   clickhousePassword ? "xtcp",
   # When true (set on the s3parquet flavor), adds Check 13 (≥1 .parquet
   # object lands in the MinIO bucket within 90 s) and Check 14 (duckdb
@@ -150,6 +184,13 @@
   socketSinkFile ? "/tmp/xtcp2-socket-sink.out",
   socketSinkMetricFn ? "destTCP",
   socketSinkMetricVar ? "Writes",
+  # When true (clickhouse-pipeline flavor), runs the idiag-extprobe binary against
+  # the VM's real kernel to prove inet_diag_req_v2.idiag_ext gates which
+  # INET_DIAG_* attributes come back — the integration counterpart to the host
+  # IDiagExtFromEnabled unit tests. In particular it proves the daemon's default
+  # request (idiag_ext=254) yields NO MEMINFO attribute, confirming the dropped
+  # meminfo is not merely un-parsed but never sent by the kernel.
+  runNlProbeCheck ? false,
 }:
 
 pkgs.writeShellApplication {
@@ -811,41 +852,46 @@ pkgs.writeShellApplication {
 
       # ─── Check 14b: s3parquet event_date + timestamp_ns value correctness ─
       # Proves the derived event_date column shipped end-to-end AND that the
-      # timestamps carry real values, not the seconds-vs-nanoseconds bug that
-      # collapsed every event_date to 1970-01-01:
+      # timestamps are vaguely current — catching the seconds-vs-nanoseconds bug
+      # (which collapsed event_date to 1970-01-01) and any gross clock/epoch error
+      # such as the year being wrong. We take "now" from the host `date` and allow
+      # a generous ±12 h window: this is a sanity band, not a precise-time
+      # assertion, so normal poll/upload/skew latency never trips it while a
+      # seconds-valued (~1.75e9 = 1970) or wrong-year timestamp lands far outside.
       #   - event_date is well-formed YYYY-MM-DD with ≥1 distinct value,
-      #   - no row is dated 1970-01-01 (the seconds-read-as-ns tell),
-      #   - every event_date is recent (≥ current_date-1, TZ slack),
-      #   - timestamp_ns is a true epoch-NANOSECOND magnitude (>= 1e18); a
-      #     seconds-valued column (~1.75e9) fails this.
-      # Comparisons are done inside duckdb and returned as integer counts, so we
-      # never do bash float arithmetic on the timestamp.
+      #   - every event_date falls within [now-12h, now+12h] (by date), and
+      #   - every timestamp_ns falls within [now-12h, now+12h] as epoch ns.
+      # The window bounds are computed once in the shell (UTC) and the comparisons
+      # run inside duckdb returning integer counts, so we never do bash float
+      # arithmetic on the timestamp.
       echo "--- check 14b: s3parquet — event_date + timestamp_ns correct ---"
       check14b=1
       if [ -s /tmp/xtcp2-s3p.parquet ]; then
         pq="read_parquet('/tmp/xtcp2-s3p.parquet')"
+        now_s=$(date -u +%s)
+        win_s=43200  # ±12 h sanity band
+        lo_ns=$(( (now_s - win_s) * 1000000000 ))
+        hi_ns=$(( (now_s + win_s) * 1000000000 ))
+        lo_date=$(date -u -d "@$(( now_s - win_s ))" +%F)
+        hi_date=$(date -u -d "@$(( now_s + win_s ))" +%F)
         edMalformed=$(duckdb -noheader -list \
           -c "SELECT count(*) FROM $pq WHERE event_date NOT SIMILAR TO '[0-9]{4}-[0-9]{2}-[0-9]{2}'" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
         edDistinct=$(duckdb -noheader -list \
           -c "SELECT count(DISTINCT event_date) FROM $pq" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
-        edEpoch=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE event_date = '1970-01-01'" 2>/dev/null \
+        edWindow=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE CAST(event_date AS DATE) < DATE '$lo_date' OR CAST(event_date AS DATE) > DATE '$hi_date'" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
-        edStale=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE CAST(event_date AS DATE) < current_date - INTERVAL 1 DAY" 2>/dev/null \
-          | tail -n1 | tr -d '[:space:]')
-        tsSeconds=$(duckdb -noheader -list \
-          -c "SELECT count(*) FROM $pq WHERE timestamp_ns < 1000000000000000000" 2>/dev/null \
+        tsWindow=$(duckdb -noheader -list \
+          -c "SELECT count(*) FROM $pq WHERE timestamp_ns < $lo_ns OR timestamp_ns > $hi_ns" 2>/dev/null \
           | tail -n1 | tr -d '[:space:]')
         if [ "''${edMalformed:-1}" = "0" ] && [ "''${edDistinct:-0}" -ge 1 ] 2>/dev/null \
-          && [ "''${edEpoch:-1}" = "0" ] && [ "''${edStale:-1}" = "0" ] \
-          && [ "''${tsSeconds:-1}" = "0" ]; then
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0, epoch1970=0, stale=0, secondsMagnitude=0)"
+          && [ "''${edWindow:-1}" = "0" ] && [ "''${tsWindow:-1}" = "0" ]; then
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_PASS  (distinct=$edDistinct, malformed=0, window=[$lo_date..$hi_date]UTC, edOutOfWindow=0, tsOutOfWindow=0)"
           check14b=0
         else
-          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct, epoch1970=$edEpoch, stale=$edStale, secondsMagnitude=$tsSeconds)"
+          echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (malformed=$edMalformed, distinct=$edDistinct, window=[$lo_date..$hi_date]UTC, edOutOfWindow=$edWindow, tsOutOfWindow=$tsWindow)"
         fi
       else
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
@@ -1054,25 +1100,28 @@ pkgs.writeShellApplication {
       if [ "$check11" -ne 0 ]; then overall_ok=0; fi
 
       # ─── Check 12: Prom records counter vs ClickHouse rows reconcile ─
-      # xtcp2 bumps xtcp_counts{function=Poller,variable=envelopeRows}
-      # for every row appended to a flushed envelope. ClickHouse's
-      # destination table count should equal that within a small lag
-      # window (kafka consume + MV flush ≈ a few seconds).
-      # Tolerance: ChRows ∈ [0.4 * promRows, promRows + 100]. The
-      # observed steady-state lag is ~40% — xtcp produces every 5s,
-      # ClickHouse's kafka-engine consumer flushes in 5-10s batches,
-      # so at any sampling instant the in-flight gap is ~one batch
-      # plus the network/parse RTT. Anything tighter trips on healthy
-      # runs. The upper band has 100 absolute slack so a slow Prom
-      # scrape can't put chRows over the cap.
+      # xtcp2 bumps xtcp_counts{function=Poller,variable=envelopeRows} by
+      # len(envelope.Row) for every flushed envelope, so promRows is the exact
+      # count of rows the MAIN daemon produced. Every one of those rows must
+      # reach ClickHouse (via kafka + MV), so the invariant is:
+      #   chRows >= 0.4 * promRows   (ClickHouse is not silently dropping the
+      #                               main daemon's rows; 40% floor absorbs the
+      #                               kafka-consume + MV-flush lag at the
+      #                               sampling instant — xtcp produces every 5s,
+      #                               the consumer flushes in 5-10s batches).
+      # There is deliberately NO tight upper bound: this self-test ALSO spawns
+      # auxiliary xtcp2 producers earlier (the POLL_STREAM / LISTEN_STREAM
+      # checks) that feed the SAME kafka→ClickHouse pipeline, so chRows
+      # legitimately EXCEEDS the long-lived daemon's envelopeRows counter. An
+      # upper cap of promRows+100 was structurally unsound here (it can never
+      # hold once a second producer shares the pipeline) and is dropped.
       echo "--- check 12: Prom envelopeRows vs ClickHouse rows reconcile ---"
       check12=1
       promRows=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="envelopeRows"')
       chRows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
         -q "SELECT count() FROM xtcp.xtcp_flat_records" 2>/dev/null | tr -d '\r\n' || echo 0)
       if [ "''${chRows:-0}" -gt 0 ] 2>/dev/null && [ "''${promRows:-0}" -gt 0 ] 2>/dev/null \
-         && [ $((chRows * 100)) -ge $((promRows * 40)) ] \
-         && [ "$chRows" -le $((promRows + 100)) ]; then
+         && [ $((chRows * 100)) -ge $((promRows * 40)) ]; then
         echo "XTCP2_SELF_TEST_CLICKHOUSE_RECONCILE_PASS  (prom=$promRows, ch=$chRows)"
         check12=0
       else
@@ -1110,6 +1159,221 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CLICKHOUSE_PARQUET_FAIL  (rows=$parquetRows)"
       fi
       if [ "$check15" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runEnrichCheck ''
+      # ─── Enrichment checks (clickhouse-pipeline only) ────────────────
+      # The daemon carries -enrichContainer/-enrichNic/-enrichLldp on this
+      # flavor. These assert the best-effort enrichers reach ClickHouse. Run
+      # BEFORE the ctl checks (17-19) which park the poll ticker at 1h — that
+      # would starve the record flow these queries depend on.
+      #
+      # chqe: run a ClickHouse query inside the clickhouse container, trimming
+      # CRLF; prints 0 on any failure so the numeric comparisons never explode.
+      chqe() {
+        docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
+          -q "$1" 2>/dev/null | tr -d '\r\n' || echo 0
+      }
+
+      # ─── ENRICH_NIC: uplink1_nic_driver populated ─────────────────────
+      # The most reliable enrichment check — needs no docker/lldp peer. NIC
+      # identity is read from sysfs+ethtool for the VM's primary uplink (virtio_net
+      # in a microvm), so uplink1_nic_driver should be non-empty on ≥1 row.
+      echo "--- enrich: ENRICH_NIC (uplink1_nic_driver populated) ---"
+      checkENic=1
+      nicRows=0
+      for _ in $(seq 1 30); do
+        nicRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(uplink1_nic_driver) > 0")
+        if [ "''${nicRows:-0}" -gt 0 ] 2>/dev/null; then break; fi
+        sleep 2
+      done
+      if [ "''${nicRows:-0}" -gt 0 ] 2>/dev/null; then
+        drv=$(chqe "SELECT any(uplink1_nic_driver) FROM xtcp.xtcp_flat_records WHERE length(uplink1_nic_driver) > 0")
+        echo "XTCP2_SELF_TEST_ENRICH_NIC_PASS  (rows_with_driver=$nicRows, driver=$drv)"
+        checkENic=0
+      else
+        # Compact diagnostics folded into the sentinel line itself (separate
+        # echoes in this branch were being dropped from the journal). Compute
+        # each fact into a var so a failing sub-command can't blank the line:
+        #   dnics  = physical NICs sysfs exposes (name:driver, [no-device] if none)
+        #   dif    = did ANY row get uplink1_ifname stamped? (uplink detected)
+        #   dnone/dfb/dcol = daemon's uplink-selection counters
+        dnics=""
+        for d in /sys/class/net/*; do
+          nn=$(basename "$d")
+          [ "$nn" = "lo" ] && continue
+          if [ -e "$d/device" ]; then
+            dnics="$dnics $nn:$(readlink "$d/device/driver" 2>/dev/null | xargs -r basename || true)"
+          else
+            dnics="$dnics $nn:[no-device]"
+          fi
+        done
+        dif=$(chqe "SELECT any(uplink1_ifname) FROM xtcp.xtcp_flat_records WHERE length(uplink1_ifname) > 0")
+        dnone=$(metric_value "xtcp_counts" 'variable="uplinks"' 'type="none"')
+        dfb=$(metric_value "xtcp_counts" 'variable="uplinks"' 'type="physical_fallback"')
+        dcol=$(metric_value "xtcp_counts" 'variable="nic"' 'type="collected"')
+        ddaemon=$(journalctl -u xtcp2 --no-pager 2>/dev/null | grep -i 'initUplinkEnrichers' | tail -n 1 | sed 's/.*initUplinkEnrichers/initUplinkEnrichers/')
+        # Decisive ground-truth probes folded into the sentinel:
+        #   dpop   = per-column populated counts on the SAME MergeTree table
+        #            (does container populate while uplink doesn't, on one table?)
+        #   dsamp  = for a row KNOWN to be enriched (container_id set), what are
+        #            its uplink columns? isolates "not stamped" vs "lost in transit"
+        #   dtype  = the actual runtime column type of uplink1_ifname
+        #   dcherr = ClickHouse protobuf/parse errors in the server log
+        dpop=$(chqe "SELECT concat('if=',toString(countIf(length(uplink1_ifname)>0)),' drv=',toString(countIf(length(uplink1_nic_driver)>0)),' spd=',toString(countIf(uplink1_nic_speed_mbps>0)),' cid=',toString(countIf(length(container_id)>0)),' n=',toString(count())) FROM xtcp.xtcp_flat_records")
+        dsamp=$(chqe "SELECT concat('if=[',uplink1_ifname,'] drv=[',uplink1_nic_driver,'] spd=[',toString(uplink1_nic_speed_mbps),']') FROM xtcp.xtcp_flat_records WHERE length(container_id) > 0 LIMIT 1")
+        dtype=$(chqe "SELECT type FROM system.columns WHERE database='xtcp' AND table='xtcp_flat_records' AND name='uplink1_ifname'")
+        dcherr=$(docker logs clickhouse 2>&1 | grep -iE 'protobuf|cannot parse|no_column|uplink' | tail -n 1 | tr -d '\r' | cut -c1-160)
+        echo "XTCP2_SELF_TEST_ENRICH_NIC_FAIL  (no uplink1_nic_driver after 60s; stamped_ifname='$dif' cnt_none=$dnone cnt_fallback=$dfb cnt_collected=$dcol pop=[$dpop] enriched_row=[$dsamp] iftype=[$dtype] cherr=[$dcherr] daemon='$ddaemon' sysfs_nics=[$dnics ])"
+      fi
+      if [ "$checkENic" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── ENRICH_CONTAINER: container_id + non-default netns ───────────
+      # The redpanda + clickhouse containers each run in their OWN docker netns
+      # holding live processes with TCP sockets. Method B's /proc scan discovers
+      # those netns (records carry netns != 'default'), and -enrichContainer maps
+      # each netns → its owning container via the Docker Engine API (stamping
+      # container_id/name/image). PASS requires BOTH signals in ClickHouse:
+      # netns != 'default' (discovery) AND a non-empty container_id (enrichment).
+      echo "--- enrich: ENRICH_CONTAINER (container_id + non-default netns) ---"
+      checkECont=1
+      nsRows=0
+      cidRows=0
+      for _ in $(seq 1 45); do
+        nsRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE netns != 'default' AND length(netns) > 0")
+        cidRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(container_id) > 0")
+        if [ "''${nsRows:-0}" -gt 0 ] 2>/dev/null && [ "''${cidRows:-0}" -gt 0 ] 2>/dev/null; then
+          break
+        fi
+        sleep 3
+      done
+      cnameRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(container_name) > 0")
+      if [ "''${nsRows:-0}" -gt 0 ] 2>/dev/null && [ "''${cidRows:-0}" -gt 0 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_ENRICH_CONTAINER_PASS  (netns!=default rows=$nsRows, container_id rows=$cidRows, container_name rows=$cnameRows)"
+        checkECont=0
+      else
+        echo "XTCP2_SELF_TEST_ENRICH_CONTAINER_FAIL  (netns!=default rows=$nsRows, container_id rows=$cidRows, container_name rows=$cnameRows)"
+        echo "  -- distinct netns seen (diagnostic):"
+        chqe "SELECT groupArray(DISTINCT netns) FROM xtcp.xtcp_flat_records" || true
+      fi
+      if [ "$checkECont" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── SCHEMA_VERSION: per-version routing + provenance ─────────────
+      # The VM daemon is the current binary, so every record carries
+      # schema_version = 1 and routes to xtcp.xtcp_flat_records_v1; the legacy
+      # bucket xtcp.xtcp_flat_records_v0 stays empty. xtcp.xtcp_flat_records is a
+      # Merge view spanning both physical tables. PASS requires:
+      #   * v1 rows > 0 and all of them schema_version = 1
+      #   * v0 rows == 0 (no legacy producer in the VM)
+      #   * the Merge union spans the physical version tables (proven via the
+      #     _table virtual column: every union row comes from _v1, none from _v0)
+      #   * daemon_version populated on every routed row
+      #
+      # Every metric is derived from a SINGLE scan of the Merge surface. Taking
+      # separate counts of _v1 and the union races (the daemon keeps producing,
+      # so a later query sees more rows) — one snapshot is internally consistent.
+      echo "--- schema: SCHEMA_VERSION (per-version routing + daemon_version) ---"
+      checkSV=1
+      v1Rows=0
+      for _ in $(seq 1 30); do
+        v1Rows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records_v1 WHERE schema_version = 1")
+        if [ "''${v1Rows:-0}" -gt 0 ] 2>/dev/null; then break; fi
+        sleep 3
+      done
+      # tab-separated single-row snapshot: v1 v0 bad noDver total fromV1 fromV0
+      svSnap=$(chqe "SELECT countIf(schema_version = 1), countIf(schema_version = 0), countIf(schema_version NOT IN (0, 1)), countIf(length(daemon_version) = 0), count(), countIf(_table = 'xtcp_flat_records_v1'), countIf(_table = 'xtcp_flat_records_v0') FROM xtcp.xtcp_flat_records")
+      read -r svV1 svV0 svBad svNoDver svTotal svFromV1 svFromV0 <<< "$svSnap"
+      if [ "''${svV1:-0}" -gt 0 ] 2>/dev/null \
+        && [ "''${svV0:-1}" -eq 0 ] 2>/dev/null \
+        && [ "''${svBad:-1}" -eq 0 ] 2>/dev/null \
+        && [ "''${svNoDver:-1}" -eq 0 ] 2>/dev/null \
+        && [ "''${svFromV0:-1}" -eq 0 ] 2>/dev/null \
+        && [ "''${svFromV1:-0}" -eq "''${svTotal:-1}" ] 2>/dev/null; then
+        dver=$(chqe "SELECT any(daemon_version) FROM xtcp.xtcp_flat_records_v1 WHERE length(daemon_version) > 0")
+        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_PASS  (v1=$svV1, v0=$svV0, total=$svTotal, from_v1=$svFromV1, daemon_version='$dver')"
+        checkSV=0
+      else
+        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_FAIL  (v1=$svV1, v0=$svV0, bad=$svBad, no_daemon_version=$svNoDver, total=$svTotal, from_v1=$svFromV1, from_v0=$svFromV0)"
+      fi
+      if [ "$checkSV" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── ENRICH_LLDP: best-effort contract (no peer available) ────────
+      # A lone VM has no LLDP neighbor, so we can't assert a populated
+      # uplink*_lldp_* column. Instead assert the best-effort contract that
+      # enabling -enrichLldp did NOT break the daemon: the lldpd control socket
+      # exists, xtcp2 is still active, and records are still flowing to ClickHouse.
+      # If a neighbor DID somehow appear (e.g. a future peer in the test net) we
+      # report it, but it is not required. (To assert a real neighbor you need a
+      # peer advertising LLDP on a shared link — see the task notes.)
+      echo "--- enrich: ENRICH_LLDP (best-effort contract; no peer in a lone VM) ---"
+      checkELldp=1
+      sockOk=0
+      # lldpd's control socket is /run/lldpd.socket (see services.lldpd). -S = is
+      # a socket. Give lldpd a moment to create it.
+      for _ in $(seq 1 15); do
+        if [ -S /run/lldpd.socket ]; then sockOk=1; break; fi
+        sleep 1
+      done
+      lldpNeighbors=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(uplink1_lldp_chassis_name) > 0 OR length(uplink1_lldp_port_id) > 0")
+      liveRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records")
+      if [ "$sockOk" -eq 1 ] && systemctl is-active --quiet xtcp2 && [ "''${liveRows:-0}" -gt 0 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_ENRICH_LLDP_PASS  (lldpd socket present, xtcp2 active, rows=$liveRows, lldp_neighbor_rows=$lldpNeighbors [0 expected without a peer])"
+        checkELldp=0
+      else
+        echo "XTCP2_SELF_TEST_ENRICH_LLDP_FAIL  (sockOk=$sockOk, active=$(systemctl is-active xtcp2 || true), rows=$liveRows)"
+      fi
+      if [ "$checkELldp" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── ENRICH_BESTEFFORT_NEGATIVE: missing sockets are non-fatal ────
+      # Launch a THROWAWAY xtcp2 with the enrichers pointed at NONEXISTENT
+      # docker + lldpd sockets (and -dest null, alt prom/grpc ports so it never
+      # collides with the primary daemon). It must still start (expose /metrics)
+      # AND still be alive after the window — proving the best-effort enrichers
+      # degrade gracefully instead of aborting the daemon.
+      echo "--- enrich: ENRICH_BESTEFFORT_NEGATIVE (missing enricher sockets non-fatal) ---"
+      checkENeg=1
+      if command -v xtcp2 >/dev/null 2>&1; then
+        neg_prom="127.0.0.1:9099"
+        # 40s run window with a 30-iteration (≈30s) startup budget: generous so
+        # a slow cold start under host CPU contention (the VM shares cores with
+        # whatever else is building) can't be mistaken for the non-fatal-abort
+        # bug this check is actually guarding against.
+        timeout 40s xtcp2 -dest null -frequency 2s -timeout 1s \
+          -enrichLldp -lldpdSocket /nonexistent/xtcp2-bogus-lldpd.sock \
+          -lldpdVersionHint 1.0.22 \
+          -enrichContainer -dockerSocket /nonexistent/xtcp2-bogus-docker.sock \
+          -enrichNic \
+          -promListen "$neg_prom" -grpcPort 8899 \
+          >/tmp/xtcp2-enrich-neg.log 2>&1 &
+        neg_pid=$!
+        neg_up=0
+        for _ in $(seq 1 30); do
+          if curl --silent --fail --max-time 2 "http://$neg_prom/metrics" | grep -q '^xtcp_'; then
+            neg_up=1
+            break
+          fi
+          # Bail out early if the throwaway died (that would be the bug).
+          kill -0 "$neg_pid" 2>/dev/null || break
+          sleep 1
+        done
+        # Readiness (diagnostic): a healthy poll loop despite the missing sockets.
+        neg_rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+          "http://$neg_prom/readyz" 2>/dev/null || echo 000)
+        neg_alive=0
+        kill -0 "$neg_pid" 2>/dev/null && neg_alive=1
+        kill "$neg_pid" 2>/dev/null || true
+        wait "$neg_pid" 2>/dev/null || true
+        if [ "$neg_up" -eq 1 ] && [ "$neg_alive" -eq 1 ]; then
+          echo "XTCP2_SELF_TEST_ENRICH_BESTEFFORT_NEGATIVE_PASS  (throwaway xtcp2 came up + stayed alive with bogus enricher sockets; readyz=$neg_rz)"
+          checkENeg=0
+        else
+          echo "XTCP2_SELF_TEST_ENRICH_BESTEFFORT_NEGATIVE_FAIL  (metrics_up=$neg_up, alive=$neg_alive, readyz=$neg_rz)"
+          head -n 15 /tmp/xtcp2-enrich-neg.log 2>/dev/null || true
+        fi
+      else
+        echo "XTCP2_SELF_TEST_ENRICH_BESTEFFORT_NEGATIVE_FAIL  (xtcp2 not on PATH)"
+      fi
+      if [ "$checkENeg" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     # ─── Checks 17-19: xtcp2ctl runtime operator control ─────────────────
@@ -1218,6 +1482,27 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (xtcp2ctl or jq not on PATH)"
       fi
       if [ "$check19" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runNlProbeCheck ''
+      # ─── Check: idiag_ext request/response contract (real kernel) ────────
+      # idiag-extprobe dumps AF_INET/TCP sockets with several idiag_ext values and
+      # asserts the kernel returns exactly the ext-gated attributes requested (and,
+      # for the default idiag_ext=254 the daemon now uses, that MEMINFO is absent).
+      # It exits 0 + prints IDIAG_EXT_PROBE_OK on success. Runs as root (systemd
+      # service user) so the inet_diag dump is unrestricted.
+      if command -v idiag-extprobe >/dev/null 2>&1; then
+        if idiag-extprobe >/tmp/idiag-extprobe.log 2>&1; then
+          echo "XTCP2_SELF_TEST_IDIAG_EXT_PROBE_PASS  ($(grep -c ' OK$' /tmp/idiag-extprobe.log 2>/dev/null || echo '?') cases; default ext=254 returns no MEMINFO)"
+        else
+          echo "XTCP2_SELF_TEST_IDIAG_EXT_PROBE_FAIL  ($(tail -n1 /tmp/idiag-extprobe.log 2>/dev/null))"
+          sed -n '1,20p' /tmp/idiag-extprobe.log 2>/dev/null || true
+          overall_ok=0
+        fi
+      else
+        echo "XTCP2_SELF_TEST_IDIAG_EXT_PROBE_FAIL  (idiag-extprobe not on PATH)"
+        overall_ok=0
+      fi
     ''}
 
     echo "================================================"

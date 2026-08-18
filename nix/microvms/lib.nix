@@ -1484,6 +1484,16 @@ rec {
       # into "$XTCP2_COVERDIR" (env var, defaults to /tmp/xtcp2cov), and
       # logs the file count it extracted. Used by the coverage flavor.
       scrapeCoverage ? false,
+      # Absolute path to a persistent host-backed docker disk image
+      # (microvm.volumes) that must be discarded before this boot so the
+      # guest's ClickHouse re-runs its /docker-entrypoint-initdb.d schema
+      # scripts. ClickHouse runs initdb ONLY when its data dir is empty, so a
+      # reused disk pins the table to whatever schema the FIRST boot created —
+      # any later DDL change (new columns) silently never applies. Lifecycle
+      # tests must be deterministic and start from the current schema, so we
+      # delete the image here; the long-running soak runner keeps its own disk.
+      # null (default) = no reset (flavors without a persistent docker disk).
+      resetDockerImg ? null,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -1509,6 +1519,14 @@ rec {
 
         echo "==> launching microvm (${arch}${suffix}); serial=$SERIAL_PORT virtio-console=$VIRTCON_PORT"
         echo "==> transcript: $LOG"
+        ${lib.optionalString (resetDockerImg != null) ''
+          # Discard any stale persistent docker disk so ClickHouse re-inits its
+          # schema from the current DDL (see resetDockerImg rationale above).
+          if [ -e "${resetDockerImg}" ]; then
+            echo "==> resetting persistent docker disk: ${resetDockerImg}"
+            rm -f "${resetDockerImg}"
+          fi
+        ''}
 
         # Start the VM in the background. qemu's stdout (its own diagnostics)
         # goes to a separate file; the VM's *consoles* are two TCP servers:

@@ -29,22 +29,72 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
     -- sec                                                         DateTime64(3,'UTC') CODEC(DoubleDelta, LZ4),
     -- nsec                                                        Int64,
 
+    -- ---- metadata: record format provenance (1-2) --------------------------
+    -- schema_version is the record format epoch (0 = pre-versioning/legacy). The
+    -- versioned MVs route rows by it. daemon_version is build provenance. Both
+    -- map by field NAME; placed right after timestamp_ns so the positional
+    -- MV SELECT (timestamp_ns, * EXCEPT(timestamp_ns)) lands them consistently in
+    -- every destination table.
+    schema_version                                              UInt32 CODEC(LZ4),
+    daemon_version                                              LowCardinality(String),
+
+    -- ---- metadata: host identity (20s) -------------------------------------
     -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
     hostname                                                    LowCardinality(String),
     location                                                    LowCardinality(String),
 
+    -- ---- metadata: network namespace identity (30s) ------------------------
     netns                                                       String CODEC(ZSTD),
     netns_inode                                                 UInt64 CODEC(ZSTD),
-    container_id                                                String CODEC(ZSTD),
-    container_runtime                                           LowCardinality(String),
     nsid                                                        UInt32 CODEC(LZ4),
 
+    -- ---- metadata: container identity (40s) --------------------------------
+    container_id                                                String CODEC(ZSTD),
+    container_runtime                                           LowCardinality(String),
+    container_name                                              LowCardinality(String),
+    container_image                                             LowCardinality(String),
+
+    -- ---- metadata: free-form labels (50s) ----------------------------------
     label                                                       LowCardinality(String),
     tag                                                         LowCardinality(String),
 
+    -- ---- metadata: record bookkeeping (60s) --------------------------------
     record_counter                                              UInt64 CODEC(DoubleDelta, LZ4),
     socket_fd                                                   UInt64 CODEC(LZ4),
     netlinker_id                                                UInt64 CODEC(LZ4),
+
+    -- ---- metadata: host network topology, uplink slot 1 (100s) -------------
+    -- Static per boot: NIC via sysfs + ethtool, LLDP neighbor via lldpd. These
+    -- repeat on every record for a given host, so LowCardinality dictionary-
+    -- compresses them to ~nothing.
+    uplink1_ifname                                              LowCardinality(String),
+    uplink1_nic_driver                                          LowCardinality(String),
+    uplink1_nic_model                                           LowCardinality(String),
+    uplink1_nic_pci_vendor                                      UInt32 CODEC(LZ4),
+    uplink1_nic_pci_device                                      UInt32 CODEC(LZ4),
+    uplink1_nic_bus_info                                        LowCardinality(String),
+    uplink1_nic_speed_mbps                                      UInt32 CODEC(LZ4),
+    uplink1_nic_fw_version                                      LowCardinality(String),
+    uplink1_lldp_chassis_name                                   LowCardinality(String),
+    uplink1_lldp_chassis_id                                     LowCardinality(String),
+    uplink1_lldp_mgmt_ip                                        LowCardinality(String),
+    uplink1_lldp_port_id                                        LowCardinality(String),
+    uplink1_lldp_port_descr                                     LowCardinality(String),
+
+    -- ---- metadata: host network topology, uplink slot 2 (200s) -------------
+    uplink2_ifname                                              LowCardinality(String),
+    uplink2_nic_driver                                          LowCardinality(String),
+    uplink2_nic_model                                           LowCardinality(String),
+    uplink2_nic_pci_vendor                                      UInt32 CODEC(LZ4),
+    uplink2_nic_pci_device                                      UInt32 CODEC(LZ4),
+    uplink2_nic_bus_info                                        LowCardinality(String),
+    uplink2_nic_speed_mbps                                      UInt32 CODEC(LZ4),
+    uplink2_nic_fw_version                                      LowCardinality(String),
+    uplink2_lldp_chassis_name                                   LowCardinality(String),
+    uplink2_lldp_chassis_id                                     LowCardinality(String),
+    uplink2_lldp_mgmt_ip                                        LowCardinality(String),
+    uplink2_lldp_port_id                                        LowCardinality(String),
+    uplink2_lldp_port_descr                                     LowCardinality(String),
 
     inet_diag_msg_family                                        UInt32 CODEC(LZ4),
     inet_diag_msg_state                                         UInt32 CODEC(LZ4),

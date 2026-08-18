@@ -30,3 +30,6 @@ result-*
 
 # Claude Code session artifacts
 .claude/
+
+# Rust (uds-netlink-proxy) build output
+uds-netlink-proxy/target/

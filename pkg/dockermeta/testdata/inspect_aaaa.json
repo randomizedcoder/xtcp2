@@ -1,0 +1,8 @@
+{
+  "Id": "aaaa111111111111111111111111111111111111111111111111111111111111",
+  "Name": "/web",
+  "Image": "sha256:deadbeef",
+  "Config": { "Image": "nginx:1.27" },
+  "State": { "Pid": 1234, "Running": true },
+  "NetworkSettings": { "SandboxKey": "/var/run/docker/netns/aaaahash" }
+}

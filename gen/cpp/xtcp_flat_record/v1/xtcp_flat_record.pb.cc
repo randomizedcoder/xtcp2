@@ -58,11 +58,11 @@ constexpr XtcpFlatRecord::ParseTableT_ XtcpFlatRecord::InternalGenerateParseTabl
     {
       PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_._has_bits_),
       0, // no _extensions_
-      1203, 248,  // max_field_number, fast_idx_mask
+      2103, 248,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      535297535,  // skipmap
+      535297532,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      126,  // num_field_entries
+      156,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -73,8 +73,14 @@ constexpr XtcpFlatRecord::ParseTableT_ XtcpFlatRecord::InternalGenerateParseTabl
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
       {::_pbi::TcParser::MiniParse, {}},
-      {::_pbi::TcParser::MiniParse, {}},
-      {::_pbi::TcParser::MiniParse, {}},
+      // uint32 schema_version = 1 [json_name = "schemaVersion"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(XtcpFlatRecord, _impl_.schema_version_), 12>(),
+       {8, 12, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.schema_version_)}},
+      // string daemon_version = 2 [json_name = "daemonVersion"];
+      {::_pbi::TcParser::FastUS1,
+       {18, 0, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.daemon_version_)}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
@@ -83,381 +89,473 @@ constexpr XtcpFlatRecord::ParseTableT_ XtcpFlatRecord::InternalGenerateParseTabl
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       // int64 timestamp_ns = 10 [json_name = "timestampNs"];
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(XtcpFlatRecord, _impl_.timestamp_ns_), 8>(),
-       {80, 8, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(XtcpFlatRecord, _impl_.timestamp_ns_), 11>(),
+       {80, 11, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_)}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
-      // string container_runtime = 32 [json_name = "containerRuntime"];
-      {::_pbi::TcParser::FastUS2,
-       {642, 4, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_)}},
-      // uint64 netns_inode = 33 [json_name = "netnsInode"];
-      {::_pbi::TcParser::FastV64S2,
-       {648, 9, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_)}},
+      // uint32 nsid = 32 [json_name = "nsid"];
+      {::_pbi::TcParser::FastV32S2,
+       {640, 13, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.nsid_)}},
+      // uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
+      {::_pbi::TcParser::FastV32S2,
+       {16264, 18, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_interface_)}},
       // string label = 50 [json_name = "label"];
       {::_pbi::TcParser::FastUS2,
-       {914, 5, 0,
+       {914, 8, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.label_)}},
-      // uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
-      {::_pbi::TcParser::FastV32S2,
-       {1944, 16, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_wqueue_)}},
+      // string tag = 51 [json_name = "tag"];
+      {::_pbi::TcParser::FastUS2,
+       {922, 9, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tag_)}},
       // string hostname = 20 [json_name = "hostname"];
       {::_pbi::TcParser::FastUS2,
-       {418, 0, 0,
+       {418, 1, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.hostname_)}},
       // string location = 21 [json_name = "location"];
       {::_pbi::TcParser::FastUS2,
-       {426, 1, 0,
+       {426, 2, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.location_)}},
-      // uint64 record_counter = 70 [json_name = "recordCounter"];
-      {::_pbi::TcParser::FastV64S2,
-       {1200, 10, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.record_counter_)}},
-      // uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
-      {::_pbi::TcParser::FastV32S2,
-       {1720, 12, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_timer_)}},
-      // uint32 nsid = 40 [json_name = "nsid"];
-      {::_pbi::TcParser::FastV32S2,
-       {704, 11, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.nsid_)}},
-      // uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
-      {::_pbi::TcParser::FastV32S2,
-       {1736, 14, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_port_)}},
-      // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
-      {::_pbi::TcParser::FastV64S2,
-       {1488, 13, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netlinker_id_)}},
-      // bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
-      {::_pbi::TcParser::FastBS2,
-       {1754, 7, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_)}},
-      // string tag = 60 [json_name = "tag"];
+      // string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
       {::_pbi::TcParser::FastUS2,
-       {994, 6, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tag_)}},
-      // uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
+       {1714, 10, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_model_)}},
+      // uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
       {::_pbi::TcParser::FastV32S2,
-       {1768, 15, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_interface_)}},
+       {1720, 17, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_pci_vendor_)}},
+      // string container_id = 40 [json_name = "containerId"];
+      {::_pbi::TcParser::FastUS2,
+       {706, 4, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_id_)}},
+      // string container_runtime = 41 [json_name = "containerRuntime"];
+      {::_pbi::TcParser::FastUS2,
+       {714, 5, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_)}},
+      // string container_name = 42 [json_name = "containerName"];
+      {::_pbi::TcParser::FastUS2,
+       {722, 6, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_name_)}},
+      // string container_image = 43 [json_name = "containerImage"];
+      {::_pbi::TcParser::FastUS2,
+       {730, 7, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_image_)}},
+      // uint64 record_counter = 60 [json_name = "recordCounter"];
+      {::_pbi::TcParser::FastV64S2,
+       {992, 15, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.record_counter_)}},
+      // uint64 socket_fd = 61 [json_name = "socketFd"];
+      {::_pbi::TcParser::FastV64S2,
+       {1000, 16, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.socket_fd_)}},
       // string netns = 30 [json_name = "netns"];
       {::_pbi::TcParser::FastUS2,
-       {498, 2, 0,
+       {498, 3, 0,
         PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_)}},
-      // string container_id = 31 [json_name = "containerId"];
-      {::_pbi::TcParser::FastUS2,
-       {506, 3, 0,
-        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_id_)}},
+      // uint64 netns_inode = 31 [json_name = "netnsInode"];
+      {::_pbi::TcParser::FastV64S2,
+       {504, 14, 0,
+        PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_)}},
     }}, {{
-      33, 0, 11,
-      65406, 6,
-      63485, 8,
-      32735, 10,
-      65023, 12,
-      15, 13,
+      40, 0, 12,
+      62448, 8,
+      65423, 14,
+      65535, 17,
+      4095, 17,
+      65520, 21,
       65504, 25,
       65535, 30,
       65535, 30,
       65535, 30,
       65535, 30,
-      61695, 30,
-      301, 0, 7,
-      15360, 34,
-      0, 46,
-      0, 62,
-      0, 78,
-      65534, 94,
-      65535, 95,
-      65511, 95,
-      501, 0, 1,
-      65532, 97,
-      601, 0, 1,
-      65024, 99,
-      700, 0, 1,
-      65534, 108,
-      801, 0, 1,
-      65520, 109,
-      901, 0, 1,
-      65504, 113,
-      1001, 0, 1,
-      65504, 118,
-      1101, 0, 1,
-      65532, 123,
-      1203, 0, 1,
-      65534, 125,
+      65280, 30,
+      65039, 38,
+      1001, 0, 7,
+      0, 43,
+      65534, 59,
+      65535, 60,
+      65535, 60,
+      65535, 60,
+      65535, 60,
+      65295, 60,
+      1201, 0, 7,
+      15360, 64,
+      0, 76,
+      0, 92,
+      0, 108,
+      65534, 124,
+      65535, 125,
+      65511, 125,
+      1401, 0, 1,
+      65532, 127,
+      1501, 0, 1,
+      65024, 129,
+      1600, 0, 1,
+      65534, 138,
+      1701, 0, 1,
+      65520, 139,
+      1801, 0, 1,
+      65504, 143,
+      1901, 0, 1,
+      65504, 148,
+      2001, 0, 1,
+      65532, 153,
+      2103, 0, 1,
+      65534, 155,
       65535, 65535
     }}, {{
+      // uint32 schema_version = 1 [json_name = "schemaVersion"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.schema_version_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string daemon_version = 2 [json_name = "daemonVersion"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.daemon_version_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // int64 timestamp_ns = 10 [json_name = "timestampNs"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
       // string hostname = 20 [json_name = "hostname"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.hostname_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.hostname_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string location = 21 [json_name = "location"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.location_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.location_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string netns = 30 [json_name = "netns"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // string container_id = 31 [json_name = "containerId"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_id_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // string container_runtime = 32 [json_name = "containerRuntime"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // uint64 netns_inode = 33 [json_name = "netnsInode"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 nsid = 40 [json_name = "nsid"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.nsid_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint64 netns_inode = 31 [json_name = "netnsInode"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netns_inode_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint32 nsid = 32 [json_name = "nsid"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.nsid_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string container_id = 40 [json_name = "containerId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_id_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string container_runtime = 41 [json_name = "containerRuntime"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_runtime_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string container_name = 42 [json_name = "containerName"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_name_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string container_image = 43 [json_name = "containerImage"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.container_image_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string label = 50 [json_name = "label"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.label_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // string tag = 60 [json_name = "tag"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tag_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // uint64 record_counter = 70 [json_name = "recordCounter"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.record_counter_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 socket_fd = 80 [json_name = "socketFd"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.socket_fd_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netlinker_id_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 inet_diag_msg_family = 101 [json_name = "inetDiagMsgFamily"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_family_), _Internal::kHasBitsOffset + 20, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_state_), _Internal::kHasBitsOffset + 21, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_timer_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_retrans = 104 [json_name = "inetDiagMsgRetrans"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_retrans_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_port_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_socket_destination_port = 106 [json_name = "inetDiagMsgSocketDestinationPort"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_destination_port_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
-      // bytes inet_diag_msg_socket_destination = 108 [json_name = "inetDiagMsgSocketDestination"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_destination_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
-      // uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_interface_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint64 inet_diag_msg_socket_cookie = 110 [json_name = "inetDiagMsgSocketCookie"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_cookie_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 inet_diag_msg_socket_dest_asn = 111 [json_name = "inetDiagMsgSocketDestAsn"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_dest_asn_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 inet_diag_msg_socket_next_hop_asn = 112 [json_name = "inetDiagMsgSocketNextHopAsn"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_next_hop_asn_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_expires_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_rqueue = 114 [json_name = "inetDiagMsgRqueue"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_rqueue_), _Internal::kHasBitsOffset + 28, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_wqueue_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_uid = 116 [json_name = "inetDiagMsgUid"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_uid_), _Internal::kHasBitsOffset + 29, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 inet_diag_msg_inode = 117 [json_name = "inetDiagMsgInode"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_inode_), _Internal::kHasBitsOffset + 30, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 mem_info_rmem = 201 [json_name = "memInfoRmem"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_rmem_), _Internal::kHasBitsOffset + 31, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 mem_info_wmem = 202 [json_name = "memInfoWmem"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_wmem_), _Internal::kHasBitsOffset + 32, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 mem_info_fmem = 203 [json_name = "memInfoFmem"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_fmem_), _Internal::kHasBitsOffset + 33, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 mem_info_tmem = 204 [json_name = "memInfoTmem"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_tmem_), _Internal::kHasBitsOffset + 34, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_state = 301 [json_name = "tcpInfoState"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_state_), _Internal::kHasBitsOffset + 35, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_ca_state = 302 [json_name = "tcpInfoCaState"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_ca_state_), _Internal::kHasBitsOffset + 36, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_retransmits = 303 [json_name = "tcpInfoRetransmits"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_retransmits_), _Internal::kHasBitsOffset + 37, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_probes = 304 [json_name = "tcpInfoProbes"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_probes_), _Internal::kHasBitsOffset + 38, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_backoff = 305 [json_name = "tcpInfoBackoff"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_backoff_), _Internal::kHasBitsOffset + 39, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_options = 306 [json_name = "tcpInfoOptions"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_options_), _Internal::kHasBitsOffset + 40, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_send_scale = 307 [json_name = "tcpInfoSendScale"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_send_scale_), _Internal::kHasBitsOffset + 41, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_scale = 308 [json_name = "tcpInfoRcvScale"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_scale_), _Internal::kHasBitsOffset + 42, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_delivery_rate_app_limited = 309 [json_name = "tcpInfoDeliveryRateAppLimited"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivery_rate_app_limited_), _Internal::kHasBitsOffset + 43, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_fast_open_client_failed = 310 [json_name = "tcpInfoFastOpenClientFailed"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_fast_open_client_failed_), _Internal::kHasBitsOffset + 44, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rto = 315 [json_name = "tcpInfoRto"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rto_), _Internal::kHasBitsOffset + 45, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_ato = 316 [json_name = "tcpInfoAto"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_ato_), _Internal::kHasBitsOffset + 46, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_snd_mss = 317 [json_name = "tcpInfoSndMss"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_mss_), _Internal::kHasBitsOffset + 47, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_mss = 318 [json_name = "tcpInfoRcvMss"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_mss_), _Internal::kHasBitsOffset + 48, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_unacked = 319 [json_name = "tcpInfoUnacked"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_unacked_), _Internal::kHasBitsOffset + 49, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_sacked = 320 [json_name = "tcpInfoSacked"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_sacked_), _Internal::kHasBitsOffset + 50, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_lost = 321 [json_name = "tcpInfoLost"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_lost_), _Internal::kHasBitsOffset + 51, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_retrans = 322 [json_name = "tcpInfoRetrans"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_retrans_), _Internal::kHasBitsOffset + 52, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_fackets = 323 [json_name = "tcpInfoFackets"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_fackets_), _Internal::kHasBitsOffset + 53, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_last_data_sent = 324 [json_name = "tcpInfoLastDataSent"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_data_sent_), _Internal::kHasBitsOffset + 54, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_last_ack_sent = 325 [json_name = "tcpInfoLastAckSent"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_ack_sent_), _Internal::kHasBitsOffset + 55, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_last_data_recv = 326 [json_name = "tcpInfoLastDataRecv"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_data_recv_), _Internal::kHasBitsOffset + 56, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_last_ack_recv = 327 [json_name = "tcpInfoLastAckRecv"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_ack_recv_), _Internal::kHasBitsOffset + 57, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_pmtu = 328 [json_name = "tcpInfoPmtu"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_pmtu_), _Internal::kHasBitsOffset + 58, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_ssthresh = 329 [json_name = "tcpInfoRcvSsthresh"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_ssthresh_), _Internal::kHasBitsOffset + 59, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rtt = 330 [json_name = "tcpInfoRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rtt_), _Internal::kHasBitsOffset + 60, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rtt_var = 331 [json_name = "tcpInfoRttVar"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rtt_var_), _Internal::kHasBitsOffset + 61, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_snd_ssthresh = 332 [json_name = "tcpInfoSndSsthresh"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_ssthresh_), _Internal::kHasBitsOffset + 62, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_snd_cwnd = 333 [json_name = "tcpInfoSndCwnd"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_cwnd_), _Internal::kHasBitsOffset + 63, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_adv_mss = 334 [json_name = "tcpInfoAdvMss"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_adv_mss_), _Internal::kHasBitsOffset + 64, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_reordering = 335 [json_name = "tcpInfoReordering"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_reordering_), _Internal::kHasBitsOffset + 65, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_rtt = 336 [json_name = "tcpInfoRcvRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_rtt_), _Internal::kHasBitsOffset + 66, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_space = 337 [json_name = "tcpInfoRcvSpace"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_space_), _Internal::kHasBitsOffset + 67, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_total_retrans = 338 [json_name = "tcpInfoTotalRetrans"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_retrans_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint64 tcp_info_pacing_rate = 339 [json_name = "tcpInfoPacingRate"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_pacing_rate_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_max_pacing_rate = 340 [json_name = "tcpInfoMaxPacingRate"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_max_pacing_rate_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_bytes_acked = 341 [json_name = "tcpInfoBytesAcked"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_acked_), _Internal::kHasBitsOffset + 71, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_bytes_received = 342 [json_name = "tcpInfoBytesReceived"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_received_), _Internal::kHasBitsOffset + 72, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 tcp_info_segs_out = 343 [json_name = "tcpInfoSegsOut"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_segs_out_), _Internal::kHasBitsOffset + 73, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_segs_in = 344 [json_name = "tcpInfoSegsIn"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_segs_in_), _Internal::kHasBitsOffset + 74, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_not_sent_bytes = 345 [json_name = "tcpInfoNotSentBytes"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_not_sent_bytes_), _Internal::kHasBitsOffset + 75, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_min_rtt = 346 [json_name = "tcpInfoMinRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_min_rtt_), _Internal::kHasBitsOffset + 76, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_data_segs_in = 347 [json_name = "tcpInfoDataSegsIn"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_data_segs_in_), _Internal::kHasBitsOffset + 77, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_data_segs_out = 348 [json_name = "tcpInfoDataSegsOut"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_data_segs_out_), _Internal::kHasBitsOffset + 78, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint64 tcp_info_delivery_rate = 349 [json_name = "tcpInfoDeliveryRate"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivery_rate_), _Internal::kHasBitsOffset + 79, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_busy_time = 350 [json_name = "tcpInfoBusyTime"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_busy_time_), _Internal::kHasBitsOffset + 80, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_rwnd_limited = 351 [json_name = "tcpInfoRwndLimited"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rwnd_limited_), _Internal::kHasBitsOffset + 81, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_sndbuf_limited = 352 [json_name = "tcpInfoSndbufLimited"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_sndbuf_limited_), _Internal::kHasBitsOffset + 82, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 tcp_info_delivered = 353 [json_name = "tcpInfoDelivered"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivered_), _Internal::kHasBitsOffset + 83, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_delivered_ce = 354 [json_name = "tcpInfoDeliveredCe"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivered_ce_), _Internal::kHasBitsOffset + 84, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint64 tcp_info_bytes_sent = 355 [json_name = "tcpInfoBytesSent"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_sent_), _Internal::kHasBitsOffset + 85, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint64 tcp_info_bytes_retrans = 356 [json_name = "tcpInfoBytesRetrans"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_retrans_), _Internal::kHasBitsOffset + 86, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-      // uint32 tcp_info_dsack_dups = 357 [json_name = "tcpInfoDsackDups"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_dsack_dups_), _Internal::kHasBitsOffset + 87, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_reord_seen = 358 [json_name = "tcpInfoReordSeen"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_reord_seen_), _Internal::kHasBitsOffset + 88, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_ooopack = 359 [json_name = "tcpInfoRcvOoopack"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_ooopack_), _Internal::kHasBitsOffset + 89, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_snd_wnd = 360 [json_name = "tcpInfoSndWnd"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_wnd_), _Internal::kHasBitsOffset + 90, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rcv_wnd = 361 [json_name = "tcpInfoRcvWnd"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_wnd_), _Internal::kHasBitsOffset + 91, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_rehash = 362 [json_name = "tcpInfoRehash"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rehash_), _Internal::kHasBitsOffset + 92, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_total_rto = 363 [json_name = "tcpInfoTotalRto"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_), _Internal::kHasBitsOffset + 93, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_total_rto_recoveries = 364 [json_name = "tcpInfoTotalRtoRecoveries"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_recoveries_), _Internal::kHasBitsOffset + 94, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 tcp_info_total_rto_time = 365 [json_name = "tcpInfoTotalRtoTime"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_time_), _Internal::kHasBitsOffset + 95, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // string congestion_algorithm_string = 400 [json_name = "congestionAlgorithmString"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.congestion_algorithm_string_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-      // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 401 [json_name = "congestionAlgorithmEnum"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.congestion_algorithm_enum_), _Internal::kHasBitsOffset + 96, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
-      // uint32 type_of_service = 501 [json_name = "typeOfService"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.type_of_service_), _Internal::kHasBitsOffset + 97, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 traffic_class = 502 [json_name = "trafficClass"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.traffic_class_), _Internal::kHasBitsOffset + 98, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_rmem_alloc = 601 [json_name = "skMemInfoRmemAlloc"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_rmem_alloc_), _Internal::kHasBitsOffset + 99, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_rcv_buf = 602 [json_name = "skMemInfoRcvBuf"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_rcv_buf_), _Internal::kHasBitsOffset + 100, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_wmem_alloc = 603 [json_name = "skMemInfoWmemAlloc"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_wmem_alloc_), _Internal::kHasBitsOffset + 101, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_snd_buf = 604 [json_name = "skMemInfoSndBuf"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_snd_buf_), _Internal::kHasBitsOffset + 102, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_fwd_alloc = 605 [json_name = "skMemInfoFwdAlloc"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_fwd_alloc_), _Internal::kHasBitsOffset + 103, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_wmem_queued = 606 [json_name = "skMemInfoWmemQueued"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_wmem_queued_), _Internal::kHasBitsOffset + 104, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_optmem = 607 [json_name = "skMemInfoOptmem"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_optmem_), _Internal::kHasBitsOffset + 105, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_backlog = 608 [json_name = "skMemInfoBacklog"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_backlog_), _Internal::kHasBitsOffset + 106, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sk_mem_info_drops = 609 [json_name = "skMemInfoDrops"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_drops_), _Internal::kHasBitsOffset + 107, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 shutdown_state = 700 [json_name = "shutdownState"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.shutdown_state_), _Internal::kHasBitsOffset + 108, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 vegas_info_enabled = 801 [json_name = "vegasInfoEnabled"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_enabled_), _Internal::kHasBitsOffset + 109, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 vegas_info_rtt_cnt = 802 [json_name = "vegasInfoRttCnt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_rtt_cnt_), _Internal::kHasBitsOffset + 110, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 vegas_info_rtt = 803 [json_name = "vegasInfoRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_rtt_), _Internal::kHasBitsOffset + 111, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 vegas_info_min_rtt = 804 [json_name = "vegasInfoMinRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_min_rtt_), _Internal::kHasBitsOffset + 112, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 dctcp_info_enabled = 901 [json_name = "dctcpInfoEnabled"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_enabled_), _Internal::kHasBitsOffset + 113, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 dctcp_info_ce_state = 902 [json_name = "dctcpInfoCeState"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ce_state_), _Internal::kHasBitsOffset + 114, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 dctcp_info_alpha = 903 [json_name = "dctcpInfoAlpha"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_alpha_), _Internal::kHasBitsOffset + 115, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 dctcp_info_ab_ecn = 904 [json_name = "dctcpInfoAbEcn"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ab_ecn_), _Internal::kHasBitsOffset + 116, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 dctcp_info_ab_tot = 905 [json_name = "dctcpInfoAbTot"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ab_tot_), _Internal::kHasBitsOffset + 117, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 bbr_info_bw_lo = 1001 [json_name = "bbrInfoBwLo"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_bw_lo_), _Internal::kHasBitsOffset + 118, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 bbr_info_bw_hi = 1002 [json_name = "bbrInfoBwHi"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_bw_hi_), _Internal::kHasBitsOffset + 119, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 bbr_info_min_rtt = 1003 [json_name = "bbrInfoMinRtt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_min_rtt_), _Internal::kHasBitsOffset + 120, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 bbr_info_pacing_gain = 1004 [json_name = "bbrInfoPacingGain"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_pacing_gain_), _Internal::kHasBitsOffset + 121, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 bbr_info_cwnd_gain = 1005 [json_name = "bbrInfoCwndGain"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_cwnd_gain_), _Internal::kHasBitsOffset + 122, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 class_id = 1101 [json_name = "classId"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.class_id_), _Internal::kHasBitsOffset + 123, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint32 sock_opt = 1102 [json_name = "sockOpt"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sock_opt_), _Internal::kHasBitsOffset + 124, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
-      // uint64 c_group = 1203 [json_name = "cGroup"];
-      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.c_group_), _Internal::kHasBitsOffset + 125, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.label_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string tag = 51 [json_name = "tag"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tag_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint64 record_counter = 60 [json_name = "recordCounter"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.record_counter_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 socket_fd = 61 [json_name = "socketFd"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.socket_fd_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 netlinker_id = 62 [json_name = "netlinkerId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netlinker_id_), _Internal::kHasBitsOffset + 41, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // string uplink1_ifname = 100 [json_name = "uplink1Ifname"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_ifname_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_nic_driver = 101 [json_name = "uplink1NicDriver"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_driver_), _Internal::kHasBitsOffset + 20, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_model_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_pci_vendor_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 uplink1_nic_pci_device = 104 [json_name = "uplink1NicPciDevice"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_pci_device_), _Internal::kHasBitsOffset + 42, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string uplink1_nic_bus_info = 105 [json_name = "uplink1NicBusInfo"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_bus_info_), _Internal::kHasBitsOffset + 21, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 uplink1_nic_speed_mbps = 106 [json_name = "uplink1NicSpeedMbps"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_speed_mbps_), _Internal::kHasBitsOffset + 43, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string uplink1_nic_fw_version = 107 [json_name = "uplink1NicFwVersion"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_nic_fw_version_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_lldp_chassis_name = 120 [json_name = "uplink1LldpChassisName"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_lldp_chassis_name_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_lldp_chassis_id = 121 [json_name = "uplink1LldpChassisId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_lldp_chassis_id_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_lldp_mgmt_ip = 122 [json_name = "uplink1LldpMgmtIp"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_lldp_mgmt_ip_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_lldp_port_id = 123 [json_name = "uplink1LldpPortId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_lldp_port_id_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink1_lldp_port_descr = 124 [json_name = "uplink1LldpPortDescr"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink1_lldp_port_descr_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_ifname = 200 [json_name = "uplink2Ifname"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_ifname_), _Internal::kHasBitsOffset + 28, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_nic_driver = 201 [json_name = "uplink2NicDriver"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_driver_), _Internal::kHasBitsOffset + 29, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_nic_model = 202 [json_name = "uplink2NicModel"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_model_), _Internal::kHasBitsOffset + 30, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 uplink2_nic_pci_vendor = 203 [json_name = "uplink2NicPciVendor"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_pci_vendor_), _Internal::kHasBitsOffset + 44, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 uplink2_nic_pci_device = 204 [json_name = "uplink2NicPciDevice"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_pci_device_), _Internal::kHasBitsOffset + 45, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string uplink2_nic_bus_info = 205 [json_name = "uplink2NicBusInfo"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_bus_info_), _Internal::kHasBitsOffset + 31, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 uplink2_nic_speed_mbps = 206 [json_name = "uplink2NicSpeedMbps"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_speed_mbps_), _Internal::kHasBitsOffset + 46, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string uplink2_nic_fw_version = 207 [json_name = "uplink2NicFwVersion"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_nic_fw_version_), _Internal::kHasBitsOffset + 32, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_lldp_chassis_name = 220 [json_name = "uplink2LldpChassisName"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_lldp_chassis_name_), _Internal::kHasBitsOffset + 33, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_lldp_chassis_id = 221 [json_name = "uplink2LldpChassisId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_lldp_chassis_id_), _Internal::kHasBitsOffset + 34, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_lldp_mgmt_ip = 222 [json_name = "uplink2LldpMgmtIp"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_lldp_mgmt_ip_), _Internal::kHasBitsOffset + 35, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_lldp_port_id = 223 [json_name = "uplink2LldpPortId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_lldp_port_id_), _Internal::kHasBitsOffset + 36, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string uplink2_lldp_port_descr = 224 [json_name = "uplink2LldpPortDescr"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.uplink2_lldp_port_descr_), _Internal::kHasBitsOffset + 37, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 inet_diag_msg_family = 1001 [json_name = "inetDiagMsgFamily"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_family_), _Internal::kHasBitsOffset + 47, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_state = 1002 [json_name = "inetDiagMsgState"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_state_), _Internal::kHasBitsOffset + 48, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_timer = 1003 [json_name = "inetDiagMsgTimer"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_timer_), _Internal::kHasBitsOffset + 49, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_retrans = 1004 [json_name = "inetDiagMsgRetrans"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_retrans_), _Internal::kHasBitsOffset + 50, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_socket_source_port = 1005 [json_name = "inetDiagMsgSocketSourcePort"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_port_), _Internal::kHasBitsOffset + 51, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_socket_destination_port = 1006 [json_name = "inetDiagMsgSocketDestinationPort"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_destination_port_), _Internal::kHasBitsOffset + 52, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // bytes inet_diag_msg_socket_source = 1007 [json_name = "inetDiagMsgSocketSource"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_source_), _Internal::kHasBitsOffset + 38, 0, (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
+      // bytes inet_diag_msg_socket_destination = 1008 [json_name = "inetDiagMsgSocketDestination"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_destination_), _Internal::kHasBitsOffset + 39, 0, (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
+      // uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_interface_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint64 inet_diag_msg_socket_cookie = 1010 [json_name = "inetDiagMsgSocketCookie"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_cookie_), _Internal::kHasBitsOffset + 54, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 inet_diag_msg_socket_dest_asn = 1011 [json_name = "inetDiagMsgSocketDestAsn"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_dest_asn_), _Internal::kHasBitsOffset + 55, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 inet_diag_msg_socket_next_hop_asn = 1012 [json_name = "inetDiagMsgSocketNextHopAsn"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_next_hop_asn_), _Internal::kHasBitsOffset + 56, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint32 inet_diag_msg_expires = 1013 [json_name = "inetDiagMsgExpires"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_expires_), _Internal::kHasBitsOffset + 53, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_rqueue = 1014 [json_name = "inetDiagMsgRqueue"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_rqueue_), _Internal::kHasBitsOffset + 57, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_wqueue = 1015 [json_name = "inetDiagMsgWqueue"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_wqueue_), _Internal::kHasBitsOffset + 58, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_uid = 1016 [json_name = "inetDiagMsgUid"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_uid_), _Internal::kHasBitsOffset + 59, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 inet_diag_msg_inode = 1017 [json_name = "inetDiagMsgInode"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_inode_), _Internal::kHasBitsOffset + 60, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 mem_info_rmem = 1101 [json_name = "memInfoRmem"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_rmem_), _Internal::kHasBitsOffset + 61, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 mem_info_wmem = 1102 [json_name = "memInfoWmem"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_wmem_), _Internal::kHasBitsOffset + 62, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 mem_info_fmem = 1103 [json_name = "memInfoFmem"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_fmem_), _Internal::kHasBitsOffset + 63, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 mem_info_tmem = 1104 [json_name = "memInfoTmem"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.mem_info_tmem_), _Internal::kHasBitsOffset + 64, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_state = 1201 [json_name = "tcpInfoState"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_state_), _Internal::kHasBitsOffset + 65, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_ca_state = 1202 [json_name = "tcpInfoCaState"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_ca_state_), _Internal::kHasBitsOffset + 66, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_retransmits = 1203 [json_name = "tcpInfoRetransmits"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_retransmits_), _Internal::kHasBitsOffset + 67, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_probes = 1204 [json_name = "tcpInfoProbes"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_probes_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_backoff = 1205 [json_name = "tcpInfoBackoff"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_backoff_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_options = 1206 [json_name = "tcpInfoOptions"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_options_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_send_scale = 1207 [json_name = "tcpInfoSendScale"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_send_scale_), _Internal::kHasBitsOffset + 71, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_scale = 1208 [json_name = "tcpInfoRcvScale"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_scale_), _Internal::kHasBitsOffset + 72, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_delivery_rate_app_limited = 1209 [json_name = "tcpInfoDeliveryRateAppLimited"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivery_rate_app_limited_), _Internal::kHasBitsOffset + 73, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_fast_open_client_failed = 1210 [json_name = "tcpInfoFastOpenClientFailed"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_fast_open_client_failed_), _Internal::kHasBitsOffset + 74, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rto = 1215 [json_name = "tcpInfoRto"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rto_), _Internal::kHasBitsOffset + 75, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_ato = 1216 [json_name = "tcpInfoAto"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_ato_), _Internal::kHasBitsOffset + 76, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_snd_mss = 1217 [json_name = "tcpInfoSndMss"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_mss_), _Internal::kHasBitsOffset + 77, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_mss = 1218 [json_name = "tcpInfoRcvMss"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_mss_), _Internal::kHasBitsOffset + 78, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_unacked = 1219 [json_name = "tcpInfoUnacked"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_unacked_), _Internal::kHasBitsOffset + 79, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_sacked = 1220 [json_name = "tcpInfoSacked"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_sacked_), _Internal::kHasBitsOffset + 80, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_lost = 1221 [json_name = "tcpInfoLost"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_lost_), _Internal::kHasBitsOffset + 81, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_retrans = 1222 [json_name = "tcpInfoRetrans"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_retrans_), _Internal::kHasBitsOffset + 82, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_fackets = 1223 [json_name = "tcpInfoFackets"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_fackets_), _Internal::kHasBitsOffset + 83, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_last_data_sent = 1224 [json_name = "tcpInfoLastDataSent"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_data_sent_), _Internal::kHasBitsOffset + 84, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_last_ack_sent = 1225 [json_name = "tcpInfoLastAckSent"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_ack_sent_), _Internal::kHasBitsOffset + 85, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_last_data_recv = 1226 [json_name = "tcpInfoLastDataRecv"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_data_recv_), _Internal::kHasBitsOffset + 86, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_last_ack_recv = 1227 [json_name = "tcpInfoLastAckRecv"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_last_ack_recv_), _Internal::kHasBitsOffset + 87, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_pmtu = 1228 [json_name = "tcpInfoPmtu"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_pmtu_), _Internal::kHasBitsOffset + 88, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_ssthresh = 1229 [json_name = "tcpInfoRcvSsthresh"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_ssthresh_), _Internal::kHasBitsOffset + 89, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rtt = 1230 [json_name = "tcpInfoRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rtt_), _Internal::kHasBitsOffset + 90, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rtt_var = 1231 [json_name = "tcpInfoRttVar"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rtt_var_), _Internal::kHasBitsOffset + 91, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_snd_ssthresh = 1232 [json_name = "tcpInfoSndSsthresh"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_ssthresh_), _Internal::kHasBitsOffset + 92, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_snd_cwnd = 1233 [json_name = "tcpInfoSndCwnd"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_cwnd_), _Internal::kHasBitsOffset + 93, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_adv_mss = 1234 [json_name = "tcpInfoAdvMss"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_adv_mss_), _Internal::kHasBitsOffset + 94, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_reordering = 1235 [json_name = "tcpInfoReordering"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_reordering_), _Internal::kHasBitsOffset + 95, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_rtt = 1236 [json_name = "tcpInfoRcvRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_rtt_), _Internal::kHasBitsOffset + 96, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_space = 1237 [json_name = "tcpInfoRcvSpace"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_space_), _Internal::kHasBitsOffset + 97, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_total_retrans = 1238 [json_name = "tcpInfoTotalRetrans"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_retrans_), _Internal::kHasBitsOffset + 98, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint64 tcp_info_pacing_rate = 1239 [json_name = "tcpInfoPacingRate"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_pacing_rate_), _Internal::kHasBitsOffset + 99, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_max_pacing_rate = 1240 [json_name = "tcpInfoMaxPacingRate"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_max_pacing_rate_), _Internal::kHasBitsOffset + 100, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_bytes_acked = 1241 [json_name = "tcpInfoBytesAcked"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_acked_), _Internal::kHasBitsOffset + 101, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_bytes_received = 1242 [json_name = "tcpInfoBytesReceived"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_received_), _Internal::kHasBitsOffset + 102, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint32 tcp_info_segs_out = 1243 [json_name = "tcpInfoSegsOut"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_segs_out_), _Internal::kHasBitsOffset + 103, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_segs_in = 1244 [json_name = "tcpInfoSegsIn"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_segs_in_), _Internal::kHasBitsOffset + 104, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_not_sent_bytes = 1245 [json_name = "tcpInfoNotSentBytes"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_not_sent_bytes_), _Internal::kHasBitsOffset + 105, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_min_rtt = 1246 [json_name = "tcpInfoMinRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_min_rtt_), _Internal::kHasBitsOffset + 106, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_data_segs_in = 1247 [json_name = "tcpInfoDataSegsIn"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_data_segs_in_), _Internal::kHasBitsOffset + 107, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_data_segs_out = 1248 [json_name = "tcpInfoDataSegsOut"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_data_segs_out_), _Internal::kHasBitsOffset + 108, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint64 tcp_info_delivery_rate = 1249 [json_name = "tcpInfoDeliveryRate"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivery_rate_), _Internal::kHasBitsOffset + 109, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_busy_time = 1250 [json_name = "tcpInfoBusyTime"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_busy_time_), _Internal::kHasBitsOffset + 110, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_rwnd_limited = 1251 [json_name = "tcpInfoRwndLimited"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rwnd_limited_), _Internal::kHasBitsOffset + 111, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_sndbuf_limited = 1252 [json_name = "tcpInfoSndbufLimited"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_sndbuf_limited_), _Internal::kHasBitsOffset + 112, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint32 tcp_info_delivered = 1253 [json_name = "tcpInfoDelivered"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivered_), _Internal::kHasBitsOffset + 113, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_delivered_ce = 1254 [json_name = "tcpInfoDeliveredCe"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_delivered_ce_), _Internal::kHasBitsOffset + 114, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint64 tcp_info_bytes_sent = 1255 [json_name = "tcpInfoBytesSent"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_sent_), _Internal::kHasBitsOffset + 115, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint64 tcp_info_bytes_retrans = 1256 [json_name = "tcpInfoBytesRetrans"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_bytes_retrans_), _Internal::kHasBitsOffset + 116, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      // uint32 tcp_info_dsack_dups = 1257 [json_name = "tcpInfoDsackDups"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_dsack_dups_), _Internal::kHasBitsOffset + 117, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_reord_seen = 1258 [json_name = "tcpInfoReordSeen"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_reord_seen_), _Internal::kHasBitsOffset + 118, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_ooopack = 1259 [json_name = "tcpInfoRcvOoopack"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_ooopack_), _Internal::kHasBitsOffset + 119, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_snd_wnd = 1260 [json_name = "tcpInfoSndWnd"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_snd_wnd_), _Internal::kHasBitsOffset + 120, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rcv_wnd = 1261 [json_name = "tcpInfoRcvWnd"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rcv_wnd_), _Internal::kHasBitsOffset + 121, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_rehash = 1262 [json_name = "tcpInfoRehash"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_rehash_), _Internal::kHasBitsOffset + 122, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_total_rto = 1263 [json_name = "tcpInfoTotalRto"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_), _Internal::kHasBitsOffset + 123, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_total_rto_recoveries = 1264 [json_name = "tcpInfoTotalRtoRecoveries"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_recoveries_), _Internal::kHasBitsOffset + 124, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 tcp_info_total_rto_time = 1265 [json_name = "tcpInfoTotalRtoTime"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.tcp_info_total_rto_time_), _Internal::kHasBitsOffset + 125, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // string congestion_algorithm_string = 1300 [json_name = "congestionAlgorithmString"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.congestion_algorithm_string_), _Internal::kHasBitsOffset + 40, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 1301 [json_name = "congestionAlgorithmEnum"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.congestion_algorithm_enum_), _Internal::kHasBitsOffset + 126, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      // uint32 type_of_service = 1401 [json_name = "typeOfService"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.type_of_service_), _Internal::kHasBitsOffset + 127, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 traffic_class = 1402 [json_name = "trafficClass"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.traffic_class_), _Internal::kHasBitsOffset + 128, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_rmem_alloc = 1501 [json_name = "skMemInfoRmemAlloc"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_rmem_alloc_), _Internal::kHasBitsOffset + 129, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_rcv_buf = 1502 [json_name = "skMemInfoRcvBuf"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_rcv_buf_), _Internal::kHasBitsOffset + 130, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_wmem_alloc = 1503 [json_name = "skMemInfoWmemAlloc"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_wmem_alloc_), _Internal::kHasBitsOffset + 131, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_snd_buf = 1504 [json_name = "skMemInfoSndBuf"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_snd_buf_), _Internal::kHasBitsOffset + 132, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_fwd_alloc = 1505 [json_name = "skMemInfoFwdAlloc"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_fwd_alloc_), _Internal::kHasBitsOffset + 133, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_wmem_queued = 1506 [json_name = "skMemInfoWmemQueued"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_wmem_queued_), _Internal::kHasBitsOffset + 134, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_optmem = 1507 [json_name = "skMemInfoOptmem"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_optmem_), _Internal::kHasBitsOffset + 135, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_backlog = 1508 [json_name = "skMemInfoBacklog"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_backlog_), _Internal::kHasBitsOffset + 136, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sk_mem_info_drops = 1509 [json_name = "skMemInfoDrops"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sk_mem_info_drops_), _Internal::kHasBitsOffset + 137, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 shutdown_state = 1600 [json_name = "shutdownState"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.shutdown_state_), _Internal::kHasBitsOffset + 138, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 vegas_info_enabled = 1701 [json_name = "vegasInfoEnabled"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_enabled_), _Internal::kHasBitsOffset + 139, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 vegas_info_rtt_cnt = 1702 [json_name = "vegasInfoRttCnt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_rtt_cnt_), _Internal::kHasBitsOffset + 140, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 vegas_info_rtt = 1703 [json_name = "vegasInfoRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_rtt_), _Internal::kHasBitsOffset + 141, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 vegas_info_min_rtt = 1704 [json_name = "vegasInfoMinRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.vegas_info_min_rtt_), _Internal::kHasBitsOffset + 142, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 dctcp_info_enabled = 1801 [json_name = "dctcpInfoEnabled"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_enabled_), _Internal::kHasBitsOffset + 143, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 dctcp_info_ce_state = 1802 [json_name = "dctcpInfoCeState"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ce_state_), _Internal::kHasBitsOffset + 144, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 dctcp_info_alpha = 1803 [json_name = "dctcpInfoAlpha"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_alpha_), _Internal::kHasBitsOffset + 145, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 dctcp_info_ab_ecn = 1804 [json_name = "dctcpInfoAbEcn"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ab_ecn_), _Internal::kHasBitsOffset + 146, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 dctcp_info_ab_tot = 1805 [json_name = "dctcpInfoAbTot"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.dctcp_info_ab_tot_), _Internal::kHasBitsOffset + 147, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 bbr_info_bw_lo = 1901 [json_name = "bbrInfoBwLo"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_bw_lo_), _Internal::kHasBitsOffset + 148, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 bbr_info_bw_hi = 1902 [json_name = "bbrInfoBwHi"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_bw_hi_), _Internal::kHasBitsOffset + 149, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 bbr_info_min_rtt = 1903 [json_name = "bbrInfoMinRtt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_min_rtt_), _Internal::kHasBitsOffset + 150, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 bbr_info_pacing_gain = 1904 [json_name = "bbrInfoPacingGain"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_pacing_gain_), _Internal::kHasBitsOffset + 151, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 bbr_info_cwnd_gain = 1905 [json_name = "bbrInfoCwndGain"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.bbr_info_cwnd_gain_), _Internal::kHasBitsOffset + 152, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 class_id = 2001 [json_name = "classId"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.class_id_), _Internal::kHasBitsOffset + 153, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 sock_opt = 2002 [json_name = "sockOpt"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.sock_opt_), _Internal::kHasBitsOffset + 154, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint64 c_group = 2103 [json_name = "cGroup"];
+      {PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.c_group_), _Internal::kHasBitsOffset + 155, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     }},
     // no aux_entries
     {{
-      "\42\0\10\10\5\14\21\0\0\5\3\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\33\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      "\42\0\16\0\10\10\5\0\0\14\21\16\17\5\3\0\0\0\16\22\21\0\0\24\0\26\31\27\24\24\27\16\22\21\0\0\24\0\26\31\27\24\24\27\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\33\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
       "xtcp_flat_record.v1.XtcpFlatRecord"
+      "daemon_version"
       "hostname"
       "location"
       "netns"
       "container_id"
       "container_runtime"
+      "container_name"
+      "container_image"
       "label"
       "tag"
+      "uplink1_ifname"
+      "uplink1_nic_driver"
+      "uplink1_nic_model"
+      "uplink1_nic_bus_info"
+      "uplink1_nic_fw_version"
+      "uplink1_lldp_chassis_name"
+      "uplink1_lldp_chassis_id"
+      "uplink1_lldp_mgmt_ip"
+      "uplink1_lldp_port_id"
+      "uplink1_lldp_port_descr"
+      "uplink2_ifname"
+      "uplink2_nic_driver"
+      "uplink2_nic_model"
+      "uplink2_nic_bus_info"
+      "uplink2_nic_fw_version"
+      "uplink2_lldp_chassis_name"
+      "uplink2_lldp_chassis_id"
+      "uplink2_lldp_mgmt_ip"
+      "uplink2_lldp_port_id"
+      "uplink2_lldp_port_descr"
       "congestion_algorithm_string"
     }},
   };
@@ -468,6 +566,9 @@ inline constexpr XtcpFlatRecord::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
+        daemon_version_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         hostname_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
@@ -483,40 +584,113 @@ inline constexpr XtcpFlatRecord::Impl_::Impl_(
         container_runtime_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        container_name_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        container_image_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         label_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         tag_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        inet_diag_msg_socket_source_(
+        uplink1_nic_model_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         timestamp_ns_{::int64_t{0}},
+        schema_version_{0u},
+        nsid_{0u},
         netns_inode_{::uint64_t{0u}},
         record_counter_{::uint64_t{0u}},
-        nsid_{0u},
-        inet_diag_msg_timer_{0u},
-        netlinker_id_{::uint64_t{0u}},
-        inet_diag_msg_socket_source_port_{0u},
+        socket_fd_{::uint64_t{0u}},
+        uplink1_nic_pci_vendor_{0u},
         inet_diag_msg_socket_interface_{0u},
-        inet_diag_msg_wqueue_{0u},
+        uplink1_ifname_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_nic_driver_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_nic_bus_info_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_nic_fw_version_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_lldp_chassis_name_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_lldp_chassis_id_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_lldp_mgmt_ip_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_lldp_port_id_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink1_lldp_port_descr_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_ifname_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_nic_driver_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_nic_model_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_nic_bus_info_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_nic_fw_version_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_lldp_chassis_name_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_lldp_chassis_id_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_lldp_mgmt_ip_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_lldp_port_id_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        uplink2_lldp_port_descr_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        inet_diag_msg_socket_source_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         inet_diag_msg_socket_destination_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         congestion_algorithm_string_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        socket_fd_{::uint64_t{0u}},
+        netlinker_id_{::uint64_t{0u}},
+        uplink1_nic_pci_device_{0u},
+        uplink1_nic_speed_mbps_{0u},
+        uplink2_nic_pci_vendor_{0u},
+        uplink2_nic_pci_device_{0u},
+        uplink2_nic_speed_mbps_{0u},
         inet_diag_msg_family_{0u},
         inet_diag_msg_state_{0u},
+        inet_diag_msg_timer_{0u},
         inet_diag_msg_retrans_{0u},
+        inet_diag_msg_socket_source_port_{0u},
         inet_diag_msg_socket_destination_port_{0u},
+        inet_diag_msg_expires_{0u},
         inet_diag_msg_socket_cookie_{::uint64_t{0u}},
         inet_diag_msg_socket_dest_asn_{::uint64_t{0u}},
         inet_diag_msg_socket_next_hop_asn_{::uint64_t{0u}},
-        inet_diag_msg_expires_{0u},
         inet_diag_msg_rqueue_{0u},
+        inet_diag_msg_wqueue_{0u},
         inet_diag_msg_uid_{0u},
         inet_diag_msg_inode_{0u},
         mem_info_rmem_{0u},
@@ -1416,20 +1590,50 @@ const ::uint32_t
         0,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_._has_bits_),
-        129, // hasbit index offset
+        159, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.schema_version_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.daemon_version_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.timestamp_ns_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.hostname_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.location_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.netns_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.netns_inode_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.nsid_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_runtime_),
-        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.nsid_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_name_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.container_image_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.label_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.tag_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.record_counter_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.socket_fd_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.netlinker_id_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_ifname_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_driver_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_model_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_pci_vendor_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_pci_device_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_bus_info_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_speed_mbps_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_nic_fw_version_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_lldp_chassis_name_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_lldp_chassis_id_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_lldp_mgmt_ip_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_lldp_port_id_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink1_lldp_port_descr_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_ifname_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_driver_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_model_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_pci_vendor_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_pci_device_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_bus_info_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_speed_mbps_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_nic_fw_version_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_lldp_chassis_name_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_lldp_chassis_id_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_lldp_mgmt_ip_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_lldp_port_id_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.uplink2_lldp_port_descr_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.inet_diag_msg_family_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.inet_diag_msg_state_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.inet_diag_msg_timer_),
@@ -1543,62 +1747,62 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.class_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.sock_opt_),
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::XtcpFlatRecord, _impl_.c_group_),
-        8,
+        12,
         0,
+        11,
         1,
         2,
-        9,
         3,
+        14,
+        13,
         4,
-        11,
         5,
         6,
-        10,
-        19,
-        13,
-        20,
-        21,
-        12,
-        22,
-        14,
-        23,
         7,
-        17,
+        8,
+        9,
         15,
+        16,
+        41,
+        19,
+        20,
+        10,
+        17,
+        42,
+        21,
+        43,
+        22,
+        23,
         24,
         25,
         26,
         27,
         28,
-        16,
         29,
         30,
+        44,
+        45,
         31,
+        46,
         32,
         33,
         34,
         35,
         36,
         37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
         47,
         48,
         49,
         50,
         51,
         52,
-        53,
+        38,
+        39,
+        18,
         54,
         55,
         56,
+        53,
         57,
         58,
         59,
@@ -1638,7 +1842,6 @@ const ::uint32_t
         93,
         94,
         95,
-        18,
         96,
         97,
         98,
@@ -1669,6 +1872,37 @@ const ::uint32_t
         123,
         124,
         125,
+        40,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
         0x000, // bitmap
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_flat_record::v1::FlatRecordsResponse, _impl_._has_bits_),
@@ -1687,10 +1921,10 @@ static const ::_pbi::MigrationSchema
     schemas[] ABSL_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
         {0, sizeof(::xtcp_flat_record::v1::Envelope)},
         {5, sizeof(::xtcp_flat_record::v1::XtcpFlatRecord)},
-        {260, sizeof(::xtcp_flat_record::v1::FlatRecordsRequest)},
-        {261, sizeof(::xtcp_flat_record::v1::FlatRecordsResponse)},
-        {266, sizeof(::xtcp_flat_record::v1::PollFlatRecordsRequest)},
-        {267, sizeof(::xtcp_flat_record::v1::PollFlatRecordsResponse)},
+        {320, sizeof(::xtcp_flat_record::v1::FlatRecordsRequest)},
+        {321, sizeof(::xtcp_flat_record::v1::FlatRecordsResponse)},
+        {326, sizeof(::xtcp_flat_record::v1::PollFlatRecordsRequest)},
+        {327, sizeof(::xtcp_flat_record::v1::PollFlatRecordsResponse)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -1706,185 +1940,222 @@ const char descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5fr
     "\n*xtcp_flat_record/v1/xtcp_flat_record.p"
     "roto\022\023xtcp_flat_record.v1\"A\n\010Envelope\0225\n"
     "\003row\030\n \003(\0132#.xtcp_flat_record.v1.XtcpFla"
-    "tRecordR\003row\"\2600\n\016XtcpFlatRecord\022!\n\014times"
-    "tamp_ns\030\n \001(\003R\013timestampNs\022\032\n\010hostname\030\024"
-    " \001(\tR\010hostname\022\032\n\010location\030\025 \001(\tR\010locati"
-    "on\022\024\n\005netns\030\036 \001(\tR\005netns\022\037\n\013netns_inode\030"
-    "! \001(\004R\nnetnsInode\022!\n\014container_id\030\037 \001(\tR"
-    "\013containerId\022+\n\021container_runtime\030  \001(\tR"
-    "\020containerRuntime\022\022\n\004nsid\030( \001(\rR\004nsid\022\024\n"
-    "\005label\0302 \001(\tR\005label\022\020\n\003tag\030< \001(\tR\003tag\022%\n"
-    "\016record_counter\030F \001(\004R\rrecordCounter\022\033\n\t"
-    "socket_fd\030P \001(\004R\010socketFd\022!\n\014netlinker_i"
-    "d\030Z \001(\004R\013netlinkerId\022/\n\024inet_diag_msg_fa"
-    "mily\030e \001(\rR\021inetDiagMsgFamily\022-\n\023inet_di"
-    "ag_msg_state\030f \001(\rR\020inetDiagMsgState\022-\n\023"
-    "inet_diag_msg_timer\030g \001(\rR\020inetDiagMsgTi"
-    "mer\0221\n\025inet_diag_msg_retrans\030h \001(\rR\022inet"
-    "DiagMsgRetrans\022E\n inet_diag_msg_socket_s"
-    "ource_port\030i \001(\rR\033inetDiagMsgSocketSourc"
-    "ePort\022O\n%inet_diag_msg_socket_destinatio"
-    "n_port\030j \001(\rR inetDiagMsgSocketDestinati"
-    "onPort\022<\n\033inet_diag_msg_socket_source\030k "
-    "\001(\014R\027inetDiagMsgSocketSource\022F\n inet_dia"
-    "g_msg_socket_destination\030l \001(\014R\034inetDiag"
-    "MsgSocketDestination\022B\n\036inet_diag_msg_so"
-    "cket_interface\030m \001(\rR\032inetDiagMsgSocketI"
-    "nterface\022<\n\033inet_diag_msg_socket_cookie\030"
-    "n \001(\004R\027inetDiagMsgSocketCookie\022\?\n\035inet_d"
-    "iag_msg_socket_dest_asn\030o \001(\004R\030inetDiagM"
-    "sgSocketDestAsn\022F\n!inet_diag_msg_socket_"
-    "next_hop_asn\030p \001(\004R\033inetDiagMsgSocketNex"
-    "tHopAsn\0221\n\025inet_diag_msg_expires\030q \001(\rR\022"
-    "inetDiagMsgExpires\022/\n\024inet_diag_msg_rque"
-    "ue\030r \001(\rR\021inetDiagMsgRqueue\022/\n\024inet_diag"
-    "_msg_wqueue\030s \001(\rR\021inetDiagMsgWqueue\022)\n\021"
-    "inet_diag_msg_uid\030t \001(\rR\016inetDiagMsgUid\022"
-    "-\n\023inet_diag_msg_inode\030u \001(\rR\020inetDiagMs"
-    "gInode\022#\n\rmem_info_rmem\030\311\001 \001(\rR\013memInfoR"
-    "mem\022#\n\rmem_info_wmem\030\312\001 \001(\rR\013memInfoWmem"
-    "\022#\n\rmem_info_fmem\030\313\001 \001(\rR\013memInfoFmem\022#\n"
-    "\rmem_info_tmem\030\314\001 \001(\rR\013memInfoTmem\022%\n\016tc"
-    "p_info_state\030\255\002 \001(\rR\014tcpInfoState\022*\n\021tcp"
-    "_info_ca_state\030\256\002 \001(\rR\016tcpInfoCaState\0221\n"
-    "\024tcp_info_retransmits\030\257\002 \001(\rR\022tcpInfoRet"
-    "ransmits\022\'\n\017tcp_info_probes\030\260\002 \001(\rR\rtcpI"
-    "nfoProbes\022)\n\020tcp_info_backoff\030\261\002 \001(\rR\016tc"
-    "pInfoBackoff\022)\n\020tcp_info_options\030\262\002 \001(\rR"
-    "\016tcpInfoOptions\022.\n\023tcp_info_send_scale\030\263"
-    "\002 \001(\rR\020tcpInfoSendScale\022,\n\022tcp_info_rcv_"
-    "scale\030\264\002 \001(\rR\017tcpInfoRcvScale\022J\n\"tcp_inf"
-    "o_delivery_rate_app_limited\030\265\002 \001(\rR\035tcpI"
-    "nfoDeliveryRateAppLimited\022F\n tcp_info_fa"
-    "st_open_client_failed\030\266\002 \001(\rR\033tcpInfoFas"
-    "tOpenClientFailed\022!\n\014tcp_info_rto\030\273\002 \001(\r"
-    "R\ntcpInfoRto\022!\n\014tcp_info_ato\030\274\002 \001(\rR\ntcp"
-    "InfoAto\022(\n\020tcp_info_snd_mss\030\275\002 \001(\rR\rtcpI"
-    "nfoSndMss\022(\n\020tcp_info_rcv_mss\030\276\002 \001(\rR\rtc"
-    "pInfoRcvMss\022)\n\020tcp_info_unacked\030\277\002 \001(\rR\016"
-    "tcpInfoUnacked\022\'\n\017tcp_info_sacked\030\300\002 \001(\r"
-    "R\rtcpInfoSacked\022#\n\rtcp_info_lost\030\301\002 \001(\rR"
-    "\013tcpInfoLost\022)\n\020tcp_info_retrans\030\302\002 \001(\rR"
-    "\016tcpInfoRetrans\022)\n\020tcp_info_fackets\030\303\002 \001"
-    "(\rR\016tcpInfoFackets\0225\n\027tcp_info_last_data"
-    "_sent\030\304\002 \001(\rR\023tcpInfoLastDataSent\0223\n\026tcp"
-    "_info_last_ack_sent\030\305\002 \001(\rR\022tcpInfoLastA"
-    "ckSent\0225\n\027tcp_info_last_data_recv\030\306\002 \001(\r"
-    "R\023tcpInfoLastDataRecv\0223\n\026tcp_info_last_a"
-    "ck_recv\030\307\002 \001(\rR\022tcpInfoLastAckRecv\022#\n\rtc"
-    "p_info_pmtu\030\310\002 \001(\rR\013tcpInfoPmtu\0222\n\025tcp_i"
-    "nfo_rcv_ssthresh\030\311\002 \001(\rR\022tcpInfoRcvSsthr"
-    "esh\022!\n\014tcp_info_rtt\030\312\002 \001(\rR\ntcpInfoRtt\022("
-    "\n\020tcp_info_rtt_var\030\313\002 \001(\rR\rtcpInfoRttVar"
-    "\0222\n\025tcp_info_snd_ssthresh\030\314\002 \001(\rR\022tcpInf"
-    "oSndSsthresh\022*\n\021tcp_info_snd_cwnd\030\315\002 \001(\r"
-    "R\016tcpInfoSndCwnd\022(\n\020tcp_info_adv_mss\030\316\002 "
-    "\001(\rR\rtcpInfoAdvMss\022/\n\023tcp_info_reorderin"
-    "g\030\317\002 \001(\rR\021tcpInfoReordering\022(\n\020tcp_info_"
-    "rcv_rtt\030\320\002 \001(\rR\rtcpInfoRcvRtt\022,\n\022tcp_inf"
-    "o_rcv_space\030\321\002 \001(\rR\017tcpInfoRcvSpace\0224\n\026t"
-    "cp_info_total_retrans\030\322\002 \001(\rR\023tcpInfoTot"
-    "alRetrans\0220\n\024tcp_info_pacing_rate\030\323\002 \001(\004"
-    "R\021tcpInfoPacingRate\0227\n\030tcp_info_max_paci"
-    "ng_rate\030\324\002 \001(\004R\024tcpInfoMaxPacingRate\0220\n\024"
-    "tcp_info_bytes_acked\030\325\002 \001(\004R\021tcpInfoByte"
-    "sAcked\0226\n\027tcp_info_bytes_received\030\326\002 \001(\004"
-    "R\024tcpInfoBytesReceived\022*\n\021tcp_info_segs_"
-    "out\030\327\002 \001(\rR\016tcpInfoSegsOut\022(\n\020tcp_info_s"
-    "egs_in\030\330\002 \001(\rR\rtcpInfoSegsIn\0225\n\027tcp_info"
-    "_not_sent_bytes\030\331\002 \001(\rR\023tcpInfoNotSentBy"
-    "tes\022(\n\020tcp_info_min_rtt\030\332\002 \001(\rR\rtcpInfoM"
-    "inRtt\0221\n\025tcp_info_data_segs_in\030\333\002 \001(\rR\021t"
-    "cpInfoDataSegsIn\0223\n\026tcp_info_data_segs_o"
-    "ut\030\334\002 \001(\rR\022tcpInfoDataSegsOut\0224\n\026tcp_inf"
-    "o_delivery_rate\030\335\002 \001(\004R\023tcpInfoDeliveryR"
-    "ate\022,\n\022tcp_info_busy_time\030\336\002 \001(\004R\017tcpInf"
-    "oBusyTime\0222\n\025tcp_info_rwnd_limited\030\337\002 \001("
-    "\004R\022tcpInfoRwndLimited\0226\n\027tcp_info_sndbuf"
-    "_limited\030\340\002 \001(\004R\024tcpInfoSndbufLimited\022-\n"
-    "\022tcp_info_delivered\030\341\002 \001(\rR\020tcpInfoDeliv"
-    "ered\0222\n\025tcp_info_delivered_ce\030\342\002 \001(\rR\022tc"
-    "pInfoDeliveredCe\022.\n\023tcp_info_bytes_sent\030"
-    "\343\002 \001(\004R\020tcpInfoBytesSent\0224\n\026tcp_info_byt"
-    "es_retrans\030\344\002 \001(\004R\023tcpInfoBytesRetrans\022."
-    "\n\023tcp_info_dsack_dups\030\345\002 \001(\rR\020tcpInfoDsa"
-    "ckDups\022.\n\023tcp_info_reord_seen\030\346\002 \001(\rR\020tc"
-    "pInfoReordSeen\0220\n\024tcp_info_rcv_ooopack\030\347"
-    "\002 \001(\rR\021tcpInfoRcvOoopack\022(\n\020tcp_info_snd"
-    "_wnd\030\350\002 \001(\rR\rtcpInfoSndWnd\022(\n\020tcp_info_r"
-    "cv_wnd\030\351\002 \001(\rR\rtcpInfoRcvWnd\022\'\n\017tcp_info"
-    "_rehash\030\352\002 \001(\rR\rtcpInfoRehash\022,\n\022tcp_inf"
-    "o_total_rto\030\353\002 \001(\rR\017tcpInfoTotalRto\022A\n\035t"
-    "cp_info_total_rto_recoveries\030\354\002 \001(\rR\031tcp"
-    "InfoTotalRtoRecoveries\0225\n\027tcp_info_total"
-    "_rto_time\030\355\002 \001(\rR\023tcpInfoTotalRtoTime\022\?\n"
-    "\033congestion_algorithm_string\030\220\003 \001(\tR\031con"
-    "gestionAlgorithmString\022t\n\031congestion_alg"
-    "orithm_enum\030\221\003 \001(\01627.xtcp_flat_record.v1"
-    ".XtcpFlatRecord.CongestionAlgorithmR\027con"
-    "gestionAlgorithmEnum\022\'\n\017type_of_service\030"
-    "\365\003 \001(\rR\rtypeOfService\022$\n\rtraffic_class\030\366"
-    "\003 \001(\rR\014trafficClass\0223\n\026sk_mem_info_rmem_"
-    "alloc\030\331\004 \001(\rR\022skMemInfoRmemAlloc\022-\n\023sk_m"
-    "em_info_rcv_buf\030\332\004 \001(\rR\017skMemInfoRcvBuf\022"
-    "3\n\026sk_mem_info_wmem_alloc\030\333\004 \001(\rR\022skMemI"
-    "nfoWmemAlloc\022-\n\023sk_mem_info_snd_buf\030\334\004 \001"
-    "(\rR\017skMemInfoSndBuf\0221\n\025sk_mem_info_fwd_a"
-    "lloc\030\335\004 \001(\rR\021skMemInfoFwdAlloc\0225\n\027sk_mem"
-    "_info_wmem_queued\030\336\004 \001(\rR\023skMemInfoWmemQ"
-    "ueued\022,\n\022sk_mem_info_optmem\030\337\004 \001(\rR\017skMe"
-    "mInfoOptmem\022.\n\023sk_mem_info_backlog\030\340\004 \001("
-    "\rR\020skMemInfoBacklog\022*\n\021sk_mem_info_drops"
-    "\030\341\004 \001(\rR\016skMemInfoDrops\022&\n\016shutdown_stat"
-    "e\030\274\005 \001(\rR\rshutdownState\022-\n\022vegas_info_en"
-    "abled\030\241\006 \001(\rR\020vegasInfoEnabled\022,\n\022vegas_"
-    "info_rtt_cnt\030\242\006 \001(\rR\017vegasInfoRttCnt\022%\n\016"
-    "vegas_info_rtt\030\243\006 \001(\rR\014vegasInfoRtt\022,\n\022v"
-    "egas_info_min_rtt\030\244\006 \001(\rR\017vegasInfoMinRt"
-    "t\022-\n\022dctcp_info_enabled\030\205\007 \001(\rR\020dctcpInf"
-    "oEnabled\022.\n\023dctcp_info_ce_state\030\206\007 \001(\rR\020"
-    "dctcpInfoCeState\022)\n\020dctcp_info_alpha\030\207\007 "
-    "\001(\rR\016dctcpInfoAlpha\022*\n\021dctcp_info_ab_ecn"
-    "\030\210\007 \001(\rR\016dctcpInfoAbEcn\022*\n\021dctcp_info_ab"
-    "_tot\030\211\007 \001(\rR\016dctcpInfoAbTot\022$\n\016bbr_info_"
-    "bw_lo\030\351\007 \001(\rR\013bbrInfoBwLo\022$\n\016bbr_info_bw"
-    "_hi\030\352\007 \001(\rR\013bbrInfoBwHi\022(\n\020bbr_info_min_"
-    "rtt\030\353\007 \001(\rR\rbbrInfoMinRtt\0220\n\024bbr_info_pa"
-    "cing_gain\030\354\007 \001(\rR\021bbrInfoPacingGain\022,\n\022b"
-    "br_info_cwnd_gain\030\355\007 \001(\rR\017bbrInfoCwndGai"
-    "n\022\032\n\010class_id\030\315\010 \001(\rR\007classId\022\032\n\010sock_op"
-    "t\030\316\010 \001(\rR\007sockOpt\022\030\n\007c_group\030\263\t \001(\004R\006cGr"
-    "oup\"\231\002\n\023CongestionAlgorithm\022$\n CONGESTIO"
-    "N_ALGORITHM_UNSPECIFIED\020\000\022\036\n\032CONGESTION_"
-    "ALGORITHM_CUBIC\020\001\022\036\n\032CONGESTION_ALGORITH"
-    "M_DCTCP\020\002\022\036\n\032CONGESTION_ALGORITHM_VEGAS\020"
-    "\003\022\037\n\033CONGESTION_ALGORITHM_PRAGUE\020\004\022\035\n\031CO"
-    "NGESTION_ALGORITHM_BBR1\020\005\022\035\n\031CONGESTION_"
-    "ALGORITHM_BBR2\020\006\022\035\n\031CONGESTION_ALGORITHM"
-    "_BBR3\020\007\"\024\n\022FlatRecordsRequest\"d\n\023FlatRec"
-    "ordsResponse\022M\n\020xtcp_flat_record\030\001 \001(\0132#"
-    ".xtcp_flat_record.v1.XtcpFlatRecordR\016xtc"
-    "pFlatRecord\"\030\n\026PollFlatRecordsRequest\"h\n"
-    "\027PollFlatRecordsResponse\022M\n\020xtcp_flat_re"
-    "cord\030\001 \001(\0132#.xtcp_flat_record.v1.XtcpFla"
-    "tRecordR\016xtcpFlatRecord2\355\001\n\025XTCPFlatReco"
-    "rdService\022b\n\013FlatRecords\022\'.xtcp_flat_rec"
-    "ord.v1.FlatRecordsRequest\032(.xtcp_flat_re"
-    "cord.v1.FlatRecordsResponse0\001\022p\n\017PollFla"
-    "tRecords\022+.xtcp_flat_record.v1.PollFlatR"
-    "ecordsRequest\032,.xtcp_flat_record.v1.Poll"
-    "FlatRecordsResponse(\0010\001B\256\001\n\027com.xtcp_fla"
-    "t_record.v1B\023XtcpFlatRecordProtoP\001Z\031./ge"
-    "n/go/xtcp_flat_record\242\002\003XXX\252\002\021XtcpFlatRe"
-    "cord.V1\312\002\021XtcpFlatRecord\\V1\342\002\035XtcpFlatRe"
-    "cord\\V1\\GPBMetadata\352\002\022XtcpFlatRecord::V1"
-    "b\006proto3"
+    "tRecordR\003row\"\216<\n\016XtcpFlatRecord\022%\n\016schem"
+    "a_version\030\001 \001(\rR\rschemaVersion\022%\n\016daemon"
+    "_version\030\002 \001(\tR\rdaemonVersion\022!\n\014timesta"
+    "mp_ns\030\n \001(\003R\013timestampNs\022\032\n\010hostname\030\024 \001"
+    "(\tR\010hostname\022\032\n\010location\030\025 \001(\tR\010location"
+    "\022\024\n\005netns\030\036 \001(\tR\005netns\022\037\n\013netns_inode\030\037 "
+    "\001(\004R\nnetnsInode\022\022\n\004nsid\030  \001(\rR\004nsid\022!\n\014c"
+    "ontainer_id\030( \001(\tR\013containerId\022+\n\021contai"
+    "ner_runtime\030) \001(\tR\020containerRuntime\022%\n\016c"
+    "ontainer_name\030* \001(\tR\rcontainerName\022\'\n\017co"
+    "ntainer_image\030+ \001(\tR\016containerImage\022\024\n\005l"
+    "abel\0302 \001(\tR\005label\022\020\n\003tag\0303 \001(\tR\003tag\022%\n\016r"
+    "ecord_counter\030< \001(\004R\rrecordCounter\022\033\n\tso"
+    "cket_fd\030= \001(\004R\010socketFd\022!\n\014netlinker_id\030"
+    "> \001(\004R\013netlinkerId\022%\n\016uplink1_ifname\030d \001"
+    "(\tR\ruplink1Ifname\022,\n\022uplink1_nic_driver\030"
+    "e \001(\tR\020uplink1NicDriver\022*\n\021uplink1_nic_m"
+    "odel\030f \001(\tR\017uplink1NicModel\0223\n\026uplink1_n"
+    "ic_pci_vendor\030g \001(\rR\023uplink1NicPciVendor"
+    "\0223\n\026uplink1_nic_pci_device\030h \001(\rR\023uplink"
+    "1NicPciDevice\022/\n\024uplink1_nic_bus_info\030i "
+    "\001(\tR\021uplink1NicBusInfo\0223\n\026uplink1_nic_sp"
+    "eed_mbps\030j \001(\rR\023uplink1NicSpeedMbps\0223\n\026u"
+    "plink1_nic_fw_version\030k \001(\tR\023uplink1NicF"
+    "wVersion\0229\n\031uplink1_lldp_chassis_name\030x "
+    "\001(\tR\026uplink1LldpChassisName\0225\n\027uplink1_l"
+    "ldp_chassis_id\030y \001(\tR\024uplink1LldpChassis"
+    "Id\022/\n\024uplink1_lldp_mgmt_ip\030z \001(\tR\021uplink"
+    "1LldpMgmtIp\022/\n\024uplink1_lldp_port_id\030{ \001("
+    "\tR\021uplink1LldpPortId\0225\n\027uplink1_lldp_por"
+    "t_descr\030| \001(\tR\024uplink1LldpPortDescr\022&\n\016u"
+    "plink2_ifname\030\310\001 \001(\tR\ruplink2Ifname\022-\n\022u"
+    "plink2_nic_driver\030\311\001 \001(\tR\020uplink2NicDriv"
+    "er\022+\n\021uplink2_nic_model\030\312\001 \001(\tR\017uplink2N"
+    "icModel\0224\n\026uplink2_nic_pci_vendor\030\313\001 \001(\r"
+    "R\023uplink2NicPciVendor\0224\n\026uplink2_nic_pci"
+    "_device\030\314\001 \001(\rR\023uplink2NicPciDevice\0220\n\024u"
+    "plink2_nic_bus_info\030\315\001 \001(\tR\021uplink2NicBu"
+    "sInfo\0224\n\026uplink2_nic_speed_mbps\030\316\001 \001(\rR\023"
+    "uplink2NicSpeedMbps\0224\n\026uplink2_nic_fw_ve"
+    "rsion\030\317\001 \001(\tR\023uplink2NicFwVersion\022:\n\031upl"
+    "ink2_lldp_chassis_name\030\334\001 \001(\tR\026uplink2Ll"
+    "dpChassisName\0226\n\027uplink2_lldp_chassis_id"
+    "\030\335\001 \001(\tR\024uplink2LldpChassisId\0220\n\024uplink2"
+    "_lldp_mgmt_ip\030\336\001 \001(\tR\021uplink2LldpMgmtIp\022"
+    "0\n\024uplink2_lldp_port_id\030\337\001 \001(\tR\021uplink2L"
+    "ldpPortId\0226\n\027uplink2_lldp_port_descr\030\340\001 "
+    "\001(\tR\024uplink2LldpPortDescr\0220\n\024inet_diag_m"
+    "sg_family\030\351\007 \001(\rR\021inetDiagMsgFamily\022.\n\023i"
+    "net_diag_msg_state\030\352\007 \001(\rR\020inetDiagMsgSt"
+    "ate\022.\n\023inet_diag_msg_timer\030\353\007 \001(\rR\020inetD"
+    "iagMsgTimer\0222\n\025inet_diag_msg_retrans\030\354\007 "
+    "\001(\rR\022inetDiagMsgRetrans\022F\n inet_diag_msg"
+    "_socket_source_port\030\355\007 \001(\rR\033inetDiagMsgS"
+    "ocketSourcePort\022P\n%inet_diag_msg_socket_"
+    "destination_port\030\356\007 \001(\rR inetDiagMsgSock"
+    "etDestinationPort\022=\n\033inet_diag_msg_socke"
+    "t_source\030\357\007 \001(\014R\027inetDiagMsgSocketSource"
+    "\022G\n inet_diag_msg_socket_destination\030\360\007 "
+    "\001(\014R\034inetDiagMsgSocketDestination\022C\n\036ine"
+    "t_diag_msg_socket_interface\030\361\007 \001(\rR\032inet"
+    "DiagMsgSocketInterface\022=\n\033inet_diag_msg_"
+    "socket_cookie\030\362\007 \001(\004R\027inetDiagMsgSocketC"
+    "ookie\022@\n\035inet_diag_msg_socket_dest_asn\030\363"
+    "\007 \001(\004R\030inetDiagMsgSocketDestAsn\022G\n!inet_"
+    "diag_msg_socket_next_hop_asn\030\364\007 \001(\004R\033ine"
+    "tDiagMsgSocketNextHopAsn\0222\n\025inet_diag_ms"
+    "g_expires\030\365\007 \001(\rR\022inetDiagMsgExpires\0220\n\024"
+    "inet_diag_msg_rqueue\030\366\007 \001(\rR\021inetDiagMsg"
+    "Rqueue\0220\n\024inet_diag_msg_wqueue\030\367\007 \001(\rR\021i"
+    "netDiagMsgWqueue\022*\n\021inet_diag_msg_uid\030\370\007"
+    " \001(\rR\016inetDiagMsgUid\022.\n\023inet_diag_msg_in"
+    "ode\030\371\007 \001(\rR\020inetDiagMsgInode\022#\n\rmem_info"
+    "_rmem\030\315\010 \001(\rR\013memInfoRmem\022#\n\rmem_info_wm"
+    "em\030\316\010 \001(\rR\013memInfoWmem\022#\n\rmem_info_fmem\030"
+    "\317\010 \001(\rR\013memInfoFmem\022#\n\rmem_info_tmem\030\320\010 "
+    "\001(\rR\013memInfoTmem\022%\n\016tcp_info_state\030\261\t \001("
+    "\rR\014tcpInfoState\022*\n\021tcp_info_ca_state\030\262\t "
+    "\001(\rR\016tcpInfoCaState\0221\n\024tcp_info_retransm"
+    "its\030\263\t \001(\rR\022tcpInfoRetransmits\022\'\n\017tcp_in"
+    "fo_probes\030\264\t \001(\rR\rtcpInfoProbes\022)\n\020tcp_i"
+    "nfo_backoff\030\265\t \001(\rR\016tcpInfoBackoff\022)\n\020tc"
+    "p_info_options\030\266\t \001(\rR\016tcpInfoOptions\022.\n"
+    "\023tcp_info_send_scale\030\267\t \001(\rR\020tcpInfoSend"
+    "Scale\022,\n\022tcp_info_rcv_scale\030\270\t \001(\rR\017tcpI"
+    "nfoRcvScale\022J\n\"tcp_info_delivery_rate_ap"
+    "p_limited\030\271\t \001(\rR\035tcpInfoDeliveryRateApp"
+    "Limited\022F\n tcp_info_fast_open_client_fai"
+    "led\030\272\t \001(\rR\033tcpInfoFastOpenClientFailed\022"
+    "!\n\014tcp_info_rto\030\277\t \001(\rR\ntcpInfoRto\022!\n\014tc"
+    "p_info_ato\030\300\t \001(\rR\ntcpInfoAto\022(\n\020tcp_inf"
+    "o_snd_mss\030\301\t \001(\rR\rtcpInfoSndMss\022(\n\020tcp_i"
+    "nfo_rcv_mss\030\302\t \001(\rR\rtcpInfoRcvMss\022)\n\020tcp"
+    "_info_unacked\030\303\t \001(\rR\016tcpInfoUnacked\022\'\n\017"
+    "tcp_info_sacked\030\304\t \001(\rR\rtcpInfoSacked\022#\n"
+    "\rtcp_info_lost\030\305\t \001(\rR\013tcpInfoLost\022)\n\020tc"
+    "p_info_retrans\030\306\t \001(\rR\016tcpInfoRetrans\022)\n"
+    "\020tcp_info_fackets\030\307\t \001(\rR\016tcpInfoFackets"
+    "\0225\n\027tcp_info_last_data_sent\030\310\t \001(\rR\023tcpI"
+    "nfoLastDataSent\0223\n\026tcp_info_last_ack_sen"
+    "t\030\311\t \001(\rR\022tcpInfoLastAckSent\0225\n\027tcp_info"
+    "_last_data_recv\030\312\t \001(\rR\023tcpInfoLastDataR"
+    "ecv\0223\n\026tcp_info_last_ack_recv\030\313\t \001(\rR\022tc"
+    "pInfoLastAckRecv\022#\n\rtcp_info_pmtu\030\314\t \001(\r"
+    "R\013tcpInfoPmtu\0222\n\025tcp_info_rcv_ssthresh\030\315"
+    "\t \001(\rR\022tcpInfoRcvSsthresh\022!\n\014tcp_info_rt"
+    "t\030\316\t \001(\rR\ntcpInfoRtt\022(\n\020tcp_info_rtt_var"
+    "\030\317\t \001(\rR\rtcpInfoRttVar\0222\n\025tcp_info_snd_s"
+    "sthresh\030\320\t \001(\rR\022tcpInfoSndSsthresh\022*\n\021tc"
+    "p_info_snd_cwnd\030\321\t \001(\rR\016tcpInfoSndCwnd\022("
+    "\n\020tcp_info_adv_mss\030\322\t \001(\rR\rtcpInfoAdvMss"
+    "\022/\n\023tcp_info_reordering\030\323\t \001(\rR\021tcpInfoR"
+    "eordering\022(\n\020tcp_info_rcv_rtt\030\324\t \001(\rR\rtc"
+    "pInfoRcvRtt\022,\n\022tcp_info_rcv_space\030\325\t \001(\r"
+    "R\017tcpInfoRcvSpace\0224\n\026tcp_info_total_retr"
+    "ans\030\326\t \001(\rR\023tcpInfoTotalRetrans\0220\n\024tcp_i"
+    "nfo_pacing_rate\030\327\t \001(\004R\021tcpInfoPacingRat"
+    "e\0227\n\030tcp_info_max_pacing_rate\030\330\t \001(\004R\024tc"
+    "pInfoMaxPacingRate\0220\n\024tcp_info_bytes_ack"
+    "ed\030\331\t \001(\004R\021tcpInfoBytesAcked\0226\n\027tcp_info"
+    "_bytes_received\030\332\t \001(\004R\024tcpInfoBytesRece"
+    "ived\022*\n\021tcp_info_segs_out\030\333\t \001(\rR\016tcpInf"
+    "oSegsOut\022(\n\020tcp_info_segs_in\030\334\t \001(\rR\rtcp"
+    "InfoSegsIn\0225\n\027tcp_info_not_sent_bytes\030\335\t"
+    " \001(\rR\023tcpInfoNotSentBytes\022(\n\020tcp_info_mi"
+    "n_rtt\030\336\t \001(\rR\rtcpInfoMinRtt\0221\n\025tcp_info_"
+    "data_segs_in\030\337\t \001(\rR\021tcpInfoDataSegsIn\0223"
+    "\n\026tcp_info_data_segs_out\030\340\t \001(\rR\022tcpInfo"
+    "DataSegsOut\0224\n\026tcp_info_delivery_rate\030\341\t"
+    " \001(\004R\023tcpInfoDeliveryRate\022,\n\022tcp_info_bu"
+    "sy_time\030\342\t \001(\004R\017tcpInfoBusyTime\0222\n\025tcp_i"
+    "nfo_rwnd_limited\030\343\t \001(\004R\022tcpInfoRwndLimi"
+    "ted\0226\n\027tcp_info_sndbuf_limited\030\344\t \001(\004R\024t"
+    "cpInfoSndbufLimited\022-\n\022tcp_info_delivere"
+    "d\030\345\t \001(\rR\020tcpInfoDelivered\0222\n\025tcp_info_d"
+    "elivered_ce\030\346\t \001(\rR\022tcpInfoDeliveredCe\022."
+    "\n\023tcp_info_bytes_sent\030\347\t \001(\004R\020tcpInfoByt"
+    "esSent\0224\n\026tcp_info_bytes_retrans\030\350\t \001(\004R"
+    "\023tcpInfoBytesRetrans\022.\n\023tcp_info_dsack_d"
+    "ups\030\351\t \001(\rR\020tcpInfoDsackDups\022.\n\023tcp_info"
+    "_reord_seen\030\352\t \001(\rR\020tcpInfoReordSeen\0220\n\024"
+    "tcp_info_rcv_ooopack\030\353\t \001(\rR\021tcpInfoRcvO"
+    "oopack\022(\n\020tcp_info_snd_wnd\030\354\t \001(\rR\rtcpIn"
+    "foSndWnd\022(\n\020tcp_info_rcv_wnd\030\355\t \001(\rR\rtcp"
+    "InfoRcvWnd\022\'\n\017tcp_info_rehash\030\356\t \001(\rR\rtc"
+    "pInfoRehash\022,\n\022tcp_info_total_rto\030\357\t \001(\r"
+    "R\017tcpInfoTotalRto\022A\n\035tcp_info_total_rto_"
+    "recoveries\030\360\t \001(\rR\031tcpInfoTotalRtoRecove"
+    "ries\0225\n\027tcp_info_total_rto_time\030\361\t \001(\rR\023"
+    "tcpInfoTotalRtoTime\022\?\n\033congestion_algori"
+    "thm_string\030\224\n \001(\tR\031congestionAlgorithmSt"
+    "ring\022t\n\031congestion_algorithm_enum\030\225\n \001(\016"
+    "27.xtcp_flat_record.v1.XtcpFlatRecord.Co"
+    "ngestionAlgorithmR\027congestionAlgorithmEn"
+    "um\022\'\n\017type_of_service\030\371\n \001(\rR\rtypeOfServ"
+    "ice\022$\n\rtraffic_class\030\372\n \001(\rR\014trafficClas"
+    "s\0223\n\026sk_mem_info_rmem_alloc\030\335\013 \001(\rR\022skMe"
+    "mInfoRmemAlloc\022-\n\023sk_mem_info_rcv_buf\030\336\013"
+    " \001(\rR\017skMemInfoRcvBuf\0223\n\026sk_mem_info_wme"
+    "m_alloc\030\337\013 \001(\rR\022skMemInfoWmemAlloc\022-\n\023sk"
+    "_mem_info_snd_buf\030\340\013 \001(\rR\017skMemInfoSndBu"
+    "f\0221\n\025sk_mem_info_fwd_alloc\030\341\013 \001(\rR\021skMem"
+    "InfoFwdAlloc\0225\n\027sk_mem_info_wmem_queued\030"
+    "\342\013 \001(\rR\023skMemInfoWmemQueued\022,\n\022sk_mem_in"
+    "fo_optmem\030\343\013 \001(\rR\017skMemInfoOptmem\022.\n\023sk_"
+    "mem_info_backlog\030\344\013 \001(\rR\020skMemInfoBacklo"
+    "g\022*\n\021sk_mem_info_drops\030\345\013 \001(\rR\016skMemInfo"
+    "Drops\022&\n\016shutdown_state\030\300\014 \001(\rR\rshutdown"
+    "State\022-\n\022vegas_info_enabled\030\245\r \001(\rR\020vega"
+    "sInfoEnabled\022,\n\022vegas_info_rtt_cnt\030\246\r \001("
+    "\rR\017vegasInfoRttCnt\022%\n\016vegas_info_rtt\030\247\r "
+    "\001(\rR\014vegasInfoRtt\022,\n\022vegas_info_min_rtt\030"
+    "\250\r \001(\rR\017vegasInfoMinRtt\022-\n\022dctcp_info_en"
+    "abled\030\211\016 \001(\rR\020dctcpInfoEnabled\022.\n\023dctcp_"
+    "info_ce_state\030\212\016 \001(\rR\020dctcpInfoCeState\022)"
+    "\n\020dctcp_info_alpha\030\213\016 \001(\rR\016dctcpInfoAlph"
+    "a\022*\n\021dctcp_info_ab_ecn\030\214\016 \001(\rR\016dctcpInfo"
+    "AbEcn\022*\n\021dctcp_info_ab_tot\030\215\016 \001(\rR\016dctcp"
+    "InfoAbTot\022$\n\016bbr_info_bw_lo\030\355\016 \001(\rR\013bbrI"
+    "nfoBwLo\022$\n\016bbr_info_bw_hi\030\356\016 \001(\rR\013bbrInf"
+    "oBwHi\022(\n\020bbr_info_min_rtt\030\357\016 \001(\rR\rbbrInf"
+    "oMinRtt\0220\n\024bbr_info_pacing_gain\030\360\016 \001(\rR\021"
+    "bbrInfoPacingGain\022,\n\022bbr_info_cwnd_gain\030"
+    "\361\016 \001(\rR\017bbrInfoCwndGain\022\032\n\010class_id\030\321\017 \001"
+    "(\rR\007classId\022\032\n\010sock_opt\030\322\017 \001(\rR\007sockOpt\022"
+    "\030\n\007c_group\030\267\020 \001(\004R\006cGroup\"\231\002\n\023Congestion"
+    "Algorithm\022$\n CONGESTION_ALGORITHM_UNSPEC"
+    "IFIED\020\000\022\036\n\032CONGESTION_ALGORITHM_CUBIC\020\001\022"
+    "\036\n\032CONGESTION_ALGORITHM_DCTCP\020\002\022\036\n\032CONGE"
+    "STION_ALGORITHM_VEGAS\020\003\022\037\n\033CONGESTION_AL"
+    "GORITHM_PRAGUE\020\004\022\035\n\031CONGESTION_ALGORITHM"
+    "_BBR1\020\005\022\035\n\031CONGESTION_ALGORITHM_BBR2\020\006\022\035"
+    "\n\031CONGESTION_ALGORITHM_BBR3\020\007\"\024\n\022FlatRec"
+    "ordsRequest\"d\n\023FlatRecordsResponse\022M\n\020xt"
+    "cp_flat_record\030\001 \001(\0132#.xtcp_flat_record."
+    "v1.XtcpFlatRecordR\016xtcpFlatRecord\"\030\n\026Pol"
+    "lFlatRecordsRequest\"h\n\027PollFlatRecordsRe"
+    "sponse\022M\n\020xtcp_flat_record\030\001 \001(\0132#.xtcp_"
+    "flat_record.v1.XtcpFlatRecordR\016xtcpFlatR"
+    "ecord2\355\001\n\025XTCPFlatRecordService\022b\n\013FlatR"
+    "ecords\022\'.xtcp_flat_record.v1.FlatRecords"
+    "Request\032(.xtcp_flat_record.v1.FlatRecord"
+    "sResponse0\001\022p\n\017PollFlatRecords\022+.xtcp_fl"
+    "at_record.v1.PollFlatRecordsRequest\032,.xt"
+    "cp_flat_record.v1.PollFlatRecordsRespons"
+    "e(\0010\001B\256\001\n\027com.xtcp_flat_record.v1B\023XtcpF"
+    "latRecordProtoP\001Z\031./gen/go/xtcp_flat_rec"
+    "ord\242\002\003XXX\252\002\021XtcpFlatRecord.V1\312\002\021XtcpFlat"
+    "Record\\V1\342\002\035XtcpFlatRecord\\V1\\GPBMetadat"
+    "a\352\002\022XtcpFlatRecord::V1b\006proto3"
 };
 static ::absl::once_flag descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto = {
     false,
     false,
-    7008,
+    8510,
     descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto,
     "xtcp_flat_record/v1/xtcp_flat_record.proto",
     &descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once,
@@ -2145,13 +2416,36 @@ PROTOBUF_NDEBUG_INLINE XtcpFlatRecord::Impl_::Impl_(
     [[maybe_unused]] const ::xtcp_flat_record::v1::XtcpFlatRecord& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
+        daemon_version_(arena, from.daemon_version_),
         hostname_(arena, from.hostname_),
         location_(arena, from.location_),
         netns_(arena, from.netns_),
         container_id_(arena, from.container_id_),
         container_runtime_(arena, from.container_runtime_),
+        container_name_(arena, from.container_name_),
+        container_image_(arena, from.container_image_),
         label_(arena, from.label_),
         tag_(arena, from.tag_),
+        uplink1_nic_model_(arena, from.uplink1_nic_model_),
+        uplink1_ifname_(arena, from.uplink1_ifname_),
+        uplink1_nic_driver_(arena, from.uplink1_nic_driver_),
+        uplink1_nic_bus_info_(arena, from.uplink1_nic_bus_info_),
+        uplink1_nic_fw_version_(arena, from.uplink1_nic_fw_version_),
+        uplink1_lldp_chassis_name_(arena, from.uplink1_lldp_chassis_name_),
+        uplink1_lldp_chassis_id_(arena, from.uplink1_lldp_chassis_id_),
+        uplink1_lldp_mgmt_ip_(arena, from.uplink1_lldp_mgmt_ip_),
+        uplink1_lldp_port_id_(arena, from.uplink1_lldp_port_id_),
+        uplink1_lldp_port_descr_(arena, from.uplink1_lldp_port_descr_),
+        uplink2_ifname_(arena, from.uplink2_ifname_),
+        uplink2_nic_driver_(arena, from.uplink2_nic_driver_),
+        uplink2_nic_model_(arena, from.uplink2_nic_model_),
+        uplink2_nic_bus_info_(arena, from.uplink2_nic_bus_info_),
+        uplink2_nic_fw_version_(arena, from.uplink2_nic_fw_version_),
+        uplink2_lldp_chassis_name_(arena, from.uplink2_lldp_chassis_name_),
+        uplink2_lldp_chassis_id_(arena, from.uplink2_lldp_chassis_id_),
+        uplink2_lldp_mgmt_ip_(arena, from.uplink2_lldp_mgmt_ip_),
+        uplink2_lldp_port_id_(arena, from.uplink2_lldp_port_id_),
+        uplink2_lldp_port_descr_(arena, from.uplink2_lldp_port_descr_),
         inet_diag_msg_socket_source_(arena, from.inet_diag_msg_socket_source_),
         inet_diag_msg_socket_destination_(arena, from.inet_diag_msg_socket_destination_),
         congestion_algorithm_string_(arena, from.congestion_algorithm_string_) {}
@@ -2174,15 +2468,15 @@ XtcpFlatRecord::XtcpFlatRecord(
                offsetof(Impl_, timestamp_ns_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, timestamp_ns_),
-           offsetof(Impl_, inet_diag_msg_wqueue_) -
+           offsetof(Impl_, inet_diag_msg_socket_interface_) -
                offsetof(Impl_, timestamp_ns_) +
-               sizeof(Impl_::inet_diag_msg_wqueue_));
+               sizeof(Impl_::inet_diag_msg_socket_interface_));
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
-               offsetof(Impl_, socket_fd_),
+               offsetof(Impl_, netlinker_id_),
            reinterpret_cast<const char*>(&from._impl_) +
-               offsetof(Impl_, socket_fd_),
+               offsetof(Impl_, netlinker_id_),
            offsetof(Impl_, c_group_) -
-               offsetof(Impl_, socket_fd_) +
+               offsetof(Impl_, netlinker_id_) +
                sizeof(Impl_::c_group_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_flat_record.v1.XtcpFlatRecord)
@@ -2191,13 +2485,36 @@ PROTOBUF_NDEBUG_INLINE XtcpFlatRecord::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
+        daemon_version_(arena),
         hostname_(arena),
         location_(arena),
         netns_(arena),
         container_id_(arena),
         container_runtime_(arena),
+        container_name_(arena),
+        container_image_(arena),
         label_(arena),
         tag_(arena),
+        uplink1_nic_model_(arena),
+        uplink1_ifname_(arena),
+        uplink1_nic_driver_(arena),
+        uplink1_nic_bus_info_(arena),
+        uplink1_nic_fw_version_(arena),
+        uplink1_lldp_chassis_name_(arena),
+        uplink1_lldp_chassis_id_(arena),
+        uplink1_lldp_mgmt_ip_(arena),
+        uplink1_lldp_port_id_(arena),
+        uplink1_lldp_port_descr_(arena),
+        uplink2_ifname_(arena),
+        uplink2_nic_driver_(arena),
+        uplink2_nic_model_(arena),
+        uplink2_nic_bus_info_(arena),
+        uplink2_nic_fw_version_(arena),
+        uplink2_lldp_chassis_name_(arena),
+        uplink2_lldp_chassis_id_(arena),
+        uplink2_lldp_mgmt_ip_(arena),
+        uplink2_lldp_port_id_(arena),
+        uplink2_lldp_port_descr_(arena),
         inet_diag_msg_socket_source_(arena),
         inet_diag_msg_socket_destination_(arena),
         congestion_algorithm_string_(arena) {}
@@ -2207,14 +2524,14 @@ inline void XtcpFlatRecord::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, timestamp_ns_),
            0,
-           offsetof(Impl_, inet_diag_msg_wqueue_) -
+           offsetof(Impl_, inet_diag_msg_socket_interface_) -
                offsetof(Impl_, timestamp_ns_) +
-               sizeof(Impl_::inet_diag_msg_wqueue_));
+               sizeof(Impl_::inet_diag_msg_socket_interface_));
   ::memset(reinterpret_cast<char*>(&_impl_) +
-               offsetof(Impl_, socket_fd_),
+               offsetof(Impl_, netlinker_id_),
            0,
            offsetof(Impl_, c_group_) -
-               offsetof(Impl_, socket_fd_) +
+               offsetof(Impl_, netlinker_id_) +
                sizeof(Impl_::c_group_));
 }
 XtcpFlatRecord::~XtcpFlatRecord() {
@@ -2228,13 +2545,36 @@ inline void XtcpFlatRecord::SharedDtor(MessageLite& self) {
   }
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.daemon_version_.Destroy();
   this_._impl_.hostname_.Destroy();
   this_._impl_.location_.Destroy();
   this_._impl_.netns_.Destroy();
   this_._impl_.container_id_.Destroy();
   this_._impl_.container_runtime_.Destroy();
+  this_._impl_.container_name_.Destroy();
+  this_._impl_.container_image_.Destroy();
   this_._impl_.label_.Destroy();
   this_._impl_.tag_.Destroy();
+  this_._impl_.uplink1_nic_model_.Destroy();
+  this_._impl_.uplink1_ifname_.Destroy();
+  this_._impl_.uplink1_nic_driver_.Destroy();
+  this_._impl_.uplink1_nic_bus_info_.Destroy();
+  this_._impl_.uplink1_nic_fw_version_.Destroy();
+  this_._impl_.uplink1_lldp_chassis_name_.Destroy();
+  this_._impl_.uplink1_lldp_chassis_id_.Destroy();
+  this_._impl_.uplink1_lldp_mgmt_ip_.Destroy();
+  this_._impl_.uplink1_lldp_port_id_.Destroy();
+  this_._impl_.uplink1_lldp_port_descr_.Destroy();
+  this_._impl_.uplink2_ifname_.Destroy();
+  this_._impl_.uplink2_nic_driver_.Destroy();
+  this_._impl_.uplink2_nic_model_.Destroy();
+  this_._impl_.uplink2_nic_bus_info_.Destroy();
+  this_._impl_.uplink2_nic_fw_version_.Destroy();
+  this_._impl_.uplink2_lldp_chassis_name_.Destroy();
+  this_._impl_.uplink2_lldp_chassis_id_.Destroy();
+  this_._impl_.uplink2_lldp_mgmt_ip_.Destroy();
+  this_._impl_.uplink2_lldp_port_id_.Destroy();
+  this_._impl_.uplink2_lldp_port_descr_.Destroy();
   this_._impl_.inet_diag_msg_socket_source_.Destroy();
   this_._impl_.inet_diag_msg_socket_destination_.Destroy();
   this_._impl_.congestion_algorithm_string_.Destroy();
@@ -2277,116 +2617,199 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   cached_has_bits = _impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      _impl_.hostname_.ClearNonDefaultToEmpty();
+      _impl_.daemon_version_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      _impl_.location_.ClearNonDefaultToEmpty();
+      _impl_.hostname_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      _impl_.netns_.ClearNonDefaultToEmpty();
+      _impl_.location_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      _impl_.container_id_.ClearNonDefaultToEmpty();
+      _impl_.netns_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      _impl_.container_runtime_.ClearNonDefaultToEmpty();
+      _impl_.container_id_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      _impl_.label_.ClearNonDefaultToEmpty();
+      _impl_.container_runtime_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      _impl_.tag_.ClearNonDefaultToEmpty();
+      _impl_.container_name_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      _impl_.inet_diag_msg_socket_source_.ClearNonDefaultToEmpty();
+      _impl_.container_image_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      _impl_.label_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      _impl_.tag_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      _impl_.uplink1_nic_model_.ClearNonDefaultToEmpty();
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000f800U)) {
     ::memset(&_impl_.timestamp_ns_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_interface_) -
-        reinterpret_cast<char*>(&_impl_.timestamp_ns_)) + sizeof(_impl_.inet_diag_msg_socket_interface_));
+        reinterpret_cast<char*>(&_impl_.record_counter_) -
+        reinterpret_cast<char*>(&_impl_.timestamp_ns_)) + sizeof(_impl_.record_counter_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
-    _impl_.inet_diag_msg_wqueue_ = 0u;
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      _impl_.inet_diag_msg_socket_destination_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      _impl_.congestion_algorithm_string_.ClearNonDefaultToEmpty();
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00f80000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
     ::memset(&_impl_.socket_fd_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_destination_port_) -
-        reinterpret_cast<char*>(&_impl_.socket_fd_)) + sizeof(_impl_.inet_diag_msg_socket_destination_port_));
+        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_interface_) -
+        reinterpret_cast<char*>(&_impl_.socket_fd_)) + sizeof(_impl_.inet_diag_msg_socket_interface_));
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      _impl_.uplink1_ifname_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      _impl_.uplink1_nic_driver_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      _impl_.uplink1_nic_bus_info_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      _impl_.uplink1_nic_fw_version_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      _impl_.uplink1_lldp_chassis_name_.ClearNonDefaultToEmpty();
+    }
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    ::memset(&_impl_.inet_diag_msg_socket_cookie_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.mem_info_rmem_) -
-        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_cookie_)) + sizeof(_impl_.mem_info_rmem_));
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      _impl_.uplink1_lldp_chassis_id_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      _impl_.uplink1_lldp_mgmt_ip_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      _impl_.uplink1_lldp_port_id_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      _impl_.uplink1_lldp_port_descr_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+      _impl_.uplink2_ifname_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      _impl_.uplink2_nic_driver_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+      _impl_.uplink2_nic_model_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+      _impl_.uplink2_nic_bus_info_.ClearNonDefaultToEmpty();
+    }
   }
   cached_has_bits = _impl_._has_bits_[1];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    ::memset(&_impl_.mem_info_wmem_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_backoff_) -
-        reinterpret_cast<char*>(&_impl_.mem_info_wmem_)) + sizeof(_impl_.tcp_info_backoff_));
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.uplink2_nic_fw_version_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.uplink2_lldp_chassis_name_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      _impl_.uplink2_lldp_chassis_id_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      _impl_.uplink2_lldp_mgmt_ip_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      _impl_.uplink2_lldp_port_id_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      _impl_.uplink2_lldp_port_descr_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      _impl_.inet_diag_msg_socket_source_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      _impl_.inet_diag_msg_socket_destination_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    ::memset(&_impl_.tcp_info_options_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_snd_mss_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_options_)) + sizeof(_impl_.tcp_info_snd_mss_));
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    _impl_.congestion_algorithm_string_.ClearNonDefaultToEmpty();
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000fe00U)) {
+    ::memset(&_impl_.netlinker_id_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.inet_diag_msg_family_) -
+        reinterpret_cast<char*>(&_impl_.netlinker_id_)) + sizeof(_impl_.inet_diag_msg_family_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    ::memset(&_impl_.tcp_info_rcv_mss_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_last_ack_sent_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_rcv_mss_)) + sizeof(_impl_.tcp_info_last_ack_sent_));
+    ::memset(&_impl_.inet_diag_msg_state_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_dest_asn_) -
+        reinterpret_cast<char*>(&_impl_.inet_diag_msg_state_)) + sizeof(_impl_.inet_diag_msg_socket_dest_asn_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    ::memset(&_impl_.tcp_info_last_data_recv_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_snd_cwnd_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_last_data_recv_)) + sizeof(_impl_.tcp_info_snd_cwnd_));
+    ::memset(&_impl_.inet_diag_msg_socket_next_hop_asn_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.mem_info_fmem_) -
+        reinterpret_cast<char*>(&_impl_.inet_diag_msg_socket_next_hop_asn_)) + sizeof(_impl_.mem_info_fmem_));
   }
   cached_has_bits = _impl_._has_bits_[2];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    ::memset(&_impl_.tcp_info_adv_mss_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_bytes_acked_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_adv_mss_)) + sizeof(_impl_.tcp_info_bytes_acked_));
+    ::memset(&_impl_.mem_info_tmem_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_send_scale_) -
+        reinterpret_cast<char*>(&_impl_.mem_info_tmem_)) + sizeof(_impl_.tcp_info_send_scale_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    ::memset(&_impl_.tcp_info_bytes_received_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_delivery_rate_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_bytes_received_)) + sizeof(_impl_.tcp_info_delivery_rate_));
+    ::memset(&_impl_.tcp_info_rcv_scale_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_unacked_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_rcv_scale_)) + sizeof(_impl_.tcp_info_unacked_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    ::memset(&_impl_.tcp_info_busy_time_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_dsack_dups_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_busy_time_)) + sizeof(_impl_.tcp_info_dsack_dups_));
+    ::memset(&_impl_.tcp_info_sacked_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_last_ack_recv_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_sacked_)) + sizeof(_impl_.tcp_info_last_ack_recv_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    ::memset(&_impl_.tcp_info_reord_seen_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.tcp_info_total_rto_time_) -
-        reinterpret_cast<char*>(&_impl_.tcp_info_reord_seen_)) + sizeof(_impl_.tcp_info_total_rto_time_));
+    ::memset(&_impl_.tcp_info_pmtu_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_reordering_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_pmtu_)) + sizeof(_impl_.tcp_info_reordering_));
   }
   cached_has_bits = _impl_._has_bits_[3];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    ::memset(&_impl_.congestion_algorithm_enum_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.sk_mem_info_fwd_alloc_) -
-        reinterpret_cast<char*>(&_impl_.congestion_algorithm_enum_)) + sizeof(_impl_.sk_mem_info_fwd_alloc_));
+    ::memset(&_impl_.tcp_info_rcv_rtt_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_segs_out_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_rcv_rtt_)) + sizeof(_impl_.tcp_info_segs_out_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    ::memset(&_impl_.sk_mem_info_wmem_queued_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.vegas_info_rtt_) -
-        reinterpret_cast<char*>(&_impl_.sk_mem_info_wmem_queued_)) + sizeof(_impl_.vegas_info_rtt_));
+    ::memset(&_impl_.tcp_info_segs_in_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_rwnd_limited_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_segs_in_)) + sizeof(_impl_.tcp_info_rwnd_limited_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    ::memset(&_impl_.vegas_info_min_rtt_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.bbr_info_bw_hi_) -
-        reinterpret_cast<char*>(&_impl_.vegas_info_min_rtt_)) + sizeof(_impl_.bbr_info_bw_hi_));
+    ::memset(&_impl_.tcp_info_sndbuf_limited_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.tcp_info_rcv_ooopack_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_sndbuf_limited_)) + sizeof(_impl_.tcp_info_rcv_ooopack_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
-    ::memset(&_impl_.bbr_info_min_rtt_, 0, static_cast<::size_t>(
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    ::memset(&_impl_.tcp_info_snd_wnd_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.type_of_service_) -
+        reinterpret_cast<char*>(&_impl_.tcp_info_snd_wnd_)) + sizeof(_impl_.type_of_service_));
+  }
+  cached_has_bits = _impl_._has_bits_[4];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    ::memset(&_impl_.traffic_class_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.sk_mem_info_optmem_) -
+        reinterpret_cast<char*>(&_impl_.traffic_class_)) + sizeof(_impl_.sk_mem_info_optmem_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    ::memset(&_impl_.sk_mem_info_backlog_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.dctcp_info_enabled_) -
+        reinterpret_cast<char*>(&_impl_.sk_mem_info_backlog_)) + sizeof(_impl_.dctcp_info_enabled_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    ::memset(&_impl_.dctcp_info_ce_state_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.bbr_info_pacing_gain_) -
+        reinterpret_cast<char*>(&_impl_.dctcp_info_ce_state_)) + sizeof(_impl_.bbr_info_pacing_gain_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    ::memset(&_impl_.bbr_info_cwnd_gain_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.c_group_) -
-        reinterpret_cast<char*>(&_impl_.bbr_info_min_rtt_)) + sizeof(_impl_.c_group_));
+        reinterpret_cast<char*>(&_impl_.bbr_info_cwnd_gain_)) + sizeof(_impl_.c_group_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -2411,8 +2834,27 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   (void)cached_has_bits;
 
   cached_has_bits = this_._impl_._has_bits_[0];
+  // uint32 schema_version = 1 [json_name = "schemaVersion"];
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_schema_version() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1, this_._internal_schema_version(), target);
+    }
+  }
+
+  // string daemon_version = 2 [json_name = "daemonVersion"];
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (!this_._internal_daemon_version().empty()) {
+      const ::std::string& _s = this_._internal_daemon_version();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.daemon_version");
+      target = stream->WriteStringMaybeAliased(2, _s, target);
+    }
+  }
+
   // int64 timestamp_ns = 10 [json_name = "timestampNs"];
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
     if (this_._internal_timestamp_ns() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt64ToArrayWithField<10>(
@@ -2421,7 +2863,7 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   }
 
   // string hostname = 20 [json_name = "hostname"];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     if (!this_._internal_hostname().empty()) {
       const ::std::string& _s = this_._internal_hostname();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -2431,7 +2873,7 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   }
 
   // string location = 21 [json_name = "location"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (!this_._internal_location().empty()) {
       const ::std::string& _s = this_._internal_location();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -2441,7 +2883,7 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   }
 
   // string netns = 30 [json_name = "netns"];
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
     if (!this_._internal_netns().empty()) {
       const ::std::string& _s = this_._internal_netns();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -2450,46 +2892,66 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
     }
   }
 
-  // string container_id = 31 [json_name = "containerId"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  // uint64 netns_inode = 31 [json_name = "netnsInode"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_netns_inode() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          31, this_._internal_netns_inode(), target);
+    }
+  }
+
+  // uint32 nsid = 32 [json_name = "nsid"];
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (this_._internal_nsid() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          32, this_._internal_nsid(), target);
+    }
+  }
+
+  // string container_id = 40 [json_name = "containerId"];
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     if (!this_._internal_container_id().empty()) {
       const ::std::string& _s = this_._internal_container_id();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
           _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.container_id");
-      target = stream->WriteStringMaybeAliased(31, _s, target);
+      target = stream->WriteStringMaybeAliased(40, _s, target);
     }
   }
 
-  // string container_runtime = 32 [json_name = "containerRuntime"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  // string container_runtime = 41 [json_name = "containerRuntime"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (!this_._internal_container_runtime().empty()) {
       const ::std::string& _s = this_._internal_container_runtime();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
           _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.container_runtime");
-      target = stream->WriteStringMaybeAliased(32, _s, target);
+      target = stream->WriteStringMaybeAliased(41, _s, target);
     }
   }
 
-  // uint64 netns_inode = 33 [json_name = "netnsInode"];
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-    if (this_._internal_netns_inode() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          33, this_._internal_netns_inode(), target);
+  // string container_name = 42 [json_name = "containerName"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (!this_._internal_container_name().empty()) {
+      const ::std::string& _s = this_._internal_container_name();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.container_name");
+      target = stream->WriteStringMaybeAliased(42, _s, target);
     }
   }
 
-  // uint32 nsid = 40 [json_name = "nsid"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-    if (this_._internal_nsid() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          40, this_._internal_nsid(), target);
+  // string container_image = 43 [json_name = "containerImage"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (!this_._internal_container_image().empty()) {
+      const ::std::string& _s = this_._internal_container_image();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.container_image");
+      target = stream->WriteStringMaybeAliased(43, _s, target);
     }
   }
 
   // string label = 50 [json_name = "label"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (!this_._internal_label().empty()) {
       const ::std::string& _s = this_._internal_label();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -2498,1060 +2960,1326 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
     }
   }
 
-  // string tag = 60 [json_name = "tag"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  // string tag = 51 [json_name = "tag"];
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (!this_._internal_tag().empty()) {
       const ::std::string& _s = this_._internal_tag();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
           _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.tag");
-      target = stream->WriteStringMaybeAliased(60, _s, target);
+      target = stream->WriteStringMaybeAliased(51, _s, target);
     }
   }
 
-  // uint64 record_counter = 70 [json_name = "recordCounter"];
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  // uint64 record_counter = 60 [json_name = "recordCounter"];
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
     if (this_._internal_record_counter() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          70, this_._internal_record_counter(), target);
+          60, this_._internal_record_counter(), target);
     }
   }
 
-  // uint64 socket_fd = 80 [json_name = "socketFd"];
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+  // uint64 socket_fd = 61 [json_name = "socketFd"];
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
     if (this_._internal_socket_fd() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          80, this_._internal_socket_fd(), target);
-    }
-  }
-
-  // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
-  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-    if (this_._internal_netlinker_id() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          90, this_._internal_netlinker_id(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_family = 101 [json_name = "inetDiagMsgFamily"];
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-    if (this_._internal_inet_diag_msg_family() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          101, this_._internal_inet_diag_msg_family(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-    if (this_._internal_inet_diag_msg_state() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          102, this_._internal_inet_diag_msg_state(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-    if (this_._internal_inet_diag_msg_timer() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          103, this_._internal_inet_diag_msg_timer(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_retrans = 104 [json_name = "inetDiagMsgRetrans"];
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-    if (this_._internal_inet_diag_msg_retrans() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          104, this_._internal_inet_diag_msg_retrans(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-    if (this_._internal_inet_diag_msg_socket_source_port() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          105, this_._internal_inet_diag_msg_socket_source_port(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_socket_destination_port = 106 [json_name = "inetDiagMsgSocketDestinationPort"];
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-    if (this_._internal_inet_diag_msg_socket_destination_port() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          106, this_._internal_inet_diag_msg_socket_destination_port(), target);
-    }
-  }
-
-  // bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-    if (!this_._internal_inet_diag_msg_socket_source().empty()) {
-      const ::std::string& _s = this_._internal_inet_diag_msg_socket_source();
-      target = stream->WriteBytesMaybeAliased(107, _s, target);
-    }
-  }
-
-  // bytes inet_diag_msg_socket_destination = 108 [json_name = "inetDiagMsgSocketDestination"];
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-    if (!this_._internal_inet_diag_msg_socket_destination().empty()) {
-      const ::std::string& _s = this_._internal_inet_diag_msg_socket_destination();
-      target = stream->WriteBytesMaybeAliased(108, _s, target);
-    }
-  }
-
-  // uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-    if (this_._internal_inet_diag_msg_socket_interface() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          109, this_._internal_inet_diag_msg_socket_interface(), target);
-    }
-  }
-
-  // uint64 inet_diag_msg_socket_cookie = 110 [json_name = "inetDiagMsgSocketCookie"];
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-    if (this_._internal_inet_diag_msg_socket_cookie() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          110, this_._internal_inet_diag_msg_socket_cookie(), target);
-    }
-  }
-
-  // uint64 inet_diag_msg_socket_dest_asn = 111 [json_name = "inetDiagMsgSocketDestAsn"];
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-    if (this_._internal_inet_diag_msg_socket_dest_asn() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          111, this_._internal_inet_diag_msg_socket_dest_asn(), target);
-    }
-  }
-
-  // uint64 inet_diag_msg_socket_next_hop_asn = 112 [json_name = "inetDiagMsgSocketNextHopAsn"];
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-    if (this_._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          112, this_._internal_inet_diag_msg_socket_next_hop_asn(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
-  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-    if (this_._internal_inet_diag_msg_expires() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          113, this_._internal_inet_diag_msg_expires(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_rqueue = 114 [json_name = "inetDiagMsgRqueue"];
-  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-    if (this_._internal_inet_diag_msg_rqueue() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          114, this_._internal_inet_diag_msg_rqueue(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-    if (this_._internal_inet_diag_msg_wqueue() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          115, this_._internal_inet_diag_msg_wqueue(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_uid = 116 [json_name = "inetDiagMsgUid"];
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-    if (this_._internal_inet_diag_msg_uid() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          116, this_._internal_inet_diag_msg_uid(), target);
-    }
-  }
-
-  // uint32 inet_diag_msg_inode = 117 [json_name = "inetDiagMsgInode"];
-  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-    if (this_._internal_inet_diag_msg_inode() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          117, this_._internal_inet_diag_msg_inode(), target);
-    }
-  }
-
-  // uint32 mem_info_rmem = 201 [json_name = "memInfoRmem"];
-  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-    if (this_._internal_mem_info_rmem() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          201, this_._internal_mem_info_rmem(), target);
+          61, this_._internal_socket_fd(), target);
     }
   }
 
   cached_has_bits = this_._impl_._has_bits_[1];
-  // uint32 mem_info_wmem = 202 [json_name = "memInfoWmem"];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    if (this_._internal_mem_info_wmem() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          202, this_._internal_mem_info_wmem(), target);
-    }
-  }
-
-  // uint32 mem_info_fmem = 203 [json_name = "memInfoFmem"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-    if (this_._internal_mem_info_fmem() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          203, this_._internal_mem_info_fmem(), target);
-    }
-  }
-
-  // uint32 mem_info_tmem = 204 [json_name = "memInfoTmem"];
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-    if (this_._internal_mem_info_tmem() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          204, this_._internal_mem_info_tmem(), target);
-    }
-  }
-
-  // uint32 tcp_info_state = 301 [json_name = "tcpInfoState"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-    if (this_._internal_tcp_info_state() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          301, this_._internal_tcp_info_state(), target);
-    }
-  }
-
-  // uint32 tcp_info_ca_state = 302 [json_name = "tcpInfoCaState"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-    if (this_._internal_tcp_info_ca_state() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          302, this_._internal_tcp_info_ca_state(), target);
-    }
-  }
-
-  // uint32 tcp_info_retransmits = 303 [json_name = "tcpInfoRetransmits"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-    if (this_._internal_tcp_info_retransmits() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          303, this_._internal_tcp_info_retransmits(), target);
-    }
-  }
-
-  // uint32 tcp_info_probes = 304 [json_name = "tcpInfoProbes"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-    if (this_._internal_tcp_info_probes() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          304, this_._internal_tcp_info_probes(), target);
-    }
-  }
-
-  // uint32 tcp_info_backoff = 305 [json_name = "tcpInfoBackoff"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-    if (this_._internal_tcp_info_backoff() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          305, this_._internal_tcp_info_backoff(), target);
-    }
-  }
-
-  // uint32 tcp_info_options = 306 [json_name = "tcpInfoOptions"];
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-    if (this_._internal_tcp_info_options() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          306, this_._internal_tcp_info_options(), target);
-    }
-  }
-
-  // uint32 tcp_info_send_scale = 307 [json_name = "tcpInfoSendScale"];
+  // uint64 netlinker_id = 62 [json_name = "netlinkerId"];
   if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-    if (this_._internal_tcp_info_send_scale() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          307, this_._internal_tcp_info_send_scale(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_scale = 308 [json_name = "tcpInfoRcvScale"];
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-    if (this_._internal_tcp_info_rcv_scale() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          308, this_._internal_tcp_info_rcv_scale(), target);
-    }
-  }
-
-  // uint32 tcp_info_delivery_rate_app_limited = 309 [json_name = "tcpInfoDeliveryRateAppLimited"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-    if (this_._internal_tcp_info_delivery_rate_app_limited() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          309, this_._internal_tcp_info_delivery_rate_app_limited(), target);
-    }
-  }
-
-  // uint32 tcp_info_fast_open_client_failed = 310 [json_name = "tcpInfoFastOpenClientFailed"];
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-    if (this_._internal_tcp_info_fast_open_client_failed() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          310, this_._internal_tcp_info_fast_open_client_failed(), target);
-    }
-  }
-
-  // uint32 tcp_info_rto = 315 [json_name = "tcpInfoRto"];
-  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-    if (this_._internal_tcp_info_rto() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          315, this_._internal_tcp_info_rto(), target);
-    }
-  }
-
-  // uint32 tcp_info_ato = 316 [json_name = "tcpInfoAto"];
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-    if (this_._internal_tcp_info_ato() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          316, this_._internal_tcp_info_ato(), target);
-    }
-  }
-
-  // uint32 tcp_info_snd_mss = 317 [json_name = "tcpInfoSndMss"];
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-    if (this_._internal_tcp_info_snd_mss() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          317, this_._internal_tcp_info_snd_mss(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_mss = 318 [json_name = "tcpInfoRcvMss"];
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-    if (this_._internal_tcp_info_rcv_mss() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          318, this_._internal_tcp_info_rcv_mss(), target);
-    }
-  }
-
-  // uint32 tcp_info_unacked = 319 [json_name = "tcpInfoUnacked"];
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-    if (this_._internal_tcp_info_unacked() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          319, this_._internal_tcp_info_unacked(), target);
-    }
-  }
-
-  // uint32 tcp_info_sacked = 320 [json_name = "tcpInfoSacked"];
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-    if (this_._internal_tcp_info_sacked() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          320, this_._internal_tcp_info_sacked(), target);
-    }
-  }
-
-  // uint32 tcp_info_lost = 321 [json_name = "tcpInfoLost"];
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-    if (this_._internal_tcp_info_lost() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          321, this_._internal_tcp_info_lost(), target);
-    }
-  }
-
-  // uint32 tcp_info_retrans = 322 [json_name = "tcpInfoRetrans"];
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-    if (this_._internal_tcp_info_retrans() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          322, this_._internal_tcp_info_retrans(), target);
-    }
-  }
-
-  // uint32 tcp_info_fackets = 323 [json_name = "tcpInfoFackets"];
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-    if (this_._internal_tcp_info_fackets() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          323, this_._internal_tcp_info_fackets(), target);
-    }
-  }
-
-  // uint32 tcp_info_last_data_sent = 324 [json_name = "tcpInfoLastDataSent"];
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-    if (this_._internal_tcp_info_last_data_sent() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          324, this_._internal_tcp_info_last_data_sent(), target);
-    }
-  }
-
-  // uint32 tcp_info_last_ack_sent = 325 [json_name = "tcpInfoLastAckSent"];
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-    if (this_._internal_tcp_info_last_ack_sent() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          325, this_._internal_tcp_info_last_ack_sent(), target);
-    }
-  }
-
-  // uint32 tcp_info_last_data_recv = 326 [json_name = "tcpInfoLastDataRecv"];
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-    if (this_._internal_tcp_info_last_data_recv() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          326, this_._internal_tcp_info_last_data_recv(), target);
-    }
-  }
-
-  // uint32 tcp_info_last_ack_recv = 327 [json_name = "tcpInfoLastAckRecv"];
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-    if (this_._internal_tcp_info_last_ack_recv() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          327, this_._internal_tcp_info_last_ack_recv(), target);
-    }
-  }
-
-  // uint32 tcp_info_pmtu = 328 [json_name = "tcpInfoPmtu"];
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-    if (this_._internal_tcp_info_pmtu() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          328, this_._internal_tcp_info_pmtu(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_ssthresh = 329 [json_name = "tcpInfoRcvSsthresh"];
-  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-    if (this_._internal_tcp_info_rcv_ssthresh() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          329, this_._internal_tcp_info_rcv_ssthresh(), target);
-    }
-  }
-
-  // uint32 tcp_info_rtt = 330 [json_name = "tcpInfoRtt"];
-  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-    if (this_._internal_tcp_info_rtt() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          330, this_._internal_tcp_info_rtt(), target);
-    }
-  }
-
-  // uint32 tcp_info_rtt_var = 331 [json_name = "tcpInfoRttVar"];
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-    if (this_._internal_tcp_info_rtt_var() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          331, this_._internal_tcp_info_rtt_var(), target);
-    }
-  }
-
-  // uint32 tcp_info_snd_ssthresh = 332 [json_name = "tcpInfoSndSsthresh"];
-  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-    if (this_._internal_tcp_info_snd_ssthresh() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          332, this_._internal_tcp_info_snd_ssthresh(), target);
-    }
-  }
-
-  // uint32 tcp_info_snd_cwnd = 333 [json_name = "tcpInfoSndCwnd"];
-  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-    if (this_._internal_tcp_info_snd_cwnd() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          333, this_._internal_tcp_info_snd_cwnd(), target);
-    }
-  }
-
-  cached_has_bits = this_._impl_._has_bits_[2];
-  // uint32 tcp_info_adv_mss = 334 [json_name = "tcpInfoAdvMss"];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    if (this_._internal_tcp_info_adv_mss() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          334, this_._internal_tcp_info_adv_mss(), target);
-    }
-  }
-
-  // uint32 tcp_info_reordering = 335 [json_name = "tcpInfoReordering"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-    if (this_._internal_tcp_info_reordering() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          335, this_._internal_tcp_info_reordering(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_rtt = 336 [json_name = "tcpInfoRcvRtt"];
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-    if (this_._internal_tcp_info_rcv_rtt() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          336, this_._internal_tcp_info_rcv_rtt(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_space = 337 [json_name = "tcpInfoRcvSpace"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-    if (this_._internal_tcp_info_rcv_space() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          337, this_._internal_tcp_info_rcv_space(), target);
-    }
-  }
-
-  // uint32 tcp_info_total_retrans = 338 [json_name = "tcpInfoTotalRetrans"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-    if (this_._internal_tcp_info_total_retrans() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          338, this_._internal_tcp_info_total_retrans(), target);
-    }
-  }
-
-  // uint64 tcp_info_pacing_rate = 339 [json_name = "tcpInfoPacingRate"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-    if (this_._internal_tcp_info_pacing_rate() != 0) {
+    if (this_._internal_netlinker_id() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          339, this_._internal_tcp_info_pacing_rate(), target);
-    }
-  }
-
-  // uint64 tcp_info_max_pacing_rate = 340 [json_name = "tcpInfoMaxPacingRate"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-    if (this_._internal_tcp_info_max_pacing_rate() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          340, this_._internal_tcp_info_max_pacing_rate(), target);
-    }
-  }
-
-  // uint64 tcp_info_bytes_acked = 341 [json_name = "tcpInfoBytesAcked"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-    if (this_._internal_tcp_info_bytes_acked() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          341, this_._internal_tcp_info_bytes_acked(), target);
-    }
-  }
-
-  // uint64 tcp_info_bytes_received = 342 [json_name = "tcpInfoBytesReceived"];
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-    if (this_._internal_tcp_info_bytes_received() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          342, this_._internal_tcp_info_bytes_received(), target);
-    }
-  }
-
-  // uint32 tcp_info_segs_out = 343 [json_name = "tcpInfoSegsOut"];
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-    if (this_._internal_tcp_info_segs_out() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          343, this_._internal_tcp_info_segs_out(), target);
-    }
-  }
-
-  // uint32 tcp_info_segs_in = 344 [json_name = "tcpInfoSegsIn"];
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-    if (this_._internal_tcp_info_segs_in() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          344, this_._internal_tcp_info_segs_in(), target);
-    }
-  }
-
-  // uint32 tcp_info_not_sent_bytes = 345 [json_name = "tcpInfoNotSentBytes"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-    if (this_._internal_tcp_info_not_sent_bytes() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          345, this_._internal_tcp_info_not_sent_bytes(), target);
-    }
-  }
-
-  // uint32 tcp_info_min_rtt = 346 [json_name = "tcpInfoMinRtt"];
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-    if (this_._internal_tcp_info_min_rtt() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          346, this_._internal_tcp_info_min_rtt(), target);
-    }
-  }
-
-  // uint32 tcp_info_data_segs_in = 347 [json_name = "tcpInfoDataSegsIn"];
-  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-    if (this_._internal_tcp_info_data_segs_in() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          347, this_._internal_tcp_info_data_segs_in(), target);
-    }
-  }
-
-  // uint32 tcp_info_data_segs_out = 348 [json_name = "tcpInfoDataSegsOut"];
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-    if (this_._internal_tcp_info_data_segs_out() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          348, this_._internal_tcp_info_data_segs_out(), target);
-    }
-  }
-
-  // uint64 tcp_info_delivery_rate = 349 [json_name = "tcpInfoDeliveryRate"];
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-    if (this_._internal_tcp_info_delivery_rate() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          349, this_._internal_tcp_info_delivery_rate(), target);
-    }
-  }
-
-  // uint64 tcp_info_busy_time = 350 [json_name = "tcpInfoBusyTime"];
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-    if (this_._internal_tcp_info_busy_time() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          350, this_._internal_tcp_info_busy_time(), target);
-    }
-  }
-
-  // uint64 tcp_info_rwnd_limited = 351 [json_name = "tcpInfoRwndLimited"];
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-    if (this_._internal_tcp_info_rwnd_limited() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          351, this_._internal_tcp_info_rwnd_limited(), target);
-    }
-  }
-
-  // uint64 tcp_info_sndbuf_limited = 352 [json_name = "tcpInfoSndbufLimited"];
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-    if (this_._internal_tcp_info_sndbuf_limited() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          352, this_._internal_tcp_info_sndbuf_limited(), target);
-    }
-  }
-
-  // uint32 tcp_info_delivered = 353 [json_name = "tcpInfoDelivered"];
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-    if (this_._internal_tcp_info_delivered() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          353, this_._internal_tcp_info_delivered(), target);
-    }
-  }
-
-  // uint32 tcp_info_delivered_ce = 354 [json_name = "tcpInfoDeliveredCe"];
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-    if (this_._internal_tcp_info_delivered_ce() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          354, this_._internal_tcp_info_delivered_ce(), target);
-    }
-  }
-
-  // uint64 tcp_info_bytes_sent = 355 [json_name = "tcpInfoBytesSent"];
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-    if (this_._internal_tcp_info_bytes_sent() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          355, this_._internal_tcp_info_bytes_sent(), target);
-    }
-  }
-
-  // uint64 tcp_info_bytes_retrans = 356 [json_name = "tcpInfoBytesRetrans"];
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-    if (this_._internal_tcp_info_bytes_retrans() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          356, this_._internal_tcp_info_bytes_retrans(), target);
-    }
-  }
-
-  // uint32 tcp_info_dsack_dups = 357 [json_name = "tcpInfoDsackDups"];
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-    if (this_._internal_tcp_info_dsack_dups() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          357, this_._internal_tcp_info_dsack_dups(), target);
-    }
-  }
-
-  // uint32 tcp_info_reord_seen = 358 [json_name = "tcpInfoReordSeen"];
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-    if (this_._internal_tcp_info_reord_seen() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          358, this_._internal_tcp_info_reord_seen(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_ooopack = 359 [json_name = "tcpInfoRcvOoopack"];
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-    if (this_._internal_tcp_info_rcv_ooopack() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          359, this_._internal_tcp_info_rcv_ooopack(), target);
-    }
-  }
-
-  // uint32 tcp_info_snd_wnd = 360 [json_name = "tcpInfoSndWnd"];
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-    if (this_._internal_tcp_info_snd_wnd() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          360, this_._internal_tcp_info_snd_wnd(), target);
-    }
-  }
-
-  // uint32 tcp_info_rcv_wnd = 361 [json_name = "tcpInfoRcvWnd"];
-  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-    if (this_._internal_tcp_info_rcv_wnd() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          361, this_._internal_tcp_info_rcv_wnd(), target);
-    }
-  }
-
-  // uint32 tcp_info_rehash = 362 [json_name = "tcpInfoRehash"];
-  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-    if (this_._internal_tcp_info_rehash() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          362, this_._internal_tcp_info_rehash(), target);
-    }
-  }
-
-  // uint32 tcp_info_total_rto = 363 [json_name = "tcpInfoTotalRto"];
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-    if (this_._internal_tcp_info_total_rto() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          363, this_._internal_tcp_info_total_rto(), target);
-    }
-  }
-
-  // uint32 tcp_info_total_rto_recoveries = 364 [json_name = "tcpInfoTotalRtoRecoveries"];
-  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-    if (this_._internal_tcp_info_total_rto_recoveries() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          364, this_._internal_tcp_info_total_rto_recoveries(), target);
-    }
-  }
-
-  // uint32 tcp_info_total_rto_time = 365 [json_name = "tcpInfoTotalRtoTime"];
-  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-    if (this_._internal_tcp_info_total_rto_time() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          365, this_._internal_tcp_info_total_rto_time(), target);
+          62, this_._internal_netlinker_id(), target);
     }
   }
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  // string congestion_algorithm_string = 400 [json_name = "congestionAlgorithmString"];
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-    if (!this_._internal_congestion_algorithm_string().empty()) {
-      const ::std::string& _s = this_._internal_congestion_algorithm_string();
+  // string uplink1_ifname = 100 [json_name = "uplink1Ifname"];
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (!this_._internal_uplink1_ifname().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_ifname();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string");
-      target = stream->WriteStringMaybeAliased(400, _s, target);
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_ifname");
+      target = stream->WriteStringMaybeAliased(100, _s, target);
+    }
+  }
+
+  // string uplink1_nic_driver = 101 [json_name = "uplink1NicDriver"];
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (!this_._internal_uplink1_nic_driver().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_nic_driver();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_driver");
+      target = stream->WriteStringMaybeAliased(101, _s, target);
+    }
+  }
+
+  // string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (!this_._internal_uplink1_nic_model().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_nic_model();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_model");
+      target = stream->WriteStringMaybeAliased(102, _s, target);
+    }
+  }
+
+  // uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (this_._internal_uplink1_nic_pci_vendor() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          103, this_._internal_uplink1_nic_pci_vendor(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // uint32 uplink1_nic_pci_device = 104 [json_name = "uplink1NicPciDevice"];
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_uplink1_nic_pci_device() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          104, this_._internal_uplink1_nic_pci_device(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // string uplink1_nic_bus_info = 105 [json_name = "uplink1NicBusInfo"];
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (!this_._internal_uplink1_nic_bus_info().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_nic_bus_info();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_bus_info");
+      target = stream->WriteStringMaybeAliased(105, _s, target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // uint32 uplink1_nic_speed_mbps = 106 [json_name = "uplink1NicSpeedMbps"];
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (this_._internal_uplink1_nic_speed_mbps() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          106, this_._internal_uplink1_nic_speed_mbps(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // string uplink1_nic_fw_version = 107 [json_name = "uplink1NicFwVersion"];
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (!this_._internal_uplink1_nic_fw_version().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_nic_fw_version();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_nic_fw_version");
+      target = stream->WriteStringMaybeAliased(107, _s, target);
+    }
+  }
+
+  // string uplink1_lldp_chassis_name = 120 [json_name = "uplink1LldpChassisName"];
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (!this_._internal_uplink1_lldp_chassis_name().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_lldp_chassis_name();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_name");
+      target = stream->WriteStringMaybeAliased(120, _s, target);
+    }
+  }
+
+  // string uplink1_lldp_chassis_id = 121 [json_name = "uplink1LldpChassisId"];
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (!this_._internal_uplink1_lldp_chassis_id().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_lldp_chassis_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_chassis_id");
+      target = stream->WriteStringMaybeAliased(121, _s, target);
+    }
+  }
+
+  // string uplink1_lldp_mgmt_ip = 122 [json_name = "uplink1LldpMgmtIp"];
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (!this_._internal_uplink1_lldp_mgmt_ip().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_lldp_mgmt_ip();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_mgmt_ip");
+      target = stream->WriteStringMaybeAliased(122, _s, target);
+    }
+  }
+
+  // string uplink1_lldp_port_id = 123 [json_name = "uplink1LldpPortId"];
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (!this_._internal_uplink1_lldp_port_id().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_lldp_port_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_id");
+      target = stream->WriteStringMaybeAliased(123, _s, target);
+    }
+  }
+
+  // string uplink1_lldp_port_descr = 124 [json_name = "uplink1LldpPortDescr"];
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (!this_._internal_uplink1_lldp_port_descr().empty()) {
+      const ::std::string& _s = this_._internal_uplink1_lldp_port_descr();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink1_lldp_port_descr");
+      target = stream->WriteStringMaybeAliased(124, _s, target);
+    }
+  }
+
+  // string uplink2_ifname = 200 [json_name = "uplink2Ifname"];
+  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (!this_._internal_uplink2_ifname().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_ifname();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_ifname");
+      target = stream->WriteStringMaybeAliased(200, _s, target);
+    }
+  }
+
+  // string uplink2_nic_driver = 201 [json_name = "uplink2NicDriver"];
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (!this_._internal_uplink2_nic_driver().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_nic_driver();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_driver");
+      target = stream->WriteStringMaybeAliased(201, _s, target);
+    }
+  }
+
+  // string uplink2_nic_model = 202 [json_name = "uplink2NicModel"];
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (!this_._internal_uplink2_nic_model().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_nic_model();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_model");
+      target = stream->WriteStringMaybeAliased(202, _s, target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // uint32 uplink2_nic_pci_vendor = 203 [json_name = "uplink2NicPciVendor"];
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_uplink2_nic_pci_vendor() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          203, this_._internal_uplink2_nic_pci_vendor(), target);
+    }
+  }
+
+  // uint32 uplink2_nic_pci_device = 204 [json_name = "uplink2NicPciDevice"];
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (this_._internal_uplink2_nic_pci_device() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          204, this_._internal_uplink2_nic_pci_device(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // string uplink2_nic_bus_info = 205 [json_name = "uplink2NicBusInfo"];
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    if (!this_._internal_uplink2_nic_bus_info().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_nic_bus_info();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_bus_info");
+      target = stream->WriteStringMaybeAliased(205, _s, target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // uint32 uplink2_nic_speed_mbps = 206 [json_name = "uplink2NicSpeedMbps"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_uplink2_nic_speed_mbps() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          206, this_._internal_uplink2_nic_speed_mbps(), target);
+    }
+  }
+
+  // string uplink2_nic_fw_version = 207 [json_name = "uplink2NicFwVersion"];
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (!this_._internal_uplink2_nic_fw_version().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_nic_fw_version();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_nic_fw_version");
+      target = stream->WriteStringMaybeAliased(207, _s, target);
+    }
+  }
+
+  // string uplink2_lldp_chassis_name = 220 [json_name = "uplink2LldpChassisName"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_uplink2_lldp_chassis_name().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_lldp_chassis_name();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_name");
+      target = stream->WriteStringMaybeAliased(220, _s, target);
+    }
+  }
+
+  // string uplink2_lldp_chassis_id = 221 [json_name = "uplink2LldpChassisId"];
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_uplink2_lldp_chassis_id().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_lldp_chassis_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_chassis_id");
+      target = stream->WriteStringMaybeAliased(221, _s, target);
+    }
+  }
+
+  // string uplink2_lldp_mgmt_ip = 222 [json_name = "uplink2LldpMgmtIp"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_uplink2_lldp_mgmt_ip().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_lldp_mgmt_ip();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_mgmt_ip");
+      target = stream->WriteStringMaybeAliased(222, _s, target);
+    }
+  }
+
+  // string uplink2_lldp_port_id = 223 [json_name = "uplink2LldpPortId"];
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (!this_._internal_uplink2_lldp_port_id().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_lldp_port_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_id");
+      target = stream->WriteStringMaybeAliased(223, _s, target);
+    }
+  }
+
+  // string uplink2_lldp_port_descr = 224 [json_name = "uplink2LldpPortDescr"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (!this_._internal_uplink2_lldp_port_descr().empty()) {
+      const ::std::string& _s = this_._internal_uplink2_lldp_port_descr();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.uplink2_lldp_port_descr");
+      target = stream->WriteStringMaybeAliased(224, _s, target);
+    }
+  }
+
+  // uint32 inet_diag_msg_family = 1001 [json_name = "inetDiagMsgFamily"];
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (this_._internal_inet_diag_msg_family() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1001, this_._internal_inet_diag_msg_family(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_state = 1002 [json_name = "inetDiagMsgState"];
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (this_._internal_inet_diag_msg_state() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1002, this_._internal_inet_diag_msg_state(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_timer = 1003 [json_name = "inetDiagMsgTimer"];
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (this_._internal_inet_diag_msg_timer() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1003, this_._internal_inet_diag_msg_timer(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_retrans = 1004 [json_name = "inetDiagMsgRetrans"];
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (this_._internal_inet_diag_msg_retrans() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1004, this_._internal_inet_diag_msg_retrans(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_socket_source_port = 1005 [json_name = "inetDiagMsgSocketSourcePort"];
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (this_._internal_inet_diag_msg_socket_source_port() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1005, this_._internal_inet_diag_msg_socket_source_port(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_socket_destination_port = 1006 [json_name = "inetDiagMsgSocketDestinationPort"];
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (this_._internal_inet_diag_msg_socket_destination_port() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1006, this_._internal_inet_diag_msg_socket_destination_port(), target);
+    }
+  }
+
+  // bytes inet_diag_msg_socket_source = 1007 [json_name = "inetDiagMsgSocketSource"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (!this_._internal_inet_diag_msg_socket_source().empty()) {
+      const ::std::string& _s = this_._internal_inet_diag_msg_socket_source();
+      target = stream->WriteBytesMaybeAliased(1007, _s, target);
+    }
+  }
+
+  // bytes inet_diag_msg_socket_destination = 1008 [json_name = "inetDiagMsgSocketDestination"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (!this_._internal_inet_diag_msg_socket_destination().empty()) {
+      const ::std::string& _s = this_._internal_inet_diag_msg_socket_destination();
+      target = stream->WriteBytesMaybeAliased(1008, _s, target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (this_._internal_inet_diag_msg_socket_interface() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1009, this_._internal_inet_diag_msg_socket_interface(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // uint64 inet_diag_msg_socket_cookie = 1010 [json_name = "inetDiagMsgSocketCookie"];
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (this_._internal_inet_diag_msg_socket_cookie() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1010, this_._internal_inet_diag_msg_socket_cookie(), target);
+    }
+  }
+
+  // uint64 inet_diag_msg_socket_dest_asn = 1011 [json_name = "inetDiagMsgSocketDestAsn"];
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (this_._internal_inet_diag_msg_socket_dest_asn() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1011, this_._internal_inet_diag_msg_socket_dest_asn(), target);
+    }
+  }
+
+  // uint64 inet_diag_msg_socket_next_hop_asn = 1012 [json_name = "inetDiagMsgSocketNextHopAsn"];
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (this_._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1012, this_._internal_inet_diag_msg_socket_next_hop_asn(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_expires = 1013 [json_name = "inetDiagMsgExpires"];
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (this_._internal_inet_diag_msg_expires() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1013, this_._internal_inet_diag_msg_expires(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_rqueue = 1014 [json_name = "inetDiagMsgRqueue"];
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (this_._internal_inet_diag_msg_rqueue() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1014, this_._internal_inet_diag_msg_rqueue(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_wqueue = 1015 [json_name = "inetDiagMsgWqueue"];
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (this_._internal_inet_diag_msg_wqueue() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1015, this_._internal_inet_diag_msg_wqueue(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_uid = 1016 [json_name = "inetDiagMsgUid"];
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (this_._internal_inet_diag_msg_uid() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1016, this_._internal_inet_diag_msg_uid(), target);
+    }
+  }
+
+  // uint32 inet_diag_msg_inode = 1017 [json_name = "inetDiagMsgInode"];
+  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (this_._internal_inet_diag_msg_inode() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1017, this_._internal_inet_diag_msg_inode(), target);
+    }
+  }
+
+  // uint32 mem_info_rmem = 1101 [json_name = "memInfoRmem"];
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (this_._internal_mem_info_rmem() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1101, this_._internal_mem_info_rmem(), target);
+    }
+  }
+
+  // uint32 mem_info_wmem = 1102 [json_name = "memInfoWmem"];
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (this_._internal_mem_info_wmem() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1102, this_._internal_mem_info_wmem(), target);
+    }
+  }
+
+  // uint32 mem_info_fmem = 1103 [json_name = "memInfoFmem"];
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    if (this_._internal_mem_info_fmem() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1103, this_._internal_mem_info_fmem(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[2];
+  // uint32 mem_info_tmem = 1104 [json_name = "memInfoTmem"];
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (this_._internal_mem_info_tmem() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1104, this_._internal_mem_info_tmem(), target);
+    }
+  }
+
+  // uint32 tcp_info_state = 1201 [json_name = "tcpInfoState"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_tcp_info_state() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1201, this_._internal_tcp_info_state(), target);
+    }
+  }
+
+  // uint32 tcp_info_ca_state = 1202 [json_name = "tcpInfoCaState"];
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (this_._internal_tcp_info_ca_state() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1202, this_._internal_tcp_info_ca_state(), target);
+    }
+  }
+
+  // uint32 tcp_info_retransmits = 1203 [json_name = "tcpInfoRetransmits"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (this_._internal_tcp_info_retransmits() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1203, this_._internal_tcp_info_retransmits(), target);
+    }
+  }
+
+  // uint32 tcp_info_probes = 1204 [json_name = "tcpInfoProbes"];
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (this_._internal_tcp_info_probes() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1204, this_._internal_tcp_info_probes(), target);
+    }
+  }
+
+  // uint32 tcp_info_backoff = 1205 [json_name = "tcpInfoBackoff"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_tcp_info_backoff() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1205, this_._internal_tcp_info_backoff(), target);
+    }
+  }
+
+  // uint32 tcp_info_options = 1206 [json_name = "tcpInfoOptions"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_tcp_info_options() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1206, this_._internal_tcp_info_options(), target);
+    }
+  }
+
+  // uint32 tcp_info_send_scale = 1207 [json_name = "tcpInfoSendScale"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_tcp_info_send_scale() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1207, this_._internal_tcp_info_send_scale(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_scale = 1208 [json_name = "tcpInfoRcvScale"];
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (this_._internal_tcp_info_rcv_scale() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1208, this_._internal_tcp_info_rcv_scale(), target);
+    }
+  }
+
+  // uint32 tcp_info_delivery_rate_app_limited = 1209 [json_name = "tcpInfoDeliveryRateAppLimited"];
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (this_._internal_tcp_info_delivery_rate_app_limited() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1209, this_._internal_tcp_info_delivery_rate_app_limited(), target);
+    }
+  }
+
+  // uint32 tcp_info_fast_open_client_failed = 1210 [json_name = "tcpInfoFastOpenClientFailed"];
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_tcp_info_fast_open_client_failed() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1210, this_._internal_tcp_info_fast_open_client_failed(), target);
+    }
+  }
+
+  // uint32 tcp_info_rto = 1215 [json_name = "tcpInfoRto"];
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (this_._internal_tcp_info_rto() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1215, this_._internal_tcp_info_rto(), target);
+    }
+  }
+
+  // uint32 tcp_info_ato = 1216 [json_name = "tcpInfoAto"];
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_tcp_info_ato() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1216, this_._internal_tcp_info_ato(), target);
+    }
+  }
+
+  // uint32 tcp_info_snd_mss = 1217 [json_name = "tcpInfoSndMss"];
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (this_._internal_tcp_info_snd_mss() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1217, this_._internal_tcp_info_snd_mss(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_mss = 1218 [json_name = "tcpInfoRcvMss"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_tcp_info_rcv_mss() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1218, this_._internal_tcp_info_rcv_mss(), target);
+    }
+  }
+
+  // uint32 tcp_info_unacked = 1219 [json_name = "tcpInfoUnacked"];
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (this_._internal_tcp_info_unacked() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1219, this_._internal_tcp_info_unacked(), target);
+    }
+  }
+
+  // uint32 tcp_info_sacked = 1220 [json_name = "tcpInfoSacked"];
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (this_._internal_tcp_info_sacked() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1220, this_._internal_tcp_info_sacked(), target);
+    }
+  }
+
+  // uint32 tcp_info_lost = 1221 [json_name = "tcpInfoLost"];
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (this_._internal_tcp_info_lost() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1221, this_._internal_tcp_info_lost(), target);
+    }
+  }
+
+  // uint32 tcp_info_retrans = 1222 [json_name = "tcpInfoRetrans"];
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (this_._internal_tcp_info_retrans() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1222, this_._internal_tcp_info_retrans(), target);
+    }
+  }
+
+  // uint32 tcp_info_fackets = 1223 [json_name = "tcpInfoFackets"];
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (this_._internal_tcp_info_fackets() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1223, this_._internal_tcp_info_fackets(), target);
+    }
+  }
+
+  // uint32 tcp_info_last_data_sent = 1224 [json_name = "tcpInfoLastDataSent"];
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (this_._internal_tcp_info_last_data_sent() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1224, this_._internal_tcp_info_last_data_sent(), target);
+    }
+  }
+
+  // uint32 tcp_info_last_ack_sent = 1225 [json_name = "tcpInfoLastAckSent"];
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (this_._internal_tcp_info_last_ack_sent() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1225, this_._internal_tcp_info_last_ack_sent(), target);
+    }
+  }
+
+  // uint32 tcp_info_last_data_recv = 1226 [json_name = "tcpInfoLastDataRecv"];
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (this_._internal_tcp_info_last_data_recv() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1226, this_._internal_tcp_info_last_data_recv(), target);
+    }
+  }
+
+  // uint32 tcp_info_last_ack_recv = 1227 [json_name = "tcpInfoLastAckRecv"];
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (this_._internal_tcp_info_last_ack_recv() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1227, this_._internal_tcp_info_last_ack_recv(), target);
+    }
+  }
+
+  // uint32 tcp_info_pmtu = 1228 [json_name = "tcpInfoPmtu"];
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (this_._internal_tcp_info_pmtu() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1228, this_._internal_tcp_info_pmtu(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_ssthresh = 1229 [json_name = "tcpInfoRcvSsthresh"];
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (this_._internal_tcp_info_rcv_ssthresh() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1229, this_._internal_tcp_info_rcv_ssthresh(), target);
+    }
+  }
+
+  // uint32 tcp_info_rtt = 1230 [json_name = "tcpInfoRtt"];
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (this_._internal_tcp_info_rtt() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1230, this_._internal_tcp_info_rtt(), target);
+    }
+  }
+
+  // uint32 tcp_info_rtt_var = 1231 [json_name = "tcpInfoRttVar"];
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (this_._internal_tcp_info_rtt_var() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1231, this_._internal_tcp_info_rtt_var(), target);
+    }
+  }
+
+  // uint32 tcp_info_snd_ssthresh = 1232 [json_name = "tcpInfoSndSsthresh"];
+  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (this_._internal_tcp_info_snd_ssthresh() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1232, this_._internal_tcp_info_snd_ssthresh(), target);
+    }
+  }
+
+  // uint32 tcp_info_snd_cwnd = 1233 [json_name = "tcpInfoSndCwnd"];
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (this_._internal_tcp_info_snd_cwnd() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1233, this_._internal_tcp_info_snd_cwnd(), target);
+    }
+  }
+
+  // uint32 tcp_info_adv_mss = 1234 [json_name = "tcpInfoAdvMss"];
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (this_._internal_tcp_info_adv_mss() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1234, this_._internal_tcp_info_adv_mss(), target);
+    }
+  }
+
+  // uint32 tcp_info_reordering = 1235 [json_name = "tcpInfoReordering"];
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    if (this_._internal_tcp_info_reordering() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1235, this_._internal_tcp_info_reordering(), target);
     }
   }
 
   cached_has_bits = this_._impl_._has_bits_[3];
-  // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 401 [json_name = "congestionAlgorithmEnum"];
+  // uint32 tcp_info_rcv_rtt = 1236 [json_name = "tcpInfoRcvRtt"];
   if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (this_._internal_tcp_info_rcv_rtt() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1236, this_._internal_tcp_info_rcv_rtt(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_space = 1237 [json_name = "tcpInfoRcvSpace"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_tcp_info_rcv_space() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1237, this_._internal_tcp_info_rcv_space(), target);
+    }
+  }
+
+  // uint32 tcp_info_total_retrans = 1238 [json_name = "tcpInfoTotalRetrans"];
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (this_._internal_tcp_info_total_retrans() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1238, this_._internal_tcp_info_total_retrans(), target);
+    }
+  }
+
+  // uint64 tcp_info_pacing_rate = 1239 [json_name = "tcpInfoPacingRate"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (this_._internal_tcp_info_pacing_rate() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1239, this_._internal_tcp_info_pacing_rate(), target);
+    }
+  }
+
+  // uint64 tcp_info_max_pacing_rate = 1240 [json_name = "tcpInfoMaxPacingRate"];
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (this_._internal_tcp_info_max_pacing_rate() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1240, this_._internal_tcp_info_max_pacing_rate(), target);
+    }
+  }
+
+  // uint64 tcp_info_bytes_acked = 1241 [json_name = "tcpInfoBytesAcked"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_tcp_info_bytes_acked() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1241, this_._internal_tcp_info_bytes_acked(), target);
+    }
+  }
+
+  // uint64 tcp_info_bytes_received = 1242 [json_name = "tcpInfoBytesReceived"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_tcp_info_bytes_received() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1242, this_._internal_tcp_info_bytes_received(), target);
+    }
+  }
+
+  // uint32 tcp_info_segs_out = 1243 [json_name = "tcpInfoSegsOut"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_tcp_info_segs_out() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1243, this_._internal_tcp_info_segs_out(), target);
+    }
+  }
+
+  // uint32 tcp_info_segs_in = 1244 [json_name = "tcpInfoSegsIn"];
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (this_._internal_tcp_info_segs_in() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1244, this_._internal_tcp_info_segs_in(), target);
+    }
+  }
+
+  // uint32 tcp_info_not_sent_bytes = 1245 [json_name = "tcpInfoNotSentBytes"];
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (this_._internal_tcp_info_not_sent_bytes() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1245, this_._internal_tcp_info_not_sent_bytes(), target);
+    }
+  }
+
+  // uint32 tcp_info_min_rtt = 1246 [json_name = "tcpInfoMinRtt"];
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_tcp_info_min_rtt() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1246, this_._internal_tcp_info_min_rtt(), target);
+    }
+  }
+
+  // uint32 tcp_info_data_segs_in = 1247 [json_name = "tcpInfoDataSegsIn"];
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (this_._internal_tcp_info_data_segs_in() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1247, this_._internal_tcp_info_data_segs_in(), target);
+    }
+  }
+
+  // uint32 tcp_info_data_segs_out = 1248 [json_name = "tcpInfoDataSegsOut"];
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_tcp_info_data_segs_out() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1248, this_._internal_tcp_info_data_segs_out(), target);
+    }
+  }
+
+  // uint64 tcp_info_delivery_rate = 1249 [json_name = "tcpInfoDeliveryRate"];
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (this_._internal_tcp_info_delivery_rate() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1249, this_._internal_tcp_info_delivery_rate(), target);
+    }
+  }
+
+  // uint64 tcp_info_busy_time = 1250 [json_name = "tcpInfoBusyTime"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_tcp_info_busy_time() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1250, this_._internal_tcp_info_busy_time(), target);
+    }
+  }
+
+  // uint64 tcp_info_rwnd_limited = 1251 [json_name = "tcpInfoRwndLimited"];
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (this_._internal_tcp_info_rwnd_limited() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1251, this_._internal_tcp_info_rwnd_limited(), target);
+    }
+  }
+
+  // uint64 tcp_info_sndbuf_limited = 1252 [json_name = "tcpInfoSndbufLimited"];
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (this_._internal_tcp_info_sndbuf_limited() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1252, this_._internal_tcp_info_sndbuf_limited(), target);
+    }
+  }
+
+  // uint32 tcp_info_delivered = 1253 [json_name = "tcpInfoDelivered"];
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (this_._internal_tcp_info_delivered() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1253, this_._internal_tcp_info_delivered(), target);
+    }
+  }
+
+  // uint32 tcp_info_delivered_ce = 1254 [json_name = "tcpInfoDeliveredCe"];
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (this_._internal_tcp_info_delivered_ce() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1254, this_._internal_tcp_info_delivered_ce(), target);
+    }
+  }
+
+  // uint64 tcp_info_bytes_sent = 1255 [json_name = "tcpInfoBytesSent"];
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (this_._internal_tcp_info_bytes_sent() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1255, this_._internal_tcp_info_bytes_sent(), target);
+    }
+  }
+
+  // uint64 tcp_info_bytes_retrans = 1256 [json_name = "tcpInfoBytesRetrans"];
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (this_._internal_tcp_info_bytes_retrans() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          1256, this_._internal_tcp_info_bytes_retrans(), target);
+    }
+  }
+
+  // uint32 tcp_info_dsack_dups = 1257 [json_name = "tcpInfoDsackDups"];
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (this_._internal_tcp_info_dsack_dups() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1257, this_._internal_tcp_info_dsack_dups(), target);
+    }
+  }
+
+  // uint32 tcp_info_reord_seen = 1258 [json_name = "tcpInfoReordSeen"];
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (this_._internal_tcp_info_reord_seen() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1258, this_._internal_tcp_info_reord_seen(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_ooopack = 1259 [json_name = "tcpInfoRcvOoopack"];
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (this_._internal_tcp_info_rcv_ooopack() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1259, this_._internal_tcp_info_rcv_ooopack(), target);
+    }
+  }
+
+  // uint32 tcp_info_snd_wnd = 1260 [json_name = "tcpInfoSndWnd"];
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (this_._internal_tcp_info_snd_wnd() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1260, this_._internal_tcp_info_snd_wnd(), target);
+    }
+  }
+
+  // uint32 tcp_info_rcv_wnd = 1261 [json_name = "tcpInfoRcvWnd"];
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (this_._internal_tcp_info_rcv_wnd() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1261, this_._internal_tcp_info_rcv_wnd(), target);
+    }
+  }
+
+  // uint32 tcp_info_rehash = 1262 [json_name = "tcpInfoRehash"];
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (this_._internal_tcp_info_rehash() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1262, this_._internal_tcp_info_rehash(), target);
+    }
+  }
+
+  // uint32 tcp_info_total_rto = 1263 [json_name = "tcpInfoTotalRto"];
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (this_._internal_tcp_info_total_rto() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1263, this_._internal_tcp_info_total_rto(), target);
+    }
+  }
+
+  // uint32 tcp_info_total_rto_recoveries = 1264 [json_name = "tcpInfoTotalRtoRecoveries"];
+  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (this_._internal_tcp_info_total_rto_recoveries() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1264, this_._internal_tcp_info_total_rto_recoveries(), target);
+    }
+  }
+
+  // uint32 tcp_info_total_rto_time = 1265 [json_name = "tcpInfoTotalRtoTime"];
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (this_._internal_tcp_info_total_rto_time() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          1265, this_._internal_tcp_info_total_rto_time(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
+  // string congestion_algorithm_string = 1300 [json_name = "congestionAlgorithmString"];
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (!this_._internal_congestion_algorithm_string().empty()) {
+      const ::std::string& _s = this_._internal_congestion_algorithm_string();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_string");
+      target = stream->WriteStringMaybeAliased(1300, _s, target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[3];
+  // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 1301 [json_name = "congestionAlgorithmEnum"];
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
     if (this_._internal_congestion_algorithm_enum() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
-          401, this_._internal_congestion_algorithm_enum(), target);
+          1301, this_._internal_congestion_algorithm_enum(), target);
     }
   }
 
-  // uint32 type_of_service = 501 [json_name = "typeOfService"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  // uint32 type_of_service = 1401 [json_name = "typeOfService"];
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
     if (this_._internal_type_of_service() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          501, this_._internal_type_of_service(), target);
+          1401, this_._internal_type_of_service(), target);
     }
   }
 
-  // uint32 traffic_class = 502 [json_name = "trafficClass"];
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  cached_has_bits = this_._impl_._has_bits_[4];
+  // uint32 traffic_class = 1402 [json_name = "trafficClass"];
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     if (this_._internal_traffic_class() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          502, this_._internal_traffic_class(), target);
+          1402, this_._internal_traffic_class(), target);
     }
   }
 
-  // uint32 sk_mem_info_rmem_alloc = 601 [json_name = "skMemInfoRmemAlloc"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  // uint32 sk_mem_info_rmem_alloc = 1501 [json_name = "skMemInfoRmemAlloc"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     if (this_._internal_sk_mem_info_rmem_alloc() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          601, this_._internal_sk_mem_info_rmem_alloc(), target);
+          1501, this_._internal_sk_mem_info_rmem_alloc(), target);
     }
   }
 
-  // uint32 sk_mem_info_rcv_buf = 602 [json_name = "skMemInfoRcvBuf"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  // uint32 sk_mem_info_rcv_buf = 1502 [json_name = "skMemInfoRcvBuf"];
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (this_._internal_sk_mem_info_rcv_buf() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          602, this_._internal_sk_mem_info_rcv_buf(), target);
+          1502, this_._internal_sk_mem_info_rcv_buf(), target);
     }
   }
 
-  // uint32 sk_mem_info_wmem_alloc = 603 [json_name = "skMemInfoWmemAlloc"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  // uint32 sk_mem_info_wmem_alloc = 1503 [json_name = "skMemInfoWmemAlloc"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
     if (this_._internal_sk_mem_info_wmem_alloc() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          603, this_._internal_sk_mem_info_wmem_alloc(), target);
+          1503, this_._internal_sk_mem_info_wmem_alloc(), target);
     }
   }
 
-  // uint32 sk_mem_info_snd_buf = 604 [json_name = "skMemInfoSndBuf"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  // uint32 sk_mem_info_snd_buf = 1504 [json_name = "skMemInfoSndBuf"];
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     if (this_._internal_sk_mem_info_snd_buf() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          604, this_._internal_sk_mem_info_snd_buf(), target);
+          1504, this_._internal_sk_mem_info_snd_buf(), target);
     }
   }
 
-  // uint32 sk_mem_info_fwd_alloc = 605 [json_name = "skMemInfoFwdAlloc"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  // uint32 sk_mem_info_fwd_alloc = 1505 [json_name = "skMemInfoFwdAlloc"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_sk_mem_info_fwd_alloc() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          605, this_._internal_sk_mem_info_fwd_alloc(), target);
+          1505, this_._internal_sk_mem_info_fwd_alloc(), target);
     }
   }
 
-  // uint32 sk_mem_info_wmem_queued = 606 [json_name = "skMemInfoWmemQueued"];
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+  // uint32 sk_mem_info_wmem_queued = 1506 [json_name = "skMemInfoWmemQueued"];
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_sk_mem_info_wmem_queued() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          606, this_._internal_sk_mem_info_wmem_queued(), target);
+          1506, this_._internal_sk_mem_info_wmem_queued(), target);
     }
   }
 
-  // uint32 sk_mem_info_optmem = 607 [json_name = "skMemInfoOptmem"];
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  // uint32 sk_mem_info_optmem = 1507 [json_name = "skMemInfoOptmem"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     if (this_._internal_sk_mem_info_optmem() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          607, this_._internal_sk_mem_info_optmem(), target);
+          1507, this_._internal_sk_mem_info_optmem(), target);
     }
   }
 
-  // uint32 sk_mem_info_backlog = 608 [json_name = "skMemInfoBacklog"];
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  // uint32 sk_mem_info_backlog = 1508 [json_name = "skMemInfoBacklog"];
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (this_._internal_sk_mem_info_backlog() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          608, this_._internal_sk_mem_info_backlog(), target);
+          1508, this_._internal_sk_mem_info_backlog(), target);
     }
   }
 
-  // uint32 sk_mem_info_drops = 609 [json_name = "skMemInfoDrops"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+  // uint32 sk_mem_info_drops = 1509 [json_name = "skMemInfoDrops"];
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (this_._internal_sk_mem_info_drops() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          609, this_._internal_sk_mem_info_drops(), target);
+          1509, this_._internal_sk_mem_info_drops(), target);
     }
   }
 
-  // uint32 shutdown_state = 700 [json_name = "shutdownState"];
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+  // uint32 shutdown_state = 1600 [json_name = "shutdownState"];
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
     if (this_._internal_shutdown_state() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          700, this_._internal_shutdown_state(), target);
+          1600, this_._internal_shutdown_state(), target);
     }
   }
 
-  // uint32 vegas_info_enabled = 801 [json_name = "vegasInfoEnabled"];
-  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+  // uint32 vegas_info_enabled = 1701 [json_name = "vegasInfoEnabled"];
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
     if (this_._internal_vegas_info_enabled() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          801, this_._internal_vegas_info_enabled(), target);
+          1701, this_._internal_vegas_info_enabled(), target);
     }
   }
 
-  // uint32 vegas_info_rtt_cnt = 802 [json_name = "vegasInfoRttCnt"];
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+  // uint32 vegas_info_rtt_cnt = 1702 [json_name = "vegasInfoRttCnt"];
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
     if (this_._internal_vegas_info_rtt_cnt() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          802, this_._internal_vegas_info_rtt_cnt(), target);
+          1702, this_._internal_vegas_info_rtt_cnt(), target);
     }
   }
 
-  // uint32 vegas_info_rtt = 803 [json_name = "vegasInfoRtt"];
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+  // uint32 vegas_info_rtt = 1703 [json_name = "vegasInfoRtt"];
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
     if (this_._internal_vegas_info_rtt() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          803, this_._internal_vegas_info_rtt(), target);
+          1703, this_._internal_vegas_info_rtt(), target);
     }
   }
 
-  // uint32 vegas_info_min_rtt = 804 [json_name = "vegasInfoMinRtt"];
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+  // uint32 vegas_info_min_rtt = 1704 [json_name = "vegasInfoMinRtt"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
     if (this_._internal_vegas_info_min_rtt() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          804, this_._internal_vegas_info_min_rtt(), target);
+          1704, this_._internal_vegas_info_min_rtt(), target);
     }
   }
 
-  // uint32 dctcp_info_enabled = 901 [json_name = "dctcpInfoEnabled"];
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+  // uint32 dctcp_info_enabled = 1801 [json_name = "dctcpInfoEnabled"];
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
     if (this_._internal_dctcp_info_enabled() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          901, this_._internal_dctcp_info_enabled(), target);
+          1801, this_._internal_dctcp_info_enabled(), target);
     }
   }
 
-  // uint32 dctcp_info_ce_state = 902 [json_name = "dctcpInfoCeState"];
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  // uint32 dctcp_info_ce_state = 1802 [json_name = "dctcpInfoCeState"];
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
     if (this_._internal_dctcp_info_ce_state() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          902, this_._internal_dctcp_info_ce_state(), target);
+          1802, this_._internal_dctcp_info_ce_state(), target);
     }
   }
 
-  // uint32 dctcp_info_alpha = 903 [json_name = "dctcpInfoAlpha"];
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+  // uint32 dctcp_info_alpha = 1803 [json_name = "dctcpInfoAlpha"];
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
     if (this_._internal_dctcp_info_alpha() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          903, this_._internal_dctcp_info_alpha(), target);
+          1803, this_._internal_dctcp_info_alpha(), target);
     }
   }
 
-  // uint32 dctcp_info_ab_ecn = 904 [json_name = "dctcpInfoAbEcn"];
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+  // uint32 dctcp_info_ab_ecn = 1804 [json_name = "dctcpInfoAbEcn"];
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
     if (this_._internal_dctcp_info_ab_ecn() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          904, this_._internal_dctcp_info_ab_ecn(), target);
+          1804, this_._internal_dctcp_info_ab_ecn(), target);
     }
   }
 
-  // uint32 dctcp_info_ab_tot = 905 [json_name = "dctcpInfoAbTot"];
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+  // uint32 dctcp_info_ab_tot = 1805 [json_name = "dctcpInfoAbTot"];
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
     if (this_._internal_dctcp_info_ab_tot() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          905, this_._internal_dctcp_info_ab_tot(), target);
+          1805, this_._internal_dctcp_info_ab_tot(), target);
     }
   }
 
-  // uint32 bbr_info_bw_lo = 1001 [json_name = "bbrInfoBwLo"];
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+  // uint32 bbr_info_bw_lo = 1901 [json_name = "bbrInfoBwLo"];
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
     if (this_._internal_bbr_info_bw_lo() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1001, this_._internal_bbr_info_bw_lo(), target);
+          1901, this_._internal_bbr_info_bw_lo(), target);
     }
   }
 
-  // uint32 bbr_info_bw_hi = 1002 [json_name = "bbrInfoBwHi"];
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+  // uint32 bbr_info_bw_hi = 1902 [json_name = "bbrInfoBwHi"];
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
     if (this_._internal_bbr_info_bw_hi() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1002, this_._internal_bbr_info_bw_hi(), target);
+          1902, this_._internal_bbr_info_bw_hi(), target);
     }
   }
 
-  // uint32 bbr_info_min_rtt = 1003 [json_name = "bbrInfoMinRtt"];
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+  // uint32 bbr_info_min_rtt = 1903 [json_name = "bbrInfoMinRtt"];
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
     if (this_._internal_bbr_info_min_rtt() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1003, this_._internal_bbr_info_min_rtt(), target);
+          1903, this_._internal_bbr_info_min_rtt(), target);
     }
   }
 
-  // uint32 bbr_info_pacing_gain = 1004 [json_name = "bbrInfoPacingGain"];
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+  // uint32 bbr_info_pacing_gain = 1904 [json_name = "bbrInfoPacingGain"];
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
     if (this_._internal_bbr_info_pacing_gain() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1004, this_._internal_bbr_info_pacing_gain(), target);
+          1904, this_._internal_bbr_info_pacing_gain(), target);
     }
   }
 
-  // uint32 bbr_info_cwnd_gain = 1005 [json_name = "bbrInfoCwndGain"];
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  // uint32 bbr_info_cwnd_gain = 1905 [json_name = "bbrInfoCwndGain"];
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
     if (this_._internal_bbr_info_cwnd_gain() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1005, this_._internal_bbr_info_cwnd_gain(), target);
+          1905, this_._internal_bbr_info_cwnd_gain(), target);
     }
   }
 
-  // uint32 class_id = 1101 [json_name = "classId"];
-  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+  // uint32 class_id = 2001 [json_name = "classId"];
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
     if (this_._internal_class_id() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1101, this_._internal_class_id(), target);
+          2001, this_._internal_class_id(), target);
     }
   }
 
-  // uint32 sock_opt = 1102 [json_name = "sockOpt"];
-  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+  // uint32 sock_opt = 2002 [json_name = "sockOpt"];
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
     if (this_._internal_sock_opt() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
-          1102, this_._internal_sock_opt(), target);
+          2002, this_._internal_sock_opt(), target);
     }
   }
 
-  // uint64 c_group = 1203 [json_name = "cGroup"];
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+  // uint64 c_group = 2103 [json_name = "cGroup"];
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
     if (this_._internal_c_group() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          1203, this_._internal_c_group(), target);
+          2103, this_._internal_c_group(), target);
     }
   }
 
@@ -3581,918 +4309,1137 @@ PROTOBUF_NOINLINE void XtcpFlatRecord::Clear() {
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    // string hostname = 20 [json_name = "hostname"];
+    // string daemon_version = 2 [json_name = "daemonVersion"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!this_._internal_daemon_version().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_daemon_version());
+      }
+    }
+    // string hostname = 20 [json_name = "hostname"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!this_._internal_hostname().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_hostname());
       }
     }
     // string location = 21 [json_name = "location"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (!this_._internal_location().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_location());
       }
     }
     // string netns = 30 [json_name = "netns"];
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (!this_._internal_netns().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_netns());
       }
     }
-    // string container_id = 31 [json_name = "containerId"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    // string container_id = 40 [json_name = "containerId"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (!this_._internal_container_id().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_container_id());
       }
     }
-    // string container_runtime = 32 [json_name = "containerRuntime"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    // string container_runtime = 41 [json_name = "containerRuntime"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (!this_._internal_container_runtime().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_container_runtime());
       }
     }
+    // string container_name = 42 [json_name = "containerName"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (!this_._internal_container_name().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_container_name());
+      }
+    }
+    // string container_image = 43 [json_name = "containerImage"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (!this_._internal_container_image().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_container_image());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
     // string label = 50 [json_name = "label"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (!this_._internal_label().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_label());
       }
     }
-    // string tag = 60 [json_name = "tag"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    // string tag = 51 [json_name = "tag"];
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (!this_._internal_tag().empty()) {
         total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_tag());
       }
     }
-    // bytes inet_diag_msg_socket_source = 107 [json_name = "inetDiagMsgSocketSource"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (!this_._internal_inet_diag_msg_socket_source().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::BytesSize(
-                                        this_._internal_inet_diag_msg_socket_source());
+    // string uplink1_nic_model = 102 [json_name = "uplink1NicModel"];
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (!this_._internal_uplink1_nic_model().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_nic_model());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
     // int64 timestamp_ns = 10 [json_name = "timestampNs"];
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_timestamp_ns() != 0) {
         total_size += ::_pbi::WireFormatLite::Int64SizePlusOne(
             this_._internal_timestamp_ns());
       }
     }
-    // uint64 netns_inode = 33 [json_name = "netnsInode"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (this_._internal_netns_inode() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_netns_inode());
+    // uint32 schema_version = 1 [json_name = "schemaVersion"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (this_._internal_schema_version() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_schema_version());
       }
     }
-    // uint64 record_counter = 70 [json_name = "recordCounter"];
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (this_._internal_record_counter() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_record_counter());
-      }
-    }
-    // uint32 nsid = 40 [json_name = "nsid"];
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    // uint32 nsid = 32 [json_name = "nsid"];
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_nsid() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_nsid());
       }
     }
-    // uint32 inet_diag_msg_timer = 103 [json_name = "inetDiagMsgTimer"];
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (this_._internal_inet_diag_msg_timer() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_timer());
-      }
-    }
-    // uint64 netlinker_id = 90 [json_name = "netlinkerId"];
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (this_._internal_netlinker_id() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_netlinker_id());
-      }
-    }
-    // uint32 inet_diag_msg_socket_source_port = 105 [json_name = "inetDiagMsgSocketSourcePort"];
+    // uint64 netns_inode = 31 [json_name = "netnsInode"];
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (this_._internal_inet_diag_msg_socket_source_port() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_socket_source_port());
+      if (this_._internal_netns_inode() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_netns_inode());
       }
     }
-    // uint32 inet_diag_msg_socket_interface = 109 [json_name = "inetDiagMsgSocketInterface"];
+    // uint64 record_counter = 60 [json_name = "recordCounter"];
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (this_._internal_inet_diag_msg_socket_interface() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_socket_interface());
+      if (this_._internal_record_counter() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_record_counter());
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    // uint32 inet_diag_msg_wqueue = 115 [json_name = "inetDiagMsgWqueue"];
+    // uint64 socket_fd = 61 [json_name = "socketFd"];
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (this_._internal_inet_diag_msg_wqueue() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_wqueue());
-      }
-    }
-    // bytes inet_diag_msg_socket_destination = 108 [json_name = "inetDiagMsgSocketDestination"];
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      if (!this_._internal_inet_diag_msg_socket_destination().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::BytesSize(
-                                        this_._internal_inet_diag_msg_socket_destination());
-      }
-    }
-    // string congestion_algorithm_string = 400 [json_name = "congestionAlgorithmString"];
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      if (!this_._internal_congestion_algorithm_string().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_congestion_algorithm_string());
-      }
-    }
-    // uint64 socket_fd = 80 [json_name = "socketFd"];
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (this_._internal_socket_fd() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_socket_fd());
       }
     }
-    // uint32 inet_diag_msg_family = 101 [json_name = "inetDiagMsgFamily"];
+    // uint32 uplink1_nic_pci_vendor = 103 [json_name = "uplink1NicPciVendor"];
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (this_._internal_uplink1_nic_pci_vendor() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink1_nic_pci_vendor());
+      }
+    }
+    // uint32 inet_diag_msg_socket_interface = 1009 [json_name = "inetDiagMsgSocketInterface"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (this_._internal_inet_diag_msg_socket_interface() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_socket_interface());
+      }
+    }
+    // string uplink1_ifname = 100 [json_name = "uplink1Ifname"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (!this_._internal_uplink1_ifname().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_ifname());
+      }
+    }
+    // string uplink1_nic_driver = 101 [json_name = "uplink1NicDriver"];
     if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-      if (this_._internal_inet_diag_msg_family() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_family());
+      if (!this_._internal_uplink1_nic_driver().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_nic_driver());
       }
     }
-    // uint32 inet_diag_msg_state = 102 [json_name = "inetDiagMsgState"];
+    // string uplink1_nic_bus_info = 105 [json_name = "uplink1NicBusInfo"];
     if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-      if (this_._internal_inet_diag_msg_state() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_state());
+      if (!this_._internal_uplink1_nic_bus_info().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_nic_bus_info());
       }
     }
-    // uint32 inet_diag_msg_retrans = 104 [json_name = "inetDiagMsgRetrans"];
+    // string uplink1_nic_fw_version = 107 [json_name = "uplink1NicFwVersion"];
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-      if (this_._internal_inet_diag_msg_retrans() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_retrans());
+      if (!this_._internal_uplink1_nic_fw_version().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_nic_fw_version());
       }
     }
-    // uint32 inet_diag_msg_socket_destination_port = 106 [json_name = "inetDiagMsgSocketDestinationPort"];
+    // string uplink1_lldp_chassis_name = 120 [json_name = "uplink1LldpChassisName"];
     if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-      if (this_._internal_inet_diag_msg_socket_destination_port() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_socket_destination_port());
+      if (!this_._internal_uplink1_lldp_chassis_name().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_lldp_chassis_name());
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    // uint64 inet_diag_msg_socket_cookie = 110 [json_name = "inetDiagMsgSocketCookie"];
+    // string uplink1_lldp_chassis_id = 121 [json_name = "uplink1LldpChassisId"];
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-      if (this_._internal_inet_diag_msg_socket_cookie() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_inet_diag_msg_socket_cookie());
+      if (!this_._internal_uplink1_lldp_chassis_id().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_lldp_chassis_id());
       }
     }
-    // uint64 inet_diag_msg_socket_dest_asn = 111 [json_name = "inetDiagMsgSocketDestAsn"];
+    // string uplink1_lldp_mgmt_ip = 122 [json_name = "uplink1LldpMgmtIp"];
     if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-      if (this_._internal_inet_diag_msg_socket_dest_asn() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_inet_diag_msg_socket_dest_asn());
+      if (!this_._internal_uplink1_lldp_mgmt_ip().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_lldp_mgmt_ip());
       }
     }
-    // uint64 inet_diag_msg_socket_next_hop_asn = 112 [json_name = "inetDiagMsgSocketNextHopAsn"];
+    // string uplink1_lldp_port_id = 123 [json_name = "uplink1LldpPortId"];
     if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-      if (this_._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
-                                        this_._internal_inet_diag_msg_socket_next_hop_asn());
+      if (!this_._internal_uplink1_lldp_port_id().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_lldp_port_id());
       }
     }
-    // uint32 inet_diag_msg_expires = 113 [json_name = "inetDiagMsgExpires"];
+    // string uplink1_lldp_port_descr = 124 [json_name = "uplink1LldpPortDescr"];
     if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-      if (this_._internal_inet_diag_msg_expires() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_expires());
+      if (!this_._internal_uplink1_lldp_port_descr().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink1_lldp_port_descr());
       }
     }
-    // uint32 inet_diag_msg_rqueue = 114 [json_name = "inetDiagMsgRqueue"];
+    // string uplink2_ifname = 200 [json_name = "uplink2Ifname"];
     if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-      if (this_._internal_inet_diag_msg_rqueue() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_rqueue());
+      if (!this_._internal_uplink2_ifname().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_ifname());
       }
     }
-    // uint32 inet_diag_msg_uid = 116 [json_name = "inetDiagMsgUid"];
+    // string uplink2_nic_driver = 201 [json_name = "uplink2NicDriver"];
     if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-      if (this_._internal_inet_diag_msg_uid() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_uid());
+      if (!this_._internal_uplink2_nic_driver().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_nic_driver());
       }
     }
-    // uint32 inet_diag_msg_inode = 117 [json_name = "inetDiagMsgInode"];
+    // string uplink2_nic_model = 202 [json_name = "uplink2NicModel"];
     if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-      if (this_._internal_inet_diag_msg_inode() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_inet_diag_msg_inode());
+      if (!this_._internal_uplink2_nic_model().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_nic_model());
       }
     }
-    // uint32 mem_info_rmem = 201 [json_name = "memInfoRmem"];
+    // string uplink2_nic_bus_info = 205 [json_name = "uplink2NicBusInfo"];
     if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-      if (this_._internal_mem_info_rmem() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
-                                        this_._internal_mem_info_rmem());
+      if (!this_._internal_uplink2_nic_bus_info().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_nic_bus_info());
       }
     }
   }
   cached_has_bits = this_._impl_._has_bits_[1];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    // uint32 mem_info_wmem = 202 [json_name = "memInfoWmem"];
+    // string uplink2_nic_fw_version = 207 [json_name = "uplink2NicFwVersion"];
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!this_._internal_uplink2_nic_fw_version().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_nic_fw_version());
+      }
+    }
+    // string uplink2_lldp_chassis_name = 220 [json_name = "uplink2LldpChassisName"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_uplink2_lldp_chassis_name().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_lldp_chassis_name());
+      }
+    }
+    // string uplink2_lldp_chassis_id = 221 [json_name = "uplink2LldpChassisId"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!this_._internal_uplink2_lldp_chassis_id().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_lldp_chassis_id());
+      }
+    }
+    // string uplink2_lldp_mgmt_ip = 222 [json_name = "uplink2LldpMgmtIp"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_uplink2_lldp_mgmt_ip().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_lldp_mgmt_ip());
+      }
+    }
+    // string uplink2_lldp_port_id = 223 [json_name = "uplink2LldpPortId"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!this_._internal_uplink2_lldp_port_id().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_lldp_port_id());
+      }
+    }
+    // string uplink2_lldp_port_descr = 224 [json_name = "uplink2LldpPortDescr"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!this_._internal_uplink2_lldp_port_descr().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_uplink2_lldp_port_descr());
+      }
+    }
+    // bytes inet_diag_msg_socket_source = 1007 [json_name = "inetDiagMsgSocketSource"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (!this_._internal_inet_diag_msg_socket_source().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::BytesSize(
+                                        this_._internal_inet_diag_msg_socket_source());
+      }
+    }
+    // bytes inet_diag_msg_socket_destination = 1008 [json_name = "inetDiagMsgSocketDestination"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (!this_._internal_inet_diag_msg_socket_destination().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::BytesSize(
+                                        this_._internal_inet_diag_msg_socket_destination());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // string congestion_algorithm_string = 1300 [json_name = "congestionAlgorithmString"];
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (!this_._internal_congestion_algorithm_string().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_congestion_algorithm_string());
+      }
+    }
+    // uint64 netlinker_id = 62 [json_name = "netlinkerId"];
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (this_._internal_netlinker_id() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_netlinker_id());
+      }
+    }
+    // uint32 uplink1_nic_pci_device = 104 [json_name = "uplink1NicPciDevice"];
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (this_._internal_uplink1_nic_pci_device() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink1_nic_pci_device());
+      }
+    }
+    // uint32 uplink1_nic_speed_mbps = 106 [json_name = "uplink1NicSpeedMbps"];
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (this_._internal_uplink1_nic_speed_mbps() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink1_nic_speed_mbps());
+      }
+    }
+    // uint32 uplink2_nic_pci_vendor = 203 [json_name = "uplink2NicPciVendor"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (this_._internal_uplink2_nic_pci_vendor() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink2_nic_pci_vendor());
+      }
+    }
+    // uint32 uplink2_nic_pci_device = 204 [json_name = "uplink2NicPciDevice"];
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (this_._internal_uplink2_nic_pci_device() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink2_nic_pci_device());
+      }
+    }
+    // uint32 uplink2_nic_speed_mbps = 206 [json_name = "uplink2NicSpeedMbps"];
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (this_._internal_uplink2_nic_speed_mbps() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_uplink2_nic_speed_mbps());
+      }
+    }
+    // uint32 inet_diag_msg_family = 1001 [json_name = "inetDiagMsgFamily"];
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (this_._internal_inet_diag_msg_family() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_family());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    // uint32 inet_diag_msg_state = 1002 [json_name = "inetDiagMsgState"];
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (this_._internal_inet_diag_msg_state() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_state());
+      }
+    }
+    // uint32 inet_diag_msg_timer = 1003 [json_name = "inetDiagMsgTimer"];
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (this_._internal_inet_diag_msg_timer() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_timer());
+      }
+    }
+    // uint32 inet_diag_msg_retrans = 1004 [json_name = "inetDiagMsgRetrans"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (this_._internal_inet_diag_msg_retrans() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_retrans());
+      }
+    }
+    // uint32 inet_diag_msg_socket_source_port = 1005 [json_name = "inetDiagMsgSocketSourcePort"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (this_._internal_inet_diag_msg_socket_source_port() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_socket_source_port());
+      }
+    }
+    // uint32 inet_diag_msg_socket_destination_port = 1006 [json_name = "inetDiagMsgSocketDestinationPort"];
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      if (this_._internal_inet_diag_msg_socket_destination_port() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_socket_destination_port());
+      }
+    }
+    // uint32 inet_diag_msg_expires = 1013 [json_name = "inetDiagMsgExpires"];
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      if (this_._internal_inet_diag_msg_expires() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_expires());
+      }
+    }
+    // uint64 inet_diag_msg_socket_cookie = 1010 [json_name = "inetDiagMsgSocketCookie"];
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      if (this_._internal_inet_diag_msg_socket_cookie() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_inet_diag_msg_socket_cookie());
+      }
+    }
+    // uint64 inet_diag_msg_socket_dest_asn = 1011 [json_name = "inetDiagMsgSocketDestAsn"];
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      if (this_._internal_inet_diag_msg_socket_dest_asn() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_inet_diag_msg_socket_dest_asn());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    // uint64 inet_diag_msg_socket_next_hop_asn = 1012 [json_name = "inetDiagMsgSocketNextHopAsn"];
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (this_._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_inet_diag_msg_socket_next_hop_asn());
+      }
+    }
+    // uint32 inet_diag_msg_rqueue = 1014 [json_name = "inetDiagMsgRqueue"];
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (this_._internal_inet_diag_msg_rqueue() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_rqueue());
+      }
+    }
+    // uint32 inet_diag_msg_wqueue = 1015 [json_name = "inetDiagMsgWqueue"];
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (this_._internal_inet_diag_msg_wqueue() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_wqueue());
+      }
+    }
+    // uint32 inet_diag_msg_uid = 1016 [json_name = "inetDiagMsgUid"];
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (this_._internal_inet_diag_msg_uid() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_uid());
+      }
+    }
+    // uint32 inet_diag_msg_inode = 1017 [json_name = "inetDiagMsgInode"];
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+      if (this_._internal_inet_diag_msg_inode() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_inet_diag_msg_inode());
+      }
+    }
+    // uint32 mem_info_rmem = 1101 [json_name = "memInfoRmem"];
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      if (this_._internal_mem_info_rmem() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_mem_info_rmem());
+      }
+    }
+    // uint32 mem_info_wmem = 1102 [json_name = "memInfoWmem"];
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
       if (this_._internal_mem_info_wmem() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_mem_info_wmem());
       }
     }
-    // uint32 mem_info_fmem = 203 [json_name = "memInfoFmem"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    // uint32 mem_info_fmem = 1103 [json_name = "memInfoFmem"];
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (this_._internal_mem_info_fmem() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_mem_info_fmem());
       }
     }
-    // uint32 mem_info_tmem = 204 [json_name = "memInfoTmem"];
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  }
+  cached_has_bits = this_._impl_._has_bits_[2];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    // uint32 mem_info_tmem = 1104 [json_name = "memInfoTmem"];
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_mem_info_tmem() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_mem_info_tmem());
       }
     }
-    // uint32 tcp_info_state = 301 [json_name = "tcpInfoState"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    // uint32 tcp_info_state = 1201 [json_name = "tcpInfoState"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (this_._internal_tcp_info_state() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_state());
       }
     }
-    // uint32 tcp_info_ca_state = 302 [json_name = "tcpInfoCaState"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    // uint32 tcp_info_ca_state = 1202 [json_name = "tcpInfoCaState"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_tcp_info_ca_state() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_ca_state());
       }
     }
-    // uint32 tcp_info_retransmits = 303 [json_name = "tcpInfoRetransmits"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    // uint32 tcp_info_retransmits = 1203 [json_name = "tcpInfoRetransmits"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (this_._internal_tcp_info_retransmits() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_retransmits());
       }
     }
-    // uint32 tcp_info_probes = 304 [json_name = "tcpInfoProbes"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    // uint32 tcp_info_probes = 1204 [json_name = "tcpInfoProbes"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_tcp_info_probes() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_probes());
       }
     }
-    // uint32 tcp_info_backoff = 305 [json_name = "tcpInfoBackoff"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    // uint32 tcp_info_backoff = 1205 [json_name = "tcpInfoBackoff"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_tcp_info_backoff() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_backoff());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    // uint32 tcp_info_options = 306 [json_name = "tcpInfoOptions"];
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    // uint32 tcp_info_options = 1206 [json_name = "tcpInfoOptions"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_tcp_info_options() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_options());
       }
     }
-    // uint32 tcp_info_send_scale = 307 [json_name = "tcpInfoSendScale"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    // uint32 tcp_info_send_scale = 1207 [json_name = "tcpInfoSendScale"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_tcp_info_send_scale() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_send_scale());
       }
     }
-    // uint32 tcp_info_rcv_scale = 308 [json_name = "tcpInfoRcvScale"];
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // uint32 tcp_info_rcv_scale = 1208 [json_name = "tcpInfoRcvScale"];
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_tcp_info_rcv_scale() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_scale());
       }
     }
-    // uint32 tcp_info_delivery_rate_app_limited = 309 [json_name = "tcpInfoDeliveryRateAppLimited"];
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    // uint32 tcp_info_delivery_rate_app_limited = 1209 [json_name = "tcpInfoDeliveryRateAppLimited"];
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_tcp_info_delivery_rate_app_limited() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_delivery_rate_app_limited());
       }
     }
-    // uint32 tcp_info_fast_open_client_failed = 310 [json_name = "tcpInfoFastOpenClientFailed"];
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    // uint32 tcp_info_fast_open_client_failed = 1210 [json_name = "tcpInfoFastOpenClientFailed"];
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (this_._internal_tcp_info_fast_open_client_failed() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_fast_open_client_failed());
       }
     }
-    // uint32 tcp_info_rto = 315 [json_name = "tcpInfoRto"];
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    // uint32 tcp_info_rto = 1215 [json_name = "tcpInfoRto"];
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_tcp_info_rto() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rto());
       }
     }
-    // uint32 tcp_info_ato = 316 [json_name = "tcpInfoAto"];
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    // uint32 tcp_info_ato = 1216 [json_name = "tcpInfoAto"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (this_._internal_tcp_info_ato() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_ato());
       }
     }
-    // uint32 tcp_info_snd_mss = 317 [json_name = "tcpInfoSndMss"];
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    // uint32 tcp_info_snd_mss = 1217 [json_name = "tcpInfoSndMss"];
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_tcp_info_snd_mss() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_snd_mss());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    // uint32 tcp_info_rcv_mss = 318 [json_name = "tcpInfoRcvMss"];
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    // uint32 tcp_info_rcv_mss = 1218 [json_name = "tcpInfoRcvMss"];
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (this_._internal_tcp_info_rcv_mss() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_mss());
       }
     }
-    // uint32 tcp_info_unacked = 319 [json_name = "tcpInfoUnacked"];
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    // uint32 tcp_info_unacked = 1219 [json_name = "tcpInfoUnacked"];
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (this_._internal_tcp_info_unacked() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_unacked());
       }
     }
-    // uint32 tcp_info_sacked = 320 [json_name = "tcpInfoSacked"];
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    // uint32 tcp_info_sacked = 1220 [json_name = "tcpInfoSacked"];
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (this_._internal_tcp_info_sacked() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_sacked());
       }
     }
-    // uint32 tcp_info_lost = 321 [json_name = "tcpInfoLost"];
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    // uint32 tcp_info_lost = 1221 [json_name = "tcpInfoLost"];
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (this_._internal_tcp_info_lost() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_lost());
       }
     }
-    // uint32 tcp_info_retrans = 322 [json_name = "tcpInfoRetrans"];
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    // uint32 tcp_info_retrans = 1222 [json_name = "tcpInfoRetrans"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (this_._internal_tcp_info_retrans() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_retrans());
       }
     }
-    // uint32 tcp_info_fackets = 323 [json_name = "tcpInfoFackets"];
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    // uint32 tcp_info_fackets = 1223 [json_name = "tcpInfoFackets"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (this_._internal_tcp_info_fackets() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_fackets());
       }
     }
-    // uint32 tcp_info_last_data_sent = 324 [json_name = "tcpInfoLastDataSent"];
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    // uint32 tcp_info_last_data_sent = 1224 [json_name = "tcpInfoLastDataSent"];
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (this_._internal_tcp_info_last_data_sent() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_last_data_sent());
       }
     }
-    // uint32 tcp_info_last_ack_sent = 325 [json_name = "tcpInfoLastAckSent"];
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    // uint32 tcp_info_last_ack_sent = 1225 [json_name = "tcpInfoLastAckSent"];
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (this_._internal_tcp_info_last_ack_sent() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_last_ack_sent());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    // uint32 tcp_info_last_data_recv = 326 [json_name = "tcpInfoLastDataRecv"];
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    // uint32 tcp_info_last_data_recv = 1226 [json_name = "tcpInfoLastDataRecv"];
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (this_._internal_tcp_info_last_data_recv() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_last_data_recv());
       }
     }
-    // uint32 tcp_info_last_ack_recv = 327 [json_name = "tcpInfoLastAckRecv"];
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    // uint32 tcp_info_last_ack_recv = 1227 [json_name = "tcpInfoLastAckRecv"];
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_tcp_info_last_ack_recv() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_last_ack_recv());
       }
     }
-    // uint32 tcp_info_pmtu = 328 [json_name = "tcpInfoPmtu"];
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    // uint32 tcp_info_pmtu = 1228 [json_name = "tcpInfoPmtu"];
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_tcp_info_pmtu() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_pmtu());
       }
     }
-    // uint32 tcp_info_rcv_ssthresh = 329 [json_name = "tcpInfoRcvSsthresh"];
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    // uint32 tcp_info_rcv_ssthresh = 1229 [json_name = "tcpInfoRcvSsthresh"];
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       if (this_._internal_tcp_info_rcv_ssthresh() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_ssthresh());
       }
     }
-    // uint32 tcp_info_rtt = 330 [json_name = "tcpInfoRtt"];
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    // uint32 tcp_info_rtt = 1230 [json_name = "tcpInfoRtt"];
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (this_._internal_tcp_info_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rtt());
       }
     }
-    // uint32 tcp_info_rtt_var = 331 [json_name = "tcpInfoRttVar"];
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    // uint32 tcp_info_rtt_var = 1231 [json_name = "tcpInfoRttVar"];
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_tcp_info_rtt_var() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rtt_var());
       }
     }
-    // uint32 tcp_info_snd_ssthresh = 332 [json_name = "tcpInfoSndSsthresh"];
-    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    // uint32 tcp_info_snd_ssthresh = 1232 [json_name = "tcpInfoSndSsthresh"];
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
       if (this_._internal_tcp_info_snd_ssthresh() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_snd_ssthresh());
       }
     }
-    // uint32 tcp_info_snd_cwnd = 333 [json_name = "tcpInfoSndCwnd"];
-    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    // uint32 tcp_info_snd_cwnd = 1233 [json_name = "tcpInfoSndCwnd"];
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
       if (this_._internal_tcp_info_snd_cwnd() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_snd_cwnd());
       }
     }
-  }
-  cached_has_bits = this_._impl_._has_bits_[2];
-  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    // uint32 tcp_info_adv_mss = 334 [json_name = "tcpInfoAdvMss"];
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    // uint32 tcp_info_adv_mss = 1234 [json_name = "tcpInfoAdvMss"];
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
       if (this_._internal_tcp_info_adv_mss() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_adv_mss());
       }
     }
-    // uint32 tcp_info_reordering = 335 [json_name = "tcpInfoReordering"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    // uint32 tcp_info_reordering = 1235 [json_name = "tcpInfoReordering"];
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (this_._internal_tcp_info_reordering() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_reordering());
       }
     }
-    // uint32 tcp_info_rcv_rtt = 336 [json_name = "tcpInfoRcvRtt"];
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  }
+  cached_has_bits = this_._impl_._has_bits_[3];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    // uint32 tcp_info_rcv_rtt = 1236 [json_name = "tcpInfoRcvRtt"];
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_tcp_info_rcv_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_rtt());
       }
     }
-    // uint32 tcp_info_rcv_space = 337 [json_name = "tcpInfoRcvSpace"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    // uint32 tcp_info_rcv_space = 1237 [json_name = "tcpInfoRcvSpace"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (this_._internal_tcp_info_rcv_space() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_space());
       }
     }
-    // uint32 tcp_info_total_retrans = 338 [json_name = "tcpInfoTotalRetrans"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    // uint32 tcp_info_total_retrans = 1238 [json_name = "tcpInfoTotalRetrans"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_tcp_info_total_retrans() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_total_retrans());
       }
     }
-    // uint64 tcp_info_pacing_rate = 339 [json_name = "tcpInfoPacingRate"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    // uint64 tcp_info_pacing_rate = 1239 [json_name = "tcpInfoPacingRate"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (this_._internal_tcp_info_pacing_rate() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_pacing_rate());
       }
     }
-    // uint64 tcp_info_max_pacing_rate = 340 [json_name = "tcpInfoMaxPacingRate"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    // uint64 tcp_info_max_pacing_rate = 1240 [json_name = "tcpInfoMaxPacingRate"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_tcp_info_max_pacing_rate() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_max_pacing_rate());
       }
     }
-    // uint64 tcp_info_bytes_acked = 341 [json_name = "tcpInfoBytesAcked"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    // uint64 tcp_info_bytes_acked = 1241 [json_name = "tcpInfoBytesAcked"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_tcp_info_bytes_acked() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_bytes_acked());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    // uint64 tcp_info_bytes_received = 342 [json_name = "tcpInfoBytesReceived"];
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    // uint64 tcp_info_bytes_received = 1242 [json_name = "tcpInfoBytesReceived"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_tcp_info_bytes_received() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_bytes_received());
       }
     }
-    // uint32 tcp_info_segs_out = 343 [json_name = "tcpInfoSegsOut"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    // uint32 tcp_info_segs_out = 1243 [json_name = "tcpInfoSegsOut"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_tcp_info_segs_out() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_segs_out());
       }
     }
-    // uint32 tcp_info_segs_in = 344 [json_name = "tcpInfoSegsIn"];
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // uint32 tcp_info_segs_in = 1244 [json_name = "tcpInfoSegsIn"];
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_tcp_info_segs_in() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_segs_in());
       }
     }
-    // uint32 tcp_info_not_sent_bytes = 345 [json_name = "tcpInfoNotSentBytes"];
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    // uint32 tcp_info_not_sent_bytes = 1245 [json_name = "tcpInfoNotSentBytes"];
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_tcp_info_not_sent_bytes() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_not_sent_bytes());
       }
     }
-    // uint32 tcp_info_min_rtt = 346 [json_name = "tcpInfoMinRtt"];
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    // uint32 tcp_info_min_rtt = 1246 [json_name = "tcpInfoMinRtt"];
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (this_._internal_tcp_info_min_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_min_rtt());
       }
     }
-    // uint32 tcp_info_data_segs_in = 347 [json_name = "tcpInfoDataSegsIn"];
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    // uint32 tcp_info_data_segs_in = 1247 [json_name = "tcpInfoDataSegsIn"];
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_tcp_info_data_segs_in() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_data_segs_in());
       }
     }
-    // uint32 tcp_info_data_segs_out = 348 [json_name = "tcpInfoDataSegsOut"];
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    // uint32 tcp_info_data_segs_out = 1248 [json_name = "tcpInfoDataSegsOut"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (this_._internal_tcp_info_data_segs_out() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_data_segs_out());
       }
     }
-    // uint64 tcp_info_delivery_rate = 349 [json_name = "tcpInfoDeliveryRate"];
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    // uint64 tcp_info_delivery_rate = 1249 [json_name = "tcpInfoDeliveryRate"];
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_tcp_info_delivery_rate() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_delivery_rate());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    // uint64 tcp_info_busy_time = 350 [json_name = "tcpInfoBusyTime"];
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    // uint64 tcp_info_busy_time = 1250 [json_name = "tcpInfoBusyTime"];
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (this_._internal_tcp_info_busy_time() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_busy_time());
       }
     }
-    // uint64 tcp_info_rwnd_limited = 351 [json_name = "tcpInfoRwndLimited"];
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    // uint64 tcp_info_rwnd_limited = 1251 [json_name = "tcpInfoRwndLimited"];
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (this_._internal_tcp_info_rwnd_limited() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_rwnd_limited());
       }
     }
-    // uint64 tcp_info_sndbuf_limited = 352 [json_name = "tcpInfoSndbufLimited"];
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    // uint64 tcp_info_sndbuf_limited = 1252 [json_name = "tcpInfoSndbufLimited"];
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (this_._internal_tcp_info_sndbuf_limited() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_sndbuf_limited());
       }
     }
-    // uint32 tcp_info_delivered = 353 [json_name = "tcpInfoDelivered"];
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    // uint32 tcp_info_delivered = 1253 [json_name = "tcpInfoDelivered"];
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (this_._internal_tcp_info_delivered() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_delivered());
       }
     }
-    // uint32 tcp_info_delivered_ce = 354 [json_name = "tcpInfoDeliveredCe"];
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    // uint32 tcp_info_delivered_ce = 1254 [json_name = "tcpInfoDeliveredCe"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (this_._internal_tcp_info_delivered_ce() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_delivered_ce());
       }
     }
-    // uint64 tcp_info_bytes_sent = 355 [json_name = "tcpInfoBytesSent"];
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    // uint64 tcp_info_bytes_sent = 1255 [json_name = "tcpInfoBytesSent"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (this_._internal_tcp_info_bytes_sent() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_bytes_sent());
       }
     }
-    // uint64 tcp_info_bytes_retrans = 356 [json_name = "tcpInfoBytesRetrans"];
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    // uint64 tcp_info_bytes_retrans = 1256 [json_name = "tcpInfoBytesRetrans"];
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (this_._internal_tcp_info_bytes_retrans() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_tcp_info_bytes_retrans());
       }
     }
-    // uint32 tcp_info_dsack_dups = 357 [json_name = "tcpInfoDsackDups"];
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    // uint32 tcp_info_dsack_dups = 1257 [json_name = "tcpInfoDsackDups"];
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (this_._internal_tcp_info_dsack_dups() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_dsack_dups());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    // uint32 tcp_info_reord_seen = 358 [json_name = "tcpInfoReordSeen"];
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    // uint32 tcp_info_reord_seen = 1258 [json_name = "tcpInfoReordSeen"];
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (this_._internal_tcp_info_reord_seen() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_reord_seen());
       }
     }
-    // uint32 tcp_info_rcv_ooopack = 359 [json_name = "tcpInfoRcvOoopack"];
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    // uint32 tcp_info_rcv_ooopack = 1259 [json_name = "tcpInfoRcvOoopack"];
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_tcp_info_rcv_ooopack() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_ooopack());
       }
     }
-    // uint32 tcp_info_snd_wnd = 360 [json_name = "tcpInfoSndWnd"];
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    // uint32 tcp_info_snd_wnd = 1260 [json_name = "tcpInfoSndWnd"];
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_tcp_info_snd_wnd() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_snd_wnd());
       }
     }
-    // uint32 tcp_info_rcv_wnd = 361 [json_name = "tcpInfoRcvWnd"];
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    // uint32 tcp_info_rcv_wnd = 1261 [json_name = "tcpInfoRcvWnd"];
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       if (this_._internal_tcp_info_rcv_wnd() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rcv_wnd());
       }
     }
-    // uint32 tcp_info_rehash = 362 [json_name = "tcpInfoRehash"];
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    // uint32 tcp_info_rehash = 1262 [json_name = "tcpInfoRehash"];
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (this_._internal_tcp_info_rehash() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_rehash());
       }
     }
-    // uint32 tcp_info_total_rto = 363 [json_name = "tcpInfoTotalRto"];
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    // uint32 tcp_info_total_rto = 1263 [json_name = "tcpInfoTotalRto"];
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_tcp_info_total_rto() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_total_rto());
       }
     }
-    // uint32 tcp_info_total_rto_recoveries = 364 [json_name = "tcpInfoTotalRtoRecoveries"];
-    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    // uint32 tcp_info_total_rto_recoveries = 1264 [json_name = "tcpInfoTotalRtoRecoveries"];
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
       if (this_._internal_tcp_info_total_rto_recoveries() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_total_rto_recoveries());
       }
     }
-    // uint32 tcp_info_total_rto_time = 365 [json_name = "tcpInfoTotalRtoTime"];
-    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    // uint32 tcp_info_total_rto_time = 1265 [json_name = "tcpInfoTotalRtoTime"];
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
       if (this_._internal_tcp_info_total_rto_time() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_tcp_info_total_rto_time());
       }
     }
-  }
-  cached_has_bits = this_._impl_._has_bits_[3];
-  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 401 [json_name = "congestionAlgorithmEnum"];
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm congestion_algorithm_enum = 1301 [json_name = "congestionAlgorithmEnum"];
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
       if (this_._internal_congestion_algorithm_enum() != 0) {
         total_size += 2 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_congestion_algorithm_enum());
       }
     }
-    // uint32 type_of_service = 501 [json_name = "typeOfService"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    // uint32 type_of_service = 1401 [json_name = "typeOfService"];
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (this_._internal_type_of_service() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_type_of_service());
       }
     }
-    // uint32 traffic_class = 502 [json_name = "trafficClass"];
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  }
+  cached_has_bits = this_._impl_._has_bits_[4];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    // uint32 traffic_class = 1402 [json_name = "trafficClass"];
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_traffic_class() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_traffic_class());
       }
     }
-    // uint32 sk_mem_info_rmem_alloc = 601 [json_name = "skMemInfoRmemAlloc"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    // uint32 sk_mem_info_rmem_alloc = 1501 [json_name = "skMemInfoRmemAlloc"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (this_._internal_sk_mem_info_rmem_alloc() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_rmem_alloc());
       }
     }
-    // uint32 sk_mem_info_rcv_buf = 602 [json_name = "skMemInfoRcvBuf"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    // uint32 sk_mem_info_rcv_buf = 1502 [json_name = "skMemInfoRcvBuf"];
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_sk_mem_info_rcv_buf() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_rcv_buf());
       }
     }
-    // uint32 sk_mem_info_wmem_alloc = 603 [json_name = "skMemInfoWmemAlloc"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    // uint32 sk_mem_info_wmem_alloc = 1503 [json_name = "skMemInfoWmemAlloc"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (this_._internal_sk_mem_info_wmem_alloc() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_wmem_alloc());
       }
     }
-    // uint32 sk_mem_info_snd_buf = 604 [json_name = "skMemInfoSndBuf"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    // uint32 sk_mem_info_snd_buf = 1504 [json_name = "skMemInfoSndBuf"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_sk_mem_info_snd_buf() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_snd_buf());
       }
     }
-    // uint32 sk_mem_info_fwd_alloc = 605 [json_name = "skMemInfoFwdAlloc"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    // uint32 sk_mem_info_fwd_alloc = 1505 [json_name = "skMemInfoFwdAlloc"];
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_sk_mem_info_fwd_alloc() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_fwd_alloc());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    // uint32 sk_mem_info_wmem_queued = 606 [json_name = "skMemInfoWmemQueued"];
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    // uint32 sk_mem_info_wmem_queued = 1506 [json_name = "skMemInfoWmemQueued"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_sk_mem_info_wmem_queued() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_wmem_queued());
       }
     }
-    // uint32 sk_mem_info_optmem = 607 [json_name = "skMemInfoOptmem"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    // uint32 sk_mem_info_optmem = 1507 [json_name = "skMemInfoOptmem"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_sk_mem_info_optmem() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_optmem());
       }
     }
-    // uint32 sk_mem_info_backlog = 608 [json_name = "skMemInfoBacklog"];
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // uint32 sk_mem_info_backlog = 1508 [json_name = "skMemInfoBacklog"];
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_sk_mem_info_backlog() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_backlog());
       }
     }
-    // uint32 sk_mem_info_drops = 609 [json_name = "skMemInfoDrops"];
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    // uint32 sk_mem_info_drops = 1509 [json_name = "skMemInfoDrops"];
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_sk_mem_info_drops() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sk_mem_info_drops());
       }
     }
-    // uint32 shutdown_state = 700 [json_name = "shutdownState"];
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    // uint32 shutdown_state = 1600 [json_name = "shutdownState"];
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (this_._internal_shutdown_state() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_shutdown_state());
       }
     }
-    // uint32 vegas_info_enabled = 801 [json_name = "vegasInfoEnabled"];
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    // uint32 vegas_info_enabled = 1701 [json_name = "vegasInfoEnabled"];
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_vegas_info_enabled() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_vegas_info_enabled());
       }
     }
-    // uint32 vegas_info_rtt_cnt = 802 [json_name = "vegasInfoRttCnt"];
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    // uint32 vegas_info_rtt_cnt = 1702 [json_name = "vegasInfoRttCnt"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (this_._internal_vegas_info_rtt_cnt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_vegas_info_rtt_cnt());
       }
     }
-    // uint32 vegas_info_rtt = 803 [json_name = "vegasInfoRtt"];
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    // uint32 vegas_info_rtt = 1703 [json_name = "vegasInfoRtt"];
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_vegas_info_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_vegas_info_rtt());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    // uint32 vegas_info_min_rtt = 804 [json_name = "vegasInfoMinRtt"];
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    // uint32 vegas_info_min_rtt = 1704 [json_name = "vegasInfoMinRtt"];
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (this_._internal_vegas_info_min_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_vegas_info_min_rtt());
       }
     }
-    // uint32 dctcp_info_enabled = 901 [json_name = "dctcpInfoEnabled"];
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    // uint32 dctcp_info_enabled = 1801 [json_name = "dctcpInfoEnabled"];
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (this_._internal_dctcp_info_enabled() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dctcp_info_enabled());
       }
     }
-    // uint32 dctcp_info_ce_state = 902 [json_name = "dctcpInfoCeState"];
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    // uint32 dctcp_info_ce_state = 1802 [json_name = "dctcpInfoCeState"];
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (this_._internal_dctcp_info_ce_state() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dctcp_info_ce_state());
       }
     }
-    // uint32 dctcp_info_alpha = 903 [json_name = "dctcpInfoAlpha"];
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    // uint32 dctcp_info_alpha = 1803 [json_name = "dctcpInfoAlpha"];
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (this_._internal_dctcp_info_alpha() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dctcp_info_alpha());
       }
     }
-    // uint32 dctcp_info_ab_ecn = 904 [json_name = "dctcpInfoAbEcn"];
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    // uint32 dctcp_info_ab_ecn = 1804 [json_name = "dctcpInfoAbEcn"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (this_._internal_dctcp_info_ab_ecn() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dctcp_info_ab_ecn());
       }
     }
-    // uint32 dctcp_info_ab_tot = 905 [json_name = "dctcpInfoAbTot"];
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    // uint32 dctcp_info_ab_tot = 1805 [json_name = "dctcpInfoAbTot"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (this_._internal_dctcp_info_ab_tot() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dctcp_info_ab_tot());
       }
     }
-    // uint32 bbr_info_bw_lo = 1001 [json_name = "bbrInfoBwLo"];
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    // uint32 bbr_info_bw_lo = 1901 [json_name = "bbrInfoBwLo"];
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (this_._internal_bbr_info_bw_lo() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_bbr_info_bw_lo());
       }
     }
-    // uint32 bbr_info_bw_hi = 1002 [json_name = "bbrInfoBwHi"];
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    // uint32 bbr_info_bw_hi = 1902 [json_name = "bbrInfoBwHi"];
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (this_._internal_bbr_info_bw_hi() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_bbr_info_bw_hi());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
-    // uint32 bbr_info_min_rtt = 1003 [json_name = "bbrInfoMinRtt"];
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    // uint32 bbr_info_min_rtt = 1903 [json_name = "bbrInfoMinRtt"];
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (this_._internal_bbr_info_min_rtt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_bbr_info_min_rtt());
       }
     }
-    // uint32 bbr_info_pacing_gain = 1004 [json_name = "bbrInfoPacingGain"];
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    // uint32 bbr_info_pacing_gain = 1904 [json_name = "bbrInfoPacingGain"];
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_bbr_info_pacing_gain() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_bbr_info_pacing_gain());
       }
     }
-    // uint32 bbr_info_cwnd_gain = 1005 [json_name = "bbrInfoCwndGain"];
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    // uint32 bbr_info_cwnd_gain = 1905 [json_name = "bbrInfoCwndGain"];
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_bbr_info_cwnd_gain() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_bbr_info_cwnd_gain());
       }
     }
-    // uint32 class_id = 1101 [json_name = "classId"];
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    // uint32 class_id = 2001 [json_name = "classId"];
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       if (this_._internal_class_id() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_class_id());
       }
     }
-    // uint32 sock_opt = 1102 [json_name = "sockOpt"];
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    // uint32 sock_opt = 2002 [json_name = "sockOpt"];
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (this_._internal_sock_opt() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_sock_opt());
       }
     }
-    // uint64 c_group = 1203 [json_name = "cGroup"];
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    // uint64 c_group = 2103 [json_name = "cGroup"];
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_c_group() != 0) {
-        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+        total_size += 3 + ::_pbi::WireFormatLite::UInt64Size(
                                         this_._internal_c_group());
       }
     }
@@ -4516,6 +5463,15 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
   cached_has_bits = from._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!from._internal_daemon_version().empty()) {
+        _this->_internal_set_daemon_version(from._internal_daemon_version());
+      } else {
+        if (_this->_impl_.daemon_version_.IsDefault()) {
+          _this->_internal_set_daemon_version("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!from._internal_hostname().empty()) {
         _this->_internal_set_hostname(from._internal_hostname());
       } else {
@@ -4524,7 +5480,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (!from._internal_location().empty()) {
         _this->_internal_set_location(from._internal_location());
       } else {
@@ -4533,7 +5489,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (!from._internal_netns().empty()) {
         _this->_internal_set_netns(from._internal_netns());
       } else {
@@ -4542,7 +5498,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (!from._internal_container_id().empty()) {
         _this->_internal_set_container_id(from._internal_container_id());
       } else {
@@ -4551,7 +5507,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (!from._internal_container_runtime().empty()) {
         _this->_internal_set_container_runtime(from._internal_container_runtime());
       } else {
@@ -4560,7 +5516,27 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (!from._internal_container_name().empty()) {
+        _this->_internal_set_container_name(from._internal_container_name());
+      } else {
+        if (_this->_impl_.container_name_.IsDefault()) {
+          _this->_internal_set_container_name("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (!from._internal_container_image().empty()) {
+        _this->_internal_set_container_image(from._internal_container_image());
+      } else {
+        if (_this->_impl_.container_image_.IsDefault()) {
+          _this->_internal_set_container_image("");
+        }
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (!from._internal_label().empty()) {
         _this->_internal_set_label(from._internal_label());
       } else {
@@ -4569,7 +5545,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (!from._internal_tag().empty()) {
         _this->_internal_set_tag(from._internal_tag());
       } else {
@@ -4578,7 +5554,234 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (!from._internal_uplink1_nic_model().empty()) {
+        _this->_internal_set_uplink1_nic_model(from._internal_uplink1_nic_model());
+      } else {
+        if (_this->_impl_.uplink1_nic_model_.IsDefault()) {
+          _this->_internal_set_uplink1_nic_model("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (from._internal_timestamp_ns() != 0) {
+        _this->_impl_.timestamp_ns_ = from._impl_.timestamp_ns_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (from._internal_schema_version() != 0) {
+        _this->_impl_.schema_version_ = from._impl_.schema_version_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (from._internal_nsid() != 0) {
+        _this->_impl_.nsid_ = from._impl_.nsid_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (from._internal_netns_inode() != 0) {
+        _this->_impl_.netns_inode_ = from._impl_.netns_inode_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (from._internal_record_counter() != 0) {
+        _this->_impl_.record_counter_ = from._impl_.record_counter_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (from._internal_socket_fd() != 0) {
+        _this->_impl_.socket_fd_ = from._impl_.socket_fd_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (from._internal_uplink1_nic_pci_vendor() != 0) {
+        _this->_impl_.uplink1_nic_pci_vendor_ = from._impl_.uplink1_nic_pci_vendor_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (from._internal_inet_diag_msg_socket_interface() != 0) {
+        _this->_impl_.inet_diag_msg_socket_interface_ = from._impl_.inet_diag_msg_socket_interface_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (!from._internal_uplink1_ifname().empty()) {
+        _this->_internal_set_uplink1_ifname(from._internal_uplink1_ifname());
+      } else {
+        if (_this->_impl_.uplink1_ifname_.IsDefault()) {
+          _this->_internal_set_uplink1_ifname("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      if (!from._internal_uplink1_nic_driver().empty()) {
+        _this->_internal_set_uplink1_nic_driver(from._internal_uplink1_nic_driver());
+      } else {
+        if (_this->_impl_.uplink1_nic_driver_.IsDefault()) {
+          _this->_internal_set_uplink1_nic_driver("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      if (!from._internal_uplink1_nic_bus_info().empty()) {
+        _this->_internal_set_uplink1_nic_bus_info(from._internal_uplink1_nic_bus_info());
+      } else {
+        if (_this->_impl_.uplink1_nic_bus_info_.IsDefault()) {
+          _this->_internal_set_uplink1_nic_bus_info("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      if (!from._internal_uplink1_nic_fw_version().empty()) {
+        _this->_internal_set_uplink1_nic_fw_version(from._internal_uplink1_nic_fw_version());
+      } else {
+        if (_this->_impl_.uplink1_nic_fw_version_.IsDefault()) {
+          _this->_internal_set_uplink1_nic_fw_version("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      if (!from._internal_uplink1_lldp_chassis_name().empty()) {
+        _this->_internal_set_uplink1_lldp_chassis_name(from._internal_uplink1_lldp_chassis_name());
+      } else {
+        if (_this->_impl_.uplink1_lldp_chassis_name_.IsDefault()) {
+          _this->_internal_set_uplink1_lldp_chassis_name("");
+        }
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (!from._internal_uplink1_lldp_chassis_id().empty()) {
+        _this->_internal_set_uplink1_lldp_chassis_id(from._internal_uplink1_lldp_chassis_id());
+      } else {
+        if (_this->_impl_.uplink1_lldp_chassis_id_.IsDefault()) {
+          _this->_internal_set_uplink1_lldp_chassis_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (!from._internal_uplink1_lldp_mgmt_ip().empty()) {
+        _this->_internal_set_uplink1_lldp_mgmt_ip(from._internal_uplink1_lldp_mgmt_ip());
+      } else {
+        if (_this->_impl_.uplink1_lldp_mgmt_ip_.IsDefault()) {
+          _this->_internal_set_uplink1_lldp_mgmt_ip("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (!from._internal_uplink1_lldp_port_id().empty()) {
+        _this->_internal_set_uplink1_lldp_port_id(from._internal_uplink1_lldp_port_id());
+      } else {
+        if (_this->_impl_.uplink1_lldp_port_id_.IsDefault()) {
+          _this->_internal_set_uplink1_lldp_port_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (!from._internal_uplink1_lldp_port_descr().empty()) {
+        _this->_internal_set_uplink1_lldp_port_descr(from._internal_uplink1_lldp_port_descr());
+      } else {
+        if (_this->_impl_.uplink1_lldp_port_descr_.IsDefault()) {
+          _this->_internal_set_uplink1_lldp_port_descr("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+      if (!from._internal_uplink2_ifname().empty()) {
+        _this->_internal_set_uplink2_ifname(from._internal_uplink2_ifname());
+      } else {
+        if (_this->_impl_.uplink2_ifname_.IsDefault()) {
+          _this->_internal_set_uplink2_ifname("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      if (!from._internal_uplink2_nic_driver().empty()) {
+        _this->_internal_set_uplink2_nic_driver(from._internal_uplink2_nic_driver());
+      } else {
+        if (_this->_impl_.uplink2_nic_driver_.IsDefault()) {
+          _this->_internal_set_uplink2_nic_driver("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+      if (!from._internal_uplink2_nic_model().empty()) {
+        _this->_internal_set_uplink2_nic_model(from._internal_uplink2_nic_model());
+      } else {
+        if (_this->_impl_.uplink2_nic_model_.IsDefault()) {
+          _this->_internal_set_uplink2_nic_model("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+      if (!from._internal_uplink2_nic_bus_info().empty()) {
+        _this->_internal_set_uplink2_nic_bus_info(from._internal_uplink2_nic_bus_info());
+      } else {
+        if (_this->_impl_.uplink2_nic_bus_info_.IsDefault()) {
+          _this->_internal_set_uplink2_nic_bus_info("");
+        }
+      }
+    }
+  }
+  cached_has_bits = from._impl_._has_bits_[1];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!from._internal_uplink2_nic_fw_version().empty()) {
+        _this->_internal_set_uplink2_nic_fw_version(from._internal_uplink2_nic_fw_version());
+      } else {
+        if (_this->_impl_.uplink2_nic_fw_version_.IsDefault()) {
+          _this->_internal_set_uplink2_nic_fw_version("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_uplink2_lldp_chassis_name().empty()) {
+        _this->_internal_set_uplink2_lldp_chassis_name(from._internal_uplink2_lldp_chassis_name());
+      } else {
+        if (_this->_impl_.uplink2_lldp_chassis_name_.IsDefault()) {
+          _this->_internal_set_uplink2_lldp_chassis_name("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!from._internal_uplink2_lldp_chassis_id().empty()) {
+        _this->_internal_set_uplink2_lldp_chassis_id(from._internal_uplink2_lldp_chassis_id());
+      } else {
+        if (_this->_impl_.uplink2_lldp_chassis_id_.IsDefault()) {
+          _this->_internal_set_uplink2_lldp_chassis_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_uplink2_lldp_mgmt_ip().empty()) {
+        _this->_internal_set_uplink2_lldp_mgmt_ip(from._internal_uplink2_lldp_mgmt_ip());
+      } else {
+        if (_this->_impl_.uplink2_lldp_mgmt_ip_.IsDefault()) {
+          _this->_internal_set_uplink2_lldp_mgmt_ip("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!from._internal_uplink2_lldp_port_id().empty()) {
+        _this->_internal_set_uplink2_lldp_port_id(from._internal_uplink2_lldp_port_id());
+      } else {
+        if (_this->_impl_.uplink2_lldp_port_id_.IsDefault()) {
+          _this->_internal_set_uplink2_lldp_port_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!from._internal_uplink2_lldp_port_descr().empty()) {
+        _this->_internal_set_uplink2_lldp_port_descr(from._internal_uplink2_lldp_port_descr());
+      } else {
+        if (_this->_impl_.uplink2_lldp_port_descr_.IsDefault()) {
+          _this->_internal_set_uplink2_lldp_port_descr("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (!from._internal_inet_diag_msg_socket_source().empty()) {
         _this->_internal_set_inet_diag_msg_socket_source(from._internal_inet_diag_msg_socket_source());
       } else {
@@ -4587,56 +5790,7 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (from._internal_timestamp_ns() != 0) {
-        _this->_impl_.timestamp_ns_ = from._impl_.timestamp_ns_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (from._internal_netns_inode() != 0) {
-        _this->_impl_.netns_inode_ = from._impl_.netns_inode_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (from._internal_record_counter() != 0) {
-        _this->_impl_.record_counter_ = from._impl_.record_counter_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (from._internal_nsid() != 0) {
-        _this->_impl_.nsid_ = from._impl_.nsid_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (from._internal_inet_diag_msg_timer() != 0) {
-        _this->_impl_.inet_diag_msg_timer_ = from._impl_.inet_diag_msg_timer_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (from._internal_netlinker_id() != 0) {
-        _this->_impl_.netlinker_id_ = from._impl_.netlinker_id_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (from._internal_inet_diag_msg_socket_source_port() != 0) {
-        _this->_impl_.inet_diag_msg_socket_source_port_ = from._impl_.inet_diag_msg_socket_source_port_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (from._internal_inet_diag_msg_socket_interface() != 0) {
-        _this->_impl_.inet_diag_msg_socket_interface_ = from._impl_.inet_diag_msg_socket_interface_;
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (from._internal_inet_diag_msg_wqueue() != 0) {
-        _this->_impl_.inet_diag_msg_wqueue_ = from._impl_.inet_diag_msg_wqueue_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (!from._internal_inet_diag_msg_socket_destination().empty()) {
         _this->_internal_set_inet_diag_msg_socket_destination(from._internal_inet_diag_msg_socket_destination());
       } else {
@@ -4645,7 +5799,9 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (!from._internal_congestion_algorithm_string().empty()) {
         _this->_internal_set_congestion_algorithm_string(from._internal_congestion_algorithm_string());
       } else {
@@ -4654,566 +5810,608 @@ void XtcpFlatRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-      if (from._internal_socket_fd() != 0) {
-        _this->_impl_.socket_fd_ = from._impl_.socket_fd_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-      if (from._internal_inet_diag_msg_family() != 0) {
-        _this->_impl_.inet_diag_msg_family_ = from._impl_.inet_diag_msg_family_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-      if (from._internal_inet_diag_msg_state() != 0) {
-        _this->_impl_.inet_diag_msg_state_ = from._impl_.inet_diag_msg_state_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-      if (from._internal_inet_diag_msg_retrans() != 0) {
-        _this->_impl_.inet_diag_msg_retrans_ = from._impl_.inet_diag_msg_retrans_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-      if (from._internal_inet_diag_msg_socket_destination_port() != 0) {
-        _this->_impl_.inet_diag_msg_socket_destination_port_ = from._impl_.inet_diag_msg_socket_destination_port_;
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-      if (from._internal_inet_diag_msg_socket_cookie() != 0) {
-        _this->_impl_.inet_diag_msg_socket_cookie_ = from._impl_.inet_diag_msg_socket_cookie_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-      if (from._internal_inet_diag_msg_socket_dest_asn() != 0) {
-        _this->_impl_.inet_diag_msg_socket_dest_asn_ = from._impl_.inet_diag_msg_socket_dest_asn_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-      if (from._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
-        _this->_impl_.inet_diag_msg_socket_next_hop_asn_ = from._impl_.inet_diag_msg_socket_next_hop_asn_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-      if (from._internal_inet_diag_msg_expires() != 0) {
-        _this->_impl_.inet_diag_msg_expires_ = from._impl_.inet_diag_msg_expires_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-      if (from._internal_inet_diag_msg_rqueue() != 0) {
-        _this->_impl_.inet_diag_msg_rqueue_ = from._impl_.inet_diag_msg_rqueue_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-      if (from._internal_inet_diag_msg_uid() != 0) {
-        _this->_impl_.inet_diag_msg_uid_ = from._impl_.inet_diag_msg_uid_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-      if (from._internal_inet_diag_msg_inode() != 0) {
-        _this->_impl_.inet_diag_msg_inode_ = from._impl_.inet_diag_msg_inode_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-      if (from._internal_mem_info_rmem() != 0) {
-        _this->_impl_.mem_info_rmem_ = from._impl_.mem_info_rmem_;
-      }
-    }
-  }
-  cached_has_bits = from._impl_._has_bits_[1];
-  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (from._internal_mem_info_wmem() != 0) {
-        _this->_impl_.mem_info_wmem_ = from._impl_.mem_info_wmem_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (from._internal_mem_info_fmem() != 0) {
-        _this->_impl_.mem_info_fmem_ = from._impl_.mem_info_fmem_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (from._internal_mem_info_tmem() != 0) {
-        _this->_impl_.mem_info_tmem_ = from._impl_.mem_info_tmem_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (from._internal_tcp_info_state() != 0) {
-        _this->_impl_.tcp_info_state_ = from._impl_.tcp_info_state_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (from._internal_tcp_info_ca_state() != 0) {
-        _this->_impl_.tcp_info_ca_state_ = from._impl_.tcp_info_ca_state_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (from._internal_tcp_info_retransmits() != 0) {
-        _this->_impl_.tcp_info_retransmits_ = from._impl_.tcp_info_retransmits_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (from._internal_tcp_info_probes() != 0) {
-        _this->_impl_.tcp_info_probes_ = from._impl_.tcp_info_probes_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (from._internal_tcp_info_backoff() != 0) {
-        _this->_impl_.tcp_info_backoff_ = from._impl_.tcp_info_backoff_;
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (from._internal_tcp_info_options() != 0) {
-        _this->_impl_.tcp_info_options_ = from._impl_.tcp_info_options_;
-      }
-    }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (from._internal_tcp_info_send_scale() != 0) {
-        _this->_impl_.tcp_info_send_scale_ = from._impl_.tcp_info_send_scale_;
+      if (from._internal_netlinker_id() != 0) {
+        _this->_impl_.netlinker_id_ = from._impl_.netlinker_id_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (from._internal_tcp_info_rcv_scale() != 0) {
-        _this->_impl_.tcp_info_rcv_scale_ = from._impl_.tcp_info_rcv_scale_;
+      if (from._internal_uplink1_nic_pci_device() != 0) {
+        _this->_impl_.uplink1_nic_pci_device_ = from._impl_.uplink1_nic_pci_device_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (from._internal_tcp_info_delivery_rate_app_limited() != 0) {
-        _this->_impl_.tcp_info_delivery_rate_app_limited_ = from._impl_.tcp_info_delivery_rate_app_limited_;
+      if (from._internal_uplink1_nic_speed_mbps() != 0) {
+        _this->_impl_.uplink1_nic_speed_mbps_ = from._impl_.uplink1_nic_speed_mbps_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (from._internal_tcp_info_fast_open_client_failed() != 0) {
-        _this->_impl_.tcp_info_fast_open_client_failed_ = from._impl_.tcp_info_fast_open_client_failed_;
+      if (from._internal_uplink2_nic_pci_vendor() != 0) {
+        _this->_impl_.uplink2_nic_pci_vendor_ = from._impl_.uplink2_nic_pci_vendor_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (from._internal_tcp_info_rto() != 0) {
-        _this->_impl_.tcp_info_rto_ = from._impl_.tcp_info_rto_;
+      if (from._internal_uplink2_nic_pci_device() != 0) {
+        _this->_impl_.uplink2_nic_pci_device_ = from._impl_.uplink2_nic_pci_device_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (from._internal_tcp_info_ato() != 0) {
-        _this->_impl_.tcp_info_ato_ = from._impl_.tcp_info_ato_;
+      if (from._internal_uplink2_nic_speed_mbps() != 0) {
+        _this->_impl_.uplink2_nic_speed_mbps_ = from._impl_.uplink2_nic_speed_mbps_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (from._internal_tcp_info_snd_mss() != 0) {
-        _this->_impl_.tcp_info_snd_mss_ = from._impl_.tcp_info_snd_mss_;
+      if (from._internal_inet_diag_msg_family() != 0) {
+        _this->_impl_.inet_diag_msg_family_ = from._impl_.inet_diag_msg_family_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (from._internal_tcp_info_rcv_mss() != 0) {
-        _this->_impl_.tcp_info_rcv_mss_ = from._impl_.tcp_info_rcv_mss_;
+      if (from._internal_inet_diag_msg_state() != 0) {
+        _this->_impl_.inet_diag_msg_state_ = from._impl_.inet_diag_msg_state_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      if (from._internal_tcp_info_unacked() != 0) {
-        _this->_impl_.tcp_info_unacked_ = from._impl_.tcp_info_unacked_;
+      if (from._internal_inet_diag_msg_timer() != 0) {
+        _this->_impl_.inet_diag_msg_timer_ = from._impl_.inet_diag_msg_timer_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      if (from._internal_tcp_info_sacked() != 0) {
-        _this->_impl_.tcp_info_sacked_ = from._impl_.tcp_info_sacked_;
+      if (from._internal_inet_diag_msg_retrans() != 0) {
+        _this->_impl_.inet_diag_msg_retrans_ = from._impl_.inet_diag_msg_retrans_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-      if (from._internal_tcp_info_lost() != 0) {
-        _this->_impl_.tcp_info_lost_ = from._impl_.tcp_info_lost_;
+      if (from._internal_inet_diag_msg_socket_source_port() != 0) {
+        _this->_impl_.inet_diag_msg_socket_source_port_ = from._impl_.inet_diag_msg_socket_source_port_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-      if (from._internal_tcp_info_retrans() != 0) {
-        _this->_impl_.tcp_info_retrans_ = from._impl_.tcp_info_retrans_;
+      if (from._internal_inet_diag_msg_socket_destination_port() != 0) {
+        _this->_impl_.inet_diag_msg_socket_destination_port_ = from._impl_.inet_diag_msg_socket_destination_port_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-      if (from._internal_tcp_info_fackets() != 0) {
-        _this->_impl_.tcp_info_fackets_ = from._impl_.tcp_info_fackets_;
+      if (from._internal_inet_diag_msg_expires() != 0) {
+        _this->_impl_.inet_diag_msg_expires_ = from._impl_.inet_diag_msg_expires_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-      if (from._internal_tcp_info_last_data_sent() != 0) {
-        _this->_impl_.tcp_info_last_data_sent_ = from._impl_.tcp_info_last_data_sent_;
+      if (from._internal_inet_diag_msg_socket_cookie() != 0) {
+        _this->_impl_.inet_diag_msg_socket_cookie_ = from._impl_.inet_diag_msg_socket_cookie_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-      if (from._internal_tcp_info_last_ack_sent() != 0) {
-        _this->_impl_.tcp_info_last_ack_sent_ = from._impl_.tcp_info_last_ack_sent_;
+      if (from._internal_inet_diag_msg_socket_dest_asn() != 0) {
+        _this->_impl_.inet_diag_msg_socket_dest_asn_ = from._impl_.inet_diag_msg_socket_dest_asn_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-      if (from._internal_tcp_info_last_data_recv() != 0) {
-        _this->_impl_.tcp_info_last_data_recv_ = from._impl_.tcp_info_last_data_recv_;
+      if (from._internal_inet_diag_msg_socket_next_hop_asn() != 0) {
+        _this->_impl_.inet_diag_msg_socket_next_hop_asn_ = from._impl_.inet_diag_msg_socket_next_hop_asn_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-      if (from._internal_tcp_info_last_ack_recv() != 0) {
-        _this->_impl_.tcp_info_last_ack_recv_ = from._impl_.tcp_info_last_ack_recv_;
+      if (from._internal_inet_diag_msg_rqueue() != 0) {
+        _this->_impl_.inet_diag_msg_rqueue_ = from._impl_.inet_diag_msg_rqueue_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-      if (from._internal_tcp_info_pmtu() != 0) {
-        _this->_impl_.tcp_info_pmtu_ = from._impl_.tcp_info_pmtu_;
+      if (from._internal_inet_diag_msg_wqueue() != 0) {
+        _this->_impl_.inet_diag_msg_wqueue_ = from._impl_.inet_diag_msg_wqueue_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-      if (from._internal_tcp_info_rcv_ssthresh() != 0) {
-        _this->_impl_.tcp_info_rcv_ssthresh_ = from._impl_.tcp_info_rcv_ssthresh_;
+      if (from._internal_inet_diag_msg_uid() != 0) {
+        _this->_impl_.inet_diag_msg_uid_ = from._impl_.inet_diag_msg_uid_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-      if (from._internal_tcp_info_rtt() != 0) {
-        _this->_impl_.tcp_info_rtt_ = from._impl_.tcp_info_rtt_;
+      if (from._internal_inet_diag_msg_inode() != 0) {
+        _this->_impl_.inet_diag_msg_inode_ = from._impl_.inet_diag_msg_inode_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-      if (from._internal_tcp_info_rtt_var() != 0) {
-        _this->_impl_.tcp_info_rtt_var_ = from._impl_.tcp_info_rtt_var_;
+      if (from._internal_mem_info_rmem() != 0) {
+        _this->_impl_.mem_info_rmem_ = from._impl_.mem_info_rmem_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-      if (from._internal_tcp_info_snd_ssthresh() != 0) {
-        _this->_impl_.tcp_info_snd_ssthresh_ = from._impl_.tcp_info_snd_ssthresh_;
+      if (from._internal_mem_info_wmem() != 0) {
+        _this->_impl_.mem_info_wmem_ = from._impl_.mem_info_wmem_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-      if (from._internal_tcp_info_snd_cwnd() != 0) {
-        _this->_impl_.tcp_info_snd_cwnd_ = from._impl_.tcp_info_snd_cwnd_;
+      if (from._internal_mem_info_fmem() != 0) {
+        _this->_impl_.mem_info_fmem_ = from._impl_.mem_info_fmem_;
       }
     }
   }
   cached_has_bits = from._impl_._has_bits_[2];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (from._internal_tcp_info_adv_mss() != 0) {
-        _this->_impl_.tcp_info_adv_mss_ = from._impl_.tcp_info_adv_mss_;
+      if (from._internal_mem_info_tmem() != 0) {
+        _this->_impl_.mem_info_tmem_ = from._impl_.mem_info_tmem_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (from._internal_tcp_info_reordering() != 0) {
-        _this->_impl_.tcp_info_reordering_ = from._impl_.tcp_info_reordering_;
+      if (from._internal_tcp_info_state() != 0) {
+        _this->_impl_.tcp_info_state_ = from._impl_.tcp_info_state_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (from._internal_tcp_info_rcv_rtt() != 0) {
-        _this->_impl_.tcp_info_rcv_rtt_ = from._impl_.tcp_info_rcv_rtt_;
+      if (from._internal_tcp_info_ca_state() != 0) {
+        _this->_impl_.tcp_info_ca_state_ = from._impl_.tcp_info_ca_state_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (from._internal_tcp_info_rcv_space() != 0) {
-        _this->_impl_.tcp_info_rcv_space_ = from._impl_.tcp_info_rcv_space_;
+      if (from._internal_tcp_info_retransmits() != 0) {
+        _this->_impl_.tcp_info_retransmits_ = from._impl_.tcp_info_retransmits_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (from._internal_tcp_info_total_retrans() != 0) {
-        _this->_impl_.tcp_info_total_retrans_ = from._impl_.tcp_info_total_retrans_;
+      if (from._internal_tcp_info_probes() != 0) {
+        _this->_impl_.tcp_info_probes_ = from._impl_.tcp_info_probes_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (from._internal_tcp_info_pacing_rate() != 0) {
-        _this->_impl_.tcp_info_pacing_rate_ = from._impl_.tcp_info_pacing_rate_;
+      if (from._internal_tcp_info_backoff() != 0) {
+        _this->_impl_.tcp_info_backoff_ = from._impl_.tcp_info_backoff_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (from._internal_tcp_info_max_pacing_rate() != 0) {
-        _this->_impl_.tcp_info_max_pacing_rate_ = from._impl_.tcp_info_max_pacing_rate_;
+      if (from._internal_tcp_info_options() != 0) {
+        _this->_impl_.tcp_info_options_ = from._impl_.tcp_info_options_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (from._internal_tcp_info_bytes_acked() != 0) {
-        _this->_impl_.tcp_info_bytes_acked_ = from._impl_.tcp_info_bytes_acked_;
+      if (from._internal_tcp_info_send_scale() != 0) {
+        _this->_impl_.tcp_info_send_scale_ = from._impl_.tcp_info_send_scale_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (from._internal_tcp_info_bytes_received() != 0) {
-        _this->_impl_.tcp_info_bytes_received_ = from._impl_.tcp_info_bytes_received_;
+      if (from._internal_tcp_info_rcv_scale() != 0) {
+        _this->_impl_.tcp_info_rcv_scale_ = from._impl_.tcp_info_rcv_scale_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (from._internal_tcp_info_segs_out() != 0) {
-        _this->_impl_.tcp_info_segs_out_ = from._impl_.tcp_info_segs_out_;
+      if (from._internal_tcp_info_delivery_rate_app_limited() != 0) {
+        _this->_impl_.tcp_info_delivery_rate_app_limited_ = from._impl_.tcp_info_delivery_rate_app_limited_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (from._internal_tcp_info_segs_in() != 0) {
-        _this->_impl_.tcp_info_segs_in_ = from._impl_.tcp_info_segs_in_;
+      if (from._internal_tcp_info_fast_open_client_failed() != 0) {
+        _this->_impl_.tcp_info_fast_open_client_failed_ = from._impl_.tcp_info_fast_open_client_failed_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (from._internal_tcp_info_not_sent_bytes() != 0) {
-        _this->_impl_.tcp_info_not_sent_bytes_ = from._impl_.tcp_info_not_sent_bytes_;
+      if (from._internal_tcp_info_rto() != 0) {
+        _this->_impl_.tcp_info_rto_ = from._impl_.tcp_info_rto_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (from._internal_tcp_info_min_rtt() != 0) {
-        _this->_impl_.tcp_info_min_rtt_ = from._impl_.tcp_info_min_rtt_;
+      if (from._internal_tcp_info_ato() != 0) {
+        _this->_impl_.tcp_info_ato_ = from._impl_.tcp_info_ato_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (from._internal_tcp_info_data_segs_in() != 0) {
-        _this->_impl_.tcp_info_data_segs_in_ = from._impl_.tcp_info_data_segs_in_;
+      if (from._internal_tcp_info_snd_mss() != 0) {
+        _this->_impl_.tcp_info_snd_mss_ = from._impl_.tcp_info_snd_mss_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (from._internal_tcp_info_data_segs_out() != 0) {
-        _this->_impl_.tcp_info_data_segs_out_ = from._impl_.tcp_info_data_segs_out_;
+      if (from._internal_tcp_info_rcv_mss() != 0) {
+        _this->_impl_.tcp_info_rcv_mss_ = from._impl_.tcp_info_rcv_mss_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (from._internal_tcp_info_delivery_rate() != 0) {
-        _this->_impl_.tcp_info_delivery_rate_ = from._impl_.tcp_info_delivery_rate_;
+      if (from._internal_tcp_info_unacked() != 0) {
+        _this->_impl_.tcp_info_unacked_ = from._impl_.tcp_info_unacked_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (from._internal_tcp_info_busy_time() != 0) {
-        _this->_impl_.tcp_info_busy_time_ = from._impl_.tcp_info_busy_time_;
+      if (from._internal_tcp_info_sacked() != 0) {
+        _this->_impl_.tcp_info_sacked_ = from._impl_.tcp_info_sacked_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      if (from._internal_tcp_info_rwnd_limited() != 0) {
-        _this->_impl_.tcp_info_rwnd_limited_ = from._impl_.tcp_info_rwnd_limited_;
+      if (from._internal_tcp_info_lost() != 0) {
+        _this->_impl_.tcp_info_lost_ = from._impl_.tcp_info_lost_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      if (from._internal_tcp_info_sndbuf_limited() != 0) {
-        _this->_impl_.tcp_info_sndbuf_limited_ = from._impl_.tcp_info_sndbuf_limited_;
+      if (from._internal_tcp_info_retrans() != 0) {
+        _this->_impl_.tcp_info_retrans_ = from._impl_.tcp_info_retrans_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-      if (from._internal_tcp_info_delivered() != 0) {
-        _this->_impl_.tcp_info_delivered_ = from._impl_.tcp_info_delivered_;
+      if (from._internal_tcp_info_fackets() != 0) {
+        _this->_impl_.tcp_info_fackets_ = from._impl_.tcp_info_fackets_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00100000U)) {
-      if (from._internal_tcp_info_delivered_ce() != 0) {
-        _this->_impl_.tcp_info_delivered_ce_ = from._impl_.tcp_info_delivered_ce_;
+      if (from._internal_tcp_info_last_data_sent() != 0) {
+        _this->_impl_.tcp_info_last_data_sent_ = from._impl_.tcp_info_last_data_sent_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-      if (from._internal_tcp_info_bytes_sent() != 0) {
-        _this->_impl_.tcp_info_bytes_sent_ = from._impl_.tcp_info_bytes_sent_;
+      if (from._internal_tcp_info_last_ack_sent() != 0) {
+        _this->_impl_.tcp_info_last_ack_sent_ = from._impl_.tcp_info_last_ack_sent_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-      if (from._internal_tcp_info_bytes_retrans() != 0) {
-        _this->_impl_.tcp_info_bytes_retrans_ = from._impl_.tcp_info_bytes_retrans_;
+      if (from._internal_tcp_info_last_data_recv() != 0) {
+        _this->_impl_.tcp_info_last_data_recv_ = from._impl_.tcp_info_last_data_recv_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-      if (from._internal_tcp_info_dsack_dups() != 0) {
-        _this->_impl_.tcp_info_dsack_dups_ = from._impl_.tcp_info_dsack_dups_;
+      if (from._internal_tcp_info_last_ack_recv() != 0) {
+        _this->_impl_.tcp_info_last_ack_recv_ = from._impl_.tcp_info_last_ack_recv_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-      if (from._internal_tcp_info_reord_seen() != 0) {
-        _this->_impl_.tcp_info_reord_seen_ = from._impl_.tcp_info_reord_seen_;
+      if (from._internal_tcp_info_pmtu() != 0) {
+        _this->_impl_.tcp_info_pmtu_ = from._impl_.tcp_info_pmtu_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x02000000U)) {
-      if (from._internal_tcp_info_rcv_ooopack() != 0) {
-        _this->_impl_.tcp_info_rcv_ooopack_ = from._impl_.tcp_info_rcv_ooopack_;
+      if (from._internal_tcp_info_rcv_ssthresh() != 0) {
+        _this->_impl_.tcp_info_rcv_ssthresh_ = from._impl_.tcp_info_rcv_ssthresh_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x04000000U)) {
-      if (from._internal_tcp_info_snd_wnd() != 0) {
-        _this->_impl_.tcp_info_snd_wnd_ = from._impl_.tcp_info_snd_wnd_;
+      if (from._internal_tcp_info_rtt() != 0) {
+        _this->_impl_.tcp_info_rtt_ = from._impl_.tcp_info_rtt_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x08000000U)) {
-      if (from._internal_tcp_info_rcv_wnd() != 0) {
-        _this->_impl_.tcp_info_rcv_wnd_ = from._impl_.tcp_info_rcv_wnd_;
+      if (from._internal_tcp_info_rtt_var() != 0) {
+        _this->_impl_.tcp_info_rtt_var_ = from._impl_.tcp_info_rtt_var_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x10000000U)) {
-      if (from._internal_tcp_info_rehash() != 0) {
-        _this->_impl_.tcp_info_rehash_ = from._impl_.tcp_info_rehash_;
+      if (from._internal_tcp_info_snd_ssthresh() != 0) {
+        _this->_impl_.tcp_info_snd_ssthresh_ = from._impl_.tcp_info_snd_ssthresh_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x20000000U)) {
-      if (from._internal_tcp_info_total_rto() != 0) {
-        _this->_impl_.tcp_info_total_rto_ = from._impl_.tcp_info_total_rto_;
+      if (from._internal_tcp_info_snd_cwnd() != 0) {
+        _this->_impl_.tcp_info_snd_cwnd_ = from._impl_.tcp_info_snd_cwnd_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x40000000U)) {
-      if (from._internal_tcp_info_total_rto_recoveries() != 0) {
-        _this->_impl_.tcp_info_total_rto_recoveries_ = from._impl_.tcp_info_total_rto_recoveries_;
+      if (from._internal_tcp_info_adv_mss() != 0) {
+        _this->_impl_.tcp_info_adv_mss_ = from._impl_.tcp_info_adv_mss_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x80000000U)) {
-      if (from._internal_tcp_info_total_rto_time() != 0) {
-        _this->_impl_.tcp_info_total_rto_time_ = from._impl_.tcp_info_total_rto_time_;
+      if (from._internal_tcp_info_reordering() != 0) {
+        _this->_impl_.tcp_info_reordering_ = from._impl_.tcp_info_reordering_;
       }
     }
   }
   cached_has_bits = from._impl_._has_bits_[3];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (from._internal_congestion_algorithm_enum() != 0) {
-        _this->_impl_.congestion_algorithm_enum_ = from._impl_.congestion_algorithm_enum_;
+      if (from._internal_tcp_info_rcv_rtt() != 0) {
+        _this->_impl_.tcp_info_rcv_rtt_ = from._impl_.tcp_info_rcv_rtt_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (from._internal_type_of_service() != 0) {
-        _this->_impl_.type_of_service_ = from._impl_.type_of_service_;
+      if (from._internal_tcp_info_rcv_space() != 0) {
+        _this->_impl_.tcp_info_rcv_space_ = from._impl_.tcp_info_rcv_space_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (from._internal_traffic_class() != 0) {
-        _this->_impl_.traffic_class_ = from._impl_.traffic_class_;
+      if (from._internal_tcp_info_total_retrans() != 0) {
+        _this->_impl_.tcp_info_total_retrans_ = from._impl_.tcp_info_total_retrans_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (from._internal_sk_mem_info_rmem_alloc() != 0) {
-        _this->_impl_.sk_mem_info_rmem_alloc_ = from._impl_.sk_mem_info_rmem_alloc_;
+      if (from._internal_tcp_info_pacing_rate() != 0) {
+        _this->_impl_.tcp_info_pacing_rate_ = from._impl_.tcp_info_pacing_rate_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (from._internal_sk_mem_info_rcv_buf() != 0) {
-        _this->_impl_.sk_mem_info_rcv_buf_ = from._impl_.sk_mem_info_rcv_buf_;
+      if (from._internal_tcp_info_max_pacing_rate() != 0) {
+        _this->_impl_.tcp_info_max_pacing_rate_ = from._impl_.tcp_info_max_pacing_rate_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (from._internal_sk_mem_info_wmem_alloc() != 0) {
-        _this->_impl_.sk_mem_info_wmem_alloc_ = from._impl_.sk_mem_info_wmem_alloc_;
+      if (from._internal_tcp_info_bytes_acked() != 0) {
+        _this->_impl_.tcp_info_bytes_acked_ = from._impl_.tcp_info_bytes_acked_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (from._internal_sk_mem_info_snd_buf() != 0) {
-        _this->_impl_.sk_mem_info_snd_buf_ = from._impl_.sk_mem_info_snd_buf_;
+      if (from._internal_tcp_info_bytes_received() != 0) {
+        _this->_impl_.tcp_info_bytes_received_ = from._impl_.tcp_info_bytes_received_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (from._internal_sk_mem_info_fwd_alloc() != 0) {
-        _this->_impl_.sk_mem_info_fwd_alloc_ = from._impl_.sk_mem_info_fwd_alloc_;
+      if (from._internal_tcp_info_segs_out() != 0) {
+        _this->_impl_.tcp_info_segs_out_ = from._impl_.tcp_info_segs_out_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (from._internal_sk_mem_info_wmem_queued() != 0) {
-        _this->_impl_.sk_mem_info_wmem_queued_ = from._impl_.sk_mem_info_wmem_queued_;
+      if (from._internal_tcp_info_segs_in() != 0) {
+        _this->_impl_.tcp_info_segs_in_ = from._impl_.tcp_info_segs_in_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (from._internal_sk_mem_info_optmem() != 0) {
-        _this->_impl_.sk_mem_info_optmem_ = from._impl_.sk_mem_info_optmem_;
+      if (from._internal_tcp_info_not_sent_bytes() != 0) {
+        _this->_impl_.tcp_info_not_sent_bytes_ = from._impl_.tcp_info_not_sent_bytes_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (from._internal_sk_mem_info_backlog() != 0) {
-        _this->_impl_.sk_mem_info_backlog_ = from._impl_.sk_mem_info_backlog_;
+      if (from._internal_tcp_info_min_rtt() != 0) {
+        _this->_impl_.tcp_info_min_rtt_ = from._impl_.tcp_info_min_rtt_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (from._internal_sk_mem_info_drops() != 0) {
-        _this->_impl_.sk_mem_info_drops_ = from._impl_.sk_mem_info_drops_;
+      if (from._internal_tcp_info_data_segs_in() != 0) {
+        _this->_impl_.tcp_info_data_segs_in_ = from._impl_.tcp_info_data_segs_in_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (from._internal_shutdown_state() != 0) {
-        _this->_impl_.shutdown_state_ = from._impl_.shutdown_state_;
+      if (from._internal_tcp_info_data_segs_out() != 0) {
+        _this->_impl_.tcp_info_data_segs_out_ = from._impl_.tcp_info_data_segs_out_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (from._internal_vegas_info_enabled() != 0) {
-        _this->_impl_.vegas_info_enabled_ = from._impl_.vegas_info_enabled_;
+      if (from._internal_tcp_info_delivery_rate() != 0) {
+        _this->_impl_.tcp_info_delivery_rate_ = from._impl_.tcp_info_delivery_rate_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (from._internal_vegas_info_rtt_cnt() != 0) {
-        _this->_impl_.vegas_info_rtt_cnt_ = from._impl_.vegas_info_rtt_cnt_;
+      if (from._internal_tcp_info_busy_time() != 0) {
+        _this->_impl_.tcp_info_busy_time_ = from._impl_.tcp_info_busy_time_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (from._internal_vegas_info_rtt() != 0) {
-        _this->_impl_.vegas_info_rtt_ = from._impl_.vegas_info_rtt_;
+      if (from._internal_tcp_info_rwnd_limited() != 0) {
+        _this->_impl_.tcp_info_rwnd_limited_ = from._impl_.tcp_info_rwnd_limited_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (from._internal_tcp_info_sndbuf_limited() != 0) {
+        _this->_impl_.tcp_info_sndbuf_limited_ = from._impl_.tcp_info_sndbuf_limited_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (from._internal_tcp_info_delivered() != 0) {
+        _this->_impl_.tcp_info_delivered_ = from._impl_.tcp_info_delivered_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (from._internal_tcp_info_delivered_ce() != 0) {
+        _this->_impl_.tcp_info_delivered_ce_ = from._impl_.tcp_info_delivered_ce_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (from._internal_tcp_info_bytes_sent() != 0) {
+        _this->_impl_.tcp_info_bytes_sent_ = from._impl_.tcp_info_bytes_sent_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      if (from._internal_tcp_info_bytes_retrans() != 0) {
+        _this->_impl_.tcp_info_bytes_retrans_ = from._impl_.tcp_info_bytes_retrans_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      if (from._internal_tcp_info_dsack_dups() != 0) {
+        _this->_impl_.tcp_info_dsack_dups_ = from._impl_.tcp_info_dsack_dups_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      if (from._internal_tcp_info_reord_seen() != 0) {
+        _this->_impl_.tcp_info_reord_seen_ = from._impl_.tcp_info_reord_seen_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      if (from._internal_tcp_info_rcv_ooopack() != 0) {
+        _this->_impl_.tcp_info_rcv_ooopack_ = from._impl_.tcp_info_rcv_ooopack_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (from._internal_tcp_info_snd_wnd() != 0) {
+        _this->_impl_.tcp_info_snd_wnd_ = from._impl_.tcp_info_snd_wnd_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (from._internal_tcp_info_rcv_wnd() != 0) {
+        _this->_impl_.tcp_info_rcv_wnd_ = from._impl_.tcp_info_rcv_wnd_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (from._internal_tcp_info_rehash() != 0) {
+        _this->_impl_.tcp_info_rehash_ = from._impl_.tcp_info_rehash_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (from._internal_tcp_info_total_rto() != 0) {
+        _this->_impl_.tcp_info_total_rto_ = from._impl_.tcp_info_total_rto_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+      if (from._internal_tcp_info_total_rto_recoveries() != 0) {
+        _this->_impl_.tcp_info_total_rto_recoveries_ = from._impl_.tcp_info_total_rto_recoveries_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      if (from._internal_tcp_info_total_rto_time() != 0) {
+        _this->_impl_.tcp_info_total_rto_time_ = from._impl_.tcp_info_total_rto_time_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+      if (from._internal_congestion_algorithm_enum() != 0) {
+        _this->_impl_.congestion_algorithm_enum_ = from._impl_.congestion_algorithm_enum_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+      if (from._internal_type_of_service() != 0) {
+        _this->_impl_.type_of_service_ = from._impl_.type_of_service_;
+      }
+    }
+  }
+  cached_has_bits = from._impl_._has_bits_[4];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (from._internal_traffic_class() != 0) {
+        _this->_impl_.traffic_class_ = from._impl_.traffic_class_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (from._internal_sk_mem_info_rmem_alloc() != 0) {
+        _this->_impl_.sk_mem_info_rmem_alloc_ = from._impl_.sk_mem_info_rmem_alloc_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (from._internal_sk_mem_info_rcv_buf() != 0) {
+        _this->_impl_.sk_mem_info_rcv_buf_ = from._impl_.sk_mem_info_rcv_buf_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (from._internal_sk_mem_info_wmem_alloc() != 0) {
+        _this->_impl_.sk_mem_info_wmem_alloc_ = from._impl_.sk_mem_info_wmem_alloc_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (from._internal_sk_mem_info_snd_buf() != 0) {
+        _this->_impl_.sk_mem_info_snd_buf_ = from._impl_.sk_mem_info_snd_buf_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (from._internal_sk_mem_info_fwd_alloc() != 0) {
+        _this->_impl_.sk_mem_info_fwd_alloc_ = from._impl_.sk_mem_info_fwd_alloc_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_sk_mem_info_wmem_queued() != 0) {
+        _this->_impl_.sk_mem_info_wmem_queued_ = from._impl_.sk_mem_info_wmem_queued_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_sk_mem_info_optmem() != 0) {
+        _this->_impl_.sk_mem_info_optmem_ = from._impl_.sk_mem_info_optmem_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_sk_mem_info_backlog() != 0) {
+        _this->_impl_.sk_mem_info_backlog_ = from._impl_.sk_mem_info_backlog_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (from._internal_sk_mem_info_drops() != 0) {
+        _this->_impl_.sk_mem_info_drops_ = from._impl_.sk_mem_info_drops_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (from._internal_shutdown_state() != 0) {
+        _this->_impl_.shutdown_state_ = from._impl_.shutdown_state_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (from._internal_vegas_info_enabled() != 0) {
+        _this->_impl_.vegas_info_enabled_ = from._impl_.vegas_info_enabled_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (from._internal_vegas_info_rtt_cnt() != 0) {
+        _this->_impl_.vegas_info_rtt_cnt_ = from._impl_.vegas_info_rtt_cnt_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (from._internal_vegas_info_rtt() != 0) {
+        _this->_impl_.vegas_info_rtt_ = from._impl_.vegas_info_rtt_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (from._internal_vegas_info_min_rtt() != 0) {
         _this->_impl_.vegas_info_min_rtt_ = from._impl_.vegas_info_min_rtt_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (from._internal_dctcp_info_enabled() != 0) {
         _this->_impl_.dctcp_info_enabled_ = from._impl_.dctcp_info_enabled_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (from._internal_dctcp_info_ce_state() != 0) {
         _this->_impl_.dctcp_info_ce_state_ = from._impl_.dctcp_info_ce_state_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (from._internal_dctcp_info_alpha() != 0) {
         _this->_impl_.dctcp_info_alpha_ = from._impl_.dctcp_info_alpha_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (from._internal_dctcp_info_ab_ecn() != 0) {
         _this->_impl_.dctcp_info_ab_ecn_ = from._impl_.dctcp_info_ab_ecn_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (from._internal_dctcp_info_ab_tot() != 0) {
         _this->_impl_.dctcp_info_ab_tot_ = from._impl_.dctcp_info_ab_tot_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (from._internal_bbr_info_bw_lo() != 0) {
         _this->_impl_.bbr_info_bw_lo_ = from._impl_.bbr_info_bw_lo_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (from._internal_bbr_info_bw_hi() != 0) {
         _this->_impl_.bbr_info_bw_hi_ = from._impl_.bbr_info_bw_hi_;
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (from._internal_bbr_info_min_rtt() != 0) {
         _this->_impl_.bbr_info_min_rtt_ = from._impl_.bbr_info_min_rtt_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (from._internal_bbr_info_pacing_gain() != 0) {
         _this->_impl_.bbr_info_pacing_gain_ = from._impl_.bbr_info_pacing_gain_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (from._internal_bbr_info_cwnd_gain() != 0) {
         _this->_impl_.bbr_info_cwnd_gain_ = from._impl_.bbr_info_cwnd_gain_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       if (from._internal_class_id() != 0) {
         _this->_impl_.class_id_ = from._impl_.class_id_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (from._internal_sock_opt() != 0) {
         _this->_impl_.sock_opt_ = from._impl_.sock_opt_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (from._internal_c_group() != 0) {
         _this->_impl_.c_group_ = from._impl_.c_group_;
       }
@@ -5241,28 +6439,52 @@ void XtcpFlatRecord::InternalSwap(XtcpFlatRecord* PROTOBUF_RESTRICT PROTOBUF_NON
   swap(_impl_._has_bits_[1], other->_impl_._has_bits_[1]);
   swap(_impl_._has_bits_[2], other->_impl_._has_bits_[2]);
   swap(_impl_._has_bits_[3], other->_impl_._has_bits_[3]);
+  swap(_impl_._has_bits_[4], other->_impl_._has_bits_[4]);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.daemon_version_, &other->_impl_.daemon_version_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hostname_, &other->_impl_.hostname_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.location_, &other->_impl_.location_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.netns_, &other->_impl_.netns_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.container_id_, &other->_impl_.container_id_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.container_runtime_, &other->_impl_.container_runtime_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.container_name_, &other->_impl_.container_name_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.container_image_, &other->_impl_.container_image_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.label_, &other->_impl_.label_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.tag_, &other->_impl_.tag_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.inet_diag_msg_socket_source_, &other->_impl_.inet_diag_msg_socket_source_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_nic_model_, &other->_impl_.uplink1_nic_model_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_wqueue_)
-      + sizeof(XtcpFlatRecord::_impl_.inet_diag_msg_wqueue_)
+      PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.inet_diag_msg_socket_interface_)
+      + sizeof(XtcpFlatRecord::_impl_.inet_diag_msg_socket_interface_)
       - PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.timestamp_ns_)>(
           reinterpret_cast<char*>(&_impl_.timestamp_ns_),
           reinterpret_cast<char*>(&other->_impl_.timestamp_ns_));
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_ifname_, &other->_impl_.uplink1_ifname_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_nic_driver_, &other->_impl_.uplink1_nic_driver_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_nic_bus_info_, &other->_impl_.uplink1_nic_bus_info_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_nic_fw_version_, &other->_impl_.uplink1_nic_fw_version_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_lldp_chassis_name_, &other->_impl_.uplink1_lldp_chassis_name_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_lldp_chassis_id_, &other->_impl_.uplink1_lldp_chassis_id_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_lldp_mgmt_ip_, &other->_impl_.uplink1_lldp_mgmt_ip_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_lldp_port_id_, &other->_impl_.uplink1_lldp_port_id_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink1_lldp_port_descr_, &other->_impl_.uplink1_lldp_port_descr_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_ifname_, &other->_impl_.uplink2_ifname_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_nic_driver_, &other->_impl_.uplink2_nic_driver_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_nic_model_, &other->_impl_.uplink2_nic_model_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_nic_bus_info_, &other->_impl_.uplink2_nic_bus_info_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_nic_fw_version_, &other->_impl_.uplink2_nic_fw_version_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_lldp_chassis_name_, &other->_impl_.uplink2_lldp_chassis_name_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_lldp_chassis_id_, &other->_impl_.uplink2_lldp_chassis_id_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_lldp_mgmt_ip_, &other->_impl_.uplink2_lldp_mgmt_ip_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_lldp_port_id_, &other->_impl_.uplink2_lldp_port_id_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uplink2_lldp_port_descr_, &other->_impl_.uplink2_lldp_port_descr_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.inet_diag_msg_socket_source_, &other->_impl_.inet_diag_msg_socket_source_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.inet_diag_msg_socket_destination_, &other->_impl_.inet_diag_msg_socket_destination_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.congestion_algorithm_string_, &other->_impl_.congestion_algorithm_string_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.c_group_)
       + sizeof(XtcpFlatRecord::_impl_.c_group_)
-      - PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.socket_fd_)>(
-          reinterpret_cast<char*>(&_impl_.socket_fd_),
-          reinterpret_cast<char*>(&other->_impl_.socket_fd_));
+      - PROTOBUF_FIELD_OFFSET(XtcpFlatRecord, _impl_.netlinker_id_)>(
+          reinterpret_cast<char*>(&_impl_.netlinker_id_),
+          reinterpret_cast<char*>(&other->_impl_.netlinker_id_));
 }
 
 ::google::protobuf::Metadata XtcpFlatRecord::GetMetadata() const {

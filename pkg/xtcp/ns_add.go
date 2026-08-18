@@ -44,5 +44,5 @@ func (x *XTCP) nsAdd(ctx context.Context, id nsIdentity) {
 		return
 	}
 
-	go x.netNamespaceInstance(nsCtx, nsCancel, id.inode, id.pid, &name)
+	go x.netNamespaceInstance(nsCtx, nsCancel, id.inode, id.pid, &name, id.path)
 }

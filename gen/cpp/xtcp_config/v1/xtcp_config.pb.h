@@ -1915,6 +1915,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kWriteFilesFieldNumber = 90,
     kEnvelopeFlushThresholdRowsFieldNumber = 123,
     kDestWriteFilesFieldNumber = 135,
+    kUplinkInterfacesFieldNumber = 237,
     kCapturePathFieldNumber = 100,
     kMarshalToFieldNumber = 120,
     kKafkaCompressionFieldNumber = 124,
@@ -1929,7 +1930,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kTagFieldNumber = 180,
     kLocationFieldNumber = 181,
     kHostnameFieldNumber = 182,
+    kDaemonVersionFieldNumber = 186,
     kCsvColumnsFieldNumber = 220,
+    kDockerSocketPathFieldNumber = 231,
+    kLldpdSocketPathFieldNumber = 233,
+    kLldpdVersionHintFieldNumber = 234,
     kKafkaProduceTimeoutFieldNumber = 150,
     kEnabledDeserializersFieldNumber = 200,
     kS3FlushIntervalFieldNumber = 222,
@@ -1954,6 +1959,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kS3FlushJitterPctFieldNumber = 223,
     kS3FlushThresholdJitterPctFieldNumber = 224,
     kS3UploadMaxAttemptsFieldNumber = 225,
+    kEnrichContainerEnableFieldNumber = 230,
+    kEnrichLldpEnableFieldNumber = 232,
+    kEnrichNicEnableFieldNumber = 235,
+    kPopulateNsidFieldNumber = 238,
+    kUplinkCountFieldNumber = 236,
   };
   // string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
   void clear_s3_endpoint() ;
@@ -2160,6 +2170,33 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   private:
   ::uint32_t _internal_dest_write_files() const;
   void _internal_set_dest_write_files(::uint32_t value);
+
+  public:
+  // repeated string uplink_interfaces = 237 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
+  [[nodiscard]] int uplink_interfaces_size()
+      const;
+  private:
+  int _internal_uplink_interfaces_size() const;
+
+  public:
+  void clear_uplink_interfaces() ;
+  [[nodiscard]] const ::std::string& uplink_interfaces(int index) const;
+  ::std::string* PROTOBUF_NONNULL mutable_uplink_interfaces(int index);
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_uplink_interfaces(int index, Arg_&& value, Args_... args);
+  ::std::string* PROTOBUF_NONNULL add_uplink_interfaces();
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void add_uplink_interfaces(Arg_&& value, Args_... args);
+  [[nodiscard]] const
+      ::google::protobuf::RepeatedPtrField<::std::string>&
+      uplink_interfaces() const;
+  [[nodiscard]] ::google::protobuf::RepeatedPtrField<::std::string>*
+      PROTOBUF_NONNULL
+      mutable_uplink_interfaces();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::std::string>& _internal_uplink_interfaces() const;
+  ::google::protobuf::RepeatedPtrField<::std::string>* PROTOBUF_NONNULL _internal_mutable_uplink_interfaces();
 
   public:
   // string capture_path = 100 [json_name = "capturePath", (.buf.validate.field) = {
@@ -2372,6 +2409,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_hostname();
 
   public:
+  // string daemon_version = 186 [json_name = "daemonVersion", (.buf.validate.field) = {
+  void clear_daemon_version() ;
+  [[nodiscard]] const ::std::string& daemon_version() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_daemon_version(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_daemon_version();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_daemon_version();
+  void set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_daemon_version() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_daemon_version(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_daemon_version();
+
+  public:
   // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
   void clear_csv_columns() ;
   [[nodiscard]] const ::std::string& csv_columns() const;
@@ -2385,6 +2437,51 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   const ::std::string& _internal_csv_columns() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_csv_columns(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_csv_columns();
+
+  public:
+  // string docker_socket_path = 231 [json_name = "dockerSocketPath", (.buf.validate.field) = {
+  void clear_docker_socket_path() ;
+  [[nodiscard]] const ::std::string& docker_socket_path() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_docker_socket_path(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_docker_socket_path();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_docker_socket_path();
+  void set_allocated_docker_socket_path(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_docker_socket_path() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_docker_socket_path(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_docker_socket_path();
+
+  public:
+  // string lldpd_socket_path = 233 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
+  void clear_lldpd_socket_path() ;
+  [[nodiscard]] const ::std::string& lldpd_socket_path() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_lldpd_socket_path(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_lldpd_socket_path();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_lldpd_socket_path();
+  void set_allocated_lldpd_socket_path(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_lldpd_socket_path() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_lldpd_socket_path(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_lldpd_socket_path();
+
+  public:
+  // string lldpd_version_hint = 234 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
+  void clear_lldpd_version_hint() ;
+  [[nodiscard]] const ::std::string& lldpd_version_hint() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_lldpd_version_hint(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_lldpd_version_hint();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_lldpd_version_hint();
+  void set_allocated_lldpd_version_hint(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_lldpd_version_hint() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_lldpd_version_hint(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_lldpd_version_hint();
 
   public:
   // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
@@ -2657,13 +2754,63 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_s3_upload_max_attempts(::uint32_t value);
 
   public:
+  // bool enrich_container_enable = 230 [json_name = "enrichContainerEnable"];
+  void clear_enrich_container_enable() ;
+  [[nodiscard]] bool enrich_container_enable() const;
+  void set_enrich_container_enable(bool value);
+
+  private:
+  bool _internal_enrich_container_enable() const;
+  void _internal_set_enrich_container_enable(bool value);
+
+  public:
+  // bool enrich_lldp_enable = 232 [json_name = "enrichLldpEnable"];
+  void clear_enrich_lldp_enable() ;
+  [[nodiscard]] bool enrich_lldp_enable() const;
+  void set_enrich_lldp_enable(bool value);
+
+  private:
+  bool _internal_enrich_lldp_enable() const;
+  void _internal_set_enrich_lldp_enable(bool value);
+
+  public:
+  // bool enrich_nic_enable = 235 [json_name = "enrichNicEnable"];
+  void clear_enrich_nic_enable() ;
+  [[nodiscard]] bool enrich_nic_enable() const;
+  void set_enrich_nic_enable(bool value);
+
+  private:
+  bool _internal_enrich_nic_enable() const;
+  void _internal_set_enrich_nic_enable(bool value);
+
+  public:
+  // bool populate_nsid = 238 [json_name = "populateNsid"];
+  void clear_populate_nsid() ;
+  [[nodiscard]] bool populate_nsid() const;
+  void set_populate_nsid(bool value);
+
+  private:
+  bool _internal_populate_nsid() const;
+  void _internal_set_populate_nsid(bool value);
+
+  public:
+  // uint32 uplink_count = 236 [json_name = "uplinkCount", (.buf.validate.field) = {
+  void clear_uplink_count() ;
+  [[nodiscard]] ::uint32_t uplink_count() const;
+  void set_uplink_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_uplink_count() const;
+  void _internal_set_uplink_count(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 56,
-                          7, 299,
-                          29>;
+      ::google::protobuf::internal::TcParseTable<5, 66,
+                          7, 391,
+                          31>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
   friend class ::google::protobuf::internal::TcParser;
@@ -2688,7 +2835,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
         ::google::protobuf::internal::InternalVisibility visibility,
         ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
         const XtcpConfig& from_msg);
-    ::google::protobuf::internal::HasBits<2> _has_bits_;
+    ::google::protobuf::internal::HasBits<3> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr s3_endpoint_;
     ::google::protobuf::internal::ArenaStringPtr s3_prefix_;
@@ -2707,6 +2854,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     ::uint32_t write_files_;
     ::uint32_t envelope_flush_threshold_rows_;
     ::uint32_t dest_write_files_;
+    ::google::protobuf::RepeatedPtrField<::std::string> uplink_interfaces_;
     ::google::protobuf::internal::ArenaStringPtr capture_path_;
     ::google::protobuf::internal::ArenaStringPtr marshal_to_;
     ::google::protobuf::internal::ArenaStringPtr kafka_compression_;
@@ -2721,7 +2869,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     ::google::protobuf::internal::ArenaStringPtr tag_;
     ::google::protobuf::internal::ArenaStringPtr location_;
     ::google::protobuf::internal::ArenaStringPtr hostname_;
+    ::google::protobuf::internal::ArenaStringPtr daemon_version_;
     ::google::protobuf::internal::ArenaStringPtr csv_columns_;
+    ::google::protobuf::internal::ArenaStringPtr docker_socket_path_;
+    ::google::protobuf::internal::ArenaStringPtr lldpd_socket_path_;
+    ::google::protobuf::internal::ArenaStringPtr lldpd_version_hint_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE kafka_produce_timeout_;
     ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE enabled_deserializers_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE s3_flush_interval_;
@@ -2746,6 +2898,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     ::uint32_t s3_flush_jitter_pct_;
     ::uint32_t s3_flush_threshold_jitter_pct_;
     ::uint32_t s3_upload_max_attempts_;
+    bool enrich_container_enable_;
+    bool enrich_lldp_enable_;
+    bool enrich_nic_enable_;
+    bool populate_nsid_;
+    ::uint32_t uplink_count_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -5260,7 +5417,7 @@ inline void XtcpConfig::_internal_set_write_files(::uint32_t value) {
 inline void XtcpConfig::clear_capture_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.capture_path_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
 }
 inline const ::std::string& XtcpConfig::capture_path() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5270,13 +5427,13 @@ inline const ::std::string& XtcpConfig::capture_path() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_capture_path(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   _impl_.capture_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.capture_path)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_capture_path()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   ::std::string* _s = _internal_mutable_capture_path();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.capture_path)
   return _s;
@@ -5296,10 +5453,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_capture_pat
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_capture_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.capture_path)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00020000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00040000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
   auto* released = _impl_.capture_path_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.capture_path_.Set("", GetArena());
@@ -5309,9 +5466,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_capture_path() {
 inline void XtcpConfig::set_allocated_capture_path(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
   }
   _impl_.capture_path_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.capture_path_.IsDefault()) {
@@ -5324,7 +5481,7 @@ inline void XtcpConfig::set_allocated_capture_path(::std::string* PROTOBUF_NULLA
 inline void XtcpConfig::clear_modulus() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.modulus_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
 }
 inline ::uint64_t XtcpConfig::modulus() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.modulus)
@@ -5332,7 +5489,7 @@ inline ::uint64_t XtcpConfig::modulus() const {
 }
 inline void XtcpConfig::set_modulus(::uint64_t value) {
   _internal_set_modulus(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.modulus)
 }
 inline ::uint64_t XtcpConfig::_internal_modulus() const {
@@ -5348,7 +5505,7 @@ inline void XtcpConfig::_internal_set_modulus(::uint64_t value) {
 inline void XtcpConfig::clear_marshal_to() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.marshal_to_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
 }
 inline const ::std::string& XtcpConfig::marshal_to() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5358,13 +5515,13 @@ inline const ::std::string& XtcpConfig::marshal_to() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_marshal_to(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
   _impl_.marshal_to_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.marshal_to)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_marshal_to()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
   ::std::string* _s = _internal_mutable_marshal_to();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.marshal_to)
   return _s;
@@ -5384,10 +5541,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_marshal_to(
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_marshal_to() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.marshal_to)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00040000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00080000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
   auto* released = _impl_.marshal_to_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.marshal_to_.Set("", GetArena());
@@ -5397,9 +5554,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_marshal_to() {
 inline void XtcpConfig::set_allocated_marshal_to(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00080000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
   }
   _impl_.marshal_to_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.marshal_to_.IsDefault()) {
@@ -5412,7 +5569,7 @@ inline void XtcpConfig::set_allocated_marshal_to(::std::string* PROTOBUF_NULLABL
 inline void XtcpConfig::clear_envelope_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.envelope_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
 }
 inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
@@ -5420,7 +5577,7 @@ inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
 }
 inline void XtcpConfig::set_envelope_flush_threshold_bytes(::uint32_t value) {
   _internal_set_envelope_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
 }
 inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_bytes() const {
@@ -5460,7 +5617,7 @@ inline void XtcpConfig::_internal_set_envelope_flush_threshold_rows(::uint32_t v
 inline void XtcpConfig::clear_kafka_compression() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.kafka_compression_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
 }
 inline const ::std::string& XtcpConfig::kafka_compression() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5470,13 +5627,13 @@ inline const ::std::string& XtcpConfig::kafka_compression() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_compression(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
   _impl_.kafka_compression_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_compression)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_compression()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
   ::std::string* _s = _internal_mutable_kafka_compression();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_compression)
   return _s;
@@ -5496,10 +5653,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_compr
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_compression() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_compression)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00080000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00100000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
   auto* released = _impl_.kafka_compression_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.kafka_compression_.Set("", GetArena());
@@ -5509,9 +5666,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_compression() 
 inline void XtcpConfig::set_allocated_kafka_compression(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00100000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
   }
   _impl_.kafka_compression_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_compression_.IsDefault()) {
@@ -5588,7 +5745,7 @@ inline void XtcpConfig::set_allocated_s3_endpoint(::std::string* PROTOBUF_NULLAB
 inline void XtcpConfig::clear_s3_bucket() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_bucket_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
 }
 inline const ::std::string& XtcpConfig::s3_bucket() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5598,13 +5755,13 @@ inline const ::std::string& XtcpConfig::s3_bucket() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_bucket(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
   _impl_.s3_bucket_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_bucket)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_bucket()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
   ::std::string* _s = _internal_mutable_s3_bucket();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_bucket)
   return _s;
@@ -5624,10 +5781,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_bucket()
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_bucket() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_bucket)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00100000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00200000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
   auto* released = _impl_.s3_bucket_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.s3_bucket_.Set("", GetArena());
@@ -5637,9 +5794,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_bucket() {
 inline void XtcpConfig::set_allocated_s3_bucket(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00200000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
   }
   _impl_.s3_bucket_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_bucket_.IsDefault()) {
@@ -5716,7 +5873,7 @@ inline void XtcpConfig::set_allocated_s3_prefix(::std::string* PROTOBUF_NULLABLE
 inline void XtcpConfig::clear_s3_access_key() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_access_key_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
 }
 inline const ::std::string& XtcpConfig::s3_access_key() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5726,13 +5883,13 @@ inline const ::std::string& XtcpConfig::s3_access_key() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_access_key(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   _impl_.s3_access_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_access_key)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_access_key()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   ::std::string* _s = _internal_mutable_s3_access_key();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_access_key)
   return _s;
@@ -5752,10 +5909,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_access_k
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_access_key() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_access_key)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00200000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00400000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
   auto* released = _impl_.s3_access_key_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.s3_access_key_.Set("", GetArena());
@@ -5765,9 +5922,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_access_key() {
 inline void XtcpConfig::set_allocated_s3_access_key(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
   }
   _impl_.s3_access_key_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_access_key_.IsDefault()) {
@@ -5844,7 +6001,7 @@ inline void XtcpConfig::set_allocated_s3_secret_key(::std::string* PROTOBUF_NULL
 inline void XtcpConfig::clear_s3_parquet_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
 }
 inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
@@ -5852,7 +6009,7 @@ inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
 }
 inline void XtcpConfig::set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
   _internal_set_s3_parquet_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_parquet_flush_threshold_bytes() const {
@@ -5932,7 +6089,7 @@ inline void XtcpConfig::set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE
 inline void XtcpConfig::clear_s3_skip_bucket_probe() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_skip_bucket_probe_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
 }
 inline bool XtcpConfig::s3_skip_bucket_probe() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
@@ -5940,7 +6097,7 @@ inline bool XtcpConfig::s3_skip_bucket_probe() const {
 }
 inline void XtcpConfig::set_s3_skip_bucket_probe(bool value) {
   _internal_set_s3_skip_bucket_probe(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
 }
 inline bool XtcpConfig::_internal_s3_skip_bucket_probe() const {
@@ -5956,7 +6113,7 @@ inline void XtcpConfig::_internal_set_s3_skip_bucket_probe(bool value) {
 inline void XtcpConfig::clear_pyroscope_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_url_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
 }
 inline const ::std::string& XtcpConfig::pyroscope_url() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -5966,13 +6123,13 @@ inline const ::std::string& XtcpConfig::pyroscope_url() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_url(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   _impl_.pyroscope_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_url)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_pyroscope_url()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   ::std::string* _s = _internal_mutable_pyroscope_url();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_url)
   return _s;
@@ -5992,10 +6149,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_pyroscope_u
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_pyroscope_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_url)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00800000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x01000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
   auto* released = _impl_.pyroscope_url_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.pyroscope_url_.Set("", GetArena());
@@ -6005,9 +6162,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_pyroscope_url() {
 inline void XtcpConfig::set_allocated_pyroscope_url(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+    SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
   }
   _impl_.pyroscope_url_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_url_.IsDefault()) {
@@ -6084,7 +6241,7 @@ inline void XtcpConfig::set_allocated_pyroscope_app_name(::std::string* PROTOBUF
 inline void XtcpConfig::clear_pyroscope_sample_hz() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_sample_hz_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
@@ -6092,7 +6249,7 @@ inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
 }
 inline void XtcpConfig::set_pyroscope_sample_hz(::uint32_t value) {
   _internal_set_pyroscope_sample_hz(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_sample_hz() const {
@@ -6108,7 +6265,7 @@ inline void XtcpConfig::_internal_set_pyroscope_sample_hz(::uint32_t value) {
 inline void XtcpConfig::clear_pyroscope_upload_interval_sec() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_upload_interval_sec_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
@@ -6116,7 +6273,7 @@ inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
 }
 inline void XtcpConfig::set_pyroscope_upload_interval_sec(::uint32_t value) {
   _internal_set_pyroscope_upload_interval_sec(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_upload_interval_sec() const {
@@ -6132,7 +6289,7 @@ inline void XtcpConfig::_internal_set_pyroscope_upload_interval_sec(::uint32_t v
 inline void XtcpConfig::clear_dest() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dest_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
 }
 inline const ::std::string& XtcpConfig::dest() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6142,13 +6299,13 @@ inline const ::std::string& XtcpConfig::dest() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_dest(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   _impl_.dest_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_dest()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   ::std::string* _s = _internal_mutable_dest();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.dest)
   return _s;
@@ -6168,10 +6325,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_dest() {
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_dest() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.dest)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00400000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00800000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
   auto* released = _impl_.dest_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.dest_.Set("", GetArena());
@@ -6181,9 +6338,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_dest() {
 inline void XtcpConfig::set_allocated_dest(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
   }
   _impl_.dest_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.dest_.IsDefault()) {
@@ -6220,7 +6377,7 @@ inline void XtcpConfig::_internal_set_dest_write_files(::uint32_t value) {
 inline void XtcpConfig::clear_topic() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.topic_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
 }
 inline const ::std::string& XtcpConfig::topic() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6230,13 +6387,13 @@ inline const ::std::string& XtcpConfig::topic() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_topic(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   _impl_.topic_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.topic)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_topic()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   ::std::string* _s = _internal_mutable_topic();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.topic)
   return _s;
@@ -6256,10 +6413,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_topic() {
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_topic() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.topic)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x01000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x02000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
   auto* released = _impl_.topic_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.topic_.Set("", GetArena());
@@ -6269,9 +6426,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_topic() {
 inline void XtcpConfig::set_allocated_topic(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
   }
   _impl_.topic_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.topic_.IsDefault()) {
@@ -6284,7 +6441,7 @@ inline void XtcpConfig::set_allocated_topic(::std::string* PROTOBUF_NULLABLE val
 inline void XtcpConfig::clear_xtcp_proto_file() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.xtcp_proto_file_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
 }
 inline const ::std::string& XtcpConfig::xtcp_proto_file() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6294,13 +6451,13 @@ inline const ::std::string& XtcpConfig::xtcp_proto_file() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_xtcp_proto_file(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   _impl_.xtcp_proto_file_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_xtcp_proto_file()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   ::std::string* _s = _internal_mutable_xtcp_proto_file();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
   return _s;
@@ -6320,10 +6477,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_xtcp_proto_
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_xtcp_proto_file() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x02000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x04000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
   auto* released = _impl_.xtcp_proto_file_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.xtcp_proto_file_.Set("", GetArena());
@@ -6333,9 +6490,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_xtcp_proto_file() {
 inline void XtcpConfig::set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
   }
   _impl_.xtcp_proto_file_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.xtcp_proto_file_.IsDefault()) {
@@ -6348,7 +6505,7 @@ inline void XtcpConfig::set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NU
 inline void XtcpConfig::clear_kafka_schema_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.kafka_schema_url_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
 }
 inline const ::std::string& XtcpConfig::kafka_schema_url() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6358,13 +6515,13 @@ inline const ::std::string& XtcpConfig::kafka_schema_url() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_schema_url(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   _impl_.kafka_schema_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_schema_url)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_schema_url()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   ::std::string* _s = _internal_mutable_kafka_schema_url();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_schema_url)
   return _s;
@@ -6384,10 +6541,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_schem
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_schema_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x04000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x08000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
   auto* released = _impl_.kafka_schema_url_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.kafka_schema_url_.Set("", GetArena());
@@ -6397,9 +6554,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_schema_url() {
 inline void XtcpConfig::set_allocated_kafka_schema_url(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
   }
   _impl_.kafka_schema_url_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_schema_url_.IsDefault()) {
@@ -6410,7 +6567,7 @@ inline void XtcpConfig::set_allocated_kafka_schema_url(::std::string* PROTOBUF_N
 
 // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
 inline bool XtcpConfig::has_kafka_produce_timeout() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000001U);
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000020U);
   PROTOBUF_ASSUME(!value || _impl_.kafka_produce_timeout_ != nullptr);
   return value;
 }
@@ -6431,16 +6588,16 @@ inline void XtcpConfig::unsafe_arena_set_allocated_kafka_produce_timeout(
   }
   _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_kafka_produce_timeout() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
   ::google::protobuf::Duration* released = _impl_.kafka_produce_timeout_;
   _impl_.kafka_produce_timeout_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -6460,7 +6617,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
   ::google::protobuf::Duration* temp = _impl_.kafka_produce_timeout_;
   _impl_.kafka_produce_timeout_ = nullptr;
   return temp;
@@ -6475,7 +6632,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_muta
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_produce_timeout()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
   ::google::protobuf::Duration* _msg = _internal_mutable_kafka_produce_timeout();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
   return _msg;
@@ -6492,9 +6649,9 @@ inline void XtcpConfig::set_allocated_kafka_produce_timeout(::google::protobuf::
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
   }
 
   _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -6505,7 +6662,7 @@ inline void XtcpConfig::set_allocated_kafka_produce_timeout(::google::protobuf::
 inline void XtcpConfig::clear_debug_level() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.debug_level_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
 }
 inline ::uint32_t XtcpConfig::debug_level() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.debug_level)
@@ -6513,7 +6670,7 @@ inline ::uint32_t XtcpConfig::debug_level() const {
 }
 inline void XtcpConfig::set_debug_level(::uint32_t value) {
   _internal_set_debug_level(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.debug_level)
 }
 inline ::uint32_t XtcpConfig::_internal_debug_level() const {
@@ -6529,7 +6686,7 @@ inline void XtcpConfig::_internal_set_debug_level(::uint32_t value) {
 inline void XtcpConfig::clear_label() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.label_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
 }
 inline const ::std::string& XtcpConfig::label() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6539,13 +6696,13 @@ inline const ::std::string& XtcpConfig::label() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_label(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   _impl_.label_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.label)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_label()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   ::std::string* _s = _internal_mutable_label();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.label)
   return _s;
@@ -6565,10 +6722,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_label() {
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_label() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.label)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x08000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x10000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
   auto* released = _impl_.label_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.label_.Set("", GetArena());
@@ -6578,9 +6735,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_label() {
 inline void XtcpConfig::set_allocated_label(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
   }
   _impl_.label_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.label_.IsDefault()) {
@@ -6593,7 +6750,7 @@ inline void XtcpConfig::set_allocated_label(::std::string* PROTOBUF_NULLABLE val
 inline void XtcpConfig::clear_tag() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tag_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
 }
 inline const ::std::string& XtcpConfig::tag() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6603,13 +6760,13 @@ inline const ::std::string& XtcpConfig::tag() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_tag(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
   _impl_.tag_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.tag)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_tag()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
   ::std::string* _s = _internal_mutable_tag();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.tag)
   return _s;
@@ -6629,10 +6786,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_tag() {
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_tag() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.tag)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x10000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x20000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
   auto* released = _impl_.tag_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.tag_.Set("", GetArena());
@@ -6642,9 +6799,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_tag() {
 inline void XtcpConfig::set_allocated_tag(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x20000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
   }
   _impl_.tag_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.tag_.IsDefault()) {
@@ -6657,7 +6814,7 @@ inline void XtcpConfig::set_allocated_tag(::std::string* PROTOBUF_NULLABLE value
 inline void XtcpConfig::clear_location() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.location_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
 }
 inline const ::std::string& XtcpConfig::location() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6667,13 +6824,13 @@ inline const ::std::string& XtcpConfig::location() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_location(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
   _impl_.location_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.location)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_location()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
   ::std::string* _s = _internal_mutable_location();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.location)
   return _s;
@@ -6693,10 +6850,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_location() 
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_location() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.location)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x20000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x40000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
   auto* released = _impl_.location_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.location_.Set("", GetArena());
@@ -6706,9 +6863,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_location() {
 inline void XtcpConfig::set_allocated_location(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x40000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
   }
   _impl_.location_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.location_.IsDefault()) {
@@ -6721,7 +6878,7 @@ inline void XtcpConfig::set_allocated_location(::std::string* PROTOBUF_NULLABLE 
 inline void XtcpConfig::clear_hostname() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.hostname_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
 }
 inline const ::std::string& XtcpConfig::hostname() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6731,13 +6888,13 @@ inline const ::std::string& XtcpConfig::hostname() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_hostname(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
   _impl_.hostname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.hostname)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_hostname()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
   ::std::string* _s = _internal_mutable_hostname();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.hostname)
   return _s;
@@ -6757,10 +6914,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_hostname() 
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_hostname() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.hostname)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x40000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x80000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
   auto* released = _impl_.hostname_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.hostname_.Set("", GetArena());
@@ -6770,9 +6927,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_hostname() {
 inline void XtcpConfig::set_allocated_hostname(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+    SetHasBit(_impl_._has_bits_[0], 0x80000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
   }
   _impl_.hostname_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.hostname_.IsDefault()) {
@@ -6781,11 +6938,75 @@ inline void XtcpConfig::set_allocated_hostname(::std::string* PROTOBUF_NULLABLE 
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.hostname)
 }
 
+// string daemon_version = 186 [json_name = "daemonVersion", (.buf.validate.field) = {
+inline void XtcpConfig::clear_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+}
+inline const ::std::string& XtcpConfig::daemon_version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.daemon_version)
+  return _internal_daemon_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_daemon_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  _impl_.daemon_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.daemon_version)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_daemon_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ::std::string* _s = _internal_mutable_daemon_version();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.daemon_version)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_daemon_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.daemon_version_.Get();
+}
+inline void XtcpConfig::_internal_set_daemon_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.daemon_version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.daemon_version)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  auto* released = _impl_.daemon_version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  }
+  _impl_.daemon_version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.daemon_version_.IsDefault()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.daemon_version)
+}
+
 // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
 inline void XtcpConfig::clear_resolve_container_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.resolve_container_id_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
 }
 inline bool XtcpConfig::resolve_container_id() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.resolve_container_id)
@@ -6793,7 +7014,7 @@ inline bool XtcpConfig::resolve_container_id() const {
 }
 inline void XtcpConfig::set_resolve_container_id(bool value) {
   _internal_set_resolve_container_id(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.resolve_container_id)
 }
 inline bool XtcpConfig::_internal_resolve_container_id() const {
@@ -6809,7 +7030,7 @@ inline void XtcpConfig::_internal_set_resolve_container_id(bool value) {
 inline void XtcpConfig::clear_ipv4_ttl() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ipv4_ttl_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
 }
 inline ::uint32_t XtcpConfig::ipv4_ttl() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv4_ttl)
@@ -6817,7 +7038,7 @@ inline ::uint32_t XtcpConfig::ipv4_ttl() const {
 }
 inline void XtcpConfig::set_ipv4_ttl(::uint32_t value) {
   _internal_set_ipv4_ttl(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv4_ttl)
 }
 inline ::uint32_t XtcpConfig::_internal_ipv4_ttl() const {
@@ -6833,7 +7054,7 @@ inline void XtcpConfig::_internal_set_ipv4_ttl(::uint32_t value) {
 inline void XtcpConfig::clear_ipv6_hop_limit() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ipv6_hop_limit_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
 }
 inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
@@ -6841,7 +7062,7 @@ inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
 }
 inline void XtcpConfig::set_ipv6_hop_limit(::uint32_t value) {
   _internal_set_ipv6_hop_limit(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
 }
 inline ::uint32_t XtcpConfig::_internal_ipv6_hop_limit() const {
@@ -6857,7 +7078,7 @@ inline void XtcpConfig::_internal_set_ipv6_hop_limit(::uint32_t value) {
 inline void XtcpConfig::clear_grpc_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.grpc_port_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
 }
 inline ::uint32_t XtcpConfig::grpc_port() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.grpc_port)
@@ -6865,7 +7086,7 @@ inline ::uint32_t XtcpConfig::grpc_port() const {
 }
 inline void XtcpConfig::set_grpc_port(::uint32_t value) {
   _internal_set_grpc_port(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.grpc_port)
 }
 inline ::uint32_t XtcpConfig::_internal_grpc_port() const {
@@ -6879,14 +7100,14 @@ inline void XtcpConfig::_internal_set_grpc_port(::uint32_t value) {
 
 // .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 200 [json_name = "enabledDeserializers", (.buf.validate.field) = {
 inline bool XtcpConfig::has_enabled_deserializers() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000002U);
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000040U);
   PROTOBUF_ASSUME(!value || _impl_.enabled_deserializers_ != nullptr);
   return value;
 }
 inline void XtcpConfig::clear_enabled_deserializers() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.enabled_deserializers_ != nullptr) _impl_.enabled_deserializers_->Clear();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
 }
 inline const ::xtcp_config::v1::EnabledDeserializers& XtcpConfig::_internal_enabled_deserializers() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -6905,16 +7126,16 @@ inline void XtcpConfig::unsafe_arena_set_allocated_enabled_deserializers(
   }
   _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
 }
 inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::release_enabled_deserializers() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   ::xtcp_config::v1::EnabledDeserializers* released = _impl_.enabled_deserializers_;
   _impl_.enabled_deserializers_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -6934,7 +7155,7 @@ inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::un
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.enabled_deserializers)
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   ::xtcp_config::v1::EnabledDeserializers* temp = _impl_.enabled_deserializers_;
   _impl_.enabled_deserializers_ = nullptr;
   return temp;
@@ -6949,7 +7170,7 @@ inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::_in
 }
 inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::mutable_enabled_deserializers()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   ::xtcp_config::v1::EnabledDeserializers* _msg = _internal_mutable_enabled_deserializers();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.enabled_deserializers)
   return _msg;
@@ -6966,9 +7187,9 @@ inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::E
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   }
 
   _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
@@ -6979,7 +7200,7 @@ inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::E
 inline void XtcpConfig::clear_io_uring() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
 }
 inline bool XtcpConfig::io_uring() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring)
@@ -6987,7 +7208,7 @@ inline bool XtcpConfig::io_uring() const {
 }
 inline void XtcpConfig::set_io_uring(bool value) {
   _internal_set_io_uring(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring)
 }
 inline bool XtcpConfig::_internal_io_uring() const {
@@ -7003,7 +7224,7 @@ inline void XtcpConfig::_internal_set_io_uring(bool value) {
 inline void XtcpConfig::clear_io_uring_recv_batch_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_recv_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
 }
 inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
@@ -7011,7 +7232,7 @@ inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
 }
 inline void XtcpConfig::set_io_uring_recv_batch_size(::uint32_t value) {
   _internal_set_io_uring_recv_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
 }
 inline ::uint32_t XtcpConfig::_internal_io_uring_recv_batch_size() const {
@@ -7027,7 +7248,7 @@ inline void XtcpConfig::_internal_set_io_uring_recv_batch_size(::uint32_t value)
 inline void XtcpConfig::clear_io_uring_cqe_batch_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_cqe_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
 }
 inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
@@ -7035,7 +7256,7 @@ inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
 }
 inline void XtcpConfig::set_io_uring_cqe_batch_size(::uint32_t value) {
   _internal_set_io_uring_cqe_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
 }
 inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
@@ -7051,7 +7272,7 @@ inline void XtcpConfig::_internal_set_io_uring_cqe_batch_size(::uint32_t value) 
 inline void XtcpConfig::clear_csv_columns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.csv_columns_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
 }
 inline const ::std::string& XtcpConfig::csv_columns() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -7061,13 +7282,13 @@ inline const ::std::string& XtcpConfig::csv_columns() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_csv_columns(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
   _impl_.csv_columns_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.csv_columns)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_csv_columns()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
   ::std::string* _s = _internal_mutable_csv_columns();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.csv_columns)
   return _s;
@@ -7087,10 +7308,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_csv_columns
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_csv_columns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.csv_columns)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x80000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000002U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
   auto* released = _impl_.csv_columns_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.csv_columns_.Set("", GetArena());
@@ -7100,9 +7321,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_csv_columns() {
 inline void XtcpConfig::set_allocated_csv_columns(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
   }
   _impl_.csv_columns_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.csv_columns_.IsDefault()) {
@@ -7115,7 +7336,7 @@ inline void XtcpConfig::set_allocated_csv_columns(::std::string* PROTOBUF_NULLAB
 inline void XtcpConfig::clear_poll_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.poll_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
 }
 inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
@@ -7123,7 +7344,7 @@ inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
 }
 inline void XtcpConfig::set_poll_jitter_pct(::uint32_t value) {
   _internal_set_poll_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_poll_jitter_pct() const {
@@ -7137,7 +7358,7 @@ inline void XtcpConfig::_internal_set_poll_jitter_pct(::uint32_t value) {
 
 // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
 inline bool XtcpConfig::has_s3_flush_interval() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000004U);
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000080U);
   PROTOBUF_ASSUME(!value || _impl_.s3_flush_interval_ != nullptr);
   return value;
 }
@@ -7158,16 +7379,16 @@ inline void XtcpConfig::unsafe_arena_set_allocated_s3_flush_interval(
   }
   _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_flush_interval() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   ::google::protobuf::Duration* released = _impl_.s3_flush_interval_;
   _impl_.s3_flush_interval_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7187,7 +7408,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_flush_interval)
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   ::google::protobuf::Duration* temp = _impl_.s3_flush_interval_;
   _impl_.s3_flush_interval_ = nullptr;
   return temp;
@@ -7202,7 +7423,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_muta
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_flush_interval()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   ::google::protobuf::Duration* _msg = _internal_mutable_s3_flush_interval();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_flush_interval)
   return _msg;
@@ -7219,9 +7440,9 @@ inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Dura
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   }
 
   _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -7232,7 +7453,7 @@ inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Dura
 inline void XtcpConfig::clear_s3_flush_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_flush_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
 }
 inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
@@ -7240,7 +7461,7 @@ inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
 }
 inline void XtcpConfig::set_s3_flush_jitter_pct(::uint32_t value) {
   _internal_set_s3_flush_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_flush_jitter_pct() const {
@@ -7256,7 +7477,7 @@ inline void XtcpConfig::_internal_set_s3_flush_jitter_pct(::uint32_t value) {
 inline void XtcpConfig::clear_s3_flush_threshold_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_flush_threshold_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
 }
 inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
@@ -7264,7 +7485,7 @@ inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
 }
 inline void XtcpConfig::set_s3_flush_threshold_jitter_pct(::uint32_t value) {
   _internal_set_s3_flush_threshold_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_flush_threshold_jitter_pct() const {
@@ -7280,7 +7501,7 @@ inline void XtcpConfig::_internal_set_s3_flush_threshold_jitter_pct(::uint32_t v
 inline void XtcpConfig::clear_s3_upload_max_attempts() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_upload_max_attempts_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
 }
 inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
@@ -7288,7 +7509,7 @@ inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
 }
 inline void XtcpConfig::set_s3_upload_max_attempts(::uint32_t value) {
   _internal_set_s3_upload_max_attempts(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_upload_max_attempts() const {
@@ -7302,7 +7523,7 @@ inline void XtcpConfig::_internal_set_s3_upload_max_attempts(::uint32_t value) {
 
 // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
 inline bool XtcpConfig::has_s3_upload_backoff_cap() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000008U);
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000100U);
   PROTOBUF_ASSUME(!value || _impl_.s3_upload_backoff_cap_ != nullptr);
   return value;
 }
@@ -7323,16 +7544,16 @@ inline void XtcpConfig::unsafe_arena_set_allocated_s3_upload_backoff_cap(
   }
   _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_upload_backoff_cap() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   ::google::protobuf::Duration* released = _impl_.s3_upload_backoff_cap_;
   _impl_.s3_upload_backoff_cap_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7352,7 +7573,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   ::google::protobuf::Duration* temp = _impl_.s3_upload_backoff_cap_;
   _impl_.s3_upload_backoff_cap_ = nullptr;
   return temp;
@@ -7367,7 +7588,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_muta
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_upload_backoff_cap()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   ::google::protobuf::Duration* _msg = _internal_mutable_s3_upload_backoff_cap();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
   return _msg;
@@ -7384,9 +7605,9 @@ inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   }
 
   _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -7395,7 +7616,7 @@ inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::
 
 // .google.protobuf.Duration reconcile_frequency = 227 [json_name = "reconcileFrequency", (.buf.validate.field) = {
 inline bool XtcpConfig::has_reconcile_frequency() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000010U);
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000200U);
   PROTOBUF_ASSUME(!value || _impl_.reconcile_frequency_ != nullptr);
   return value;
 }
@@ -7416,16 +7637,16 @@ inline void XtcpConfig::unsafe_arena_set_allocated_reconcile_frequency(
   }
   _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_reconcile_frequency() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   ::google::protobuf::Duration* released = _impl_.reconcile_frequency_;
   _impl_.reconcile_frequency_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7445,7 +7666,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.reconcile_frequency)
 
-  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   ::google::protobuf::Duration* temp = _impl_.reconcile_frequency_;
   _impl_.reconcile_frequency_ = nullptr;
   return temp;
@@ -7460,7 +7681,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_muta
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_reconcile_frequency()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   ::google::protobuf::Duration* _msg = _internal_mutable_reconcile_frequency();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.reconcile_frequency)
   return _msg;
@@ -7477,9 +7698,9 @@ inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Du
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   }
 
   _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -7490,7 +7711,7 @@ inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Du
 inline void XtcpConfig::clear_reconcile_before_poll() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reconcile_before_poll_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
 }
 inline bool XtcpConfig::reconcile_before_poll() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
@@ -7498,7 +7719,7 @@ inline bool XtcpConfig::reconcile_before_poll() const {
 }
 inline void XtcpConfig::set_reconcile_before_poll(bool value) {
   _internal_set_reconcile_before_poll(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
 }
 inline bool XtcpConfig::_internal_reconcile_before_poll() const {
@@ -7508,6 +7729,390 @@ inline bool XtcpConfig::_internal_reconcile_before_poll() const {
 inline void XtcpConfig::_internal_set_reconcile_before_poll(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reconcile_before_poll_ = value;
+}
+
+// bool enrich_container_enable = 230 [json_name = "enrichContainerEnable"];
+inline void XtcpConfig::clear_enrich_container_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_container_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
+}
+inline bool XtcpConfig::enrich_container_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_container_enable)
+  return _internal_enrich_container_enable();
+}
+inline void XtcpConfig::set_enrich_container_enable(bool value) {
+  _internal_set_enrich_container_enable(value);
+  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_container_enable)
+}
+inline bool XtcpConfig::_internal_enrich_container_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_container_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_container_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_container_enable_ = value;
+}
+
+// string docker_socket_path = 231 [json_name = "dockerSocketPath", (.buf.validate.field) = {
+inline void XtcpConfig::clear_docker_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.docker_socket_path_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+}
+inline const ::std::string& XtcpConfig::docker_socket_path() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.docker_socket_path)
+  return _internal_docker_socket_path();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_docker_socket_path(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  _impl_.docker_socket_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.docker_socket_path)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_docker_socket_path()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ::std::string* _s = _internal_mutable_docker_socket_path();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.docker_socket_path)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_docker_socket_path() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.docker_socket_path_.Get();
+}
+inline void XtcpConfig::_internal_set_docker_socket_path(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.docker_socket_path_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_docker_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.docker_socket_path_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_docker_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.docker_socket_path)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  auto* released = _impl_.docker_socket_path_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.docker_socket_path_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_docker_socket_path(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  }
+  _impl_.docker_socket_path_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.docker_socket_path_.IsDefault()) {
+    _impl_.docker_socket_path_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.docker_socket_path)
+}
+
+// bool enrich_lldp_enable = 232 [json_name = "enrichLldpEnable"];
+inline void XtcpConfig::clear_enrich_lldp_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_lldp_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
+}
+inline bool XtcpConfig::enrich_lldp_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
+  return _internal_enrich_lldp_enable();
+}
+inline void XtcpConfig::set_enrich_lldp_enable(bool value) {
+  _internal_set_enrich_lldp_enable(value);
+  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
+}
+inline bool XtcpConfig::_internal_enrich_lldp_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_lldp_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_lldp_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_lldp_enable_ = value;
+}
+
+// string lldpd_socket_path = 233 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
+inline void XtcpConfig::clear_lldpd_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.lldpd_socket_path_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+}
+inline const ::std::string& XtcpConfig::lldpd_socket_path() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
+  return _internal_lldpd_socket_path();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_lldpd_socket_path(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  _impl_.lldpd_socket_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_lldpd_socket_path()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ::std::string* _s = _internal_mutable_lldpd_socket_path();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_lldpd_socket_path() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.lldpd_socket_path_.Get();
+}
+inline void XtcpConfig::_internal_set_lldpd_socket_path(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.lldpd_socket_path_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_lldpd_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.lldpd_socket_path_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_socket_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  auto* released = _impl_.lldpd_socket_path_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.lldpd_socket_path_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_lldpd_socket_path(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  }
+  _impl_.lldpd_socket_path_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.lldpd_socket_path_.IsDefault()) {
+    _impl_.lldpd_socket_path_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
+}
+
+// string lldpd_version_hint = 234 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
+inline void XtcpConfig::clear_lldpd_version_hint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.lldpd_version_hint_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+}
+inline const ::std::string& XtcpConfig::lldpd_version_hint() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
+  return _internal_lldpd_version_hint();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_lldpd_version_hint(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  _impl_.lldpd_version_hint_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_lldpd_version_hint()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ::std::string* _s = _internal_mutable_lldpd_version_hint();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_lldpd_version_hint() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.lldpd_version_hint_.Get();
+}
+inline void XtcpConfig::_internal_set_lldpd_version_hint(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.lldpd_version_hint_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_lldpd_version_hint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.lldpd_version_hint_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_version_hint() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  auto* released = _impl_.lldpd_version_hint_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.lldpd_version_hint_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_lldpd_version_hint(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  }
+  _impl_.lldpd_version_hint_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.lldpd_version_hint_.IsDefault()) {
+    _impl_.lldpd_version_hint_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
+}
+
+// bool enrich_nic_enable = 235 [json_name = "enrichNicEnable"];
+inline void XtcpConfig::clear_enrich_nic_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_nic_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
+}
+inline bool XtcpConfig::enrich_nic_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
+  return _internal_enrich_nic_enable();
+}
+inline void XtcpConfig::set_enrich_nic_enable(bool value) {
+  _internal_set_enrich_nic_enable(value);
+  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
+}
+inline bool XtcpConfig::_internal_enrich_nic_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_nic_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_nic_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_nic_enable_ = value;
+}
+
+// uint32 uplink_count = 236 [json_name = "uplinkCount", (.buf.validate.field) = {
+inline void XtcpConfig::clear_uplink_count() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink_count_ = 0u;
+  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
+}
+inline ::uint32_t XtcpConfig::uplink_count() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.uplink_count)
+  return _internal_uplink_count();
+}
+inline void XtcpConfig::set_uplink_count(::uint32_t value) {
+  _internal_set_uplink_count(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.uplink_count)
+}
+inline ::uint32_t XtcpConfig::_internal_uplink_count() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink_count_;
+}
+inline void XtcpConfig::_internal_set_uplink_count(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink_count_ = value;
+}
+
+// repeated string uplink_interfaces = 237 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
+inline int XtcpConfig::_internal_uplink_interfaces_size() const {
+  return _internal_uplink_interfaces().size();
+}
+inline int XtcpConfig::uplink_interfaces_size() const {
+  return _internal_uplink_interfaces_size();
+}
+inline void XtcpConfig::clear_uplink_interfaces() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.uplink_interfaces_.Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::add_uplink_interfaces()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::std::string* _s =
+      _internal_mutable_uplink_interfaces()->InternalAddWithArena(
+          ::google::protobuf::MessageLite::internal_visibility(), GetArena());
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_add_mutable:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::uplink_interfaces(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+  return _internal_uplink_interfaces().Get(index);
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_uplink_interfaces(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+  return _internal_mutable_uplink_interfaces()->Mutable(index);
+}
+template <typename Arg_, typename... Args_>
+inline void XtcpConfig::set_uplink_interfaces(int index, Arg_&& value, Args_... args) {
+  ::google::protobuf::internal::AssignToString(
+      *_internal_mutable_uplink_interfaces()->Mutable(index),
+      ::std::forward<Arg_>(value), args... );
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+}
+template <typename Arg_, typename... Args_>
+inline void XtcpConfig::add_uplink_interfaces(Arg_&& value, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::google::protobuf::internal::AddToRepeatedPtrField(
+      ::google::protobuf::MessageLite::internal_visibility(), GetArena(),
+      *_internal_mutable_uplink_interfaces(), ::std::forward<Arg_>(value),
+      args... );
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_add:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+}
+inline const ::google::protobuf::RepeatedPtrField<::std::string>& XtcpConfig::uplink_interfaces()
+    const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+  return _internal_uplink_interfaces();
+}
+inline ::google::protobuf::RepeatedPtrField<::std::string>* PROTOBUF_NONNULL
+XtcpConfig::mutable_uplink_interfaces() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_mutable_list:xtcp_config.v1.XtcpConfig.uplink_interfaces)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_uplink_interfaces();
+}
+inline const ::google::protobuf::RepeatedPtrField<::std::string>&
+XtcpConfig::_internal_uplink_interfaces() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.uplink_interfaces_;
+}
+inline ::google::protobuf::RepeatedPtrField<::std::string>* PROTOBUF_NONNULL
+XtcpConfig::_internal_mutable_uplink_interfaces() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.uplink_interfaces_;
+}
+
+// bool populate_nsid = 238 [json_name = "populateNsid"];
+inline void XtcpConfig::clear_populate_nsid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.populate_nsid_ = false;
+  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
+}
+inline bool XtcpConfig::populate_nsid() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.populate_nsid)
+  return _internal_populate_nsid();
+}
+inline void XtcpConfig::set_populate_nsid(bool value) {
+  _internal_set_populate_nsid(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.populate_nsid)
+}
+inline bool XtcpConfig::_internal_populate_nsid() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.populate_nsid_;
+}
+inline void XtcpConfig::_internal_set_populate_nsid(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.populate_nsid_ = value;
 }
 
 // -------------------------------------------------------------------

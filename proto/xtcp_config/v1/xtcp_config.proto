@@ -609,6 +609,16 @@ message XtcpConfig {
 			max_len: 253,
 	}];
 
+	// Daemon build provenance stamped on every record's `daemon_version` field
+	// (git commit / date / version). Populated by the daemon from -ldflags build
+	// vars, not a user flag; informational only (debugging which binary produced a
+	// row). See XtcpFlatRecord.daemon_version.
+	string daemon_version                            = 186 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 253,
+	}];
+
 	// Resolve each socket's owning container id from its cgroup (sets the
 	// record's container_id / container_runtime). Set via -resolveContainerId
 	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
@@ -764,6 +774,50 @@ message XtcpConfig {
 	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
 	// mutex-serialized with the background reconciler. Default true.
 	bool reconcile_before_poll                         = 228;
+
+	// ---- best-effort metadata enrichment (230s) ------------------------------
+	// Each enricher is independent and non-fatal: when enabled but its source
+	// (a daemon socket, sysfs) is unavailable, xtcp2 logs, bumps a Prometheus
+	// counter, and continues with the relevant record columns left empty.
+
+	// Enrich container/netns labels (container_id/name/image/runtime, netns name)
+	// by joining the socket's owning netns inode against the Docker Engine API
+	// index over docker_socket_path. Default false.
+	bool enrich_container_enable                        = 230;
+
+	// Docker Engine API unix socket. Default "/run/docker.sock".
+	string docker_socket_path                          = 231 [
+		(buf.validate.field).string = { max_len: 255 }];
+
+	// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
+	// (lldpd_socket_path) once at startup. Default false.
+	bool enrich_lldp_enable                            = 232;
+
+	// lldpd control socket. Default "/run/lldpd.socket".
+	string lldpd_socket_path                           = 233 [
+		(buf.validate.field).string = { max_len: 255 }];
+
+	// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
+	// descriptor for the wire parser. Empty = auto-detect. Default "".
+	string lldpd_version_hint                          = 234 [
+		(buf.validate.field).string = { max_len: 16 }];
+
+	// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
+	// the ethtool ioctl once at startup. Default false.
+	bool enrich_nic_enable                             = 235;
+
+	// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
+	uint32 uplink_count                                = 236 [
+		(buf.validate.field).uint32 = { lte: 2 }];
+
+	// Explicit uplink interface names, slot order. Empty = auto-detect from the
+	// default IPv4/IPv6 routes.
+	repeated string uplink_interfaces                  = 237 [
+		(buf.validate.field).repeated = { max_items: 2 }];
+
+	// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
+	// Docker/containerd namespaces. Default false.
+	bool populate_nsid                                 = 238;
 };
 
 message EnabledDeserializers {

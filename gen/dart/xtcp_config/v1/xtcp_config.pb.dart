@@ -763,6 +763,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.bool? resolveContainerId,
     $core.int? ipv4Ttl,
     $core.int? ipv6HopLimit,
+    $core.String? daemonVersion,
     $core.int? grpcPort,
     EnabledDeserializers? enabledDeserializers,
     $core.bool? ioUring,
@@ -777,6 +778,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $1.Duration? s3UploadBackoffCap,
     $1.Duration? reconcileFrequency,
     $core.bool? reconcileBeforePoll,
+    $core.bool? enrichContainerEnable,
+    $core.String? dockerSocketPath,
+    $core.bool? enrichLldpEnable,
+    $core.String? lldpdSocketPath,
+    $core.String? lldpdVersionHint,
+    $core.bool? enrichNicEnable,
+    $core.int? uplinkCount,
+    $core.Iterable<$core.String>? uplinkInterfaces,
+    $core.bool? populateNsid,
   }) {
     final result = create();
     if (nlTimeoutMilliseconds != null)
@@ -829,6 +839,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
       result.resolveContainerId = resolveContainerId;
     if (ipv4Ttl != null) result.ipv4Ttl = ipv4Ttl;
     if (ipv6HopLimit != null) result.ipv6HopLimit = ipv6HopLimit;
+    if (daemonVersion != null) result.daemonVersion = daemonVersion;
     if (grpcPort != null) result.grpcPort = grpcPort;
     if (enabledDeserializers != null)
       result.enabledDeserializers = enabledDeserializers;
@@ -851,6 +862,17 @@ class XtcpConfig extends $pb.GeneratedMessage {
       result.reconcileFrequency = reconcileFrequency;
     if (reconcileBeforePoll != null)
       result.reconcileBeforePoll = reconcileBeforePoll;
+    if (enrichContainerEnable != null)
+      result.enrichContainerEnable = enrichContainerEnable;
+    if (dockerSocketPath != null) result.dockerSocketPath = dockerSocketPath;
+    if (enrichLldpEnable != null) result.enrichLldpEnable = enrichLldpEnable;
+    if (lldpdSocketPath != null) result.lldpdSocketPath = lldpdSocketPath;
+    if (lldpdVersionHint != null) result.lldpdVersionHint = lldpdVersionHint;
+    if (enrichNicEnable != null) result.enrichNicEnable = enrichNicEnable;
+    if (uplinkCount != null) result.uplinkCount = uplinkCount;
+    if (uplinkInterfaces != null)
+      result.uplinkInterfaces.addAll(uplinkInterfaces);
+    if (populateNsid != null) result.populateNsid = populateNsid;
     return result;
   }
 
@@ -932,6 +954,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aI(184, _omitFieldNames ? '' : 'ipv4Ttl', fieldType: $pb.PbFieldType.OU3)
     ..aI(185, _omitFieldNames ? '' : 'ipv6HopLimit',
         fieldType: $pb.PbFieldType.OU3)
+    ..aOS(186, _omitFieldNames ? '' : 'daemonVersion')
     ..aI(190, _omitFieldNames ? '' : 'grpcPort', fieldType: $pb.PbFieldType.OU3)
     ..aOM<EnabledDeserializers>(
         200, _omitFieldNames ? '' : 'enabledDeserializers',
@@ -957,6 +980,16 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOM<$1.Duration>(227, _omitFieldNames ? '' : 'reconcileFrequency',
         subBuilder: $1.Duration.create)
     ..aOB(228, _omitFieldNames ? '' : 'reconcileBeforePoll')
+    ..aOB(230, _omitFieldNames ? '' : 'enrichContainerEnable')
+    ..aOS(231, _omitFieldNames ? '' : 'dockerSocketPath')
+    ..aOB(232, _omitFieldNames ? '' : 'enrichLldpEnable')
+    ..aOS(233, _omitFieldNames ? '' : 'lldpdSocketPath')
+    ..aOS(234, _omitFieldNames ? '' : 'lldpdVersionHint')
+    ..aOB(235, _omitFieldNames ? '' : 'enrichNicEnable')
+    ..aI(236, _omitFieldNames ? '' : 'uplinkCount',
+        fieldType: $pb.PbFieldType.OU3)
+    ..pPS(237, _omitFieldNames ? '' : 'uplinkInterfaces')
+    ..aOB(238, _omitFieldNames ? '' : 'populateNsid')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1511,38 +1544,51 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(185)
   void clearIpv6HopLimit() => $_clearField(185);
 
+  /// Daemon build provenance stamped on every record's `daemon_version` field
+  /// (git commit / date / version). Populated by the daemon from -ldflags build
+  /// vars, not a user flag; informational only (debugging which binary produced a
+  /// row). See XtcpFlatRecord.daemon_version.
+  @$pb.TagNumber(186)
+  $core.String get daemonVersion => $_getSZ(42);
+  @$pb.TagNumber(186)
+  set daemonVersion($core.String value) => $_setString(42, value);
+  @$pb.TagNumber(186)
+  $core.bool hasDaemonVersion() => $_has(42);
+  @$pb.TagNumber(186)
+  void clearDaemonVersion() => $_clearField(186);
+
   /// GRPC listening port
   @$pb.TagNumber(190)
-  $core.int get grpcPort => $_getIZ(42);
+  $core.int get grpcPort => $_getIZ(43);
   @$pb.TagNumber(190)
-  set grpcPort($core.int value) => $_setUnsignedInt32(42, value);
+  set grpcPort($core.int value) => $_setUnsignedInt32(43, value);
   @$pb.TagNumber(190)
-  $core.bool hasGrpcPort() => $_has(42);
+  $core.bool hasGrpcPort() => $_has(43);
   @$pb.TagNumber(190)
   void clearGrpcPort() => $_clearField(190);
 
   @$pb.TagNumber(200)
-  EnabledDeserializers get enabledDeserializers => $_getN(43);
+  EnabledDeserializers get enabledDeserializers => $_getN(44);
   @$pb.TagNumber(200)
   set enabledDeserializers(EnabledDeserializers value) =>
       $_setField(200, value);
   @$pb.TagNumber(200)
-  $core.bool hasEnabledDeserializers() => $_has(43);
+  $core.bool hasEnabledDeserializers() => $_has(44);
   @$pb.TagNumber(200)
   void clearEnabledDeserializers() => $_clearField(200);
   @$pb.TagNumber(200)
-  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(43);
+  EnabledDeserializers ensureEnabledDeserializers() => $_ensure(44);
 
   /// When true, route netlink reads and raw-socket destination writes
   /// through an io_uring ring per Netlinker. Requires Linux 6.1+.
   /// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
   /// flag — they continue to use their own client sockets unchanged.
   @$pb.TagNumber(210)
-  $core.bool get ioUring => $_getBF(44);
+  $core.bool get ioUring => $_getBF(45);
   @$pb.TagNumber(210)
-  set ioUring($core.bool value) => $_setBool(44, value);
+  set ioUring($core.bool value) => $_setBool(45, value);
   @$pb.TagNumber(210)
-  $core.bool hasIoUring() => $_has(44);
+  $core.bool hasIoUring() => $_has(45);
   @$pb.TagNumber(210)
   void clearIoUring() => $_clearField(210);
 
@@ -1551,11 +1597,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// many sockets, at the cost of more pinned buffers from packet pool.
   /// Ignored unless io_uring=true. Default 64.
   @$pb.TagNumber(211)
-  $core.int get ioUringRecvBatchSize => $_getIZ(45);
+  $core.int get ioUringRecvBatchSize => $_getIZ(46);
   @$pb.TagNumber(211)
-  set ioUringRecvBatchSize($core.int value) => $_setUnsignedInt32(45, value);
+  set ioUringRecvBatchSize($core.int value) => $_setUnsignedInt32(46, value);
   @$pb.TagNumber(211)
-  $core.bool hasIoUringRecvBatchSize() => $_has(45);
+  $core.bool hasIoUringRecvBatchSize() => $_has(46);
   @$pb.TagNumber(211)
   void clearIoUringRecvBatchSize() => $_clearField(211);
 
@@ -1563,11 +1609,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// userland loop overhead but increase scheduling latency for the
   /// netlinker goroutine. Ignored unless io_uring=true. Default 128.
   @$pb.TagNumber(212)
-  $core.int get ioUringCqeBatchSize => $_getIZ(46);
+  $core.int get ioUringCqeBatchSize => $_getIZ(47);
   @$pb.TagNumber(212)
-  set ioUringCqeBatchSize($core.int value) => $_setUnsignedInt32(46, value);
+  set ioUringCqeBatchSize($core.int value) => $_setUnsignedInt32(47, value);
   @$pb.TagNumber(212)
-  $core.bool hasIoUringCqeBatchSize() => $_has(46);
+  $core.bool hasIoUringCqeBatchSize() => $_has(47);
   @$pb.TagNumber(212)
   void clearIoUringCqeBatchSize() => $_clearField(212);
 
@@ -1576,11 +1622,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
   /// Empty = all fields. Ignored by non-tabular marshallers.
   @$pb.TagNumber(220)
-  $core.String get csvColumns => $_getSZ(47);
+  $core.String get csvColumns => $_getSZ(48);
   @$pb.TagNumber(220)
-  set csvColumns($core.String value) => $_setString(47, value);
+  set csvColumns($core.String value) => $_setString(48, value);
   @$pb.TagNumber(220)
-  $core.bool hasCsvColumns() => $_has(47);
+  $core.bool hasCsvColumns() => $_has(48);
   @$pb.TagNumber(220)
   void clearCsvColumns() => $_clearField(220);
 
@@ -1588,11 +1634,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// both the startup delay before the first poll and each subsequent tick.
   /// 0 disables (immediate first poll, fixed interval). Default 20.
   @$pb.TagNumber(221)
-  $core.int get pollJitterPct => $_getIZ(48);
+  $core.int get pollJitterPct => $_getIZ(49);
   @$pb.TagNumber(221)
-  set pollJitterPct($core.int value) => $_setUnsignedInt32(48, value);
+  set pollJitterPct($core.int value) => $_setUnsignedInt32(49, value);
   @$pb.TagNumber(221)
-  $core.bool hasPollJitterPct() => $_has(48);
+  $core.bool hasPollJitterPct() => $_has(49);
   @$pb.TagNumber(221)
   void clearPollJitterPct() => $_clearField(221);
 
@@ -1600,25 +1646,25 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// after this long even if it hasn't reached the byte cap, bounding upload
   /// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
   @$pb.TagNumber(222)
-  $1.Duration get s3FlushInterval => $_getN(49);
+  $1.Duration get s3FlushInterval => $_getN(50);
   @$pb.TagNumber(222)
   set s3FlushInterval($1.Duration value) => $_setField(222, value);
   @$pb.TagNumber(222)
-  $core.bool hasS3FlushInterval() => $_has(49);
+  $core.bool hasS3FlushInterval() => $_has(50);
   @$pb.TagNumber(222)
   void clearS3FlushInterval() => $_clearField(222);
   @$pb.TagNumber(222)
-  $1.Duration ensureS3FlushInterval() => $_ensure(49);
+  $1.Duration ensureS3FlushInterval() => $_ensure(50);
 
   /// Maximum jitter as a percent of s3_flush_interval, applied to the first
   /// timed flush and each interval so the fleet doesn't ceiling-flush in
   /// lockstep. 0 disables. Default 20.
   @$pb.TagNumber(223)
-  $core.int get s3FlushJitterPct => $_getIZ(50);
+  $core.int get s3FlushJitterPct => $_getIZ(51);
   @$pb.TagNumber(223)
-  set s3FlushJitterPct($core.int value) => $_setUnsignedInt32(50, value);
+  set s3FlushJitterPct($core.int value) => $_setUnsignedInt32(51, value);
   @$pb.TagNumber(223)
-  $core.bool hasS3FlushJitterPct() => $_has(50);
+  $core.bool hasS3FlushJitterPct() => $_has(51);
   @$pb.TagNumber(223)
   void clearS3FlushJitterPct() => $_clearField(223);
 
@@ -1627,23 +1673,23 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// size-cap upload path even under uniform load. Downward-only, so an
   /// object never exceeds the in-memory byte bound. 0 disables. Default 20.
   @$pb.TagNumber(224)
-  $core.int get s3FlushThresholdJitterPct => $_getIZ(51);
+  $core.int get s3FlushThresholdJitterPct => $_getIZ(52);
   @$pb.TagNumber(224)
   set s3FlushThresholdJitterPct($core.int value) =>
-      $_setUnsignedInt32(51, value);
+      $_setUnsignedInt32(52, value);
   @$pb.TagNumber(224)
-  $core.bool hasS3FlushThresholdJitterPct() => $_has(51);
+  $core.bool hasS3FlushThresholdJitterPct() => $_has(52);
   @$pb.TagNumber(224)
   void clearS3FlushThresholdJitterPct() => $_clearField(224);
 
   /// Maximum S3 upload attempts (original + retries) before dropping the
   /// object. Retries use full-jitter exponential backoff. Default 10.
   @$pb.TagNumber(225)
-  $core.int get s3UploadMaxAttempts => $_getIZ(52);
+  $core.int get s3UploadMaxAttempts => $_getIZ(53);
   @$pb.TagNumber(225)
-  set s3UploadMaxAttempts($core.int value) => $_setUnsignedInt32(52, value);
+  set s3UploadMaxAttempts($core.int value) => $_setUnsignedInt32(53, value);
   @$pb.TagNumber(225)
-  $core.bool hasS3UploadMaxAttempts() => $_has(52);
+  $core.bool hasS3UploadMaxAttempts() => $_has(53);
   @$pb.TagNumber(225)
   void clearS3UploadMaxAttempts() => $_clearField(225);
 
@@ -1651,15 +1697,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// [0, window], window grows exponentially up to this cap). 0 = derive as
   /// clamp(poll_frequency/10, 1s, 1h).
   @$pb.TagNumber(226)
-  $1.Duration get s3UploadBackoffCap => $_getN(53);
+  $1.Duration get s3UploadBackoffCap => $_getN(54);
   @$pb.TagNumber(226)
   set s3UploadBackoffCap($1.Duration value) => $_setField(226, value);
   @$pb.TagNumber(226)
-  $core.bool hasS3UploadBackoffCap() => $_has(53);
+  $core.bool hasS3UploadBackoffCap() => $_has(54);
   @$pb.TagNumber(226)
   void clearS3UploadBackoffCap() => $_clearField(226);
   @$pb.TagNumber(226)
-  $1.Duration ensureS3UploadBackoffCap() => $_ensure(53);
+  $1.Duration ensureS3UploadBackoffCap() => $_ensure(54);
 
   /// Period of the background namespace-reconcile ticker (Method B /proc scan
   /// that converges the tracked namespace set). With reconcile_before_poll the
@@ -1670,15 +1716,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// matters when the poller is idle or disabled. 0 disables the background
   /// ticker entirely (the startup reconcile still runs once).
   @$pb.TagNumber(227)
-  $1.Duration get reconcileFrequency => $_getN(54);
+  $1.Duration get reconcileFrequency => $_getN(55);
   @$pb.TagNumber(227)
   set reconcileFrequency($1.Duration value) => $_setField(227, value);
   @$pb.TagNumber(227)
-  $core.bool hasReconcileFrequency() => $_has(54);
+  $core.bool hasReconcileFrequency() => $_has(55);
   @$pb.TagNumber(227)
   void clearReconcileFrequency() => $_clearField(227);
   @$pb.TagNumber(227)
-  $1.Duration ensureReconcileFrequency() => $_ensure(54);
+  $1.Duration ensureReconcileFrequency() => $_ensure(55);
 
   /// Run a namespace reconcile immediately before each poll cycle, so a
   /// namespace that appeared since the last cycle is entered and gets a socket
@@ -1686,13 +1732,104 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// discovery cadence to poll cadence; the /proc scan is zero-allocation and
   /// mutex-serialized with the background reconciler. Default true.
   @$pb.TagNumber(228)
-  $core.bool get reconcileBeforePoll => $_getBF(55);
+  $core.bool get reconcileBeforePoll => $_getBF(56);
   @$pb.TagNumber(228)
-  set reconcileBeforePoll($core.bool value) => $_setBool(55, value);
+  set reconcileBeforePoll($core.bool value) => $_setBool(56, value);
   @$pb.TagNumber(228)
-  $core.bool hasReconcileBeforePoll() => $_has(55);
+  $core.bool hasReconcileBeforePoll() => $_has(56);
   @$pb.TagNumber(228)
   void clearReconcileBeforePoll() => $_clearField(228);
+
+  /// Enrich container/netns labels (container_id/name/image/runtime, netns name)
+  /// by joining the socket's owning netns inode against the Docker Engine API
+  /// index over docker_socket_path. Default false.
+  @$pb.TagNumber(230)
+  $core.bool get enrichContainerEnable => $_getBF(57);
+  @$pb.TagNumber(230)
+  set enrichContainerEnable($core.bool value) => $_setBool(57, value);
+  @$pb.TagNumber(230)
+  $core.bool hasEnrichContainerEnable() => $_has(57);
+  @$pb.TagNumber(230)
+  void clearEnrichContainerEnable() => $_clearField(230);
+
+  /// Docker Engine API unix socket. Default "/run/docker.sock".
+  @$pb.TagNumber(231)
+  $core.String get dockerSocketPath => $_getSZ(58);
+  @$pb.TagNumber(231)
+  set dockerSocketPath($core.String value) => $_setString(58, value);
+  @$pb.TagNumber(231)
+  $core.bool hasDockerSocketPath() => $_has(58);
+  @$pb.TagNumber(231)
+  void clearDockerSocketPath() => $_clearField(231);
+
+  /// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
+  /// (lldpd_socket_path) once at startup. Default false.
+  @$pb.TagNumber(232)
+  $core.bool get enrichLldpEnable => $_getBF(59);
+  @$pb.TagNumber(232)
+  set enrichLldpEnable($core.bool value) => $_setBool(59, value);
+  @$pb.TagNumber(232)
+  $core.bool hasEnrichLldpEnable() => $_has(59);
+  @$pb.TagNumber(232)
+  void clearEnrichLldpEnable() => $_clearField(232);
+
+  /// lldpd control socket. Default "/run/lldpd.socket".
+  @$pb.TagNumber(233)
+  $core.String get lldpdSocketPath => $_getSZ(60);
+  @$pb.TagNumber(233)
+  set lldpdSocketPath($core.String value) => $_setString(60, value);
+  @$pb.TagNumber(233)
+  $core.bool hasLldpdSocketPath() => $_has(60);
+  @$pb.TagNumber(233)
+  void clearLldpdSocketPath() => $_clearField(233);
+
+  /// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
+  /// descriptor for the wire parser. Empty = auto-detect. Default "".
+  @$pb.TagNumber(234)
+  $core.String get lldpdVersionHint => $_getSZ(61);
+  @$pb.TagNumber(234)
+  set lldpdVersionHint($core.String value) => $_setString(61, value);
+  @$pb.TagNumber(234)
+  $core.bool hasLldpdVersionHint() => $_has(61);
+  @$pb.TagNumber(234)
+  void clearLldpdVersionHint() => $_clearField(234);
+
+  /// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
+  /// the ethtool ioctl once at startup. Default false.
+  @$pb.TagNumber(235)
+  $core.bool get enrichNicEnable => $_getBF(62);
+  @$pb.TagNumber(235)
+  set enrichNicEnable($core.bool value) => $_setBool(62, value);
+  @$pb.TagNumber(235)
+  $core.bool hasEnrichNicEnable() => $_has(62);
+  @$pb.TagNumber(235)
+  void clearEnrichNicEnable() => $_clearField(235);
+
+  /// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
+  @$pb.TagNumber(236)
+  $core.int get uplinkCount => $_getIZ(63);
+  @$pb.TagNumber(236)
+  set uplinkCount($core.int value) => $_setUnsignedInt32(63, value);
+  @$pb.TagNumber(236)
+  $core.bool hasUplinkCount() => $_has(63);
+  @$pb.TagNumber(236)
+  void clearUplinkCount() => $_clearField(236);
+
+  /// Explicit uplink interface names, slot order. Empty = auto-detect from the
+  /// default IPv4/IPv6 routes.
+  @$pb.TagNumber(237)
+  $pb.PbList<$core.String> get uplinkInterfaces => $_getList(64);
+
+  /// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
+  /// Docker/containerd namespaces. Default false.
+  @$pb.TagNumber(238)
+  $core.bool get populateNsid => $_getBF(65);
+  @$pb.TagNumber(238)
+  set populateNsid($core.bool value) => $_setBool(65, value);
+  @$pb.TagNumber(238)
+  $core.bool hasPopulateNsid() => $_has(65);
+  @$pb.TagNumber(238)
+  void clearPopulateNsid() => $_clearField(238);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

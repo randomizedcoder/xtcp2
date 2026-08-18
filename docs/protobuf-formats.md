@@ -78,6 +78,26 @@ This is the exported TCP data. Two core messages:
   input format. See [protobuflist-migration.md](protobuflist-migration.md) for the wire-format
   deep dive and [output-and-destinations.md](output-and-destinations.md) for the marshallers.
 
+Every record carries two provenance fields at the low field numbers:
+
+- **`schema_version` (field 1)** — the record *format epoch*, stamped unconditionally from the
+  daemon constant `XtcpFlatRecordSchemaVersion` (currently `1`). Bump it whenever the format
+  changes meaningfully. `0` is the "legacy" bucket: pre-versioning daemons never set the field,
+  so it decodes to the proto3 zero default. Downstream this drives per-version ClickHouse
+  routing — see [record-versioning.md](record-versioning.md).
+- **`daemon_version` (field 2)** — build provenance (git commit / date / version from
+  `-ldflags`), for debugging which binary produced a row. Informational only; not used for
+  routing.
+
+> **Deprecated: `mem_info_*` (fields 1101–1104).** These four socket-memory fields are a
+> value-subset of the `sk_mem_info_*` fields (`mem_info_rmem`=`sk_mem_info_rmem_alloc`,
+> `mem_info_wmem`=`sk_mem_info_wmem_queued`, `mem_info_fmem`=`sk_mem_info_fwd_alloc`,
+> `mem_info_tmem`=`sk_mem_info_wmem_alloc`) — the kernel derives both from the same `sk`
+> counters. The `meminfo` deserializer is off by default, so on current records these columns
+> ship as `0`; use `sk_mem_info_*` instead (see [netlink-collection.md](netlink-collection.md)).
+> The fields are **retained** (never renumbered), so `schema_version` stays `1`: the record is
+> structurally identical and the data is fully recoverable from `sk_mem_info_*`.
+
 It also defines the streaming **`XTCPFlatRecordService`**, which `xtcp2client` consumes:
 
 | RPC | Shape | Purpose |

@@ -97,6 +97,11 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		xtcpRecord := x.xtcpRecordPool.Get()
 
 		xtcpRecord.Hostname = x.hostname
+		// Record format provenance. schema_version is stamped unconditionally (not
+		// best-effort) so per-version routing is reliable; daemon_version carries
+		// the -ldflags build string for debugging which binary produced a row.
+		xtcpRecord.SchemaVersion = XtcpFlatRecordSchemaVersion
+		xtcpRecord.DaemonVersion = x.config.DaemonVersion
 		// Constant-per-instance identity. These are set from config here (they
 		// were previously accepted into config but never stamped onto records).
 		// String assignment copies only the header, so this is cheap in the
@@ -210,11 +215,17 @@ func (x *XTCP) processInetDiagRecord(
 	})
 	offset += attrLen
 
-	// Resolve the owning container from the socket's cgroup id (populated by
-	// DeserializeAttributes above). O(1) cached map lookup — empty when the
-	// resolver is disabled, the cgroup isn't a container, or the container
-	// started since the last snapshot (the next cycle picks it up).
-	if x.cgroupResolver != nil && xtcpRecord.CGroup != 0 {
+	// Best-effort metadata enrichment: static per-boot uplink NIC/LLDP columns
+	// plus per-namespace container labels (Docker Engine API, keyed by netns
+	// inode) and opt-in nsid. All O(1) and no-op when their enricher is off.
+	x.applyEnrichment(xtcpRecord)
+
+	// Fallback container resolution from the socket's cgroup id (populated by
+	// DeserializeAttributes above). Only runs when the Docker index didn't
+	// already identify the container — e.g. host-net container sockets that
+	// carry a container cgroup but no distinct netns inode. O(1) cached lookup;
+	// empty when the resolver is disabled or the cgroup isn't a container.
+	if xtcpRecord.ContainerId == "" && x.cgroupResolver != nil && xtcpRecord.CGroup != 0 {
 		xtcpRecord.ContainerId, xtcpRecord.ContainerRuntime = x.cgroupResolver.Resolve(xtcpRecord.CGroup)
 	}
 

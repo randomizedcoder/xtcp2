@@ -571,6 +571,99 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.PopulateNsid {
+		i--
+		if m.PopulateNsid {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xf0
+	}
+	if len(m.UplinkInterfaces) > 0 {
+		for iNdEx := len(m.UplinkInterfaces) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.UplinkInterfaces[iNdEx])
+			copy(dAtA[i:], m.UplinkInterfaces[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.UplinkInterfaces[iNdEx])))
+			i--
+			dAtA[i] = 0xe
+			i--
+			dAtA[i] = 0xea
+		}
+	}
+	if m.UplinkCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.UplinkCount))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xe0
+	}
+	if m.EnrichNicEnable {
+		i--
+		if m.EnrichNicEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xd8
+	}
+	if len(m.LldpdVersionHint) > 0 {
+		i -= len(m.LldpdVersionHint)
+		copy(dAtA[i:], m.LldpdVersionHint)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LldpdVersionHint)))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xd2
+	}
+	if len(m.LldpdSocketPath) > 0 {
+		i -= len(m.LldpdSocketPath)
+		copy(dAtA[i:], m.LldpdSocketPath)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LldpdSocketPath)))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xca
+	}
+	if m.EnrichLldpEnable {
+		i--
+		if m.EnrichLldpEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xc0
+	}
+	if len(m.DockerSocketPath) > 0 {
+		i -= len(m.DockerSocketPath)
+		copy(dAtA[i:], m.DockerSocketPath)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DockerSocketPath)))
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xba
+	}
+	if m.EnrichContainerEnable {
+		i--
+		if m.EnrichContainerEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xb0
+	}
 	if m.ReconcileBeforePoll {
 		i--
 		if m.ReconcileBeforePoll {
@@ -700,6 +793,15 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0xb
 		i--
 		dAtA[i] = 0xf0
+	}
+	if len(m.DaemonVersion) > 0 {
+		i -= len(m.DaemonVersion)
+		copy(dAtA[i:], m.DaemonVersion)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DaemonVersion)))
+		i--
+		dAtA[i] = 0xb
+		i--
+		dAtA[i] = 0xd2
 	}
 	if m.Ipv6HopLimit != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv6HopLimit))
@@ -1437,6 +1539,10 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.Ipv6HopLimit != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv6HopLimit))
 	}
+	l = len(m.DaemonVersion)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	if m.GrpcPort != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.GrpcPort))
 	}
@@ -1482,6 +1588,39 @@ func (m *XtcpConfig) SizeVT() (n int) {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.ReconcileBeforePoll {
+		n += 3
+	}
+	if m.EnrichContainerEnable {
+		n += 3
+	}
+	l = len(m.DockerSocketPath)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.EnrichLldpEnable {
+		n += 3
+	}
+	l = len(m.LldpdSocketPath)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.LldpdVersionHint)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.EnrichNicEnable {
+		n += 3
+	}
+	if m.UplinkCount != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.UplinkCount))
+	}
+	if len(m.UplinkInterfaces) > 0 {
+		for _, s := range m.UplinkInterfaces {
+			l = len(s)
+			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if m.PopulateNsid {
 		n += 3
 	}
 	n += len(m.unknownFields)
@@ -3662,6 +3801,38 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 186:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DaemonVersion", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DaemonVersion = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 190:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field GrpcPort", wireType)
@@ -4011,6 +4182,233 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ReconcileBeforePoll = bool(v != 0)
+		case 230:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichContainerEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.EnrichContainerEnable = bool(v != 0)
+		case 231:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DockerSocketPath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DockerSocketPath = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 232:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichLldpEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.EnrichLldpEnable = bool(v != 0)
+		case 233:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LldpdSocketPath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LldpdSocketPath = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 234:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LldpdVersionHint", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LldpdVersionHint = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 235:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichNicEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.EnrichNicEnable = bool(v != 0)
+		case 236:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UplinkCount", wireType)
+			}
+			m.UplinkCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.UplinkCount |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 237:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UplinkInterfaces", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UplinkInterfaces = append(m.UplinkInterfaces, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 238:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PopulateNsid", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.PopulateNsid = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

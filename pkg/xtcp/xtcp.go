@@ -19,6 +19,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
+	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
@@ -103,6 +104,18 @@ type XTCP struct {
 	// nil unless config.ResolveContainerId is set. See pkg/cgroupid.
 	cgroupResolver *cgroupid.Resolver
 
+	// Best-effort metadata enrichers (all nil/zero unless enabled via config;
+	// each degrades to leaving its columns empty). See enrich.go.
+	//
+	// dockerIndex maps a socket's netns inode -> owning container (per-namespace,
+	// kept fresh by a background goroutine). uplinkStamp holds the static
+	// per-boot NIC + LLDP topology columns, precomputed once at startup and
+	// copied into every record. nsidByInode is the opt-in nsid snapshot, rebuilt
+	// each discovery cycle and read lock-free on the stamping path.
+	dockerIndex *dockermeta.Index
+	uplinkStamp uplinkStamp
+	nsidByInode atomic.Pointer[map[uint64]int32]
+
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
@@ -172,14 +185,21 @@ type XTCP struct {
 	debugLevel uint32
 }
 
-// nsIdentity is what /proc-scan discovery yields for one network namespace:
-// its nsfs inode (the stable identity and the nsMap key), a representative live
-// pid to enter it by (via /proc/<pid>/ns/net), and a best-effort human name
-// (the record's netns label). See pkg/nsdiscover.
+// nsIdentity is what discovery yields for one network namespace: its nsfs inode
+// (the stable identity and the nsMap key), a representative live pid to enter it
+// by (via /proc/<pid>/ns/net), a best-effort human name (the record's netns
+// label), and an optional bind-mount path.
+//
+// A namespace is discovered one of two ways (see discoverNamespaces): the /proc
+// scan (Method B) yields a live pid and path=="" — entered via /proc/<pid>/ns/net;
+// the bind-mount scan of /run/netns + /run/docker/netns yields path!="" and pid==0
+// — entered by opening that path directly (setns on the fd), so no host PID is
+// required. When both find the same inode the /proc-scan entry wins (pid set).
 type nsIdentity struct {
 	inode uint64
 	pid   int
 	name  string
+	path  string
 }
 
 // network namespace item
@@ -381,6 +401,11 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 			log.Printf("XTCP.Run() nsScanner close: %v", cerr)
 		}
 	}
+
+	// Stop the best-effort enrichers' background work (docker event/refresh
+	// goroutine). Safe here: no deserialize goroutine reads x.dockerIndex after
+	// workers.Wait above.
+	x.closeEnrichers()
 
 	if x.debugLevel > 10 {
 		log.Println("XTCP.Run() complete")

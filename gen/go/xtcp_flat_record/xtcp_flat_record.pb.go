@@ -150,163 +150,237 @@ func (x *Envelope) GetRow() []*XtcpFlatRecord {
 	return nil
 }
 
+// Field-number layout (reorganised 2026-08 while the record had few consumers):
+//
+//	metadata  ...  1-999   (identity + per-uplink network topology)
+//	payload   ... 1000+    (kernel inet_diag subsystems, one hundred-block each)
+//
+// ClickHouse's Protobuf format maps columns by field NAME and Parquet uses its own
+// schema, so the wire-tag renumber does not break ingestion or historical Parquet.
 type XtcpFlatRecord struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	TimestampNs int64                  `protobuf:"varint,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
-	Hostname    string                 `protobuf:"bytes,20,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ---- metadata: record format provenance (1-2) ----------------------------
+	// Record format epoch. Stamped unconditionally into every record so consumers
+	// can route records to per-version tables and migrate/aggregate across them.
+	// 0 = pre-versioning daemons (this field absent on the wire → proto3 zero
+	// default), which acts as the "legacy" bucket. Bump the daemon-side constant
+	// (XtcpFlatRecordSchemaVersion) whenever the format changes meaningfully.
+	SchemaVersion uint32 `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	// Daemon build provenance (git commit / build date / version, from -ldflags).
+	// Informational only — for debugging which binary produced a row; NOT used for
+	// routing (that is schema_version). Empty when built without ldflags.
+	DaemonVersion string `protobuf:"bytes,2,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
+	// ---- metadata: time (10) -------------------------------------------------
+	TimestampNs int64 `protobuf:"varint,10,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
+	// ---- metadata: host identity (20s) ---------------------------------------
+	Hostname string `protobuf:"bytes,20,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	// Deployment grouping / facility this daemon runs in — generic across
 	// operators (data center, PoP, region, site, …). Free-form; set via
 	// -location flag or LOCATION env. Constant for every record from one
 	// daemon instance.
 	Location string `protobuf:"bytes,21,opt,name=location,proto3" json:"location,omitempty"`
+	// ---- metadata: network namespace identity (30s) --------------------------
 	// network namespace — best-effort human name (bind-mount name, else a
 	// container-derived name, else "netns:[<inode>]"). Not a stable key; use
 	// netns_inode for identity.
 	Netns string `protobuf:"bytes,30,opt,name=netns,proto3" json:"netns,omitempty"`
-	// network-namespace inode (from /proc/<pid>/ns/net). The stable identity of
-	// the namespace this socket lives in — unique per live namespace on the host
-	// for the daemon's lifetime, including the host/default namespace (its own
-	// self-inode). 0 only when the inode could not be determined.
-	NetnsInode uint64 `protobuf:"varint,33,opt,name=netns_inode,json=netnsInode,proto3" json:"netns_inode,omitempty"`
-	// Container that owns the socket, resolved from the per-socket cgroup v2
-	// id (c_group) via the cgroup path (e.g. docker-<id>.scope). Empty when
-	// the socket isn't in a recognised container cgroup or resolution is
-	// disabled/unavailable. See container_runtime for the detected runtime.
-	ContainerId string `protobuf:"bytes,31,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
-	// Container runtime detected while resolving container_id, e.g. "docker",
-	// "containerd", "crio", "kubepods". Empty when container_id is empty.
-	ContainerRuntime string `protobuf:"bytes,32,opt,name=container_runtime,json=containerRuntime,proto3" json:"container_runtime,omitempty"`
-	// network namespace id
-	// TODO xtcp does not currently get the id
-	Nsid uint32 `protobuf:"varint,40,opt,name=nsid,proto3" json:"nsid,omitempty"`
-	// free form string
+	// network-namespace inode (from /proc/<pid>/ns/net or the netns bind-mount).
+	// The stable identity of the namespace this socket lives in — unique per live
+	// namespace on the host for the daemon's lifetime, including the host/default
+	// namespace (its own self-inode). 0 only when the inode could not be
+	// determined. This is the canonical namespace key (prefer it over nsid).
+	NetnsInode uint64 `protobuf:"varint,31,opt,name=netns_inode,json=netnsInode,proto3" json:"netns_inode,omitempty"`
+	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID). Usually
+	// 0/unset for Docker/containerd namespaces unless assigned (e.g. ip netns
+	// set-id). Populated only when -populateNsid is enabled; netns_inode is the
+	// real stable key.
+	Nsid uint32 `protobuf:"varint,32,opt,name=nsid,proto3" json:"nsid,omitempty"`
+	// ---- metadata: container identity (40s) ----------------------------------
+	// Container that owns the socket. Resolved by joining the socket's owning
+	// netns inode against the Docker Engine API index (best-effort, over
+	// /run/docker.sock), falling back to the per-socket cgroup v2 id when the
+	// Docker index misses. Empty for host-namespace sockets or when enrichment
+	// is disabled/unavailable.
+	ContainerId string `protobuf:"bytes,40,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	// Container runtime, e.g. "docker", "containerd", "crio". Empty when
+	// container_id is empty.
+	ContainerRuntime string `protobuf:"bytes,41,opt,name=container_runtime,json=containerRuntime,proto3" json:"container_runtime,omitempty"`
+	// Container name (Docker Engine API, best-effort). Empty when unknown.
+	ContainerName string `protobuf:"bytes,42,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	// Container image (Docker Engine API, best-effort). Empty when unknown.
+	ContainerImage string `protobuf:"bytes,43,opt,name=container_image,json=containerImage,proto3" json:"container_image,omitempty"`
+	// ---- metadata: free-form labels (50s) ------------------------------------
 	Label string `protobuf:"bytes,50,opt,name=label,proto3" json:"label,omitempty"`
-	// free form string
-	Tag                              string `protobuf:"bytes,60,opt,name=tag,proto3" json:"tag,omitempty"`
-	RecordCounter                    uint64 `protobuf:"varint,70,opt,name=record_counter,json=recordCounter,proto3" json:"record_counter,omitempty"`
-	SocketFd                         uint64 `protobuf:"varint,80,opt,name=socket_fd,json=socketFd,proto3" json:"socket_fd,omitempty"`
-	NetlinkerId                      uint64 `protobuf:"varint,90,opt,name=netlinker_id,json=netlinkerId,proto3" json:"netlinker_id,omitempty"`
-	InetDiagMsgFamily                uint32 `protobuf:"varint,101,opt,name=inet_diag_msg_family,json=inetDiagMsgFamily,proto3" json:"inet_diag_msg_family,omitempty"`                                                  // uint8
-	InetDiagMsgState                 uint32 `protobuf:"varint,102,opt,name=inet_diag_msg_state,json=inetDiagMsgState,proto3" json:"inet_diag_msg_state,omitempty"`                                                     // uint8
-	InetDiagMsgTimer                 uint32 `protobuf:"varint,103,opt,name=inet_diag_msg_timer,json=inetDiagMsgTimer,proto3" json:"inet_diag_msg_timer,omitempty"`                                                     // uint8
-	InetDiagMsgRetrans               uint32 `protobuf:"varint,104,opt,name=inet_diag_msg_retrans,json=inetDiagMsgRetrans,proto3" json:"inet_diag_msg_retrans,omitempty"`                                               // uint8
-	InetDiagMsgSocketSourcePort      uint32 `protobuf:"varint,105,opt,name=inet_diag_msg_socket_source_port,json=inetDiagMsgSocketSourcePort,proto3" json:"inet_diag_msg_socket_source_port,omitempty"`                // __be16
-	InetDiagMsgSocketDestinationPort uint32 `protobuf:"varint,106,opt,name=inet_diag_msg_socket_destination_port,json=inetDiagMsgSocketDestinationPort,proto3" json:"inet_diag_msg_socket_destination_port,omitempty"` // __be16
-	InetDiagMsgSocketSource          []byte `protobuf:"bytes,107,opt,name=inet_diag_msg_socket_source,json=inetDiagMsgSocketSource,proto3" json:"inet_diag_msg_socket_source,omitempty"`
-	InetDiagMsgSocketDestination     []byte `protobuf:"bytes,108,opt,name=inet_diag_msg_socket_destination,json=inetDiagMsgSocketDestination,proto3" json:"inet_diag_msg_socket_destination,omitempty"`
-	InetDiagMsgSocketInterface       uint32 `protobuf:"varint,109,opt,name=inet_diag_msg_socket_interface,json=inetDiagMsgSocketInterface,proto3" json:"inet_diag_msg_socket_interface,omitempty"`
-	InetDiagMsgSocketCookie          uint64 `protobuf:"varint,110,opt,name=inet_diag_msg_socket_cookie,json=inetDiagMsgSocketCookie,proto3" json:"inet_diag_msg_socket_cookie,omitempty"` // [2]uint32
-	InetDiagMsgSocketDestAsn         uint64 `protobuf:"varint,111,opt,name=inet_diag_msg_socket_dest_asn,json=inetDiagMsgSocketDestAsn,proto3" json:"inet_diag_msg_socket_dest_asn,omitempty"`
-	InetDiagMsgSocketNextHopAsn      uint64 `protobuf:"varint,112,opt,name=inet_diag_msg_socket_next_hop_asn,json=inetDiagMsgSocketNextHopAsn,proto3" json:"inet_diag_msg_socket_next_hop_asn,omitempty"`
-	InetDiagMsgExpires               uint32 `protobuf:"varint,113,opt,name=inet_diag_msg_expires,json=inetDiagMsgExpires,proto3" json:"inet_diag_msg_expires,omitempty"`
-	InetDiagMsgRqueue                uint32 `protobuf:"varint,114,opt,name=inet_diag_msg_rqueue,json=inetDiagMsgRqueue,proto3" json:"inet_diag_msg_rqueue,omitempty"`
-	InetDiagMsgWqueue                uint32 `protobuf:"varint,115,opt,name=inet_diag_msg_wqueue,json=inetDiagMsgWqueue,proto3" json:"inet_diag_msg_wqueue,omitempty"`
-	InetDiagMsgUid                   uint32 `protobuf:"varint,116,opt,name=inet_diag_msg_uid,json=inetDiagMsgUid,proto3" json:"inet_diag_msg_uid,omitempty"`
-	InetDiagMsgInode                 uint32 `protobuf:"varint,117,opt,name=inet_diag_msg_inode,json=inetDiagMsgInode,proto3" json:"inet_diag_msg_inode,omitempty"`
-	MemInfoRmem                      uint32 `protobuf:"varint,201,opt,name=mem_info_rmem,json=memInfoRmem,proto3" json:"mem_info_rmem,omitempty"`
-	MemInfoWmem                      uint32 `protobuf:"varint,202,opt,name=mem_info_wmem,json=memInfoWmem,proto3" json:"mem_info_wmem,omitempty"`
-	MemInfoFmem                      uint32 `protobuf:"varint,203,opt,name=mem_info_fmem,json=memInfoFmem,proto3" json:"mem_info_fmem,omitempty"`
-	MemInfoTmem                      uint32 `protobuf:"varint,204,opt,name=mem_info_tmem,json=memInfoTmem,proto3" json:"mem_info_tmem,omitempty"`
-	TcpInfoState                     uint32 `protobuf:"varint,301,opt,name=tcp_info_state,json=tcpInfoState,proto3" json:"tcp_info_state,omitempty"`                   // uint8
-	TcpInfoCaState                   uint32 `protobuf:"varint,302,opt,name=tcp_info_ca_state,json=tcpInfoCaState,proto3" json:"tcp_info_ca_state,omitempty"`           // uint8
-	TcpInfoRetransmits               uint32 `protobuf:"varint,303,opt,name=tcp_info_retransmits,json=tcpInfoRetransmits,proto3" json:"tcp_info_retransmits,omitempty"` // uint8
-	TcpInfoProbes                    uint32 `protobuf:"varint,304,opt,name=tcp_info_probes,json=tcpInfoProbes,proto3" json:"tcp_info_probes,omitempty"`                // uint8
-	TcpInfoBackoff                   uint32 `protobuf:"varint,305,opt,name=tcp_info_backoff,json=tcpInfoBackoff,proto3" json:"tcp_info_backoff,omitempty"`             // uint8
-	TcpInfoOptions                   uint32 `protobuf:"varint,306,opt,name=tcp_info_options,json=tcpInfoOptions,proto3" json:"tcp_info_options,omitempty"`             // uint8
+	Tag   string `protobuf:"bytes,51,opt,name=tag,proto3" json:"tag,omitempty"`
+	// ---- metadata: record bookkeeping (60s) ----------------------------------
+	RecordCounter uint64 `protobuf:"varint,60,opt,name=record_counter,json=recordCounter,proto3" json:"record_counter,omitempty"`
+	SocketFd      uint64 `protobuf:"varint,61,opt,name=socket_fd,json=socketFd,proto3" json:"socket_fd,omitempty"`
+	NetlinkerId   uint64 `protobuf:"varint,62,opt,name=netlinker_id,json=netlinkerId,proto3" json:"netlinker_id,omitempty"`
+	// ---- metadata: host network topology, uplink slot 1 (100s) ---------------
+	// Static per boot; captured once at startup (best-effort). Hosts are
+	// dual-homed, so there are two fixed uplink slots. All values repeat on every
+	// record and dictionary-compress to ~nothing. NIC info: sysfs + ethtool
+	// ioctl. LLDP: lldpd control socket (/run/lldpd.socket).
+	Uplink1Ifname          string `protobuf:"bytes,100,opt,name=uplink1_ifname,json=uplink1Ifname,proto3" json:"uplink1_ifname,omitempty"`
+	Uplink1NicDriver       string `protobuf:"bytes,101,opt,name=uplink1_nic_driver,json=uplink1NicDriver,proto3" json:"uplink1_nic_driver,omitempty"`
+	Uplink1NicModel        string `protobuf:"bytes,102,opt,name=uplink1_nic_model,json=uplink1NicModel,proto3" json:"uplink1_nic_model,omitempty"`
+	Uplink1NicPciVendor    uint32 `protobuf:"varint,103,opt,name=uplink1_nic_pci_vendor,json=uplink1NicPciVendor,proto3" json:"uplink1_nic_pci_vendor,omitempty"` // PCI vendor id, e.g. 0x15b3
+	Uplink1NicPciDevice    uint32 `protobuf:"varint,104,opt,name=uplink1_nic_pci_device,json=uplink1NicPciDevice,proto3" json:"uplink1_nic_pci_device,omitempty"` // PCI device id
+	Uplink1NicBusInfo      string `protobuf:"bytes,105,opt,name=uplink1_nic_bus_info,json=uplink1NicBusInfo,proto3" json:"uplink1_nic_bus_info,omitempty"`        // PCI bus address
+	Uplink1NicSpeedMbps    uint32 `protobuf:"varint,106,opt,name=uplink1_nic_speed_mbps,json=uplink1NicSpeedMbps,proto3" json:"uplink1_nic_speed_mbps,omitempty"`
+	Uplink1NicFwVersion    string `protobuf:"bytes,107,opt,name=uplink1_nic_fw_version,json=uplink1NicFwVersion,proto3" json:"uplink1_nic_fw_version,omitempty"`
+	Uplink1LldpChassisName string `protobuf:"bytes,120,opt,name=uplink1_lldp_chassis_name,json=uplink1LldpChassisName,proto3" json:"uplink1_lldp_chassis_name,omitempty"` // switch SysName
+	Uplink1LldpChassisId   string `protobuf:"bytes,121,opt,name=uplink1_lldp_chassis_id,json=uplink1LldpChassisId,proto3" json:"uplink1_lldp_chassis_id,omitempty"`
+	Uplink1LldpMgmtIp      string `protobuf:"bytes,122,opt,name=uplink1_lldp_mgmt_ip,json=uplink1LldpMgmtIp,proto3" json:"uplink1_lldp_mgmt_ip,omitempty"`
+	Uplink1LldpPortId      string `protobuf:"bytes,123,opt,name=uplink1_lldp_port_id,json=uplink1LldpPortId,proto3" json:"uplink1_lldp_port_id,omitempty"`
+	Uplink1LldpPortDescr   string `protobuf:"bytes,124,opt,name=uplink1_lldp_port_descr,json=uplink1LldpPortDescr,proto3" json:"uplink1_lldp_port_descr,omitempty"`
+	// ---- metadata: host network topology, uplink slot 2 (200s) ---------------
+	Uplink2Ifname                    string `protobuf:"bytes,200,opt,name=uplink2_ifname,json=uplink2Ifname,proto3" json:"uplink2_ifname,omitempty"`
+	Uplink2NicDriver                 string `protobuf:"bytes,201,opt,name=uplink2_nic_driver,json=uplink2NicDriver,proto3" json:"uplink2_nic_driver,omitempty"`
+	Uplink2NicModel                  string `protobuf:"bytes,202,opt,name=uplink2_nic_model,json=uplink2NicModel,proto3" json:"uplink2_nic_model,omitempty"`
+	Uplink2NicPciVendor              uint32 `protobuf:"varint,203,opt,name=uplink2_nic_pci_vendor,json=uplink2NicPciVendor,proto3" json:"uplink2_nic_pci_vendor,omitempty"`
+	Uplink2NicPciDevice              uint32 `protobuf:"varint,204,opt,name=uplink2_nic_pci_device,json=uplink2NicPciDevice,proto3" json:"uplink2_nic_pci_device,omitempty"`
+	Uplink2NicBusInfo                string `protobuf:"bytes,205,opt,name=uplink2_nic_bus_info,json=uplink2NicBusInfo,proto3" json:"uplink2_nic_bus_info,omitempty"`
+	Uplink2NicSpeedMbps              uint32 `protobuf:"varint,206,opt,name=uplink2_nic_speed_mbps,json=uplink2NicSpeedMbps,proto3" json:"uplink2_nic_speed_mbps,omitempty"`
+	Uplink2NicFwVersion              string `protobuf:"bytes,207,opt,name=uplink2_nic_fw_version,json=uplink2NicFwVersion,proto3" json:"uplink2_nic_fw_version,omitempty"`
+	Uplink2LldpChassisName           string `protobuf:"bytes,220,opt,name=uplink2_lldp_chassis_name,json=uplink2LldpChassisName,proto3" json:"uplink2_lldp_chassis_name,omitempty"`
+	Uplink2LldpChassisId             string `protobuf:"bytes,221,opt,name=uplink2_lldp_chassis_id,json=uplink2LldpChassisId,proto3" json:"uplink2_lldp_chassis_id,omitempty"`
+	Uplink2LldpMgmtIp                string `protobuf:"bytes,222,opt,name=uplink2_lldp_mgmt_ip,json=uplink2LldpMgmtIp,proto3" json:"uplink2_lldp_mgmt_ip,omitempty"`
+	Uplink2LldpPortId                string `protobuf:"bytes,223,opt,name=uplink2_lldp_port_id,json=uplink2LldpPortId,proto3" json:"uplink2_lldp_port_id,omitempty"`
+	Uplink2LldpPortDescr             string `protobuf:"bytes,224,opt,name=uplink2_lldp_port_descr,json=uplink2LldpPortDescr,proto3" json:"uplink2_lldp_port_descr,omitempty"`
+	InetDiagMsgFamily                uint32 `protobuf:"varint,1001,opt,name=inet_diag_msg_family,json=inetDiagMsgFamily,proto3" json:"inet_diag_msg_family,omitempty"`                                                  // uint8
+	InetDiagMsgState                 uint32 `protobuf:"varint,1002,opt,name=inet_diag_msg_state,json=inetDiagMsgState,proto3" json:"inet_diag_msg_state,omitempty"`                                                     // uint8
+	InetDiagMsgTimer                 uint32 `protobuf:"varint,1003,opt,name=inet_diag_msg_timer,json=inetDiagMsgTimer,proto3" json:"inet_diag_msg_timer,omitempty"`                                                     // uint8
+	InetDiagMsgRetrans               uint32 `protobuf:"varint,1004,opt,name=inet_diag_msg_retrans,json=inetDiagMsgRetrans,proto3" json:"inet_diag_msg_retrans,omitempty"`                                               // uint8
+	InetDiagMsgSocketSourcePort      uint32 `protobuf:"varint,1005,opt,name=inet_diag_msg_socket_source_port,json=inetDiagMsgSocketSourcePort,proto3" json:"inet_diag_msg_socket_source_port,omitempty"`                // __be16
+	InetDiagMsgSocketDestinationPort uint32 `protobuf:"varint,1006,opt,name=inet_diag_msg_socket_destination_port,json=inetDiagMsgSocketDestinationPort,proto3" json:"inet_diag_msg_socket_destination_port,omitempty"` // __be16
+	InetDiagMsgSocketSource          []byte `protobuf:"bytes,1007,opt,name=inet_diag_msg_socket_source,json=inetDiagMsgSocketSource,proto3" json:"inet_diag_msg_socket_source,omitempty"`
+	InetDiagMsgSocketDestination     []byte `protobuf:"bytes,1008,opt,name=inet_diag_msg_socket_destination,json=inetDiagMsgSocketDestination,proto3" json:"inet_diag_msg_socket_destination,omitempty"`
+	InetDiagMsgSocketInterface       uint32 `protobuf:"varint,1009,opt,name=inet_diag_msg_socket_interface,json=inetDiagMsgSocketInterface,proto3" json:"inet_diag_msg_socket_interface,omitempty"`
+	InetDiagMsgSocketCookie          uint64 `protobuf:"varint,1010,opt,name=inet_diag_msg_socket_cookie,json=inetDiagMsgSocketCookie,proto3" json:"inet_diag_msg_socket_cookie,omitempty"` // [2]uint32
+	InetDiagMsgSocketDestAsn         uint64 `protobuf:"varint,1011,opt,name=inet_diag_msg_socket_dest_asn,json=inetDiagMsgSocketDestAsn,proto3" json:"inet_diag_msg_socket_dest_asn,omitempty"`
+	InetDiagMsgSocketNextHopAsn      uint64 `protobuf:"varint,1012,opt,name=inet_diag_msg_socket_next_hop_asn,json=inetDiagMsgSocketNextHopAsn,proto3" json:"inet_diag_msg_socket_next_hop_asn,omitempty"`
+	InetDiagMsgExpires               uint32 `protobuf:"varint,1013,opt,name=inet_diag_msg_expires,json=inetDiagMsgExpires,proto3" json:"inet_diag_msg_expires,omitempty"`
+	InetDiagMsgRqueue                uint32 `protobuf:"varint,1014,opt,name=inet_diag_msg_rqueue,json=inetDiagMsgRqueue,proto3" json:"inet_diag_msg_rqueue,omitempty"`
+	InetDiagMsgWqueue                uint32 `protobuf:"varint,1015,opt,name=inet_diag_msg_wqueue,json=inetDiagMsgWqueue,proto3" json:"inet_diag_msg_wqueue,omitempty"`
+	InetDiagMsgUid                   uint32 `protobuf:"varint,1016,opt,name=inet_diag_msg_uid,json=inetDiagMsgUid,proto3" json:"inet_diag_msg_uid,omitempty"`
+	InetDiagMsgInode                 uint32 `protobuf:"varint,1017,opt,name=inet_diag_msg_inode,json=inetDiagMsgInode,proto3" json:"inet_diag_msg_inode,omitempty"`
+	// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
+	// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
+	// so these ship as 0 on current records. The same values live in sk_mem_info:
+	//
+	//	mem_info_rmem == sk_mem_info_rmem_alloc  (1501)
+	//	mem_info_wmem == sk_mem_info_wmem_queued (1506)
+	//	mem_info_fmem == sk_mem_info_fwd_alloc   (1505)
+	//	mem_info_tmem == sk_mem_info_wmem_alloc  (1503)
+	//
+	// Field numbers retained (never reused); enable with `-deserializers all`.
+	// (Not marked `[deprecated = true]` so the still-supported opt-in decode path
+	// and tests don't trip staticcheck SA1019.)
+	MemInfoRmem        uint32 `protobuf:"varint,1101,opt,name=mem_info_rmem,json=memInfoRmem,proto3" json:"mem_info_rmem,omitempty"`
+	MemInfoWmem        uint32 `protobuf:"varint,1102,opt,name=mem_info_wmem,json=memInfoWmem,proto3" json:"mem_info_wmem,omitempty"`
+	MemInfoFmem        uint32 `protobuf:"varint,1103,opt,name=mem_info_fmem,json=memInfoFmem,proto3" json:"mem_info_fmem,omitempty"`
+	MemInfoTmem        uint32 `protobuf:"varint,1104,opt,name=mem_info_tmem,json=memInfoTmem,proto3" json:"mem_info_tmem,omitempty"`
+	TcpInfoState       uint32 `protobuf:"varint,1201,opt,name=tcp_info_state,json=tcpInfoState,proto3" json:"tcp_info_state,omitempty"`                   // uint8
+	TcpInfoCaState     uint32 `protobuf:"varint,1202,opt,name=tcp_info_ca_state,json=tcpInfoCaState,proto3" json:"tcp_info_ca_state,omitempty"`           // uint8
+	TcpInfoRetransmits uint32 `protobuf:"varint,1203,opt,name=tcp_info_retransmits,json=tcpInfoRetransmits,proto3" json:"tcp_info_retransmits,omitempty"` // uint8
+	TcpInfoProbes      uint32 `protobuf:"varint,1204,opt,name=tcp_info_probes,json=tcpInfoProbes,proto3" json:"tcp_info_probes,omitempty"`                // uint8
+	TcpInfoBackoff     uint32 `protobuf:"varint,1205,opt,name=tcp_info_backoff,json=tcpInfoBackoff,proto3" json:"tcp_info_backoff,omitempty"`             // uint8
+	TcpInfoOptions     uint32 `protobuf:"varint,1206,opt,name=tcp_info_options,json=tcpInfoOptions,proto3" json:"tcp_info_options,omitempty"`             // uint8
 	// __u8	_snd_wscale : 4, _rcv_wscale : 4;
 	// __u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
-	TcpInfoSendScale              uint32 `protobuf:"varint,307,opt,name=tcp_info_send_scale,json=tcpInfoSendScale,proto3" json:"tcp_info_send_scale,omitempty"`                                            // uint4
-	TcpInfoRcvScale               uint32 `protobuf:"varint,308,opt,name=tcp_info_rcv_scale,json=tcpInfoRcvScale,proto3" json:"tcp_info_rcv_scale,omitempty"`                                               // uint4
-	TcpInfoDeliveryRateAppLimited uint32 `protobuf:"varint,309,opt,name=tcp_info_delivery_rate_app_limited,json=tcpInfoDeliveryRateAppLimited,proto3" json:"tcp_info_delivery_rate_app_limited,omitempty"` // uint8
-	TcpInfoFastOpenClientFailed   uint32 `protobuf:"varint,310,opt,name=tcp_info_fast_open_client_failed,json=tcpInfoFastOpenClientFailed,proto3" json:"tcp_info_fast_open_client_failed,omitempty"`       // uint8
-	TcpInfoRto                    uint32 `protobuf:"varint,315,opt,name=tcp_info_rto,json=tcpInfoRto,proto3" json:"tcp_info_rto,omitempty"`
-	TcpInfoAto                    uint32 `protobuf:"varint,316,opt,name=tcp_info_ato,json=tcpInfoAto,proto3" json:"tcp_info_ato,omitempty"`
-	TcpInfoSndMss                 uint32 `protobuf:"varint,317,opt,name=tcp_info_snd_mss,json=tcpInfoSndMss,proto3" json:"tcp_info_snd_mss,omitempty"`
-	TcpInfoRcvMss                 uint32 `protobuf:"varint,318,opt,name=tcp_info_rcv_mss,json=tcpInfoRcvMss,proto3" json:"tcp_info_rcv_mss,omitempty"`
-	TcpInfoUnacked                uint32 `protobuf:"varint,319,opt,name=tcp_info_unacked,json=tcpInfoUnacked,proto3" json:"tcp_info_unacked,omitempty"`
-	TcpInfoSacked                 uint32 `protobuf:"varint,320,opt,name=tcp_info_sacked,json=tcpInfoSacked,proto3" json:"tcp_info_sacked,omitempty"`
-	TcpInfoLost                   uint32 `protobuf:"varint,321,opt,name=tcp_info_lost,json=tcpInfoLost,proto3" json:"tcp_info_lost,omitempty"`
-	TcpInfoRetrans                uint32 `protobuf:"varint,322,opt,name=tcp_info_retrans,json=tcpInfoRetrans,proto3" json:"tcp_info_retrans,omitempty"`
-	TcpInfoFackets                uint32 `protobuf:"varint,323,opt,name=tcp_info_fackets,json=tcpInfoFackets,proto3" json:"tcp_info_fackets,omitempty"`
+	TcpInfoSendScale              uint32 `protobuf:"varint,1207,opt,name=tcp_info_send_scale,json=tcpInfoSendScale,proto3" json:"tcp_info_send_scale,omitempty"`                                            // uint4
+	TcpInfoRcvScale               uint32 `protobuf:"varint,1208,opt,name=tcp_info_rcv_scale,json=tcpInfoRcvScale,proto3" json:"tcp_info_rcv_scale,omitempty"`                                               // uint4
+	TcpInfoDeliveryRateAppLimited uint32 `protobuf:"varint,1209,opt,name=tcp_info_delivery_rate_app_limited,json=tcpInfoDeliveryRateAppLimited,proto3" json:"tcp_info_delivery_rate_app_limited,omitempty"` // uint8
+	TcpInfoFastOpenClientFailed   uint32 `protobuf:"varint,1210,opt,name=tcp_info_fast_open_client_failed,json=tcpInfoFastOpenClientFailed,proto3" json:"tcp_info_fast_open_client_failed,omitempty"`       // uint8
+	TcpInfoRto                    uint32 `protobuf:"varint,1215,opt,name=tcp_info_rto,json=tcpInfoRto,proto3" json:"tcp_info_rto,omitempty"`
+	TcpInfoAto                    uint32 `protobuf:"varint,1216,opt,name=tcp_info_ato,json=tcpInfoAto,proto3" json:"tcp_info_ato,omitempty"`
+	TcpInfoSndMss                 uint32 `protobuf:"varint,1217,opt,name=tcp_info_snd_mss,json=tcpInfoSndMss,proto3" json:"tcp_info_snd_mss,omitempty"`
+	TcpInfoRcvMss                 uint32 `protobuf:"varint,1218,opt,name=tcp_info_rcv_mss,json=tcpInfoRcvMss,proto3" json:"tcp_info_rcv_mss,omitempty"`
+	TcpInfoUnacked                uint32 `protobuf:"varint,1219,opt,name=tcp_info_unacked,json=tcpInfoUnacked,proto3" json:"tcp_info_unacked,omitempty"`
+	TcpInfoSacked                 uint32 `protobuf:"varint,1220,opt,name=tcp_info_sacked,json=tcpInfoSacked,proto3" json:"tcp_info_sacked,omitempty"`
+	TcpInfoLost                   uint32 `protobuf:"varint,1221,opt,name=tcp_info_lost,json=tcpInfoLost,proto3" json:"tcp_info_lost,omitempty"`
+	TcpInfoRetrans                uint32 `protobuf:"varint,1222,opt,name=tcp_info_retrans,json=tcpInfoRetrans,proto3" json:"tcp_info_retrans,omitempty"`
+	TcpInfoFackets                uint32 `protobuf:"varint,1223,opt,name=tcp_info_fackets,json=tcpInfoFackets,proto3" json:"tcp_info_fackets,omitempty"`
 	// Times
-	TcpInfoLastDataSent uint32 `protobuf:"varint,324,opt,name=tcp_info_last_data_sent,json=tcpInfoLastDataSent,proto3" json:"tcp_info_last_data_sent,omitempty"`
-	TcpInfoLastAckSent  uint32 `protobuf:"varint,325,opt,name=tcp_info_last_ack_sent,json=tcpInfoLastAckSent,proto3" json:"tcp_info_last_ack_sent,omitempty"`
-	TcpInfoLastDataRecv uint32 `protobuf:"varint,326,opt,name=tcp_info_last_data_recv,json=tcpInfoLastDataRecv,proto3" json:"tcp_info_last_data_recv,omitempty"`
-	TcpInfoLastAckRecv  uint32 `protobuf:"varint,327,opt,name=tcp_info_last_ack_recv,json=tcpInfoLastAckRecv,proto3" json:"tcp_info_last_ack_recv,omitempty"`
+	TcpInfoLastDataSent uint32 `protobuf:"varint,1224,opt,name=tcp_info_last_data_sent,json=tcpInfoLastDataSent,proto3" json:"tcp_info_last_data_sent,omitempty"`
+	TcpInfoLastAckSent  uint32 `protobuf:"varint,1225,opt,name=tcp_info_last_ack_sent,json=tcpInfoLastAckSent,proto3" json:"tcp_info_last_ack_sent,omitempty"`
+	TcpInfoLastDataRecv uint32 `protobuf:"varint,1226,opt,name=tcp_info_last_data_recv,json=tcpInfoLastDataRecv,proto3" json:"tcp_info_last_data_recv,omitempty"`
+	TcpInfoLastAckRecv  uint32 `protobuf:"varint,1227,opt,name=tcp_info_last_ack_recv,json=tcpInfoLastAckRecv,proto3" json:"tcp_info_last_ack_recv,omitempty"`
 	// Metrics
-	TcpInfoPmtu          uint32 `protobuf:"varint,328,opt,name=tcp_info_pmtu,json=tcpInfoPmtu,proto3" json:"tcp_info_pmtu,omitempty"`
-	TcpInfoRcvSsthresh   uint32 `protobuf:"varint,329,opt,name=tcp_info_rcv_ssthresh,json=tcpInfoRcvSsthresh,proto3" json:"tcp_info_rcv_ssthresh,omitempty"`
-	TcpInfoRtt           uint32 `protobuf:"varint,330,opt,name=tcp_info_rtt,json=tcpInfoRtt,proto3" json:"tcp_info_rtt,omitempty"`
-	TcpInfoRttVar        uint32 `protobuf:"varint,331,opt,name=tcp_info_rtt_var,json=tcpInfoRttVar,proto3" json:"tcp_info_rtt_var,omitempty"`
-	TcpInfoSndSsthresh   uint32 `protobuf:"varint,332,opt,name=tcp_info_snd_ssthresh,json=tcpInfoSndSsthresh,proto3" json:"tcp_info_snd_ssthresh,omitempty"`
-	TcpInfoSndCwnd       uint32 `protobuf:"varint,333,opt,name=tcp_info_snd_cwnd,json=tcpInfoSndCwnd,proto3" json:"tcp_info_snd_cwnd,omitempty"`
-	TcpInfoAdvMss        uint32 `protobuf:"varint,334,opt,name=tcp_info_adv_mss,json=tcpInfoAdvMss,proto3" json:"tcp_info_adv_mss,omitempty"`
-	TcpInfoReordering    uint32 `protobuf:"varint,335,opt,name=tcp_info_reordering,json=tcpInfoReordering,proto3" json:"tcp_info_reordering,omitempty"`
-	TcpInfoRcvRtt        uint32 `protobuf:"varint,336,opt,name=tcp_info_rcv_rtt,json=tcpInfoRcvRtt,proto3" json:"tcp_info_rcv_rtt,omitempty"`
-	TcpInfoRcvSpace      uint32 `protobuf:"varint,337,opt,name=tcp_info_rcv_space,json=tcpInfoRcvSpace,proto3" json:"tcp_info_rcv_space,omitempty"`
-	TcpInfoTotalRetrans  uint32 `protobuf:"varint,338,opt,name=tcp_info_total_retrans,json=tcpInfoTotalRetrans,proto3" json:"tcp_info_total_retrans,omitempty"`
-	TcpInfoPacingRate    uint64 `protobuf:"varint,339,opt,name=tcp_info_pacing_rate,json=tcpInfoPacingRate,proto3" json:"tcp_info_pacing_rate,omitempty"`
-	TcpInfoMaxPacingRate uint64 `protobuf:"varint,340,opt,name=tcp_info_max_pacing_rate,json=tcpInfoMaxPacingRate,proto3" json:"tcp_info_max_pacing_rate,omitempty"`
-	TcpInfoBytesAcked    uint64 `protobuf:"varint,341,opt,name=tcp_info_bytes_acked,json=tcpInfoBytesAcked,proto3" json:"tcp_info_bytes_acked,omitempty"`          // RFC4898 tcpEStatsAppHCThruOctetsAcked
-	TcpInfoBytesReceived uint64 `protobuf:"varint,342,opt,name=tcp_info_bytes_received,json=tcpInfoBytesReceived,proto3" json:"tcp_info_bytes_received,omitempty"` // RFC4898 tcpEStatsAppHCThruOctetsReceived
-	TcpInfoSegsOut       uint32 `protobuf:"varint,343,opt,name=tcp_info_segs_out,json=tcpInfoSegsOut,proto3" json:"tcp_info_segs_out,omitempty"`                   // RFC4898 tcpEStatsPerfSegsOut
-	TcpInfoSegsIn        uint32 `protobuf:"varint,344,opt,name=tcp_info_segs_in,json=tcpInfoSegsIn,proto3" json:"tcp_info_segs_in,omitempty"`                      // RFC4898 tcpEStatsPerfSegsIn
-	TcpInfoNotSentBytes  uint32 `protobuf:"varint,345,opt,name=tcp_info_not_sent_bytes,json=tcpInfoNotSentBytes,proto3" json:"tcp_info_not_sent_bytes,omitempty"`
-	TcpInfoMinRtt        uint32 `protobuf:"varint,346,opt,name=tcp_info_min_rtt,json=tcpInfoMinRtt,proto3" json:"tcp_info_min_rtt,omitempty"`
-	TcpInfoDataSegsIn    uint32 `protobuf:"varint,347,opt,name=tcp_info_data_segs_in,json=tcpInfoDataSegsIn,proto3" json:"tcp_info_data_segs_in,omitempty"`    // RFC4898 tcpEStatsDataSegsIn
-	TcpInfoDataSegsOut   uint32 `protobuf:"varint,348,opt,name=tcp_info_data_segs_out,json=tcpInfoDataSegsOut,proto3" json:"tcp_info_data_segs_out,omitempty"` // RFC4898 tcpEStatsDataSegsOut
-	TcpInfoDeliveryRate  uint64 `protobuf:"varint,349,opt,name=tcp_info_delivery_rate,json=tcpInfoDeliveryRate,proto3" json:"tcp_info_delivery_rate,omitempty"`
-	TcpInfoBusyTime      uint64 `protobuf:"varint,350,opt,name=tcp_info_busy_time,json=tcpInfoBusyTime,proto3" json:"tcp_info_busy_time,omitempty"`                // Time (usec) busy sending data
-	TcpInfoRwndLimited   uint64 `protobuf:"varint,351,opt,name=tcp_info_rwnd_limited,json=tcpInfoRwndLimited,proto3" json:"tcp_info_rwnd_limited,omitempty"`       // Time (usec) limited by receive window
-	TcpInfoSndbufLimited uint64 `protobuf:"varint,352,opt,name=tcp_info_sndbuf_limited,json=tcpInfoSndbufLimited,proto3" json:"tcp_info_sndbuf_limited,omitempty"` // Time (usec) limited by send buffer
-	TcpInfoDelivered     uint32 `protobuf:"varint,353,opt,name=tcp_info_delivered,json=tcpInfoDelivered,proto3" json:"tcp_info_delivered,omitempty"`
-	TcpInfoDeliveredCe   uint32 `protobuf:"varint,354,opt,name=tcp_info_delivered_ce,json=tcpInfoDeliveredCe,proto3" json:"tcp_info_delivered_ce,omitempty"`
+	TcpInfoPmtu          uint32 `protobuf:"varint,1228,opt,name=tcp_info_pmtu,json=tcpInfoPmtu,proto3" json:"tcp_info_pmtu,omitempty"`
+	TcpInfoRcvSsthresh   uint32 `protobuf:"varint,1229,opt,name=tcp_info_rcv_ssthresh,json=tcpInfoRcvSsthresh,proto3" json:"tcp_info_rcv_ssthresh,omitempty"`
+	TcpInfoRtt           uint32 `protobuf:"varint,1230,opt,name=tcp_info_rtt,json=tcpInfoRtt,proto3" json:"tcp_info_rtt,omitempty"`
+	TcpInfoRttVar        uint32 `protobuf:"varint,1231,opt,name=tcp_info_rtt_var,json=tcpInfoRttVar,proto3" json:"tcp_info_rtt_var,omitempty"`
+	TcpInfoSndSsthresh   uint32 `protobuf:"varint,1232,opt,name=tcp_info_snd_ssthresh,json=tcpInfoSndSsthresh,proto3" json:"tcp_info_snd_ssthresh,omitempty"`
+	TcpInfoSndCwnd       uint32 `protobuf:"varint,1233,opt,name=tcp_info_snd_cwnd,json=tcpInfoSndCwnd,proto3" json:"tcp_info_snd_cwnd,omitempty"`
+	TcpInfoAdvMss        uint32 `protobuf:"varint,1234,opt,name=tcp_info_adv_mss,json=tcpInfoAdvMss,proto3" json:"tcp_info_adv_mss,omitempty"`
+	TcpInfoReordering    uint32 `protobuf:"varint,1235,opt,name=tcp_info_reordering,json=tcpInfoReordering,proto3" json:"tcp_info_reordering,omitempty"`
+	TcpInfoRcvRtt        uint32 `protobuf:"varint,1236,opt,name=tcp_info_rcv_rtt,json=tcpInfoRcvRtt,proto3" json:"tcp_info_rcv_rtt,omitempty"`
+	TcpInfoRcvSpace      uint32 `protobuf:"varint,1237,opt,name=tcp_info_rcv_space,json=tcpInfoRcvSpace,proto3" json:"tcp_info_rcv_space,omitempty"`
+	TcpInfoTotalRetrans  uint32 `protobuf:"varint,1238,opt,name=tcp_info_total_retrans,json=tcpInfoTotalRetrans,proto3" json:"tcp_info_total_retrans,omitempty"`
+	TcpInfoPacingRate    uint64 `protobuf:"varint,1239,opt,name=tcp_info_pacing_rate,json=tcpInfoPacingRate,proto3" json:"tcp_info_pacing_rate,omitempty"`
+	TcpInfoMaxPacingRate uint64 `protobuf:"varint,1240,opt,name=tcp_info_max_pacing_rate,json=tcpInfoMaxPacingRate,proto3" json:"tcp_info_max_pacing_rate,omitempty"`
+	TcpInfoBytesAcked    uint64 `protobuf:"varint,1241,opt,name=tcp_info_bytes_acked,json=tcpInfoBytesAcked,proto3" json:"tcp_info_bytes_acked,omitempty"`          // RFC4898 tcpEStatsAppHCThruOctetsAcked
+	TcpInfoBytesReceived uint64 `protobuf:"varint,1242,opt,name=tcp_info_bytes_received,json=tcpInfoBytesReceived,proto3" json:"tcp_info_bytes_received,omitempty"` // RFC4898 tcpEStatsAppHCThruOctetsReceived
+	TcpInfoSegsOut       uint32 `protobuf:"varint,1243,opt,name=tcp_info_segs_out,json=tcpInfoSegsOut,proto3" json:"tcp_info_segs_out,omitempty"`                   // RFC4898 tcpEStatsPerfSegsOut
+	TcpInfoSegsIn        uint32 `protobuf:"varint,1244,opt,name=tcp_info_segs_in,json=tcpInfoSegsIn,proto3" json:"tcp_info_segs_in,omitempty"`                      // RFC4898 tcpEStatsPerfSegsIn
+	TcpInfoNotSentBytes  uint32 `protobuf:"varint,1245,opt,name=tcp_info_not_sent_bytes,json=tcpInfoNotSentBytes,proto3" json:"tcp_info_not_sent_bytes,omitempty"`
+	TcpInfoMinRtt        uint32 `protobuf:"varint,1246,opt,name=tcp_info_min_rtt,json=tcpInfoMinRtt,proto3" json:"tcp_info_min_rtt,omitempty"`
+	TcpInfoDataSegsIn    uint32 `protobuf:"varint,1247,opt,name=tcp_info_data_segs_in,json=tcpInfoDataSegsIn,proto3" json:"tcp_info_data_segs_in,omitempty"`    // RFC4898 tcpEStatsDataSegsIn
+	TcpInfoDataSegsOut   uint32 `protobuf:"varint,1248,opt,name=tcp_info_data_segs_out,json=tcpInfoDataSegsOut,proto3" json:"tcp_info_data_segs_out,omitempty"` // RFC4898 tcpEStatsDataSegsOut
+	TcpInfoDeliveryRate  uint64 `protobuf:"varint,1249,opt,name=tcp_info_delivery_rate,json=tcpInfoDeliveryRate,proto3" json:"tcp_info_delivery_rate,omitempty"`
+	TcpInfoBusyTime      uint64 `protobuf:"varint,1250,opt,name=tcp_info_busy_time,json=tcpInfoBusyTime,proto3" json:"tcp_info_busy_time,omitempty"`                // Time (usec) busy sending data
+	TcpInfoRwndLimited   uint64 `protobuf:"varint,1251,opt,name=tcp_info_rwnd_limited,json=tcpInfoRwndLimited,proto3" json:"tcp_info_rwnd_limited,omitempty"`       // Time (usec) limited by receive window
+	TcpInfoSndbufLimited uint64 `protobuf:"varint,1252,opt,name=tcp_info_sndbuf_limited,json=tcpInfoSndbufLimited,proto3" json:"tcp_info_sndbuf_limited,omitempty"` // Time (usec) limited by send buffer
+	TcpInfoDelivered     uint32 `protobuf:"varint,1253,opt,name=tcp_info_delivered,json=tcpInfoDelivered,proto3" json:"tcp_info_delivered,omitempty"`
+	TcpInfoDeliveredCe   uint32 `protobuf:"varint,1254,opt,name=tcp_info_delivered_ce,json=tcpInfoDeliveredCe,proto3" json:"tcp_info_delivered_ce,omitempty"`
 	// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
-	TcpInfoBytesSent          uint64 `protobuf:"varint,355,opt,name=tcp_info_bytes_sent,json=tcpInfoBytesSent,proto3" json:"tcp_info_bytes_sent,omitempty"`                              // RFC4898 tcpEStatsPerfHCDataOctetsOut
-	TcpInfoBytesRetrans       uint64 `protobuf:"varint,356,opt,name=tcp_info_bytes_retrans,json=tcpInfoBytesRetrans,proto3" json:"tcp_info_bytes_retrans,omitempty"`                     // RFC4898 tcpEStatsPerfOctetsRetrans
-	TcpInfoDsackDups          uint32 `protobuf:"varint,357,opt,name=tcp_info_dsack_dups,json=tcpInfoDsackDups,proto3" json:"tcp_info_dsack_dups,omitempty"`                              // RFC4898 tcpEStatsStackDSACKDups
-	TcpInfoReordSeen          uint32 `protobuf:"varint,358,opt,name=tcp_info_reord_seen,json=tcpInfoReordSeen,proto3" json:"tcp_info_reord_seen,omitempty"`                              // reordering events seen
-	TcpInfoRcvOoopack         uint32 `protobuf:"varint,359,opt,name=tcp_info_rcv_ooopack,json=tcpInfoRcvOoopack,proto3" json:"tcp_info_rcv_ooopack,omitempty"`                           // Out-of-order packets received
-	TcpInfoSndWnd             uint32 `protobuf:"varint,360,opt,name=tcp_info_snd_wnd,json=tcpInfoSndWnd,proto3" json:"tcp_info_snd_wnd,omitempty"`                                       // peer's advertised receive window after scaling (bytes)
-	TcpInfoRcvWnd             uint32 `protobuf:"varint,361,opt,name=tcp_info_rcv_wnd,json=tcpInfoRcvWnd,proto3" json:"tcp_info_rcv_wnd,omitempty"`                                       // local advertised receive window after scaling (bytes)
-	TcpInfoRehash             uint32 `protobuf:"varint,362,opt,name=tcp_info_rehash,json=tcpInfoRehash,proto3" json:"tcp_info_rehash,omitempty"`                                         // PLB or timeout triggered rehash attempts
-	TcpInfoTotalRto           uint32 `protobuf:"varint,363,opt,name=tcp_info_total_rto,json=tcpInfoTotalRto,proto3" json:"tcp_info_total_rto,omitempty"`                                 // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
-	TcpInfoTotalRtoRecoveries uint32 `protobuf:"varint,364,opt,name=tcp_info_total_rto_recoveries,json=tcpInfoTotalRtoRecoveries,proto3" json:"tcp_info_total_rto_recoveries,omitempty"` // Total number of RTO recoveries, including any unfinished recovery
-	TcpInfoTotalRtoTime       uint32 `protobuf:"varint,365,opt,name=tcp_info_total_rto_time,json=tcpInfoTotalRtoTime,proto3" json:"tcp_info_total_rto_time,omitempty"`                   // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+	TcpInfoBytesSent          uint64 `protobuf:"varint,1255,opt,name=tcp_info_bytes_sent,json=tcpInfoBytesSent,proto3" json:"tcp_info_bytes_sent,omitempty"`                              // RFC4898 tcpEStatsPerfHCDataOctetsOut
+	TcpInfoBytesRetrans       uint64 `protobuf:"varint,1256,opt,name=tcp_info_bytes_retrans,json=tcpInfoBytesRetrans,proto3" json:"tcp_info_bytes_retrans,omitempty"`                     // RFC4898 tcpEStatsPerfOctetsRetrans
+	TcpInfoDsackDups          uint32 `protobuf:"varint,1257,opt,name=tcp_info_dsack_dups,json=tcpInfoDsackDups,proto3" json:"tcp_info_dsack_dups,omitempty"`                              // RFC4898 tcpEStatsStackDSACKDups
+	TcpInfoReordSeen          uint32 `protobuf:"varint,1258,opt,name=tcp_info_reord_seen,json=tcpInfoReordSeen,proto3" json:"tcp_info_reord_seen,omitempty"`                              // reordering events seen
+	TcpInfoRcvOoopack         uint32 `protobuf:"varint,1259,opt,name=tcp_info_rcv_ooopack,json=tcpInfoRcvOoopack,proto3" json:"tcp_info_rcv_ooopack,omitempty"`                           // Out-of-order packets received
+	TcpInfoSndWnd             uint32 `protobuf:"varint,1260,opt,name=tcp_info_snd_wnd,json=tcpInfoSndWnd,proto3" json:"tcp_info_snd_wnd,omitempty"`                                       // peer's advertised receive window after scaling (bytes)
+	TcpInfoRcvWnd             uint32 `protobuf:"varint,1261,opt,name=tcp_info_rcv_wnd,json=tcpInfoRcvWnd,proto3" json:"tcp_info_rcv_wnd,omitempty"`                                       // local advertised receive window after scaling (bytes)
+	TcpInfoRehash             uint32 `protobuf:"varint,1262,opt,name=tcp_info_rehash,json=tcpInfoRehash,proto3" json:"tcp_info_rehash,omitempty"`                                         // PLB or timeout triggered rehash attempts
+	TcpInfoTotalRto           uint32 `protobuf:"varint,1263,opt,name=tcp_info_total_rto,json=tcpInfoTotalRto,proto3" json:"tcp_info_total_rto,omitempty"`                                 // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+	TcpInfoTotalRtoRecoveries uint32 `protobuf:"varint,1264,opt,name=tcp_info_total_rto_recoveries,json=tcpInfoTotalRtoRecoveries,proto3" json:"tcp_info_total_rto_recoveries,omitempty"` // Total number of RTO recoveries, including any unfinished recovery
+	TcpInfoTotalRtoTime       uint32 `protobuf:"varint,1265,opt,name=tcp_info_total_rto_time,json=tcpInfoTotalRtoTime,proto3" json:"tcp_info_total_rto_time,omitempty"`                   // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
 	// Please note it's recommended to use the enum for efficency, but keeping the string
 	// just in case we need to quickly put a different algorithm in without updating the enum.
 	// Obviously it's optional, so it low cost.
-	CongestionAlgorithmString string                             `protobuf:"bytes,400,opt,name=congestion_algorithm_string,json=congestionAlgorithmString,proto3" json:"congestion_algorithm_string,omitempty"`                                                        // INET_DIAG_CONG 4
-	CongestionAlgorithmEnum   XtcpFlatRecord_CongestionAlgorithm `protobuf:"varint,401,opt,name=congestion_algorithm_enum,json=congestionAlgorithmEnum,proto3,enum=xtcp_flat_record.v1.XtcpFlatRecord_CongestionAlgorithm" json:"congestion_algorithm_enum,omitempty"` // INET_DIAG_CONG 4
-	TypeOfService             uint32                             `protobuf:"varint,501,opt,name=type_of_service,json=typeOfService,proto3" json:"type_of_service,omitempty"`                                                                                           // INET_DIAG_TOS 5 uint8
-	TrafficClass              uint32                             `protobuf:"varint,502,opt,name=traffic_class,json=trafficClass,proto3" json:"traffic_class,omitempty"`                                                                                                // INET_DIAG_TCLASS 6 uint8
-	SkMemInfoRmemAlloc        uint32                             `protobuf:"varint,601,opt,name=sk_mem_info_rmem_alloc,json=skMemInfoRmemAlloc,proto3" json:"sk_mem_info_rmem_alloc,omitempty"`
-	SkMemInfoRcvBuf           uint32                             `protobuf:"varint,602,opt,name=sk_mem_info_rcv_buf,json=skMemInfoRcvBuf,proto3" json:"sk_mem_info_rcv_buf,omitempty"`
-	SkMemInfoWmemAlloc        uint32                             `protobuf:"varint,603,opt,name=sk_mem_info_wmem_alloc,json=skMemInfoWmemAlloc,proto3" json:"sk_mem_info_wmem_alloc,omitempty"`
-	SkMemInfoSndBuf           uint32                             `protobuf:"varint,604,opt,name=sk_mem_info_snd_buf,json=skMemInfoSndBuf,proto3" json:"sk_mem_info_snd_buf,omitempty"`
-	SkMemInfoFwdAlloc         uint32                             `protobuf:"varint,605,opt,name=sk_mem_info_fwd_alloc,json=skMemInfoFwdAlloc,proto3" json:"sk_mem_info_fwd_alloc,omitempty"`
-	SkMemInfoWmemQueued       uint32                             `protobuf:"varint,606,opt,name=sk_mem_info_wmem_queued,json=skMemInfoWmemQueued,proto3" json:"sk_mem_info_wmem_queued,omitempty"`
-	SkMemInfoOptmem           uint32                             `protobuf:"varint,607,opt,name=sk_mem_info_optmem,json=skMemInfoOptmem,proto3" json:"sk_mem_info_optmem,omitempty"`
-	SkMemInfoBacklog          uint32                             `protobuf:"varint,608,opt,name=sk_mem_info_backlog,json=skMemInfoBacklog,proto3" json:"sk_mem_info_backlog,omitempty"`
-	SkMemInfoDrops            uint32                             `protobuf:"varint,609,opt,name=sk_mem_info_drops,json=skMemInfoDrops,proto3" json:"sk_mem_info_drops,omitempty"`
-	ShutdownState             uint32                             `protobuf:"varint,700,opt,name=shutdown_state,json=shutdownState,proto3" json:"shutdown_state,omitempty"` // UNIX_DIAG_SHUTDOWN 8uint8
-	VegasInfoEnabled          uint32                             `protobuf:"varint,801,opt,name=vegas_info_enabled,json=vegasInfoEnabled,proto3" json:"vegas_info_enabled,omitempty"`
-	VegasInfoRttCnt           uint32                             `protobuf:"varint,802,opt,name=vegas_info_rtt_cnt,json=vegasInfoRttCnt,proto3" json:"vegas_info_rtt_cnt,omitempty"`
-	VegasInfoRtt              uint32                             `protobuf:"varint,803,opt,name=vegas_info_rtt,json=vegasInfoRtt,proto3" json:"vegas_info_rtt,omitempty"`
-	VegasInfoMinRtt           uint32                             `protobuf:"varint,804,opt,name=vegas_info_min_rtt,json=vegasInfoMinRtt,proto3" json:"vegas_info_min_rtt,omitempty"`
-	DctcpInfoEnabled          uint32                             `protobuf:"varint,901,opt,name=dctcp_info_enabled,json=dctcpInfoEnabled,proto3" json:"dctcp_info_enabled,omitempty"`
-	DctcpInfoCeState          uint32                             `protobuf:"varint,902,opt,name=dctcp_info_ce_state,json=dctcpInfoCeState,proto3" json:"dctcp_info_ce_state,omitempty"`
-	DctcpInfoAlpha            uint32                             `protobuf:"varint,903,opt,name=dctcp_info_alpha,json=dctcpInfoAlpha,proto3" json:"dctcp_info_alpha,omitempty"`
-	DctcpInfoAbEcn            uint32                             `protobuf:"varint,904,opt,name=dctcp_info_ab_ecn,json=dctcpInfoAbEcn,proto3" json:"dctcp_info_ab_ecn,omitempty"`
-	DctcpInfoAbTot            uint32                             `protobuf:"varint,905,opt,name=dctcp_info_ab_tot,json=dctcpInfoAbTot,proto3" json:"dctcp_info_ab_tot,omitempty"`
-	BbrInfoBwLo               uint32                             `protobuf:"varint,1001,opt,name=bbr_info_bw_lo,json=bbrInfoBwLo,proto3" json:"bbr_info_bw_lo,omitempty"`
-	BbrInfoBwHi               uint32                             `protobuf:"varint,1002,opt,name=bbr_info_bw_hi,json=bbrInfoBwHi,proto3" json:"bbr_info_bw_hi,omitempty"`
-	BbrInfoMinRtt             uint32                             `protobuf:"varint,1003,opt,name=bbr_info_min_rtt,json=bbrInfoMinRtt,proto3" json:"bbr_info_min_rtt,omitempty"`
-	BbrInfoPacingGain         uint32                             `protobuf:"varint,1004,opt,name=bbr_info_pacing_gain,json=bbrInfoPacingGain,proto3" json:"bbr_info_pacing_gain,omitempty"`
-	BbrInfoCwndGain           uint32                             `protobuf:"varint,1005,opt,name=bbr_info_cwnd_gain,json=bbrInfoCwndGain,proto3" json:"bbr_info_cwnd_gain,omitempty"`
-	ClassId                   uint32                             `protobuf:"varint,1101,opt,name=class_id,json=classId,proto3" json:"class_id,omitempty"` // INET_DIAG_CLASS_ID 17 uint32
-	SockOpt                   uint32                             `protobuf:"varint,1102,opt,name=sock_opt,json=sockOpt,proto3" json:"sock_opt,omitempty"` // INET_DIAG_SOCKOPT
-	CGroup                    uint64                             `protobuf:"varint,1203,opt,name=c_group,json=cGroup,proto3" json:"c_group,omitempty"`    // INET_DIAG_BC_CGROUP_COND
+	CongestionAlgorithmString string                             `protobuf:"bytes,1300,opt,name=congestion_algorithm_string,json=congestionAlgorithmString,proto3" json:"congestion_algorithm_string,omitempty"`                                                        // INET_DIAG_CONG 4
+	CongestionAlgorithmEnum   XtcpFlatRecord_CongestionAlgorithm `protobuf:"varint,1301,opt,name=congestion_algorithm_enum,json=congestionAlgorithmEnum,proto3,enum=xtcp_flat_record.v1.XtcpFlatRecord_CongestionAlgorithm" json:"congestion_algorithm_enum,omitempty"` // INET_DIAG_CONG 4
+	TypeOfService             uint32                             `protobuf:"varint,1401,opt,name=type_of_service,json=typeOfService,proto3" json:"type_of_service,omitempty"`                                                                                           // INET_DIAG_TOS 5 uint8
+	TrafficClass              uint32                             `protobuf:"varint,1402,opt,name=traffic_class,json=trafficClass,proto3" json:"traffic_class,omitempty"`                                                                                                // INET_DIAG_TCLASS 6 uint8
+	SkMemInfoRmemAlloc        uint32                             `protobuf:"varint,1501,opt,name=sk_mem_info_rmem_alloc,json=skMemInfoRmemAlloc,proto3" json:"sk_mem_info_rmem_alloc,omitempty"`
+	SkMemInfoRcvBuf           uint32                             `protobuf:"varint,1502,opt,name=sk_mem_info_rcv_buf,json=skMemInfoRcvBuf,proto3" json:"sk_mem_info_rcv_buf,omitempty"`
+	SkMemInfoWmemAlloc        uint32                             `protobuf:"varint,1503,opt,name=sk_mem_info_wmem_alloc,json=skMemInfoWmemAlloc,proto3" json:"sk_mem_info_wmem_alloc,omitempty"`
+	SkMemInfoSndBuf           uint32                             `protobuf:"varint,1504,opt,name=sk_mem_info_snd_buf,json=skMemInfoSndBuf,proto3" json:"sk_mem_info_snd_buf,omitempty"`
+	SkMemInfoFwdAlloc         uint32                             `protobuf:"varint,1505,opt,name=sk_mem_info_fwd_alloc,json=skMemInfoFwdAlloc,proto3" json:"sk_mem_info_fwd_alloc,omitempty"`
+	SkMemInfoWmemQueued       uint32                             `protobuf:"varint,1506,opt,name=sk_mem_info_wmem_queued,json=skMemInfoWmemQueued,proto3" json:"sk_mem_info_wmem_queued,omitempty"`
+	SkMemInfoOptmem           uint32                             `protobuf:"varint,1507,opt,name=sk_mem_info_optmem,json=skMemInfoOptmem,proto3" json:"sk_mem_info_optmem,omitempty"`
+	SkMemInfoBacklog          uint32                             `protobuf:"varint,1508,opt,name=sk_mem_info_backlog,json=skMemInfoBacklog,proto3" json:"sk_mem_info_backlog,omitempty"`
+	SkMemInfoDrops            uint32                             `protobuf:"varint,1509,opt,name=sk_mem_info_drops,json=skMemInfoDrops,proto3" json:"sk_mem_info_drops,omitempty"`
+	ShutdownState             uint32                             `protobuf:"varint,1600,opt,name=shutdown_state,json=shutdownState,proto3" json:"shutdown_state,omitempty"` // UNIX_DIAG_SHUTDOWN 8uint8
+	VegasInfoEnabled          uint32                             `protobuf:"varint,1701,opt,name=vegas_info_enabled,json=vegasInfoEnabled,proto3" json:"vegas_info_enabled,omitempty"`
+	VegasInfoRttCnt           uint32                             `protobuf:"varint,1702,opt,name=vegas_info_rtt_cnt,json=vegasInfoRttCnt,proto3" json:"vegas_info_rtt_cnt,omitempty"`
+	VegasInfoRtt              uint32                             `protobuf:"varint,1703,opt,name=vegas_info_rtt,json=vegasInfoRtt,proto3" json:"vegas_info_rtt,omitempty"`
+	VegasInfoMinRtt           uint32                             `protobuf:"varint,1704,opt,name=vegas_info_min_rtt,json=vegasInfoMinRtt,proto3" json:"vegas_info_min_rtt,omitempty"`
+	DctcpInfoEnabled          uint32                             `protobuf:"varint,1801,opt,name=dctcp_info_enabled,json=dctcpInfoEnabled,proto3" json:"dctcp_info_enabled,omitempty"`
+	DctcpInfoCeState          uint32                             `protobuf:"varint,1802,opt,name=dctcp_info_ce_state,json=dctcpInfoCeState,proto3" json:"dctcp_info_ce_state,omitempty"`
+	DctcpInfoAlpha            uint32                             `protobuf:"varint,1803,opt,name=dctcp_info_alpha,json=dctcpInfoAlpha,proto3" json:"dctcp_info_alpha,omitempty"`
+	DctcpInfoAbEcn            uint32                             `protobuf:"varint,1804,opt,name=dctcp_info_ab_ecn,json=dctcpInfoAbEcn,proto3" json:"dctcp_info_ab_ecn,omitempty"`
+	DctcpInfoAbTot            uint32                             `protobuf:"varint,1805,opt,name=dctcp_info_ab_tot,json=dctcpInfoAbTot,proto3" json:"dctcp_info_ab_tot,omitempty"`
+	BbrInfoBwLo               uint32                             `protobuf:"varint,1901,opt,name=bbr_info_bw_lo,json=bbrInfoBwLo,proto3" json:"bbr_info_bw_lo,omitempty"`
+	BbrInfoBwHi               uint32                             `protobuf:"varint,1902,opt,name=bbr_info_bw_hi,json=bbrInfoBwHi,proto3" json:"bbr_info_bw_hi,omitempty"`
+	BbrInfoMinRtt             uint32                             `protobuf:"varint,1903,opt,name=bbr_info_min_rtt,json=bbrInfoMinRtt,proto3" json:"bbr_info_min_rtt,omitempty"`
+	BbrInfoPacingGain         uint32                             `protobuf:"varint,1904,opt,name=bbr_info_pacing_gain,json=bbrInfoPacingGain,proto3" json:"bbr_info_pacing_gain,omitempty"`
+	BbrInfoCwndGain           uint32                             `protobuf:"varint,1905,opt,name=bbr_info_cwnd_gain,json=bbrInfoCwndGain,proto3" json:"bbr_info_cwnd_gain,omitempty"`
+	ClassId                   uint32                             `protobuf:"varint,2001,opt,name=class_id,json=classId,proto3" json:"class_id,omitempty"` // INET_DIAG_CLASS_ID 17 uint32
+	SockOpt                   uint32                             `protobuf:"varint,2002,opt,name=sock_opt,json=sockOpt,proto3" json:"sock_opt,omitempty"` // INET_DIAG_SOCKOPT
+	CGroup                    uint64                             `protobuf:"varint,2103,opt,name=c_group,json=cGroup,proto3" json:"c_group,omitempty"`    // INET_DIAG_BC_CGROUP_COND
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -339,6 +413,20 @@ func (x *XtcpFlatRecord) ProtoReflect() protoreflect.Message {
 // Deprecated: Use XtcpFlatRecord.ProtoReflect.Descriptor instead.
 func (*XtcpFlatRecord) Descriptor() ([]byte, []int) {
 	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *XtcpFlatRecord) GetSchemaVersion() uint32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetDaemonVersion() string {
+	if x != nil {
+		return x.DaemonVersion
+	}
+	return ""
 }
 
 func (x *XtcpFlatRecord) GetTimestampNs() int64 {
@@ -376,6 +464,13 @@ func (x *XtcpFlatRecord) GetNetnsInode() uint64 {
 	return 0
 }
 
+func (x *XtcpFlatRecord) GetNsid() uint32 {
+	if x != nil {
+		return x.Nsid
+	}
+	return 0
+}
+
 func (x *XtcpFlatRecord) GetContainerId() string {
 	if x != nil {
 		return x.ContainerId
@@ -390,11 +485,18 @@ func (x *XtcpFlatRecord) GetContainerRuntime() string {
 	return ""
 }
 
-func (x *XtcpFlatRecord) GetNsid() uint32 {
+func (x *XtcpFlatRecord) GetContainerName() string {
 	if x != nil {
-		return x.Nsid
+		return x.ContainerName
 	}
-	return 0
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetContainerImage() string {
+	if x != nil {
+		return x.ContainerImage
+	}
+	return ""
 }
 
 func (x *XtcpFlatRecord) GetLabel() string {
@@ -430,6 +532,188 @@ func (x *XtcpFlatRecord) GetNetlinkerId() uint64 {
 		return x.NetlinkerId
 	}
 	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink1Ifname() string {
+	if x != nil {
+		return x.Uplink1Ifname
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicDriver() string {
+	if x != nil {
+		return x.Uplink1NicDriver
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicModel() string {
+	if x != nil {
+		return x.Uplink1NicModel
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicPciVendor() uint32 {
+	if x != nil {
+		return x.Uplink1NicPciVendor
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicPciDevice() uint32 {
+	if x != nil {
+		return x.Uplink1NicPciDevice
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicBusInfo() string {
+	if x != nil {
+		return x.Uplink1NicBusInfo
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicSpeedMbps() uint32 {
+	if x != nil {
+		return x.Uplink1NicSpeedMbps
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink1NicFwVersion() string {
+	if x != nil {
+		return x.Uplink1NicFwVersion
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1LldpChassisName() string {
+	if x != nil {
+		return x.Uplink1LldpChassisName
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1LldpChassisId() string {
+	if x != nil {
+		return x.Uplink1LldpChassisId
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1LldpMgmtIp() string {
+	if x != nil {
+		return x.Uplink1LldpMgmtIp
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1LldpPortId() string {
+	if x != nil {
+		return x.Uplink1LldpPortId
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink1LldpPortDescr() string {
+	if x != nil {
+		return x.Uplink1LldpPortDescr
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2Ifname() string {
+	if x != nil {
+		return x.Uplink2Ifname
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicDriver() string {
+	if x != nil {
+		return x.Uplink2NicDriver
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicModel() string {
+	if x != nil {
+		return x.Uplink2NicModel
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicPciVendor() uint32 {
+	if x != nil {
+		return x.Uplink2NicPciVendor
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicPciDevice() uint32 {
+	if x != nil {
+		return x.Uplink2NicPciDevice
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicBusInfo() string {
+	if x != nil {
+		return x.Uplink2NicBusInfo
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicSpeedMbps() uint32 {
+	if x != nil {
+		return x.Uplink2NicSpeedMbps
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetUplink2NicFwVersion() string {
+	if x != nil {
+		return x.Uplink2NicFwVersion
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2LldpChassisName() string {
+	if x != nil {
+		return x.Uplink2LldpChassisName
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2LldpChassisId() string {
+	if x != nil {
+		return x.Uplink2LldpChassisId
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2LldpMgmtIp() string {
+	if x != nil {
+		return x.Uplink2LldpMgmtIp
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2LldpPortId() string {
+	if x != nil {
+		return x.Uplink2LldpPortId
+	}
+	return ""
+}
+
+func (x *XtcpFlatRecord) GetUplink2LldpPortDescr() string {
+	if x != nil {
+		return x.Uplink2LldpPortDescr
+	}
+	return ""
 }
 
 func (x *XtcpFlatRecord) GetInetDiagMsgFamily() uint32 {
@@ -1390,139 +1674,173 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xb00\n" +
-	"\x0eXtcpFlatRecord\x12!\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\x8e<\n" +
+	"\x0eXtcpFlatRecord\x12%\n" +
+	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12%\n" +
+	"\x0edaemon_version\x18\x02 \x01(\tR\rdaemonVersion\x12!\n" +
 	"\ftimestamp_ns\x18\n" +
 	" \x01(\x03R\vtimestampNs\x12\x1a\n" +
 	"\bhostname\x18\x14 \x01(\tR\bhostname\x12\x1a\n" +
 	"\blocation\x18\x15 \x01(\tR\blocation\x12\x14\n" +
 	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x1f\n" +
-	"\vnetns_inode\x18! \x01(\x04R\n" +
-	"netnsInode\x12!\n" +
-	"\fcontainer_id\x18\x1f \x01(\tR\vcontainerId\x12+\n" +
-	"\x11container_runtime\x18  \x01(\tR\x10containerRuntime\x12\x12\n" +
-	"\x04nsid\x18( \x01(\rR\x04nsid\x12\x14\n" +
+	"\vnetns_inode\x18\x1f \x01(\x04R\n" +
+	"netnsInode\x12\x12\n" +
+	"\x04nsid\x18  \x01(\rR\x04nsid\x12!\n" +
+	"\fcontainer_id\x18( \x01(\tR\vcontainerId\x12+\n" +
+	"\x11container_runtime\x18) \x01(\tR\x10containerRuntime\x12%\n" +
+	"\x0econtainer_name\x18* \x01(\tR\rcontainerName\x12'\n" +
+	"\x0fcontainer_image\x18+ \x01(\tR\x0econtainerImage\x12\x14\n" +
 	"\x05label\x182 \x01(\tR\x05label\x12\x10\n" +
-	"\x03tag\x18< \x01(\tR\x03tag\x12%\n" +
-	"\x0erecord_counter\x18F \x01(\x04R\rrecordCounter\x12\x1b\n" +
-	"\tsocket_fd\x18P \x01(\x04R\bsocketFd\x12!\n" +
-	"\fnetlinker_id\x18Z \x01(\x04R\vnetlinkerId\x12/\n" +
-	"\x14inet_diag_msg_family\x18e \x01(\rR\x11inetDiagMsgFamily\x12-\n" +
-	"\x13inet_diag_msg_state\x18f \x01(\rR\x10inetDiagMsgState\x12-\n" +
-	"\x13inet_diag_msg_timer\x18g \x01(\rR\x10inetDiagMsgTimer\x121\n" +
-	"\x15inet_diag_msg_retrans\x18h \x01(\rR\x12inetDiagMsgRetrans\x12E\n" +
-	" inet_diag_msg_socket_source_port\x18i \x01(\rR\x1binetDiagMsgSocketSourcePort\x12O\n" +
-	"%inet_diag_msg_socket_destination_port\x18j \x01(\rR inetDiagMsgSocketDestinationPort\x12<\n" +
-	"\x1binet_diag_msg_socket_source\x18k \x01(\fR\x17inetDiagMsgSocketSource\x12F\n" +
-	" inet_diag_msg_socket_destination\x18l \x01(\fR\x1cinetDiagMsgSocketDestination\x12B\n" +
-	"\x1einet_diag_msg_socket_interface\x18m \x01(\rR\x1ainetDiagMsgSocketInterface\x12<\n" +
-	"\x1binet_diag_msg_socket_cookie\x18n \x01(\x04R\x17inetDiagMsgSocketCookie\x12?\n" +
-	"\x1dinet_diag_msg_socket_dest_asn\x18o \x01(\x04R\x18inetDiagMsgSocketDestAsn\x12F\n" +
-	"!inet_diag_msg_socket_next_hop_asn\x18p \x01(\x04R\x1binetDiagMsgSocketNextHopAsn\x121\n" +
-	"\x15inet_diag_msg_expires\x18q \x01(\rR\x12inetDiagMsgExpires\x12/\n" +
-	"\x14inet_diag_msg_rqueue\x18r \x01(\rR\x11inetDiagMsgRqueue\x12/\n" +
-	"\x14inet_diag_msg_wqueue\x18s \x01(\rR\x11inetDiagMsgWqueue\x12)\n" +
-	"\x11inet_diag_msg_uid\x18t \x01(\rR\x0einetDiagMsgUid\x12-\n" +
-	"\x13inet_diag_msg_inode\x18u \x01(\rR\x10inetDiagMsgInode\x12#\n" +
-	"\rmem_info_rmem\x18\xc9\x01 \x01(\rR\vmemInfoRmem\x12#\n" +
-	"\rmem_info_wmem\x18\xca\x01 \x01(\rR\vmemInfoWmem\x12#\n" +
-	"\rmem_info_fmem\x18\xcb\x01 \x01(\rR\vmemInfoFmem\x12#\n" +
-	"\rmem_info_tmem\x18\xcc\x01 \x01(\rR\vmemInfoTmem\x12%\n" +
-	"\x0etcp_info_state\x18\xad\x02 \x01(\rR\ftcpInfoState\x12*\n" +
-	"\x11tcp_info_ca_state\x18\xae\x02 \x01(\rR\x0etcpInfoCaState\x121\n" +
-	"\x14tcp_info_retransmits\x18\xaf\x02 \x01(\rR\x12tcpInfoRetransmits\x12'\n" +
-	"\x0ftcp_info_probes\x18\xb0\x02 \x01(\rR\rtcpInfoProbes\x12)\n" +
-	"\x10tcp_info_backoff\x18\xb1\x02 \x01(\rR\x0etcpInfoBackoff\x12)\n" +
-	"\x10tcp_info_options\x18\xb2\x02 \x01(\rR\x0etcpInfoOptions\x12.\n" +
-	"\x13tcp_info_send_scale\x18\xb3\x02 \x01(\rR\x10tcpInfoSendScale\x12,\n" +
-	"\x12tcp_info_rcv_scale\x18\xb4\x02 \x01(\rR\x0ftcpInfoRcvScale\x12J\n" +
-	"\"tcp_info_delivery_rate_app_limited\x18\xb5\x02 \x01(\rR\x1dtcpInfoDeliveryRateAppLimited\x12F\n" +
-	" tcp_info_fast_open_client_failed\x18\xb6\x02 \x01(\rR\x1btcpInfoFastOpenClientFailed\x12!\n" +
-	"\ftcp_info_rto\x18\xbb\x02 \x01(\rR\n" +
+	"\x03tag\x183 \x01(\tR\x03tag\x12%\n" +
+	"\x0erecord_counter\x18< \x01(\x04R\rrecordCounter\x12\x1b\n" +
+	"\tsocket_fd\x18= \x01(\x04R\bsocketFd\x12!\n" +
+	"\fnetlinker_id\x18> \x01(\x04R\vnetlinkerId\x12%\n" +
+	"\x0euplink1_ifname\x18d \x01(\tR\ruplink1Ifname\x12,\n" +
+	"\x12uplink1_nic_driver\x18e \x01(\tR\x10uplink1NicDriver\x12*\n" +
+	"\x11uplink1_nic_model\x18f \x01(\tR\x0fuplink1NicModel\x123\n" +
+	"\x16uplink1_nic_pci_vendor\x18g \x01(\rR\x13uplink1NicPciVendor\x123\n" +
+	"\x16uplink1_nic_pci_device\x18h \x01(\rR\x13uplink1NicPciDevice\x12/\n" +
+	"\x14uplink1_nic_bus_info\x18i \x01(\tR\x11uplink1NicBusInfo\x123\n" +
+	"\x16uplink1_nic_speed_mbps\x18j \x01(\rR\x13uplink1NicSpeedMbps\x123\n" +
+	"\x16uplink1_nic_fw_version\x18k \x01(\tR\x13uplink1NicFwVersion\x129\n" +
+	"\x19uplink1_lldp_chassis_name\x18x \x01(\tR\x16uplink1LldpChassisName\x125\n" +
+	"\x17uplink1_lldp_chassis_id\x18y \x01(\tR\x14uplink1LldpChassisId\x12/\n" +
+	"\x14uplink1_lldp_mgmt_ip\x18z \x01(\tR\x11uplink1LldpMgmtIp\x12/\n" +
+	"\x14uplink1_lldp_port_id\x18{ \x01(\tR\x11uplink1LldpPortId\x125\n" +
+	"\x17uplink1_lldp_port_descr\x18| \x01(\tR\x14uplink1LldpPortDescr\x12&\n" +
+	"\x0euplink2_ifname\x18\xc8\x01 \x01(\tR\ruplink2Ifname\x12-\n" +
+	"\x12uplink2_nic_driver\x18\xc9\x01 \x01(\tR\x10uplink2NicDriver\x12+\n" +
+	"\x11uplink2_nic_model\x18\xca\x01 \x01(\tR\x0fuplink2NicModel\x124\n" +
+	"\x16uplink2_nic_pci_vendor\x18\xcb\x01 \x01(\rR\x13uplink2NicPciVendor\x124\n" +
+	"\x16uplink2_nic_pci_device\x18\xcc\x01 \x01(\rR\x13uplink2NicPciDevice\x120\n" +
+	"\x14uplink2_nic_bus_info\x18\xcd\x01 \x01(\tR\x11uplink2NicBusInfo\x124\n" +
+	"\x16uplink2_nic_speed_mbps\x18\xce\x01 \x01(\rR\x13uplink2NicSpeedMbps\x124\n" +
+	"\x16uplink2_nic_fw_version\x18\xcf\x01 \x01(\tR\x13uplink2NicFwVersion\x12:\n" +
+	"\x19uplink2_lldp_chassis_name\x18\xdc\x01 \x01(\tR\x16uplink2LldpChassisName\x126\n" +
+	"\x17uplink2_lldp_chassis_id\x18\xdd\x01 \x01(\tR\x14uplink2LldpChassisId\x120\n" +
+	"\x14uplink2_lldp_mgmt_ip\x18\xde\x01 \x01(\tR\x11uplink2LldpMgmtIp\x120\n" +
+	"\x14uplink2_lldp_port_id\x18\xdf\x01 \x01(\tR\x11uplink2LldpPortId\x126\n" +
+	"\x17uplink2_lldp_port_descr\x18\xe0\x01 \x01(\tR\x14uplink2LldpPortDescr\x120\n" +
+	"\x14inet_diag_msg_family\x18\xe9\a \x01(\rR\x11inetDiagMsgFamily\x12.\n" +
+	"\x13inet_diag_msg_state\x18\xea\a \x01(\rR\x10inetDiagMsgState\x12.\n" +
+	"\x13inet_diag_msg_timer\x18\xeb\a \x01(\rR\x10inetDiagMsgTimer\x122\n" +
+	"\x15inet_diag_msg_retrans\x18\xec\a \x01(\rR\x12inetDiagMsgRetrans\x12F\n" +
+	" inet_diag_msg_socket_source_port\x18\xed\a \x01(\rR\x1binetDiagMsgSocketSourcePort\x12P\n" +
+	"%inet_diag_msg_socket_destination_port\x18\xee\a \x01(\rR inetDiagMsgSocketDestinationPort\x12=\n" +
+	"\x1binet_diag_msg_socket_source\x18\xef\a \x01(\fR\x17inetDiagMsgSocketSource\x12G\n" +
+	" inet_diag_msg_socket_destination\x18\xf0\a \x01(\fR\x1cinetDiagMsgSocketDestination\x12C\n" +
+	"\x1einet_diag_msg_socket_interface\x18\xf1\a \x01(\rR\x1ainetDiagMsgSocketInterface\x12=\n" +
+	"\x1binet_diag_msg_socket_cookie\x18\xf2\a \x01(\x04R\x17inetDiagMsgSocketCookie\x12@\n" +
+	"\x1dinet_diag_msg_socket_dest_asn\x18\xf3\a \x01(\x04R\x18inetDiagMsgSocketDestAsn\x12G\n" +
+	"!inet_diag_msg_socket_next_hop_asn\x18\xf4\a \x01(\x04R\x1binetDiagMsgSocketNextHopAsn\x122\n" +
+	"\x15inet_diag_msg_expires\x18\xf5\a \x01(\rR\x12inetDiagMsgExpires\x120\n" +
+	"\x14inet_diag_msg_rqueue\x18\xf6\a \x01(\rR\x11inetDiagMsgRqueue\x120\n" +
+	"\x14inet_diag_msg_wqueue\x18\xf7\a \x01(\rR\x11inetDiagMsgWqueue\x12*\n" +
+	"\x11inet_diag_msg_uid\x18\xf8\a \x01(\rR\x0einetDiagMsgUid\x12.\n" +
+	"\x13inet_diag_msg_inode\x18\xf9\a \x01(\rR\x10inetDiagMsgInode\x12#\n" +
+	"\rmem_info_rmem\x18\xcd\b \x01(\rR\vmemInfoRmem\x12#\n" +
+	"\rmem_info_wmem\x18\xce\b \x01(\rR\vmemInfoWmem\x12#\n" +
+	"\rmem_info_fmem\x18\xcf\b \x01(\rR\vmemInfoFmem\x12#\n" +
+	"\rmem_info_tmem\x18\xd0\b \x01(\rR\vmemInfoTmem\x12%\n" +
+	"\x0etcp_info_state\x18\xb1\t \x01(\rR\ftcpInfoState\x12*\n" +
+	"\x11tcp_info_ca_state\x18\xb2\t \x01(\rR\x0etcpInfoCaState\x121\n" +
+	"\x14tcp_info_retransmits\x18\xb3\t \x01(\rR\x12tcpInfoRetransmits\x12'\n" +
+	"\x0ftcp_info_probes\x18\xb4\t \x01(\rR\rtcpInfoProbes\x12)\n" +
+	"\x10tcp_info_backoff\x18\xb5\t \x01(\rR\x0etcpInfoBackoff\x12)\n" +
+	"\x10tcp_info_options\x18\xb6\t \x01(\rR\x0etcpInfoOptions\x12.\n" +
+	"\x13tcp_info_send_scale\x18\xb7\t \x01(\rR\x10tcpInfoSendScale\x12,\n" +
+	"\x12tcp_info_rcv_scale\x18\xb8\t \x01(\rR\x0ftcpInfoRcvScale\x12J\n" +
+	"\"tcp_info_delivery_rate_app_limited\x18\xb9\t \x01(\rR\x1dtcpInfoDeliveryRateAppLimited\x12F\n" +
+	" tcp_info_fast_open_client_failed\x18\xba\t \x01(\rR\x1btcpInfoFastOpenClientFailed\x12!\n" +
+	"\ftcp_info_rto\x18\xbf\t \x01(\rR\n" +
 	"tcpInfoRto\x12!\n" +
-	"\ftcp_info_ato\x18\xbc\x02 \x01(\rR\n" +
+	"\ftcp_info_ato\x18\xc0\t \x01(\rR\n" +
 	"tcpInfoAto\x12(\n" +
-	"\x10tcp_info_snd_mss\x18\xbd\x02 \x01(\rR\rtcpInfoSndMss\x12(\n" +
-	"\x10tcp_info_rcv_mss\x18\xbe\x02 \x01(\rR\rtcpInfoRcvMss\x12)\n" +
-	"\x10tcp_info_unacked\x18\xbf\x02 \x01(\rR\x0etcpInfoUnacked\x12'\n" +
-	"\x0ftcp_info_sacked\x18\xc0\x02 \x01(\rR\rtcpInfoSacked\x12#\n" +
-	"\rtcp_info_lost\x18\xc1\x02 \x01(\rR\vtcpInfoLost\x12)\n" +
-	"\x10tcp_info_retrans\x18\xc2\x02 \x01(\rR\x0etcpInfoRetrans\x12)\n" +
-	"\x10tcp_info_fackets\x18\xc3\x02 \x01(\rR\x0etcpInfoFackets\x125\n" +
-	"\x17tcp_info_last_data_sent\x18\xc4\x02 \x01(\rR\x13tcpInfoLastDataSent\x123\n" +
-	"\x16tcp_info_last_ack_sent\x18\xc5\x02 \x01(\rR\x12tcpInfoLastAckSent\x125\n" +
-	"\x17tcp_info_last_data_recv\x18\xc6\x02 \x01(\rR\x13tcpInfoLastDataRecv\x123\n" +
-	"\x16tcp_info_last_ack_recv\x18\xc7\x02 \x01(\rR\x12tcpInfoLastAckRecv\x12#\n" +
-	"\rtcp_info_pmtu\x18\xc8\x02 \x01(\rR\vtcpInfoPmtu\x122\n" +
-	"\x15tcp_info_rcv_ssthresh\x18\xc9\x02 \x01(\rR\x12tcpInfoRcvSsthresh\x12!\n" +
-	"\ftcp_info_rtt\x18\xca\x02 \x01(\rR\n" +
+	"\x10tcp_info_snd_mss\x18\xc1\t \x01(\rR\rtcpInfoSndMss\x12(\n" +
+	"\x10tcp_info_rcv_mss\x18\xc2\t \x01(\rR\rtcpInfoRcvMss\x12)\n" +
+	"\x10tcp_info_unacked\x18\xc3\t \x01(\rR\x0etcpInfoUnacked\x12'\n" +
+	"\x0ftcp_info_sacked\x18\xc4\t \x01(\rR\rtcpInfoSacked\x12#\n" +
+	"\rtcp_info_lost\x18\xc5\t \x01(\rR\vtcpInfoLost\x12)\n" +
+	"\x10tcp_info_retrans\x18\xc6\t \x01(\rR\x0etcpInfoRetrans\x12)\n" +
+	"\x10tcp_info_fackets\x18\xc7\t \x01(\rR\x0etcpInfoFackets\x125\n" +
+	"\x17tcp_info_last_data_sent\x18\xc8\t \x01(\rR\x13tcpInfoLastDataSent\x123\n" +
+	"\x16tcp_info_last_ack_sent\x18\xc9\t \x01(\rR\x12tcpInfoLastAckSent\x125\n" +
+	"\x17tcp_info_last_data_recv\x18\xca\t \x01(\rR\x13tcpInfoLastDataRecv\x123\n" +
+	"\x16tcp_info_last_ack_recv\x18\xcb\t \x01(\rR\x12tcpInfoLastAckRecv\x12#\n" +
+	"\rtcp_info_pmtu\x18\xcc\t \x01(\rR\vtcpInfoPmtu\x122\n" +
+	"\x15tcp_info_rcv_ssthresh\x18\xcd\t \x01(\rR\x12tcpInfoRcvSsthresh\x12!\n" +
+	"\ftcp_info_rtt\x18\xce\t \x01(\rR\n" +
 	"tcpInfoRtt\x12(\n" +
-	"\x10tcp_info_rtt_var\x18\xcb\x02 \x01(\rR\rtcpInfoRttVar\x122\n" +
-	"\x15tcp_info_snd_ssthresh\x18\xcc\x02 \x01(\rR\x12tcpInfoSndSsthresh\x12*\n" +
-	"\x11tcp_info_snd_cwnd\x18\xcd\x02 \x01(\rR\x0etcpInfoSndCwnd\x12(\n" +
-	"\x10tcp_info_adv_mss\x18\xce\x02 \x01(\rR\rtcpInfoAdvMss\x12/\n" +
-	"\x13tcp_info_reordering\x18\xcf\x02 \x01(\rR\x11tcpInfoReordering\x12(\n" +
-	"\x10tcp_info_rcv_rtt\x18\xd0\x02 \x01(\rR\rtcpInfoRcvRtt\x12,\n" +
-	"\x12tcp_info_rcv_space\x18\xd1\x02 \x01(\rR\x0ftcpInfoRcvSpace\x124\n" +
-	"\x16tcp_info_total_retrans\x18\xd2\x02 \x01(\rR\x13tcpInfoTotalRetrans\x120\n" +
-	"\x14tcp_info_pacing_rate\x18\xd3\x02 \x01(\x04R\x11tcpInfoPacingRate\x127\n" +
-	"\x18tcp_info_max_pacing_rate\x18\xd4\x02 \x01(\x04R\x14tcpInfoMaxPacingRate\x120\n" +
-	"\x14tcp_info_bytes_acked\x18\xd5\x02 \x01(\x04R\x11tcpInfoBytesAcked\x126\n" +
-	"\x17tcp_info_bytes_received\x18\xd6\x02 \x01(\x04R\x14tcpInfoBytesReceived\x12*\n" +
-	"\x11tcp_info_segs_out\x18\xd7\x02 \x01(\rR\x0etcpInfoSegsOut\x12(\n" +
-	"\x10tcp_info_segs_in\x18\xd8\x02 \x01(\rR\rtcpInfoSegsIn\x125\n" +
-	"\x17tcp_info_not_sent_bytes\x18\xd9\x02 \x01(\rR\x13tcpInfoNotSentBytes\x12(\n" +
-	"\x10tcp_info_min_rtt\x18\xda\x02 \x01(\rR\rtcpInfoMinRtt\x121\n" +
-	"\x15tcp_info_data_segs_in\x18\xdb\x02 \x01(\rR\x11tcpInfoDataSegsIn\x123\n" +
-	"\x16tcp_info_data_segs_out\x18\xdc\x02 \x01(\rR\x12tcpInfoDataSegsOut\x124\n" +
-	"\x16tcp_info_delivery_rate\x18\xdd\x02 \x01(\x04R\x13tcpInfoDeliveryRate\x12,\n" +
-	"\x12tcp_info_busy_time\x18\xde\x02 \x01(\x04R\x0ftcpInfoBusyTime\x122\n" +
-	"\x15tcp_info_rwnd_limited\x18\xdf\x02 \x01(\x04R\x12tcpInfoRwndLimited\x126\n" +
-	"\x17tcp_info_sndbuf_limited\x18\xe0\x02 \x01(\x04R\x14tcpInfoSndbufLimited\x12-\n" +
-	"\x12tcp_info_delivered\x18\xe1\x02 \x01(\rR\x10tcpInfoDelivered\x122\n" +
-	"\x15tcp_info_delivered_ce\x18\xe2\x02 \x01(\rR\x12tcpInfoDeliveredCe\x12.\n" +
-	"\x13tcp_info_bytes_sent\x18\xe3\x02 \x01(\x04R\x10tcpInfoBytesSent\x124\n" +
-	"\x16tcp_info_bytes_retrans\x18\xe4\x02 \x01(\x04R\x13tcpInfoBytesRetrans\x12.\n" +
-	"\x13tcp_info_dsack_dups\x18\xe5\x02 \x01(\rR\x10tcpInfoDsackDups\x12.\n" +
-	"\x13tcp_info_reord_seen\x18\xe6\x02 \x01(\rR\x10tcpInfoReordSeen\x120\n" +
-	"\x14tcp_info_rcv_ooopack\x18\xe7\x02 \x01(\rR\x11tcpInfoRcvOoopack\x12(\n" +
-	"\x10tcp_info_snd_wnd\x18\xe8\x02 \x01(\rR\rtcpInfoSndWnd\x12(\n" +
-	"\x10tcp_info_rcv_wnd\x18\xe9\x02 \x01(\rR\rtcpInfoRcvWnd\x12'\n" +
-	"\x0ftcp_info_rehash\x18\xea\x02 \x01(\rR\rtcpInfoRehash\x12,\n" +
-	"\x12tcp_info_total_rto\x18\xeb\x02 \x01(\rR\x0ftcpInfoTotalRto\x12A\n" +
-	"\x1dtcp_info_total_rto_recoveries\x18\xec\x02 \x01(\rR\x19tcpInfoTotalRtoRecoveries\x125\n" +
-	"\x17tcp_info_total_rto_time\x18\xed\x02 \x01(\rR\x13tcpInfoTotalRtoTime\x12?\n" +
-	"\x1bcongestion_algorithm_string\x18\x90\x03 \x01(\tR\x19congestionAlgorithmString\x12t\n" +
-	"\x19congestion_algorithm_enum\x18\x91\x03 \x01(\x0e27.xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithmR\x17congestionAlgorithmEnum\x12'\n" +
-	"\x0ftype_of_service\x18\xf5\x03 \x01(\rR\rtypeOfService\x12$\n" +
-	"\rtraffic_class\x18\xf6\x03 \x01(\rR\ftrafficClass\x123\n" +
-	"\x16sk_mem_info_rmem_alloc\x18\xd9\x04 \x01(\rR\x12skMemInfoRmemAlloc\x12-\n" +
-	"\x13sk_mem_info_rcv_buf\x18\xda\x04 \x01(\rR\x0fskMemInfoRcvBuf\x123\n" +
-	"\x16sk_mem_info_wmem_alloc\x18\xdb\x04 \x01(\rR\x12skMemInfoWmemAlloc\x12-\n" +
-	"\x13sk_mem_info_snd_buf\x18\xdc\x04 \x01(\rR\x0fskMemInfoSndBuf\x121\n" +
-	"\x15sk_mem_info_fwd_alloc\x18\xdd\x04 \x01(\rR\x11skMemInfoFwdAlloc\x125\n" +
-	"\x17sk_mem_info_wmem_queued\x18\xde\x04 \x01(\rR\x13skMemInfoWmemQueued\x12,\n" +
-	"\x12sk_mem_info_optmem\x18\xdf\x04 \x01(\rR\x0fskMemInfoOptmem\x12.\n" +
-	"\x13sk_mem_info_backlog\x18\xe0\x04 \x01(\rR\x10skMemInfoBacklog\x12*\n" +
-	"\x11sk_mem_info_drops\x18\xe1\x04 \x01(\rR\x0eskMemInfoDrops\x12&\n" +
-	"\x0eshutdown_state\x18\xbc\x05 \x01(\rR\rshutdownState\x12-\n" +
-	"\x12vegas_info_enabled\x18\xa1\x06 \x01(\rR\x10vegasInfoEnabled\x12,\n" +
-	"\x12vegas_info_rtt_cnt\x18\xa2\x06 \x01(\rR\x0fvegasInfoRttCnt\x12%\n" +
-	"\x0evegas_info_rtt\x18\xa3\x06 \x01(\rR\fvegasInfoRtt\x12,\n" +
-	"\x12vegas_info_min_rtt\x18\xa4\x06 \x01(\rR\x0fvegasInfoMinRtt\x12-\n" +
-	"\x12dctcp_info_enabled\x18\x85\a \x01(\rR\x10dctcpInfoEnabled\x12.\n" +
-	"\x13dctcp_info_ce_state\x18\x86\a \x01(\rR\x10dctcpInfoCeState\x12)\n" +
-	"\x10dctcp_info_alpha\x18\x87\a \x01(\rR\x0edctcpInfoAlpha\x12*\n" +
-	"\x11dctcp_info_ab_ecn\x18\x88\a \x01(\rR\x0edctcpInfoAbEcn\x12*\n" +
-	"\x11dctcp_info_ab_tot\x18\x89\a \x01(\rR\x0edctcpInfoAbTot\x12$\n" +
-	"\x0ebbr_info_bw_lo\x18\xe9\a \x01(\rR\vbbrInfoBwLo\x12$\n" +
-	"\x0ebbr_info_bw_hi\x18\xea\a \x01(\rR\vbbrInfoBwHi\x12(\n" +
-	"\x10bbr_info_min_rtt\x18\xeb\a \x01(\rR\rbbrInfoMinRtt\x120\n" +
-	"\x14bbr_info_pacing_gain\x18\xec\a \x01(\rR\x11bbrInfoPacingGain\x12,\n" +
-	"\x12bbr_info_cwnd_gain\x18\xed\a \x01(\rR\x0fbbrInfoCwndGain\x12\x1a\n" +
-	"\bclass_id\x18\xcd\b \x01(\rR\aclassId\x12\x1a\n" +
-	"\bsock_opt\x18\xce\b \x01(\rR\asockOpt\x12\x18\n" +
-	"\ac_group\x18\xb3\t \x01(\x04R\x06cGroup\"\x99\x02\n" +
+	"\x10tcp_info_rtt_var\x18\xcf\t \x01(\rR\rtcpInfoRttVar\x122\n" +
+	"\x15tcp_info_snd_ssthresh\x18\xd0\t \x01(\rR\x12tcpInfoSndSsthresh\x12*\n" +
+	"\x11tcp_info_snd_cwnd\x18\xd1\t \x01(\rR\x0etcpInfoSndCwnd\x12(\n" +
+	"\x10tcp_info_adv_mss\x18\xd2\t \x01(\rR\rtcpInfoAdvMss\x12/\n" +
+	"\x13tcp_info_reordering\x18\xd3\t \x01(\rR\x11tcpInfoReordering\x12(\n" +
+	"\x10tcp_info_rcv_rtt\x18\xd4\t \x01(\rR\rtcpInfoRcvRtt\x12,\n" +
+	"\x12tcp_info_rcv_space\x18\xd5\t \x01(\rR\x0ftcpInfoRcvSpace\x124\n" +
+	"\x16tcp_info_total_retrans\x18\xd6\t \x01(\rR\x13tcpInfoTotalRetrans\x120\n" +
+	"\x14tcp_info_pacing_rate\x18\xd7\t \x01(\x04R\x11tcpInfoPacingRate\x127\n" +
+	"\x18tcp_info_max_pacing_rate\x18\xd8\t \x01(\x04R\x14tcpInfoMaxPacingRate\x120\n" +
+	"\x14tcp_info_bytes_acked\x18\xd9\t \x01(\x04R\x11tcpInfoBytesAcked\x126\n" +
+	"\x17tcp_info_bytes_received\x18\xda\t \x01(\x04R\x14tcpInfoBytesReceived\x12*\n" +
+	"\x11tcp_info_segs_out\x18\xdb\t \x01(\rR\x0etcpInfoSegsOut\x12(\n" +
+	"\x10tcp_info_segs_in\x18\xdc\t \x01(\rR\rtcpInfoSegsIn\x125\n" +
+	"\x17tcp_info_not_sent_bytes\x18\xdd\t \x01(\rR\x13tcpInfoNotSentBytes\x12(\n" +
+	"\x10tcp_info_min_rtt\x18\xde\t \x01(\rR\rtcpInfoMinRtt\x121\n" +
+	"\x15tcp_info_data_segs_in\x18\xdf\t \x01(\rR\x11tcpInfoDataSegsIn\x123\n" +
+	"\x16tcp_info_data_segs_out\x18\xe0\t \x01(\rR\x12tcpInfoDataSegsOut\x124\n" +
+	"\x16tcp_info_delivery_rate\x18\xe1\t \x01(\x04R\x13tcpInfoDeliveryRate\x12,\n" +
+	"\x12tcp_info_busy_time\x18\xe2\t \x01(\x04R\x0ftcpInfoBusyTime\x122\n" +
+	"\x15tcp_info_rwnd_limited\x18\xe3\t \x01(\x04R\x12tcpInfoRwndLimited\x126\n" +
+	"\x17tcp_info_sndbuf_limited\x18\xe4\t \x01(\x04R\x14tcpInfoSndbufLimited\x12-\n" +
+	"\x12tcp_info_delivered\x18\xe5\t \x01(\rR\x10tcpInfoDelivered\x122\n" +
+	"\x15tcp_info_delivered_ce\x18\xe6\t \x01(\rR\x12tcpInfoDeliveredCe\x12.\n" +
+	"\x13tcp_info_bytes_sent\x18\xe7\t \x01(\x04R\x10tcpInfoBytesSent\x124\n" +
+	"\x16tcp_info_bytes_retrans\x18\xe8\t \x01(\x04R\x13tcpInfoBytesRetrans\x12.\n" +
+	"\x13tcp_info_dsack_dups\x18\xe9\t \x01(\rR\x10tcpInfoDsackDups\x12.\n" +
+	"\x13tcp_info_reord_seen\x18\xea\t \x01(\rR\x10tcpInfoReordSeen\x120\n" +
+	"\x14tcp_info_rcv_ooopack\x18\xeb\t \x01(\rR\x11tcpInfoRcvOoopack\x12(\n" +
+	"\x10tcp_info_snd_wnd\x18\xec\t \x01(\rR\rtcpInfoSndWnd\x12(\n" +
+	"\x10tcp_info_rcv_wnd\x18\xed\t \x01(\rR\rtcpInfoRcvWnd\x12'\n" +
+	"\x0ftcp_info_rehash\x18\xee\t \x01(\rR\rtcpInfoRehash\x12,\n" +
+	"\x12tcp_info_total_rto\x18\xef\t \x01(\rR\x0ftcpInfoTotalRto\x12A\n" +
+	"\x1dtcp_info_total_rto_recoveries\x18\xf0\t \x01(\rR\x19tcpInfoTotalRtoRecoveries\x125\n" +
+	"\x17tcp_info_total_rto_time\x18\xf1\t \x01(\rR\x13tcpInfoTotalRtoTime\x12?\n" +
+	"\x1bcongestion_algorithm_string\x18\x94\n" +
+	" \x01(\tR\x19congestionAlgorithmString\x12t\n" +
+	"\x19congestion_algorithm_enum\x18\x95\n" +
+	" \x01(\x0e27.xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithmR\x17congestionAlgorithmEnum\x12'\n" +
+	"\x0ftype_of_service\x18\xf9\n" +
+	" \x01(\rR\rtypeOfService\x12$\n" +
+	"\rtraffic_class\x18\xfa\n" +
+	" \x01(\rR\ftrafficClass\x123\n" +
+	"\x16sk_mem_info_rmem_alloc\x18\xdd\v \x01(\rR\x12skMemInfoRmemAlloc\x12-\n" +
+	"\x13sk_mem_info_rcv_buf\x18\xde\v \x01(\rR\x0fskMemInfoRcvBuf\x123\n" +
+	"\x16sk_mem_info_wmem_alloc\x18\xdf\v \x01(\rR\x12skMemInfoWmemAlloc\x12-\n" +
+	"\x13sk_mem_info_snd_buf\x18\xe0\v \x01(\rR\x0fskMemInfoSndBuf\x121\n" +
+	"\x15sk_mem_info_fwd_alloc\x18\xe1\v \x01(\rR\x11skMemInfoFwdAlloc\x125\n" +
+	"\x17sk_mem_info_wmem_queued\x18\xe2\v \x01(\rR\x13skMemInfoWmemQueued\x12,\n" +
+	"\x12sk_mem_info_optmem\x18\xe3\v \x01(\rR\x0fskMemInfoOptmem\x12.\n" +
+	"\x13sk_mem_info_backlog\x18\xe4\v \x01(\rR\x10skMemInfoBacklog\x12*\n" +
+	"\x11sk_mem_info_drops\x18\xe5\v \x01(\rR\x0eskMemInfoDrops\x12&\n" +
+	"\x0eshutdown_state\x18\xc0\f \x01(\rR\rshutdownState\x12-\n" +
+	"\x12vegas_info_enabled\x18\xa5\r \x01(\rR\x10vegasInfoEnabled\x12,\n" +
+	"\x12vegas_info_rtt_cnt\x18\xa6\r \x01(\rR\x0fvegasInfoRttCnt\x12%\n" +
+	"\x0evegas_info_rtt\x18\xa7\r \x01(\rR\fvegasInfoRtt\x12,\n" +
+	"\x12vegas_info_min_rtt\x18\xa8\r \x01(\rR\x0fvegasInfoMinRtt\x12-\n" +
+	"\x12dctcp_info_enabled\x18\x89\x0e \x01(\rR\x10dctcpInfoEnabled\x12.\n" +
+	"\x13dctcp_info_ce_state\x18\x8a\x0e \x01(\rR\x10dctcpInfoCeState\x12)\n" +
+	"\x10dctcp_info_alpha\x18\x8b\x0e \x01(\rR\x0edctcpInfoAlpha\x12*\n" +
+	"\x11dctcp_info_ab_ecn\x18\x8c\x0e \x01(\rR\x0edctcpInfoAbEcn\x12*\n" +
+	"\x11dctcp_info_ab_tot\x18\x8d\x0e \x01(\rR\x0edctcpInfoAbTot\x12$\n" +
+	"\x0ebbr_info_bw_lo\x18\xed\x0e \x01(\rR\vbbrInfoBwLo\x12$\n" +
+	"\x0ebbr_info_bw_hi\x18\xee\x0e \x01(\rR\vbbrInfoBwHi\x12(\n" +
+	"\x10bbr_info_min_rtt\x18\xef\x0e \x01(\rR\rbbrInfoMinRtt\x120\n" +
+	"\x14bbr_info_pacing_gain\x18\xf0\x0e \x01(\rR\x11bbrInfoPacingGain\x12,\n" +
+	"\x12bbr_info_cwnd_gain\x18\xf1\x0e \x01(\rR\x0fbbrInfoCwndGain\x12\x1a\n" +
+	"\bclass_id\x18\xd1\x0f \x01(\rR\aclassId\x12\x1a\n" +
+	"\bsock_opt\x18\xd2\x0f \x01(\rR\asockOpt\x12\x18\n" +
+	"\ac_group\x18\xb7\x10 \x01(\x04R\x06cGroup\"\x99\x02\n" +
 	"\x13CongestionAlgorithm\x12$\n" +
 	" CONGESTION_ALGORITHM_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aCONGESTION_ALGORITHM_CUBIC\x10\x01\x12\x1e\n" +
