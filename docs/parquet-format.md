@@ -6,6 +6,7 @@ The short version: when xtcp2 runs with the S3/Parquet destination it writes **H
 
 ## Table of contents
 
+- [How the data is aggregated (two layers)](#how-the-data-is-aggregated-two-layers)
 - [Where the files land](#where-the-files-land)
 - [File size, cadence, and compression](#file-size-cadence-and-compression)
 - [Reading the data](#reading-the-data)
@@ -17,6 +18,16 @@ The short version: when xtcp2 runs with the S3/Parquet destination it writes **H
 - [Types, nulls, and gotchas](#types-nulls-and-gotchas)
 - [Where the schema is defined](#where-the-schema-is-defined)
 - [See also](#see-also)
+
+## How the data is aggregated (two layers)
+
+Before you model the storage, know how a single `.parquet` object is assembled — two layers of aggregation decide what ends up in one file, and neither is per-namespace.
+
+**Layer 1 — one batch merges every namespace.** Each poll dumps the host namespace *and* every container/pod namespace on the box, and all of those sockets accumulate together into a single in-memory protobuf *Envelope* (flushed at ~768 KiB or 10000 rows, whichever trips first — a busy poll emits several; see [polling & batching](polling-and-batching.md)). Namespace identity is preserved only as the `netns` / `netns_inode` columns — it is never a file or partition boundary. There is **no per-namespace file**; one file interleaves sockets from all namespaces on that host.
+
+**Layer 2 — one file spans many batches.** The S3/Parquet destination appends the rows of *many* Envelopes into one long-lived Parquet builder, finalizing a file only when the builder reaches ~63 MiB or a staleness timer fires (see [file size, cadence, and compression](#file-size-cadence-and-compression)). So the Envelope caps are **not** file boundaries — a single `.parquet` object aggregates many Envelopes' worth of rows.
+
+**Net:** per host, xtcp2 produces one stream of aggregated Parquet files, each interleaving sockets from all namespaces, cut only by size or time and partitioned only by host/date/hour (see [where the files land](#where-the-files-land)).
 
 ## Where the files land
 
