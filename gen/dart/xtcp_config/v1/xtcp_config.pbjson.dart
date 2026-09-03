@@ -258,6 +258,61 @@ final $typed_data.Uint8List setS3UploadResponseDescriptor = $convert.base64Decod
     'ChNTZXRTM1VwbG9hZFJlc3BvbnNlEjIKBmNvbmZpZxgBIAEoCzIaLnh0Y3BfY29uZmlnLnYxLl'
     'h0Y3BDb25maWdSBmNvbmZpZw==');
 
+@$core.Deprecated('Use setEnvelopeFlushRequestDescriptor instead')
+const SetEnvelopeFlushRequest$json = {
+  '1': 'SetEnvelopeFlushRequest',
+  '2': [
+    {
+      '1': 'envelope_flush_threshold_bytes',
+      '3': 10,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'envelopeFlushThresholdBytes'
+    },
+    {
+      '1': 'envelope_flush_threshold_rows',
+      '3': 20,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'envelopeFlushThresholdRows'
+    },
+  ],
+  '7': {},
+};
+
+/// Descriptor for `SetEnvelopeFlushRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setEnvelopeFlushRequestDescriptor = $convert.base64Decode(
+    'ChdTZXRFbnZlbG9wZUZsdXNoUmVxdWVzdBJLCh5lbnZlbG9wZV9mbHVzaF90aHJlc2hvbGRfYn'
+    'l0ZXMYCiABKA1CBrpIA8gBAFIbZW52ZWxvcGVGbHVzaFRocmVzaG9sZEJ5dGVzEkkKHWVudmVs'
+    'b3BlX2ZsdXNoX3RocmVzaG9sZF9yb3dzGBQgASgNQga6SAPIAQBSGmVudmVsb3BlRmx1c2hUaH'
+    'Jlc2hvbGRSb3dzOsABuki8ARq5AQobU2V0RW52ZWxvcGVGbHVzaC5hdExlYXN0T25lEkdzZXQg'
+    'ZW52ZWxvcGVfZmx1c2hfdGhyZXNob2xkX2J5dGVzIGFuZC9vciBlbnZlbG9wZV9mbHVzaF90aH'
+    'Jlc2hvbGRfcm93cxpRdGhpcy5lbnZlbG9wZV9mbHVzaF90aHJlc2hvbGRfYnl0ZXMgPiAwIHx8'
+    'IHRoaXMuZW52ZWxvcGVfZmx1c2hfdGhyZXNob2xkX3Jvd3MgPiAw');
+
+@$core.Deprecated('Use setEnvelopeFlushResponseDescriptor instead')
+const SetEnvelopeFlushResponse$json = {
+  '1': 'SetEnvelopeFlushResponse',
+  '2': [
+    {
+      '1': 'config',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.XtcpConfig',
+      '10': 'config'
+    },
+  ],
+};
+
+/// Descriptor for `SetEnvelopeFlushResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List setEnvelopeFlushResponseDescriptor =
+    $convert.base64Decode(
+        'ChhTZXRFbnZlbG9wZUZsdXNoUmVzcG9uc2USMgoGY29uZmlnGAEgASgLMhoueHRjcF9jb25maW'
+        'cudjEuWHRjcENvbmZpZ1IGY29uZmln');
+
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {
   '1': 'XtcpConfig',

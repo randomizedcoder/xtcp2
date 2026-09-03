@@ -95,6 +95,22 @@ extern const ::google::protobuf::internal::ClassDataFull GetResponse_class_data_
 #else
 extern const GetResponseGlobalsTypeInternal GetResponse_globals_;
 #endif  // PROTOBUF_MESSAGE_GLOBALS
+class SetEnvelopeFlushRequest;
+struct SetEnvelopeFlushRequestGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern SetEnvelopeFlushRequestGlobalsTypeInternal SetEnvelopeFlushRequest_globals_;
+extern const ::google::protobuf::internal::ClassDataFull SetEnvelopeFlushRequest_class_data_;
+#else
+extern const SetEnvelopeFlushRequestGlobalsTypeInternal SetEnvelopeFlushRequest_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+class SetEnvelopeFlushResponse;
+struct SetEnvelopeFlushResponseGlobalsTypeInternal;
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+extern SetEnvelopeFlushResponseGlobalsTypeInternal SetEnvelopeFlushResponse_globals_;
+extern const ::google::protobuf::internal::ClassDataFull SetEnvelopeFlushResponse_class_data_;
+#else
+extern const SetEnvelopeFlushResponseGlobalsTypeInternal SetEnvelopeFlushResponse_globals_;
+#endif  // PROTOBUF_MESSAGE_GLOBALS
 class SetPollFrequencyRequest;
 struct SetPollFrequencyRequestGlobalsTypeInternal;
 #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -470,6 +486,219 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED TriggerPollRequest final : public :
   friend class ::google::protobuf::Arena::InternalHelper;
   using InternalArenaConstructable_ = void;
   using DestructorSkippable_ = void;
+  friend struct ::TableStruct_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto;
+};
+// -------------------------------------------------------------------
+
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SetEnvelopeFlushRequest final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:xtcp_config.v1.SetEnvelopeFlushRequest) */ {
+ public:
+  inline SetEnvelopeFlushRequest() : SetEnvelopeFlushRequest(nullptr) {}
+  ~SetEnvelopeFlushRequest() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(SetEnvelopeFlushRequest* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(SetEnvelopeFlushRequest));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr SetEnvelopeFlushRequest(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline SetEnvelopeFlushRequest(const SetEnvelopeFlushRequest& from) : SetEnvelopeFlushRequest(nullptr, from) {}
+  inline SetEnvelopeFlushRequest(SetEnvelopeFlushRequest&& from) noexcept : SetEnvelopeFlushRequest(nullptr, ::std::move(from)) {}
+  inline SetEnvelopeFlushRequest& operator=(const SetEnvelopeFlushRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline SetEnvelopeFlushRequest& operator=(SetEnvelopeFlushRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const SetEnvelopeFlushRequest& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<SetEnvelopeFlushRequest>(&SetEnvelopeFlushRequest_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 12;
+  friend void swap(SetEnvelopeFlushRequest& a, SetEnvelopeFlushRequest& b) { a.Swap(&b); }
+  inline void Swap(SetEnvelopeFlushRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(SetEnvelopeFlushRequest* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] SetEnvelopeFlushRequest* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<SetEnvelopeFlushRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const SetEnvelopeFlushRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const SetEnvelopeFlushRequest& from) { SetEnvelopeFlushRequest::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(SetEnvelopeFlushRequest* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "xtcp_config.v1.SetEnvelopeFlushRequest"; }
+
+  explicit SetEnvelopeFlushRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  SetEnvelopeFlushRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const SetEnvelopeFlushRequest& from);
+  SetEnvelopeFlushRequest(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, SetEnvelopeFlushRequest&& from) noexcept
+      : SetEnvelopeFlushRequest(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kEnvelopeFlushThresholdBytesFieldNumber = 10,
+    kEnvelopeFlushThresholdRowsFieldNumber = 20,
+  };
+  // uint32 envelope_flush_threshold_bytes = 10 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_bytes() ;
+  [[nodiscard]] ::uint32_t envelope_flush_threshold_bytes() const;
+  void set_envelope_flush_threshold_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_envelope_flush_threshold_bytes() const;
+  void _internal_set_envelope_flush_threshold_bytes(::uint32_t value);
+
+  public:
+  // uint32 envelope_flush_threshold_rows = 20 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_rows() ;
+  [[nodiscard]] ::uint32_t envelope_flush_threshold_rows() const;
+  void set_envelope_flush_threshold_rows(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_envelope_flush_threshold_rows() const;
+  void _internal_set_envelope_flush_threshold_rows(::uint32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:xtcp_config.v1.SetEnvelopeFlushRequest)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<2, 2,
+                          0, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const SetEnvelopeFlushRequest& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::uint32_t envelope_flush_threshold_bytes_;
+    ::uint32_t envelope_flush_threshold_rows_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
   friend struct ::TableStruct_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto;
 };
 // -------------------------------------------------------------------
@@ -1599,7 +1828,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED EnabledDeserializers final : public
   [[nodiscard]] static const EnabledDeserializers& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<EnabledDeserializers>(&EnabledDeserializers_globals_);
   }
-  static constexpr int kIndexInFileMessages = 14;
+  static constexpr int kIndexInFileMessages = 16;
   friend void swap(EnabledDeserializers& a, EnabledDeserializers& b) { a.Swap(&b); }
   inline void Swap(EnabledDeserializers* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1806,7 +2035,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   [[nodiscard]] static const XtcpConfig& default_instance() {
     return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<XtcpConfig>(&XtcpConfig_globals_);
   }
-  static constexpr int kIndexInFileMessages = 12;
+  static constexpr int kIndexInFileMessages = 14;
   friend void swap(XtcpConfig& a, XtcpConfig& b) { a.Swap(&b); }
   inline void Swap(XtcpConfig* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -3738,6 +3967,213 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SetPollFrequencyResponse final : pu
 };
 // -------------------------------------------------------------------
 
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SetEnvelopeFlushResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:xtcp_config.v1.SetEnvelopeFlushResponse) */ {
+ public:
+  inline SetEnvelopeFlushResponse() : SetEnvelopeFlushResponse(nullptr) {}
+  ~SetEnvelopeFlushResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(SetEnvelopeFlushResponse* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(SetEnvelopeFlushResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr SetEnvelopeFlushResponse(::google::protobuf::internal::ConstantInitialized,
+                           const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+                               class_data);
+
+  inline SetEnvelopeFlushResponse(const SetEnvelopeFlushResponse& from) : SetEnvelopeFlushResponse(nullptr, from) {}
+  inline SetEnvelopeFlushResponse(SetEnvelopeFlushResponse&& from) noexcept : SetEnvelopeFlushResponse(nullptr, ::std::move(from)) {}
+  inline SetEnvelopeFlushResponse& operator=(const SetEnvelopeFlushResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline SetEnvelopeFlushResponse& operator=(SetEnvelopeFlushResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const SetEnvelopeFlushResponse& default_instance() {
+    return *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<SetEnvelopeFlushResponse>(&SetEnvelopeFlushResponse_globals_);
+  }
+  static constexpr int kIndexInFileMessages = 13;
+  friend void swap(SetEnvelopeFlushResponse& a, SetEnvelopeFlushResponse& b) { a.Swap(&b); }
+  inline void Swap(SetEnvelopeFlushResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(SetEnvelopeFlushResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] SetEnvelopeFlushResponse* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<SetEnvelopeFlushResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const SetEnvelopeFlushResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const SetEnvelopeFlushResponse& from) { SetEnvelopeFlushResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(SetEnvelopeFlushResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "xtcp_config.v1.SetEnvelopeFlushResponse"; }
+
+  explicit SetEnvelopeFlushResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  SetEnvelopeFlushResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const SetEnvelopeFlushResponse& from);
+  SetEnvelopeFlushResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, SetEnvelopeFlushResponse&& from) noexcept
+      : SetEnvelopeFlushResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_(
+      const MessageLite& prototype,
+      const ::google::protobuf::internal::TcParseTableBase* PROTOBUF_NULLABLE tc_table = nullptr);
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kConfigFieldNumber = 1,
+  };
+  // .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+  [[nodiscard]] bool has_config()
+      const;
+  void clear_config() ;
+  [[nodiscard]] const ::xtcp_config::v1::XtcpConfig& config() const;
+  [[nodiscard]] ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE release_config();
+  ::xtcp_config::v1::XtcpConfig* PROTOBUF_NONNULL mutable_config();
+  void set_allocated_config(::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_config(::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE value);
+  ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE unsafe_arena_release_config();
+
+  private:
+  const ::xtcp_config::v1::XtcpConfig& _internal_config() const;
+  ::xtcp_config::v1::XtcpConfig* PROTOBUF_NONNULL _internal_mutable_config();
+
+  public:
+  // @@protoc_insertion_point(class_scope:xtcp_config.v1.SetEnvelopeFlushResponse)
+ private:
+  class _Internal;
+  using ParseTableT_ =
+      ::google::protobuf::internal::TcParseTable<0, 1,
+                          1, 0,
+                          2>;
+  static constexpr ParseTableT_ InternalGenerateParseTable_(
+      const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
+  friend class ::google::protobuf::internal::TcParser;
+  #ifndef PROTOBUF_MESSAGE_GLOBALS
+  static const ParseTableT_ _table_;
+  #endif
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const SetEnvelopeFlushResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE config_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto;
+};
+// -------------------------------------------------------------------
+
 class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED GetResponse final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:xtcp_config.v1.GetResponse) */ {
  public:
@@ -5029,6 +5465,160 @@ inline void SetS3UploadResponse::set_allocated_config(::xtcp_config::v1::XtcpCon
 
   _impl_.config_ = reinterpret_cast<::xtcp_config::v1::XtcpConfig*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.SetS3UploadResponse.config)
+}
+
+// -------------------------------------------------------------------
+
+// SetEnvelopeFlushRequest
+
+// uint32 envelope_flush_threshold_bytes = 10 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+inline void SetEnvelopeFlushRequest::clear_envelope_flush_threshold_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline ::uint32_t SetEnvelopeFlushRequest::envelope_flush_threshold_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.SetEnvelopeFlushRequest.envelope_flush_threshold_bytes)
+  return _internal_envelope_flush_threshold_bytes();
+}
+inline void SetEnvelopeFlushRequest::set_envelope_flush_threshold_bytes(::uint32_t value) {
+  _internal_set_envelope_flush_threshold_bytes(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.SetEnvelopeFlushRequest.envelope_flush_threshold_bytes)
+}
+inline ::uint32_t SetEnvelopeFlushRequest::_internal_envelope_flush_threshold_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.envelope_flush_threshold_bytes_;
+}
+inline void SetEnvelopeFlushRequest::_internal_set_envelope_flush_threshold_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_bytes_ = value;
+}
+
+// uint32 envelope_flush_threshold_rows = 20 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+inline void SetEnvelopeFlushRequest::clear_envelope_flush_threshold_rows() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_rows_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+}
+inline ::uint32_t SetEnvelopeFlushRequest::envelope_flush_threshold_rows() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.SetEnvelopeFlushRequest.envelope_flush_threshold_rows)
+  return _internal_envelope_flush_threshold_rows();
+}
+inline void SetEnvelopeFlushRequest::set_envelope_flush_threshold_rows(::uint32_t value) {
+  _internal_set_envelope_flush_threshold_rows(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.SetEnvelopeFlushRequest.envelope_flush_threshold_rows)
+}
+inline ::uint32_t SetEnvelopeFlushRequest::_internal_envelope_flush_threshold_rows() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.envelope_flush_threshold_rows_;
+}
+inline void SetEnvelopeFlushRequest::_internal_set_envelope_flush_threshold_rows(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.envelope_flush_threshold_rows_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// SetEnvelopeFlushResponse
+
+// .xtcp_config.v1.XtcpConfig config = 1 [json_name = "config"];
+inline bool SetEnvelopeFlushResponse::has_config() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000001U);
+  PROTOBUF_ASSUME(!value || _impl_.config_ != nullptr);
+  return value;
+}
+inline void SetEnvelopeFlushResponse::clear_config() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.config_ != nullptr) _impl_.config_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::xtcp_config::v1::XtcpConfig& SetEnvelopeFlushResponse::_internal_config() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::xtcp_config::v1::XtcpConfig* p = _impl_.config_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::xtcp_config::v1::XtcpConfig>(&::xtcp_config::v1::XtcpConfig_globals_);
+}
+inline const ::xtcp_config::v1::XtcpConfig& SetEnvelopeFlushResponse::config() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.SetEnvelopeFlushResponse.config)
+  return _internal_config();
+}
+inline void SetEnvelopeFlushResponse::unsafe_arena_set_allocated_config(
+    ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.config_);
+  }
+  _impl_.config_ = reinterpret_cast<::xtcp_config::v1::XtcpConfig*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.SetEnvelopeFlushResponse.config)
+}
+inline ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE SetEnvelopeFlushResponse::release_config() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::xtcp_config::v1::XtcpConfig* released = _impl_.config_;
+  _impl_.config_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE SetEnvelopeFlushResponse::unsafe_arena_release_config() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.SetEnvelopeFlushResponse.config)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::xtcp_config::v1::XtcpConfig* temp = _impl_.config_;
+  _impl_.config_ = nullptr;
+  return temp;
+}
+inline ::xtcp_config::v1::XtcpConfig* PROTOBUF_NONNULL SetEnvelopeFlushResponse::_internal_mutable_config() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.config_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_config::v1::XtcpConfig>(GetArena());
+    _impl_.config_ = reinterpret_cast<::xtcp_config::v1::XtcpConfig*>(p);
+  }
+  return _impl_.config_;
+}
+inline ::xtcp_config::v1::XtcpConfig* PROTOBUF_NONNULL SetEnvelopeFlushResponse::mutable_config()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::xtcp_config::v1::XtcpConfig* _msg = _internal_mutable_config();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.SetEnvelopeFlushResponse.config)
+  return _msg;
+}
+inline void SetEnvelopeFlushResponse::set_allocated_config(::xtcp_config::v1::XtcpConfig* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.config_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+
+  _impl_.config_ = reinterpret_cast<::xtcp_config::v1::XtcpConfig*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.SetEnvelopeFlushResponse.config)
 }
 
 // -------------------------------------------------------------------

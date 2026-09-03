@@ -80,6 +80,39 @@
         ]
       }
     },
+    "/ConfigService/SetEnvelopeFlush": {
+      "put": {
+        "summary": "Change the in-flight protobufList envelope flush thresholds at runtime:\nthe row-count cap and/or the uncompressed byte cap. Whichever cap trips\nfirst flushes the envelope. Lets an operator raise the caps on a running\ndaemon (e.g. to reduce flush frequency) without a restart. Takes effect\non the next appended record.",
+        "operationId": "ConfigService_SetEnvelopeFlush",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetEnvelopeFlushResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetEnvelopeFlushRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ConfigService"
+        ]
+      }
+    },
     "/ConfigService/SetPollFrequency": {
       "put": {
         "operationId": "ConfigService_SetPollFrequency",
@@ -257,6 +290,29 @@
       "title": "empty"
     },
     "v1GetResponse": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/v1XtcpConfig"
+        }
+      }
+    },
+    "v1SetEnvelopeFlushRequest": {
+      "type": "object",
+      "properties": {
+        "envelopeFlushThresholdBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "New uncompressed byte cap for the in-flight protobufList envelope.\nOptional; omit (0) to leave unchanged. Takes effect on the next\nappended record. 0 = default (768 KiB)."
+        },
+        "envelopeFlushThresholdRows": {
+          "type": "integer",
+          "format": "int64",
+          "description": "New row-count cap for the in-flight protobufList envelope. Optional;\nomit (0) to leave unchanged. Takes effect on the next appended record.\n0 = default (10000)."
+        }
+      }
+    },
+    "v1SetEnvelopeFlushResponse": {
       "type": "object",
       "properties": {
         "config": {

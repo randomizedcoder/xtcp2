@@ -105,6 +105,18 @@ class ConfigService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>> PrepareAsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>>(PrepareAsyncSetS3UploadRaw(context, request, cq));
     }
+    // Change the in-flight protobufList envelope flush thresholds at runtime:
+    // the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+    // first flushes the envelope. Lets an operator raise the caps on a running
+    // daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+    // on the next appended record.
+    virtual ::grpc::Status SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>> AsyncSetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>>(AsyncSetEnvelopeFlushRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>> PrepareAsyncSetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>>(PrepareAsyncSetEnvelopeFlushRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
@@ -133,6 +145,13 @@ class ConfigService final {
       // destination is s3parquet.
       virtual void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Change the in-flight protobufList envelope flush thresholds at runtime:
+      // the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+      // first flushes the envelope. Lets an operator raise the caps on a running
+      // daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+      // on the next appended record.
+      virtual void SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -150,6 +169,8 @@ class ConfigService final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::TriggerPollBurstResponse>* PrepareAsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>* AsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetS3UploadResponse>* PrepareAsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>* AsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::xtcp_config::v1::SetEnvelopeFlushResponse>* PrepareAsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -196,6 +217,13 @@ class ConfigService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>> PrepareAsyncSetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>>(PrepareAsyncSetS3UploadRaw(context, request, cq));
     }
+    ::grpc::Status SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>> AsyncSetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>>(AsyncSetEnvelopeFlushRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>> PrepareAsyncSetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>>(PrepareAsyncSetEnvelopeFlushRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
@@ -211,6 +239,8 @@ class ConfigService final {
       void TriggerPollBurst(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest* request, ::xtcp_config::v1::TriggerPollBurstResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
       void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, std::function<void(::grpc::Status)>) override;
       void SetS3Upload(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, std::function<void(::grpc::Status)>) override;
+      void SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -234,12 +264,15 @@ class ConfigService final {
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::TriggerPollBurstResponse>* PrepareAsyncTriggerPollBurstRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::TriggerPollBurstRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* AsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetS3UploadResponse>* PrepareAsyncSetS3UploadRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetS3UploadRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>* AsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>* PrepareAsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_Get_;
     const ::grpc::internal::RpcMethod rpcmethod_Set_;
     const ::grpc::internal::RpcMethod rpcmethod_SetPollFrequency_;
     const ::grpc::internal::RpcMethod rpcmethod_TriggerPoll_;
     const ::grpc::internal::RpcMethod rpcmethod_TriggerPollBurst_;
     const ::grpc::internal::RpcMethod rpcmethod_SetS3Upload_;
+    const ::grpc::internal::RpcMethod rpcmethod_SetEnvelopeFlush_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -266,6 +299,12 @@ class ConfigService final {
     // to S3 promptly during an investigation. Only effective when the
     // destination is s3parquet.
     virtual ::grpc::Status SetS3Upload(::grpc::ServerContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response);
+    // Change the in-flight protobufList envelope flush thresholds at runtime:
+    // the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+    // first flushes the envelope. Lets an operator raise the caps on a running
+    // daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+    // on the next appended record.
+    virtual ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_Get : public BaseClass {
@@ -387,7 +426,27 @@ class ConfigService final {
       ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_Get<WithAsyncMethod_Set<WithAsyncMethod_SetPollFrequency<WithAsyncMethod_TriggerPoll<WithAsyncMethod_TriggerPollBurst<WithAsyncMethod_SetS3Upload<Service > > > > > > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodAsync(6);
+    }
+    ~WithAsyncMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetEnvelopeFlush(::grpc::ServerContext* context, ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::grpc::ServerAsyncResponseWriter< ::xtcp_config::v1::SetEnvelopeFlushResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_Get<WithAsyncMethod_Set<WithAsyncMethod_SetPollFrequency<WithAsyncMethod_TriggerPoll<WithAsyncMethod_TriggerPollBurst<WithAsyncMethod_SetS3Upload<WithAsyncMethod_SetEnvelopeFlush<Service > > > > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_Get : public BaseClass {
    private:
@@ -550,7 +609,34 @@ class ConfigService final {
     virtual ::grpc::ServerUnaryReactor* SetS3Upload(
       ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_Get<WithCallbackMethod_Set<WithCallbackMethod_SetPollFrequency<WithCallbackMethod_TriggerPoll<WithCallbackMethod_TriggerPollBurst<WithCallbackMethod_SetS3Upload<Service > > > > > > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodCallback(6,
+          new ::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response) { return this->SetEnvelopeFlush(context, request, response); }));}
+    void SetMessageAllocatorFor_SetEnvelopeFlush(
+        ::grpc::MessageAllocator< ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(6);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* SetEnvelopeFlush(
+      ::grpc::CallbackServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_Get<WithCallbackMethod_Set<WithCallbackMethod_SetPollFrequency<WithCallbackMethod_TriggerPoll<WithCallbackMethod_TriggerPollBurst<WithCallbackMethod_SetS3Upload<WithCallbackMethod_SetEnvelopeFlush<Service > > > > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_Get : public BaseClass {
@@ -650,6 +736,23 @@ class ConfigService final {
     }
     // disable synchronous version of this method
     ::grpc::Status SetS3Upload(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetS3UploadRequest* /*request*/, ::xtcp_config::v1::SetS3UploadResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodGeneric(6);
+    }
+    ~WithGenericMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -772,6 +875,26 @@ class ConfigService final {
     }
     void RequestSetS3Upload(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodRaw(6);
+    }
+    ~WithRawMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetEnvelopeFlush(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -904,6 +1027,28 @@ class ConfigService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* SetS3Upload(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodRawCallback(6,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->SetEnvelopeFlush(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* SetEnvelopeFlush(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -1068,9 +1213,36 @@ class ConfigService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedSetS3Upload(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::SetS3UploadRequest,::xtcp_config::v1::SetS3UploadResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<Service > > > > > > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_SetEnvelopeFlush : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_SetEnvelopeFlush() {
+      ::grpc::Service::MarkMethodStreamed(6,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse>* streamer) {
+                       return this->StreamedSetEnvelopeFlush(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_SetEnvelopeFlush() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status SetEnvelopeFlush(::grpc::ServerContext* /*context*/, const ::xtcp_config::v1::SetEnvelopeFlushRequest* /*request*/, ::xtcp_config::v1::SetEnvelopeFlushResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedSetEnvelopeFlush(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::xtcp_config::v1::SetEnvelopeFlushRequest,::xtcp_config::v1::SetEnvelopeFlushResponse>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<WithStreamedUnaryMethod_SetEnvelopeFlush<Service > > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<Service > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_Get<WithStreamedUnaryMethod_Set<WithStreamedUnaryMethod_SetPollFrequency<WithStreamedUnaryMethod_TriggerPoll<WithStreamedUnaryMethod_TriggerPollBurst<WithStreamedUnaryMethod_SetS3Upload<WithStreamedUnaryMethod_SetEnvelopeFlush<Service > > > > > > > StreamedService;
 };
 
 }  // namespace v1

@@ -18,6 +18,7 @@
 //	trigger-poll         trigger a single poll now
 //	poll-burst           trigger N polls spaced I apart (incident snapshots)
 //	set-s3               change the s3parquet flush timer and/or byte cap live
+//	set-envelope-flush   change the envelope flush row/byte caps live
 //	reconfigure          apply a full config from a file/stdin (soft restart)
 //
 // Every command accepts -target/-port/-d. Run `xtcp2ctl <command> -h` for
@@ -89,6 +90,8 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return cmdPollBurst(ctx, args[1:], stdout, stderr)
 	case "set-s3":
 		return cmdSetS3(ctx, args[1:], stdout, stderr)
+	case "set-envelope-flush":
+		return cmdSetEnvelopeFlush(ctx, args[1:], stdout, stderr)
 	case "reconfigure":
 		return cmdReconfigure(ctx, args[1:], stdout, stderr)
 	default:
@@ -110,6 +113,7 @@ Commands:
   trigger-poll         Trigger a single poll immediately (no restart)
   poll-burst           Trigger N polls spaced I apart, e.g. incident snapshots
   set-s3               Change the s3parquet flush timer / byte cap live (no restart)
+  set-envelope-flush   Change the envelope flush row / byte caps live (no restart)
   reconfigure          Apply a full config from a file or stdin (soft restart)
 
 Common flags (all commands):
@@ -263,6 +267,37 @@ func cmdSetS3(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 			return 1
 		}
 		fmt.Fprintln(stdout, "ok: s3 upload settings updated")
+		return 0
+	})
+}
+
+func cmdSetEnvelopeFlush(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("set-envelope-flush", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	commonFlags(fs)
+	thresholdBytes := fs.Uint("threshold-bytes", 0, "new envelope uncompressed byte cap (0 = daemon default 768 KiB)")
+	thresholdRows := fs.Uint("threshold-rows", 0, "new envelope row-count cap (0 = daemon default 10000)")
+	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+		// Only send fields the operator explicitly set. Empty request violates
+		// the server's "at least one" rule, so catch it locally.
+		req := &xtcp_config.SetEnvelopeFlushRequest{}
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if set["threshold-bytes"] {
+			req.EnvelopeFlushThresholdBytes = uint32(*thresholdBytes)
+		}
+		if set["threshold-rows"] {
+			req.EnvelopeFlushThresholdRows = uint32(*thresholdRows)
+		}
+		if !set["threshold-bytes"] && !set["threshold-rows"] {
+			fmt.Fprintln(stderr, "xtcp2ctl set-envelope-flush: set -threshold-bytes and/or -threshold-rows")
+			return 2
+		}
+		if _, err := c.SetEnvelopeFlush(ctx, req); err != nil {
+			fmt.Fprintf(stderr, "xtcp2ctl set-envelope-flush: %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, "ok: envelope flush thresholds updated")
 		return 0
 	})
 }

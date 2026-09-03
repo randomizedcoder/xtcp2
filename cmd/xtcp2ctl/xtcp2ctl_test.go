@@ -22,6 +22,7 @@ type fakeConfigServer struct {
 	lastSetPollFreq *xtcp_config.SetPollFrequencyRequest
 	lastBurst       *xtcp_config.TriggerPollBurstRequest
 	lastS3          *xtcp_config.SetS3UploadRequest
+	lastEnvFlush    *xtcp_config.SetEnvelopeFlushRequest
 	lastSet         *xtcp_config.SetRequest
 	triggered       bool
 }
@@ -52,6 +53,11 @@ func (f *fakeConfigServer) TriggerPollBurst(_ context.Context, in *xtcp_config.T
 func (f *fakeConfigServer) SetS3Upload(_ context.Context, in *xtcp_config.SetS3UploadRequest) (*xtcp_config.SetS3UploadResponse, error) {
 	f.lastS3 = in
 	return &xtcp_config.SetS3UploadResponse{}, nil
+}
+
+func (f *fakeConfigServer) SetEnvelopeFlush(_ context.Context, in *xtcp_config.SetEnvelopeFlushRequest) (*xtcp_config.SetEnvelopeFlushResponse, error) {
+	f.lastEnvFlush = in
+	return &xtcp_config.SetEnvelopeFlushResponse{}, nil
 }
 
 func (f *fakeConfigServer) Set(_ context.Context, in *xtcp_config.SetRequest) (*xtcp_config.SetResponse, error) {
@@ -171,6 +177,35 @@ func TestSetS3_onlyInterval(t *testing.T) {
 func TestSetS3_noFields(t *testing.T) {
 	startFakeServer(t)
 	if rc, _, _ := run(t, "set-s3"); rc != 2 {
+		t.Errorf("expected rc=2 when no fields given, got %d", rc)
+	}
+}
+
+func TestSetEnvelopeFlush_bothFields(t *testing.T) {
+	fake := startFakeServer(t)
+	rc, _, errStr := run(t, "set-envelope-flush", "-threshold-bytes", "2048", "-threshold-rows", "500")
+	if rc != 0 {
+		t.Fatalf("rc=%d stderr=%s", rc, errStr)
+	}
+	if fake.lastEnvFlush == nil || fake.lastEnvFlush.EnvelopeFlushThresholdBytes != 2048 || fake.lastEnvFlush.EnvelopeFlushThresholdRows != 500 {
+		t.Errorf("unexpected set-envelope-flush request: %+v", fake.lastEnvFlush)
+	}
+}
+
+// Only the flag the operator set is populated; the other stays zero.
+func TestSetEnvelopeFlush_onlyRows(t *testing.T) {
+	fake := startFakeServer(t)
+	if rc, _, errStr := run(t, "set-envelope-flush", "-threshold-rows", "500"); rc != 0 {
+		t.Fatalf("rc=%d stderr=%s", rc, errStr)
+	}
+	if fake.lastEnvFlush.EnvelopeFlushThresholdRows != 500 || fake.lastEnvFlush.EnvelopeFlushThresholdBytes != 0 {
+		t.Errorf("expected only rows set: %+v", fake.lastEnvFlush)
+	}
+}
+
+func TestSetEnvelopeFlush_noFields(t *testing.T) {
+	startFakeServer(t)
+	if rc, _, _ := run(t, "set-envelope-flush"); rc != 2 {
 		t.Errorf("expected rc=2 when no fields given, got %d", rc)
 	}
 }

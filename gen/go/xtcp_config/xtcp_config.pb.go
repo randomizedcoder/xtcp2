@@ -586,6 +586,108 @@ func (x *SetS3UploadResponse) GetConfig() *XtcpConfig {
 	return nil
 }
 
+type SetEnvelopeFlushRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// New uncompressed byte cap for the in-flight protobufList envelope.
+	// Optional; omit (0) to leave unchanged. Takes effect on the next
+	// appended record. 0 = default (768 KiB).
+	EnvelopeFlushThresholdBytes uint32 `protobuf:"varint,10,opt,name=envelope_flush_threshold_bytes,json=envelopeFlushThresholdBytes,proto3" json:"envelope_flush_threshold_bytes,omitempty"`
+	// New row-count cap for the in-flight protobufList envelope. Optional;
+	// omit (0) to leave unchanged. Takes effect on the next appended record.
+	// 0 = default (10000).
+	EnvelopeFlushThresholdRows uint32 `protobuf:"varint,20,opt,name=envelope_flush_threshold_rows,json=envelopeFlushThresholdRows,proto3" json:"envelope_flush_threshold_rows,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
+}
+
+func (x *SetEnvelopeFlushRequest) Reset() {
+	*x = SetEnvelopeFlushRequest{}
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEnvelopeFlushRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEnvelopeFlushRequest) ProtoMessage() {}
+
+func (x *SetEnvelopeFlushRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEnvelopeFlushRequest.ProtoReflect.Descriptor instead.
+func (*SetEnvelopeFlushRequest) Descriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SetEnvelopeFlushRequest) GetEnvelopeFlushThresholdBytes() uint32 {
+	if x != nil {
+		return x.EnvelopeFlushThresholdBytes
+	}
+	return 0
+}
+
+func (x *SetEnvelopeFlushRequest) GetEnvelopeFlushThresholdRows() uint32 {
+	if x != nil {
+		return x.EnvelopeFlushThresholdRows
+	}
+	return 0
+}
+
+type SetEnvelopeFlushResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Config        *XtcpConfig            `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetEnvelopeFlushResponse) Reset() {
+	*x = SetEnvelopeFlushResponse{}
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEnvelopeFlushResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEnvelopeFlushResponse) ProtoMessage() {}
+
+func (x *SetEnvelopeFlushResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEnvelopeFlushResponse.ProtoReflect.Descriptor instead.
+func (*SetEnvelopeFlushResponse) Descriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SetEnvelopeFlushResponse) GetConfig() *XtcpConfig {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
 // xtcp configuration
 type XtcpConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -875,7 +977,7 @@ type XtcpConfig struct {
 
 func (x *XtcpConfig) Reset() {
 	*x = XtcpConfig{}
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[12]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -887,7 +989,7 @@ func (x *XtcpConfig) String() string {
 func (*XtcpConfig) ProtoMessage() {}
 
 func (x *XtcpConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[12]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -900,7 +1002,7 @@ func (x *XtcpConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XtcpConfig.ProtoReflect.Descriptor instead.
 func (*XtcpConfig) Descriptor() ([]byte, []int) {
-	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{12}
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *XtcpConfig) GetNlTimeoutMilliseconds() uint64 {
@@ -1374,7 +1476,7 @@ type EnabledDeserializers struct {
 
 func (x *EnabledDeserializers) Reset() {
 	*x = EnabledDeserializers{}
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[13]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1386,7 +1488,7 @@ func (x *EnabledDeserializers) String() string {
 func (*EnabledDeserializers) ProtoMessage() {}
 
 func (x *EnabledDeserializers) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[13]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1399,7 +1501,7 @@ func (x *EnabledDeserializers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnabledDeserializers.ProtoReflect.Descriptor instead.
 func (*EnabledDeserializers) Descriptor() ([]byte, []int) {
-	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{13}
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EnabledDeserializers) GetEnabled() map[string]bool {
@@ -1446,6 +1548,13 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	" s3_parquet_flush_threshold_bytes\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes:\xa8\x01\xbaH\xa4\x01\x1a\xa1\x01\n" +
 	"\x16SetS3Upload.atLeastOne\x12=set s3_flush_interval and/or s3_parquet_flush_threshold_bytes\x1aHhas(this.s3_flush_interval) || this.s3_parquet_flush_threshold_bytes > 0\"I\n" +
 	"\x13SetS3UploadResponse\x122\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xf4\x02\n" +
+	"\x17SetEnvelopeFlushRequest\x12K\n" +
+	"\x1eenvelope_flush_threshold_bytes\x18\n" +
+	" \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
+	"\x1denvelope_flush_threshold_rows\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows:\xc0\x01\xbaH\xbc\x01\x1a\xb9\x01\n" +
+	"\x1bSetEnvelopeFlush.atLeastOne\x12Gset envelope_flush_threshold_bytes and/or envelope_flush_threshold_rows\x1aQthis.envelope_flush_threshold_bytes > 0 || this.envelope_flush_threshold_rows > 0\"N\n" +
+	"\x18SetEnvelopeFlushResponse\x122\n" +
 	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xf9\x1d\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
@@ -1542,14 +1651,15 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
 	"\fEnabledEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x012\xf3\x05\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x012\x87\a\n" +
 	"\rConfigService\x12]\n" +
 	"\x03Get\x12\x1a.xtcp_config.v1.GetRequest\x1a\x1b.xtcp_config.v1.GetResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\x1a\x12/ConfigService/Get\x12]\n" +
 	"\x03Set\x12\x1a.xtcp_config.v1.SetRequest\x1a\x1b.xtcp_config.v1.SetResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\x1a\x12/ConfigService/Set\x12\x91\x01\n" +
 	"\x10SetPollFrequency\x12'.xtcp_config.v1.SetPollFrequencyRequest\x1a(.xtcp_config.v1.SetPollFrequencyResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/ConfigService/SetPollFrequency\x12}\n" +
 	"\vTriggerPoll\x12\".xtcp_config.v1.TriggerPollRequest\x1a#.xtcp_config.v1.TriggerPollResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/TriggerPoll\x12\x91\x01\n" +
 	"\x10TriggerPollBurst\x12'.xtcp_config.v1.TriggerPollBurstRequest\x1a(.xtcp_config.v1.TriggerPollBurstResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/ConfigService/TriggerPollBurst\x12}\n" +
-	"\vSetS3Upload\x12\".xtcp_config.v1.SetS3UploadRequest\x1a#.xtcp_config.v1.SetS3UploadResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/SetS3UploadB\x90\x01\n" +
+	"\vSetS3Upload\x12\".xtcp_config.v1.SetS3UploadRequest\x1a#.xtcp_config.v1.SetS3UploadResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\x1a\x1a/ConfigService/SetS3Upload\x12\x91\x01\n" +
+	"\x10SetEnvelopeFlush\x12'.xtcp_config.v1.SetEnvelopeFlushRequest\x1a(.xtcp_config.v1.SetEnvelopeFlushResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/ConfigService/SetEnvelopeFlushB\x90\x01\n" +
 	"\x12com.xtcp_config.v1B\x0fXtcpConfigProtoP\x01Z\x14./gen/go/xtcp_config\xa2\x02\x03XXX\xaa\x02\rXtcpConfig.V1\xca\x02\rXtcpConfig\\V1\xe2\x02\x19XtcpConfig\\V1\\GPBMetadata\xea\x02\x0eXtcpConfig::V1b\x06proto3"
 
 var (
@@ -1564,7 +1674,7 @@ func file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP() []byte {
 	return file_xtcp_config_v1_xtcp_config_proto_rawDescData
 }
 
-var file_xtcp_config_v1_xtcp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_xtcp_config_v1_xtcp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_xtcp_config_v1_xtcp_config_proto_goTypes = []any{
 	(*GetRequest)(nil),               // 0: xtcp_config.v1.GetRequest
 	(*GetResponse)(nil),              // 1: xtcp_config.v1.GetResponse
@@ -1578,47 +1688,52 @@ var file_xtcp_config_v1_xtcp_config_proto_goTypes = []any{
 	(*TriggerPollBurstResponse)(nil), // 9: xtcp_config.v1.TriggerPollBurstResponse
 	(*SetS3UploadRequest)(nil),       // 10: xtcp_config.v1.SetS3UploadRequest
 	(*SetS3UploadResponse)(nil),      // 11: xtcp_config.v1.SetS3UploadResponse
-	(*XtcpConfig)(nil),               // 12: xtcp_config.v1.XtcpConfig
-	(*EnabledDeserializers)(nil),     // 13: xtcp_config.v1.EnabledDeserializers
-	nil,                              // 14: xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	(*durationpb.Duration)(nil),      // 15: google.protobuf.Duration
+	(*SetEnvelopeFlushRequest)(nil),  // 12: xtcp_config.v1.SetEnvelopeFlushRequest
+	(*SetEnvelopeFlushResponse)(nil), // 13: xtcp_config.v1.SetEnvelopeFlushResponse
+	(*XtcpConfig)(nil),               // 14: xtcp_config.v1.XtcpConfig
+	(*EnabledDeserializers)(nil),     // 15: xtcp_config.v1.EnabledDeserializers
+	nil,                              // 16: xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	(*durationpb.Duration)(nil),      // 17: google.protobuf.Duration
 }
 var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
-	12, // 0: xtcp_config.v1.GetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	12, // 1: xtcp_config.v1.SetRequest.config:type_name -> xtcp_config.v1.XtcpConfig
-	12, // 2: xtcp_config.v1.SetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	15, // 3: xtcp_config.v1.SetPollFrequencyRequest.poll_frequency:type_name -> google.protobuf.Duration
-	15, // 4: xtcp_config.v1.SetPollFrequencyRequest.poll_timeout:type_name -> google.protobuf.Duration
-	12, // 5: xtcp_config.v1.SetPollFrequencyResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	15, // 6: xtcp_config.v1.TriggerPollBurstRequest.interval:type_name -> google.protobuf.Duration
-	15, // 7: xtcp_config.v1.TriggerPollBurstResponse.interval:type_name -> google.protobuf.Duration
-	15, // 8: xtcp_config.v1.SetS3UploadRequest.s3_flush_interval:type_name -> google.protobuf.Duration
-	12, // 9: xtcp_config.v1.SetS3UploadResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	15, // 10: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
-	15, // 11: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
-	15, // 12: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
-	13, // 13: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
-	15, // 14: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
-	15, // 15: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	15, // 16: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
-	14, // 17: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 18: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 19: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 20: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	6,  // 21: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	8,  // 22: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	10, // 23: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	1,  // 24: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 25: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 26: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	7,  // 27: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	9,  // 28: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	11, // 29: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	24, // [24:30] is the sub-list for method output_type
-	18, // [18:24] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	14, // 0: xtcp_config.v1.GetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	14, // 1: xtcp_config.v1.SetRequest.config:type_name -> xtcp_config.v1.XtcpConfig
+	14, // 2: xtcp_config.v1.SetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	17, // 3: xtcp_config.v1.SetPollFrequencyRequest.poll_frequency:type_name -> google.protobuf.Duration
+	17, // 4: xtcp_config.v1.SetPollFrequencyRequest.poll_timeout:type_name -> google.protobuf.Duration
+	14, // 5: xtcp_config.v1.SetPollFrequencyResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	17, // 6: xtcp_config.v1.TriggerPollBurstRequest.interval:type_name -> google.protobuf.Duration
+	17, // 7: xtcp_config.v1.TriggerPollBurstResponse.interval:type_name -> google.protobuf.Duration
+	17, // 8: xtcp_config.v1.SetS3UploadRequest.s3_flush_interval:type_name -> google.protobuf.Duration
+	14, // 9: xtcp_config.v1.SetS3UploadResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	14, // 10: xtcp_config.v1.SetEnvelopeFlushResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	17, // 11: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
+	17, // 12: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
+	17, // 13: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
+	15, // 14: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
+	17, // 15: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	17, // 16: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	17, // 17: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
+	16, // 18: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	0,  // 19: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	2,  // 20: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	4,  // 21: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	6,  // 22: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	8,  // 23: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	10, // 24: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	12, // 25: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	1,  // 26: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	3,  // 27: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	5,  // 28: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	7,  // 29: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	9,  // 30: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	11, // 31: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	13, // 32: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	26, // [26:33] is the sub-list for method output_type
+	19, // [19:26] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }
@@ -1632,7 +1747,7 @@ func file_xtcp_config_v1_xtcp_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_xtcp_config_v1_xtcp_config_proto_rawDesc), len(file_xtcp_config_v1_xtcp_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

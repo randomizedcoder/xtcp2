@@ -46,6 +46,11 @@ class ConfigServiceStub:
                 request_serializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadRequest.SerializeToString,
                 response_deserializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadResponse.FromString,
                 _registered_method=True)
+        self.SetEnvelopeFlush = channel.unary_unary(
+                '/xtcp_config.v1.ConfigService/SetEnvelopeFlush',
+                request_serializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushRequest.SerializeToString,
+                response_deserializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushResponse.FromString,
+                _registered_method=True)
 
 
 class ConfigServiceServicer:
@@ -102,6 +107,17 @@ class ConfigServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SetEnvelopeFlush(self, request, context):
+        """Change the in-flight protobufList envelope flush thresholds at runtime:
+        the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+        first flushes the envelope. Lets an operator raise the caps on a running
+        daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+        on the next appended record.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ConfigServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -134,6 +150,11 @@ def add_ConfigServiceServicer_to_server(servicer, server):
                     servicer.SetS3Upload,
                     request_deserializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadRequest.FromString,
                     response_serializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadResponse.SerializeToString,
+            ),
+            'SetEnvelopeFlush': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetEnvelopeFlush,
+                    request_deserializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushRequest.FromString,
+                    response_serializer=xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -300,6 +321,33 @@ class ConfigService:
             '/xtcp_config.v1.ConfigService/SetS3Upload',
             xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadRequest.SerializeToString,
             xtcp__config_dot_v1_dot_xtcp__config__pb2.SetS3UploadResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetEnvelopeFlush(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/xtcp_config.v1.ConfigService/SetEnvelopeFlush',
+            xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushRequest.SerializeToString,
+            xtcp__config_dot_v1_dot_xtcp__config__pb2.SetEnvelopeFlushResponse.FromString,
             options,
             channel_credentials,
             insecure,

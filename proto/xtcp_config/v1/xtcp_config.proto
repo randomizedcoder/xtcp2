@@ -89,6 +89,18 @@ service ConfigService {
     };
   };
 
+  // Change the in-flight protobufList envelope flush thresholds at runtime:
+  // the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+  // first flushes the envelope. Lets an operator raise the caps on a running
+  // daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+  // on the next appended record.
+  rpc SetEnvelopeFlush(SetEnvelopeFlushRequest) returns (SetEnvelopeFlushResponse) {
+    option (google.api.http) = {
+      put : "/ConfigService/SetEnvelopeFlush"
+      body : "*"
+    };
+  };
+
 }
 
 message GetRequest {
@@ -216,6 +228,35 @@ message SetS3UploadRequest {
 };
 
 message SetS3UploadResponse {
+	XtcpConfig config                                = 1;
+};
+
+message SetEnvelopeFlushRequest {
+
+	// New uncompressed byte cap for the in-flight protobufList envelope.
+	// Optional; omit (0) to leave unchanged. Takes effect on the next
+	// appended record. 0 = default (768 KiB).
+	uint32 envelope_flush_threshold_bytes            = 10 [
+		(buf.validate.field).required = false
+	];
+
+	// New row-count cap for the in-flight protobufList envelope. Optional;
+	// omit (0) to leave unchanged. Takes effect on the next appended record.
+	// 0 = default (10000).
+	uint32 envelope_flush_threshold_rows             = 20 [
+		(buf.validate.field).required = false
+	];
+
+	// At least one field must be set — otherwise the RPC is a no-op.
+	option (buf.validate.message).cel = {
+		id: "SetEnvelopeFlush.atLeastOne",
+		message: "set envelope_flush_threshold_bytes and/or envelope_flush_threshold_rows",
+		expression: "this.envelope_flush_threshold_bytes > 0 || this.envelope_flush_threshold_rows > 0"
+	};
+
+};
+
+message SetEnvelopeFlushResponse {
 	XtcpConfig config                                = 1;
 };
 

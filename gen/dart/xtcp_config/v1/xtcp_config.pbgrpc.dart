@@ -87,6 +87,18 @@ class ConfigServiceClient extends $grpc.Client {
     return $createUnaryCall(_$setS3Upload, request, options: options);
   }
 
+  /// Change the in-flight protobufList envelope flush thresholds at runtime:
+  /// the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+  /// first flushes the envelope. Lets an operator raise the caps on a running
+  /// daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+  /// on the next appended record.
+  $grpc.ResponseFuture<$0.SetEnvelopeFlushResponse> setEnvelopeFlush(
+    $0.SetEnvelopeFlushRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$setEnvelopeFlush, request, options: options);
+  }
+
   // method descriptors
 
   static final _$get = $grpc.ClientMethod<$0.GetRequest, $0.GetResponse>(
@@ -117,6 +129,11 @@ class ConfigServiceClient extends $grpc.Client {
           '/xtcp_config.v1.ConfigService/SetS3Upload',
           ($0.SetS3UploadRequest value) => value.writeToBuffer(),
           $0.SetS3UploadResponse.fromBuffer);
+  static final _$setEnvelopeFlush = $grpc.ClientMethod<
+          $0.SetEnvelopeFlushRequest, $0.SetEnvelopeFlushResponse>(
+      '/xtcp_config.v1.ConfigService/SetEnvelopeFlush',
+      ($0.SetEnvelopeFlushRequest value) => value.writeToBuffer(),
+      $0.SetEnvelopeFlushResponse.fromBuffer);
 }
 
 @$pb.GrpcServiceName('xtcp_config.v1.ConfigService')
@@ -174,6 +191,15 @@ abstract class ConfigServiceBase extends $grpc.Service {
             ($core.List<$core.int> value) =>
                 $0.SetS3UploadRequest.fromBuffer(value),
             ($0.SetS3UploadResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SetEnvelopeFlushRequest,
+            $0.SetEnvelopeFlushResponse>(
+        'SetEnvelopeFlush',
+        setEnvelopeFlush_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.SetEnvelopeFlushRequest.fromBuffer(value),
+        ($0.SetEnvelopeFlushResponse value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.GetResponse> get_Pre(
@@ -225,4 +251,13 @@ abstract class ConfigServiceBase extends $grpc.Service {
 
   $async.Future<$0.SetS3UploadResponse> setS3Upload(
       $grpc.ServiceCall call, $0.SetS3UploadRequest request);
+
+  $async.Future<$0.SetEnvelopeFlushResponse> setEnvelopeFlush_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.SetEnvelopeFlushRequest> $request) async {
+    return setEnvelopeFlush($call, await $request);
+  }
+
+  $async.Future<$0.SetEnvelopeFlushResponse> setEnvelopeFlush(
+      $grpc.ServiceCall call, $0.SetEnvelopeFlushRequest request);
 }

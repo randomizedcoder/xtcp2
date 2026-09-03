@@ -30,6 +30,7 @@ static const char* ConfigService_method_names[] = {
   "/xtcp_config.v1.ConfigService/TriggerPoll",
   "/xtcp_config.v1.ConfigService/TriggerPollBurst",
   "/xtcp_config.v1.ConfigService/SetS3Upload",
+  "/xtcp_config.v1.ConfigService/SetEnvelopeFlush",
 };
 
 std::unique_ptr< ConfigService::Stub> ConfigService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -45,6 +46,7 @@ ConfigService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& chan
   , rpcmethod_TriggerPoll_(ConfigService_method_names[3], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_TriggerPollBurst_(ConfigService_method_names[4], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_SetS3Upload_(ConfigService_method_names[5], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetEnvelopeFlush_(ConfigService_method_names[6], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status ConfigService::Stub::Get(::grpc::ClientContext* context, const ::xtcp_config::v1::GetRequest& request, ::xtcp_config::v1::GetResponse* response) {
@@ -185,6 +187,29 @@ void ConfigService::Stub::async::SetS3Upload(::grpc::ClientContext* context, con
   return result;
 }
 
+::grpc::Status ConfigService::Stub::SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_SetEnvelopeFlush_, context, request, response);
+}
+
+void ConfigService::Stub::async::SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_SetEnvelopeFlush_, context, request, response, std::move(f));
+}
+
+void ConfigService::Stub::async::SetEnvelopeFlush(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_SetEnvelopeFlush_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>* ConfigService::Stub::PrepareAsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::xtcp_config::v1::SetEnvelopeFlushResponse, ::xtcp_config::v1::SetEnvelopeFlushRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_SetEnvelopeFlush_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::xtcp_config::v1::SetEnvelopeFlushResponse>* ConfigService::Stub::AsyncSetEnvelopeFlushRaw(::grpc::ClientContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncSetEnvelopeFlushRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ConfigService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       ConfigService_method_names[0],
@@ -246,6 +271,16 @@ ConfigService::Service::Service() {
              ::xtcp_config::v1::SetS3UploadResponse* resp) {
                return service->SetS3Upload(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ConfigService_method_names[6],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ConfigService::Service, ::xtcp_config::v1::SetEnvelopeFlushRequest, ::xtcp_config::v1::SetEnvelopeFlushResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ConfigService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::xtcp_config::v1::SetEnvelopeFlushRequest* req,
+             ::xtcp_config::v1::SetEnvelopeFlushResponse* resp) {
+               return service->SetEnvelopeFlush(ctx, req, resp);
+             }, this)));
 }
 
 ConfigService::Service::~Service() {
@@ -287,6 +322,13 @@ ConfigService::Service::~Service() {
 }
 
 ::grpc::Status ConfigService::Service::SetS3Upload(::grpc::ServerContext* context, const ::xtcp_config::v1::SetS3UploadRequest* request, ::xtcp_config::v1::SetS3UploadResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ConfigService::Service::SetEnvelopeFlush(::grpc::ServerContext* context, const ::xtcp_config::v1::SetEnvelopeFlushRequest* request, ::xtcp_config::v1::SetEnvelopeFlushResponse* response) {
   (void) context;
   (void) request;
   (void) response;
