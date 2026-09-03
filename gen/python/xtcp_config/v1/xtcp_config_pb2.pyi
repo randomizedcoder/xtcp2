@@ -85,6 +85,20 @@ class SetS3UploadResponse(_message.Message):
     config: XtcpConfig
     def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
 
+class SetEnvelopeFlushRequest(_message.Message):
+    __slots__ = ("envelope_flush_threshold_bytes", "envelope_flush_threshold_rows")
+    ENVELOPE_FLUSH_THRESHOLD_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ENVELOPE_FLUSH_THRESHOLD_ROWS_FIELD_NUMBER: _ClassVar[int]
+    envelope_flush_threshold_bytes: int
+    envelope_flush_threshold_rows: int
+    def __init__(self, envelope_flush_threshold_bytes: _Optional[int] = ..., envelope_flush_threshold_rows: _Optional[int] = ...) -> None: ...
+
+class SetEnvelopeFlushResponse(_message.Message):
+    __slots__ = ("config",)
+    CONFIG_FIELD_NUMBER: _ClassVar[int]
+    config: XtcpConfig
+    def __init__(self, config: _Optional[_Union[XtcpConfig, _Mapping]] = ...) -> None: ...
+
 class XtcpConfig(_message.Message):
     __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "write_files", "capture_path", "modulus", "marshal_to", "envelope_flush_threshold_bytes", "envelope_flush_threshold_rows", "kafka_compression", "s3_endpoint", "s3_bucket", "s3_prefix", "s3_access_key", "s3_secret_key", "s3_parquet_flush_threshold_bytes", "s3_region", "s3_skip_bucket_probe", "pyroscope_url", "pyroscope_app_name", "pyroscope_sample_hz", "pyroscope_upload_interval_sec", "dest", "dest_write_files", "topic", "xtcp_proto_file", "kafka_schema_url", "kafka_produce_timeout", "debug_level", "label", "tag", "location", "hostname", "daemon_version", "resolve_container_id", "ipv4_ttl", "ipv6_hop_limit", "grpc_port", "enabled_deserializers", "io_uring", "io_uring_recv_batch_size", "io_uring_cqe_batch_size", "csv_columns", "poll_jitter_pct", "s3_flush_interval", "s3_flush_jitter_pct", "s3_flush_threshold_jitter_pct", "s3_upload_max_attempts", "s3_upload_backoff_cap", "reconcile_frequency", "reconcile_before_poll", "enrich_container_enable", "docker_socket_path", "enrich_lldp_enable", "lldpd_socket_path", "lldpd_version_hint", "enrich_nic_enable", "uplink_count", "uplink_interfaces", "populate_nsid")
     NL_TIMEOUT_MILLISECONDS_FIELD_NUMBER: _ClassVar[int]

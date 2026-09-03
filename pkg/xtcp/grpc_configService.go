@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bufbuild/protovalidate-go"
@@ -26,6 +27,12 @@ type xtcpConfigService struct {
 	pollRequestCh         *chan struct{}
 	pollBurstCh           *chan pollBurst
 	setS3FlushCh          *chan s3FlushControl
+
+	// envelopeMu guards the envelope flush thresholds on config. It is the
+	// same lock the deserialize hot path holds while reading them, so
+	// SetEnvelopeFlush must take it to mutate them race-free (points at
+	// XTCP.envelopeMu).
+	envelopeMu *sync.Mutex
 
 	// reconfigureFunc is the process-level soft-restart hook (see
 	// XTCP.reconfigureFunc). Set implements a full-config change by invoking
@@ -51,6 +58,7 @@ func NewXtcpConfigService(
 	pollRequestCh *chan struct{},
 	pollBurstCh *chan pollBurst,
 	setS3FlushCh *chan s3FlushControl,
+	envelopeMu *sync.Mutex,
 	reconfigureFunc func(*xtcp_config.XtcpConfig),
 	debugLevel uint32) *xtcpConfigService {
 
@@ -65,6 +73,7 @@ func NewXtcpConfigService(
 	c.pollRequestCh = pollRequestCh
 	c.pollBurstCh = pollBurstCh
 	c.setS3FlushCh = setS3FlushCh
+	c.envelopeMu = envelopeMu
 	c.reconfigureFunc = reconfigureFunc
 
 	if reg == nil {
@@ -375,4 +384,41 @@ func (c *xtcpConfigService) SetS3Upload(
 	}
 
 	return &xtcp_config.SetS3UploadResponse{Config: c.config}, nil
+}
+
+// SetEnvelopeFlush changes the in-flight protobufList envelope flush
+// thresholds at runtime. A 0 field is left unchanged; the at-least-one CEL
+// rule rejects an all-zero request. Unlike SetS3Upload there is no channel
+// handoff: the deserialize hot path re-reads these two fields from config on
+// every append, so the write takes effect on the next record. The write is
+// done under envelopeMu — the same lock the hot path holds while reading the
+// thresholds (deserialize.go) — so it is race-free.
+func (c *xtcpConfigService) SetEnvelopeFlush(
+	ctx context.Context, in *xtcp_config.SetEnvelopeFlushRequest) (*xtcp_config.SetEnvelopeFlushResponse, error) {
+
+	c.pC.WithLabelValues("SetEnvelopeFlush", "start", "counter").Inc()
+
+	if err := protovalidate.Validate(in); err != nil {
+		c.pC.WithLabelValues("SetEnvelopeFlush", "Validate", "error").Inc()
+		if c.debugLevel > 10 {
+			log.Println("SetEnvelopeFlush validation failed:", err)
+		}
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	c.envelopeMu.Lock()
+	if in.EnvelopeFlushThresholdBytes > 0 {
+		c.config.EnvelopeFlushThresholdBytes = in.EnvelopeFlushThresholdBytes
+	}
+	if in.EnvelopeFlushThresholdRows > 0 {
+		c.config.EnvelopeFlushThresholdRows = in.EnvelopeFlushThresholdRows
+	}
+	c.envelopeMu.Unlock()
+
+	if c.debugLevel > 10 {
+		log.Printf("SetEnvelopeFlush bytes:%d rows:%d",
+			in.EnvelopeFlushThresholdBytes, in.EnvelopeFlushThresholdRows)
+	}
+
+	return &xtcp_config.SetEnvelopeFlushResponse{Config: c.config}, nil
 }

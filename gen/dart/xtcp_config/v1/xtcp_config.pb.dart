@@ -718,6 +718,143 @@ class SetS3UploadResponse extends $pb.GeneratedMessage {
   XtcpConfig ensureConfig() => $_ensure(0);
 }
 
+class SetEnvelopeFlushRequest extends $pb.GeneratedMessage {
+  factory SetEnvelopeFlushRequest({
+    $core.int? envelopeFlushThresholdBytes,
+    $core.int? envelopeFlushThresholdRows,
+  }) {
+    final result = create();
+    if (envelopeFlushThresholdBytes != null)
+      result.envelopeFlushThresholdBytes = envelopeFlushThresholdBytes;
+    if (envelopeFlushThresholdRows != null)
+      result.envelopeFlushThresholdRows = envelopeFlushThresholdRows;
+    return result;
+  }
+
+  SetEnvelopeFlushRequest._();
+
+  factory SetEnvelopeFlushRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SetEnvelopeFlushRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SetEnvelopeFlushRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
+      createEmptyInstance: create)
+    ..aI(10, _omitFieldNames ? '' : 'envelopeFlushThresholdBytes',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aI(20, _omitFieldNames ? '' : 'envelopeFlushThresholdRows',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetEnvelopeFlushRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetEnvelopeFlushRequest copyWith(
+          void Function(SetEnvelopeFlushRequest) updates) =>
+      super.copyWith((message) => updates(message as SetEnvelopeFlushRequest))
+          as SetEnvelopeFlushRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetEnvelopeFlushRequest create() => SetEnvelopeFlushRequest._();
+  @$core.override
+  SetEnvelopeFlushRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SetEnvelopeFlushRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushRequest>(create);
+  static SetEnvelopeFlushRequest? _defaultInstance;
+
+  /// New uncompressed byte cap for the in-flight protobufList envelope.
+  /// Optional; omit (0) to leave unchanged. Takes effect on the next
+  /// appended record. 0 = default (768 KiB).
+  @$pb.TagNumber(10)
+  $core.int get envelopeFlushThresholdBytes => $_getIZ(0);
+  @$pb.TagNumber(10)
+  set envelopeFlushThresholdBytes($core.int value) =>
+      $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(10)
+  $core.bool hasEnvelopeFlushThresholdBytes() => $_has(0);
+  @$pb.TagNumber(10)
+  void clearEnvelopeFlushThresholdBytes() => $_clearField(10);
+
+  /// New row-count cap for the in-flight protobufList envelope. Optional;
+  /// omit (0) to leave unchanged. Takes effect on the next appended record.
+  /// 0 = default (10000).
+  @$pb.TagNumber(20)
+  $core.int get envelopeFlushThresholdRows => $_getIZ(1);
+  @$pb.TagNumber(20)
+  set envelopeFlushThresholdRows($core.int value) =>
+      $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(20)
+  $core.bool hasEnvelopeFlushThresholdRows() => $_has(1);
+  @$pb.TagNumber(20)
+  void clearEnvelopeFlushThresholdRows() => $_clearField(20);
+}
+
+class SetEnvelopeFlushResponse extends $pb.GeneratedMessage {
+  factory SetEnvelopeFlushResponse({
+    XtcpConfig? config,
+  }) {
+    final result = create();
+    if (config != null) result.config = config;
+    return result;
+  }
+
+  SetEnvelopeFlushResponse._();
+
+  factory SetEnvelopeFlushResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SetEnvelopeFlushResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SetEnvelopeFlushResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
+      createEmptyInstance: create)
+    ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
+        subBuilder: XtcpConfig.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetEnvelopeFlushResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetEnvelopeFlushResponse copyWith(
+          void Function(SetEnvelopeFlushResponse) updates) =>
+      super.copyWith((message) => updates(message as SetEnvelopeFlushResponse))
+          as SetEnvelopeFlushResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SetEnvelopeFlushResponse create() => SetEnvelopeFlushResponse._();
+  @$core.override
+  SetEnvelopeFlushResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SetEnvelopeFlushResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushResponse>(create);
+  static SetEnvelopeFlushResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  XtcpConfig get config => $_getN(0);
+  @$pb.TagNumber(1)
+  set config(XtcpConfig value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConfig() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConfig() => $_clearField(1);
+  @$pb.TagNumber(1)
+  XtcpConfig ensureConfig() => $_ensure(0);
+}
+
 /// xtcp configuration
 class XtcpConfig extends $pb.GeneratedMessage {
   factory XtcpConfig({

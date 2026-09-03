@@ -53,7 +53,7 @@ func TestNewXtcpConfigService_freshRegistry(t *testing.T) {
 	pollCh := make(chan struct{}, 1)
 	burstCh := make(chan pollBurst, 1)
 	s3Ch := make(chan s3FlushControl, 1)
-	got := NewXtcpConfigService(ctx, prometheus.NewRegistry(), cfg, &ch, &pollCh, &burstCh, &s3Ch, nil, 0)
+	got := NewXtcpConfigService(ctx, prometheus.NewRegistry(), cfg, &ch, &pollCh, &burstCh, &s3Ch, &sync.Mutex{}, nil, 0)
 	if got == nil {
 		t.Fatal("NewXtcpConfigService returned nil")
 	}
@@ -75,7 +75,7 @@ func TestNewXtcpConfigService_nilFallsBackToDefault(t *testing.T) {
 	pollCh := make(chan struct{}, 1)
 	burstCh := make(chan pollBurst, 1)
 	s3Ch := make(chan s3FlushControl, 1)
-	got := NewXtcpConfigService(ctx, nil, cfg, &ch, &pollCh, &burstCh, &s3Ch, nil, 0)
+	got := NewXtcpConfigService(ctx, nil, cfg, &ch, &pollCh, &burstCh, &s3Ch, &sync.Mutex{}, nil, 0)
 	if got == nil {
 		t.Fatal("NewXtcpConfigService returned nil")
 	}

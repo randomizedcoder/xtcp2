@@ -35,6 +35,7 @@ const (
 	ConfigService_TriggerPoll_FullMethodName      = "/xtcp_config.v1.ConfigService/TriggerPoll"
 	ConfigService_TriggerPollBurst_FullMethodName = "/xtcp_config.v1.ConfigService/TriggerPollBurst"
 	ConfigService_SetS3Upload_FullMethodName      = "/xtcp_config.v1.ConfigService/SetS3Upload"
+	ConfigService_SetEnvelopeFlush_FullMethodName = "/xtcp_config.v1.ConfigService/SetEnvelopeFlush"
 )
 
 // ConfigServiceClient is the client API for ConfigService service.
@@ -60,6 +61,12 @@ type ConfigServiceClient interface {
 	// to S3 promptly during an investigation. Only effective when the
 	// destination is s3parquet.
 	SetS3Upload(ctx context.Context, in *SetS3UploadRequest, opts ...grpc.CallOption) (*SetS3UploadResponse, error)
+	// Change the in-flight protobufList envelope flush thresholds at runtime:
+	// the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+	// first flushes the envelope. Lets an operator raise the caps on a running
+	// daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+	// on the next appended record.
+	SetEnvelopeFlush(ctx context.Context, in *SetEnvelopeFlushRequest, opts ...grpc.CallOption) (*SetEnvelopeFlushResponse, error)
 }
 
 type configServiceClient struct {
@@ -130,6 +137,16 @@ func (c *configServiceClient) SetS3Upload(ctx context.Context, in *SetS3UploadRe
 	return out, nil
 }
 
+func (c *configServiceClient) SetEnvelopeFlush(ctx context.Context, in *SetEnvelopeFlushRequest, opts ...grpc.CallOption) (*SetEnvelopeFlushResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetEnvelopeFlushResponse)
+	err := c.cc.Invoke(ctx, ConfigService_SetEnvelopeFlush_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConfigServiceServer is the server API for ConfigService service.
 // All implementations must embed UnimplementedConfigServiceServer
 // for forward compatibility.
@@ -153,6 +170,12 @@ type ConfigServiceServer interface {
 	// to S3 promptly during an investigation. Only effective when the
 	// destination is s3parquet.
 	SetS3Upload(context.Context, *SetS3UploadRequest) (*SetS3UploadResponse, error)
+	// Change the in-flight protobufList envelope flush thresholds at runtime:
+	// the row-count cap and/or the uncompressed byte cap. Whichever cap trips
+	// first flushes the envelope. Lets an operator raise the caps on a running
+	// daemon (e.g. to reduce flush frequency) without a restart. Takes effect
+	// on the next appended record.
+	SetEnvelopeFlush(context.Context, *SetEnvelopeFlushRequest) (*SetEnvelopeFlushResponse, error)
 	mustEmbedUnimplementedConfigServiceServer()
 }
 
@@ -180,6 +203,9 @@ func (UnimplementedConfigServiceServer) TriggerPollBurst(context.Context, *Trigg
 }
 func (UnimplementedConfigServiceServer) SetS3Upload(context.Context, *SetS3UploadRequest) (*SetS3UploadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetS3Upload not implemented")
+}
+func (UnimplementedConfigServiceServer) SetEnvelopeFlush(context.Context, *SetEnvelopeFlushRequest) (*SetEnvelopeFlushResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetEnvelopeFlush not implemented")
 }
 func (UnimplementedConfigServiceServer) mustEmbedUnimplementedConfigServiceServer() {}
 func (UnimplementedConfigServiceServer) testEmbeddedByValue()                       {}
@@ -310,6 +336,24 @@ func _ConfigService_SetS3Upload_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ConfigService_SetEnvelopeFlush_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetEnvelopeFlushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).SetEnvelopeFlush(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConfigService_SetEnvelopeFlush_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).SetEnvelopeFlush(ctx, req.(*SetEnvelopeFlushRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ConfigService_ServiceDesc is the grpc.ServiceDesc for ConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -340,6 +384,10 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetS3Upload",
 			Handler:    _ConfigService_SetS3Upload_Handler,
+		},
+		{
+			MethodName: "SetEnvelopeFlush",
+			Handler:    _ConfigService_SetEnvelopeFlush_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

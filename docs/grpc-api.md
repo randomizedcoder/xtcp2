@@ -32,6 +32,7 @@ Defined in `proto/xtcp_config/v1/xtcp_config.proto`, this service lets you inspe
 | `TriggerPoll(TriggerPollRequest) → TriggerPollResponse` | Trigger a single poll immediately, without changing the cadence. | none (hot) |
 | `TriggerPollBurst(TriggerPollBurstRequest) → TriggerPollBurstResponse` | Schedule `count` polls spaced `interval` apart (e.g. a socket snapshot every 10s for a minute). | none (hot) |
 | `SetS3Upload(SetS3UploadRequest) → SetS3UploadResponse` | Change the s3parquet staleness-flush timer and/or byte cap live. | none (hot) |
+| `SetEnvelopeFlush(SetEnvelopeFlushRequest) → SetEnvelopeFlushResponse` | Change the protobufList envelope flush row and/or byte caps live. | none (hot) |
 | `Set(SetRequest) → SetResponse` | Apply a full new `XtcpConfig` via a **soft restart** (see below). | brief (soft restart) |
 
 Configuration changes are validated with [buf.validate](https://github.com/bufbuild/protovalidate) CEL constraints declared in the proto (for example, the poll timeout must be shorter than the poll frequency), so invalid updates are rejected at the RPC boundary.
@@ -40,7 +41,7 @@ Configuration changes are validated with [buf.validate](https://github.com/bufbu
 
 There are two tiers of runtime change, so pick the least disruptive one that does the job:
 
-**Hot changes (no restart, no data loss).** `SetPollFrequency`, `TriggerPoll`, `TriggerPollBurst`, and `SetS3Upload` take effect on a running daemon immediately. The burst RPC is the incident tool: *"take a socket snapshot every 10s for a minute"* is `TriggerPollBurst{count: 6, interval: 10s}`. The polled records flow to whatever destination is configured (and to any connected `PollFlatRecords` stream). `interval` must exceed the daemon's `poll_timeout` so each poll completes before the next fires; the handler rejects a too-short interval.
+**Hot changes (no restart, no data loss).** `SetPollFrequency`, `TriggerPoll`, `TriggerPollBurst`, `SetS3Upload`, and `SetEnvelopeFlush` take effect on a running daemon immediately. The burst RPC is the incident tool: *"take a socket snapshot every 10s for a minute"* is `TriggerPollBurst{count: 6, interval: 10s}`. The polled records flow to whatever destination is configured (and to any connected `PollFlatRecords` stream). `interval` must exceed the daemon's `poll_timeout` so each poll completes before the next fires; the handler rejects a too-short interval. `SetEnvelopeFlush` raises or lowers the in-flight protobufList envelope caps (row count and/or uncompressed bytes) that decide when a batch is flushed; a 0 field is left unchanged, and the change applies to the next appended record. Raising the byte cap increases the daemon's peak in-flight memory, so keep it well under the container's memory limit.
 
 **Soft restart (`Set`).** Everything else — which record fields are exported, string metadata like `tag`/`location`/`hostname`, the marshaller, the destination — is baked in at startup, so changing it goes through `Set`, which re-execs the daemon in place. This avoids redeploying the container: same PID, same container, new config carried across a `syscall.Exec`. The gRPC/metrics/health endpoints blip for a few seconds while it re-initializes and Prometheus counters reset (`rate()` tolerates resets). Buffered records are flushed before the re-exec, so no data is lost.
 
@@ -80,6 +81,8 @@ xtcp2ctl trigger-poll
 xtcp2ctl poll-burst -count 6 -interval 10s      # snapshot every 10s for a minute
 xtcp2ctl set-s3 -flush-interval 5s              # flush buffered snapshots to S3 promptly
 xtcp2ctl set-s3 -threshold-bytes 1048576        # or lower the byte cap
+xtcp2ctl set-envelope-flush -threshold-rows 20000    # raise the envelope row cap
+xtcp2ctl set-envelope-flush -threshold-bytes 1572864 # or the byte cap (watch memory)
 ```
 
 **Incident workflow — enable BBR detail + tag with a ticket (soft restart):**
@@ -104,6 +107,7 @@ xtcp2ctl reconfigure -file cfg.new.json
 | `trigger-poll` | | hot |
 | `poll-burst` | `-count`, `-interval` | hot |
 | `set-s3` | `-flush-interval`, `-threshold-bytes` (at least one) | hot |
+| `set-envelope-flush` | `-threshold-bytes`, `-threshold-rows` (at least one) | hot |
 | `reconfigure` | `-file` (`-` = stdin) | soft restart |
 
 ## The xtcp2client binary
@@ -146,6 +150,8 @@ grpcurl -plaintext -d '{"count":6,"interval":"10s"}' \
   127.0.0.1:8889 xtcp_config.v1.ConfigService/TriggerPollBurst
 grpcurl -plaintext -d '{"s3_flush_interval":"5s"}' \
   127.0.0.1:8889 xtcp_config.v1.ConfigService/SetS3Upload
+grpcurl -plaintext -d '{"envelope_flush_threshold_rows":20000}' \
+  127.0.0.1:8889 xtcp_config.v1.ConfigService/SetEnvelopeFlush
 
 # Soft restart: Get → edit → Set the whole config
 grpcurl -plaintext 127.0.0.1:8889 xtcp_config.v1.ConfigService/Get \

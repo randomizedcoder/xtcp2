@@ -36,6 +36,8 @@ Two independent caps bound an in-flight Envelope; the first to trip triggers a f
 
 Pairing a row cap with a byte cap keeps batches bounded both in count and in memory even when record sizes vary.
 
+Both caps are also tunable at runtime without a restart via `ConfigService.SetEnvelopeFlush` (or `xtcp2ctl set-envelope-flush -threshold-bytes … -threshold-rows …`); the change applies to the next appended record. Raising the byte cap increases peak in-flight memory, so keep it well under the container's memory limit. See [gRPC API](./grpc-api.md).
+
 ## Timeouts
 
 - `-frequency` (default `10s`) is the interval between dumps.

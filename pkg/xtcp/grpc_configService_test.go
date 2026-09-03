@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ func newConfigServiceFixture(t *testing.T) (*xtcpConfigService, chan time.Durati
 		pollRequestCh:         &pollCh,
 		pollBurstCh:           &burstCh,
 		setS3FlushCh:          &s3Ch,
+		envelopeMu:            &sync.Mutex{},
 		pC: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{Subsystem: "xtcp_grpc_cs_test",
 				Name: promNameCounts, Help: "test"},
@@ -415,6 +417,157 @@ func TestConfigService_SetS3Upload_thresholdOnly(t *testing.T) {
 	default:
 		t.Error("expected signal on setS3FlushCh")
 	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// SetEnvelopeFlush — mutates the two envelope flush thresholds on config
+// ───────────────────────────────────────────────────────────────────────
+
+// TestConfigService_SetEnvelopeFlush exercises the runtime setter for the
+// protobufList envelope flush thresholds. The setter writes
+// EnvelopeFlushThreshold{Bytes,Rows} onto the shared config under envelopeMu
+// (the same lock the deserialize hot path reads them under); a 0 field means
+// "leave unchanged", and an all-zero request is rejected by the at-least-one
+// CEL rule. The deserialize hot path re-reads config each append, so no
+// channel/worker handoff is involved here.
+//
+// Columns: description, category (positive/negative/boundary/corner),
+// pre* (config seeded before the call), req* (request fields, 0 = omit),
+// wantCode (codes.OK on success), want* (expected config after the call),
+// and a human-readable outcome.
+func TestConfigService_SetEnvelopeFlush(t *testing.T) {
+	tests := []struct {
+		description string
+		category    string
+		preBytes    uint32
+		preRows     uint32
+		reqBytes    uint32
+		reqRows     uint32
+		wantCode    codes.Code
+		wantBytes   uint32
+		wantRows    uint32
+		outcome     string
+	}{
+		{
+			description: "both fields set updates both thresholds on config",
+			category:    "positive",
+			preBytes:    0, preRows: 0,
+			reqBytes: 5000, reqRows: 500,
+			wantCode:  codes.OK,
+			wantBytes: 5000, wantRows: 500,
+			outcome: "both caps applied",
+		},
+		{
+			description: "bytes-only request updates bytes and leaves rows untouched",
+			category:    "boundary",
+			preBytes:    111, preRows: 222,
+			reqBytes: 5000, reqRows: 0,
+			wantCode:  codes.OK,
+			wantBytes: 5000, wantRows: 222,
+			outcome: "bytes applied; rows unchanged",
+		},
+		{
+			description: "rows-only request updates rows and leaves bytes untouched",
+			category:    "boundary",
+			preBytes:    111, preRows: 222,
+			reqBytes: 0, reqRows: 500,
+			wantCode:  codes.OK,
+			wantBytes: 111, wantRows: 500,
+			outcome: "rows applied; bytes unchanged",
+		},
+		{
+			description: "empty request violates the at-least-one CEL rule",
+			category:    "negative",
+			preBytes:    111, preRows: 222,
+			reqBytes: 0, reqRows: 0,
+			wantCode:  codes.InvalidArgument,
+			wantBytes: 111, wantRows: 222,
+			outcome: "rejected; config untouched",
+		},
+		{
+			description: "very large values are accepted (no upper bound, matching startup config)",
+			category:    "corner",
+			preBytes:    0, preRows: 0,
+			reqBytes: 200 * 1024 * 1024, reqRows: 1_000_000,
+			wantCode:  codes.OK,
+			wantBytes: 200 * 1024 * 1024, wantRows: 1_000_000,
+			outcome: "large caps accepted",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.description, func(t *testing.T) {
+			c, _ := newConfigServiceFixture(t)
+			c.config.EnvelopeFlushThresholdBytes = tc.preBytes
+			c.config.EnvelopeFlushThresholdRows = tc.preRows
+
+			req := &xtcp_config.SetEnvelopeFlushRequest{
+				EnvelopeFlushThresholdBytes: tc.reqBytes,
+				EnvelopeFlushThresholdRows:  tc.reqRows,
+			}
+			resp, err := c.SetEnvelopeFlush(context.Background(), req)
+
+			if tc.wantCode == codes.OK {
+				if err != nil {
+					t.Fatalf("%s [%s]: unexpected err: %v (%s)", tc.description, tc.category, err, tc.outcome)
+				}
+				if resp == nil || resp.Config == nil {
+					t.Fatalf("%s [%s]: nil response/config (%s)", tc.description, tc.category, tc.outcome)
+				}
+			} else {
+				if st, ok := status.FromError(err); !ok || st.Code() != tc.wantCode {
+					t.Errorf("%s [%s]: got err %v, want code %v (%s)", tc.description, tc.category, err, tc.wantCode, tc.outcome)
+				}
+			}
+
+			if c.config.EnvelopeFlushThresholdBytes != tc.wantBytes {
+				t.Errorf("%s [%s]: config bytes = %d, want %d (%s)",
+					tc.description, tc.category, c.config.EnvelopeFlushThresholdBytes, tc.wantBytes, tc.outcome)
+			}
+			if c.config.EnvelopeFlushThresholdRows != tc.wantRows {
+				t.Errorf("%s [%s]: config rows = %d, want %d (%s)",
+					tc.description, tc.category, c.config.EnvelopeFlushThresholdRows, tc.wantRows, tc.outcome)
+			}
+		})
+	}
+}
+
+// TestConfigService_SetEnvelopeFlush_raceSafe validates the concurrency
+// contract: the setter writes the two threshold fields under the same
+// envelopeMu the deserialize hot path holds while reading them. The reader
+// goroutine here mirrors deserialize.go (Lock → read both thresholds →
+// Unlock). Run with -race: if the setter mutated config without the shared
+// lock, the detector would flag a data race.
+func TestConfigService_SetEnvelopeFlush_raceSafe(t *testing.T) {
+	c, _ := newConfigServiceFixture(t)
+	const iters = 2000
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Writer: hammer the setter.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iters; i++ {
+			_, _ = c.SetEnvelopeFlush(context.Background(), &xtcp_config.SetEnvelopeFlushRequest{
+				EnvelopeFlushThresholdBytes: uint32(i + 1),
+				EnvelopeFlushThresholdRows:  uint32(i + 1),
+			})
+		}
+	}()
+
+	// Reader: mirror the deserialize.go hot-path read under envelopeMu.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iters; i++ {
+			c.envelopeMu.Lock()
+			_ = c.config.EnvelopeFlushThresholdBytes
+			_ = c.config.EnvelopeFlushThresholdRows
+			c.envelopeMu.Unlock()
+		}
+	}()
+
+	wg.Wait()
 }
 
 // ───────────────────────────────────────────────────────────────────────

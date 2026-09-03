@@ -49,6 +49,7 @@ marshaller, destination, Kafka/S3/Pyroscope settings, io_uring tuning, …). It 
 | `TriggerPoll(TriggerPollRequest) → TriggerPollResponse` | Trigger a single poll immediately, without changing the cadence. | none (hot) |
 | `TriggerPollBurst(TriggerPollBurstRequest) → TriggerPollBurstResponse` | Schedule `count` polls `interval` apart (e.g. a socket snapshot every 10s for a minute). | none (hot) |
 | `SetS3Upload(SetS3UploadRequest) → SetS3UploadResponse` | Change the s3parquet flush timer and/or byte cap live. | none (hot) |
+| `SetEnvelopeFlush(SetEnvelopeFlushRequest) → SetEnvelopeFlushResponse` | Change the protobufList envelope flush row and/or byte caps live. | none (hot) |
 | `Set(SetRequest) → SetResponse` | Validate and apply a full new `XtcpConfig` via a graceful **soft restart** — re-exec (`syscall.Exec`) in place, same container/PID. | brief (soft restart) |
 
 The "hot" RPCs change a running daemon with no restart; `Set` re-execs for config baked in at
