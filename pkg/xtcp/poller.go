@@ -114,16 +114,30 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 
 // flushEnvelope drains x.currentEnvelope: marshals the accumulated rows,
 // hands the bytes to the destination, then returns each *XtcpFlatRecord
-// and the Envelope itself to their sync.Pools. After this returns,
-// x.currentEnvelope is nil; the next pollAllNetlinkSockets re-acquires
-// a fresh envelope from the pool. Concurrent appends in deserialize.go
-// (processInetDiagRecord) take envelopeMu and tolerate nil by dropping
-// the record (no-op + counter bump) — that path only fires for in-flight
-// netlinkers during shutdown after the final flush.
+// and the Envelope itself to their sync.Pools.
+//
+// A mid-poll cap flush (reason size_cap/rows_cap) ends a full envelope
+// partway through a poll cycle, so it installs a fresh envelope under
+// envelopeMu in the same critical section: otherwise currentEnvelope would
+// stay nil until the next pollAllNetlinkSockets (up to poll_frequency away —
+// 1h in prod) and every record parsed for the rest of the cycle would be
+// dropped by the nil-envelope branch in processInetDiagRecord (counted as
+// Deserialize/envelopePostFlushDrop). A terminal flush
+// (poll_end/poll_timeout/shutdown) ends the cycle and leaves currentEnvelope
+// nil; the next pollAllNetlinkSockets re-acquires a fresh envelope. Concurrent
+// appends in deserialize.go take envelopeMu and tolerate nil by dropping the
+// record (no-op + counter bump) — which now only happens for in-flight
+// netlinkers racing the final shutdown flush.
 func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
+	reAcquire := reason == "size_cap" || reason == "rows_cap"
+
 	x.envelopeMu.Lock()
 	e := x.currentEnvelope
-	x.currentEnvelope = nil
+	if reAcquire {
+		x.currentEnvelope = x.xtcpEnvelopePool.Get()
+	} else {
+		x.currentEnvelope = nil
+	}
 	x.currentEnvelopeBytes = 0
 	x.envelopeMu.Unlock()
 
