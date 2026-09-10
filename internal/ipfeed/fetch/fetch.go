@@ -158,8 +158,7 @@ func (c *Client) attempt(ctx context.Context, url string, cond Conditional) (Res
 
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		// #nosec G104 -- best-effort drain to enable connection reuse; body content is unused
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec // best-effort drain to enable connection reuse
+		// A 304 carries no message body (RFC 7232), so there is nothing to drain.
 		res.NotModified = true
 		return res, false, nil
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
@@ -170,14 +169,21 @@ func (c *Client) attempt(ctx context.Context, url string, cond Conditional) (Res
 		res.Body = body
 		return res, false, nil
 	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
-		// #nosec G104 -- best-effort drain to enable connection reuse; body content is unused
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec // best-effort drain to enable connection reuse
-		return res, true, fmt.Errorf("http status %d", resp.StatusCode)
+		return res, true, drainStatusErr(resp.Body, resp.StatusCode)
 	default:
-		// #nosec G104 -- best-effort drain to enable connection reuse; body content is unused
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec // best-effort drain to enable connection reuse
-		return res, false, fmt.Errorf("http status %d", resp.StatusCode)
+		return res, false, drainStatusErr(resp.Body, resp.StatusCode)
 	}
+}
+
+// drainStatusErr discards any remaining response body so the underlying
+// connection can be reused for a retry, then returns an error naming the HTTP
+// status. A drain failure is folded into the returned error rather than
+// dropped.
+func drainStatusErr(body io.Reader, code int) error {
+	if _, err := io.Copy(io.Discard, body); err != nil {
+		return fmt.Errorf("http status %d (body drain failed: %w)", code, err)
+	}
+	return fmt.Errorf("http status %d", code)
 }
 
 // cryptoJitter returns a uniform duration in [0, limit) using crypto/rand.

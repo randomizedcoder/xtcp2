@@ -395,7 +395,9 @@ func collectOnce(ctx context.Context, d deps) error {
 	asnmap.Annotate(combined)
 
 	if sum.OKCount() < f.minSuccess {
-		sum.Print(os.Stdout, "", 0)
+		if err := sum.Print(os.Stdout, "", 0); err != nil {
+			log.Error("print summary", "err", err)
+		}
 		return fmt.Errorf("only %d/%d sources succeeded (min %d); not writing dataset",
 			sum.OKCount(), len(sources), f.minSuccess)
 	}
@@ -431,7 +433,9 @@ func collectOnce(ctx context.Context, d deps) error {
 		}
 	}
 
-	sum.Print(os.Stdout, uploadURL, size)
+	if err := sum.Print(os.Stdout, uploadURL, size); err != nil {
+		return fmt.Errorf("print summary: %w", err)
+	}
 	return nil
 }
 

@@ -349,7 +349,11 @@ func (x *XTCP) refreshNsids(nss map[uint64]nsIdentity) {
 		if nsid, ok := nsdiscover.Nsid(fd); ok {
 			m[inode] = nsid
 		}
-		unix.Close(fd) //nolint:errcheck,gosec // best-effort per-namespace handle close
+		if err := unix.Close(fd); err != nil {
+			// Best-effort: a failed close of a read-only handle is not
+			// recoverable here, but surface it for debugging.
+			log.Printf("refreshNsids: close ns handle: %v", err)
+		}
 	}
 	x.nsidByInode.Store(&m)
 	x.pC.WithLabelValues("refreshNsids", "assigned", "counter").Add(float64(len(m)))

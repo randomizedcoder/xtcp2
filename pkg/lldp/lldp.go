@@ -148,7 +148,9 @@ func Fetch(ctx context.Context, socketPath, versionHint string) (map[string]Neig
 	}
 	defer conn.Close() //nolint:errcheck // best-effort close of a read-only control-socket conn
 	if dl, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(dl) //nolint:errcheck,gosec // best-effort deadline; a failure just means no timeout
+		if err := conn.SetDeadline(dl); err != nil {
+			return nil, fmt.Errorf("lldp: set deadline: %w", err)
+		}
 	}
 
 	if err := writeMsg(conn, opGetInterfaces, nil); err != nil {

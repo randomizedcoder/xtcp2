@@ -413,7 +413,10 @@ func getJSON(ctx context.Context, client *http.Client, url string, v any) error 
 // drainClose drains and closes a response body so the underlying connection can
 // be reused, then closes it.
 func drainClose(rc io.ReadCloser) {
-	io.Copy(io.Discard, rc) //nolint:errcheck,gosec // drain to enable connection reuse; body content is unused
+	if _, err := io.Copy(io.Discard, rc); err != nil {
+		// A drain failure only forfeits connection reuse; Close still frees it.
+		log.Printf("dockermeta: drain response body: %v", err)
+	}
 	_ = rc.Close()
 }
 

@@ -65,8 +65,9 @@ func (s *Summary) TotalRejected() int {
 }
 
 // Print renders the report to w. uploadURL/uploadBytes describe the uploaded
-// object (empty uploadURL means no upload happened).
-func (s *Summary) Print(w io.Writer, uploadURL string, uploadBytes int64) {
+// object (empty uploadURL means no upload happened). It returns any error from
+// flushing the tabular section to w.
+func (s *Summary) Print(w io.Writer, uploadURL string, uploadBytes int64) error {
 	rows := append([]SourceResult(nil), s.Sources...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 
@@ -85,14 +86,16 @@ func (s *Summary) Print(w io.Writer, uploadURL string, uploadBytes int64) {
 			r.Name, status, http, humanBytes(r.FetchedBytes),
 			r.Parsed, r.Valid, r.Rejected, r.Duration.Round(time.Millisecond), r.Note)
 	}
-	// #nosec G104 -- summary printer: a flush error to the report writer is not actionable
-	tw.Flush() //nolint:errcheck,gosec // summary printer: a flush error to the report writer is not actionable
+	if err := tw.Flush(); err != nil {
+		return fmt.Errorf("summary: flush table: %w", err)
+	}
 
 	fmt.Fprintf(w, "\nTOTALS  %d ok / %d fail    records: %d valid (+) / %d rejected (-)\n",
 		s.OKCount(), s.FailCount(), s.TotalValid(), s.TotalRejected())
 	if uploadURL != "" {
 		fmt.Fprintf(w, "uploaded: %s (%s)\n", uploadURL, humanBytes(uploadBytes))
 	}
+	return nil
 }
 
 func humanBytes(n int64) string {
