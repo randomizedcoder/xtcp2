@@ -40,6 +40,65 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Destination endpoint locality, classified from the socket's own network
+// namespace's local addresses + routing table (discovered via rtnetlink,
+// see pkg/localnet). Populated by the opt-in locality enricher BEFORE the
+// ASN lookup: SELF and LOCAL_SUBNET destinations never reach the ASN feed,
+// so dest_asn (1011) / dest_network_owner (1018) stay empty for them.
+// UNSPECIFIED when locality enrichment is disabled or the namespace has no
+// snapshot yet.
+type XtcpFlatRecord_Locality int32
+
+const (
+	XtcpFlatRecord_LOCALITY_UNSPECIFIED  XtcpFlatRecord_Locality = 0
+	XtcpFlatRecord_LOCALITY_SELF         XtcpFlatRecord_Locality = 1 // one of this host/namespace's own addresses (or loopback)
+	XtcpFlatRecord_LOCALITY_LOCAL_SUBNET XtcpFlatRecord_Locality = 2 // on a directly-connected subnet (one L2 hop, no gateway)
+	XtcpFlatRecord_LOCALITY_REMOTE       XtcpFlatRecord_Locality = 3 // reached via a gateway (falls through to ASN lookup)
+)
+
+// Enum value maps for XtcpFlatRecord_Locality.
+var (
+	XtcpFlatRecord_Locality_name = map[int32]string{
+		0: "LOCALITY_UNSPECIFIED",
+		1: "LOCALITY_SELF",
+		2: "LOCALITY_LOCAL_SUBNET",
+		3: "LOCALITY_REMOTE",
+	}
+	XtcpFlatRecord_Locality_value = map[string]int32{
+		"LOCALITY_UNSPECIFIED":  0,
+		"LOCALITY_SELF":         1,
+		"LOCALITY_LOCAL_SUBNET": 2,
+		"LOCALITY_REMOTE":       3,
+	}
+)
+
+func (x XtcpFlatRecord_Locality) Enum() *XtcpFlatRecord_Locality {
+	p := new(XtcpFlatRecord_Locality)
+	*p = x
+	return p
+}
+
+func (x XtcpFlatRecord_Locality) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (XtcpFlatRecord_Locality) Descriptor() protoreflect.EnumDescriptor {
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[0].Descriptor()
+}
+
+func (XtcpFlatRecord_Locality) Type() protoreflect.EnumType {
+	return &file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[0]
+}
+
+func (x XtcpFlatRecord_Locality) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use XtcpFlatRecord_Locality.Descriptor instead.
+func (XtcpFlatRecord_Locality) EnumDescriptor() ([]byte, []int) {
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1, 0}
+}
+
 type XtcpFlatRecord_CongestionAlgorithm int32
 
 const (
@@ -88,11 +147,11 @@ func (x XtcpFlatRecord_CongestionAlgorithm) String() string {
 }
 
 func (XtcpFlatRecord_CongestionAlgorithm) Descriptor() protoreflect.EnumDescriptor {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[0].Descriptor()
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[1].Descriptor()
 }
 
 func (XtcpFlatRecord_CongestionAlgorithm) Type() protoreflect.EnumType {
-	return &file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[0]
+	return &file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes[1]
 }
 
 func (x XtcpFlatRecord_CongestionAlgorithm) Number() protoreflect.EnumNumber {
@@ -101,7 +160,7 @@ func (x XtcpFlatRecord_CongestionAlgorithm) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use XtcpFlatRecord_CongestionAlgorithm.Descriptor instead.
 func (XtcpFlatRecord_CongestionAlgorithm) EnumDescriptor() ([]byte, []int) {
-	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1, 0}
+	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP(), []int{1, 1}
 }
 
 // Envelope is the protobufList wrapper to allow for batch inserts into Clickhouse
@@ -269,7 +328,8 @@ type XtcpFlatRecord struct {
 	// feeds ipfeed-collector parses. Populated alongside dest_asn (1011) by the
 	// opt-in ASN enricher (pkg/ipasn). Empty when enrichment is disabled or the
 	// destination IP is not in the feed set.
-	InetDiagMsgSocketDestNetworkOwner string `protobuf:"bytes,1018,opt,name=inet_diag_msg_socket_dest_network_owner,json=inetDiagMsgSocketDestNetworkOwner,proto3" json:"inet_diag_msg_socket_dest_network_owner,omitempty"`
+	InetDiagMsgSocketDestNetworkOwner string                  `protobuf:"bytes,1018,opt,name=inet_diag_msg_socket_dest_network_owner,json=inetDiagMsgSocketDestNetworkOwner,proto3" json:"inet_diag_msg_socket_dest_network_owner,omitempty"`
+	InetDiagMsgSocketDestLocality     XtcpFlatRecord_Locality `protobuf:"varint,1019,opt,name=inet_diag_msg_socket_dest_locality,json=inetDiagMsgSocketDestLocality,proto3,enum=xtcp_flat_record.v1.XtcpFlatRecord_Locality" json:"inet_diag_msg_socket_dest_locality,omitempty"`
 	// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
 	// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
 	// so these ship as 0 on current records. The same values live in sk_mem_info:
@@ -845,6 +905,13 @@ func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestNetworkOwner() string {
 		return x.InetDiagMsgSocketDestNetworkOwner
 	}
 	return ""
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestLocality() XtcpFlatRecord_Locality {
+	if x != nil {
+		return x.InetDiagMsgSocketDestLocality
+	}
+	return XtcpFlatRecord_LOCALITY_UNSPECIFIED
 }
 
 func (x *XtcpFlatRecord) GetMemInfoRmem() uint32 {
@@ -1686,7 +1753,7 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xe3<\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xc6>\n" +
 	"\x0eXtcpFlatRecord\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12%\n" +
 	"\x0edaemon_version\x18\x02 \x01(\tR\rdaemonVersion\x12!\n" +
@@ -1750,7 +1817,8 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x14inet_diag_msg_wqueue\x18\xf7\a \x01(\rR\x11inetDiagMsgWqueue\x12*\n" +
 	"\x11inet_diag_msg_uid\x18\xf8\a \x01(\rR\x0einetDiagMsgUid\x12.\n" +
 	"\x13inet_diag_msg_inode\x18\xf9\a \x01(\rR\x10inetDiagMsgInode\x12S\n" +
-	"'inet_diag_msg_socket_dest_network_owner\x18\xfa\a \x01(\tR!inetDiagMsgSocketDestNetworkOwner\x12#\n" +
+	"'inet_diag_msg_socket_dest_network_owner\x18\xfa\a \x01(\tR!inetDiagMsgSocketDestNetworkOwner\x12x\n" +
+	"\"inet_diag_msg_socket_dest_locality\x18\xfb\a \x01(\x0e2,.xtcp_flat_record.v1.XtcpFlatRecord.LocalityR\x1dinetDiagMsgSocketDestLocality\x12#\n" +
 	"\rmem_info_rmem\x18\xcd\b \x01(\rR\vmemInfoRmem\x12#\n" +
 	"\rmem_info_wmem\x18\xce\b \x01(\rR\vmemInfoWmem\x12#\n" +
 	"\rmem_info_fmem\x18\xcf\b \x01(\rR\vmemInfoFmem\x12#\n" +
@@ -1853,7 +1921,12 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x12bbr_info_cwnd_gain\x18\xf1\x0e \x01(\rR\x0fbbrInfoCwndGain\x12\x1a\n" +
 	"\bclass_id\x18\xd1\x0f \x01(\rR\aclassId\x12\x1a\n" +
 	"\bsock_opt\x18\xd2\x0f \x01(\rR\asockOpt\x12\x18\n" +
-	"\ac_group\x18\xb7\x10 \x01(\x04R\x06cGroup\"\x99\x02\n" +
+	"\ac_group\x18\xb7\x10 \x01(\x04R\x06cGroup\"g\n" +
+	"\bLocality\x12\x18\n" +
+	"\x14LOCALITY_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rLOCALITY_SELF\x10\x01\x12\x19\n" +
+	"\x15LOCALITY_LOCAL_SUBNET\x10\x02\x12\x13\n" +
+	"\x0fLOCALITY_REMOTE\x10\x03\"\x99\x02\n" +
 	"\x13CongestionAlgorithm\x12$\n" +
 	" CONGESTION_ALGORITHM_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aCONGESTION_ALGORITHM_CUBIC\x10\x01\x12\x1e\n" +
@@ -1886,31 +1959,33 @@ func file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescGZIP() []byte {
 	return file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDescData
 }
 
-var file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_xtcp_flat_record_v1_xtcp_flat_record_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_xtcp_flat_record_v1_xtcp_flat_record_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_xtcp_flat_record_v1_xtcp_flat_record_proto_goTypes = []any{
-	(XtcpFlatRecord_CongestionAlgorithm)(0), // 0: xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
-	(*Envelope)(nil),                        // 1: xtcp_flat_record.v1.Envelope
-	(*XtcpFlatRecord)(nil),                  // 2: xtcp_flat_record.v1.XtcpFlatRecord
-	(*FlatRecordsRequest)(nil),              // 3: xtcp_flat_record.v1.FlatRecordsRequest
-	(*FlatRecordsResponse)(nil),             // 4: xtcp_flat_record.v1.FlatRecordsResponse
-	(*PollFlatRecordsRequest)(nil),          // 5: xtcp_flat_record.v1.PollFlatRecordsRequest
-	(*PollFlatRecordsResponse)(nil),         // 6: xtcp_flat_record.v1.PollFlatRecordsResponse
+	(XtcpFlatRecord_Locality)(0),            // 0: xtcp_flat_record.v1.XtcpFlatRecord.Locality
+	(XtcpFlatRecord_CongestionAlgorithm)(0), // 1: xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
+	(*Envelope)(nil),                        // 2: xtcp_flat_record.v1.Envelope
+	(*XtcpFlatRecord)(nil),                  // 3: xtcp_flat_record.v1.XtcpFlatRecord
+	(*FlatRecordsRequest)(nil),              // 4: xtcp_flat_record.v1.FlatRecordsRequest
+	(*FlatRecordsResponse)(nil),             // 5: xtcp_flat_record.v1.FlatRecordsResponse
+	(*PollFlatRecordsRequest)(nil),          // 6: xtcp_flat_record.v1.PollFlatRecordsRequest
+	(*PollFlatRecordsResponse)(nil),         // 7: xtcp_flat_record.v1.PollFlatRecordsResponse
 }
 var file_xtcp_flat_record_v1_xtcp_flat_record_proto_depIdxs = []int32{
-	2, // 0: xtcp_flat_record.v1.Envelope.row:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
-	0, // 1: xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_enum:type_name -> xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
-	2, // 2: xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
-	2, // 3: xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
-	3, // 4: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:input_type -> xtcp_flat_record.v1.FlatRecordsRequest
-	5, // 5: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:input_type -> xtcp_flat_record.v1.PollFlatRecordsRequest
-	4, // 6: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:output_type -> xtcp_flat_record.v1.FlatRecordsResponse
-	6, // 7: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:output_type -> xtcp_flat_record.v1.PollFlatRecordsResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	3, // 0: xtcp_flat_record.v1.Envelope.row:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
+	0, // 1: xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_msg_socket_dest_locality:type_name -> xtcp_flat_record.v1.XtcpFlatRecord.Locality
+	1, // 2: xtcp_flat_record.v1.XtcpFlatRecord.congestion_algorithm_enum:type_name -> xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm
+	3, // 3: xtcp_flat_record.v1.FlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
+	3, // 4: xtcp_flat_record.v1.PollFlatRecordsResponse.xtcp_flat_record:type_name -> xtcp_flat_record.v1.XtcpFlatRecord
+	4, // 5: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:input_type -> xtcp_flat_record.v1.FlatRecordsRequest
+	6, // 6: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:input_type -> xtcp_flat_record.v1.PollFlatRecordsRequest
+	5, // 7: xtcp_flat_record.v1.XTCPFlatRecordService.FlatRecords:output_type -> xtcp_flat_record.v1.FlatRecordsResponse
+	7, // 8: xtcp_flat_record.v1.XTCPFlatRecordService.PollFlatRecords:output_type -> xtcp_flat_record.v1.PollFlatRecordsResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_flat_record_v1_xtcp_flat_record_proto_init() }
@@ -1923,7 +1998,7 @@ func file_xtcp_flat_record_v1_xtcp_flat_record_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc), len(file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,

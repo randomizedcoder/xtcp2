@@ -1,0 +1,74 @@
+unicast default via 172.16.50.1 dev enp1s0 table main proto dhcp scope global src 172.16.50.219 metric 100 
+unicast 10.10.4.0/29 dev enp35s0f0np0 table main proto kernel scope link src 10.10.4.2 
+unicast 10.10.5.0/29 dev enp35s0f1np1 table main proto kernel scope link src 10.10.5.2 
+unicast 10.98.0.2 dev ve-nfb-vpn table main proto boot scope link 
+unicast 10.99.0.2 dev ve-nordlayepDd- table main proto boot scope link 
+unicast 172.16.50.0/24 dev enp1s0 table main proto kernel scope link src 172.16.50.219 metric 100 
+unicast 172.17.0.0/16 dev docker0 table main proto kernel scope link src 172.17.0.1 linkdown 
+unicast 172.18.0.0/16 dev br-3a5828b2963a table main proto kernel scope link src 172.18.0.1 
+unicast 192.168.122.0/24 dev virbr0 table main proto kernel scope link src 192.168.122.1 linkdown 
+local 10.10.4.2 dev enp35s0f0np0 table local proto kernel scope host src 10.10.4.2 
+broadcast 10.10.4.7 dev enp35s0f0np0 table local proto kernel scope link src 10.10.4.2 
+local 10.10.5.2 dev enp35s0f1np1 table local proto kernel scope host src 10.10.5.2 
+broadcast 10.10.5.7 dev enp35s0f1np1 table local proto kernel scope link src 10.10.5.2 
+local 10.98.0.1 dev ve-nfb-vpn table local proto kernel scope host src 10.98.0.1 
+local 10.99.0.1 dev ve-nordlayepDd- table local proto kernel scope host src 10.99.0.1 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 172.16.50.219 dev enp1s0 table local proto kernel scope host src 172.16.50.219 
+broadcast 172.16.50.255 dev enp1s0 table local proto kernel scope link src 172.16.50.219 
+local 172.17.0.1 dev docker0 table local proto kernel scope host src 172.17.0.1 
+broadcast 172.17.255.255 dev docker0 table local proto kernel scope link src 172.17.0.1 linkdown 
+local 172.18.0.1 dev br-3a5828b2963a table local proto kernel scope host src 172.18.0.1 
+broadcast 172.18.255.255 dev br-3a5828b2963a table local proto kernel scope link src 172.18.0.1 
+local 192.168.122.1 dev virbr0 table local proto kernel scope host src 192.168.122.1 
+broadcast 192.168.122.255 dev virbr0 table local proto kernel scope link src 192.168.122.1 linkdown 
+unicast 2603:8002:ea00:6800::/64 dev enp1s0 table main proto ra scope global metric 100 pref medium
+unicast fd00::/80 dev docker0 table main proto kernel scope global metric 256 linkdown pref medium
+unicast fd10:10:4::/64 dev enp35s0f0np0 table main proto kernel scope global metric 256 pref medium
+unicast fd10:10:5::/64 dev enp35s0f1np1 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev enp35s0f0np0 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev enp35s0f1np1 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev br-3a5828b2963a table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev docker0 table main proto kernel scope global metric 256 linkdown pref medium
+unicast fe80::/64 dev ve-nfb-vpn table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev ve-nordlayepDd- table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev veth179a698 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev enp1s0 table main proto kernel scope global metric 1024 pref medium
+unicast default via fe80::e638:83ff:fe36:8f0d dev enp1s0 table main proto ra scope global metric 100 pref high
+local ::1 dev lo table local proto kernel scope global metric 0 pref medium
+anycast 2603:8002:ea00:6800:: dev enp1s0 table local proto kernel scope global metric 0 pref medium
+local 2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7 dev enp1s0 table local proto kernel scope global metric 0 pref medium
+local 2603:8002:ea00:6800:827f:e158:2c1c:13b4 dev enp1s0 table local proto kernel scope global metric 0 pref medium
+local 2603:8002:ea00:6800:9f01:bd3f:fc61:bc7c dev enp1s0 table local proto kernel scope global metric 0 pref medium
+anycast fd00:: dev docker0 table local proto kernel scope global metric 0 pref medium
+local fd00::1 dev docker0 table local proto kernel scope global metric 0 pref medium
+anycast fd10:10:4:: dev enp35s0f0np0 table local proto kernel scope global metric 0 pref medium
+local fd10:10:4::2 dev enp35s0f0np0 table local proto kernel scope global metric 0 pref medium
+anycast fd10:10:5:: dev enp35s0f1np1 table local proto kernel scope global metric 0 pref medium
+local fd10:10:5::2 dev enp35s0f1np1 table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev enp1s0 table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev enp35s0f0np0 table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev enp35s0f1np1 table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev br-3a5828b2963a table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev docker0 table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev ve-nfb-vpn table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev ve-nordlayepDd- table local proto kernel scope global metric 0 pref medium
+anycast fe80:: dev veth179a698 table local proto kernel scope global metric 0 pref medium
+local fe80::609:73ff:fecf:d8d0 dev enp35s0f0np0 table local proto kernel scope global metric 0 pref medium
+local fe80::609:73ff:fecf:d8d1 dev enp35s0f1np1 table local proto kernel scope global metric 0 pref medium
+local fe80::64cf:8ff:feaa:9d9 dev ve-nordlayepDd- table local proto kernel scope global metric 0 pref medium
+local fe80::6c05:d5ff:fe51:5025 dev ve-nfb-vpn table local proto kernel scope global metric 0 pref medium
+local fe80::78d0:e5ff:fe3a:7c78 dev br-3a5828b2963a table local proto kernel scope global metric 0 pref medium
+local fe80::a456:62ff:fe1d:7301 dev docker0 table local proto kernel scope global metric 0 pref medium
+local fe80::b5c8:b23e:9a98:a37c dev enp1s0 table local proto kernel scope global metric 0 pref medium
+local fe80::fc23:7fff:feb7:7f1d dev veth179a698 table local proto kernel scope global metric 0 pref medium
+multicast ff00::/8 dev enp35s0f0np0 table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev enp35s0f1np1 table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev enp1s0 table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev br-3a5828b2963a table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev docker0 table local proto kernel scope global metric 256 linkdown pref medium
+multicast ff00::/8 dev ve-nfb-vpn table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev ve-nordlayepDd- table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev veth179a698 table local proto kernel scope global metric 256 pref medium

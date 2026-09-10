@@ -720,6 +720,14 @@
         "asnRefreshInterval": {
           "type": "string",
           "description": "How often to reload asn_db_path in the background so a refreshed artifact\nis picked up without a restart. 0 = load once at startup, never reload."
+        },
+        "enrichLocalityEnable": {
+          "type": "boolean",
+          "description": "Classify the destination IP's locality (field 1019) — self /\nconnected-subnet / remote — from each monitored network namespace's local\naddresses + routing table, discovered via rtnetlink (pkg/localnet). Runs\nBEFORE the ASN lookup, so self/local-subnet destinations skip it. Non-fatal:\na per-namespace discovery failure just leaves that namespace's sockets\nunclassified. Default false."
+        },
+        "localityRefreshInterval": {
+          "type": "string",
+          "description": "How often to re-discover local addresses/routes per namespace so runtime\nchanges (interfaces up/down, routes added) are picked up. Newly-appeared\nnamespaces are always snapshotted on the next reconcile regardless. 0 =\ndiscover once per namespace, never refresh."
         }
       },
       "title": "xtcp configuration"

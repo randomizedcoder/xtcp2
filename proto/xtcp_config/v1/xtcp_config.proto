@@ -875,6 +875,20 @@ message XtcpConfig {
 	// How often to reload asn_db_path in the background so a refreshed artifact
 	// is picked up without a restart. 0 = load once at startup, never reload.
 	google.protobuf.Duration asn_refresh_interval      = 241;
+
+	// Classify the destination IP's locality (field 1019) — self /
+	// connected-subnet / remote — from each monitored network namespace's local
+	// addresses + routing table, discovered via rtnetlink (pkg/localnet). Runs
+	// BEFORE the ASN lookup, so self/local-subnet destinations skip it. Non-fatal:
+	// a per-namespace discovery failure just leaves that namespace's sockets
+	// unclassified. Default false.
+	bool enrich_locality_enable                        = 242;
+
+	// How often to re-discover local addresses/routes per namespace so runtime
+	// changes (interfaces up/down, routes added) are picked up. Newly-appeared
+	// namespaces are always snapshotted on the next reconcile regardless. 0 =
+	// discover once per namespace, never refresh.
+	google.protobuf.Duration locality_refresh_interval = 243;
 };
 
 message EnabledDeserializers {

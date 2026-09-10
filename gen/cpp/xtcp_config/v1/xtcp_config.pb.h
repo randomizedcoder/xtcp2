@@ -2171,6 +2171,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kS3UploadBackoffCapFieldNumber = 226,
     kReconcileFrequencyFieldNumber = 227,
     kAsnRefreshIntervalFieldNumber = 241,
+    kLocalityRefreshIntervalFieldNumber = 243,
     kModulusFieldNumber = 110,
     kEnvelopeFlushThresholdBytesFieldNumber = 122,
     kS3ParquetFlushThresholdBytesFieldNumber = 132,
@@ -2196,6 +2197,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kPopulateNsidFieldNumber = 238,
     kUplinkCountFieldNumber = 236,
     kEnrichAsnEnableFieldNumber = 239,
+    kEnrichLocalityEnableFieldNumber = 242,
   };
   // string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
   void clear_s3_endpoint() ;
@@ -2827,6 +2829,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_asn_refresh_interval();
 
   public:
+  // .google.protobuf.Duration locality_refresh_interval = 243 [json_name = "localityRefreshInterval"];
+  [[nodiscard]] bool has_locality_refresh_interval()
+      const;
+  void clear_locality_refresh_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& locality_refresh_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_locality_refresh_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_locality_refresh_interval();
+  void set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_locality_refresh_interval();
+
+  private:
+  const ::google::protobuf::Duration& _internal_locality_refresh_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_locality_refresh_interval();
+
+  public:
   // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
   void clear_modulus() ;
   [[nodiscard]] ::uint64_t modulus() const;
@@ -3077,12 +3095,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_enrich_asn_enable(bool value);
 
   public:
+  // bool enrich_locality_enable = 242 [json_name = "enrichLocalityEnable"];
+  void clear_enrich_locality_enable() ;
+  [[nodiscard]] bool enrich_locality_enable() const;
+  void set_enrich_locality_enable(bool value);
+
+  private:
+  bool _internal_enrich_locality_enable() const;
+  void _internal_set_enrich_locality_enable(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 69,
-                          8, 402,
+      ::google::protobuf::internal::TcParseTable<5, 71,
+                          9, 402,
                           31>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -3154,6 +3182,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     ::google::protobuf::Duration* PROTOBUF_NULLABLE s3_upload_backoff_cap_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE reconcile_frequency_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE asn_refresh_interval_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE locality_refresh_interval_;
     ::uint64_t modulus_;
     ::uint32_t envelope_flush_threshold_bytes_;
     ::uint32_t s3_parquet_flush_threshold_bytes_;
@@ -3179,6 +3208,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     bool populate_nsid_;
     ::uint32_t uplink_count_;
     bool enrich_asn_enable_;
+    bool enrich_locality_enable_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -6118,7 +6148,7 @@ inline void XtcpConfig::set_allocated_capture_path(::std::string* PROTOBUF_NULLA
 inline void XtcpConfig::clear_modulus() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.modulus_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
 }
 inline ::uint64_t XtcpConfig::modulus() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.modulus)
@@ -6126,7 +6156,7 @@ inline ::uint64_t XtcpConfig::modulus() const {
 }
 inline void XtcpConfig::set_modulus(::uint64_t value) {
   _internal_set_modulus(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.modulus)
 }
 inline ::uint64_t XtcpConfig::_internal_modulus() const {
@@ -6206,7 +6236,7 @@ inline void XtcpConfig::set_allocated_marshal_to(::std::string* PROTOBUF_NULLABL
 inline void XtcpConfig::clear_envelope_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.envelope_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
 }
 inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
@@ -6214,7 +6244,7 @@ inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
 }
 inline void XtcpConfig::set_envelope_flush_threshold_bytes(::uint32_t value) {
   _internal_set_envelope_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
 }
 inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_bytes() const {
@@ -6638,7 +6668,7 @@ inline void XtcpConfig::set_allocated_s3_secret_key(::std::string* PROTOBUF_NULL
 inline void XtcpConfig::clear_s3_parquet_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
 }
 inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
@@ -6646,7 +6676,7 @@ inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
 }
 inline void XtcpConfig::set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
   _internal_set_s3_parquet_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_parquet_flush_threshold_bytes() const {
@@ -6726,7 +6756,7 @@ inline void XtcpConfig::set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE
 inline void XtcpConfig::clear_s3_skip_bucket_probe() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_skip_bucket_probe_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
 }
 inline bool XtcpConfig::s3_skip_bucket_probe() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
@@ -6734,7 +6764,7 @@ inline bool XtcpConfig::s3_skip_bucket_probe() const {
 }
 inline void XtcpConfig::set_s3_skip_bucket_probe(bool value) {
   _internal_set_s3_skip_bucket_probe(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
 }
 inline bool XtcpConfig::_internal_s3_skip_bucket_probe() const {
@@ -6878,7 +6908,7 @@ inline void XtcpConfig::set_allocated_pyroscope_app_name(::std::string* PROTOBUF
 inline void XtcpConfig::clear_pyroscope_sample_hz() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_sample_hz_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
@@ -6886,7 +6916,7 @@ inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
 }
 inline void XtcpConfig::set_pyroscope_sample_hz(::uint32_t value) {
   _internal_set_pyroscope_sample_hz(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_sample_hz() const {
@@ -6902,7 +6932,7 @@ inline void XtcpConfig::_internal_set_pyroscope_sample_hz(::uint32_t value) {
 inline void XtcpConfig::clear_pyroscope_upload_interval_sec() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_upload_interval_sec_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
@@ -6910,7 +6940,7 @@ inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
 }
 inline void XtcpConfig::set_pyroscope_upload_interval_sec(::uint32_t value) {
   _internal_set_pyroscope_upload_interval_sec(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_upload_interval_sec() const {
@@ -7299,7 +7329,7 @@ inline void XtcpConfig::set_allocated_kafka_produce_timeout(::google::protobuf::
 inline void XtcpConfig::clear_debug_level() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.debug_level_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
 }
 inline ::uint32_t XtcpConfig::debug_level() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.debug_level)
@@ -7307,7 +7337,7 @@ inline ::uint32_t XtcpConfig::debug_level() const {
 }
 inline void XtcpConfig::set_debug_level(::uint32_t value) {
   _internal_set_debug_level(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.debug_level)
 }
 inline ::uint32_t XtcpConfig::_internal_debug_level() const {
@@ -7643,7 +7673,7 @@ inline void XtcpConfig::set_allocated_daemon_version(::std::string* PROTOBUF_NUL
 inline void XtcpConfig::clear_resolve_container_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.resolve_container_id_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
 }
 inline bool XtcpConfig::resolve_container_id() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.resolve_container_id)
@@ -7651,7 +7681,7 @@ inline bool XtcpConfig::resolve_container_id() const {
 }
 inline void XtcpConfig::set_resolve_container_id(bool value) {
   _internal_set_resolve_container_id(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.resolve_container_id)
 }
 inline bool XtcpConfig::_internal_resolve_container_id() const {
@@ -7667,7 +7697,7 @@ inline void XtcpConfig::_internal_set_resolve_container_id(bool value) {
 inline void XtcpConfig::clear_ipv4_ttl() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ipv4_ttl_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
 }
 inline ::uint32_t XtcpConfig::ipv4_ttl() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv4_ttl)
@@ -7675,7 +7705,7 @@ inline ::uint32_t XtcpConfig::ipv4_ttl() const {
 }
 inline void XtcpConfig::set_ipv4_ttl(::uint32_t value) {
   _internal_set_ipv4_ttl(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv4_ttl)
 }
 inline ::uint32_t XtcpConfig::_internal_ipv4_ttl() const {
@@ -7691,7 +7721,7 @@ inline void XtcpConfig::_internal_set_ipv4_ttl(::uint32_t value) {
 inline void XtcpConfig::clear_ipv6_hop_limit() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ipv6_hop_limit_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
 }
 inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
@@ -7699,7 +7729,7 @@ inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
 }
 inline void XtcpConfig::set_ipv6_hop_limit(::uint32_t value) {
   _internal_set_ipv6_hop_limit(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
 }
 inline ::uint32_t XtcpConfig::_internal_ipv6_hop_limit() const {
@@ -7715,7 +7745,7 @@ inline void XtcpConfig::_internal_set_ipv6_hop_limit(::uint32_t value) {
 inline void XtcpConfig::clear_grpc_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.grpc_port_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
 }
 inline ::uint32_t XtcpConfig::grpc_port() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.grpc_port)
@@ -7723,7 +7753,7 @@ inline ::uint32_t XtcpConfig::grpc_port() const {
 }
 inline void XtcpConfig::set_grpc_port(::uint32_t value) {
   _internal_set_grpc_port(value);
-  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.grpc_port)
 }
 inline ::uint32_t XtcpConfig::_internal_grpc_port() const {
@@ -7837,7 +7867,7 @@ inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::E
 inline void XtcpConfig::clear_io_uring() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
 }
 inline bool XtcpConfig::io_uring() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring)
@@ -7845,7 +7875,7 @@ inline bool XtcpConfig::io_uring() const {
 }
 inline void XtcpConfig::set_io_uring(bool value) {
   _internal_set_io_uring(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring)
 }
 inline bool XtcpConfig::_internal_io_uring() const {
@@ -7861,7 +7891,7 @@ inline void XtcpConfig::_internal_set_io_uring(bool value) {
 inline void XtcpConfig::clear_io_uring_recv_batch_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_recv_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
 }
 inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
@@ -7869,7 +7899,7 @@ inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
 }
 inline void XtcpConfig::set_io_uring_recv_batch_size(::uint32_t value) {
   _internal_set_io_uring_recv_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
 }
 inline ::uint32_t XtcpConfig::_internal_io_uring_recv_batch_size() const {
@@ -7885,7 +7915,7 @@ inline void XtcpConfig::_internal_set_io_uring_recv_batch_size(::uint32_t value)
 inline void XtcpConfig::clear_io_uring_cqe_batch_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.io_uring_cqe_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
 }
 inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
@@ -7893,7 +7923,7 @@ inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
 }
 inline void XtcpConfig::set_io_uring_cqe_batch_size(::uint32_t value) {
   _internal_set_io_uring_cqe_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
 }
 inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
@@ -7973,7 +8003,7 @@ inline void XtcpConfig::set_allocated_csv_columns(::std::string* PROTOBUF_NULLAB
 inline void XtcpConfig::clear_poll_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.poll_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
 }
 inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
@@ -7981,7 +8011,7 @@ inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
 }
 inline void XtcpConfig::set_poll_jitter_pct(::uint32_t value) {
   _internal_set_poll_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_poll_jitter_pct() const {
@@ -8090,7 +8120,7 @@ inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Dura
 inline void XtcpConfig::clear_s3_flush_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_flush_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
 }
 inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
@@ -8098,7 +8128,7 @@ inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
 }
 inline void XtcpConfig::set_s3_flush_jitter_pct(::uint32_t value) {
   _internal_set_s3_flush_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_flush_jitter_pct() const {
@@ -8114,7 +8144,7 @@ inline void XtcpConfig::_internal_set_s3_flush_jitter_pct(::uint32_t value) {
 inline void XtcpConfig::clear_s3_flush_threshold_jitter_pct() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_flush_threshold_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
 }
 inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
@@ -8122,7 +8152,7 @@ inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
 }
 inline void XtcpConfig::set_s3_flush_threshold_jitter_pct(::uint32_t value) {
   _internal_set_s3_flush_threshold_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_flush_threshold_jitter_pct() const {
@@ -8138,7 +8168,7 @@ inline void XtcpConfig::_internal_set_s3_flush_threshold_jitter_pct(::uint32_t v
 inline void XtcpConfig::clear_s3_upload_max_attempts() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_upload_max_attempts_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
 }
 inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
@@ -8146,7 +8176,7 @@ inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
 }
 inline void XtcpConfig::set_s3_upload_max_attempts(::uint32_t value) {
   _internal_set_s3_upload_max_attempts(value);
-  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
 }
 inline ::uint32_t XtcpConfig::_internal_s3_upload_max_attempts() const {
@@ -8348,7 +8378,7 @@ inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Du
 inline void XtcpConfig::clear_reconcile_before_poll() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reconcile_before_poll_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
 }
 inline bool XtcpConfig::reconcile_before_poll() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
@@ -8356,7 +8386,7 @@ inline bool XtcpConfig::reconcile_before_poll() const {
 }
 inline void XtcpConfig::set_reconcile_before_poll(bool value) {
   _internal_set_reconcile_before_poll(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
 }
 inline bool XtcpConfig::_internal_reconcile_before_poll() const {
@@ -8372,7 +8402,7 @@ inline void XtcpConfig::_internal_set_reconcile_before_poll(bool value) {
 inline void XtcpConfig::clear_enrich_container_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_container_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
 }
 inline bool XtcpConfig::enrich_container_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_container_enable)
@@ -8380,7 +8410,7 @@ inline bool XtcpConfig::enrich_container_enable() const {
 }
 inline void XtcpConfig::set_enrich_container_enable(bool value) {
   _internal_set_enrich_container_enable(value);
-  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_container_enable)
 }
 inline bool XtcpConfig::_internal_enrich_container_enable() const {
@@ -8460,7 +8490,7 @@ inline void XtcpConfig::set_allocated_docker_socket_path(::std::string* PROTOBUF
 inline void XtcpConfig::clear_enrich_lldp_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_lldp_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
 }
 inline bool XtcpConfig::enrich_lldp_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
@@ -8468,7 +8498,7 @@ inline bool XtcpConfig::enrich_lldp_enable() const {
 }
 inline void XtcpConfig::set_enrich_lldp_enable(bool value) {
   _internal_set_enrich_lldp_enable(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
 }
 inline bool XtcpConfig::_internal_enrich_lldp_enable() const {
@@ -8612,7 +8642,7 @@ inline void XtcpConfig::set_allocated_lldpd_version_hint(::std::string* PROTOBUF
 inline void XtcpConfig::clear_enrich_nic_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_nic_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000004U);
 }
 inline bool XtcpConfig::enrich_nic_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
@@ -8620,7 +8650,7 @@ inline bool XtcpConfig::enrich_nic_enable() const {
 }
 inline void XtcpConfig::set_enrich_nic_enable(bool value) {
   _internal_set_enrich_nic_enable(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
 }
 inline bool XtcpConfig::_internal_enrich_nic_enable() const {
@@ -8636,7 +8666,7 @@ inline void XtcpConfig::_internal_set_enrich_nic_enable(bool value) {
 inline void XtcpConfig::clear_uplink_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.uplink_count_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000010U);
 }
 inline ::uint32_t XtcpConfig::uplink_count() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.uplink_count)
@@ -8644,7 +8674,7 @@ inline ::uint32_t XtcpConfig::uplink_count() const {
 }
 inline void XtcpConfig::set_uplink_count(::uint32_t value) {
   _internal_set_uplink_count(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.uplink_count)
 }
 inline ::uint32_t XtcpConfig::_internal_uplink_count() const {
@@ -8732,7 +8762,7 @@ XtcpConfig::_internal_mutable_uplink_interfaces() {
 inline void XtcpConfig::clear_populate_nsid() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.populate_nsid_ = false;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000008U);
 }
 inline bool XtcpConfig::populate_nsid() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.populate_nsid)
@@ -8740,7 +8770,7 @@ inline bool XtcpConfig::populate_nsid() const {
 }
 inline void XtcpConfig::set_populate_nsid(bool value) {
   _internal_set_populate_nsid(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.populate_nsid)
 }
 inline bool XtcpConfig::_internal_populate_nsid() const {
@@ -8756,7 +8786,7 @@ inline void XtcpConfig::_internal_set_populate_nsid(bool value) {
 inline void XtcpConfig::clear_enrich_asn_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_asn_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000020U);
 }
 inline bool XtcpConfig::enrich_asn_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_asn_enable)
@@ -8764,7 +8794,7 @@ inline bool XtcpConfig::enrich_asn_enable() const {
 }
 inline void XtcpConfig::set_enrich_asn_enable(bool value) {
   _internal_set_enrich_asn_enable(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_asn_enable)
 }
 inline bool XtcpConfig::_internal_enrich_asn_enable() const {
@@ -8931,6 +8961,123 @@ inline void XtcpConfig::set_allocated_asn_refresh_interval(::google::protobuf::D
 
   _impl_.asn_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+}
+
+// bool enrich_locality_enable = 242 [json_name = "enrichLocalityEnable"];
+inline void XtcpConfig::clear_enrich_locality_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_locality_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[2], 0x00000040U);
+}
+inline bool XtcpConfig::enrich_locality_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_locality_enable)
+  return _internal_enrich_locality_enable();
+}
+inline void XtcpConfig::set_enrich_locality_enable(bool value) {
+  _internal_set_enrich_locality_enable(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00000040U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_locality_enable)
+}
+inline bool XtcpConfig::_internal_enrich_locality_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_locality_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_locality_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_locality_enable_ = value;
+}
+
+// .google.protobuf.Duration locality_refresh_interval = 243 [json_name = "localityRefreshInterval"];
+inline bool XtcpConfig::has_locality_refresh_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00001000U);
+  PROTOBUF_ASSUME(!value || _impl_.locality_refresh_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_locality_refresh_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.locality_refresh_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::locality_refresh_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+  return _internal_locality_refresh_interval();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_locality_refresh_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.locality_refresh_interval_);
+  }
+  _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* released = _impl_.locality_refresh_interval_;
+  _impl_.locality_refresh_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* temp = _impl_.locality_refresh_interval_;
+  _impl_.locality_refresh_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.locality_refresh_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.locality_refresh_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_locality_refresh_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_locality_refresh_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.locality_refresh_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  }
+
+  _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
 }
 
 // -------------------------------------------------------------------

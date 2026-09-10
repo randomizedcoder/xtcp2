@@ -21,6 +21,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
 	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
+	"github.com/randomizedcoder/xtcp2/pkg/localnet"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
@@ -122,6 +123,16 @@ type XTCP struct {
 	// (optionally) refreshed by a background goroutine; read lock-free on the
 	// stamping path. nil unless enrich_asn_enable and a readable asn_db_path.
 	asnIndex *ipasn.Index
+
+	// localityByInode maps a socket's netns inode -> that namespace's local
+	// address/route snapshot, used to classify a destination as self /
+	// connected-subnet / remote BEFORE the ASN lookup. Rebuilt on the
+	// single-owner reconcile path (refreshLocality) and read lock-free on the
+	// stamping path. nil/empty unless enrich_locality_enable. lastLocalityRefresh
+	// throttles the per-namespace rtnetlink discovery to locality_refresh_interval
+	// and is touched only under reconcileMu (the reconcile owner).
+	localityByInode     atomic.Pointer[map[uint64]*localnet.Snapshot]
+	lastLocalityRefresh time.Time
 
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string

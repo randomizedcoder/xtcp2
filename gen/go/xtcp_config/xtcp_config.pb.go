@@ -983,8 +983,20 @@ type XtcpConfig struct {
 	// How often to reload asn_db_path in the background so a refreshed artifact
 	// is picked up without a restart. 0 = load once at startup, never reload.
 	AsnRefreshInterval *durationpb.Duration `protobuf:"bytes,241,opt,name=asn_refresh_interval,json=asnRefreshInterval,proto3" json:"asn_refresh_interval,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Classify the destination IP's locality (field 1019) — self /
+	// connected-subnet / remote — from each monitored network namespace's local
+	// addresses + routing table, discovered via rtnetlink (pkg/localnet). Runs
+	// BEFORE the ASN lookup, so self/local-subnet destinations skip it. Non-fatal:
+	// a per-namespace discovery failure just leaves that namespace's sockets
+	// unclassified. Default false.
+	EnrichLocalityEnable bool `protobuf:"varint,242,opt,name=enrich_locality_enable,json=enrichLocalityEnable,proto3" json:"enrich_locality_enable,omitempty"`
+	// How often to re-discover local addresses/routes per namespace so runtime
+	// changes (interfaces up/down, routes added) are picked up. Newly-appeared
+	// namespaces are always snapshotted on the next reconcile regardless. 0 =
+	// discover once per namespace, never refresh.
+	LocalityRefreshInterval *durationpb.Duration `protobuf:"bytes,243,opt,name=locality_refresh_interval,json=localityRefreshInterval,proto3" json:"locality_refresh_interval,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -1500,6 +1512,20 @@ func (x *XtcpConfig) GetAsnRefreshInterval() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetEnrichLocalityEnable() bool {
+	if x != nil {
+		return x.EnrichLocalityEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetLocalityRefreshInterval() *durationpb.Duration {
+	if x != nil {
+		return x.LocalityRefreshInterval
+	}
+	return nil
+}
+
 type EnabledDeserializers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       map[string]bool        `protobuf:"bytes,1,rep,name=enabled,proto3" json:"enabled,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
@@ -1588,7 +1614,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x1denvelope_flush_threshold_rows\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows:\xc0\x01\xbaH\xbc\x01\x1a\xb9\x01\n" +
 	"\x1bSetEnvelopeFlush.atLeastOne\x12Gset envelope_flush_threshold_bytes and/or envelope_flush_threshold_rows\x1aQthis.envelope_flush_threshold_bytes > 0 || this.envelope_flush_threshold_rows > 0\"N\n" +
 	"\x18SetEnvelopeFlushResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x9f\x1f\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xae \n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -1681,7 +1707,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\rpopulate_nsid\x18\xee\x01 \x01(\bR\fpopulateNsid\x12+\n" +
 	"\x11enrich_asn_enable\x18\xef\x01 \x01(\bR\x0fenrichAsnEnable\x12)\n" +
 	"\vasn_db_path\x18\xf0\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\tasnDbPath\x12L\n" +
-	"\x14asn_refresh_interval\x18\xf1\x01 \x01(\v2\x19.google.protobuf.DurationR\x12asnRefreshInterval:s\xbaHp\x1an\n" +
+	"\x14asn_refresh_interval\x18\xf1\x01 \x01(\v2\x19.google.protobuf.DurationR\x12asnRefreshInterval\x125\n" +
+	"\x16enrich_locality_enable\x18\xf2\x01 \x01(\bR\x14enrichLocalityEnable\x12V\n" +
+	"\x19locality_refresh_interval\x18\xf3\x01 \x01(\v2\x19.google.protobuf.DurationR\x17localityRefreshInterval:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
@@ -1751,26 +1779,27 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	17, // 16: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
 	17, // 17: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
 	17, // 18: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
-	16, // 19: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 20: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 21: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 22: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	6,  // 23: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	8,  // 24: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	10, // 25: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	12, // 26: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	1,  // 27: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 28: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 29: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	7,  // 30: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	9,  // 31: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	11, // 32: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	13, // 33: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	27, // [27:34] is the sub-list for method output_type
-	20, // [20:27] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	17, // 19: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	16, // 20: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	0,  // 21: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	2,  // 22: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	4,  // 23: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	6,  // 24: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	8,  // 25: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	10, // 26: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	12, // 27: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	1,  // 28: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	3,  // 29: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	5,  // 30: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	7,  // 31: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	9,  // 32: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	11, // 33: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	13, // 34: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	28, // [28:35] is the sub-list for method output_type
+	21, // [21:28] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

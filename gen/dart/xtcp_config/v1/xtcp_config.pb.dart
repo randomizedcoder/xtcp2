@@ -927,6 +927,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.bool? enrichAsnEnable,
     $core.String? asnDbPath,
     $1.Duration? asnRefreshInterval,
+    $core.bool? enrichLocalityEnable,
+    $1.Duration? localityRefreshInterval,
   }) {
     final result = create();
     if (nlTimeoutMilliseconds != null)
@@ -1017,6 +1019,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (asnDbPath != null) result.asnDbPath = asnDbPath;
     if (asnRefreshInterval != null)
       result.asnRefreshInterval = asnRefreshInterval;
+    if (enrichLocalityEnable != null)
+      result.enrichLocalityEnable = enrichLocalityEnable;
+    if (localityRefreshInterval != null)
+      result.localityRefreshInterval = localityRefreshInterval;
     return result;
   }
 
@@ -1137,6 +1143,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOB(239, _omitFieldNames ? '' : 'enrichAsnEnable')
     ..aOS(240, _omitFieldNames ? '' : 'asnDbPath')
     ..aOM<$1.Duration>(241, _omitFieldNames ? '' : 'asnRefreshInterval',
+        subBuilder: $1.Duration.create)
+    ..aOB(242, _omitFieldNames ? '' : 'enrichLocalityEnable')
+    ..aOM<$1.Duration>(243, _omitFieldNames ? '' : 'localityRefreshInterval',
         subBuilder: $1.Duration.create)
     ..hasRequiredFields = false;
 
@@ -2016,6 +2025,36 @@ class XtcpConfig extends $pb.GeneratedMessage {
   void clearAsnRefreshInterval() => $_clearField(241);
   @$pb.TagNumber(241)
   $1.Duration ensureAsnRefreshInterval() => $_ensure(68);
+
+  /// Classify the destination IP's locality (field 1019) — self /
+  /// connected-subnet / remote — from each monitored network namespace's local
+  /// addresses + routing table, discovered via rtnetlink (pkg/localnet). Runs
+  /// BEFORE the ASN lookup, so self/local-subnet destinations skip it. Non-fatal:
+  /// a per-namespace discovery failure just leaves that namespace's sockets
+  /// unclassified. Default false.
+  @$pb.TagNumber(242)
+  $core.bool get enrichLocalityEnable => $_getBF(69);
+  @$pb.TagNumber(242)
+  set enrichLocalityEnable($core.bool value) => $_setBool(69, value);
+  @$pb.TagNumber(242)
+  $core.bool hasEnrichLocalityEnable() => $_has(69);
+  @$pb.TagNumber(242)
+  void clearEnrichLocalityEnable() => $_clearField(242);
+
+  /// How often to re-discover local addresses/routes per namespace so runtime
+  /// changes (interfaces up/down, routes added) are picked up. Newly-appeared
+  /// namespaces are always snapshotted on the next reconcile regardless. 0 =
+  /// discover once per namespace, never refresh.
+  @$pb.TagNumber(243)
+  $1.Duration get localityRefreshInterval => $_getN(70);
+  @$pb.TagNumber(243)
+  set localityRefreshInterval($1.Duration value) => $_setField(243, value);
+  @$pb.TagNumber(243)
+  $core.bool hasLocalityRefreshInterval() => $_has(70);
+  @$pb.TagNumber(243)
+  void clearLocalityRefreshInterval() => $_clearField(243);
+  @$pb.TagNumber(243)
+  $1.Duration ensureLocalityRefreshInterval() => $_ensure(70);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

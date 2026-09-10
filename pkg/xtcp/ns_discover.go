@@ -85,5 +85,12 @@ func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
 		x.refreshNsids(out)
 	}
 
+	// Opt-in per-namespace locality snapshot (self / connected-subnet / remote),
+	// throttled by locality_refresh_interval. Single-owner (reconcile) — see
+	// enrich_locality.go.
+	if x.config != nil && x.config.EnrichLocalityEnable {
+		x.refreshLocality(out)
+	}
+
 	return out
 }

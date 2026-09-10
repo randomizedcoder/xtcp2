@@ -181,6 +181,21 @@ message XtcpFlatRecord {
 	// destination IP is not in the feed set.
 	string inet_diag_msg_socket_dest_network_owner  = 1018;
 
+	// Destination endpoint locality, classified from the socket's own network
+	// namespace's local addresses + routing table (discovered via rtnetlink,
+	// see pkg/localnet). Populated by the opt-in locality enricher BEFORE the
+	// ASN lookup: SELF and LOCAL_SUBNET destinations never reach the ASN feed,
+	// so dest_asn (1011) / dest_network_owner (1018) stay empty for them.
+	// UNSPECIFIED when locality enrichment is disabled or the namespace has no
+	// snapshot yet.
+	enum Locality {
+		LOCALITY_UNSPECIFIED  = 0;
+		LOCALITY_SELF         = 1; // one of this host/namespace's own addresses (or loopback)
+		LOCALITY_LOCAL_SUBNET = 2; // on a directly-connected subnet (one L2 hop, no gateway)
+		LOCALITY_REMOTE       = 3; // reached via a gateway (falls through to ASN lookup)
+	};
+	Locality inet_diag_msg_socket_dest_locality     = 1019;
+
 	// might want to put more here
 	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
 	// mem_info mem_info                            = 1100; // INET_DIAG_MEMINFO 1

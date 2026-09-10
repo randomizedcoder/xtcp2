@@ -659,6 +659,30 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.LocalityRefreshInterval != nil {
+		size, err := (*durationpb.Duration)(m.LocalityRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0x9a
+	}
+	if m.EnrichLocalityEnable {
+		i--
+		if m.EnrichLocalityEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0x90
+	}
 	if m.AsnRefreshInterval != nil {
 		size, err := (*durationpb.Duration)(m.AsnRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1783,6 +1807,13 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.AsnRefreshInterval != nil {
 		l = (*durationpb.Duration)(m.AsnRefreshInterval).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.EnrichLocalityEnable {
+		n += 3
+	}
+	if m.LocalityRefreshInterval != nil {
+		l = (*durationpb.Duration)(m.LocalityRefreshInterval).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -4832,6 +4863,62 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				m.AsnRefreshInterval = &durationpb1.Duration{}
 			}
 			if err := (*durationpb.Duration)(m.AsnRefreshInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 242:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichLocalityEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.EnrichLocalityEnable = bool(v != 0)
+		case 243:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LocalityRefreshInterval", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LocalityRefreshInterval == nil {
+				m.LocalityRefreshInterval = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.LocalityRefreshInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

@@ -123,6 +123,12 @@ let
   # against the user's GOMODCACHE.
   coverageMerge = import ./coverage-merge.nix { inherit pkgs; };
 
+  # Reproducible nlmon-based capture of real rtnetlink DUMP replies for the
+  # pkg/xtcpnl testdata harness. Invoked via
+  # `nix run .#capture-netlink-fixtures` from the repo root; see the file
+  # header for the filtering/versioning rationale.
+  captureNetlinkFixtures = import ./capture-netlink-fixtures.nix { inherit pkgs; };
+
   lintFixOne = pkgs.writeShellApplication {
     name = "xtcp2-lint-fix-one";
     runtimeInputs = [ versions.golangci-lint ];
@@ -592,6 +598,10 @@ in
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";
+    };
+    capture-netlink-fixtures = {
+      type = "app";
+      program = "${captureNetlinkFixtures}/bin/xtcp2-capture-netlink-fixtures";
     };
     # Run the whole microVM integration suite sequentially. Lifecycle sweep
     # by default; `-- --soak [--duration 1h]` adds the duration runners.

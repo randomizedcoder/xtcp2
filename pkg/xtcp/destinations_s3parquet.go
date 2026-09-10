@@ -777,6 +777,7 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		InetDiagMsgSocketDestAsn:          r.InetDiagMsgSocketDestAsn,
 		InetDiagMsgSocketNextHopAsn:       r.InetDiagMsgSocketNextHopAsn,
 		InetDiagMsgSocketDestNetworkOwner: r.InetDiagMsgSocketDestNetworkOwner,
+		InetDiagMsgSocketDestLocality:     int32(r.InetDiagMsgSocketDestLocality),
 		InetDiagMsgExpires:                r.InetDiagMsgExpires,
 		InetDiagMsgRqueue:                 r.InetDiagMsgRqueue,
 		InetDiagMsgWqueue:                 r.InetDiagMsgWqueue,

@@ -710,6 +710,21 @@ const XtcpConfig$json = {
       '6': '.google.protobuf.Duration',
       '10': 'asnRefreshInterval'
     },
+    {
+      '1': 'enrich_locality_enable',
+      '3': 242,
+      '4': 1,
+      '5': 8,
+      '10': 'enrichLocalityEnable'
+    },
+    {
+      '1': 'locality_refresh_interval',
+      '3': 243,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '10': 'localityRefreshInterval'
+    },
   ],
   '7': {},
 };
@@ -785,10 +800,12 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'cGxpbmtJbnRlcmZhY2VzEiQKDXBvcHVsYXRlX25zaWQY7gEgASgIUgxwb3B1bGF0ZU5zaWQSKw'
     'oRZW5yaWNoX2Fzbl9lbmFibGUY7wEgASgIUg9lbnJpY2hBc25FbmFibGUSKQoLYXNuX2RiX3Bh'
     'dGgY8AEgASgJQgi6SAVyAxj/AVIJYXNuRGJQYXRoEkwKFGFzbl9yZWZyZXNoX2ludGVydmFsGP'
-    'EBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvblISYXNuUmVmcmVzaEludGVydmFsOnO6'
-    'SHAabgoPWHRjcENvbmZpZy5wb2xsEjJQb2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNzIHRoYW4gcG'
-    '9sbCBwb2xsX2ZyZXF1ZW5jeRondGhpcy5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG9sbF90aW1l'
-    'b3V0');
+    'EBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvblISYXNuUmVmcmVzaEludGVydmFsEjUK'
+    'FmVucmljaF9sb2NhbGl0eV9lbmFibGUY8gEgASgIUhRlbnJpY2hMb2NhbGl0eUVuYWJsZRJWCh'
+    'lsb2NhbGl0eV9yZWZyZXNoX2ludGVydmFsGPMBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJh'
+    'dGlvblIXbG9jYWxpdHlSZWZyZXNoSW50ZXJ2YWw6c7pIcBpuCg9YdGNwQ29uZmlnLnBvbGwSMl'
+    'BvbGwgdGltZW91dCBtdXN0IGJlIGxlc3MgdGhhbiBwb2xsIHBvbGxfZnJlcXVlbmN5Gid0aGlz'
+    'LnBvbGxfZnJlcXVlbmN5ID4gdGhpcy5wb2xsX3RpbWVvdXQ=');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

@@ -13,6 +13,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
 	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
 	"github.com/randomizedcoder/xtcp2/pkg/lldp"
+	"github.com/randomizedcoder/xtcp2/pkg/localnet"
 	"github.com/randomizedcoder/xtcp2/pkg/nicinfo"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 )
@@ -100,6 +101,7 @@ func (x *XTCP) initEnrichers(ctx context.Context) {
 	x.initDockerEnricher(ctx)
 	x.initUplinkEnrichers(ctx)
 	x.initAsnEnricher(ctx)
+	x.initLocalityEnricher()
 }
 
 // initAsnEnricher loads the ipfeed-collector Parquet artifact into an in-process
@@ -301,8 +303,21 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 		}
 	}
 
-	if x.asnIndex != nil {
-		if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
+	if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
+		// Classify the destination's locality first. remote defaults to true so
+		// that with locality disabled (nil map) or no snapshot for this namespace
+		// the ASN lookup runs exactly as before. A self / connected-subnet
+		// destination is tagged and skips the internet ASN feed.
+		remote := true
+		if m := x.localityByInode.Load(); m != nil {
+			if snap := (*m)[r.NetnsInode]; snap != nil {
+				loc := snap.Classify(addr)
+				r.InetDiagMsgSocketDestLocality = xtcp_flat_record.XtcpFlatRecord_Locality(loc)
+				remote = loc == localnet.LocalityRemote
+			}
+		}
+
+		if remote && x.asnIndex != nil {
 			if a, found := x.asnIndex.Lookup(addr); found {
 				r.InetDiagMsgSocketDestAsn = uint64(a.ASN)
 				r.InetDiagMsgSocketDestNetworkOwner = a.NetworkOwner

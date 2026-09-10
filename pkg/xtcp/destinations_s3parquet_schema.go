@@ -54,6 +54,7 @@ type ParquetRow struct {
 	InetDiagMsgSocketDestAsn          uint64 `parquet:"inet_diag_msg_socket_dest_asn,snappy"`
 	InetDiagMsgSocketNextHopAsn       uint64 `parquet:"inet_diag_msg_socket_next_hop_asn,snappy"`
 	InetDiagMsgSocketDestNetworkOwner string `parquet:"inet_diag_msg_socket_dest_network_owner,snappy"`
+	InetDiagMsgSocketDestLocality     int32  `parquet:"inet_diag_msg_socket_dest_locality,snappy"`
 	InetDiagMsgExpires                uint32 `parquet:"inet_diag_msg_expires,snappy"`
 	InetDiagMsgRqueue                 uint32 `parquet:"inet_diag_msg_rqueue,snappy"`
 	InetDiagMsgWqueue                 uint32 `parquet:"inet_diag_msg_wqueue,snappy"`

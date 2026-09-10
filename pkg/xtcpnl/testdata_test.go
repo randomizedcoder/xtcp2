@@ -25,6 +25,12 @@ const (
 	tnMeminfo4_19_319   = "4_19_319_attribute_meminfo"
 	tnSport26546V4      = "7_0_3 sport26546 dport443"
 	tnSport19000V6      = "7_0_3 sport19000 dport10156 v6"
+
+	// 7.1.8 rtnetlink dump fixtures.
+	tnGetLinkDump   = "7_1_8 getlink dump"
+	tnGetAddrV4Dump = "7_1_8 getaddr v4 dump"
+	tnGetAddrV6Dump = "7_1_8 getaddr v6 dump"
+	tnGetRouteDump  = "7_1_8 getroute dump"
 )
 
 // Testdata file paths. Grouped by kernel-version subdirectory so a new
@@ -69,6 +75,23 @@ const (
 	// 7.0.3
 	tdResp26546_7_0_3   = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap"
 	tdResp19000V6_7_0_3 = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap"
+
+	// 7.1.8 rtnetlink captures (nlmon, NETLINK_ROUTE only).
+	//
+	// The three *bulk* pcaps are raw per-type nlmon captures produced by
+	// `nix run .#capture-netlink-fixtures`; they contain our RTM_GET* dump plus
+	// whatever other NETLINK_ROUTE traffic the namespace was doing. The
+	// generator (xtcpnl_extract_7_1_8_fixtures_test.go) isolates our dump by
+	// (nlmsg_seq, nlmsg_pid) and writes the clean single-record *_dump.pcap
+	// fixtures the deserialize tests read.
+	tdRouteBulkGetLink_7_1_8  = tdBase + "/7_1_8/netlink_route_getlink.pcap"
+	tdRouteBulkGetAddr_7_1_8  = tdBase + "/7_1_8/netlink_route_getaddr.pcap"
+	tdRouteBulkGetRoute_7_1_8 = tdBase + "/7_1_8/netlink_route_getroute.pcap"
+
+	tdRouteGetLinkDump_7_1_8   = tdBase + "/7_1_8/netlink_route_getlink_dump.pcap"
+	tdRouteGetAddrV4Dump_7_1_8 = tdBase + "/7_1_8/netlink_route_getaddr_v4_dump.pcap"
+	tdRouteGetAddrV6Dump_7_1_8 = tdBase + "/7_1_8/netlink_route_getaddr_v6_dump.pcap"
+	tdRouteGetRouteDump_7_1_8  = tdBase + "/7_1_8/netlink_route_getroute_dump.pcap"
 
 	// Bare testdata/ (no kernel subdir — placeholder fixtures)
 	tdAttrPragueinfoFake = tdBase + "/attribute_pragueinfo_fake_fixme"
