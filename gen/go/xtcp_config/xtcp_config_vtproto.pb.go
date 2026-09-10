@@ -659,6 +659,39 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.AsnRefreshInterval != nil {
+		size, err := (*durationpb.Duration)(m.AsnRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0x8a
+	}
+	if len(m.AsnDbPath) > 0 {
+		i -= len(m.AsnDbPath)
+		copy(dAtA[i:], m.AsnDbPath)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.AsnDbPath)))
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0x82
+	}
+	if m.EnrichAsnEnable {
+		i--
+		if m.EnrichAsnEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xe
+		i--
+		dAtA[i] = 0xf8
+	}
 	if m.PopulateNsid {
 		i--
 		if m.PopulateNsid {
@@ -1740,6 +1773,17 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.PopulateNsid {
 		n += 3
+	}
+	if m.EnrichAsnEnable {
+		n += 3
+	}
+	l = len(m.AsnDbPath)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.AsnRefreshInterval != nil {
+		l = (*durationpb.Duration)(m.AsnRefreshInterval).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -4703,6 +4747,94 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.PopulateNsid = bool(v != 0)
+		case 239:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichAsnEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.EnrichAsnEnable = bool(v != 0)
+		case 240:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AsnDbPath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AsnDbPath = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 241:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AsnRefreshInterval", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AsnRefreshInterval == nil {
+				m.AsnRefreshInterval = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.AsnRefreshInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

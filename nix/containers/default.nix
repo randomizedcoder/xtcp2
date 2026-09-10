@@ -171,6 +171,20 @@ let
       binaries = binaries.${name};
       entrypoint = "/bin/${name}";
     };
+
+  # Self-contained HEALTHCHECK for the ipfeed-collector daemon image (scratch,
+  # no shell/curl): the binary probes its own /readyz via `-healthcheck`.
+  ipfeedHealthcheck = {
+    Test = [
+      "CMD"
+      "/bin/ipfeed-collector"
+      "-healthcheck"
+    ];
+    Interval = 30000000000; # 30s
+    Timeout = 5000000000; # 5s
+    StartPeriod = 15000000000; # 15s — grace while the first cycle runs
+    Retries = 3;
+  };
 in
 {
   oci-xtcp2 = mkFatImage {
@@ -196,6 +210,24 @@ in
   # Slim per-client images (gRPC clients that talk to the daemon).
   oci-xtcp2client = mkClientImage "xtcp2client";
   oci-xtcp2ctl = mkClientImage "xtcp2ctl";
+
+  # Slim single-binary image for the ipfeed-collector daemon: scratch + CA
+  # bundle, runs as a daemon on :8080 with a self-probe HEALTHCHECK. Feed
+  # definitions are provided at runtime (mount a dir and set -sources-dir /
+  # IPFEED_SOURCES_DIR); they are not baked into the image.
+  oci-ipfeed-collector = mkOciImage {
+    name = "ipfeed-collector";
+    tag = "latest";
+    binaries = binaries."ipfeed-collector";
+    entrypoint = "/bin/ipfeed-collector";
+    cmd = [
+      "-daemon"
+      "-http-addr"
+      ":8080"
+    ];
+    exposedPorts = [ 8080 ];
+    healthcheck = ipfeedHealthcheck;
+  };
 
   # Phase B: tcp_server + tcp_client image, dispatched by TCP_MODE env.
   # Built so the Phase C docker-in-vm lifecycle harness can spin up

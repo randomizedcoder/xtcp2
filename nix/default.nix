@@ -500,6 +500,8 @@ in
         oci-xtcp2client
         oci-xtcp2ctl
         ;
+      # ipfeed-collector daemon image (slim: single binary + CA bundle).
+      inherit (containers) oci-ipfeed-collector;
 
       # Phase B: TCP-stress container for the multi-container test
       # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,

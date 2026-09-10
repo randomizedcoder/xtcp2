@@ -924,6 +924,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.int? uplinkCount,
     $core.Iterable<$core.String>? uplinkInterfaces,
     $core.bool? populateNsid,
+    $core.bool? enrichAsnEnable,
+    $core.String? asnDbPath,
+    $1.Duration? asnRefreshInterval,
   }) {
     final result = create();
     if (nlTimeoutMilliseconds != null)
@@ -1010,6 +1013,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (uplinkInterfaces != null)
       result.uplinkInterfaces.addAll(uplinkInterfaces);
     if (populateNsid != null) result.populateNsid = populateNsid;
+    if (enrichAsnEnable != null) result.enrichAsnEnable = enrichAsnEnable;
+    if (asnDbPath != null) result.asnDbPath = asnDbPath;
+    if (asnRefreshInterval != null)
+      result.asnRefreshInterval = asnRefreshInterval;
     return result;
   }
 
@@ -1127,6 +1134,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
         fieldType: $pb.PbFieldType.OU3)
     ..pPS(237, _omitFieldNames ? '' : 'uplinkInterfaces')
     ..aOB(238, _omitFieldNames ? '' : 'populateNsid')
+    ..aOB(239, _omitFieldNames ? '' : 'enrichAsnEnable')
+    ..aOS(240, _omitFieldNames ? '' : 'asnDbPath')
+    ..aOM<$1.Duration>(241, _omitFieldNames ? '' : 'asnRefreshInterval',
+        subBuilder: $1.Duration.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1967,6 +1978,44 @@ class XtcpConfig extends $pb.GeneratedMessage {
   $core.bool hasPopulateNsid() => $_has(65);
   @$pb.TagNumber(238)
   void clearPopulateNsid() => $_clearField(238);
+
+  /// Enrich the destination IP's ASN (field 1011) and network owner (field
+  /// 1018) by longest-prefix-matching it against the ipfeed-collector Parquet
+  /// artifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when
+  /// enabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,
+  /// and leaves both columns empty. Default false.
+  @$pb.TagNumber(239)
+  $core.bool get enrichAsnEnable => $_getBF(66);
+  @$pb.TagNumber(239)
+  set enrichAsnEnable($core.bool value) => $_setBool(66, value);
+  @$pb.TagNumber(239)
+  $core.bool hasEnrichAsnEnable() => $_has(66);
+  @$pb.TagNumber(239)
+  void clearEnrichAsnEnable() => $_clearField(239);
+
+  /// Path to the ipfeed-collector Parquet artifact (prefix -> {asn,
+  /// network_owner}). Default "".
+  @$pb.TagNumber(240)
+  $core.String get asnDbPath => $_getSZ(67);
+  @$pb.TagNumber(240)
+  set asnDbPath($core.String value) => $_setString(67, value);
+  @$pb.TagNumber(240)
+  $core.bool hasAsnDbPath() => $_has(67);
+  @$pb.TagNumber(240)
+  void clearAsnDbPath() => $_clearField(240);
+
+  /// How often to reload asn_db_path in the background so a refreshed artifact
+  /// is picked up without a restart. 0 = load once at startup, never reload.
+  @$pb.TagNumber(241)
+  $1.Duration get asnRefreshInterval => $_getN(68);
+  @$pb.TagNumber(241)
+  set asnRefreshInterval($1.Duration value) => $_setField(241, value);
+  @$pb.TagNumber(241)
+  $core.bool hasAsnRefreshInterval() => $_has(68);
+  @$pb.TagNumber(241)
+  void clearAsnRefreshInterval() => $_clearField(241);
+  @$pb.TagNumber(241)
+  $1.Duration ensureAsnRefreshInterval() => $_ensure(68);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

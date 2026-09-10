@@ -1,0 +1,11 @@
+name: m365-worldwide
+provider: microsoft
+url: https://endpoints.office.com/endpoints/worldwide?clientrequestid=00000000-0000-0000-0000-000000000000
+parser: m365
+source_type: provider_api
+confidence: authoritative
+defaults:
+  network_owner: microsoft
+  service_operator: microsoft
+  product: microsoft-365
+enabled: true

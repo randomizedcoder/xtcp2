@@ -139,6 +139,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
     $core.int? inetDiagMsgWqueue,
     $core.int? inetDiagMsgUid,
     $core.int? inetDiagMsgInode,
+    $core.String? inetDiagMsgSocketDestNetworkOwner,
     $core.int? memInfoRmem,
     $core.int? memInfoWmem,
     $core.int? memInfoFmem,
@@ -322,6 +323,9 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
     if (inetDiagMsgWqueue != null) result.inetDiagMsgWqueue = inetDiagMsgWqueue;
     if (inetDiagMsgUid != null) result.inetDiagMsgUid = inetDiagMsgUid;
     if (inetDiagMsgInode != null) result.inetDiagMsgInode = inetDiagMsgInode;
+    if (inetDiagMsgSocketDestNetworkOwner != null)
+      result.inetDiagMsgSocketDestNetworkOwner =
+          inetDiagMsgSocketDestNetworkOwner;
     if (memInfoRmem != null) result.memInfoRmem = memInfoRmem;
     if (memInfoWmem != null) result.memInfoWmem = memInfoWmem;
     if (memInfoFmem != null) result.memInfoFmem = memInfoFmem;
@@ -560,6 +564,7 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
         fieldType: $pb.PbFieldType.OU3)
     ..aI(1017, _omitFieldNames ? '' : 'inetDiagMsgInode',
         fieldType: $pb.PbFieldType.OU3)
+    ..aOS(1018, _omitFieldNames ? '' : 'inetDiagMsgSocketDestNetworkOwner')
     ..aI(1101, _omitFieldNames ? '' : 'memInfoRmem',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(1102, _omitFieldNames ? '' : 'memInfoWmem',
@@ -1373,6 +1378,20 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   @$pb.TagNumber(1017)
   void clearInetDiagMsgInode() => $_clearField(1017);
 
+  /// Destination network owner (e.g. "cloudflare", "aws"), from the IP-range
+  /// feeds ipfeed-collector parses. Populated alongside dest_asn (1011) by the
+  /// opt-in ASN enricher (pkg/ipasn). Empty when enrichment is disabled or the
+  /// destination IP is not in the feed set.
+  @$pb.TagNumber(1018)
+  $core.String get inetDiagMsgSocketDestNetworkOwner => $_getSZ(60);
+  @$pb.TagNumber(1018)
+  set inetDiagMsgSocketDestNetworkOwner($core.String value) =>
+      $_setString(60, value);
+  @$pb.TagNumber(1018)
+  $core.bool hasInetDiagMsgSocketDestNetworkOwner() => $_has(60);
+  @$pb.TagNumber(1018)
+  void clearInetDiagMsgSocketDestNetworkOwner() => $_clearField(1018);
+
   /// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
   /// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
   /// so these ship as 0 on current records. The same values live in sk_mem_info:
@@ -1384,595 +1403,595 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   /// (Not marked `[deprecated = true]` so the still-supported opt-in decode path
   /// and tests don't trip staticcheck SA1019.)
   @$pb.TagNumber(1101)
-  $core.int get memInfoRmem => $_getIZ(60);
+  $core.int get memInfoRmem => $_getIZ(61);
   @$pb.TagNumber(1101)
-  set memInfoRmem($core.int value) => $_setUnsignedInt32(60, value);
+  set memInfoRmem($core.int value) => $_setUnsignedInt32(61, value);
   @$pb.TagNumber(1101)
-  $core.bool hasMemInfoRmem() => $_has(60);
+  $core.bool hasMemInfoRmem() => $_has(61);
   @$pb.TagNumber(1101)
   void clearMemInfoRmem() => $_clearField(1101);
 
   @$pb.TagNumber(1102)
-  $core.int get memInfoWmem => $_getIZ(61);
+  $core.int get memInfoWmem => $_getIZ(62);
   @$pb.TagNumber(1102)
-  set memInfoWmem($core.int value) => $_setUnsignedInt32(61, value);
+  set memInfoWmem($core.int value) => $_setUnsignedInt32(62, value);
   @$pb.TagNumber(1102)
-  $core.bool hasMemInfoWmem() => $_has(61);
+  $core.bool hasMemInfoWmem() => $_has(62);
   @$pb.TagNumber(1102)
   void clearMemInfoWmem() => $_clearField(1102);
 
   @$pb.TagNumber(1103)
-  $core.int get memInfoFmem => $_getIZ(62);
+  $core.int get memInfoFmem => $_getIZ(63);
   @$pb.TagNumber(1103)
-  set memInfoFmem($core.int value) => $_setUnsignedInt32(62, value);
+  set memInfoFmem($core.int value) => $_setUnsignedInt32(63, value);
   @$pb.TagNumber(1103)
-  $core.bool hasMemInfoFmem() => $_has(62);
+  $core.bool hasMemInfoFmem() => $_has(63);
   @$pb.TagNumber(1103)
   void clearMemInfoFmem() => $_clearField(1103);
 
   @$pb.TagNumber(1104)
-  $core.int get memInfoTmem => $_getIZ(63);
+  $core.int get memInfoTmem => $_getIZ(64);
   @$pb.TagNumber(1104)
-  set memInfoTmem($core.int value) => $_setUnsignedInt32(63, value);
+  set memInfoTmem($core.int value) => $_setUnsignedInt32(64, value);
   @$pb.TagNumber(1104)
-  $core.bool hasMemInfoTmem() => $_has(63);
+  $core.bool hasMemInfoTmem() => $_has(64);
   @$pb.TagNumber(1104)
   void clearMemInfoTmem() => $_clearField(1104);
 
   @$pb.TagNumber(1201)
-  $core.int get tcpInfoState => $_getIZ(64);
+  $core.int get tcpInfoState => $_getIZ(65);
   @$pb.TagNumber(1201)
-  set tcpInfoState($core.int value) => $_setUnsignedInt32(64, value);
+  set tcpInfoState($core.int value) => $_setUnsignedInt32(65, value);
   @$pb.TagNumber(1201)
-  $core.bool hasTcpInfoState() => $_has(64);
+  $core.bool hasTcpInfoState() => $_has(65);
   @$pb.TagNumber(1201)
   void clearTcpInfoState() => $_clearField(1201);
 
   @$pb.TagNumber(1202)
-  $core.int get tcpInfoCaState => $_getIZ(65);
+  $core.int get tcpInfoCaState => $_getIZ(66);
   @$pb.TagNumber(1202)
-  set tcpInfoCaState($core.int value) => $_setUnsignedInt32(65, value);
+  set tcpInfoCaState($core.int value) => $_setUnsignedInt32(66, value);
   @$pb.TagNumber(1202)
-  $core.bool hasTcpInfoCaState() => $_has(65);
+  $core.bool hasTcpInfoCaState() => $_has(66);
   @$pb.TagNumber(1202)
   void clearTcpInfoCaState() => $_clearField(1202);
 
   @$pb.TagNumber(1203)
-  $core.int get tcpInfoRetransmits => $_getIZ(66);
+  $core.int get tcpInfoRetransmits => $_getIZ(67);
   @$pb.TagNumber(1203)
-  set tcpInfoRetransmits($core.int value) => $_setUnsignedInt32(66, value);
+  set tcpInfoRetransmits($core.int value) => $_setUnsignedInt32(67, value);
   @$pb.TagNumber(1203)
-  $core.bool hasTcpInfoRetransmits() => $_has(66);
+  $core.bool hasTcpInfoRetransmits() => $_has(67);
   @$pb.TagNumber(1203)
   void clearTcpInfoRetransmits() => $_clearField(1203);
 
   @$pb.TagNumber(1204)
-  $core.int get tcpInfoProbes => $_getIZ(67);
+  $core.int get tcpInfoProbes => $_getIZ(68);
   @$pb.TagNumber(1204)
-  set tcpInfoProbes($core.int value) => $_setUnsignedInt32(67, value);
+  set tcpInfoProbes($core.int value) => $_setUnsignedInt32(68, value);
   @$pb.TagNumber(1204)
-  $core.bool hasTcpInfoProbes() => $_has(67);
+  $core.bool hasTcpInfoProbes() => $_has(68);
   @$pb.TagNumber(1204)
   void clearTcpInfoProbes() => $_clearField(1204);
 
   @$pb.TagNumber(1205)
-  $core.int get tcpInfoBackoff => $_getIZ(68);
+  $core.int get tcpInfoBackoff => $_getIZ(69);
   @$pb.TagNumber(1205)
-  set tcpInfoBackoff($core.int value) => $_setUnsignedInt32(68, value);
+  set tcpInfoBackoff($core.int value) => $_setUnsignedInt32(69, value);
   @$pb.TagNumber(1205)
-  $core.bool hasTcpInfoBackoff() => $_has(68);
+  $core.bool hasTcpInfoBackoff() => $_has(69);
   @$pb.TagNumber(1205)
   void clearTcpInfoBackoff() => $_clearField(1205);
 
   @$pb.TagNumber(1206)
-  $core.int get tcpInfoOptions => $_getIZ(69);
+  $core.int get tcpInfoOptions => $_getIZ(70);
   @$pb.TagNumber(1206)
-  set tcpInfoOptions($core.int value) => $_setUnsignedInt32(69, value);
+  set tcpInfoOptions($core.int value) => $_setUnsignedInt32(70, value);
   @$pb.TagNumber(1206)
-  $core.bool hasTcpInfoOptions() => $_has(69);
+  $core.bool hasTcpInfoOptions() => $_has(70);
   @$pb.TagNumber(1206)
   void clearTcpInfoOptions() => $_clearField(1206);
 
   /// 	__u8	_snd_wscale : 4, _rcv_wscale : 4;
   /// 	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
   @$pb.TagNumber(1207)
-  $core.int get tcpInfoSendScale => $_getIZ(70);
+  $core.int get tcpInfoSendScale => $_getIZ(71);
   @$pb.TagNumber(1207)
-  set tcpInfoSendScale($core.int value) => $_setUnsignedInt32(70, value);
+  set tcpInfoSendScale($core.int value) => $_setUnsignedInt32(71, value);
   @$pb.TagNumber(1207)
-  $core.bool hasTcpInfoSendScale() => $_has(70);
+  $core.bool hasTcpInfoSendScale() => $_has(71);
   @$pb.TagNumber(1207)
   void clearTcpInfoSendScale() => $_clearField(1207);
 
   @$pb.TagNumber(1208)
-  $core.int get tcpInfoRcvScale => $_getIZ(71);
+  $core.int get tcpInfoRcvScale => $_getIZ(72);
   @$pb.TagNumber(1208)
-  set tcpInfoRcvScale($core.int value) => $_setUnsignedInt32(71, value);
+  set tcpInfoRcvScale($core.int value) => $_setUnsignedInt32(72, value);
   @$pb.TagNumber(1208)
-  $core.bool hasTcpInfoRcvScale() => $_has(71);
+  $core.bool hasTcpInfoRcvScale() => $_has(72);
   @$pb.TagNumber(1208)
   void clearTcpInfoRcvScale() => $_clearField(1208);
 
   @$pb.TagNumber(1209)
-  $core.int get tcpInfoDeliveryRateAppLimited => $_getIZ(72);
+  $core.int get tcpInfoDeliveryRateAppLimited => $_getIZ(73);
   @$pb.TagNumber(1209)
   set tcpInfoDeliveryRateAppLimited($core.int value) =>
-      $_setUnsignedInt32(72, value);
+      $_setUnsignedInt32(73, value);
   @$pb.TagNumber(1209)
-  $core.bool hasTcpInfoDeliveryRateAppLimited() => $_has(72);
+  $core.bool hasTcpInfoDeliveryRateAppLimited() => $_has(73);
   @$pb.TagNumber(1209)
   void clearTcpInfoDeliveryRateAppLimited() => $_clearField(1209);
 
   @$pb.TagNumber(1210)
-  $core.int get tcpInfoFastOpenClientFailed => $_getIZ(73);
+  $core.int get tcpInfoFastOpenClientFailed => $_getIZ(74);
   @$pb.TagNumber(1210)
   set tcpInfoFastOpenClientFailed($core.int value) =>
-      $_setUnsignedInt32(73, value);
+      $_setUnsignedInt32(74, value);
   @$pb.TagNumber(1210)
-  $core.bool hasTcpInfoFastOpenClientFailed() => $_has(73);
+  $core.bool hasTcpInfoFastOpenClientFailed() => $_has(74);
   @$pb.TagNumber(1210)
   void clearTcpInfoFastOpenClientFailed() => $_clearField(1210);
 
   @$pb.TagNumber(1215)
-  $core.int get tcpInfoRto => $_getIZ(74);
+  $core.int get tcpInfoRto => $_getIZ(75);
   @$pb.TagNumber(1215)
-  set tcpInfoRto($core.int value) => $_setUnsignedInt32(74, value);
+  set tcpInfoRto($core.int value) => $_setUnsignedInt32(75, value);
   @$pb.TagNumber(1215)
-  $core.bool hasTcpInfoRto() => $_has(74);
+  $core.bool hasTcpInfoRto() => $_has(75);
   @$pb.TagNumber(1215)
   void clearTcpInfoRto() => $_clearField(1215);
 
   @$pb.TagNumber(1216)
-  $core.int get tcpInfoAto => $_getIZ(75);
+  $core.int get tcpInfoAto => $_getIZ(76);
   @$pb.TagNumber(1216)
-  set tcpInfoAto($core.int value) => $_setUnsignedInt32(75, value);
+  set tcpInfoAto($core.int value) => $_setUnsignedInt32(76, value);
   @$pb.TagNumber(1216)
-  $core.bool hasTcpInfoAto() => $_has(75);
+  $core.bool hasTcpInfoAto() => $_has(76);
   @$pb.TagNumber(1216)
   void clearTcpInfoAto() => $_clearField(1216);
 
   @$pb.TagNumber(1217)
-  $core.int get tcpInfoSndMss => $_getIZ(76);
+  $core.int get tcpInfoSndMss => $_getIZ(77);
   @$pb.TagNumber(1217)
-  set tcpInfoSndMss($core.int value) => $_setUnsignedInt32(76, value);
+  set tcpInfoSndMss($core.int value) => $_setUnsignedInt32(77, value);
   @$pb.TagNumber(1217)
-  $core.bool hasTcpInfoSndMss() => $_has(76);
+  $core.bool hasTcpInfoSndMss() => $_has(77);
   @$pb.TagNumber(1217)
   void clearTcpInfoSndMss() => $_clearField(1217);
 
   @$pb.TagNumber(1218)
-  $core.int get tcpInfoRcvMss => $_getIZ(77);
+  $core.int get tcpInfoRcvMss => $_getIZ(78);
   @$pb.TagNumber(1218)
-  set tcpInfoRcvMss($core.int value) => $_setUnsignedInt32(77, value);
+  set tcpInfoRcvMss($core.int value) => $_setUnsignedInt32(78, value);
   @$pb.TagNumber(1218)
-  $core.bool hasTcpInfoRcvMss() => $_has(77);
+  $core.bool hasTcpInfoRcvMss() => $_has(78);
   @$pb.TagNumber(1218)
   void clearTcpInfoRcvMss() => $_clearField(1218);
 
   @$pb.TagNumber(1219)
-  $core.int get tcpInfoUnacked => $_getIZ(78);
+  $core.int get tcpInfoUnacked => $_getIZ(79);
   @$pb.TagNumber(1219)
-  set tcpInfoUnacked($core.int value) => $_setUnsignedInt32(78, value);
+  set tcpInfoUnacked($core.int value) => $_setUnsignedInt32(79, value);
   @$pb.TagNumber(1219)
-  $core.bool hasTcpInfoUnacked() => $_has(78);
+  $core.bool hasTcpInfoUnacked() => $_has(79);
   @$pb.TagNumber(1219)
   void clearTcpInfoUnacked() => $_clearField(1219);
 
   @$pb.TagNumber(1220)
-  $core.int get tcpInfoSacked => $_getIZ(79);
+  $core.int get tcpInfoSacked => $_getIZ(80);
   @$pb.TagNumber(1220)
-  set tcpInfoSacked($core.int value) => $_setUnsignedInt32(79, value);
+  set tcpInfoSacked($core.int value) => $_setUnsignedInt32(80, value);
   @$pb.TagNumber(1220)
-  $core.bool hasTcpInfoSacked() => $_has(79);
+  $core.bool hasTcpInfoSacked() => $_has(80);
   @$pb.TagNumber(1220)
   void clearTcpInfoSacked() => $_clearField(1220);
 
   @$pb.TagNumber(1221)
-  $core.int get tcpInfoLost => $_getIZ(80);
+  $core.int get tcpInfoLost => $_getIZ(81);
   @$pb.TagNumber(1221)
-  set tcpInfoLost($core.int value) => $_setUnsignedInt32(80, value);
+  set tcpInfoLost($core.int value) => $_setUnsignedInt32(81, value);
   @$pb.TagNumber(1221)
-  $core.bool hasTcpInfoLost() => $_has(80);
+  $core.bool hasTcpInfoLost() => $_has(81);
   @$pb.TagNumber(1221)
   void clearTcpInfoLost() => $_clearField(1221);
 
   @$pb.TagNumber(1222)
-  $core.int get tcpInfoRetrans => $_getIZ(81);
+  $core.int get tcpInfoRetrans => $_getIZ(82);
   @$pb.TagNumber(1222)
-  set tcpInfoRetrans($core.int value) => $_setUnsignedInt32(81, value);
+  set tcpInfoRetrans($core.int value) => $_setUnsignedInt32(82, value);
   @$pb.TagNumber(1222)
-  $core.bool hasTcpInfoRetrans() => $_has(81);
+  $core.bool hasTcpInfoRetrans() => $_has(82);
   @$pb.TagNumber(1222)
   void clearTcpInfoRetrans() => $_clearField(1222);
 
   @$pb.TagNumber(1223)
-  $core.int get tcpInfoFackets => $_getIZ(82);
+  $core.int get tcpInfoFackets => $_getIZ(83);
   @$pb.TagNumber(1223)
-  set tcpInfoFackets($core.int value) => $_setUnsignedInt32(82, value);
+  set tcpInfoFackets($core.int value) => $_setUnsignedInt32(83, value);
   @$pb.TagNumber(1223)
-  $core.bool hasTcpInfoFackets() => $_has(82);
+  $core.bool hasTcpInfoFackets() => $_has(83);
   @$pb.TagNumber(1223)
   void clearTcpInfoFackets() => $_clearField(1223);
 
   /// Times
   @$pb.TagNumber(1224)
-  $core.int get tcpInfoLastDataSent => $_getIZ(83);
+  $core.int get tcpInfoLastDataSent => $_getIZ(84);
   @$pb.TagNumber(1224)
-  set tcpInfoLastDataSent($core.int value) => $_setUnsignedInt32(83, value);
+  set tcpInfoLastDataSent($core.int value) => $_setUnsignedInt32(84, value);
   @$pb.TagNumber(1224)
-  $core.bool hasTcpInfoLastDataSent() => $_has(83);
+  $core.bool hasTcpInfoLastDataSent() => $_has(84);
   @$pb.TagNumber(1224)
   void clearTcpInfoLastDataSent() => $_clearField(1224);
 
   @$pb.TagNumber(1225)
-  $core.int get tcpInfoLastAckSent => $_getIZ(84);
+  $core.int get tcpInfoLastAckSent => $_getIZ(85);
   @$pb.TagNumber(1225)
-  set tcpInfoLastAckSent($core.int value) => $_setUnsignedInt32(84, value);
+  set tcpInfoLastAckSent($core.int value) => $_setUnsignedInt32(85, value);
   @$pb.TagNumber(1225)
-  $core.bool hasTcpInfoLastAckSent() => $_has(84);
+  $core.bool hasTcpInfoLastAckSent() => $_has(85);
   @$pb.TagNumber(1225)
   void clearTcpInfoLastAckSent() => $_clearField(1225);
 
   @$pb.TagNumber(1226)
-  $core.int get tcpInfoLastDataRecv => $_getIZ(85);
+  $core.int get tcpInfoLastDataRecv => $_getIZ(86);
   @$pb.TagNumber(1226)
-  set tcpInfoLastDataRecv($core.int value) => $_setUnsignedInt32(85, value);
+  set tcpInfoLastDataRecv($core.int value) => $_setUnsignedInt32(86, value);
   @$pb.TagNumber(1226)
-  $core.bool hasTcpInfoLastDataRecv() => $_has(85);
+  $core.bool hasTcpInfoLastDataRecv() => $_has(86);
   @$pb.TagNumber(1226)
   void clearTcpInfoLastDataRecv() => $_clearField(1226);
 
   @$pb.TagNumber(1227)
-  $core.int get tcpInfoLastAckRecv => $_getIZ(86);
+  $core.int get tcpInfoLastAckRecv => $_getIZ(87);
   @$pb.TagNumber(1227)
-  set tcpInfoLastAckRecv($core.int value) => $_setUnsignedInt32(86, value);
+  set tcpInfoLastAckRecv($core.int value) => $_setUnsignedInt32(87, value);
   @$pb.TagNumber(1227)
-  $core.bool hasTcpInfoLastAckRecv() => $_has(86);
+  $core.bool hasTcpInfoLastAckRecv() => $_has(87);
   @$pb.TagNumber(1227)
   void clearTcpInfoLastAckRecv() => $_clearField(1227);
 
   /// Metrics
   @$pb.TagNumber(1228)
-  $core.int get tcpInfoPmtu => $_getIZ(87);
+  $core.int get tcpInfoPmtu => $_getIZ(88);
   @$pb.TagNumber(1228)
-  set tcpInfoPmtu($core.int value) => $_setUnsignedInt32(87, value);
+  set tcpInfoPmtu($core.int value) => $_setUnsignedInt32(88, value);
   @$pb.TagNumber(1228)
-  $core.bool hasTcpInfoPmtu() => $_has(87);
+  $core.bool hasTcpInfoPmtu() => $_has(88);
   @$pb.TagNumber(1228)
   void clearTcpInfoPmtu() => $_clearField(1228);
 
   @$pb.TagNumber(1229)
-  $core.int get tcpInfoRcvSsthresh => $_getIZ(88);
+  $core.int get tcpInfoRcvSsthresh => $_getIZ(89);
   @$pb.TagNumber(1229)
-  set tcpInfoRcvSsthresh($core.int value) => $_setUnsignedInt32(88, value);
+  set tcpInfoRcvSsthresh($core.int value) => $_setUnsignedInt32(89, value);
   @$pb.TagNumber(1229)
-  $core.bool hasTcpInfoRcvSsthresh() => $_has(88);
+  $core.bool hasTcpInfoRcvSsthresh() => $_has(89);
   @$pb.TagNumber(1229)
   void clearTcpInfoRcvSsthresh() => $_clearField(1229);
 
   @$pb.TagNumber(1230)
-  $core.int get tcpInfoRtt => $_getIZ(89);
+  $core.int get tcpInfoRtt => $_getIZ(90);
   @$pb.TagNumber(1230)
-  set tcpInfoRtt($core.int value) => $_setUnsignedInt32(89, value);
+  set tcpInfoRtt($core.int value) => $_setUnsignedInt32(90, value);
   @$pb.TagNumber(1230)
-  $core.bool hasTcpInfoRtt() => $_has(89);
+  $core.bool hasTcpInfoRtt() => $_has(90);
   @$pb.TagNumber(1230)
   void clearTcpInfoRtt() => $_clearField(1230);
 
   @$pb.TagNumber(1231)
-  $core.int get tcpInfoRttVar => $_getIZ(90);
+  $core.int get tcpInfoRttVar => $_getIZ(91);
   @$pb.TagNumber(1231)
-  set tcpInfoRttVar($core.int value) => $_setUnsignedInt32(90, value);
+  set tcpInfoRttVar($core.int value) => $_setUnsignedInt32(91, value);
   @$pb.TagNumber(1231)
-  $core.bool hasTcpInfoRttVar() => $_has(90);
+  $core.bool hasTcpInfoRttVar() => $_has(91);
   @$pb.TagNumber(1231)
   void clearTcpInfoRttVar() => $_clearField(1231);
 
   @$pb.TagNumber(1232)
-  $core.int get tcpInfoSndSsthresh => $_getIZ(91);
+  $core.int get tcpInfoSndSsthresh => $_getIZ(92);
   @$pb.TagNumber(1232)
-  set tcpInfoSndSsthresh($core.int value) => $_setUnsignedInt32(91, value);
+  set tcpInfoSndSsthresh($core.int value) => $_setUnsignedInt32(92, value);
   @$pb.TagNumber(1232)
-  $core.bool hasTcpInfoSndSsthresh() => $_has(91);
+  $core.bool hasTcpInfoSndSsthresh() => $_has(92);
   @$pb.TagNumber(1232)
   void clearTcpInfoSndSsthresh() => $_clearField(1232);
 
   @$pb.TagNumber(1233)
-  $core.int get tcpInfoSndCwnd => $_getIZ(92);
+  $core.int get tcpInfoSndCwnd => $_getIZ(93);
   @$pb.TagNumber(1233)
-  set tcpInfoSndCwnd($core.int value) => $_setUnsignedInt32(92, value);
+  set tcpInfoSndCwnd($core.int value) => $_setUnsignedInt32(93, value);
   @$pb.TagNumber(1233)
-  $core.bool hasTcpInfoSndCwnd() => $_has(92);
+  $core.bool hasTcpInfoSndCwnd() => $_has(93);
   @$pb.TagNumber(1233)
   void clearTcpInfoSndCwnd() => $_clearField(1233);
 
   @$pb.TagNumber(1234)
-  $core.int get tcpInfoAdvMss => $_getIZ(93);
+  $core.int get tcpInfoAdvMss => $_getIZ(94);
   @$pb.TagNumber(1234)
-  set tcpInfoAdvMss($core.int value) => $_setUnsignedInt32(93, value);
+  set tcpInfoAdvMss($core.int value) => $_setUnsignedInt32(94, value);
   @$pb.TagNumber(1234)
-  $core.bool hasTcpInfoAdvMss() => $_has(93);
+  $core.bool hasTcpInfoAdvMss() => $_has(94);
   @$pb.TagNumber(1234)
   void clearTcpInfoAdvMss() => $_clearField(1234);
 
   @$pb.TagNumber(1235)
-  $core.int get tcpInfoReordering => $_getIZ(94);
+  $core.int get tcpInfoReordering => $_getIZ(95);
   @$pb.TagNumber(1235)
-  set tcpInfoReordering($core.int value) => $_setUnsignedInt32(94, value);
+  set tcpInfoReordering($core.int value) => $_setUnsignedInt32(95, value);
   @$pb.TagNumber(1235)
-  $core.bool hasTcpInfoReordering() => $_has(94);
+  $core.bool hasTcpInfoReordering() => $_has(95);
   @$pb.TagNumber(1235)
   void clearTcpInfoReordering() => $_clearField(1235);
 
   @$pb.TagNumber(1236)
-  $core.int get tcpInfoRcvRtt => $_getIZ(95);
+  $core.int get tcpInfoRcvRtt => $_getIZ(96);
   @$pb.TagNumber(1236)
-  set tcpInfoRcvRtt($core.int value) => $_setUnsignedInt32(95, value);
+  set tcpInfoRcvRtt($core.int value) => $_setUnsignedInt32(96, value);
   @$pb.TagNumber(1236)
-  $core.bool hasTcpInfoRcvRtt() => $_has(95);
+  $core.bool hasTcpInfoRcvRtt() => $_has(96);
   @$pb.TagNumber(1236)
   void clearTcpInfoRcvRtt() => $_clearField(1236);
 
   @$pb.TagNumber(1237)
-  $core.int get tcpInfoRcvSpace => $_getIZ(96);
+  $core.int get tcpInfoRcvSpace => $_getIZ(97);
   @$pb.TagNumber(1237)
-  set tcpInfoRcvSpace($core.int value) => $_setUnsignedInt32(96, value);
+  set tcpInfoRcvSpace($core.int value) => $_setUnsignedInt32(97, value);
   @$pb.TagNumber(1237)
-  $core.bool hasTcpInfoRcvSpace() => $_has(96);
+  $core.bool hasTcpInfoRcvSpace() => $_has(97);
   @$pb.TagNumber(1237)
   void clearTcpInfoRcvSpace() => $_clearField(1237);
 
   @$pb.TagNumber(1238)
-  $core.int get tcpInfoTotalRetrans => $_getIZ(97);
+  $core.int get tcpInfoTotalRetrans => $_getIZ(98);
   @$pb.TagNumber(1238)
-  set tcpInfoTotalRetrans($core.int value) => $_setUnsignedInt32(97, value);
+  set tcpInfoTotalRetrans($core.int value) => $_setUnsignedInt32(98, value);
   @$pb.TagNumber(1238)
-  $core.bool hasTcpInfoTotalRetrans() => $_has(97);
+  $core.bool hasTcpInfoTotalRetrans() => $_has(98);
   @$pb.TagNumber(1238)
   void clearTcpInfoTotalRetrans() => $_clearField(1238);
 
   @$pb.TagNumber(1239)
-  $fixnum.Int64 get tcpInfoPacingRate => $_getI64(98);
+  $fixnum.Int64 get tcpInfoPacingRate => $_getI64(99);
   @$pb.TagNumber(1239)
-  set tcpInfoPacingRate($fixnum.Int64 value) => $_setInt64(98, value);
+  set tcpInfoPacingRate($fixnum.Int64 value) => $_setInt64(99, value);
   @$pb.TagNumber(1239)
-  $core.bool hasTcpInfoPacingRate() => $_has(98);
+  $core.bool hasTcpInfoPacingRate() => $_has(99);
   @$pb.TagNumber(1239)
   void clearTcpInfoPacingRate() => $_clearField(1239);
 
   @$pb.TagNumber(1240)
-  $fixnum.Int64 get tcpInfoMaxPacingRate => $_getI64(99);
+  $fixnum.Int64 get tcpInfoMaxPacingRate => $_getI64(100);
   @$pb.TagNumber(1240)
-  set tcpInfoMaxPacingRate($fixnum.Int64 value) => $_setInt64(99, value);
+  set tcpInfoMaxPacingRate($fixnum.Int64 value) => $_setInt64(100, value);
   @$pb.TagNumber(1240)
-  $core.bool hasTcpInfoMaxPacingRate() => $_has(99);
+  $core.bool hasTcpInfoMaxPacingRate() => $_has(100);
   @$pb.TagNumber(1240)
   void clearTcpInfoMaxPacingRate() => $_clearField(1240);
 
   @$pb.TagNumber(1241)
-  $fixnum.Int64 get tcpInfoBytesAcked => $_getI64(100);
+  $fixnum.Int64 get tcpInfoBytesAcked => $_getI64(101);
   @$pb.TagNumber(1241)
-  set tcpInfoBytesAcked($fixnum.Int64 value) => $_setInt64(100, value);
+  set tcpInfoBytesAcked($fixnum.Int64 value) => $_setInt64(101, value);
   @$pb.TagNumber(1241)
-  $core.bool hasTcpInfoBytesAcked() => $_has(100);
+  $core.bool hasTcpInfoBytesAcked() => $_has(101);
   @$pb.TagNumber(1241)
   void clearTcpInfoBytesAcked() => $_clearField(1241);
 
   @$pb.TagNumber(1242)
-  $fixnum.Int64 get tcpInfoBytesReceived => $_getI64(101);
+  $fixnum.Int64 get tcpInfoBytesReceived => $_getI64(102);
   @$pb.TagNumber(1242)
-  set tcpInfoBytesReceived($fixnum.Int64 value) => $_setInt64(101, value);
+  set tcpInfoBytesReceived($fixnum.Int64 value) => $_setInt64(102, value);
   @$pb.TagNumber(1242)
-  $core.bool hasTcpInfoBytesReceived() => $_has(101);
+  $core.bool hasTcpInfoBytesReceived() => $_has(102);
   @$pb.TagNumber(1242)
   void clearTcpInfoBytesReceived() => $_clearField(1242);
 
   @$pb.TagNumber(1243)
-  $core.int get tcpInfoSegsOut => $_getIZ(102);
+  $core.int get tcpInfoSegsOut => $_getIZ(103);
   @$pb.TagNumber(1243)
-  set tcpInfoSegsOut($core.int value) => $_setUnsignedInt32(102, value);
+  set tcpInfoSegsOut($core.int value) => $_setUnsignedInt32(103, value);
   @$pb.TagNumber(1243)
-  $core.bool hasTcpInfoSegsOut() => $_has(102);
+  $core.bool hasTcpInfoSegsOut() => $_has(103);
   @$pb.TagNumber(1243)
   void clearTcpInfoSegsOut() => $_clearField(1243);
 
   @$pb.TagNumber(1244)
-  $core.int get tcpInfoSegsIn => $_getIZ(103);
+  $core.int get tcpInfoSegsIn => $_getIZ(104);
   @$pb.TagNumber(1244)
-  set tcpInfoSegsIn($core.int value) => $_setUnsignedInt32(103, value);
+  set tcpInfoSegsIn($core.int value) => $_setUnsignedInt32(104, value);
   @$pb.TagNumber(1244)
-  $core.bool hasTcpInfoSegsIn() => $_has(103);
+  $core.bool hasTcpInfoSegsIn() => $_has(104);
   @$pb.TagNumber(1244)
   void clearTcpInfoSegsIn() => $_clearField(1244);
 
   @$pb.TagNumber(1245)
-  $core.int get tcpInfoNotSentBytes => $_getIZ(104);
+  $core.int get tcpInfoNotSentBytes => $_getIZ(105);
   @$pb.TagNumber(1245)
-  set tcpInfoNotSentBytes($core.int value) => $_setUnsignedInt32(104, value);
+  set tcpInfoNotSentBytes($core.int value) => $_setUnsignedInt32(105, value);
   @$pb.TagNumber(1245)
-  $core.bool hasTcpInfoNotSentBytes() => $_has(104);
+  $core.bool hasTcpInfoNotSentBytes() => $_has(105);
   @$pb.TagNumber(1245)
   void clearTcpInfoNotSentBytes() => $_clearField(1245);
 
   @$pb.TagNumber(1246)
-  $core.int get tcpInfoMinRtt => $_getIZ(105);
+  $core.int get tcpInfoMinRtt => $_getIZ(106);
   @$pb.TagNumber(1246)
-  set tcpInfoMinRtt($core.int value) => $_setUnsignedInt32(105, value);
+  set tcpInfoMinRtt($core.int value) => $_setUnsignedInt32(106, value);
   @$pb.TagNumber(1246)
-  $core.bool hasTcpInfoMinRtt() => $_has(105);
+  $core.bool hasTcpInfoMinRtt() => $_has(106);
   @$pb.TagNumber(1246)
   void clearTcpInfoMinRtt() => $_clearField(1246);
 
   @$pb.TagNumber(1247)
-  $core.int get tcpInfoDataSegsIn => $_getIZ(106);
+  $core.int get tcpInfoDataSegsIn => $_getIZ(107);
   @$pb.TagNumber(1247)
-  set tcpInfoDataSegsIn($core.int value) => $_setUnsignedInt32(106, value);
+  set tcpInfoDataSegsIn($core.int value) => $_setUnsignedInt32(107, value);
   @$pb.TagNumber(1247)
-  $core.bool hasTcpInfoDataSegsIn() => $_has(106);
+  $core.bool hasTcpInfoDataSegsIn() => $_has(107);
   @$pb.TagNumber(1247)
   void clearTcpInfoDataSegsIn() => $_clearField(1247);
 
   @$pb.TagNumber(1248)
-  $core.int get tcpInfoDataSegsOut => $_getIZ(107);
+  $core.int get tcpInfoDataSegsOut => $_getIZ(108);
   @$pb.TagNumber(1248)
-  set tcpInfoDataSegsOut($core.int value) => $_setUnsignedInt32(107, value);
+  set tcpInfoDataSegsOut($core.int value) => $_setUnsignedInt32(108, value);
   @$pb.TagNumber(1248)
-  $core.bool hasTcpInfoDataSegsOut() => $_has(107);
+  $core.bool hasTcpInfoDataSegsOut() => $_has(108);
   @$pb.TagNumber(1248)
   void clearTcpInfoDataSegsOut() => $_clearField(1248);
 
   @$pb.TagNumber(1249)
-  $fixnum.Int64 get tcpInfoDeliveryRate => $_getI64(108);
+  $fixnum.Int64 get tcpInfoDeliveryRate => $_getI64(109);
   @$pb.TagNumber(1249)
-  set tcpInfoDeliveryRate($fixnum.Int64 value) => $_setInt64(108, value);
+  set tcpInfoDeliveryRate($fixnum.Int64 value) => $_setInt64(109, value);
   @$pb.TagNumber(1249)
-  $core.bool hasTcpInfoDeliveryRate() => $_has(108);
+  $core.bool hasTcpInfoDeliveryRate() => $_has(109);
   @$pb.TagNumber(1249)
   void clearTcpInfoDeliveryRate() => $_clearField(1249);
 
   @$pb.TagNumber(1250)
-  $fixnum.Int64 get tcpInfoBusyTime => $_getI64(109);
+  $fixnum.Int64 get tcpInfoBusyTime => $_getI64(110);
   @$pb.TagNumber(1250)
-  set tcpInfoBusyTime($fixnum.Int64 value) => $_setInt64(109, value);
+  set tcpInfoBusyTime($fixnum.Int64 value) => $_setInt64(110, value);
   @$pb.TagNumber(1250)
-  $core.bool hasTcpInfoBusyTime() => $_has(109);
+  $core.bool hasTcpInfoBusyTime() => $_has(110);
   @$pb.TagNumber(1250)
   void clearTcpInfoBusyTime() => $_clearField(1250);
 
   @$pb.TagNumber(1251)
-  $fixnum.Int64 get tcpInfoRwndLimited => $_getI64(110);
+  $fixnum.Int64 get tcpInfoRwndLimited => $_getI64(111);
   @$pb.TagNumber(1251)
-  set tcpInfoRwndLimited($fixnum.Int64 value) => $_setInt64(110, value);
+  set tcpInfoRwndLimited($fixnum.Int64 value) => $_setInt64(111, value);
   @$pb.TagNumber(1251)
-  $core.bool hasTcpInfoRwndLimited() => $_has(110);
+  $core.bool hasTcpInfoRwndLimited() => $_has(111);
   @$pb.TagNumber(1251)
   void clearTcpInfoRwndLimited() => $_clearField(1251);
 
   @$pb.TagNumber(1252)
-  $fixnum.Int64 get tcpInfoSndbufLimited => $_getI64(111);
+  $fixnum.Int64 get tcpInfoSndbufLimited => $_getI64(112);
   @$pb.TagNumber(1252)
-  set tcpInfoSndbufLimited($fixnum.Int64 value) => $_setInt64(111, value);
+  set tcpInfoSndbufLimited($fixnum.Int64 value) => $_setInt64(112, value);
   @$pb.TagNumber(1252)
-  $core.bool hasTcpInfoSndbufLimited() => $_has(111);
+  $core.bool hasTcpInfoSndbufLimited() => $_has(112);
   @$pb.TagNumber(1252)
   void clearTcpInfoSndbufLimited() => $_clearField(1252);
 
   @$pb.TagNumber(1253)
-  $core.int get tcpInfoDelivered => $_getIZ(112);
+  $core.int get tcpInfoDelivered => $_getIZ(113);
   @$pb.TagNumber(1253)
-  set tcpInfoDelivered($core.int value) => $_setUnsignedInt32(112, value);
+  set tcpInfoDelivered($core.int value) => $_setUnsignedInt32(113, value);
   @$pb.TagNumber(1253)
-  $core.bool hasTcpInfoDelivered() => $_has(112);
+  $core.bool hasTcpInfoDelivered() => $_has(113);
   @$pb.TagNumber(1253)
   void clearTcpInfoDelivered() => $_clearField(1253);
 
   @$pb.TagNumber(1254)
-  $core.int get tcpInfoDeliveredCe => $_getIZ(113);
+  $core.int get tcpInfoDeliveredCe => $_getIZ(114);
   @$pb.TagNumber(1254)
-  set tcpInfoDeliveredCe($core.int value) => $_setUnsignedInt32(113, value);
+  set tcpInfoDeliveredCe($core.int value) => $_setUnsignedInt32(114, value);
   @$pb.TagNumber(1254)
-  $core.bool hasTcpInfoDeliveredCe() => $_has(113);
+  $core.bool hasTcpInfoDeliveredCe() => $_has(114);
   @$pb.TagNumber(1254)
   void clearTcpInfoDeliveredCe() => $_clearField(1254);
 
   /// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
   @$pb.TagNumber(1255)
-  $fixnum.Int64 get tcpInfoBytesSent => $_getI64(114);
+  $fixnum.Int64 get tcpInfoBytesSent => $_getI64(115);
   @$pb.TagNumber(1255)
-  set tcpInfoBytesSent($fixnum.Int64 value) => $_setInt64(114, value);
+  set tcpInfoBytesSent($fixnum.Int64 value) => $_setInt64(115, value);
   @$pb.TagNumber(1255)
-  $core.bool hasTcpInfoBytesSent() => $_has(114);
+  $core.bool hasTcpInfoBytesSent() => $_has(115);
   @$pb.TagNumber(1255)
   void clearTcpInfoBytesSent() => $_clearField(1255);
 
   @$pb.TagNumber(1256)
-  $fixnum.Int64 get tcpInfoBytesRetrans => $_getI64(115);
+  $fixnum.Int64 get tcpInfoBytesRetrans => $_getI64(116);
   @$pb.TagNumber(1256)
-  set tcpInfoBytesRetrans($fixnum.Int64 value) => $_setInt64(115, value);
+  set tcpInfoBytesRetrans($fixnum.Int64 value) => $_setInt64(116, value);
   @$pb.TagNumber(1256)
-  $core.bool hasTcpInfoBytesRetrans() => $_has(115);
+  $core.bool hasTcpInfoBytesRetrans() => $_has(116);
   @$pb.TagNumber(1256)
   void clearTcpInfoBytesRetrans() => $_clearField(1256);
 
   @$pb.TagNumber(1257)
-  $core.int get tcpInfoDsackDups => $_getIZ(116);
+  $core.int get tcpInfoDsackDups => $_getIZ(117);
   @$pb.TagNumber(1257)
-  set tcpInfoDsackDups($core.int value) => $_setUnsignedInt32(116, value);
+  set tcpInfoDsackDups($core.int value) => $_setUnsignedInt32(117, value);
   @$pb.TagNumber(1257)
-  $core.bool hasTcpInfoDsackDups() => $_has(116);
+  $core.bool hasTcpInfoDsackDups() => $_has(117);
   @$pb.TagNumber(1257)
   void clearTcpInfoDsackDups() => $_clearField(1257);
 
   @$pb.TagNumber(1258)
-  $core.int get tcpInfoReordSeen => $_getIZ(117);
+  $core.int get tcpInfoReordSeen => $_getIZ(118);
   @$pb.TagNumber(1258)
-  set tcpInfoReordSeen($core.int value) => $_setUnsignedInt32(117, value);
+  set tcpInfoReordSeen($core.int value) => $_setUnsignedInt32(118, value);
   @$pb.TagNumber(1258)
-  $core.bool hasTcpInfoReordSeen() => $_has(117);
+  $core.bool hasTcpInfoReordSeen() => $_has(118);
   @$pb.TagNumber(1258)
   void clearTcpInfoReordSeen() => $_clearField(1258);
 
   @$pb.TagNumber(1259)
-  $core.int get tcpInfoRcvOoopack => $_getIZ(118);
+  $core.int get tcpInfoRcvOoopack => $_getIZ(119);
   @$pb.TagNumber(1259)
-  set tcpInfoRcvOoopack($core.int value) => $_setUnsignedInt32(118, value);
+  set tcpInfoRcvOoopack($core.int value) => $_setUnsignedInt32(119, value);
   @$pb.TagNumber(1259)
-  $core.bool hasTcpInfoRcvOoopack() => $_has(118);
+  $core.bool hasTcpInfoRcvOoopack() => $_has(119);
   @$pb.TagNumber(1259)
   void clearTcpInfoRcvOoopack() => $_clearField(1259);
 
   @$pb.TagNumber(1260)
-  $core.int get tcpInfoSndWnd => $_getIZ(119);
+  $core.int get tcpInfoSndWnd => $_getIZ(120);
   @$pb.TagNumber(1260)
-  set tcpInfoSndWnd($core.int value) => $_setUnsignedInt32(119, value);
+  set tcpInfoSndWnd($core.int value) => $_setUnsignedInt32(120, value);
   @$pb.TagNumber(1260)
-  $core.bool hasTcpInfoSndWnd() => $_has(119);
+  $core.bool hasTcpInfoSndWnd() => $_has(120);
   @$pb.TagNumber(1260)
   void clearTcpInfoSndWnd() => $_clearField(1260);
 
   @$pb.TagNumber(1261)
-  $core.int get tcpInfoRcvWnd => $_getIZ(120);
+  $core.int get tcpInfoRcvWnd => $_getIZ(121);
   @$pb.TagNumber(1261)
-  set tcpInfoRcvWnd($core.int value) => $_setUnsignedInt32(120, value);
+  set tcpInfoRcvWnd($core.int value) => $_setUnsignedInt32(121, value);
   @$pb.TagNumber(1261)
-  $core.bool hasTcpInfoRcvWnd() => $_has(120);
+  $core.bool hasTcpInfoRcvWnd() => $_has(121);
   @$pb.TagNumber(1261)
   void clearTcpInfoRcvWnd() => $_clearField(1261);
 
   @$pb.TagNumber(1262)
-  $core.int get tcpInfoRehash => $_getIZ(121);
+  $core.int get tcpInfoRehash => $_getIZ(122);
   @$pb.TagNumber(1262)
-  set tcpInfoRehash($core.int value) => $_setUnsignedInt32(121, value);
+  set tcpInfoRehash($core.int value) => $_setUnsignedInt32(122, value);
   @$pb.TagNumber(1262)
-  $core.bool hasTcpInfoRehash() => $_has(121);
+  $core.bool hasTcpInfoRehash() => $_has(122);
   @$pb.TagNumber(1262)
   void clearTcpInfoRehash() => $_clearField(1262);
 
   @$pb.TagNumber(1263)
-  $core.int get tcpInfoTotalRto => $_getIZ(122);
+  $core.int get tcpInfoTotalRto => $_getIZ(123);
   @$pb.TagNumber(1263)
-  set tcpInfoTotalRto($core.int value) => $_setUnsignedInt32(122, value);
+  set tcpInfoTotalRto($core.int value) => $_setUnsignedInt32(123, value);
   @$pb.TagNumber(1263)
-  $core.bool hasTcpInfoTotalRto() => $_has(122);
+  $core.bool hasTcpInfoTotalRto() => $_has(123);
   @$pb.TagNumber(1263)
   void clearTcpInfoTotalRto() => $_clearField(1263);
 
   @$pb.TagNumber(1264)
-  $core.int get tcpInfoTotalRtoRecoveries => $_getIZ(123);
+  $core.int get tcpInfoTotalRtoRecoveries => $_getIZ(124);
   @$pb.TagNumber(1264)
   set tcpInfoTotalRtoRecoveries($core.int value) =>
-      $_setUnsignedInt32(123, value);
+      $_setUnsignedInt32(124, value);
   @$pb.TagNumber(1264)
-  $core.bool hasTcpInfoTotalRtoRecoveries() => $_has(123);
+  $core.bool hasTcpInfoTotalRtoRecoveries() => $_has(124);
   @$pb.TagNumber(1264)
   void clearTcpInfoTotalRtoRecoveries() => $_clearField(1264);
 
   @$pb.TagNumber(1265)
-  $core.int get tcpInfoTotalRtoTime => $_getIZ(124);
+  $core.int get tcpInfoTotalRtoTime => $_getIZ(125);
   @$pb.TagNumber(1265)
-  set tcpInfoTotalRtoTime($core.int value) => $_setUnsignedInt32(124, value);
+  set tcpInfoTotalRtoTime($core.int value) => $_setUnsignedInt32(125, value);
   @$pb.TagNumber(1265)
-  $core.bool hasTcpInfoTotalRtoTime() => $_has(124);
+  $core.bool hasTcpInfoTotalRtoTime() => $_has(125);
   @$pb.TagNumber(1265)
   void clearTcpInfoTotalRtoTime() => $_clearField(1265);
 
@@ -1980,282 +1999,282 @@ class XtcpFlatRecord extends $pb.GeneratedMessage {
   /// just in case we need to quickly put a different algorithm in without updating the enum.
   /// Obviously it's optional, so it low cost.
   @$pb.TagNumber(1300)
-  $core.String get congestionAlgorithmString => $_getSZ(125);
+  $core.String get congestionAlgorithmString => $_getSZ(126);
   @$pb.TagNumber(1300)
-  set congestionAlgorithmString($core.String value) => $_setString(125, value);
+  set congestionAlgorithmString($core.String value) => $_setString(126, value);
   @$pb.TagNumber(1300)
-  $core.bool hasCongestionAlgorithmString() => $_has(125);
+  $core.bool hasCongestionAlgorithmString() => $_has(126);
   @$pb.TagNumber(1300)
   void clearCongestionAlgorithmString() => $_clearField(1300);
 
   @$pb.TagNumber(1301)
-  XtcpFlatRecord_CongestionAlgorithm get congestionAlgorithmEnum => $_getN(126);
+  XtcpFlatRecord_CongestionAlgorithm get congestionAlgorithmEnum => $_getN(127);
   @$pb.TagNumber(1301)
   set congestionAlgorithmEnum(XtcpFlatRecord_CongestionAlgorithm value) =>
       $_setField(1301, value);
   @$pb.TagNumber(1301)
-  $core.bool hasCongestionAlgorithmEnum() => $_has(126);
+  $core.bool hasCongestionAlgorithmEnum() => $_has(127);
   @$pb.TagNumber(1301)
   void clearCongestionAlgorithmEnum() => $_clearField(1301);
 
   @$pb.TagNumber(1401)
-  $core.int get typeOfService => $_getIZ(127);
+  $core.int get typeOfService => $_getIZ(128);
   @$pb.TagNumber(1401)
-  set typeOfService($core.int value) => $_setUnsignedInt32(127, value);
+  set typeOfService($core.int value) => $_setUnsignedInt32(128, value);
   @$pb.TagNumber(1401)
-  $core.bool hasTypeOfService() => $_has(127);
+  $core.bool hasTypeOfService() => $_has(128);
   @$pb.TagNumber(1401)
   void clearTypeOfService() => $_clearField(1401);
 
   @$pb.TagNumber(1402)
-  $core.int get trafficClass => $_getIZ(128);
+  $core.int get trafficClass => $_getIZ(129);
   @$pb.TagNumber(1402)
-  set trafficClass($core.int value) => $_setUnsignedInt32(128, value);
+  set trafficClass($core.int value) => $_setUnsignedInt32(129, value);
   @$pb.TagNumber(1402)
-  $core.bool hasTrafficClass() => $_has(128);
+  $core.bool hasTrafficClass() => $_has(129);
   @$pb.TagNumber(1402)
   void clearTrafficClass() => $_clearField(1402);
 
   @$pb.TagNumber(1501)
-  $core.int get skMemInfoRmemAlloc => $_getIZ(129);
+  $core.int get skMemInfoRmemAlloc => $_getIZ(130);
   @$pb.TagNumber(1501)
-  set skMemInfoRmemAlloc($core.int value) => $_setUnsignedInt32(129, value);
+  set skMemInfoRmemAlloc($core.int value) => $_setUnsignedInt32(130, value);
   @$pb.TagNumber(1501)
-  $core.bool hasSkMemInfoRmemAlloc() => $_has(129);
+  $core.bool hasSkMemInfoRmemAlloc() => $_has(130);
   @$pb.TagNumber(1501)
   void clearSkMemInfoRmemAlloc() => $_clearField(1501);
 
   @$pb.TagNumber(1502)
-  $core.int get skMemInfoRcvBuf => $_getIZ(130);
+  $core.int get skMemInfoRcvBuf => $_getIZ(131);
   @$pb.TagNumber(1502)
-  set skMemInfoRcvBuf($core.int value) => $_setUnsignedInt32(130, value);
+  set skMemInfoRcvBuf($core.int value) => $_setUnsignedInt32(131, value);
   @$pb.TagNumber(1502)
-  $core.bool hasSkMemInfoRcvBuf() => $_has(130);
+  $core.bool hasSkMemInfoRcvBuf() => $_has(131);
   @$pb.TagNumber(1502)
   void clearSkMemInfoRcvBuf() => $_clearField(1502);
 
   @$pb.TagNumber(1503)
-  $core.int get skMemInfoWmemAlloc => $_getIZ(131);
+  $core.int get skMemInfoWmemAlloc => $_getIZ(132);
   @$pb.TagNumber(1503)
-  set skMemInfoWmemAlloc($core.int value) => $_setUnsignedInt32(131, value);
+  set skMemInfoWmemAlloc($core.int value) => $_setUnsignedInt32(132, value);
   @$pb.TagNumber(1503)
-  $core.bool hasSkMemInfoWmemAlloc() => $_has(131);
+  $core.bool hasSkMemInfoWmemAlloc() => $_has(132);
   @$pb.TagNumber(1503)
   void clearSkMemInfoWmemAlloc() => $_clearField(1503);
 
   @$pb.TagNumber(1504)
-  $core.int get skMemInfoSndBuf => $_getIZ(132);
+  $core.int get skMemInfoSndBuf => $_getIZ(133);
   @$pb.TagNumber(1504)
-  set skMemInfoSndBuf($core.int value) => $_setUnsignedInt32(132, value);
+  set skMemInfoSndBuf($core.int value) => $_setUnsignedInt32(133, value);
   @$pb.TagNumber(1504)
-  $core.bool hasSkMemInfoSndBuf() => $_has(132);
+  $core.bool hasSkMemInfoSndBuf() => $_has(133);
   @$pb.TagNumber(1504)
   void clearSkMemInfoSndBuf() => $_clearField(1504);
 
   @$pb.TagNumber(1505)
-  $core.int get skMemInfoFwdAlloc => $_getIZ(133);
+  $core.int get skMemInfoFwdAlloc => $_getIZ(134);
   @$pb.TagNumber(1505)
-  set skMemInfoFwdAlloc($core.int value) => $_setUnsignedInt32(133, value);
+  set skMemInfoFwdAlloc($core.int value) => $_setUnsignedInt32(134, value);
   @$pb.TagNumber(1505)
-  $core.bool hasSkMemInfoFwdAlloc() => $_has(133);
+  $core.bool hasSkMemInfoFwdAlloc() => $_has(134);
   @$pb.TagNumber(1505)
   void clearSkMemInfoFwdAlloc() => $_clearField(1505);
 
   @$pb.TagNumber(1506)
-  $core.int get skMemInfoWmemQueued => $_getIZ(134);
+  $core.int get skMemInfoWmemQueued => $_getIZ(135);
   @$pb.TagNumber(1506)
-  set skMemInfoWmemQueued($core.int value) => $_setUnsignedInt32(134, value);
+  set skMemInfoWmemQueued($core.int value) => $_setUnsignedInt32(135, value);
   @$pb.TagNumber(1506)
-  $core.bool hasSkMemInfoWmemQueued() => $_has(134);
+  $core.bool hasSkMemInfoWmemQueued() => $_has(135);
   @$pb.TagNumber(1506)
   void clearSkMemInfoWmemQueued() => $_clearField(1506);
 
   @$pb.TagNumber(1507)
-  $core.int get skMemInfoOptmem => $_getIZ(135);
+  $core.int get skMemInfoOptmem => $_getIZ(136);
   @$pb.TagNumber(1507)
-  set skMemInfoOptmem($core.int value) => $_setUnsignedInt32(135, value);
+  set skMemInfoOptmem($core.int value) => $_setUnsignedInt32(136, value);
   @$pb.TagNumber(1507)
-  $core.bool hasSkMemInfoOptmem() => $_has(135);
+  $core.bool hasSkMemInfoOptmem() => $_has(136);
   @$pb.TagNumber(1507)
   void clearSkMemInfoOptmem() => $_clearField(1507);
 
   @$pb.TagNumber(1508)
-  $core.int get skMemInfoBacklog => $_getIZ(136);
+  $core.int get skMemInfoBacklog => $_getIZ(137);
   @$pb.TagNumber(1508)
-  set skMemInfoBacklog($core.int value) => $_setUnsignedInt32(136, value);
+  set skMemInfoBacklog($core.int value) => $_setUnsignedInt32(137, value);
   @$pb.TagNumber(1508)
-  $core.bool hasSkMemInfoBacklog() => $_has(136);
+  $core.bool hasSkMemInfoBacklog() => $_has(137);
   @$pb.TagNumber(1508)
   void clearSkMemInfoBacklog() => $_clearField(1508);
 
   @$pb.TagNumber(1509)
-  $core.int get skMemInfoDrops => $_getIZ(137);
+  $core.int get skMemInfoDrops => $_getIZ(138);
   @$pb.TagNumber(1509)
-  set skMemInfoDrops($core.int value) => $_setUnsignedInt32(137, value);
+  set skMemInfoDrops($core.int value) => $_setUnsignedInt32(138, value);
   @$pb.TagNumber(1509)
-  $core.bool hasSkMemInfoDrops() => $_has(137);
+  $core.bool hasSkMemInfoDrops() => $_has(138);
   @$pb.TagNumber(1509)
   void clearSkMemInfoDrops() => $_clearField(1509);
 
   @$pb.TagNumber(1600)
-  $core.int get shutdownState => $_getIZ(138);
+  $core.int get shutdownState => $_getIZ(139);
   @$pb.TagNumber(1600)
-  set shutdownState($core.int value) => $_setUnsignedInt32(138, value);
+  set shutdownState($core.int value) => $_setUnsignedInt32(139, value);
   @$pb.TagNumber(1600)
-  $core.bool hasShutdownState() => $_has(138);
+  $core.bool hasShutdownState() => $_has(139);
   @$pb.TagNumber(1600)
   void clearShutdownState() => $_clearField(1600);
 
   @$pb.TagNumber(1701)
-  $core.int get vegasInfoEnabled => $_getIZ(139);
+  $core.int get vegasInfoEnabled => $_getIZ(140);
   @$pb.TagNumber(1701)
-  set vegasInfoEnabled($core.int value) => $_setUnsignedInt32(139, value);
+  set vegasInfoEnabled($core.int value) => $_setUnsignedInt32(140, value);
   @$pb.TagNumber(1701)
-  $core.bool hasVegasInfoEnabled() => $_has(139);
+  $core.bool hasVegasInfoEnabled() => $_has(140);
   @$pb.TagNumber(1701)
   void clearVegasInfoEnabled() => $_clearField(1701);
 
   @$pb.TagNumber(1702)
-  $core.int get vegasInfoRttCnt => $_getIZ(140);
+  $core.int get vegasInfoRttCnt => $_getIZ(141);
   @$pb.TagNumber(1702)
-  set vegasInfoRttCnt($core.int value) => $_setUnsignedInt32(140, value);
+  set vegasInfoRttCnt($core.int value) => $_setUnsignedInt32(141, value);
   @$pb.TagNumber(1702)
-  $core.bool hasVegasInfoRttCnt() => $_has(140);
+  $core.bool hasVegasInfoRttCnt() => $_has(141);
   @$pb.TagNumber(1702)
   void clearVegasInfoRttCnt() => $_clearField(1702);
 
   @$pb.TagNumber(1703)
-  $core.int get vegasInfoRtt => $_getIZ(141);
+  $core.int get vegasInfoRtt => $_getIZ(142);
   @$pb.TagNumber(1703)
-  set vegasInfoRtt($core.int value) => $_setUnsignedInt32(141, value);
+  set vegasInfoRtt($core.int value) => $_setUnsignedInt32(142, value);
   @$pb.TagNumber(1703)
-  $core.bool hasVegasInfoRtt() => $_has(141);
+  $core.bool hasVegasInfoRtt() => $_has(142);
   @$pb.TagNumber(1703)
   void clearVegasInfoRtt() => $_clearField(1703);
 
   @$pb.TagNumber(1704)
-  $core.int get vegasInfoMinRtt => $_getIZ(142);
+  $core.int get vegasInfoMinRtt => $_getIZ(143);
   @$pb.TagNumber(1704)
-  set vegasInfoMinRtt($core.int value) => $_setUnsignedInt32(142, value);
+  set vegasInfoMinRtt($core.int value) => $_setUnsignedInt32(143, value);
   @$pb.TagNumber(1704)
-  $core.bool hasVegasInfoMinRtt() => $_has(142);
+  $core.bool hasVegasInfoMinRtt() => $_has(143);
   @$pb.TagNumber(1704)
   void clearVegasInfoMinRtt() => $_clearField(1704);
 
   @$pb.TagNumber(1801)
-  $core.int get dctcpInfoEnabled => $_getIZ(143);
+  $core.int get dctcpInfoEnabled => $_getIZ(144);
   @$pb.TagNumber(1801)
-  set dctcpInfoEnabled($core.int value) => $_setUnsignedInt32(143, value);
+  set dctcpInfoEnabled($core.int value) => $_setUnsignedInt32(144, value);
   @$pb.TagNumber(1801)
-  $core.bool hasDctcpInfoEnabled() => $_has(143);
+  $core.bool hasDctcpInfoEnabled() => $_has(144);
   @$pb.TagNumber(1801)
   void clearDctcpInfoEnabled() => $_clearField(1801);
 
   @$pb.TagNumber(1802)
-  $core.int get dctcpInfoCeState => $_getIZ(144);
+  $core.int get dctcpInfoCeState => $_getIZ(145);
   @$pb.TagNumber(1802)
-  set dctcpInfoCeState($core.int value) => $_setUnsignedInt32(144, value);
+  set dctcpInfoCeState($core.int value) => $_setUnsignedInt32(145, value);
   @$pb.TagNumber(1802)
-  $core.bool hasDctcpInfoCeState() => $_has(144);
+  $core.bool hasDctcpInfoCeState() => $_has(145);
   @$pb.TagNumber(1802)
   void clearDctcpInfoCeState() => $_clearField(1802);
 
   @$pb.TagNumber(1803)
-  $core.int get dctcpInfoAlpha => $_getIZ(145);
+  $core.int get dctcpInfoAlpha => $_getIZ(146);
   @$pb.TagNumber(1803)
-  set dctcpInfoAlpha($core.int value) => $_setUnsignedInt32(145, value);
+  set dctcpInfoAlpha($core.int value) => $_setUnsignedInt32(146, value);
   @$pb.TagNumber(1803)
-  $core.bool hasDctcpInfoAlpha() => $_has(145);
+  $core.bool hasDctcpInfoAlpha() => $_has(146);
   @$pb.TagNumber(1803)
   void clearDctcpInfoAlpha() => $_clearField(1803);
 
   @$pb.TagNumber(1804)
-  $core.int get dctcpInfoAbEcn => $_getIZ(146);
+  $core.int get dctcpInfoAbEcn => $_getIZ(147);
   @$pb.TagNumber(1804)
-  set dctcpInfoAbEcn($core.int value) => $_setUnsignedInt32(146, value);
+  set dctcpInfoAbEcn($core.int value) => $_setUnsignedInt32(147, value);
   @$pb.TagNumber(1804)
-  $core.bool hasDctcpInfoAbEcn() => $_has(146);
+  $core.bool hasDctcpInfoAbEcn() => $_has(147);
   @$pb.TagNumber(1804)
   void clearDctcpInfoAbEcn() => $_clearField(1804);
 
   @$pb.TagNumber(1805)
-  $core.int get dctcpInfoAbTot => $_getIZ(147);
+  $core.int get dctcpInfoAbTot => $_getIZ(148);
   @$pb.TagNumber(1805)
-  set dctcpInfoAbTot($core.int value) => $_setUnsignedInt32(147, value);
+  set dctcpInfoAbTot($core.int value) => $_setUnsignedInt32(148, value);
   @$pb.TagNumber(1805)
-  $core.bool hasDctcpInfoAbTot() => $_has(147);
+  $core.bool hasDctcpInfoAbTot() => $_has(148);
   @$pb.TagNumber(1805)
   void clearDctcpInfoAbTot() => $_clearField(1805);
 
   @$pb.TagNumber(1901)
-  $core.int get bbrInfoBwLo => $_getIZ(148);
+  $core.int get bbrInfoBwLo => $_getIZ(149);
   @$pb.TagNumber(1901)
-  set bbrInfoBwLo($core.int value) => $_setUnsignedInt32(148, value);
+  set bbrInfoBwLo($core.int value) => $_setUnsignedInt32(149, value);
   @$pb.TagNumber(1901)
-  $core.bool hasBbrInfoBwLo() => $_has(148);
+  $core.bool hasBbrInfoBwLo() => $_has(149);
   @$pb.TagNumber(1901)
   void clearBbrInfoBwLo() => $_clearField(1901);
 
   @$pb.TagNumber(1902)
-  $core.int get bbrInfoBwHi => $_getIZ(149);
+  $core.int get bbrInfoBwHi => $_getIZ(150);
   @$pb.TagNumber(1902)
-  set bbrInfoBwHi($core.int value) => $_setUnsignedInt32(149, value);
+  set bbrInfoBwHi($core.int value) => $_setUnsignedInt32(150, value);
   @$pb.TagNumber(1902)
-  $core.bool hasBbrInfoBwHi() => $_has(149);
+  $core.bool hasBbrInfoBwHi() => $_has(150);
   @$pb.TagNumber(1902)
   void clearBbrInfoBwHi() => $_clearField(1902);
 
   @$pb.TagNumber(1903)
-  $core.int get bbrInfoMinRtt => $_getIZ(150);
+  $core.int get bbrInfoMinRtt => $_getIZ(151);
   @$pb.TagNumber(1903)
-  set bbrInfoMinRtt($core.int value) => $_setUnsignedInt32(150, value);
+  set bbrInfoMinRtt($core.int value) => $_setUnsignedInt32(151, value);
   @$pb.TagNumber(1903)
-  $core.bool hasBbrInfoMinRtt() => $_has(150);
+  $core.bool hasBbrInfoMinRtt() => $_has(151);
   @$pb.TagNumber(1903)
   void clearBbrInfoMinRtt() => $_clearField(1903);
 
   @$pb.TagNumber(1904)
-  $core.int get bbrInfoPacingGain => $_getIZ(151);
+  $core.int get bbrInfoPacingGain => $_getIZ(152);
   @$pb.TagNumber(1904)
-  set bbrInfoPacingGain($core.int value) => $_setUnsignedInt32(151, value);
+  set bbrInfoPacingGain($core.int value) => $_setUnsignedInt32(152, value);
   @$pb.TagNumber(1904)
-  $core.bool hasBbrInfoPacingGain() => $_has(151);
+  $core.bool hasBbrInfoPacingGain() => $_has(152);
   @$pb.TagNumber(1904)
   void clearBbrInfoPacingGain() => $_clearField(1904);
 
   @$pb.TagNumber(1905)
-  $core.int get bbrInfoCwndGain => $_getIZ(152);
+  $core.int get bbrInfoCwndGain => $_getIZ(153);
   @$pb.TagNumber(1905)
-  set bbrInfoCwndGain($core.int value) => $_setUnsignedInt32(152, value);
+  set bbrInfoCwndGain($core.int value) => $_setUnsignedInt32(153, value);
   @$pb.TagNumber(1905)
-  $core.bool hasBbrInfoCwndGain() => $_has(152);
+  $core.bool hasBbrInfoCwndGain() => $_has(153);
   @$pb.TagNumber(1905)
   void clearBbrInfoCwndGain() => $_clearField(1905);
 
   @$pb.TagNumber(2001)
-  $core.int get classId => $_getIZ(153);
+  $core.int get classId => $_getIZ(154);
   @$pb.TagNumber(2001)
-  set classId($core.int value) => $_setUnsignedInt32(153, value);
+  set classId($core.int value) => $_setUnsignedInt32(154, value);
   @$pb.TagNumber(2001)
-  $core.bool hasClassId() => $_has(153);
+  $core.bool hasClassId() => $_has(154);
   @$pb.TagNumber(2001)
   void clearClassId() => $_clearField(2001);
 
   @$pb.TagNumber(2002)
-  $core.int get sockOpt => $_getIZ(154);
+  $core.int get sockOpt => $_getIZ(155);
   @$pb.TagNumber(2002)
-  set sockOpt($core.int value) => $_setUnsignedInt32(154, value);
+  set sockOpt($core.int value) => $_setUnsignedInt32(155, value);
   @$pb.TagNumber(2002)
-  $core.bool hasSockOpt() => $_has(154);
+  $core.bool hasSockOpt() => $_has(155);
   @$pb.TagNumber(2002)
   void clearSockOpt() => $_clearField(2002);
 
   @$pb.TagNumber(2103)
-  $fixnum.Int64 get cGroup => $_getI64(155);
+  $fixnum.Int64 get cGroup => $_getI64(156);
   @$pb.TagNumber(2103)
-  set cGroup($fixnum.Int64 value) => $_setInt64(155, value);
+  set cGroup($fixnum.Int64 value) => $_setInt64(156, value);
   @$pb.TagNumber(2103)
-  $core.bool hasCGroup() => $_has(155);
+  $core.bool hasCGroup() => $_has(156);
   @$pb.TagNumber(2103)
   void clearCGroup() => $_clearField(2103);
 }

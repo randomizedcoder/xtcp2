@@ -859,6 +859,22 @@ message XtcpConfig {
 	// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
 	// Docker/containerd namespaces. Default false.
 	bool populate_nsid                                 = 238;
+
+	// Enrich the destination IP's ASN (field 1011) and network owner (field
+	// 1018) by longest-prefix-matching it against the ipfeed-collector Parquet
+	// artifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when
+	// enabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,
+	// and leaves both columns empty. Default false.
+	bool enrich_asn_enable                             = 239;
+
+	// Path to the ipfeed-collector Parquet artifact (prefix -> {asn,
+	// network_owner}). Default "".
+	string asn_db_path                                 = 240 [
+		(buf.validate.field).string = { max_len: 255 }];
+
+	// How often to reload asn_db_path in the background so a refreshed artifact
+	// is picked up without a restart. 0 = load once at startup, never reload.
+	google.protobuf.Duration asn_refresh_interval      = 241;
 };
 
 message EnabledDeserializers {

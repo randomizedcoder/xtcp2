@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_v0
     inet_diag_msg_socket_cookie                                 UInt64 CODEC(LZ4),
     inet_diag_msg_socket_dest_asn                               UInt64 CODEC(LZ4),
     inet_diag_msg_socket_next_hop_asn                           UInt64 CODEC(LZ4),
+    inet_diag_msg_socket_dest_network_owner                     LowCardinality(String),
 
     inet_diag_msg_expires                                       UInt32 CODEC(LZ4),
     inet_diag_msg_rqueue                                        UInt32 CODEC(LZ4),

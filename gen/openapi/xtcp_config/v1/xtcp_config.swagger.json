@@ -708,6 +708,18 @@
         "populateNsid": {
           "type": "boolean",
           "description": "Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for\nDocker/containerd namespaces. Default false."
+        },
+        "enrichAsnEnable": {
+          "type": "boolean",
+          "description": "Enrich the destination IP's ASN (field 1011) and network owner (field\n1018) by longest-prefix-matching it against the ipfeed-collector Parquet\nartifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when\nenabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,\nand leaves both columns empty. Default false."
+        },
+        "asnDbPath": {
+          "type": "string",
+          "description": "Path to the ipfeed-collector Parquet artifact (prefix -\u003e {asn,\nnetwork_owner}). Default \"\"."
+        },
+        "asnRefreshInterval": {
+          "type": "string",
+          "description": "How often to reload asn_db_path in the background so a refreshed artifact\nis picked up without a restart. 0 = load once at startup, never reload."
         }
       },
       "title": "xtcp configuration"

@@ -1,0 +1,10 @@
+name: gcp-goog
+provider: gcp
+url: https://www.gstatic.com/ipranges/goog.json
+parser: gcp_ipranges
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: google
+  service_operator: google
+enabled: true

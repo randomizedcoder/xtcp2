@@ -1,0 +1,14 @@
+name: digitalocean
+provider: digitalocean
+url: https://digitalocean.com/geo/google.csv
+parser: csv
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: digitalocean
+  service_operator: digitalocean
+parser_opts:
+  has_header: false
+  prefix_column: 0
+  region_column: 2
+enabled: true

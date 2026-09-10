@@ -1,0 +1,10 @@
+name: atlassian
+provider: atlassian
+url: https://ip-ranges.atlassian.com/
+parser: atlassian
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: atlassian
+  service_operator: atlassian
+enabled: true

@@ -41,23 +41,24 @@ type ParquetRow struct {
 	SocketFd      uint64 `parquet:"socket_fd,snappy"`
 	NetlinkerId   uint64 `parquet:"netlinker_id,snappy"`
 
-	InetDiagMsgFamily                uint32 `parquet:"inet_diag_msg_family,snappy"`
-	InetDiagMsgState                 uint32 `parquet:"inet_diag_msg_state,snappy"`
-	InetDiagMsgTimer                 uint32 `parquet:"inet_diag_msg_timer,snappy"`
-	InetDiagMsgRetrans               uint32 `parquet:"inet_diag_msg_retrans,snappy"`
-	InetDiagMsgSocketSourcePort      uint32 `parquet:"inet_diag_msg_socket_source_port,snappy"`
-	InetDiagMsgSocketDestinationPort uint32 `parquet:"inet_diag_msg_socket_destination_port,snappy"`
-	InetDiagMsgSocketSource          []byte `parquet:"inet_diag_msg_socket_source,zstd"`
-	InetDiagMsgSocketDestination     []byte `parquet:"inet_diag_msg_socket_destination,zstd"`
-	InetDiagMsgSocketInterface       uint32 `parquet:"inet_diag_msg_socket_interface,snappy"`
-	InetDiagMsgSocketCookie          uint64 `parquet:"inet_diag_msg_socket_cookie,snappy"`
-	InetDiagMsgSocketDestAsn         uint64 `parquet:"inet_diag_msg_socket_dest_asn,snappy"`
-	InetDiagMsgSocketNextHopAsn      uint64 `parquet:"inet_diag_msg_socket_next_hop_asn,snappy"`
-	InetDiagMsgExpires               uint32 `parquet:"inet_diag_msg_expires,snappy"`
-	InetDiagMsgRqueue                uint32 `parquet:"inet_diag_msg_rqueue,snappy"`
-	InetDiagMsgWqueue                uint32 `parquet:"inet_diag_msg_wqueue,snappy"`
-	InetDiagMsgUid                   uint32 `parquet:"inet_diag_msg_uid,snappy"`
-	InetDiagMsgInode                 uint32 `parquet:"inet_diag_msg_inode,snappy"`
+	InetDiagMsgFamily                 uint32 `parquet:"inet_diag_msg_family,snappy"`
+	InetDiagMsgState                  uint32 `parquet:"inet_diag_msg_state,snappy"`
+	InetDiagMsgTimer                  uint32 `parquet:"inet_diag_msg_timer,snappy"`
+	InetDiagMsgRetrans                uint32 `parquet:"inet_diag_msg_retrans,snappy"`
+	InetDiagMsgSocketSourcePort       uint32 `parquet:"inet_diag_msg_socket_source_port,snappy"`
+	InetDiagMsgSocketDestinationPort  uint32 `parquet:"inet_diag_msg_socket_destination_port,snappy"`
+	InetDiagMsgSocketSource           []byte `parquet:"inet_diag_msg_socket_source,zstd"`
+	InetDiagMsgSocketDestination      []byte `parquet:"inet_diag_msg_socket_destination,zstd"`
+	InetDiagMsgSocketInterface        uint32 `parquet:"inet_diag_msg_socket_interface,snappy"`
+	InetDiagMsgSocketCookie           uint64 `parquet:"inet_diag_msg_socket_cookie,snappy"`
+	InetDiagMsgSocketDestAsn          uint64 `parquet:"inet_diag_msg_socket_dest_asn,snappy"`
+	InetDiagMsgSocketNextHopAsn       uint64 `parquet:"inet_diag_msg_socket_next_hop_asn,snappy"`
+	InetDiagMsgSocketDestNetworkOwner string `parquet:"inet_diag_msg_socket_dest_network_owner,snappy"`
+	InetDiagMsgExpires                uint32 `parquet:"inet_diag_msg_expires,snappy"`
+	InetDiagMsgRqueue                 uint32 `parquet:"inet_diag_msg_rqueue,snappy"`
+	InetDiagMsgWqueue                 uint32 `parquet:"inet_diag_msg_wqueue,snappy"`
+	InetDiagMsgUid                    uint32 `parquet:"inet_diag_msg_uid,snappy"`
+	InetDiagMsgInode                  uint32 `parquet:"inet_diag_msg_inode,snappy"`
 
 	MemInfoRmem uint32 `parquet:"mem_info_rmem,snappy"`
 	MemInfoWmem uint32 `parquet:"mem_info_wmem,snappy"`

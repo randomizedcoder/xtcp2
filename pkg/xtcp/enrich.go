@@ -3,6 +3,7 @@ package xtcp
 import (
 	"context"
 	"log"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
+	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
 	"github.com/randomizedcoder/xtcp2/pkg/lldp"
 	"github.com/randomizedcoder/xtcp2/pkg/nicinfo"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
@@ -97,6 +99,59 @@ func (x *XTCP) initEnrichers(ctx context.Context) {
 	}
 	x.initDockerEnricher(ctx)
 	x.initUplinkEnrichers(ctx)
+	x.initAsnEnricher(ctx)
+}
+
+// initAsnEnricher loads the ipfeed-collector Parquet artifact into an in-process
+// longest-prefix-match trie for destination IP -> {ASN, network owner}. A
+// load failure disables ASN enrichment (counter + log) without touching the
+// rest of the daemon. When asn_refresh_interval > 0 a background goroutine
+// reloads the artifact so a refreshed file is picked up without a restart; a
+// failed reload leaves the in-service trie untouched.
+func (x *XTCP) initAsnEnricher(ctx context.Context) {
+	if !x.config.EnrichAsnEnable {
+		return
+	}
+	path := x.config.AsnDbPath
+	if path == "" {
+		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
+		log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort): asn_db_path is empty")
+		return
+	}
+
+	idx, err := ipasn.New(path)
+	if err != nil {
+		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
+		log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort): %v", err)
+		return
+	}
+	x.asnIndex = idx
+	x.pC.WithLabelValues("initEnrichers", "asn", "enabled").Inc()
+	if x.debugLevel > 10 {
+		log.Printf("initAsnEnricher: ASN enrichment enabled (db:%s)", path)
+	}
+
+	interval := x.config.GetAsnRefreshInterval().AsDuration()
+	if interval <= 0 {
+		return // load-once; no background refresh
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := idx.Reload(path); err != nil {
+					x.pC.WithLabelValues("refreshAsn", "reload", "error").Inc()
+					log.Printf("initAsnEnricher: ASN reload failed (keeping current table): %v", err)
+					continue
+				}
+				x.pC.WithLabelValues("refreshAsn", "reload", "ok").Inc()
+			}
+		}
+	}()
 }
 
 // initDockerEnricher builds the netns-inode -> container index over the Docker
@@ -245,6 +300,33 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 			r.Nsid = uint32(id)
 		}
 	}
+
+	if x.asnIndex != nil {
+		if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
+			if a, found := x.asnIndex.Lookup(addr); found {
+				r.InetDiagMsgSocketDestAsn = uint64(a.ASN)
+				r.InetDiagMsgSocketDestNetworkOwner = a.NetworkOwner
+			}
+		}
+	}
+}
+
+// destAddr converts the kernel's 16-byte __be32[4] destination slot to a
+// netip.Addr, alloc-free. family is authoritative: the kernel stores an IPv4
+// address in the first 4 bytes of the 16-byte slot (rest zero), so it must not
+// be read as IPv6. Returns ok=false for a short/absent buffer or unknown family.
+func destAddr(family uint32, b []byte) (netip.Addr, bool) {
+	switch family {
+	case unix.AF_INET:
+		if len(b) >= 4 {
+			return netip.AddrFrom4([4]byte(b[:4])), true
+		}
+	case unix.AF_INET6:
+		if len(b) >= 16 {
+			return netip.AddrFrom16([16]byte(b[:16])).Unmap(), true
+		}
+	}
+	return netip.Addr{}, false
 }
 
 // refreshNsids rebuilds the opt-in netns-inode -> nsid snapshot for the current

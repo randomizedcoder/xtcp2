@@ -265,6 +265,11 @@ type XtcpFlatRecord struct {
 	InetDiagMsgWqueue                uint32 `protobuf:"varint,1015,opt,name=inet_diag_msg_wqueue,json=inetDiagMsgWqueue,proto3" json:"inet_diag_msg_wqueue,omitempty"`
 	InetDiagMsgUid                   uint32 `protobuf:"varint,1016,opt,name=inet_diag_msg_uid,json=inetDiagMsgUid,proto3" json:"inet_diag_msg_uid,omitempty"`
 	InetDiagMsgInode                 uint32 `protobuf:"varint,1017,opt,name=inet_diag_msg_inode,json=inetDiagMsgInode,proto3" json:"inet_diag_msg_inode,omitempty"`
+	// Destination network owner (e.g. "cloudflare", "aws"), from the IP-range
+	// feeds ipfeed-collector parses. Populated alongside dest_asn (1011) by the
+	// opt-in ASN enricher (pkg/ipasn). Empty when enrichment is disabled or the
+	// destination IP is not in the feed set.
+	InetDiagMsgSocketDestNetworkOwner string `protobuf:"bytes,1018,opt,name=inet_diag_msg_socket_dest_network_owner,json=inetDiagMsgSocketDestNetworkOwner,proto3" json:"inet_diag_msg_socket_dest_network_owner,omitempty"`
 	// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
 	// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
 	// so these ship as 0 on current records. The same values live in sk_mem_info:
@@ -833,6 +838,13 @@ func (x *XtcpFlatRecord) GetInetDiagMsgInode() uint32 {
 		return x.InetDiagMsgInode
 	}
 	return 0
+}
+
+func (x *XtcpFlatRecord) GetInetDiagMsgSocketDestNetworkOwner() string {
+	if x != nil {
+		return x.InetDiagMsgSocketDestNetworkOwner
+	}
+	return ""
 }
 
 func (x *XtcpFlatRecord) GetMemInfoRmem() uint32 {
@@ -1674,7 +1686,7 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\x8e<\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xe3<\n" +
 	"\x0eXtcpFlatRecord\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12%\n" +
 	"\x0edaemon_version\x18\x02 \x01(\tR\rdaemonVersion\x12!\n" +
@@ -1737,7 +1749,8 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x14inet_diag_msg_rqueue\x18\xf6\a \x01(\rR\x11inetDiagMsgRqueue\x120\n" +
 	"\x14inet_diag_msg_wqueue\x18\xf7\a \x01(\rR\x11inetDiagMsgWqueue\x12*\n" +
 	"\x11inet_diag_msg_uid\x18\xf8\a \x01(\rR\x0einetDiagMsgUid\x12.\n" +
-	"\x13inet_diag_msg_inode\x18\xf9\a \x01(\rR\x10inetDiagMsgInode\x12#\n" +
+	"\x13inet_diag_msg_inode\x18\xf9\a \x01(\rR\x10inetDiagMsgInode\x12S\n" +
+	"'inet_diag_msg_socket_dest_network_owner\x18\xfa\a \x01(\tR!inetDiagMsgSocketDestNetworkOwner\x12#\n" +
 	"\rmem_info_rmem\x18\xcd\b \x01(\rR\vmemInfoRmem\x12#\n" +
 	"\rmem_info_wmem\x18\xce\b \x01(\rR\vmemInfoWmem\x12#\n" +
 	"\rmem_info_fmem\x18\xcf\b \x01(\rR\vmemInfoFmem\x12#\n" +

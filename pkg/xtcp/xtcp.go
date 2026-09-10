@@ -20,6 +20,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
+	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
@@ -115,6 +116,12 @@ type XTCP struct {
 	dockerIndex *dockermeta.Index
 	uplinkStamp uplinkStamp
 	nsidByInode atomic.Pointer[map[uint64]int32]
+
+	// asnIndex maps a destination IP -> {ASN, network owner} via longest-prefix
+	// match over the ipfeed-collector artifact. Loaded once at startup and
+	// (optionally) refreshed by a background goroutine; read lock-free on the
+	// stamping path. nil unless enrich_asn_enable and a readable asn_db_path.
+	asnIndex *ipasn.Index
 
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string

@@ -769,6 +769,15 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xe8
 	}
+	if len(m.InetDiagMsgSocketDestNetworkOwner) > 0 {
+		i -= len(m.InetDiagMsgSocketDestNetworkOwner)
+		copy(dAtA[i:], m.InetDiagMsgSocketDestNetworkOwner)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.InetDiagMsgSocketDestNetworkOwner)))
+		i--
+		dAtA[i] = 0x3f
+		i--
+		dAtA[i] = 0xd2
+	}
 	if m.InetDiagMsgInode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgInode))
 		i--
@@ -1635,6 +1644,10 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	}
 	if m.InetDiagMsgInode != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgInode))
+	}
+	l = len(m.InetDiagMsgSocketDestNetworkOwner)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.MemInfoRmem != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.MemInfoRmem))
@@ -3651,6 +3664,38 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 1018:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgSocketDestNetworkOwner", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.InetDiagMsgSocketDestNetworkOwner = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 1101:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field MemInfoRmem", wireType)

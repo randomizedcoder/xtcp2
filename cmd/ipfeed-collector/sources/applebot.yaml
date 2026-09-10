@@ -1,0 +1,11 @@
+name: applebot
+provider: apple
+url: https://search.developer.apple.com/applebot.json
+parser: applebot
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: apple
+  service_operator: apple
+  service: applebot
+enabled: true

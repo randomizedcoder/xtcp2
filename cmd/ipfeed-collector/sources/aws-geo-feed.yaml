@@ -1,0 +1,14 @@
+name: aws-geo-feed
+provider: aws
+url: https://ip-ranges.amazonaws.com/geo-ip-feed.csv
+parser: csv
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: aws
+  service_operator: aws
+parser_opts:
+  has_header: false
+  prefix_column: 0
+  region_column: 1
+enabled: true

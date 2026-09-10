@@ -1,0 +1,10 @@
+name: oci
+provider: oracle
+url: https://docs.oracle.com/iaas/tools/public_ip_ranges.json
+parser: oci
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: oracle
+  service_operator: oracle
+enabled: true

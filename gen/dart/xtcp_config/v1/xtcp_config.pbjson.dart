@@ -694,6 +694,22 @@ const XtcpConfig$json = {
       '10': 'uplinkInterfaces'
     },
     {'1': 'populate_nsid', '3': 238, '4': 1, '5': 8, '10': 'populateNsid'},
+    {
+      '1': 'enrich_asn_enable',
+      '3': 239,
+      '4': 1,
+      '5': 8,
+      '10': 'enrichAsnEnable'
+    },
+    {'1': 'asn_db_path', '3': 240, '4': 1, '5': 9, '8': {}, '10': 'asnDbPath'},
+    {
+      '1': 'asn_refresh_interval',
+      '3': 241,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '10': 'asnRefreshInterval'
+    },
   ],
   '7': {},
 };
@@ -766,10 +782,13 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     '50GOoBIAEoCUIHukgEcgIYEFIQbGxkcGRWZXJzaW9uSGludBIrChFlbnJpY2hfbmljX2VuYWJs'
     'ZRjrASABKAhSD2VucmljaE5pY0VuYWJsZRIrCgx1cGxpbmtfY291bnQY7AEgASgNQge6SAQqAh'
     'gCUgt1cGxpbmtDb3VudBI2ChF1cGxpbmtfaW50ZXJmYWNlcxjtASADKAlCCLpIBZIBAhACUhB1'
-    'cGxpbmtJbnRlcmZhY2VzEiQKDXBvcHVsYXRlX25zaWQY7gEgASgIUgxwb3B1bGF0ZU5zaWQ6c7'
-    'pIcBpuCg9YdGNwQ29uZmlnLnBvbGwSMlBvbGwgdGltZW91dCBtdXN0IGJlIGxlc3MgdGhhbiBw'
-    'b2xsIHBvbGxfZnJlcXVlbmN5Gid0aGlzLnBvbGxfZnJlcXVlbmN5ID4gdGhpcy5wb2xsX3RpbW'
-    'VvdXQ=');
+    'cGxpbmtJbnRlcmZhY2VzEiQKDXBvcHVsYXRlX25zaWQY7gEgASgIUgxwb3B1bGF0ZU5zaWQSKw'
+    'oRZW5yaWNoX2Fzbl9lbmFibGUY7wEgASgIUg9lbnJpY2hBc25FbmFibGUSKQoLYXNuX2RiX3Bh'
+    'dGgY8AEgASgJQgi6SAVyAxj/AVIJYXNuRGJQYXRoEkwKFGFzbl9yZWZyZXNoX2ludGVydmFsGP'
+    'EBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvblISYXNuUmVmcmVzaEludGVydmFsOnO6'
+    'SHAabgoPWHRjcENvbmZpZy5wb2xsEjJQb2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNzIHRoYW4gcG'
+    '9sbCBwb2xsX2ZyZXF1ZW5jeRondGhpcy5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG9sbF90aW1l'
+    'b3V0');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

@@ -175,6 +175,12 @@ message XtcpFlatRecord {
 	uint32 inet_diag_msg_uid                        = 1016;
 	uint32 inet_diag_msg_inode                      = 1017;
 
+	// Destination network owner (e.g. "cloudflare", "aws"), from the IP-range
+	// feeds ipfeed-collector parses. Populated alongside dest_asn (1011) by the
+	// opt-in ASN enricher (pkg/ipasn). Empty when enrichment is disabled or the
+	// destination IP is not in the feed set.
+	string inet_diag_msg_socket_dest_network_owner  = 1018;
+
 	// might want to put more here
 	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
 	// mem_info mem_info                            = 1100; // INET_DIAG_MEMINFO 1

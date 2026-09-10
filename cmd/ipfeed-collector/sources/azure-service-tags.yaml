@@ -1,0 +1,11 @@
+name: azure-service-tags
+provider: azure
+url: https://www.microsoft.com/en-us/download/details.aspx?id=56519
+parser: azure_service_tags
+source_type: provider_feed
+confidence: authoritative
+discover: azure_download_page
+defaults:
+  network_owner: microsoft
+  service_operator: microsoft
+enabled: true
