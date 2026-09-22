@@ -85,7 +85,7 @@ func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 		return ErrClassIDSmall
 	}
 
-	x.ClassId = binary.LittleEndian.Uint32(data[0:4])
+	x.InetDiagClassId = binary.LittleEndian.Uint32(data[0:4])
 
 	return nil
 }

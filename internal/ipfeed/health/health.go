@@ -17,22 +17,30 @@ import (
 // Server wraps an http.Server plus a readiness flag.
 type Server struct {
 	ready atomic.Bool
+	mux   *http.ServeMux
 	http  *http.Server
 }
 
 // NewServer builds a health server bound to addr (e.g. ":8080"). It does not
 // start listening until Start is called.
 func NewServer(addr string) *Server {
-	s := &Server{}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", s.handleHealthz)
-	mux.HandleFunc("/readyz", s.handleReadyz)
+	s := &Server{mux: http.NewServeMux()}
+	s.mux.HandleFunc("/healthz", s.handleHealthz)
+	s.mux.HandleFunc("/readyz", s.handleReadyz)
 	s.http = &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           s.mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	return s
+}
+
+// Handle registers an extra handler on the health server's mux (e.g. a
+// Prometheus /metrics endpoint), so the daemon exposes one port for
+// orchestration probes and scraping. Call before Start; the mux panics on a
+// duplicate pattern, exactly like http.ServeMux.
+func (s *Server) Handle(pattern string, h http.Handler) {
+	s.mux.Handle(pattern, h)
 }
 
 // SetReady marks the service ready (idempotent). Called after a successful cycle.

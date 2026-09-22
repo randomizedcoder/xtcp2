@@ -105,10 +105,10 @@ func formatField(r *xtcp_flat_record.XtcpFlatRecord, m protoreflect.Message, c C
 			return TCPStateName(r.GetInetDiagMsgState())
 		case "tcpInfoState":
 			return TCPStateName(r.GetTcpInfoState())
-		case "congestionAlgorithmEnum":
-			return CongestionAlgorithmName(r.GetCongestionAlgorithmEnum())
-		case "inetDiagMsgSocketDestLocality":
-			return LocalityName(r.GetInetDiagMsgSocketDestLocality())
+		case "inetDiagCongEnum":
+			return CongestionAlgorithmName(r.GetInetDiagCongEnum())
+		case "enrichSocketDestLocality":
+			return LocalityName(r.GetEnrichSocketDestLocality())
 		case "timestampNs":
 			return TimestampRFC3339(r.GetTimestampNs())
 		}

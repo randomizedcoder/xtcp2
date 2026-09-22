@@ -17,10 +17,12 @@ const (
 	promNameCounts     = "counts"
 	promNameHistograms = "histograms"
 	promNameGauge      = "gauge"
+	promNameGauges     = "gauges"
 
 	promHelpCounts     = "xtcp counts"
 	promHelpHistograms = "xtcp historgrams" //nolint:misspell // preserved spelling from existing metric — renaming would invalidate downstream dashboards
 	promHelpGauge      = "xtcp network namespace gauge"
+	promHelpGauges     = "xtcp gauges"
 
 	promLabelFunction = "function"
 	promLabelVariable = "variable"
@@ -77,6 +79,15 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 			Name:      promNameGauge,
 			Help:      promHelpGauge,
 		},
+	)
+
+	x.pGV = factory.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: promSubsystemXTCP,
+			Name:      promNameGauges,
+			Help:      promHelpGauges,
+		},
+		promLabels,
 	)
 
 }

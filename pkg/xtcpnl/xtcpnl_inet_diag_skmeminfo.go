@@ -120,9 +120,9 @@ func DeserializeSkMemInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 	}
 
 	x.SkMemInfoRmemAlloc = binary.LittleEndian.Uint32(data[0:4])
-	x.SkMemInfoRcvBuf = binary.LittleEndian.Uint32(data[4:8])
+	x.SkMemInfoRcvbuf = binary.LittleEndian.Uint32(data[4:8])
 	x.SkMemInfoWmemAlloc = binary.LittleEndian.Uint32(data[8:12])
-	x.SkMemInfoSndBuf = binary.LittleEndian.Uint32(data[12:16])
+	x.SkMemInfoSndbuf = binary.LittleEndian.Uint32(data[12:16])
 	x.SkMemInfoFwdAlloc = binary.LittleEndian.Uint32(data[16:20])
 	x.SkMemInfoWmemQueued = binary.LittleEndian.Uint32(data[20:24])
 	x.SkMemInfoOptmem = binary.LittleEndian.Uint32(data[24:28])

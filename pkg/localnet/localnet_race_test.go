@@ -23,6 +23,7 @@ func TestClassifyConcurrentWithStore(t *testing.T) {
 		return BuildSnapshot(
 			[]xtcpnl.AddrInfo{{Family: unix.AF_INET, Local: []byte{10, 0, third, 5}}},
 			[]xtcpnl.RouteInfo{connectedRoute(unix.AF_INET, []byte{10, 0, third, 0}, 24)},
+			map[uint32]string{2: "eth0"},
 		)
 	}
 
@@ -66,7 +67,12 @@ func TestClassifyConcurrentWithStore(t *testing.T) {
 			defer rwg.Done()
 			for i := 0; i < iters; i++ {
 				snap := cur.Load()
+				// Exercise every lock-free reader against the swapping snapshot,
+				// including the Resolve fold used by the enrichment hot path.
 				_ = snap.Classify(probes[i%len(probes)])
+				_, oif, _ := snap.Lookup(probes[i%len(probes)])
+				_ = snap.IfName(oif)
+				_ = snap.Resolve(probes[i%len(probes)], oif)
 			}
 		}()
 	}
@@ -83,8 +89,9 @@ var benchSink Locality
 // go test ./pkg/localnet/ -bench BenchmarkClassify -run x
 func BenchmarkClassify(b *testing.B) {
 	snap := BuildSnapshot(
-		[]xtcpnl.AddrInfo{{Family: unix.AF_INET, Local: []byte{10, 0, 0, 5}}},
-		[]xtcpnl.RouteInfo{connectedRoute(unix.AF_INET, []byte{10, 0, 0, 0}, 24)},
+		[]xtcpnl.AddrInfo{{Family: unix.AF_INET, Index: 2, Local: []byte{10, 0, 0, 5}}},
+		[]xtcpnl.RouteInfo{oifRoute(connectedRoute(unix.AF_INET, []byte{10, 0, 0, 0}, 24), 2)},
+		map[uint32]string{2: "eth0"},
 	)
 
 	cases := []struct {

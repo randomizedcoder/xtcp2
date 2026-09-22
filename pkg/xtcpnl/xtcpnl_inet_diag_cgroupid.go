@@ -100,7 +100,7 @@ func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrCGroupIDSmall
 	}
 
-	x.CGroup = binary.LittleEndian.Uint64(data[0:8])
+	x.InetDiagCgroupId = binary.LittleEndian.Uint64(data[0:8])
 
 	return nil
 }

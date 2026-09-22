@@ -85,7 +85,7 @@ func DeserializeTrafficClassXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord
 		return ErrTrafficClassSmall
 	}
 
-	x.TrafficClass = uint32(data[0])
+	x.InetDiagTclass = uint32(data[0])
 
 	return nil
 }

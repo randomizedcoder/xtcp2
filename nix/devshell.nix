@@ -55,6 +55,10 @@ pkgs.mkShell {
 
     Tests:
       go test ./...                           Unit tests
+      go test -ldflags=-checklinkname=0 ./pkg/xtcp/ ./cmd/xtcp2/
+                                              Local workaround when the toolchain
+                                              rejects giouring's syscall linkname
+                                              ("invalid reference to syscall.munmap")
       nix build .#tests.microvm-lifecycle     Boot xtcp2 in a VM and verify
 
     Nix:

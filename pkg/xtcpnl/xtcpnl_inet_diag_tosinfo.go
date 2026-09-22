@@ -85,7 +85,7 @@ func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecor
 		return ErrTypeOfServiceSmall
 	}
 
-	x.TypeOfService = uint32(data[0])
+	x.InetDiagTos = uint32(data[0])
 
 	return nil
 }

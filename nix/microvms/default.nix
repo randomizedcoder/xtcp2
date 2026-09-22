@@ -109,6 +109,23 @@ let
       sink = "tcp-stress";
     };
 
+  # interface-naming: docker-free host-ns veth topology that proves xtcp2 stamps
+  # the correct bound + egress interface names (see mkVm.nix isInterfaceNaming).
+  mkOneInterfaceNaming =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ;
+      sink = "interface-naming";
+    };
+
   mkOneClickPipe =
     arch:
     import ./mkVm.nix {
@@ -389,6 +406,8 @@ let
     lib.genAttrs constants.supportedArchs mkOneTcpStress
   );
 
+  vmsInterfaceNaming = lib.genAttrs constants.supportedArchs mkOneInterfaceNaming;
+
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
   vmsClickHttp = lib.genAttrs constants.supportedArchs mkOneClickHttp;
@@ -434,6 +453,27 @@ let
       vm = vms.${arch};
       # No flavor-specific tokens; baseSentinels already surfaces every
       # check the minimal self-test emits (Check 4+ breadcrumbs included).
+    };
+  });
+
+  # interface-naming lifecycle: boots the veth-topology VM and greps the IFNAME
+  # and ASN verdicts (the flavor also runs the loopback ipfeed-collector → xtcp2
+  # -enrichAsn chain, see mkVm.nix asnDbPath). Native (no docker), but the
+  # self-test polls the jsonl for up to ~2 min per check while the locality
+  # snapshot refreshes, the artifact lands and records accrue, so keep a
+  # generous timeout.
+  lifecycleInterfaceNaming = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsInterfaceNaming.${arch};
+      suffix = "-interface-naming";
+      extraSentinels = [
+        "IFNAME"
+        "ASN"
+      ];
+      # Boot + checks 1–5e take ~4 min on a loaded host before 5f/5g even start,
+      # and each of those polls for up to 2 min.
+      timeoutSec = 600;
     };
   });
 
@@ -729,6 +769,8 @@ in
     lifecycleNsq
     lifecycleCoverage
     lifecycleCoverageIoUring
+    lifecycleInterfaceNaming
+    vmsInterfaceNaming
     soak
     tcpStress
     checks

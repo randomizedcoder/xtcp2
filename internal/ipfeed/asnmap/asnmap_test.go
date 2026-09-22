@@ -38,20 +38,90 @@ func TestLookup(t *testing.T) {
 	}
 }
 
-// TestAnnotate verifies in-place ASN annotation across known and unknown owners.
+// TestAnnotate verifies in-place ASN annotation across known and unknown
+// owners. expectedASNs is index-aligned with records.
 func TestAnnotate(t *testing.T) {
-	recs := []model.Record{
-		{Prefix: "1.1.1.0/24", NetworkOwner: "cloudflare"},       // known
-		{Prefix: "8.8.8.0/24", Provider: "gcp"},                  // known via provider
-		{Prefix: "10.0.0.0/24", NetworkOwner: "acme"},            // unknown -> 0
-		{Prefix: "192.0.2.0/24", NetworkOwner: "", Provider: ""}, // empty -> 0
+	tests := []struct {
+		description  string
+		records      []model.Record
+		expectedASNs []uint32
+	}{
+		// positive
+		{
+			description:  "positive: a known network_owner is annotated",
+			records:      []model.Record{{Prefix: "1.1.1.0/24", NetworkOwner: "cloudflare"}},
+			expectedASNs: []uint32{13335},
+		},
+		{
+			description:  "positive: falls back to provider when owner is empty",
+			records:      []model.Record{{Prefix: "8.8.8.0/24", Provider: "gcp"}},
+			expectedASNs: []uint32{15169},
+		},
+		{
+			description: "positive: a mixed slice is annotated element-wise in place",
+			records: []model.Record{
+				{Prefix: "1.1.1.0/24", NetworkOwner: "cloudflare"},
+				{Prefix: "8.8.8.0/24", Provider: "gcp"},
+				{Prefix: "10.0.0.0/24", NetworkOwner: "acme"},
+				{Prefix: "192.0.2.0/24", NetworkOwner: "", Provider: ""},
+			},
+			expectedASNs: []uint32{13335, 15169, 0, 0},
+		},
+		// negative
+		{
+			description:  "negative: an unknown owner and provider stays at 0",
+			records:      []model.Record{{Prefix: "10.0.0.0/24", NetworkOwner: "acme", Provider: "acme"}},
+			expectedASNs: []uint32{0},
+		},
+		// boundary
+		{
+			description:  "boundary: empty owner and provider stays at 0",
+			records:      []model.Record{{Prefix: "192.0.2.0/24", NetworkOwner: "", Provider: ""}},
+			expectedASNs: []uint32{0},
+		},
+		{
+			description:  "boundary: an empty slice is a no-op",
+			records:      []model.Record{},
+			expectedASNs: []uint32{},
+		},
+		{
+			description:  "boundary: a nil slice is a no-op",
+			records:      nil,
+			expectedASNs: nil,
+		},
+		// corner
+		{
+			description:  "corner: owner wins over a conflicting provider",
+			records:      []model.Record{{Prefix: "151.101.0.0/16", NetworkOwner: "fastly", Provider: "aws"}},
+			expectedASNs: []uint32{54113},
+		},
+		{
+			description:  "corner: an unknown record's pre-existing ASN is left untouched, not reset",
+			records:      []model.Record{{Prefix: "10.0.0.0/24", NetworkOwner: "acme", ASN: 64512}},
+			expectedASNs: []uint32{64512},
+		},
+		{
+			description:  "corner: a known record's pre-existing ASN is overwritten",
+			records:      []model.Record{{Prefix: "1.1.1.0/24", NetworkOwner: "cloudflare", ASN: 64512}},
+			expectedASNs: []uint32{13335},
+		},
+		{
+			description:  "corner: matching is case- and whitespace-insensitive",
+			records:      []model.Record{{Prefix: "1.1.1.0/24", NetworkOwner: "  CloudFlare "}},
+			expectedASNs: []uint32{13335},
+		},
 	}
-	Annotate(recs)
-
-	want := []uint32{13335, 15169, 0, 0}
-	for i, w := range want {
-		if recs[i].ASN != w {
-			t.Errorf("record %d (%s): ASN = %d, want %d", i, recs[i].Prefix, recs[i].ASN, w)
-		}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			Annotate(tc.records)
+			if len(tc.records) != len(tc.expectedASNs) {
+				t.Fatalf("%s: test row malformed: %d records vs %d expected ASNs", tc.description, len(tc.records), len(tc.expectedASNs))
+			}
+			for i, want := range tc.expectedASNs {
+				if got := tc.records[i].ASN; got != want {
+					t.Errorf("%s: record %d (%s): ASN = %d, want %d", tc.description, i, tc.records[i].Prefix, got, want)
+				}
+			}
+		})
 	}
 }

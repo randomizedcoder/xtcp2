@@ -225,8 +225,8 @@ func (x *XTCP) processInetDiagRecord(
 	// already identify the container — e.g. host-net container sockets that
 	// carry a container cgroup but no distinct netns inode. O(1) cached lookup;
 	// empty when the resolver is disabled or the cgroup isn't a container.
-	if xtcpRecord.ContainerId == "" && x.cgroupResolver != nil && xtcpRecord.CGroup != 0 {
-		xtcpRecord.ContainerId, xtcpRecord.ContainerRuntime = x.cgroupResolver.Resolve(xtcpRecord.CGroup)
+	if xtcpRecord.ContainerId == "" && x.cgroupResolver != nil && xtcpRecord.InetDiagCgroupId != 0 {
+		xtcpRecord.ContainerId, xtcpRecord.ContainerRuntime = x.cgroupResolver.Resolve(xtcpRecord.InetDiagCgroupId)
 	}
 
 	if x.debugLevel > 1000 {
@@ -322,7 +322,7 @@ func (x *XTCP) skipUnknownNlmsg(d DeserializeArgs, nlh *xtcpnl.NlMsgHdr, offset,
 // We need to do this because these won't get over written each time
 func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 	// func (x *XTCP) ZeroXTCPCongRecord(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
-	if zeroer, ok := x.xtcpRecordZeroizer[xtcpRecord.CongestionAlgorithmEnum]; ok {
+	if zeroer, ok := x.xtcpRecordZeroizer[xtcpRecord.InetDiagCongEnum]; ok {
 		zeroer(xtcpRecord)
 	}
 }

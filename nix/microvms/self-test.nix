@@ -89,6 +89,12 @@
 #                                              nsqd AND finished by an nsq_tail
 #                                              consumer (nsqd /stats finish_count)
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
+#   XTCP2_SELF_TEST_ASN_{PASS,FAIL}           (interface-naming only) ASN
+#                                              enrichment end to end: the record
+#                                              for the held 8.8.8.8:53 socket
+#                                              carries AS15169 / google /
+#                                              LOCALITY_REMOTE from an artifact
+#                                              the real ipfeed-collector built
 #
 # Each check is independent: failure of one does not skip the others, so the
 # launcher can attribute failures precisely.
@@ -191,6 +197,30 @@
   # request (idiag_ext=254) yields NO MEMINFO attribute, confirming the dropped
   # meminfo is not merely un-parsed but never sent by the kernel.
   runNlProbeCheck ? false,
+  # When true (interface-naming flavor), Check 5f validates that xtcp2 stamped
+  # the correct interface names: a record whose socket was SO_BINDTODEVICE-bound
+  # to ifnameBound carries that name in enrich_socket_interface_name, and a record
+  # whose destination routes out ifnameEgress carries that name in
+  # enrich_socket_dest_egress_ifname. Reads the daemon jsonl at fileOutputPath.
+  runInterfaceNamingCheck ? false,
+  ifnameBound ? "",
+  ifnameEgress ? "",
+  # When true (interface-naming flavor), Check 5g validates ASN enrichment end
+  # to end: the xtcp2-asn-collector unit builds asnDbPath from a loopback feed,
+  # xtcp2 (-enrichAsn) loads it, and the xtcp2-asn-dialer unit holds a TCP
+  # connection to asnDialTarget:asnDialPort. A jsonl record for that socket must
+  # carry enrich_socket_dest_asn == asnExpectedAsn, network_owner ==
+  # asnExpectedOwner and LOCALITY_REMOTE, and the daemon's
+  # xtcp_gauges{function="loadAsn",variable="prefixes"} must equal
+  # asnExpectedPrefixes (the number of prefixes in the fixture feed). Reads the
+  # daemon jsonl at fileOutputPath and /metrics on promPort.
+  runAsnCheck ? false,
+  asnDbPath ? "",
+  asnDialTarget ? "8.8.8.8",
+  asnDialPort ? 53,
+  asnExpectedAsn ? "15169",
+  asnExpectedOwner ? "google",
+  asnExpectedPrefixes ? "3",
 }:
 
 pkgs.writeShellApplication {
@@ -524,6 +554,156 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_LISTEN_STREAM_FAIL  (xtcp2client not on PATH)"
     fi
     if [ "$check5e" -ne 0 ]; then overall_ok=0; fi
+
+    # ─── Check 5f: interface-naming enrichment content ────────────────────
+    # (interface-naming flavor only.) The in-VM generator holds ESTABLISHED
+    # sockets open: one SO_BINDTODEVICE-bound to ${ifnameBound} (dialing a peer
+    # reachable on that veth), and one unbound dialing a peer whose route egresses
+    # ${ifnameEgress}. xtcp2 (-enrichLocality) must stamp those interface names.
+    # The two records must be distinguishable, not just present somewhere:
+    #   bound  — enrichSocketInterfaceName == ${ifnameBound} AND the kernel's own
+    #            idiag_if (inetDiagMsgSocketInterface) is set, proving the name
+    #            was resolved from the socket's bound ifindex, not a route;
+    #   egress — enrichSocketDestEgressIfname == ${ifnameEgress} on a record with
+    #            NO bound-interface name (the unbound client) whose destination
+    #            classified as LOCALITY_LOCAL_SUBNET (peer on the connected /24).
+    # We poll the jsonl because the locality snapshot is discovered on the
+    # reconcile path a few seconds after the veths come up. Runs after 5e so the
+    # generators have had the longest possible time to come up.
+    ${lib.optionalString runInterfaceNamingCheck ''
+      echo "--- check 5f: interface-naming (bound=${ifnameBound} egress=${ifnameEgress}) ---"
+      check5f=1
+      boundOk=0
+      egressOk=0
+      for _ in $(seq 1 60); do
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-ifname.snap 2>/dev/null || true
+          if [ "$boundOk" -eq 0 ] && \
+            jq -e --arg n "${ifnameBound}" \
+              'select(.enrichSocketInterfaceName == $n
+                      and .inetDiagMsgSocketInterface != null)' \
+              /tmp/xtcp2-ifname.snap >/dev/null 2>&1; then
+            boundOk=1
+          fi
+          if [ "$egressOk" -eq 0 ] && \
+            jq -e --arg n "${ifnameEgress}" \
+              'select(.enrichSocketDestEgressIfname == $n
+                      and (.enrichSocketInterfaceName // "") == ""
+                      and .enrichSocketDestLocality == "LOCALITY_LOCAL_SUBNET")' \
+              /tmp/xtcp2-ifname.snap >/dev/null 2>&1; then
+            egressOk=1
+          fi
+          if [ "$boundOk" -eq 1 ] && [ "$egressOk" -eq 1 ]; then break; fi
+        fi
+        sleep 2
+      done
+      if [ "$boundOk" -eq 1 ] && [ "$egressOk" -eq 1 ]; then
+        echo "XTCP2_SELF_TEST_IFNAME_PASS  (bound=${ifnameBound} egress=${ifnameEgress})"
+        check5f=0
+      else
+        echo "XTCP2_SELF_TEST_IFNAME_FAIL  (bound_seen=$boundOk egress_seen=$egressOk)"
+        echo "--- sample records carrying interface fields ---"
+        jq -c 'select(.enrichSocketInterfaceName != null or .enrichSocketDestEgressIfname != null)
+               | {i: .enrichSocketInterfaceName, b: .inetDiagMsgSocketInterface,
+                  e: .enrichSocketDestEgressIfname, l: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-ifname.snap 2>/dev/null | head -5 || true
+      fi
+      if [ "$check5f" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    # ─── Check 5g: ASN enrichment content ──────────────────────────────────
+    # (interface-naming flavor only.) The xtcp2-asn-dialer unit keeps a TCP
+    # connection to ${asnDialTarget}:${toString asnDialPort} alive; the
+    # xtcp2-asn-collector unit builds ${asnDbPath} (real ipfeed-collector against
+    # a loopback goog.json fixture) AFTER xtcp2 started, so the daemon has to
+    # pick the artifact up on its -asnRefreshInterval tick. We want the record
+    # for that exact socket (destination bytes == the dial target, dport == the
+    # dial port) to carry the representative ASN, the network owner, and a
+    # REMOTE locality (8.8.8.8 is behind the default gateway). enrich_socket_
+    # dest_asn is a uint64, which protojson renders as a JSON *string*.
+    ${lib.optionalString runAsnCheck ''
+      echo "--- check 5g: asn enrichment (dest=${asnDialTarget}:${toString asnDialPort} want asn=${asnExpectedAsn} owner=${asnExpectedOwner}) ---"
+      check5g=1
+      # protojson renders idiag_dst as base64. The daemon copies the kernel's
+      # raw __be32[4] (16 bytes) for every family, so a v4 address is the 4
+      # octets followed by 12 zero bytes; accept the bare 4-byte form as well
+      # so a future trim of v4 addresses does not break the check. Each octet →
+      # \0NNN octal escape → raw byte via printf %b.
+      dest_raw=$(IFS=. read -r o1 o2 o3 o4 <<<"${asnDialTarget}"; \
+        printf '\\0%03o\\0%03o\\0%03o\\0%03o' "$o1" "$o2" "$o3" "$o4")
+      dest_b64_4=$(printf '%b' "$dest_raw" | base64)
+      dest_b64_16=$({ printf '%b' "$dest_raw"; head -c 12 /dev/zero; } | base64)
+      echo "expecting inetDiagMsgSocketDestination=$dest_b64_16 (or $dest_b64_4)"
+      artifact_seen=0
+      asnOk=0
+      for _ in $(seq 1 60); do
+        if [ "$artifact_seen" -eq 0 ] && [ -s "${asnDbPath}" ]; then
+          artifact_seen=1
+          echo "asn artifact present: $(ls -la ${asnDbPath})"
+        fi
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-asn.snap 2>/dev/null || true
+          if jq -e --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+                --argjson p ${toString asnDialPort} \
+                --arg a "${asnExpectedAsn}" --arg o "${asnExpectedOwner}" \
+              'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                      and .inetDiagMsgSocketDestinationPort == $p
+                      and .enrichSocketDestAsn == $a
+                      and .enrichSocketDestNetworkOwner == $o
+                      and .enrichSocketDestLocality == "LOCALITY_REMOTE")' \
+              /tmp/xtcp2-asn.snap >/dev/null 2>&1; then
+            asnOk=1
+            break
+          fi
+        fi
+        sleep 2
+      done
+      # The lookup table's own metrics: the prefixes gauge must equal the number
+      # of prefixes in the fixture feed once the artifact is loaded (a record
+      # with the right ASN proves a load happened, so the gauge must be there).
+      # client_golang sorts label pairs by name, so match labels individually
+      # rather than pinning their order.
+      echo "--- daemon loadAsn / refreshAsn metrics ---"
+      asn_metrics=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
+      grep -E 'loadAsn|refreshAsn|initAsnEnricher' <<<"$asn_metrics" || echo "(no asn metrics yet)"
+      asn_prefixes=$(grep -E '^xtcp_gauges\{[^}]*function="loadAsn"[^}]*variable="prefixes"[^}]*\} ' <<<"$asn_metrics" \
+        | awk '{print $2}' | head -1)
+      prefixesOk=0
+      if [ "$asn_prefixes" = "${asnExpectedPrefixes}" ]; then prefixesOk=1; fi
+      if [ "$asnOk" -eq 1 ] && [ "$prefixesOk" -eq 1 ]; then
+        echo "XTCP2_SELF_TEST_ASN_PASS  (dest=${asnDialTarget}:${toString asnDialPort} asn=${asnExpectedAsn} owner=${asnExpectedOwner} prefixes=$asn_prefixes)"
+        jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+               'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+               | {state: .inetDiagMsgState, dport: .inetDiagMsgSocketDestinationPort,
+                  asn: .enrichSocketDestAsn, owner: .enrichSocketDestNetworkOwner,
+                  locality: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-asn.snap 2>/dev/null | head -3 || true
+        check5g=0
+      else
+        echo "XTCP2_SELF_TEST_ASN_FAIL  (artifact_seen=$artifact_seen asn_seen=$asnOk prefixes_gauge=''${asn_prefixes:-absent} want=${asnExpectedPrefixes})"
+        echo "--- records to the dial target (any enrichment) ---"
+        jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+               'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+               | {state: .inetDiagMsgState, dport: .inetDiagMsgSocketDestinationPort,
+                  asn: .enrichSocketDestAsn, owner: .enrichSocketDestNetworkOwner,
+                  locality: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-asn.snap 2>/dev/null | head -5 || true
+        echo "--- live sockets to the dial target (kernel view) ---"
+        ss -tn "dst ${asnDialTarget}" 2>&1 | head -10 || true
+        echo "--- records to the dial target, count / any record on dport ${toString asnDialPort} ---"
+        jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+               'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)' \
+          /tmp/xtcp2-asn.snap 2>/dev/null | wc -l || true
+        jq -c --argjson p ${toString asnDialPort} 'select(.inetDiagMsgSocketDestinationPort == $p)
+               | {family: .inetDiagMsgFamily, dst: .inetDiagMsgSocketDestination,
+                  asn: .enrichSocketDestAsn, locality: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-asn.snap 2>/dev/null | head -3 || true
+        echo "--- collector / dialer unit state ---"
+        systemctl --no-pager status xtcp2-asn-collector.service xtcp2-asn-dialer.service 2>&1 | head -30 || true
+        journalctl --no-pager -u xtcp2-asn-dialer.service -n 8 2>&1 || true
+      fi
+      if [ "$check5g" -ne 0 ]; then overall_ok=0; fi
+    ''}
 
     # ─── Check 5f: raw socket destination → in-VM ncat sink ───────────────
     # (socket-sink flavors: tcp/udp/unix/unixgram). xtcp2 streams jsonl records

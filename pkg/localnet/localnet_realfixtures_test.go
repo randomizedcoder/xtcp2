@@ -93,13 +93,31 @@ func buildRealSnapshot(t *testing.T) *Snapshot {
 		routes = append(routes, ri)
 	})
 
+	links := make(map[uint32]string)
+	walkRealDump(t, "netlink_route_getlink_dump.pcap", func(mt uint16, body []byte) {
+		if mt != uint16(unix.RTM_NEWLINK) {
+			return
+		}
+		li, err := xtcpnl.ParseNewLink(body)
+		if err != nil {
+			t.Fatalf("getlink: ParseNewLink: %v", err)
+		}
+		links[uint32(li.Index)] = li.Name
+	})
+
 	if len(addrs) != 24 { // 9 v4 + 15 v6
 		t.Fatalf("parsed %d addresses, want 24", len(addrs))
 	}
 	if len(routes) != 74 {
 		t.Fatalf("parsed %d routes, want 74", len(routes))
 	}
-	return BuildSnapshot(addrs, routes)
+	// ip_link_n sidecar: 1=lo, 2=enp1s0, 3=enp35s0f0np0 must be present.
+	for idx, name := range map[uint32]string{1: "lo", 2: "enp1s0", 3: "enp35s0f0np0"} {
+		if links[idx] != name {
+			t.Fatalf("links[%d] = %q, want %q", idx, links[idx], name)
+		}
+	}
+	return BuildSnapshot(addrs, routes, links)
 }
 
 // TestClassifyRealFixture classifies real destination addresses against a
@@ -146,6 +164,50 @@ func TestClassifyRealFixture(t *testing.T) {
 			got := snap.Classify(netip.MustParseAddr(tc.addr))
 			if got != tc.want {
 				t.Errorf("Classify(%s) = %v, want %v", tc.addr, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestLookupEgressRealFixture asserts the egress interface derived from the real
+// routing table: the Oif of the route each destination longest-prefix matches,
+// resolved to a name via the RTM_GETLINK dump. Every row cites the
+// ip_route_table_all_n line (dev <iface>) the egress came from. Interface
+// indices from ip_link_n: enp1s0=2, enp35s0f0np0=3, lo=1.
+//
+// go test ./pkg/localnet/ -run TestLookupEgressRealFixture
+func TestLookupEgressRealFixture(t *testing.T) {
+	snap := buildRealSnapshot(t)
+
+	tests := []struct {
+		description string
+		addr        string
+		wantLoc     Locality
+		wantIfindex uint32
+		wantIfname  string
+	}{
+		// connected subnets -> egress is the subnet's dev
+		{"ip_route:2 10.10.4.5 in 10.10.4.0/29 dev enp35s0f0np0", "10.10.4.5", LocalitySubnet, 3, "enp35s0f0np0"},
+		{"ip_route:6 172.16.50.100 in 172.16.50.0/24 dev enp1s0", "172.16.50.100", LocalitySubnet, 2, "enp1s0"},
+		{"ip_route:29 fd10:10:4::abcd in fd10:10:4::/64 dev enp35s0f0np0", "fd10:10:4::abcd", LocalitySubnet, 3, "enp35s0f0np0"},
+		{"ip_route:27 2603:…:6800::5 in 2603:8002:ea00:6800::/64 dev enp1s0", "2603:8002:ea00:6800::5", LocalitySubnet, 2, "enp1s0"},
+		// remote -> egress from the matched default route
+		{"ip_route:1 8.8.8.8 via v4 default dev enp1s0", "8.8.8.8", LocalityRemote, 2, "enp1s0"},
+		{"ip_route:39 2606:4700::1111 via v6 default dev enp1s0", "2606:4700::1111", LocalityRemote, 2, "enp1s0"},
+		// self -> egress from the owning interface / RTN_LOCAL route dev
+		{"ip_route:19 self 172.16.50.219 dev enp1s0", "172.16.50.219", LocalitySelf, 2, "enp1s0"},
+		{"ip_route:10 self 10.10.4.2 dev enp35s0f0np0", "10.10.4.2", LocalitySelf, 3, "enp35s0f0np0"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			loc, oif, ok := snap.Lookup(netip.MustParseAddr(tc.addr))
+			if !ok || loc != tc.wantLoc || oif != tc.wantIfindex {
+				t.Errorf("Lookup(%s) = (%v, %d, %v), want (%v, %d, true)",
+					tc.addr, loc, oif, ok, tc.wantLoc, tc.wantIfindex)
+			}
+			if name := snap.IfName(oif); name != tc.wantIfname {
+				t.Errorf("IfName(%d) = %q, want %q", oif, name, tc.wantIfname)
 			}
 		})
 	}

@@ -44,17 +44,7 @@ func New(ctx context.Context, cfg Config) (Uploader, error) {
 	if cfg.Bucket == "" {
 		return nil, fmt.Errorf("s3: bucket is required")
 	}
-	endpoint := cfg.Endpoint
-	secure := true
-	switch {
-	case strings.HasPrefix(endpoint, "https://"):
-		endpoint = strings.TrimPrefix(endpoint, "https://")
-		secure = true
-	case strings.HasPrefix(endpoint, "http://"):
-		endpoint = strings.TrimPrefix(endpoint, "http://")
-		secure = false
-	}
-	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint, secure := parseEndpoint(cfg.Endpoint)
 	region := cfg.Region
 	if region == "" {
 		region = "us-east-1"
@@ -77,6 +67,27 @@ func New(ctx context.Context, cfg Config) (Uploader, error) {
 		}
 	}
 	return &minioUploader{client: cl, cfg: cfg}, nil
+}
+
+// parseEndpoint derives the bare host[:port] minio expects and whether to use
+// TLS from a configured endpoint. An explicit "https://" or "http://" scheme
+// is stripped and selects TLS on/off respectively; anything else (a bare host,
+// or an unrecognised scheme) is passed through verbatim and defaults to TLS.
+// A single trailing "/" is removed. No further validation is done here: minio
+// reports a malformed host when the client is constructed.
+func parseEndpoint(raw string) (host string, secure bool) {
+	host = raw
+	secure = true
+	switch {
+	case strings.HasPrefix(host, "https://"):
+		host = strings.TrimPrefix(host, "https://")
+		secure = true
+	case strings.HasPrefix(host, "http://"):
+		host = strings.TrimPrefix(host, "http://")
+		secure = false
+	}
+	host = strings.TrimSuffix(host, "/")
+	return host, secure
 }
 
 // Key joins the configured prefix with filename, e.g. "prefix/2026-09-09.parquet".

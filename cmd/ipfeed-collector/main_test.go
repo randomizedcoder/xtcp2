@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"log/slog"
 )
 
 // setOrUnset sets key to val when set is true, otherwise ensures it is unset,
@@ -83,15 +84,77 @@ func TestEnvHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("bool", func(t *testing.T) {
-		const key = "IPFEED_TEST_BOOL"
-		t.Setenv(key, "true")
-		if !envBool(key, false) {
-			t.Error("positive: 'true' should parse to true")
+	t.Run("int", func(t *testing.T) {
+		tests := []struct {
+			description string
+			val         string // env value (ignored when set is false)
+			set         bool
+			def         int
+			expected    int
+		}{
+			// positive
+			{description: "positive: a valid positive integer parses", val: "42", set: true, def: 8, expected: 42},
+			{description: "positive: a negative integer parses (validation is the caller's job)", val: "-3", set: true, def: 8, expected: -3},
+			{description: "positive: an explicit leading plus sign parses", val: "+7", set: true, def: 8, expected: 7},
+			// negative
+			{description: "negative: a non-numeric value falls back to the default", val: "eight", set: true, def: 8, expected: 8},
+			{description: "negative: a float falls back to the default (Atoi is integer-only)", val: "1.5", set: true, def: 8, expected: 8},
+			{description: "negative: an empty value falls back to the default", val: "", set: true, def: 8, expected: 8},
+			// boundary
+			{description: "boundary: unset uses the default", set: false, def: 8, expected: 8},
+			{description: "boundary: zero parses as zero, not the default", val: "0", set: true, def: 8, expected: 0},
+			{description: "boundary: max int parses", val: strconv.Itoa(math.MaxInt), set: true, def: 8, expected: math.MaxInt},
+			{description: "boundary: min int parses", val: strconv.Itoa(math.MinInt), set: true, def: 8, expected: math.MinInt},
+			// corner
+			{description: "corner: surrounding whitespace is not trimmed and falls back to the default", val: " 42 ", set: true, def: 8, expected: 8},
+			{description: "corner: a value overflowing int falls back to the default", val: "99999999999999999999999", set: true, def: 8, expected: 8},
+			{description: "corner: hex is not accepted and falls back to the default", val: "0x10", set: true, def: 8, expected: 8},
 		}
-		t.Setenv(key, "notabool")
-		if envBool(key, false) {
-			t.Error("negative: invalid bool should fall back to default (false)")
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				const key = "IPFEED_TEST_INT"
+				setOrUnset(t, key, tc.val, tc.set)
+				if got := envInt(key, tc.def); got != tc.expected {
+					t.Errorf("envInt(%q=%q, def=%d) = %d, want %d", key, tc.val, tc.def, got, tc.expected)
+				}
+			})
+		}
+	})
+
+	t.Run("bool", func(t *testing.T) {
+		tests := []struct {
+			description string
+			val         string // env value (ignored when set is false)
+			set         bool
+			def         bool
+			expected    bool
+		}{
+			// positive
+			{description: "positive: 'true' parses to true", val: "true", set: true, def: false, expected: true},
+			{description: "positive: 'false' parses to false over a true default", val: "false", set: true, def: true, expected: false},
+			{description: "positive: '1' parses to true", val: "1", set: true, def: false, expected: true},
+			{description: "positive: '0' parses to false", val: "0", set: true, def: true, expected: false},
+			{description: "positive: 'TRUE' (upper case) parses to true", val: "TRUE", set: true, def: false, expected: true},
+			{description: "positive: 't' short form parses to true", val: "t", set: true, def: false, expected: true},
+			// negative
+			{description: "negative: a non-bool value falls back to the default (false)", val: "notabool", set: true, def: false, expected: false},
+			{description: "negative: a non-bool value falls back to the default (true)", val: "notabool", set: true, def: true, expected: true},
+			{description: "negative: 'yes' is not a Go bool and falls back to the default", val: "yes", set: true, def: false, expected: false},
+			// boundary
+			{description: "boundary: unset uses the default (false)", set: false, def: false, expected: false},
+			{description: "boundary: unset uses the default (true)", set: false, def: true, expected: true},
+			// corner
+			{description: "corner: an explicitly empty value falls back to the default", val: "", set: true, def: true, expected: true},
+			{description: "corner: whitespace around the value is not trimmed and falls back to the default", val: " true", set: true, def: false, expected: false},
+		}
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				const key = "IPFEED_TEST_BOOL"
+				setOrUnset(t, key, tc.val, tc.set)
+				if got := envBool(key, tc.def); got != tc.expected {
+					t.Errorf("envBool(%q=%q, def=%v) = %v, want %v", key, tc.val, tc.def, got, tc.expected)
+				}
+			})
 		}
 	})
 }

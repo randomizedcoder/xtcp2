@@ -14,7 +14,7 @@ require (
 	github.com/parquet-go/parquet-go v0.32.0
 	github.com/pkg/profile v1.7.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/randomizedcoder/giouring v0.0.0-00010101000000-000000000000
 	github.com/redis/go-redis/v9 v9.7.3
@@ -25,6 +25,7 @@ require (
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
+	go.opentelemetry.io/otel/exporters/prometheus v0.68.0
 	go.opentelemetry.io/otel/metric v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/sdk/metric v1.46.0
@@ -66,8 +67,9 @@ require (
 	github.com/parquet-go/jsonlite v1.0.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.16.0 // indirect
+	github.com/prometheus/common v0.70.1 // indirect
+	github.com/prometheus/otlptranslator v1.0.0 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect

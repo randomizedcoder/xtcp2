@@ -14,13 +14,13 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+/// ---- enrichment: destination-side (310-349) ------------------------------
 /// Destination endpoint locality, classified from the socket's own network
 /// namespace's local addresses + routing table (discovered via rtnetlink,
-/// see pkg/localnet). Populated by the opt-in locality enricher BEFORE the
-/// ASN lookup: SELF and LOCAL_SUBNET destinations never reach the ASN feed,
-/// so dest_asn (1011) / dest_network_owner (1018) stay empty for them.
-/// UNSPECIFIED when locality enrichment is disabled or the namespace has no
-/// snapshot yet.
+/// see pkg/localnet). Computed BEFORE the ASN lookup: SELF and LOCAL_SUBNET
+/// destinations never reach the ASN feed, so enrich_socket_dest_asn (320) /
+/// enrich_socket_dest_network_owner (322) stay empty for them. UNSPECIFIED
+/// when locality enrichment is disabled or the namespace has no snapshot yet.
 class XtcpFlatRecord_Locality extends $pb.ProtobufEnum {
   static const XtcpFlatRecord_Locality LOCALITY_UNSPECIFIED =
       XtcpFlatRecord_Locality._(

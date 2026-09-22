@@ -79,7 +79,7 @@ df = dataset.to_table(columns=["timestamp_ns","hostname","tcp_info_rtt"]).to_pan
 -- partitions (host string, date string, hour string); project columns you need.
 ```
 
-**Always select only the columns you need** — there are 123, and columnar pruning is where Parquet earns its keep. Likewise filter on the `event_date` column (or the `date`/`hour` path partitions) for pruning.
+**Always select only the columns you need** — there are 162, and columnar pruning is where Parquet earns its keep. Likewise filter on the `event_date` column (or the `date`/`hour` path partitions) for pruning.
 
 ## Loading into Snowflake (Snowpipe → managed table)
 
@@ -153,14 +153,14 @@ If you're scoping an initial implementation, these are the high-value columns. E
 |---|---|---|
 | `tcp_info_rtt` | uint32 | Smoothed round-trip time, **microseconds**. The headline latency metric. |
 | `tcp_info_min_rtt` | uint32 | Minimum RTT seen, microseconds — a cleaner latency baseline. |
-| `tcp_info_rtt_var` | uint32 | RTT variance, microseconds (jitter). |
+| `tcp_info_rttvar` | uint32 | RTT variance, microseconds (jitter). |
 | `tcp_info_snd_cwnd` | uint32 | Congestion window, **in packets/segments** (not bytes). |
 | `tcp_info_total_retrans` | uint32 | Cumulative retransmitted segments — the simplest "is this connection healthy?" signal. |
 | `tcp_info_bytes_sent` / `tcp_info_bytes_acked` | uint64 | Cumulative bytes sent / acknowledged. |
 | `tcp_info_bytes_received` | uint64 | Cumulative bytes received. |
 | `tcp_info_delivery_rate` | uint64 | Recent delivery rate, **bytes/second** — effective throughput. |
 | `tcp_info_pacing_rate` | uint64 | Sender pacing rate, bytes/second. |
-| `congestion_algorithm_string` | string | Congestion-control algorithm name (e.g. `cubic`, `bbr`) — easiest to read. |
+| `inet_diag_cong` | string | Congestion-control algorithm name (e.g. `cubic`, `bbr`) — easiest to read. |
 
 A solid first dashboard: per host/destination, `MAX(tcp_info_rtt)` and `MAX(tcp_info_min_rtt)`, the delta of `tcp_info_total_retrans`, and throughput from `tcp_info_delivery_rate` — filtered to `inet_diag_msg_state = 1` (ESTABLISHED).
 
@@ -180,31 +180,33 @@ A few columns are stored as machine values for fidelity/size and need decoding f
   | 5 | FIN_WAIT2 | 11 | CLOSING |
   | 6 | TIME_WAIT | 12 | NEW_SYN_RECV |
 
-- **Congestion algorithm**: prefer `congestion_algorithm_string` (the kernel name). The `congestion_algorithm_enum` integer is `0`=UNSPECIFIED, `1`=CUBIC, `2`=DCTCP, `3`=VEGAS, `4`=PRAGUE, `5`=BBR1, `6`=BBR2, `7`=BBR3.
+- **Congestion algorithm**: prefer `inet_diag_cong` (the kernel name). The `inet_diag_cong_enum` integer is `0`=UNSPECIFIED, `1`=CUBIC, `2`=DCTCP, `3`=VEGAS, `4`=PRAGUE, `5`=BBR1, `6`=BBR2, `7`=BBR3.
 - **timestamp_ns** is an int64 of epoch nanoseconds; `to_timestamp(timestamp_ns / 1e9)` (or your engine's equivalent) gives a UTC timestamp.
 
 ## Full schema and column types
 
-The complete column list (123 columns) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse table columns — the one exception is `event_date`, a Parquet-only derived column with no proto/ClickHouse counterpart:
+The complete column list (162 columns, in proto field-number order) groups as follows; column names are the proto's snake_case names, identical to the ClickHouse `_v2` table columns — the one exception is `event_date`, a Parquet-only derived column with no proto/ClickHouse counterpart:
 
-- **Metadata** — `timestamp_ns` (int64), `event_date` (string, derived — UTC date of `timestamp_ns`), `hostname`, `netns`, `nsid`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`.
-- **`inet_diag_msg_*`** — the socket id/4-tuple, state, queues, uid/inode, ASN annotations.
+- **Metadata** — `schema_version`, `daemon_version`, `timestamp_ns` (int64), `event_date` (string, derived — UTC date of `timestamp_ns`), `hostname`, `location`, `netns`, `netns_inode`, `nsid`, `container_*`, `label`, `tag`, `record_counter`, `socket_fd`, `netlinker_id`, and the two host-uplink blocks `uplink1_*` / `uplink2_*` (NIC + LLDP neighbour).
+- **`enrich_*`** — daemon-computed: bound interface name, destination locality (`int32` enum: `0`=UNSPECIFIED, `1`=SELF, `2`=LOCAL_SUBNET, `3`=REMOTE), egress interface, destination ASN / next-hop ASN / network owner.
+- **`inet_diag_msg_*`** — the socket id/4-tuple, state, queues, uid/inode (kernel `struct inet_diag_msg`).
 - **`mem_info_*` / `sk_mem_info_*`** — socket memory accounting.
-- **`tcp_info_*`** — the bulk of the data: RTT, cwnd, ssthresh, MSS, windows, segment and byte counters, pacing/delivery rates, RTO stats, busy/limited times.
-- **`congestion_algorithm_*`** — enum (`int32`) + string name.
+- **`tcp_info_*`** — the bulk of the data: RTT, cwnd, ssthresh, MSS, windows, segment and byte counters, pacing/delivery rates, RTO stats, busy/limited times (kernel `struct tcp_info`, member names preserved).
+- **`inet_diag_cong` / `inet_diag_cong_enum`** — congestion-control name string + derived enum (`int32`).
+- **`inet_diag_tos` / `inet_diag_tclass` / `inet_diag_shutdown`** — QoS and shutdown state.
 - **Per-algorithm blocks** — `vegas_info_*`, `dctcp_info_*`, `bbr_info_*` (only meaningful when that algorithm is in use).
-- **QoS / misc** — `type_of_service`, `traffic_class`, `shutdown_state`, `class_id`, `sock_opt`, `c_group`.
+- **`inet_diag_class_id` / `inet_diag_sockopt` / `inet_diag_cgroup_id`** — traffic class id, socket option bits, cgroup id.
 
-Column types are: `int64` (timestamp only), `string` (hostname/netns/label/tag/congestion string), `bytes` (the two IP-address columns), `int32` (congestion enum), and `uint32`/`uint64` for everything else. The authoritative, field-by-field list with types and compression is the [`ParquetRow` struct](../pkg/xtcp/destinations_s3parquet_schema.go); field meanings are in the [protobuf schema](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) and [protobuf-formats.md](protobuf-formats.md).
+Column types are: `int64` (timestamp only), `string` (hostname/netns/labels/uplink strings/congestion string), `bytes` (the two IP-address columns), `int32` (the two enums), and `uint32`/`uint64` for everything else. The authoritative, field-by-field list with types and compression is the [`ParquetRow` struct](../pkg/xtcp/destinations_s3parquet_schema.go); field meanings are in the [protobuf schema](../proto/xtcp_flat_record/v1/xtcp_flat_record.proto) and [protobuf-formats.md](protobuf-formats.md).
 
 ## Types, nulls, and gotchas
 
 - **No NULLs.** The records come from proto3, which has no null — an absent/zero value is the numeric `0` (or empty string/bytes). Treat `0` as "unset or genuinely zero"; don't expect SQL `NULL`.
 - **Counters are cumulative**, per socket lifetime — delta between consecutive polls (matched by `inet_diag_msg_socket_cookie`) for per-interval rates, or `MAX()` for totals.
 - **Units differ**: RTTs are microseconds; rates are bytes/second; `snd_cwnd` is packets; byte counters are bytes. The per-column units are in the tables above.
-- **Per-algorithm columns are sparse-in-meaning**: `bbr_info_*` is only populated when the socket uses BBR, etc. Filter on `congestion_algorithm_string` before trusting them.
+- **Per-algorithm columns are sparse-in-meaning**: `bbr_info_*` is only populated when the socket uses BBR, etc. Filter on `inet_diag_cong` before trusting them.
 - **`event_date` is per-sample, not the file's write date.** It's the UTC date of each row's own `timestamp_ns`, so it ≈ the `date=` path segment but can differ for a file that spans UTC midnight (the column is the more precise one). It's a distinct column name from the hive `date` partition, so `hive_partitioning = true` reads expose both without collision. An unset `timestamp_ns` (0) yields `1970-01-01`. For exact sub-day or boundary filtering, use `timestamp_ns`.
-- **Schema evolution**: new fields are *added* (never renamed/reordered in place), so plan for forward-compatible reads (select by name, tolerate new columns).
+- **Schema evolution**: within a `schema_version` epoch, fields are only *added*, so plan for forward-compatible reads (select by name, tolerate new columns). A rename ships as a **`schema_version` bump** with a new column set; files written by older daemons keep the old names. Branch on `schema_version` when reading across the boundary. The epoch 1 → 2 rename table (e.g. `tcp_info_rtt_var` → `tcp_info_rttvar`, `congestion_algorithm_string` → `inet_diag_cong`, `c_group` → `inet_diag_cgroup_id`) is in [record-versioning.md](record-versioning.md#epoch-1--2-rename-table).
 
 ## Where the schema is defined
 

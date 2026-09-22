@@ -19,7 +19,7 @@ func sampleRecord() *xtcp_flat_record.XtcpFlatRecord {
 		InetDiagMsgSocketSourcePort: 443,
 		InetDiagMsgState:            10, // LISTEN
 		TcpInfoState:                10,
-		CongestionAlgorithmEnum:     xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
+		InetDiagCongEnum:            xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
 	}
 }
 
@@ -51,14 +51,32 @@ func TestIPString(t *testing.T) {
 }
 
 func TestTCPStateAndCongestionNames(t *testing.T) {
-	if TCPStateName(10) != "LISTEN" || TCPStateName(1) != "ESTABLISHED" || TCPStateName(99) != "99" {
-		t.Error("TCPStateName mismatch")
+	tests := []struct {
+		description string
+		got         string
+		want        string
+	}{
+		// TCPStateName
+		{"tcp state 10 -> LISTEN", TCPStateName(10), "LISTEN"},
+		{"tcp state 1 -> ESTABLISHED", TCPStateName(1), "ESTABLISHED"},
+		{"tcp state 0 (unset) -> numeric fallback", TCPStateName(0), "0"},
+		{"tcp state 99 (unknown) -> numeric fallback", TCPStateName(99), "99"},
+		// CongestionAlgorithmName
+		{"congestion CUBIC -> CUBIC", CongestionAlgorithmName(xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC), "CUBIC"},
+		{"congestion UNSPECIFIED -> empty", CongestionAlgorithmName(xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED), ""},
+		// LocalityName: enum prefix stripped, unspecified empty, unknown value numeric
+		{"locality SELF -> SELF", LocalityName(xtcp_flat_record.XtcpFlatRecord_LOCALITY_SELF), "SELF"},
+		{"locality LOCAL_SUBNET -> LOCAL_SUBNET", LocalityName(xtcp_flat_record.XtcpFlatRecord_LOCALITY_LOCAL_SUBNET), "LOCAL_SUBNET"},
+		{"locality REMOTE -> REMOTE", LocalityName(xtcp_flat_record.XtcpFlatRecord_LOCALITY_REMOTE), "REMOTE"},
+		{"locality UNSPECIFIED -> empty (column left blank)", LocalityName(xtcp_flat_record.XtcpFlatRecord_LOCALITY_UNSPECIFIED), ""},
+		{"locality out-of-range 42 -> numeric fallback", LocalityName(xtcp_flat_record.XtcpFlatRecord_Locality(42)), "42"},
 	}
-	if CongestionAlgorithmName(xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC) != "CUBIC" {
-		t.Error("congestion name mismatch")
-	}
-	if CongestionAlgorithmName(xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED) != "" {
-		t.Error("unspecified congestion should be empty")
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Errorf("got %q, want %q", tc.got, tc.want)
+			}
+		})
 	}
 }
 
@@ -107,8 +125,8 @@ func TestMarshalHumanizedJSON(t *testing.T) {
 	if m["inetDiagMsgState"] != "LISTEN" {
 		t.Errorf("state not humanized: %v", m["inetDiagMsgState"])
 	}
-	if m["congestionAlgorithmEnum"] != "CUBIC" {
-		t.Errorf("congestion not humanized: %v", m["congestionAlgorithmEnum"])
+	if m["inetDiagCongEnum"] != "CUBIC" {
+		t.Errorf("congestion not humanized: %v", m["inetDiagCongEnum"])
 	}
 	// A non-special numeric field stays a JSON number.
 	if _, ok := m["inetDiagMsgSocketSourcePort"].(float64); !ok {

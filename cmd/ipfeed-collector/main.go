@@ -6,13 +6,15 @@
 //
 // It runs in two modes: single-shot (the default — one collection cycle, then
 // exit) and daemon (-daemon — run immediately, then repeat every -interval,
-// serving /healthz and /readyz when -http-addr is set). Every flag also reads
+// serving /healthz, /readyz and Prometheus /metrics when -http-addr is set).
+// Every flag also reads
 // an IPFEED_* environment variable when the flag is not given, so the daemon
 // is easy to configure from a systemd unit or container.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -124,7 +126,7 @@ func parseFlags(args []string) (flags, error) {
 
 	fs.BoolVar(&f.daemon, "daemon", envBool("IPFEED_DAEMON", false), "run continuously, repeating every -interval")
 	fs.DurationVar(&f.interval, "interval", envDur("IPFEED_INTERVAL", 6*time.Hour), "daemon collection interval")
-	fs.StringVar(&f.httpAddr, "http-addr", envStr("IPFEED_HTTP_ADDR", ""), "daemon health endpoint address, e.g. :8080 (empty disables)")
+	fs.StringVar(&f.httpAddr, "http-addr", envStr("IPFEED_HTTP_ADDR", ""), "daemon health (/healthz, /readyz) and Prometheus (/metrics) endpoint address, e.g. :8080 (empty disables)")
 	fs.BoolVar(&f.healthcheck, "healthcheck", envBool("IPFEED_HEALTHCHECK", false), "probe a running daemon's /readyz and exit 0 (ready) or 1; used as the container HEALTHCHECK")
 	fs.BoolVar(&f.version, "version", false, "print build version and exit")
 
@@ -200,6 +202,13 @@ var (
 func main() {
 	f, err := parseFlags(os.Args[1:])
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0) // -h/-help: usage was already printed by the FlagSet
+		}
+		// Surface the reason (e.g. "-interval must be > 0 in daemon mode")
+		// rather than exiting silently; flag-syntax errors are also echoed by
+		// the FlagSet, but the validation errors parseFlags adds are not.
+		fmt.Fprintln(os.Stderr, "ipfeed-collector: invalid flags:", err)
 		os.Exit(2)
 	}
 
@@ -246,7 +255,11 @@ type sourceOutcome struct {
 }
 
 func run(rootCtx context.Context, f flags, log *slog.Logger) error {
-	tel, err := telemetry.Setup(rootCtx, "ipfeed-collector")
+	// Prometheus exposition only makes sense when there is an HTTP server to
+	// mount it on, i.e. daemon mode with -http-addr; a one-shot run reports its
+	// numbers in the end-of-run summary instead.
+	tel, err := telemetry.Setup(rootCtx, "ipfeed-collector",
+		telemetry.Options{Prometheus: f.daemon && f.httpAddr != ""})
 	if err != nil {
 		return fmt.Errorf("telemetry: %w", err)
 	}
@@ -272,14 +285,18 @@ func run(rootCtx context.Context, f flags, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(rootCtx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// One cycle, wrapped to record the cycle-outcome metric. Used by both modes.
+	// One cycle, wrapped to record the cycle-outcome and cycle-duration
+	// metrics. Used by both modes.
 	collect := func(ctx context.Context) error {
+		start := time.Now()
 		err := collectOnce(ctx, d)
 		outcome := "success"
 		if err != nil {
 			outcome = "failure"
 		}
-		tel.Cycles.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", outcome)))
+		attrs := metric.WithAttributes(attribute.String("outcome", outcome))
+		tel.Cycles.Add(ctx, 1, attrs)
+		tel.CycleDuration.Record(ctx, time.Since(start).Seconds(), attrs)
 		return err
 	}
 
@@ -291,10 +308,14 @@ func run(rootCtx context.Context, f flags, log *slog.Logger) error {
 	var ready func()
 	if f.httpAddr != "" {
 		hs := health.NewServer(f.httpAddr)
+		if tel.PrometheusHandler != nil {
+			hs.Handle("/metrics", tel.PrometheusHandler)
+		}
 		if err := hs.Start(ctx); err != nil {
 			return fmt.Errorf("health server: %w", err)
 		}
-		log.Info("health server listening", "addr", f.httpAddr)
+		log.Info("health server listening", "addr", f.httpAddr,
+			"metrics", tel.PrometheusHandler != nil)
 		defer func() { //nolint:contextcheck // shutdown must not inherit the already-canceled daemon ctx
 			// Fresh ctx: the daemon ctx is already canceled during shutdown.
 			sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -383,9 +404,15 @@ func collectOnce(ctx context.Context, d deps) error {
 	// Aggregate.
 	var sum summary.Summary
 	var combined []model.Record
-	for _, o := range outcomes {
+	for i, o := range outcomes {
 		sum.Add(o.result)
 		combined = append(combined, o.valid...)
+		// Latest-cycle table size per source (0 for a failed source, so a feed
+		// that stops contributing is visible rather than frozen at its last value).
+		tel.SourceRecords.Record(ctx, int64(o.result.Valid), metric.WithAttributes(
+			attribute.String("source", sources[i].Name),
+			attribute.String("provider", sources[i].Provider),
+		))
 	}
 	tel.SourcesSucceeded.Record(ctx, int64(sum.OKCount()))
 
@@ -419,11 +446,18 @@ func collectOnce(ctx context.Context, d deps) error {
 		outPath = f.outFile
 		filename = filepath.Base(f.outFile)
 	}
+	// Building the lookup artifact: the sort above plus the Parquet write. The
+	// duration is recorded even on failure so a slow-then-failing write shows up.
+	wstart := time.Now()
 	size, err := output.WriteParquet(outPath, combined)
+	tel.WriteDuration.Record(ctx, time.Since(wstart).Seconds())
 	if err != nil {
 		return fmt.Errorf("write parquet: %w", err)
 	}
-	log.Info("wrote parquet", "path", outPath, "records", len(combined), "bytes", size)
+	tel.ArtifactRecords.Record(ctx, int64(len(combined)))
+	tel.ArtifactBytes.Record(ctx, size)
+	log.Info("wrote parquet", "path", outPath, "records", len(combined), "bytes", size,
+		"duration", time.Since(wstart))
 
 	uploadURL := ""
 	if !f.noUpload {
@@ -477,8 +511,10 @@ func processSource(ctx context.Context, client *fetch.Client, tel *telemetry.Tel
 
 	parser, ok := parse.Get(src.Parser)
 	if !ok { // validated at load, but guard anyway
-		res.Note = "unknown parser " + src.Parser
+		err := fmt.Errorf("unknown parser %q", src.Parser)
+		res.Note = "parse: " + err.Error()
 		res.Duration = time.Since(start)
+		log.Error("parse failed", "source", src.Name, "parser", src.Parser, "err", err)
 		return sourceOutcome{result: res}
 	}
 	retrievedAt := time.Now().UTC().Format(time.RFC3339)
@@ -486,9 +522,12 @@ func processSource(ctx context.Context, client *fetch.Client, tel *telemetry.Tel
 	records, err := parser.Parse(fr.Body, src.Meta(), retrievedAt)
 	tel.ParseDuration.Record(ctx, time.Since(pstart).Seconds(), attrs)
 	if err != nil {
+		// The source counts as failed (res.OK stays false) and the reason is
+		// both logged here and carried into the end-of-run summary via Note.
 		res.Note = "parse: " + err.Error()
 		res.Duration = time.Since(start)
-		log.Error("parse failed", "source", src.Name, "err", err)
+		log.Error("parse failed", "source", src.Name, "parser", src.Parser,
+			"bytes", res.FetchedBytes, "err", err)
 		return sourceOutcome{result: res}
 	}
 	res.Parsed = len(records)
@@ -540,11 +579,13 @@ func uploadResult(ctx context.Context, f flags, tel *telemetry.Telemetry, log *s
 	ctx, span := tel.Tracer.Start(ctx, "upload", trace.WithAttributes(attribute.String("key", key)))
 	defer span.End()
 
+	ustart := time.Now()
 	url, err := up.Put(ctx, key, file, size)
+	tel.UploadDuration.Record(ctx, time.Since(ustart).Seconds())
 	if err != nil {
 		return "", err
 	}
 	tel.UploadBytes.Add(ctx, size)
-	log.Info("uploaded", "url", url, "bytes", size)
+	log.Info("uploaded", "url", url, "bytes", size, "duration", time.Since(ustart))
 	return url, nil
 }

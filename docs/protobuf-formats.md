@@ -72,8 +72,8 @@ This is the exported TCP data. Two core messages:
   hostname, network namespace, the `inet_diag` message fields, the full `tcp_info`, socket
   memory, congestion-control state (BBR/DCTCP/Vegas), cgroup/class IDs, and more. The flatness
   is what makes CSV/TSV and tabular analysis easy. Addresses are raw `bytes`; the
-  congestion algorithm is the `CongestionAlgorithm` enum (`CONGESTION_ALGORITHM_CUBIC` …
-  `BBR3`) with a string fallback field.
+  congestion algorithm is the kernel's name string (`inet_diag_cong`) plus the derived
+  `CongestionAlgorithm` enum (`inet_diag_cong_enum`, `CONGESTION_ALGORITHM_CUBIC` … `BBR3`).
 - **`Envelope { repeated XtcpFlatRecord row }`** — a batch of records. This is the unit the
   daemon marshals and ships; framed length-delimited it is exactly ClickHouse's `ProtobufList`
   input format. See [protobuflist-migration.md](protobuflist-migration.md) for the wire-format
@@ -82,13 +82,47 @@ This is the exported TCP data. Two core messages:
 Every record carries two provenance fields at the low field numbers:
 
 - **`schema_version` (field 1)** — the record *format epoch*, stamped unconditionally from the
-  daemon constant `XtcpFlatRecordSchemaVersion` (currently `1`). Bump it whenever the format
-  changes meaningfully. `0` is the "legacy" bucket: pre-versioning daemons never set the field,
+  daemon constant `XtcpFlatRecordSchemaVersion` (currently `2`). Bump it whenever a field is
+  renamed or renumbered. `0` is the "legacy" bucket: pre-versioning daemons never set the field,
   so it decodes to the proto3 zero default. Downstream this drives per-version ClickHouse
   routing — see [record-versioning.md](record-versioning.md).
 - **`daemon_version` (field 2)** — build provenance (git commit / date / version from
   `-ldflags`), for debugging which binary produced a row. Informational only; not used for
   routing.
+
+### Field layout policy
+
+The field-number space is allocated in blocks so that related fields stay together, every
+block has headroom, and nothing is ever reused (the proto's header comment is the
+authoritative copy of this policy):
+
+| Range | Contents | Notes |
+|---|---|---|
+| 1–2 | `schema_version`, `daemon_version` | single-byte tags |
+| 3–299 | metadata (host, netns, container, labels, bookkeeping, uplink slots 100s/200s) | numbers frozen; free sub-ranges listed in the proto |
+| 300–399 | enrichment (daemon-computed, not from the kernel) | 300 socket-side · 310–349 destination-side · 350–389 reserved for future source-side |
+| 400–999 | spare | |
+| 1000+ | payload, one hundred-block per kernel subsystem | `inet_diag_msg` 1000s · `meminfo` 1100s (deprecated) · `tcp_info` 1200s · `cong` 1300s · `tos/tclass` 1400s · `skmeminfo` 1500s · `shutdown` 1600s · `vegas` 1700s · `dctcp` 1800s · `bbr` 1900s · `class_id/sockopt/cgroup_id` 2000s; next free block 2100 |
+
+Every tag ≤ 2047 costs two bytes on the wire (2048+ costs three), so free slots inside
+existing blocks are filled before a new block is opened above 2047.
+
+**Payload names mirror the kernel.** A payload field is named after the kernel struct member
+it copies (`tcpi_rttvar` → `tcp_info_rttvar`, `SK_MEMINFO_RCVBUF` → `sk_mem_info_rcvbuf`),
+and struct-less `INET_DIAG_*` attributes take the lowercased attribute name (`INET_DIAG_TOS`
+→ `inet_diag_tos`, `INET_DIAG_CGROUP_ID` → `inet_diag_cgroup_id`). The one deliberate
+exception is the descriptive `inet_diag_msg_socket_{source,destination,…}` sockid names.
+Every payload field carries a trailing comment naming its kernel source, e.g.
+`// struct tcp_info.tcpi_rttvar (__u32)`, `// SK_MEMINFO_RCVBUF (__u32, sock_diag.h)`,
+`// INET_DIAG_TOS (5): inet->tos (__u8, net/ipv4/inet_diag.c)`, or
+`// derived by xtcp from inet_diag_cong (not a kernel field)`. `go run ./tools/proto-field-audit`
+fails if a field with tag ≥ 1000 lacks such a comment. Members the deserializer does not
+read yet (the post-6.10 AccECN `tcp_info` fields) are pre-assigned by comment at 1266–1276.
+
+Epoch 2 (2026-09) applied this policy retroactively: 18 payload fields and one enrichment
+field were renamed and three were renumbered. The full old → new table lives in
+[record-versioning.md](record-versioning.md#epoch-1--2-rename-table); the old names and
+numbers are `reserved` in the proto.
 
 > **Deprecated: `mem_info_*` (fields 1101–1104).** These four socket-memory fields are a
 > value-subset of the `sk_mem_info_*` fields (`mem_info_rmem`=`sk_mem_info_rmem_alloc`,
@@ -96,8 +130,9 @@ Every record carries two provenance fields at the low field numbers:
 > `mem_info_tmem`=`sk_mem_info_wmem_alloc`) — the kernel derives both from the same `sk`
 > counters. The `meminfo` deserializer is off by default, so on current records these columns
 > ship as `0`; use `sk_mem_info_*` instead (see [netlink-collection.md](netlink-collection.md)).
-> The fields are **retained** (never renumbered), so `schema_version` stays `1`: the record is
-> structurally identical and the data is fully recoverable from `sk_mem_info_*`.
+> The fields are **retained** (never renumbered), so the deprecation alone did not bump
+> `schema_version`: the record is structurally identical and the data is fully recoverable
+> from `sk_mem_info_*`.
 
 It also defines the streaming **`XTCPFlatRecordService`**, which `xtcp2client` consumes:
 

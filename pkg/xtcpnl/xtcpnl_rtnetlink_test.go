@@ -425,6 +425,61 @@ func TestParseNewRoute(t *testing.T) {
 			},
 		},
 		{
+			// An ECMP route carries its per-path gateways/interfaces inside
+			// RTA_MULTIPATH and has no top-level RTA_GATEWAY/RTA_OIF. Only the
+			// presence is recorded; the nested nexthops are not parsed.
+			description: "positive: ECMP route flags HasMultipath (RTA_MULTIPATH present, no RTA_GATEWAY)",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
+				rtattr(unix.RTA_DST, v4b(10, 20, 0, 0)),
+				rtattr(unix.RTA_MULTIPATH, make([]byte, 16)), // two opaque rtnexthop blobs
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(10, 20, 0, 0), HasMultipath: true,
+			},
+		},
+		{
+			description: "positive: IPv4 route via an IPv6 gateway flags HasVia (RTA_VIA, no RTA_GATEWAY)",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
+				rtattr(unix.RTA_DST, v4b(10, 30, 0, 0)),
+				rtattr(unix.RTA_VIA, append([]byte{byte(unix.AF_INET6), 0}, mustV6(t, "fe80::1")...)), // struct rtvia{family, addr}
+				rtattr(unix.RTA_OIF, le32(2)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(10, 30, 0, 0), Oif: 2, HasVia: true,
+			},
+		},
+		{
+			description: "positive: route pointing at a nexthop object carries NhID (RTA_NH_ID, no RTA_GATEWAY/RTA_OIF)",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
+				rtattr(unix.RTA_DST, v4b(10, 40, 0, 0)),
+				rtattr(RtaNhID, le32(5)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(10, 40, 0, 0), NhID: 5,
+			},
+		},
+		{
+			description: "corner: short RTA_NH_ID (2 bytes) is ignored, leaving NhID zero",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, 0, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
+				rtattr(unix.RTA_DST, v4b(10, 40, 0, 0)),
+				rtattr(RtaNhID, []byte{0x05, 0x00}),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Dst: v4b(10, 40, 0, 0),
+			},
+		},
+		{
 			description: "corner: truncated rtmsg header -> error",
 			body:        make([]byte, RtMsgSizeCst-1),
 			wantErr:     true,

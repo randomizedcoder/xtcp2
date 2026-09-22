@@ -204,8 +204,8 @@ func TestDeserializeCongInfoXTCP_dispatch(t *testing.T) {
 			if err := DeserializeCongInfoXTCP(tc.data, x); err != nil {
 				t.Fatalf("err = %v", err)
 			}
-			if x.CongestionAlgorithmEnum != tc.wantAlg {
-				t.Errorf("alg = %v, want %v", x.CongestionAlgorithmEnum, tc.wantAlg)
+			if x.InetDiagCongEnum != tc.wantAlg {
+				t.Errorf("alg = %v, want %v", x.InetDiagCongEnum, tc.wantAlg)
 			}
 		})
 	}

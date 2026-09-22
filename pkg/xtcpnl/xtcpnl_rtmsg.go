@@ -39,6 +39,11 @@ type RtMsg struct {
 const (
 	RtMsgSizeCst = 12
 	RtMsgReadCst = RtMsgSizeCst
+
+	// RtaNhID is RTA_NH_ID from include/uapi/linux/rtnetlink.h (Linux 5.3+):
+	// the id of the nexthop object a route points at instead of carrying its
+	// own RTA_GATEWAY / RTA_OIF. golang.org/x/sys/unix does not export it.
+	RtaNhID uint16 = 30
 )
 
 var (
@@ -78,23 +83,31 @@ func DeserializeRtMsgReflection(data []byte, m *RtMsg) (n int, err error) {
 // RouteInfo is the subset of an RTM_NEWROUTE message xtcp2 keeps. DstLen and the
 // header table/scope/type come from the rtmsg header; Dst/Gateway/PrefSrc hold
 // raw network-order address bytes. Table is upgraded from RTA_TABLE when present
-// (full table ids exceed the 8-bit header field). The connected-subnet test is
-// Type==RTN_UNICAST && Gateway==nil && has a Dst prefix (NOT scope-gated: IPv4
-// connected subnets are scope-link but IPv6 connected subnets are
+// (full table ids exceed the 8-bit header field). The local-subnet test
+// (pkg/localnet) is Type==RTN_UNICAST && has a Dst prefix && no next hop, where
+// "next hop" is any of Gateway, HasVia, HasMultipath or NhID (NOT scope-gated:
+// IPv4 connected subnets are scope-link but IPv6 connected subnets are
 // scope-universe); a locally-attached address is Type==RTN_LOCAL (typically in
 // RT_TABLE_LOCAL, scope host).
+//
+// HasMultipath / HasVia / NhID only record that the route is reached via a next
+// hop expressed outside RTA_GATEWAY; the nexthop contents themselves (per-path
+// gateways and interfaces) are not parsed.
 type RouteInfo struct {
-	Family   uint8
-	DstLen   uint8
-	Table    uint32 // header rtm_table, upgraded by RTA_TABLE
-	Scope    uint8
-	Type     uint8
-	Protocol uint8
-	Dst      []byte // RTA_DST
-	Gateway  []byte // RTA_GATEWAY
-	PrefSrc  []byte // RTA_PREFSRC
-	Oif      uint32 // RTA_OIF
-	Priority uint32 // RTA_PRIORITY
+	Family       uint8
+	DstLen       uint8
+	Table        uint32 // header rtm_table, upgraded by RTA_TABLE
+	Scope        uint8
+	Type         uint8
+	Protocol     uint8
+	Dst          []byte // RTA_DST
+	Gateway      []byte // RTA_GATEWAY
+	PrefSrc      []byte // RTA_PREFSRC
+	Oif          uint32 // RTA_OIF
+	Priority     uint32 // RTA_PRIORITY
+	HasMultipath bool   // RTA_MULTIPATH present (ECMP nexthop list; gateways live inside it)
+	HasVia       bool   // RTA_VIA present (gateway of a different address family)
+	NhID         uint32 // RTA_NH_ID (nexthop object id; 0 = none)
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -132,6 +145,14 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		case uint16(unix.RTA_TABLE):
 			if len(val) >= 4 {
 				ri.Table = binary.LittleEndian.Uint32(val[0:4])
+			}
+		case uint16(unix.RTA_MULTIPATH):
+			ri.HasMultipath = true
+		case uint16(unix.RTA_VIA):
+			ri.HasVia = true
+		case RtaNhID:
+			if len(val) >= 4 {
+				ri.NhID = binary.LittleEndian.Uint32(val[0:4])
 			}
 		}
 	})

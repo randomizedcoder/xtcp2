@@ -109,6 +109,16 @@ let
   # can validate the daemon's serialized output content (OUTPUT_CONTENT check).
   isMinimal = sink == "minimal";
   isTcpStress = sink == "tcp-stress";
+  # interface-naming = a docker-free host-ns flavor that proves xtcp2 names
+  # interfaces correctly end-to-end. It builds two veth pairs (a peer netns holds
+  # the far ends), runs the tcp_client/tcp_server generators bound to specific
+  # interfaces, and enables -enrichLocality so the self-test can assert the bound
+  # (idiag_if) and route-egress interface names on the daemon's jsonl records.
+  # It reuses the tcp-stress socket generators but NOT docker: docker containers
+  # get their own netns and cannot see host veth/dummy interfaces, so the
+  # SO_BINDTODEVICE + custom-egress topology the user asked for must live in the
+  # host ns where xtcp2 also reads it.
+  isInterfaceNaming = sink == "interface-naming";
   # clickhouse-pipeline = tcp-stress + redpanda + clickhouse + kafka
   # destination. Same docker setup but two extra containers + xtcp2
   # configured with -dest kafka:localhost:19092 so the records flow
@@ -259,6 +269,22 @@ let
     # minimal flavor only: validate the daemon's jsonl file-dest output.
     runFileOutputCheck = isMinimal;
     inherit fileOutputPath;
+    # interface-naming flavor only: assert the bound + egress interface names.
+    runInterfaceNamingCheck = isInterfaceNaming;
+    ifnameBound = ifnBoundIf;
+    ifnameEgress = ifnEgrIf;
+    # interface-naming flavor only: assert the ASN enrichment on the 8.8.8.8:53
+    # record produced by the xtcp2-asn-dialer unit, and the loadAsn/prefixes
+    # gauge against the fixture's prefix count.
+    runAsnCheck = isInterfaceNaming;
+    inherit
+      asnDbPath
+      asnDialTarget
+      asnDialPort
+      asnExpectedAsn
+      asnExpectedOwner
+      asnExpectedPrefixes
+      ;
     # tcp-sink flavor only: validate records received over the raw TCP dest.
     runRawSocketCheck = isSocketSink;
     inherit
@@ -307,6 +333,124 @@ let
   tcpStressSocketsPerContainer = if isS3ParquetLowfreq then 2 else 250;
   tcpStressClientSleep = "5s";
   tcpStressPads = 1024;
+
+  # interface-naming flavor topology. Two veth pairs whose far ends live in a
+  # dedicated peer netns so each connected /24 has exactly one owning device in
+  # the host ns (no route ambiguity). The host ns runs the clients; the peer ns
+  # runs the echo servers. Interface names must be <=15 chars.
+  #   ifn-bound (10.88.1.1/24) <-> ifn-boundp (10.88.1.2/24, peer ns)
+  #   ifn-egr   (10.88.2.1/24) <-> ifn-egrp   (10.88.2.2/24, peer ns)
+  # A dummy + bridge are added purely for naming variety (not asserted).
+  ifnPeerNs = "ifnpeer";
+  ifnBoundIf = "ifn-bound";
+  ifnBoundPeer = "ifn-boundp";
+  ifnBoundHostIp = "10.88.1.1";
+  ifnBoundPeerIp = "10.88.1.2";
+  ifnEgrIf = "ifn-egr";
+  ifnEgrPeer = "ifn-egrp";
+  ifnEgrHostIp = "10.88.2.1";
+  ifnEgrPeerIp = "10.88.2.2";
+  ifnSocketCount = 24;
+  ifnServerCount = 64;
+
+  # ASN enrichment (interface-naming flavor). Proves the whole ASN chain end to
+  # end without touching the internet for the *feed*: a synthetic goog.json in
+  # the real gstatic format (Google's public-DNS ranges only) is served over
+  # loopback, ipfeed-collector runs its real fetch → parse → asnmap → Parquet
+  # pipeline against it, and xtcp2 (-enrichAsn) loads the artifact. A dialer
+  # holds a TCP connection to ${asnDialTarget}:${toString asnDialPort} so the
+  # daemon emits a LOCALITY_REMOTE record whose destination matches 8.8.8.0/24
+  # → AS15169 / network_owner "google" (the ASN self-test check asserts that).
+  # The collector is deliberately ordered AFTER xtcp2 so the artifact arrives
+  # late and the daemon's retry-on-tick path (not just the startup load) is
+  # what installs it.
+  asnFeedPort = 8099;
+  asnDir = "/run/xtcp2-asn";
+  asnDbPath = "${asnDir}/asn.parquet";
+  asnDialTarget = "8.8.8.8";
+  asnDialPort = 53;
+  asnExpectedAsn = "15169";
+  asnExpectedOwner = "google";
+  asnFeedPrefixes = [
+    { ipv4Prefix = "8.8.4.0/24"; }
+    { ipv4Prefix = "8.8.8.0/24"; }
+    { ipv6Prefix = "2001:4860:4860::/48"; }
+  ];
+  # The daemon's loadAsn/prefixes gauge must equal the fixture's prefix count
+  # (derived, so adding a prefix above cannot silently desynchronise the check).
+  asnExpectedPrefixes = toString (builtins.length asnFeedPrefixes);
+  asnFeedFixture = pkgs.writeTextDir "goog.json" (
+    builtins.toJSON {
+      syncToken = "1700000000000";
+      creationTime = "2026-01-01T00:00:00.000000";
+      prefixes = asnFeedPrefixes;
+    }
+  );
+  # Same shape as cmd/ipfeed-collector/sources/gcp-goog.yaml with the URL
+  # pointed at the in-VM fixture server.
+  asnSourcesDir = pkgs.writeTextDir "gcp-goog.yaml" ''
+    name: gcp-goog
+    provider: gcp
+    url: http://127.0.0.1:${toString asnFeedPort}/goog.json
+    parser: gcp_ipranges
+    source_type: provider_feed
+    confidence: authoritative
+    defaults:
+      network_owner: google
+      service_operator: google
+    enabled: true
+  '';
+
+  # Builds the host-ns + peer-ns veth topology. Idempotent-ish: it tears down a
+  # previous run's netns/links first so a service restart re-converges cleanly.
+  ifnameNetSetupScript = pkgs.writeShellApplication {
+    name = "xtcp2-ifname-netsetup";
+    runtimeInputs = with pkgs; [
+      iproute2
+      coreutils
+    ];
+    text = ''
+      # Best-effort teardown of any prior run (ignore missing).
+      ip netns del ${ifnPeerNs} 2>/dev/null || true
+      ip link del ${ifnBoundIf} 2>/dev/null || true
+      ip link del ${ifnEgrIf} 2>/dev/null || true
+      ip link del ifn-dummy 2>/dev/null || true
+      ip link del ifn-br 2>/dev/null || true
+
+      ip netns add ${ifnPeerNs}
+      ip -n ${ifnPeerNs} link set lo up
+
+      # veth pairs; move the far ends into the peer netns.
+      ip link add ${ifnBoundIf} type veth peer name ${ifnBoundPeer}
+      ip link add ${ifnEgrIf} type veth peer name ${ifnEgrPeer}
+      ip link set ${ifnBoundPeer} netns ${ifnPeerNs}
+      ip link set ${ifnEgrPeer} netns ${ifnPeerNs}
+
+      # Host ns near ends + on-link /24 routes (auto-added by ip addr add).
+      ip addr add ${ifnBoundHostIp}/24 dev ${ifnBoundIf}
+      ip addr add ${ifnEgrHostIp}/24 dev ${ifnEgrIf}
+      ip link set ${ifnBoundIf} up
+      ip link set ${ifnEgrIf} up
+
+      # Peer ns far ends.
+      ip -n ${ifnPeerNs} addr add ${ifnBoundPeerIp}/24 dev ${ifnBoundPeer}
+      ip -n ${ifnPeerNs} addr add ${ifnEgrPeerIp}/24 dev ${ifnEgrPeer}
+      ip -n ${ifnPeerNs} link set ${ifnBoundPeer} up
+      ip -n ${ifnPeerNs} link set ${ifnEgrPeer} up
+
+      # Extra host-ns interfaces for naming variety (dummy + bridge). Not asserted
+      # by the self-test but exercise the RTM_GETLINK ifindex->name resolution.
+      ip link add ifn-dummy type dummy
+      ip addr add 10.88.9.1/24 dev ifn-dummy
+      ip link set ifn-dummy up
+      ip link add ifn-br type bridge
+      ip addr add 10.88.8.1/24 dev ifn-br
+      ip link set ifn-br up
+
+      echo "xtcp2-ifname-netsetup: topology ready"
+      ip -br addr show
+    '';
+  };
 
   # Phase E clickhouse-pipeline tunables. Image tags are deliberately
   # exposed here so a future tag bump doesn't require touching the
@@ -2150,6 +2294,26 @@ in
               # nsq flavor: PUBLISH each poll's records to the in-VM nsqd topic;
               # the self-test reads nsqd's per-channel finish_count.
               xtcp2NsqArgs
+            else if isInterfaceNaming then
+              # interface-naming: jsonl to a file (so the IFNAME check can read
+              # the enrich_socket_*_ifname fields) + the locality enricher. The
+              # 5s refresh re-dumps the routing table shortly after the veths come
+              # up, so records get the interface names even if xtcp2 raced ahead.
+              # -enrichAsn against the collector-produced artifact; the 5s refresh
+              # is what picks the late-arriving file up (see asnDbPath above).
+              (
+                xtcp2FileArgs
+                ++ [
+                  "-enrichLocality"
+                  "-localityRefreshInterval"
+                  "5s"
+                  "-enrichAsn"
+                  "-asnDbPath"
+                  asnDbPath
+                  "-asnRefreshInterval"
+                  "5s"
+                ]
+              )
             else if isMinimal then
               # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
               # can validate the daemon's serialized output.
@@ -2472,6 +2636,191 @@ in
                 StandardError = "journal+console";
               };
             };
+
+        # ── interface-naming flavor: host-ns veth topology + generators ──────
+        # netsetup builds the veth pairs + peer netns BEFORE xtcp2 starts so the
+        # host-ns routing table (which xtcp2 dumps for locality) already names the
+        # veths. Ordered before xtcp2.service the same way the coverage prep
+        # oneshot is.
+        # ── ASN enrichment chain (interface-naming flavor) ─────────────────
+        # 1. Loopback HTTP server for the synthetic goog.json fixture.
+        systemd.services.xtcp2-asn-feed = lib.mkIf isInterfaceNaming {
+          description = "asn — loopback HTTP server for the synthetic goog.json feed";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.python3}/bin/python3 -m http.server ${toString asnFeedPort} --bind 127.0.0.1 --directory ${asnFeedFixture}";
+            Restart = "always";
+            RestartSec = "1s";
+            StandardOutput = "journal";
+            StandardError = "journal";
+          };
+        };
+
+        # 2. The real collector, one shot, writing the Parquet artifact xtcp2
+        #    reads. Ordered after xtcp2 on purpose (late-arriving artifact →
+        #    daemon retry path). The collector's own fetch retries cover the
+        #    fixture server still coming up.
+        systemd.services.xtcp2-asn-collector = lib.mkIf isInterfaceNaming {
+          description = "asn — ipfeed-collector builds ${asnDbPath} from the loopback feed";
+          wantedBy = [ "multi-user.target" ];
+          after = [
+            "xtcp2-asn-feed.service"
+            "xtcp2.service"
+          ];
+          requires = [ "xtcp2-asn-feed.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            # RuntimeDirectory lives as long as this (RemainAfterExit) unit does.
+            RuntimeDirectory = baseNameOf asnDir;
+            RuntimeDirectoryMode = "0755";
+            ExecStart = "${xtcp2AllPackage}/bin/ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # 3. Hold a TCP connection to ${asnDialTarget}:${toString asnDialPort}
+        #    (Google public DNS over TCP) so xtcp2 sees a REMOTE socket whose
+        #    destination is inside the fixture's 8.8.8.0/24. Google closes an
+        #    idle DNS/TCP connection after a few seconds and the VM's SLiRP
+        #    NAT may not reach the internet at all — either way the loop
+        #    re-dials, so a socket to 8.8.8.8 (ESTABLISHED, or SYN_SENT if the
+        #    host is offline) exists for most of the self-test window.
+        systemd.services.xtcp2-asn-dialer = lib.mkIf isInterfaceNaming {
+          description = "asn — hold a TCP connection to ${asnDialTarget}:${toString asnDialPort}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.bash}/bin/bash -c 'exec 3<>/dev/tcp/${asnDialTarget}/${toString asnDialPort}; sleep 15'";
+            Restart = "always";
+            RestartSec = "1s";
+            StandardOutput = "journal";
+            StandardError = "journal";
+          };
+        };
+
+        systemd.services.xtcp2-ifname-netsetup = lib.mkIf isInterfaceNaming {
+          description = "interface-naming — build veth topology + peer netns";
+          wantedBy = [
+            "multi-user.target"
+            "xtcp2.service"
+          ];
+          # The generators are useless without the topology: make them hard
+          # dependents (Requires=, not Wants=) so a failed netsetup stops them
+          # with a clear dependency error instead of letting them crash-loop
+          # against missing interfaces.
+          requiredBy = [
+            "xtcp2-ifname-server.service"
+            "xtcp2-ifname-client-bound.service"
+            "xtcp2-ifname-client-egress.service"
+          ];
+          before = [ "xtcp2.service" ];
+          after = [ "network-pre.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${ifnameNetSetupScript}/bin/xtcp2-ifname-netsetup";
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_ADMIN"
+            ];
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Echo servers live in the peer netns, listening on 0.0.0.0 so both veth
+        # far-end addresses (10.88.1.2 / 10.88.2.2) are reachable.
+        systemd.services.xtcp2-ifname-server = lib.mkIf isInterfaceNaming {
+          description = "interface-naming — peer-ns tcp_server echo listeners";
+          after = [ "xtcp2-ifname-netsetup.service" ];
+          wants = [ "xtcp2-ifname-netsetup.service" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.iproute2}/bin/ip netns exec ${ifnPeerNs} ${xtcp2AllPackage}/bin/tcp_server -count ${toString ifnServerCount} -bind 0.0.0.0";
+            Restart = "on-failure";
+            RestartSec = "2s";
+            LimitNOFILE = 65536;
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_ADMIN"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_ADMIN"
+            ];
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Client A (host ns): SO_BINDTODEVICE-bound to ${ifnBoundIf}, dialing the
+        # peer reachable on that veth → drives enrich_socket_interface_name.
+        # SO_BINDTODEVICE has been unprivileged since Linux 5.7; CAP_NET_RAW is
+        # granted anyway so the unit also works on an older guest kernel.
+        # Restart=always: the generator exits normally when its connections
+        # finish (or the peer server restarts), and the self-test needs the
+        # ESTABLISHED sockets to keep existing while it polls the jsonl.
+        systemd.services.xtcp2-ifname-client-bound = lib.mkIf isInterfaceNaming {
+          description = "interface-naming — host-ns tcp_client bound to ${ifnBoundIf}";
+          after = [
+            "xtcp2-ifname-server.service"
+            "xtcp2-ifname-netsetup.service"
+          ];
+          wants = [
+            "xtcp2-ifname-server.service"
+            "xtcp2-ifname-netsetup.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+            ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString ifnSocketCount} -connect ${ifnBoundPeerIp} -iface ${ifnBoundIf} -sleep ${tcpStressClientSleep} -pads 512";
+            Restart = "always";
+            RestartSec = "2s";
+            LimitNOFILE = 65536;
+            AmbientCapabilities = [ "CAP_NET_RAW" ];
+            CapabilityBoundingSet = [ "CAP_NET_RAW" ];
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
+
+        # Client B (host ns): unbound, dialing the peer whose route egresses
+        # ${ifnEgrIf} → drives enrich_socket_dest_egress_ifname. Restart=always
+        # for the same reason as client A.
+        systemd.services.xtcp2-ifname-client-egress = lib.mkIf isInterfaceNaming {
+          description = "interface-naming — host-ns tcp_client egress via ${ifnEgrIf}";
+          after = [
+            "xtcp2-ifname-server.service"
+            "xtcp2-ifname-netsetup.service"
+          ];
+          wants = [
+            "xtcp2-ifname-server.service"
+            "xtcp2-ifname-netsetup.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+            ExecStart = "${xtcp2AllPackage}/bin/tcp_client -count ${toString ifnSocketCount} -connect ${ifnEgrPeerIp} -sleep ${tcpStressClientSleep} -pads 512";
+            Restart = "always";
+            RestartSec = "2s";
+            LimitNOFILE = 65536;
+            StandardOutput = "journal";
+            StandardError = "journal+console";
+          };
+        };
 
         # Enable docker daemon for any flavor that needs it. Adds
         # ~150 MiB to the VM image (dockerd + containerd) but keeps the

@@ -101,9 +101,9 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 	}
 
 	x.VegasInfoEnabled = binary.LittleEndian.Uint32(data[0:4])
-	x.VegasInfoRttCnt = binary.LittleEndian.Uint32(data[4:8])
+	x.VegasInfoRttcnt = binary.LittleEndian.Uint32(data[4:8])
 	x.VegasInfoRtt = binary.LittleEndian.Uint32(data[8:12])
-	x.VegasInfoMinRtt = binary.LittleEndian.Uint32(data[12:16])
+	x.VegasInfoMinrtt = binary.LittleEndian.Uint32(data[12:16])
 
 	return nil
 }
@@ -111,7 +111,7 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
 	// func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.VegasInfoEnabled = 0
-	x.VegasInfoRttCnt = 0
+	x.VegasInfoRttcnt = 0
 	x.VegasInfoRtt = 0
-	x.VegasInfoMinRtt = 0
+	x.VegasInfoMinrtt = 0
 }

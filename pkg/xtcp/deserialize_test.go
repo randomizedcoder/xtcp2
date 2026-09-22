@@ -393,11 +393,12 @@ func TestDeserialize_stampsRecordProvenance(t *testing.T) {
 }
 
 // TestSchemaVersionConstant guards against an accidental bump: the current
-// (enrichment-era) format is epoch 1. Bumping this constant is a deliberate act
-// that must be paired with a new _vN table + MV in the ClickHouse initdb.
+// (kernel-spelled payload names, regrouped enrichment block) format is epoch 2.
+// Bumping this constant is a deliberate act that must be paired with a new _vN
+// table + MV in the ClickHouse initdb and a sql/migrations/vN.sql.
 func TestSchemaVersionConstant(t *testing.T) {
-	if XtcpFlatRecordSchemaVersion != 1 {
-		t.Errorf("XtcpFlatRecordSchemaVersion = %d, want 1 (bumping requires a matching _vN table + MV)", XtcpFlatRecordSchemaVersion)
+	if XtcpFlatRecordSchemaVersion != 2 {
+		t.Errorf("XtcpFlatRecordSchemaVersion = %d, want 2 (bumping requires a matching _vN table + MV + sql/migrations/vN.sql)", XtcpFlatRecordSchemaVersion)
 	}
 }
 

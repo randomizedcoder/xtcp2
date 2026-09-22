@@ -15,6 +15,19 @@ import (
 	"time"
 )
 
+// maxBodyBytes caps how much of a 2xx response body Get will buffer. The
+// largest real feed (Azure Service Tags) is a few MiB, so 256 MiB is far above
+// anything legitimate while still bounding memory if a feed URL starts
+// returning garbage (a redirect to a video, a runaway endpoint, …). A body
+// that exceeds the cap fails the fetch with ErrBodyTooLarge and is not
+// retried. It is a variable (not a const) only so tests can lower it instead
+// of streaming hundreds of MiB through httptest.
+var maxBodyBytes int64 = 256 << 20
+
+// ErrBodyTooLarge is returned (wrapped) when a response body exceeds
+// maxBodyBytes. Match it with errors.Is.
+var ErrBodyTooLarge = errors.New("response body exceeds size limit")
+
 // Result is the outcome of a successful (or not-modified) fetch.
 type Result struct {
 	URL          string
@@ -162,9 +175,16 @@ func (c *Client) attempt(ctx context.Context, url string, cond Conditional) (Res
 		res.NotModified = true
 		return res, false, nil
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		body, err := io.ReadAll(resp.Body)
+		// Read at most limit+1 bytes: exactly `limit` bytes is accepted, and
+		// the one extra byte is how we detect that the body kept going without
+		// buffering all of it.
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
 		if err != nil {
 			return res, true, err // truncated read: retry
+		}
+		if int64(len(body)) > maxBodyBytes {
+			// A feed this large will be just as large on retry; fail fast.
+			return res, false, fmt.Errorf("%w (limit %d bytes)", ErrBodyTooLarge, maxBodyBytes)
 		}
 		res.Body = body
 		return res, false, nil

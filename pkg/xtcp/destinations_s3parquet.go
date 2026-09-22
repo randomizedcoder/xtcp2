@@ -729,7 +729,7 @@ func approxRowBytes(r *xtcp_flat_record.XtcpFlatRecord) int {
 	const numericBaseline = 800
 	n := numericBaseline
 	n += len(r.Hostname) + len(r.Netns) + len(r.Label) + len(r.Tag) +
-		len(r.CongestionAlgorithmString)
+		len(r.InetDiagCong)
 	n += len(r.InetDiagMsgSocketSource) + len(r.InetDiagMsgSocketDestination)
 	return n
 }
@@ -746,16 +746,22 @@ func utcDateFromNs(ns int64) string {
 // destinations_s3parquet_schema_test.go.
 func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 	return ParquetRow{
+		SchemaVersion: r.SchemaVersion,
+		DaemonVersion: r.DaemonVersion,
+
 		TimestampNs: r.TimestampNs,
 
 		Hostname: r.Hostname,
 		Location: r.Location,
 
-		Netns:            r.Netns,
-		NetnsInode:       r.NetnsInode,
+		Netns:      r.Netns,
+		NetnsInode: r.NetnsInode,
+		Nsid:       r.Nsid,
+
 		ContainerId:      r.ContainerId,
 		ContainerRuntime: r.ContainerRuntime,
-		Nsid:             r.Nsid,
+		ContainerName:    r.ContainerName,
+		ContainerImage:   r.ContainerImage,
 
 		Label: r.Label,
 		Tag:   r.Tag,
@@ -764,25 +770,57 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		SocketFd:      r.SocketFd,
 		NetlinkerId:   r.NetlinkerId,
 
-		InetDiagMsgFamily:                 r.InetDiagMsgFamily,
-		InetDiagMsgState:                  r.InetDiagMsgState,
-		InetDiagMsgTimer:                  r.InetDiagMsgTimer,
-		InetDiagMsgRetrans:                r.InetDiagMsgRetrans,
-		InetDiagMsgSocketSourcePort:       r.InetDiagMsgSocketSourcePort,
-		InetDiagMsgSocketDestinationPort:  r.InetDiagMsgSocketDestinationPort,
-		InetDiagMsgSocketSource:           r.InetDiagMsgSocketSource,
-		InetDiagMsgSocketDestination:      r.InetDiagMsgSocketDestination,
-		InetDiagMsgSocketInterface:        r.InetDiagMsgSocketInterface,
-		InetDiagMsgSocketCookie:           r.InetDiagMsgSocketCookie,
-		InetDiagMsgSocketDestAsn:          r.InetDiagMsgSocketDestAsn,
-		InetDiagMsgSocketNextHopAsn:       r.InetDiagMsgSocketNextHopAsn,
-		InetDiagMsgSocketDestNetworkOwner: r.InetDiagMsgSocketDestNetworkOwner,
-		InetDiagMsgSocketDestLocality:     int32(r.InetDiagMsgSocketDestLocality),
-		InetDiagMsgExpires:                r.InetDiagMsgExpires,
-		InetDiagMsgRqueue:                 r.InetDiagMsgRqueue,
-		InetDiagMsgWqueue:                 r.InetDiagMsgWqueue,
-		InetDiagMsgUid:                    r.InetDiagMsgUid,
-		InetDiagMsgInode:                  r.InetDiagMsgInode,
+		Uplink1Ifname:          r.Uplink1Ifname,
+		Uplink1NicDriver:       r.Uplink1NicDriver,
+		Uplink1NicModel:        r.Uplink1NicModel,
+		Uplink1NicPciVendor:    r.Uplink1NicPciVendor,
+		Uplink1NicPciDevice:    r.Uplink1NicPciDevice,
+		Uplink1NicBusInfo:      r.Uplink1NicBusInfo,
+		Uplink1NicSpeedMbps:    r.Uplink1NicSpeedMbps,
+		Uplink1NicFwVersion:    r.Uplink1NicFwVersion,
+		Uplink1LldpChassisName: r.Uplink1LldpChassisName,
+		Uplink1LldpChassisId:   r.Uplink1LldpChassisId,
+		Uplink1LldpMgmtIp:      r.Uplink1LldpMgmtIp,
+		Uplink1LldpPortId:      r.Uplink1LldpPortId,
+		Uplink1LldpPortDescr:   r.Uplink1LldpPortDescr,
+
+		Uplink2Ifname:          r.Uplink2Ifname,
+		Uplink2NicDriver:       r.Uplink2NicDriver,
+		Uplink2NicModel:        r.Uplink2NicModel,
+		Uplink2NicPciVendor:    r.Uplink2NicPciVendor,
+		Uplink2NicPciDevice:    r.Uplink2NicPciDevice,
+		Uplink2NicBusInfo:      r.Uplink2NicBusInfo,
+		Uplink2NicSpeedMbps:    r.Uplink2NicSpeedMbps,
+		Uplink2NicFwVersion:    r.Uplink2NicFwVersion,
+		Uplink2LldpChassisName: r.Uplink2LldpChassisName,
+		Uplink2LldpChassisId:   r.Uplink2LldpChassisId,
+		Uplink2LldpMgmtIp:      r.Uplink2LldpMgmtIp,
+		Uplink2LldpPortId:      r.Uplink2LldpPortId,
+		Uplink2LldpPortDescr:   r.Uplink2LldpPortDescr,
+
+		EnrichSocketInterfaceName:     r.EnrichSocketInterfaceName,
+		EnrichSocketDestLocality:      int32(r.EnrichSocketDestLocality),
+		EnrichSocketDestEgressIfindex: r.EnrichSocketDestEgressIfindex,
+		EnrichSocketDestEgressIfname:  r.EnrichSocketDestEgressIfname,
+		EnrichSocketDestAsn:           r.EnrichSocketDestAsn,
+		EnrichSocketDestNextHopAsn:    r.EnrichSocketDestNextHopAsn,
+		EnrichSocketDestNetworkOwner:  r.EnrichSocketDestNetworkOwner,
+
+		InetDiagMsgFamily:                r.InetDiagMsgFamily,
+		InetDiagMsgState:                 r.InetDiagMsgState,
+		InetDiagMsgTimer:                 r.InetDiagMsgTimer,
+		InetDiagMsgRetrans:               r.InetDiagMsgRetrans,
+		InetDiagMsgSocketSourcePort:      r.InetDiagMsgSocketSourcePort,
+		InetDiagMsgSocketDestinationPort: r.InetDiagMsgSocketDestinationPort,
+		InetDiagMsgSocketSource:          r.InetDiagMsgSocketSource,
+		InetDiagMsgSocketDestination:     r.InetDiagMsgSocketDestination,
+		InetDiagMsgSocketInterface:       r.InetDiagMsgSocketInterface,
+		InetDiagMsgSocketCookie:          r.InetDiagMsgSocketCookie,
+		InetDiagMsgExpires:               r.InetDiagMsgExpires,
+		InetDiagMsgRqueue:                r.InetDiagMsgRqueue,
+		InetDiagMsgWqueue:                r.InetDiagMsgWqueue,
+		InetDiagMsgUid:                   r.InetDiagMsgUid,
+		InetDiagMsgInode:                 r.InetDiagMsgInode,
 
 		MemInfoRmem: r.MemInfoRmem,
 		MemInfoWmem: r.MemInfoWmem,
@@ -795,10 +833,10 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TcpInfoProbes:                 r.TcpInfoProbes,
 		TcpInfoBackoff:                r.TcpInfoBackoff,
 		TcpInfoOptions:                r.TcpInfoOptions,
-		TcpInfoSendScale:              r.TcpInfoSendScale,
-		TcpInfoRcvScale:               r.TcpInfoRcvScale,
+		TcpInfoSndWscale:              r.TcpInfoSndWscale,
+		TcpInfoRcvWscale:              r.TcpInfoRcvWscale,
 		TcpInfoDeliveryRateAppLimited: r.TcpInfoDeliveryRateAppLimited,
-		TcpInfoFastOpenClientFailed:   r.TcpInfoFastOpenClientFailed,
+		TcpInfoFastopenClientFail:     r.TcpInfoFastopenClientFail,
 		TcpInfoRto:                    r.TcpInfoRto,
 		TcpInfoAto:                    r.TcpInfoAto,
 		TcpInfoSndMss:                 r.TcpInfoSndMss,
@@ -815,10 +853,10 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TcpInfoPmtu:                   r.TcpInfoPmtu,
 		TcpInfoRcvSsthresh:            r.TcpInfoRcvSsthresh,
 		TcpInfoRtt:                    r.TcpInfoRtt,
-		TcpInfoRttVar:                 r.TcpInfoRttVar,
+		TcpInfoRttvar:                 r.TcpInfoRttvar,
 		TcpInfoSndSsthresh:            r.TcpInfoSndSsthresh,
 		TcpInfoSndCwnd:                r.TcpInfoSndCwnd,
-		TcpInfoAdvMss:                 r.TcpInfoAdvMss,
+		TcpInfoAdvmss:                 r.TcpInfoAdvmss,
 		TcpInfoReordering:             r.TcpInfoReordering,
 		TcpInfoRcvRtt:                 r.TcpInfoRcvRtt,
 		TcpInfoRcvSpace:               r.TcpInfoRcvSpace,
@@ -829,7 +867,7 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TcpInfoBytesReceived:          r.TcpInfoBytesReceived,
 		TcpInfoSegsOut:                r.TcpInfoSegsOut,
 		TcpInfoSegsIn:                 r.TcpInfoSegsIn,
-		TcpInfoNotSentBytes:           r.TcpInfoNotSentBytes,
+		TcpInfoNotsentBytes:           r.TcpInfoNotsentBytes,
 		TcpInfoMinRtt:                 r.TcpInfoMinRtt,
 		TcpInfoDataSegsIn:             r.TcpInfoDataSegsIn,
 		TcpInfoDataSegsOut:            r.TcpInfoDataSegsOut,
@@ -851,28 +889,28 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TcpInfoTotalRtoRecoveries:     r.TcpInfoTotalRtoRecoveries,
 		TcpInfoTotalRtoTime:           r.TcpInfoTotalRtoTime,
 
-		CongestionAlgorithmString: r.CongestionAlgorithmString,
-		CongestionAlgorithmEnum:   int32(r.CongestionAlgorithmEnum),
+		InetDiagCong:     r.InetDiagCong,
+		InetDiagCongEnum: int32(r.InetDiagCongEnum),
 
-		TypeOfService: r.TypeOfService,
-		TrafficClass:  r.TrafficClass,
+		InetDiagTos:    r.InetDiagTos,
+		InetDiagTclass: r.InetDiagTclass,
 
 		SkMemInfoRmemAlloc:  r.SkMemInfoRmemAlloc,
-		SkMemInfoRcvBuf:     r.SkMemInfoRcvBuf,
+		SkMemInfoRcvbuf:     r.SkMemInfoRcvbuf,
 		SkMemInfoWmemAlloc:  r.SkMemInfoWmemAlloc,
-		SkMemInfoSndBuf:     r.SkMemInfoSndBuf,
+		SkMemInfoSndbuf:     r.SkMemInfoSndbuf,
 		SkMemInfoFwdAlloc:   r.SkMemInfoFwdAlloc,
 		SkMemInfoWmemQueued: r.SkMemInfoWmemQueued,
 		SkMemInfoOptmem:     r.SkMemInfoOptmem,
 		SkMemInfoBacklog:    r.SkMemInfoBacklog,
 		SkMemInfoDrops:      r.SkMemInfoDrops,
 
-		ShutdownState: r.ShutdownState,
+		InetDiagShutdown: r.InetDiagShutdown,
 
 		VegasInfoEnabled: r.VegasInfoEnabled,
-		VegasInfoRttCnt:  r.VegasInfoRttCnt,
+		VegasInfoRttcnt:  r.VegasInfoRttcnt,
 		VegasInfoRtt:     r.VegasInfoRtt,
-		VegasInfoMinRtt:  r.VegasInfoMinRtt,
+		VegasInfoMinrtt:  r.VegasInfoMinrtt,
 
 		DctcpInfoEnabled: r.DctcpInfoEnabled,
 		DctcpInfoCeState: r.DctcpInfoCeState,
@@ -886,9 +924,9 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		BbrInfoPacingGain: r.BbrInfoPacingGain,
 		BbrInfoCwndGain:   r.BbrInfoCwndGain,
 
-		ClassId: r.ClassId,
-		SockOpt: r.SockOpt,
-		CGroup:  r.CGroup,
+		InetDiagClassId:  r.InetDiagClassId,
+		InetDiagSockopt:  r.InetDiagSockopt,
+		InetDiagCgroupId: r.InetDiagCgroupId,
 	}
 }
 

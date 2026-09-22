@@ -7,20 +7,52 @@
 //
 // xTCP - eXport TCP Inet Diagnostic messages
 //
-// These are all the structs relating to the TCP diagnotic module in the kernel
+// XtcpFlatRecord is one flat row per socket: daemon metadata, daemon-computed
+// enrichment, and the raw kernel inet_diag payload (struct inet_diag_msg + every
+// INET_DIAG_* extension xtcp requests). Protobuf's smallest scalar is 32 bits,
+// so kernel __u8/__u16 members are widened to uint32; the trailing comment on
+// every payload field records the kernel member and its C type.
 //
-// Please note that protobufs smallest size is 32 bits, so we actually expand uint8/16 to uint32s.
-// In the protos below, I've commented which ones are uint8/16
+// Kernel source of truth (Linux 7.2-rc, include/uapi/linux/):
+//   inet_diag.h  struct inet_diag_msg, inet_diag_sockid, inet_diag_meminfo,
+//                tcpvegas_info, tcp_dctcp_info, tcp_bbr_info, inet_diag_sockopt,
+//                enum INET_DIAG_* (extension attribute ids)
+//   tcp.h        struct tcp_info
+//   sock_diag.h  enum SK_MEMINFO_*
+//   net/ipv4/inet_diag.c  inet_sk_diag_fill / inet_diag_msg_attrs_fill (what
+//                each nla_put_* actually carries)
 //
-// There are links to the kernel source showing where the struct came from.
+// ---------------------------------------------------------------------------
+// FIELD-NUMBER ALLOCATION POLICY (v2, 2026-09)
+// ---------------------------------------------------------------------------
+//   1-299    metadata    daemon identity, time, namespace, container, labels,
+//                        bookkeeping, per-uplink host topology (one block each)
+//   300-399  enrichment  daemon-COMPUTED fields (NOT read from the kernel):
+//                        300-309 socket-side, 310-349 destination-side,
+//                        350-389 source-side (future), 390-399 spare
+//   400-999  spare       unallocated; open a new metadata/enrichment block here
+//   1000+    payload     raw kernel inet_diag data, ONE hundred-block per kernel
+//                        struct / INET_DIAG_* extension (1000 inet_diag_msg,
+//                        1100 meminfo, 1200 tcp_info, 1300 cong, 1400 tos/tclass,
+//                        1500 skmeminfo, 1600 shutdown, 1700 vegas, 1800 dctcp,
+//                        1900 bbr, 2000 class_id/sockopt/cgroup_id; next free
+//                        block = 2100)
+// Wire cost: tags 1-15 = 1 byte, 16-2047 = 2 bytes, 2048+ = 3 bytes. Every field
+// here is <= 2047. Fill free slots inside an existing block before opening one
+// above 2047.
+// Naming: payload fields are <block-prefix>_<kernel member> using the kernel's
+// exact spelling (tcp_info_rttvar, not rtt_var). Attributes with no struct take
+// the lowercased INET_DIAG_* name (inet_diag_tos). The six inet_diag_msg_socket_*
+// sockid fields keep their descriptive names (heavily used downstream).
+// Evolution: never reuse a number or a name (add both to `reserved`); any rename
+// or renumber is a new record epoch -> bump XtcpFlatRecordSchemaVersion
+// (pkg/xtcp/schema_version.go) and add the matching ClickHouse _vN table + MV
+// (build/containers/clickhouse/initdb.d/sql/). Adding a field in a free slot is
+// NOT an epoch bump. ClickHouse maps columns by field NAME; Parquet by NAME;
+// the csv/tsv marshallers by DECLARATION ORDER; gRPC clients are built from
+// gen/go in this repo.
 //
 // Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
-
-// Little reminder on compiling
-// https://developers.google.com/protocol-buffers/docs/gotutorial
-// go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-// protoc --go_out=paths=source_relative:. xtcppb.proto
-
 // https://protobuf.dev/programming-guides/encoding/#structure
 
 syntax = "proto3";
@@ -28,17 +60,10 @@ syntax = "proto3";
 package xtcp_flat_record.v1;
 
 // https://developers.google.com/protocol-buffers/docs/reference/go-generated
-// option go_package = "github.com/randomizedcoder/xtcp2/pkg/xtcppb";
-// option go_package = "github.com/randomizedcoder/xtcp";
 option go_package = "./gen/go/xtcp_flat_record";
 
 // https://github.com/bufbuild/protovalidate
-// https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
-// https://github.com/bufbuild/protovalidate/tree/main/examples
-// https://buf.build/docs/lint/rules/?h=protovalidate#protovalidate
 // import "buf/validate/validate.proto";
-
-// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 
 // Envelope is the protobufList wrapper to allow for batch inserts into Clickhouse
 // https://clickhouse.com/docs/en/interfaces/formats#protobuflist
@@ -47,18 +72,39 @@ message Envelope {
 	repeated XtcpFlatRecord row                     = 10;
 };
 
-// Field-number layout (reorganised 2026-08 while the record had few consumers):
-//   metadata  ...  1-999   (identity + per-uplink network topology)
-//   payload   ... 1000+    (kernel inet_diag subsystems, one hundred-block each)
-// ClickHouse's Protobuf format maps columns by field NAME and Parquet uses its own
-// schema, so the wire-tag renumber does not break ingestion or historical Parquet.
+// xtcp_flat_record is the record type exported by xtcp with ALL the inet_diag information
 message XtcpFlatRecord {
+	// Retired numbers/names. NEVER reuse.
+	//   301/302        v1 egress ifindex/ifname -> 311/312 (v2 regroup by subject)
+	//   1011/1012/1018/1019  v0 daemon-computed dest asn/next-hop/owner/locality
+	//                  -> 320/321/322/310 (moved out of the raw-kernel block)
+	//   2103           c_group -> inet_diag_cgroup_id 2003 (tidied into the 2000 block)
+	reserved 301, 302, 1011, 1012, 1018, 1019, 2103;
+	reserved "inet_diag_msg_socket_dest_asn", "inet_diag_msg_socket_next_hop_asn",
+		"inet_diag_msg_socket_dest_network_owner", "inet_diag_msg_socket_dest_locality",
+		"enrich_socket_next_hop_asn",
+		// v1 -> v2 kernel-spelling renames (same numbers, new names)
+		"tcp_info_send_scale", "tcp_info_rcv_scale", "tcp_info_fast_open_client_failed",
+		"tcp_info_rtt_var", "tcp_info_adv_mss", "tcp_info_not_sent_bytes",
+		"sk_mem_info_rcv_buf", "sk_mem_info_snd_buf",
+		"vegas_info_rtt_cnt", "vegas_info_min_rtt",
+		// v1 -> v2 struct-less attribute renames
+		"congestion_algorithm_string", "congestion_algorithm_enum",
+		"type_of_service", "traffic_class", "shutdown_state",
+		"class_id", "sock_opt", "c_group";
+
+	// ==== metadata (1-299) =====================================================
+	// Free: 3-9, 11-19, 22-29, 33-39, 44-49, 52-59, 63-99, 108-119, 125-199,
+	// 208-219, 225-299. Uplink slots are fixed at two (100s, 200s); a third slot
+	// would take 250-274, NOT 300 (that is the enrichment block).
+
 	// ---- metadata: record format provenance (1-2) ----------------------------
 	// Record format epoch. Stamped unconditionally into every record so consumers
 	// can route records to per-version tables and migrate/aggregate across them.
-	// 0 = pre-versioning daemons (this field absent on the wire → proto3 zero
-	// default), which acts as the "legacy" bucket. Bump the daemon-side constant
-	// (XtcpFlatRecordSchemaVersion) whenever the format changes meaningfully.
+	// 0 = pre-versioning daemons (this field absent on the wire -> proto3 zero
+	// default), which acts as the "legacy" bucket. 1 = 2026-08/09 layout.
+	// 2 = this layout (kernel-spelled payload names, enrichment regroup). Bump the
+	// daemon-side constant (XtcpFlatRecordSchemaVersion) on any rename/renumber.
 	uint32 schema_version                           = 1;
 
 	// Daemon build provenance (git commit / build date / version, from -ldflags).
@@ -67,7 +113,7 @@ message XtcpFlatRecord {
 	string daemon_version                           = 2;
 
 	// ---- metadata: time (10) -------------------------------------------------
-	int64 timestamp_ns                              = 10;
+	int64 timestamp_ns                              = 10; // time.Now().UnixNano() at record build
 
 	// ---- metadata: host identity (20s) ---------------------------------------
 	string hostname                                 = 20;
@@ -128,7 +174,8 @@ message XtcpFlatRecord {
 	// Static per boot; captured once at startup (best-effort). Hosts are
 	// dual-homed, so there are two fixed uplink slots. All values repeat on every
 	// record and dictionary-compress to ~nothing. NIC info: sysfs + ethtool
-	// ioctl. LLDP: lldpd control socket (/run/lldpd.socket).
+	// ioctl (100-107, free 108-119). LLDP: lldpd control socket
+	// (/run/lldpd.socket) (120-124, free 125-199).
 	string uplink1_ifname                           = 100;
 	string uplink1_nic_driver                       = 101;
 	string uplink1_nic_model                        = 102;
@@ -144,6 +191,7 @@ message XtcpFlatRecord {
 	string uplink1_lldp_port_descr                  = 124;
 
 	// ---- metadata: host network topology, uplink slot 2 (200s) ---------------
+	// Same layout as slot 1 (NIC 200-207, LLDP 220-224).
 	string uplink2_ifname                           = 200;
 	string uplink2_nic_driver                       = 201;
 	string uplink2_nic_model                        = 202;
@@ -158,54 +206,105 @@ message XtcpFlatRecord {
 	string uplink2_lldp_port_id                     = 223;
 	string uplink2_lldp_port_descr                  = 224;
 
-	// ==== payload: kernel inet_diag subsystems (1000+) ========================
-	// inet_diag_msg inet_diag_msg                  = 1000;
+	// ==== enrichment: daemon-COMPUTED fields (300-399) ========================
+	// These are NOT read from the kernel inet_diag message; xtcp2 computes them
+	// from side data (rtnetlink address/route/link discovery, the ipfeed ASN
+	// feeds) during enrichment. All are opt-in and best-effort: an empty/zero
+	// value means the relevant enricher was disabled or had no answer.
+	// Grouped by SUBJECT: what the socket itself is bound to (300s), then
+	// everything we can say about the DESTINATION endpoint (310-349), with
+	// 350-389 held for a future SOURCE-side mirror (locality/ASN of the local
+	// address for listeners / inbound flows) and 390-399 spare.
 
-	uint32 inet_diag_msg_family                     = 1001; // uint8
-	uint32 inet_diag_msg_state                      = 1002; // uint8
-	uint32 inet_diag_msg_timer                      = 1003; // uint8
-	uint32 inet_diag_msg_retrans                    = 1004; // uint8
+	// ---- enrichment: socket-side (300-309) -----------------------------------
+	// Human name of the interface the socket is BOUND to, i.e. the resolved form
+	// of inet_diag_msg_socket_interface (1009, the kernel idiag_if index) via the
+	// namespace's RTM_GETLINK dump. Empty when idiag_if is 0 (the common case —
+	// most sockets are not SO_BINDTODEVICE-bound) or the index is unknown.
+	string enrich_socket_interface_name             = 300;
+	// 301-309 free (301/302 retired, see reserved).
 
-	uint32 inet_diag_msg_socket_source_port         = 1005; // __be16
-	uint32 inet_diag_msg_socket_destination_port    = 1006; // __be16
-	bytes inet_diag_msg_socket_source               = 1007;
-	bytes inet_diag_msg_socket_destination          = 1008;
-	uint32 inet_diag_msg_socket_interface           = 1009;
-	uint64 inet_diag_msg_socket_cookie              = 1010; // [2]uint32
-	uint64 inet_diag_msg_socket_dest_asn            = 1011;
-	uint64 inet_diag_msg_socket_next_hop_asn        = 1012;
-
-	uint32 inet_diag_msg_expires                    = 1013;
-	uint32 inet_diag_msg_rqueue                     = 1014;
-	uint32 inet_diag_msg_wqueue                     = 1015;
-	uint32 inet_diag_msg_uid                        = 1016;
-	uint32 inet_diag_msg_inode                      = 1017;
-
-	// Destination network owner (e.g. "cloudflare", "aws"), from the IP-range
-	// feeds ipfeed-collector parses. Populated alongside dest_asn (1011) by the
-	// opt-in ASN enricher (pkg/ipasn). Empty when enrichment is disabled or the
-	// destination IP is not in the feed set.
-	string inet_diag_msg_socket_dest_network_owner  = 1018;
-
+	// ---- enrichment: destination-side (310-349) ------------------------------
 	// Destination endpoint locality, classified from the socket's own network
 	// namespace's local addresses + routing table (discovered via rtnetlink,
-	// see pkg/localnet). Populated by the opt-in locality enricher BEFORE the
-	// ASN lookup: SELF and LOCAL_SUBNET destinations never reach the ASN feed,
-	// so dest_asn (1011) / dest_network_owner (1018) stay empty for them.
-	// UNSPECIFIED when locality enrichment is disabled or the namespace has no
-	// snapshot yet.
+	// see pkg/localnet). Computed BEFORE the ASN lookup: SELF and LOCAL_SUBNET
+	// destinations never reach the ASN feed, so enrich_socket_dest_asn (320) /
+	// enrich_socket_dest_network_owner (322) stay empty for them. UNSPECIFIED
+	// when locality enrichment is disabled or the namespace has no snapshot yet.
 	enum Locality {
 		LOCALITY_UNSPECIFIED  = 0;
 		LOCALITY_SELF         = 1; // one of this host/namespace's own addresses (or loopback)
 		LOCALITY_LOCAL_SUBNET = 2; // on a directly-connected subnet (one L2 hop, no gateway)
 		LOCALITY_REMOTE       = 3; // reached via a gateway (falls through to ASN lookup)
 	};
-	Locality inet_diag_msg_socket_dest_locality     = 1019;
+	Locality enrich_socket_dest_locality            = 310;
 
-	// might want to put more here
-	// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
-	// mem_info mem_info                            = 1100; // INET_DIAG_MEMINFO 1
+	// The EGRESS interface for the destination, derived from the socket's own
+	// namespace routing table: the Oif of the route the destination longest-prefix
+	// matches (pkg/localnet). Unlike interface_name (1009/300) this is populated
+	// even for unbound sockets — it is "which NIC does traffic to this dest leave
+	// on". ifindex is the raw kernel index; ifname is it resolved via RTM_GETLINK.
+	// 0 / empty when the locality enricher is disabled or no route matched.
+	uint32 enrich_socket_dest_egress_ifindex        = 311;
+	string enrich_socket_dest_egress_ifname         = 312;
+	// 313-319 free (destination routing/locality extras).
 
+	// Populated by the opt-in ASN enricher (pkg/ipasn) only for REMOTE
+	// destinations. 0 / empty when disabled or the destination IP is not in the
+	// feed set. network_owner is a human name (e.g. "cloudflare", "aws").
+	// dest_next_hop_asn is the first-hop transit ASN toward dest; currently
+	// always 0 (no BGP RIB source yet) — reserved for that feed.
+	uint64 enrich_socket_dest_asn                   = 320;
+	uint64 enrich_socket_dest_next_hop_asn          = 321;
+	string enrich_socket_dest_network_owner         = 322;
+	// 323-349 free (destination identity/ownership extras).
+
+	// ---- enrichment: source-side (350-389) — RESERVED, none defined yet ------
+	// Mirror of 310-349 for the LOCAL endpoint (useful for listeners / inbound
+	// flows): 350 enrich_socket_src_locality, 351/352 ingress ifindex/ifname,
+	// 360 enrich_socket_src_asn, 362 enrich_socket_src_network_owner, ...
+
+	// ---- enrichment: spare (390-399) -----------------------------------------
+
+	// ==== payload: raw kernel inet_diag (1000+) ================================
+	// Prefix -> kernel struct:
+	//   inet_diag_msg_*  struct inet_diag_msg (+ .id struct inet_diag_sockid)  inet_diag.h
+	//   mem_info_*       struct inet_diag_meminfo   INET_DIAG_MEMINFO  (1)     inet_diag.h
+	//   tcp_info_*       struct tcp_info            INET_DIAG_INFO     (2)     tcp.h
+	//   inet_diag_cong*  (string attribute)         INET_DIAG_CONG     (4)     inet_diag.c
+	//   inet_diag_tos    (__u8 attribute)           INET_DIAG_TOS      (5)     inet_diag.c
+	//   inet_diag_tclass (__u8 attribute)           INET_DIAG_TCLASS   (6)     inet_diag.c
+	//   sk_mem_info_*    __u32[SK_MEMINFO_VARS]     INET_DIAG_SKMEMINFO(7)     sock_diag.h
+	//   inet_diag_shutdown (__u8 attribute)         INET_DIAG_SHUTDOWN (8)     inet_diag.c
+	//   vegas_info_*     struct tcpvegas_info       INET_DIAG_VEGASINFO(3)     inet_diag.h
+	//   dctcp_info_*     struct tcp_dctcp_info      INET_DIAG_DCTCPINFO(9)     inet_diag.h
+	//   bbr_info_*       struct tcp_bbr_info        INET_DIAG_BBRINFO  (16)    inet_diag.h
+	//   inet_diag_class_id  (__u32 attribute)       INET_DIAG_CLASS_ID (17)    inet_diag.c
+	//   inet_diag_sockopt   struct inet_diag_sockopt INET_DIAG_SOCKOPT (22)    inet_diag.h
+	//   inet_diag_cgroup_id (__u64 attribute)       INET_DIAG_CGROUP_ID(21)    inet_diag.c
+
+	// ---- payload: struct inet_diag_msg (1000s) --------------------------------
+	// The fixed header of every SOCK_DIAG_BY_FAMILY reply (inet_diag.h).
+	// Free: 1000, 1018-1099 (1011/1012/1018/1019 retired, see reserved).
+	uint32 inet_diag_msg_family                     = 1001; // struct inet_diag_msg.idiag_family (__u8) AF_INET/AF_INET6
+	uint32 inet_diag_msg_state                      = 1002; // struct inet_diag_msg.idiag_state (__u8) TCP_ESTABLISHED..TCP_NEW_SYN_RECV
+	uint32 inet_diag_msg_timer                      = 1003; // struct inet_diag_msg.idiag_timer (__u8) 0 none,1 retransmit,2 keepalive,3 timewait,4 zero-window probe
+	uint32 inet_diag_msg_retrans                    = 1004; // struct inet_diag_msg.idiag_retrans (__u8)
+
+	uint32 inet_diag_msg_socket_source_port         = 1005; // struct inet_diag_msg.id.idiag_sport (__be16) host order here
+	uint32 inet_diag_msg_socket_destination_port    = 1006; // struct inet_diag_msg.id.idiag_dport (__be16) host order here
+	bytes inet_diag_msg_socket_source               = 1007; // struct inet_diag_msg.id.idiag_src (__be32[4]) always the raw 16 bytes; v4 in the first 4 (see family 1010), v6 all 16
+	bytes inet_diag_msg_socket_destination          = 1008; // struct inet_diag_msg.id.idiag_dst (__be32[4]) always the raw 16 bytes; v4 in the first 4 (see family 1010), v6 all 16
+	uint32 inet_diag_msg_socket_interface           = 1009; // struct inet_diag_msg.id.idiag_if (__u32) bound ifindex, 0 unbound (name: 300)
+	uint64 inet_diag_msg_socket_cookie              = 1010; // struct inet_diag_msg.id.idiag_cookie (__u32[2]) packed lo|hi<<32
+
+	uint32 inet_diag_msg_expires                    = 1013; // struct inet_diag_msg.idiag_expires (__u32) ms until idiag_timer fires
+	uint32 inet_diag_msg_rqueue                     = 1014; // struct inet_diag_msg.idiag_rqueue (__u32)
+	uint32 inet_diag_msg_wqueue                     = 1015; // struct inet_diag_msg.idiag_wqueue (__u32)
+	uint32 inet_diag_msg_uid                        = 1016; // struct inet_diag_msg.idiag_uid (__u32)
+	uint32 inet_diag_msg_inode                      = 1017; // struct inet_diag_msg.idiag_inode (__u32)
+
+	// ---- payload: struct inet_diag_meminfo, INET_DIAG_MEMINFO 1 (1100s) -------
 	// DEPRECATED: mem_info duplicates sk_mem_info value-for-value and is off by
 	// default (the daemon no longer requests INET_DIAG_MEMINFO from the kernel),
 	// so these ship as 0 on current records. The same values live in sk_mem_info:
@@ -215,102 +314,119 @@ message XtcpFlatRecord {
 	//   mem_info_tmem == sk_mem_info_wmem_alloc  (1503)
 	// Field numbers retained (never reused); enable with `-deserializers all`.
 	// (Not marked `[deprecated = true]` so the still-supported opt-in decode path
-	// and tests don't trip staticcheck SA1019.)
-	uint32 mem_info_rmem                            = 1101;
-	uint32 mem_info_wmem                            = 1102;
-	uint32 mem_info_fmem                            = 1103;
-	uint32 mem_info_tmem                            = 1104;
+	// and tests don't trip staticcheck SA1019.) Free: 1100, 1105-1199.
+	uint32 mem_info_rmem                            = 1101; // struct inet_diag_meminfo.idiag_rmem (__u32)
+	uint32 mem_info_wmem                            = 1102; // struct inet_diag_meminfo.idiag_wmem (__u32)
+	uint32 mem_info_fmem                            = 1103; // struct inet_diag_meminfo.idiag_fmem (__u32)
+	uint32 mem_info_tmem                            = 1104; // struct inet_diag_meminfo.idiag_tmem (__u32)
 
-	//tcp_info tcp_info                             = 1200; // INET_DIAG_INFO 2
+	// ---- payload: struct tcp_info, INET_DIAG_INFO 2 (1200s) -------------------
+	// Declared in struct order (tcp.h). The kernel appends members over time and
+	// DeserializeTCPInfo (pkg/xtcpnl) accepts every historical struct size, so
+	// members newer than the running kernel decode as 0.
+	// Free: 1200, 1211-1214, 1277-1299. 1266-1276 are PRE-ASSIGNED (see below).
+	uint32 tcp_info_state                           = 1201; // struct tcp_info.tcpi_state (__u8)
+	uint32 tcp_info_ca_state                        = 1202; // struct tcp_info.tcpi_ca_state (__u8) TCP_CA_Open..TCP_CA_Loss
+	uint32 tcp_info_retransmits                     = 1203; // struct tcp_info.tcpi_retransmits (__u8)
+	uint32 tcp_info_probes                          = 1204; // struct tcp_info.tcpi_probes (__u8)
+	uint32 tcp_info_backoff                         = 1205; // struct tcp_info.tcpi_backoff (__u8)
+	uint32 tcp_info_options                         = 1206; // struct tcp_info.tcpi_options (__u8) TCPI_OPT_* bitmask
+	uint32 tcp_info_snd_wscale                      = 1207; // struct tcp_info.tcpi_snd_wscale (__u8:4)
+	uint32 tcp_info_rcv_wscale                      = 1208; // struct tcp_info.tcpi_rcv_wscale (__u8:4)
+	uint32 tcp_info_delivery_rate_app_limited       = 1209; // struct tcp_info.tcpi_delivery_rate_app_limited (__u8:1)
+	uint32 tcp_info_fastopen_client_fail            = 1210; // struct tcp_info.tcpi_fastopen_client_fail (__u8:2)
 
-	uint32 tcp_info_state                           = 1201; // uint8
-	uint32 tcp_info_ca_state                        = 1202; // uint8
-	uint32 tcp_info_retransmits                     = 1203; // uint8
-	uint32 tcp_info_probes                          = 1204; // uint8
-	uint32 tcp_info_backoff                         = 1205; // uint8
-	uint32 tcp_info_options                         = 1206; // uint8
-//	__u8	_snd_wscale : 4, _rcv_wscale : 4;
-//	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
-	uint32 tcp_info_send_scale                      = 1207; // uint4
-	uint32 tcp_info_rcv_scale                       = 1208; // uint4
-	uint32 tcp_info_delivery_rate_app_limited       = 1209; // uint8
-	uint32 tcp_info_fast_open_client_failed         = 1210; // uint8
+	uint32 tcp_info_rto                             = 1215; // struct tcp_info.tcpi_rto (__u32) usec
+	uint32 tcp_info_ato                             = 1216; // struct tcp_info.tcpi_ato (__u32) usec
+	uint32 tcp_info_snd_mss                         = 1217; // struct tcp_info.tcpi_snd_mss (__u32)
+	uint32 tcp_info_rcv_mss                         = 1218; // struct tcp_info.tcpi_rcv_mss (__u32)
 
-	uint32 tcp_info_rto                             = 1215;
-	uint32 tcp_info_ato                             = 1216;
-	uint32 tcp_info_snd_mss                         = 1217;
-	uint32 tcp_info_rcv_mss                         = 1218;
-
-	uint32 tcp_info_unacked                         = 1219;
-	uint32 tcp_info_sacked                          = 1220;
-	uint32 tcp_info_lost                            = 1221;
-	uint32 tcp_info_retrans                         = 1222;
-	uint32 tcp_info_fackets                         = 1223;
+	uint32 tcp_info_unacked                         = 1219; // struct tcp_info.tcpi_unacked (__u32)
+	uint32 tcp_info_sacked                          = 1220; // struct tcp_info.tcpi_sacked (__u32)
+	uint32 tcp_info_lost                            = 1221; // struct tcp_info.tcpi_lost (__u32)
+	uint32 tcp_info_retrans                         = 1222; // struct tcp_info.tcpi_retrans (__u32)
+	uint32 tcp_info_fackets                         = 1223; // struct tcp_info.tcpi_fackets (__u32)
 
 	// Times
-	uint32 tcp_info_last_data_sent                  = 1224;
-	uint32 tcp_info_last_ack_sent                   = 1225;
-	uint32 tcp_info_last_data_recv                  = 1226;
-	uint32 tcp_info_last_ack_recv                   = 1227;
+	uint32 tcp_info_last_data_sent                  = 1224; // struct tcp_info.tcpi_last_data_sent (__u32) ms ago
+	uint32 tcp_info_last_ack_sent                   = 1225; // struct tcp_info.tcpi_last_ack_sent (__u32) "Not remembered, sorry." (always 0)
+	uint32 tcp_info_last_data_recv                  = 1226; // struct tcp_info.tcpi_last_data_recv (__u32) ms ago
+	uint32 tcp_info_last_ack_recv                   = 1227; // struct tcp_info.tcpi_last_ack_recv (__u32) ms ago
 
 	// Metrics
-	uint32 tcp_info_pmtu                            = 1228;
-	uint32 tcp_info_rcv_ssthresh                    = 1229;
-	uint32 tcp_info_rtt                             = 1230;
-	uint32 tcp_info_rtt_var                         = 1231;
-	uint32 tcp_info_snd_ssthresh                    = 1232;
-	uint32 tcp_info_snd_cwnd                        = 1233;
-	uint32 tcp_info_adv_mss                         = 1234;
-	uint32 tcp_info_reordering                      = 1235;
+	uint32 tcp_info_pmtu                            = 1228; // struct tcp_info.tcpi_pmtu (__u32)
+	uint32 tcp_info_rcv_ssthresh                    = 1229; // struct tcp_info.tcpi_rcv_ssthresh (__u32)
+	uint32 tcp_info_rtt                             = 1230; // struct tcp_info.tcpi_rtt (__u32) smoothed RTT, usec
+	uint32 tcp_info_rttvar                          = 1231; // struct tcp_info.tcpi_rttvar (__u32) RTT variance, usec
+	uint32 tcp_info_snd_ssthresh                    = 1232; // struct tcp_info.tcpi_snd_ssthresh (__u32)
+	uint32 tcp_info_snd_cwnd                        = 1233; // struct tcp_info.tcpi_snd_cwnd (__u32) segments
+	uint32 tcp_info_advmss                          = 1234; // struct tcp_info.tcpi_advmss (__u32)
+	uint32 tcp_info_reordering                      = 1235; // struct tcp_info.tcpi_reordering (__u32)
 
-	uint32 tcp_info_rcv_rtt                         = 1236;
-	uint32 tcp_info_rcv_space                       = 1237;
+	uint32 tcp_info_rcv_rtt                         = 1236; // struct tcp_info.tcpi_rcv_rtt (__u32) usec
+	uint32 tcp_info_rcv_space                       = 1237; // struct tcp_info.tcpi_rcv_space (__u32)
 
-	uint32 tcp_info_total_retrans                   = 1238;
+	uint32 tcp_info_total_retrans                   = 1238; // struct tcp_info.tcpi_total_retrans (__u32)
 
-	uint64 tcp_info_pacing_rate                     = 1239;
-	uint64 tcp_info_max_pacing_rate                 = 1240;
-	uint64 tcp_info_bytes_acked                     = 1241; // RFC4898 tcpEStatsAppHCThruOctetsAcked
-	uint64 tcp_info_bytes_received                  = 1242; // RFC4898 tcpEStatsAppHCThruOctetsReceived
-	uint32 tcp_info_segs_out                        = 1243; // RFC4898 tcpEStatsPerfSegsOut
-	uint32 tcp_info_segs_in                         = 1244; // RFC4898 tcpEStatsPerfSegsIn
+	uint64 tcp_info_pacing_rate                     = 1239; // struct tcp_info.tcpi_pacing_rate (__u64) bytes/sec
+	uint64 tcp_info_max_pacing_rate                 = 1240; // struct tcp_info.tcpi_max_pacing_rate (__u64) bytes/sec
+	uint64 tcp_info_bytes_acked                     = 1241; // struct tcp_info.tcpi_bytes_acked (__u64) RFC4898 tcpEStatsAppHCThruOctetsAcked
+	uint64 tcp_info_bytes_received                  = 1242; // struct tcp_info.tcpi_bytes_received (__u64) RFC4898 tcpEStatsAppHCThruOctetsReceived
+	uint32 tcp_info_segs_out                        = 1243; // struct tcp_info.tcpi_segs_out (__u32) RFC4898 tcpEStatsPerfSegsOut
+	uint32 tcp_info_segs_in                         = 1244; // struct tcp_info.tcpi_segs_in (__u32) RFC4898 tcpEStatsPerfSegsIn
 
-	uint32 tcp_info_not_sent_bytes                  = 1245;
-	uint32 tcp_info_min_rtt                         = 1246;
-	uint32 tcp_info_data_segs_in                    = 1247; // RFC4898 tcpEStatsDataSegsIn
-	uint32 tcp_info_data_segs_out                   = 1248; // RFC4898 tcpEStatsDataSegsOut
+	uint32 tcp_info_notsent_bytes                   = 1245; // struct tcp_info.tcpi_notsent_bytes (__u32)
+	uint32 tcp_info_min_rtt                         = 1246; // struct tcp_info.tcpi_min_rtt (__u32) usec
+	uint32 tcp_info_data_segs_in                    = 1247; // struct tcp_info.tcpi_data_segs_in (__u32) RFC4898 tcpEStatsDataSegsIn
+	uint32 tcp_info_data_segs_out                   = 1248; // struct tcp_info.tcpi_data_segs_out (__u32) RFC4898 tcpEStatsDataSegsOut
 
-	uint64 tcp_info_delivery_rate                   = 1249;
+	uint64 tcp_info_delivery_rate                   = 1249; // struct tcp_info.tcpi_delivery_rate (__u64) bytes/sec
 
-	uint64 tcp_info_busy_time                       = 1250; // Time (usec) busy sending data
-	uint64 tcp_info_rwnd_limited                    = 1251; // Time (usec) limited by receive window
-	uint64 tcp_info_sndbuf_limited                  = 1252; // Time (usec) limited by send buffer
+	uint64 tcp_info_busy_time                       = 1250; // struct tcp_info.tcpi_busy_time (__u64) usec busy sending data
+	uint64 tcp_info_rwnd_limited                    = 1251; // struct tcp_info.tcpi_rwnd_limited (__u64) usec limited by receive window
+	uint64 tcp_info_sndbuf_limited                  = 1252; // struct tcp_info.tcpi_sndbuf_limited (__u64) usec limited by send buffer
 
-	//4.15 kernel tcp_info ends here, 5+ below
-
-	uint32 tcp_info_delivered                       = 1253;
-	uint32 tcp_info_delivered_ce                    = 1254;
+	// 4.15 kernel tcp_info ends here (192 bytes); 4.19+ below
+	uint32 tcp_info_delivered                       = 1253; // struct tcp_info.tcpi_delivered (__u32)
+	uint32 tcp_info_delivered_ce                    = 1254; // struct tcp_info.tcpi_delivered_ce (__u32)
 
 	// https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
-	uint64 tcp_info_bytes_sent                      = 1255; // RFC4898 tcpEStatsPerfHCDataOctetsOut
-	uint64 tcp_info_bytes_retrans                   = 1256; // RFC4898 tcpEStatsPerfOctetsRetrans
-	uint32 tcp_info_dsack_dups                      = 1257; // RFC4898 tcpEStatsStackDSACKDups
-	uint32 tcp_info_reord_seen                      = 1258; // reordering events seen
+	uint64 tcp_info_bytes_sent                      = 1255; // struct tcp_info.tcpi_bytes_sent (__u64) RFC4898 tcpEStatsPerfHCDataOctetsOut
+	uint64 tcp_info_bytes_retrans                   = 1256; // struct tcp_info.tcpi_bytes_retrans (__u64) RFC4898 tcpEStatsPerfOctetsRetrans
+	uint32 tcp_info_dsack_dups                      = 1257; // struct tcp_info.tcpi_dsack_dups (__u32) RFC4898 tcpEStatsStackDSACKDups
+	uint32 tcp_info_reord_seen                      = 1258; // struct tcp_info.tcpi_reord_seen (__u32) reordering events seen
 
-	uint32 tcp_info_rcv_ooopack                     = 1259; // Out-of-order packets received
+	uint32 tcp_info_rcv_ooopack                     = 1259; // struct tcp_info.tcpi_rcv_ooopack (__u32) out-of-order packets received (5.4+)
 
-	uint32 tcp_info_snd_wnd                         = 1260; // peer's advertised receive window after scaling (bytes)
-	uint32 tcp_info_rcv_wnd                         = 1261; // local advertised receive window after scaling (bytes)
-	uint32 tcp_info_rehash                          = 1262; // PLB or timeout triggered rehash attempts
-	uint32 tcp_info_total_rto                       = 1263; // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
-	uint32 tcp_info_total_rto_recoveries            = 1264; // Total number of RTO recoveries, including any unfinished recovery
-	uint32 tcp_info_total_rto_time                  = 1265; // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+	uint32 tcp_info_snd_wnd                         = 1260; // struct tcp_info.tcpi_snd_wnd (__u32) peer's advertised receive window after scaling, bytes
+	uint32 tcp_info_rcv_wnd                         = 1261; // struct tcp_info.tcpi_rcv_wnd (__u32) local advertised receive window after scaling, bytes (6.6+)
+	uint32 tcp_info_rehash                          = 1262; // struct tcp_info.tcpi_rehash (__u32) PLB or timeout triggered rehash attempts (6.6+)
+	uint32 tcp_info_total_rto                       = 1263; // struct tcp_info.tcpi_total_rto (__u16) RTO timeouts incl. SYN/SYN-ACK and recurring (6.10+)
+	uint32 tcp_info_total_rto_recoveries            = 1264; // struct tcp_info.tcpi_total_rto_recoveries (__u16) RTO recoveries incl. any unfinished (6.10+)
+	uint32 tcp_info_total_rto_time                  = 1265; // struct tcp_info.tcpi_total_rto_time (__u32) ms in RTO recoveries incl. any unfinished (6.10+)
 
+	// 6.10 kernel tcp_info ends here (248 bytes). PRE-ASSIGNED for the members
+	// added since (AccECN, Linux 6.13+ / 7.x, tcp.h); declare them when
+	// DeserializeTCPInfo learns the larger struct size and a matching nlmon
+	// fixture exists — do NOT hand these numbers to anything else:
+	//   1266 tcp_info_received_ce          struct tcp_info.tcpi_received_ce (__u32)
+	//   1267 tcp_info_delivered_e1_bytes   struct tcp_info.tcpi_delivered_e1_bytes (__u32)
+	//   1268 tcp_info_delivered_e0_bytes   struct tcp_info.tcpi_delivered_e0_bytes (__u32)
+	//   1269 tcp_info_delivered_ce_bytes   struct tcp_info.tcpi_delivered_ce_bytes (__u32)
+	//   1270 tcp_info_received_e1_bytes    struct tcp_info.tcpi_received_e1_bytes (__u32)
+	//   1271 tcp_info_received_e0_bytes    struct tcp_info.tcpi_received_e0_bytes (__u32)
+	//   1272 tcp_info_received_ce_bytes    struct tcp_info.tcpi_received_ce_bytes (__u32)
+	//   1273 tcp_info_ecn_mode             struct tcp_info.tcpi_ecn_mode (__u32:2)
+	//   1274 tcp_info_accecn_opt_seen      struct tcp_info.tcpi_accecn_opt_seen (__u32:2)
+	//   1275 tcp_info_accecn_fail_mode     struct tcp_info.tcpi_accecn_fail_mode (__u32:4)
+	//   1276 tcp_info_options2             struct tcp_info.tcpi_options2 (__u32:24)
 
-	// Please note it's recommended to use the enum for efficency, but keeping the string
-	// just in case we need to quickly put a different algorithm in without updating the enum.
-	// Obviously it's optional, so it low cost.
-	string congestion_algorithm_string              = 1300; // INET_DIAG_CONG 4
+	// ---- payload: INET_DIAG_CONG 4 (1300s) ------------------------------------
+	// The kernel emits the congestion-control module name as a NUL-terminated
+	// string (nla_put_string(skb, INET_DIAG_CONG, ca_ops->name), inet_diag.c).
+	// It's recommended to use the enum for efficiency, but the string is kept so
+	// an algorithm the enum does not know yet is still visible. Free: 1302-1399.
+	string inet_diag_cong                           = 1300; // INET_DIAG_CONG (4): ca_ops->name (char[TCP_CA_NAME_MAX=16], inet_diag.c)
 	enum CongestionAlgorithm {
 		CONGESTION_ALGORITHM_UNSPECIFIED = 0;
 		CONGESTION_ALGORITHM_CUBIC       = 1;
@@ -321,51 +437,63 @@ message XtcpFlatRecord {
 		CONGESTION_ALGORITHM_BBR2        = 6;
 		CONGESTION_ALGORITHM_BBR3        = 7;
 	};
-	CongestionAlgorithm congestion_algorithm_enum   = 1301; // INET_DIAG_CONG 4
+	CongestionAlgorithm inet_diag_cong_enum         = 1301; // derived by xtcp from inet_diag_cong (not a kernel field)
 
-	uint32 type_of_service                          = 1401; // INET_DIAG_TOS 5 uint8
-	uint32 traffic_class                            = 1402; // INET_DIAG_TCLASS 6 uint8
+	// ---- payload: INET_DIAG_TOS 5 / INET_DIAG_TCLASS 6 (1400s) ----------------
+	// Free: 1400, 1403-1499.
+	uint32 inet_diag_tos                            = 1401; // INET_DIAG_TOS (5): inet->tos (__u8, inet_diag.c) IPv4 TOS byte
+	uint32 inet_diag_tclass                         = 1402; // INET_DIAG_TCLASS (6): np->tclass (__u8, inet_diag.c) IPv6 traffic class
 
-	// sk_mem_info sk_mem_info                      = 1500; // INET_DIAG_SKMEMINFO 7
+	// ---- payload: SK_MEMINFO_*, INET_DIAG_SKMEMINFO 7 (1500s) -----------------
+	// __u32 mem[SK_MEMINFO_VARS] filled by sk_get_meminfo (net/core/sock.c),
+	// indexed by enum sock_diag.h SK_MEMINFO_*. Free: 1500, 1510-1599.
+	uint32 sk_mem_info_rmem_alloc                   = 1501; // SK_MEMINFO_RMEM_ALLOC (__u32, sock_diag.h) sk_rmem_alloc
+	uint32 sk_mem_info_rcvbuf                       = 1502; // SK_MEMINFO_RCVBUF (__u32, sock_diag.h) sk_rcvbuf
+	uint32 sk_mem_info_wmem_alloc                   = 1503; // SK_MEMINFO_WMEM_ALLOC (__u32, sock_diag.h) sk_wmem_alloc
+	uint32 sk_mem_info_sndbuf                       = 1504; // SK_MEMINFO_SNDBUF (__u32, sock_diag.h) sk_sndbuf
+	uint32 sk_mem_info_fwd_alloc                    = 1505; // SK_MEMINFO_FWD_ALLOC (__u32, sock_diag.h) sk_forward_alloc
+	uint32 sk_mem_info_wmem_queued                  = 1506; // SK_MEMINFO_WMEM_QUEUED (__u32, sock_diag.h) sk_wmem_queued
+	uint32 sk_mem_info_optmem                       = 1507; // SK_MEMINFO_OPTMEM (__u32, sock_diag.h) sk_omem_alloc
+	uint32 sk_mem_info_backlog                      = 1508; // SK_MEMINFO_BACKLOG (__u32, sock_diag.h) sk_backlog.len
+	uint32 sk_mem_info_drops                        = 1509; // SK_MEMINFO_DROPS (__u32, sock_diag.h) sk_drops
 
-	uint32 sk_mem_info_rmem_alloc                   = 1501;
-	uint32 sk_mem_info_rcv_buf                      = 1502;
-	uint32 sk_mem_info_wmem_alloc                   = 1503;
-	uint32 sk_mem_info_snd_buf                      = 1504;
-	uint32 sk_mem_info_fwd_alloc                    = 1505;
-	uint32 sk_mem_info_wmem_queued                  = 1506;
-	uint32 sk_mem_info_optmem                       = 1507;
-	uint32 sk_mem_info_backlog                      = 1508;
-	uint32 sk_mem_info_drops                        = 1509;
+	// ---- payload: INET_DIAG_SHUTDOWN 8 (1600s) --------------------------------
+	// Free: 1601-1699.
+	uint32 inet_diag_shutdown                       = 1600; // INET_DIAG_SHUTDOWN (8): sk->sk_shutdown (__u8, inet_diag.c) RCV_SHUTDOWN=1|SEND_SHUTDOWN=2
 
-	uint32 shutdown_state                           = 1600; // UNIX_DIAG_SHUTDOWN 8uint8
+	// ---- payload: struct tcpvegas_info, INET_DIAG_VEGASINFO 3 (1700s) ---------
+	// Only present when the socket's CC module is vegas (tcp_vegas.c
+	// tcp_vegas_get_info). Free: 1700, 1705-1799.
+	uint32 vegas_info_enabled                       = 1701; // struct tcpvegas_info.tcpv_enabled (__u32)
+	uint32 vegas_info_rttcnt                        = 1702; // struct tcpvegas_info.tcpv_rttcnt (__u32)
+	uint32 vegas_info_rtt                           = 1703; // struct tcpvegas_info.tcpv_rtt (__u32) usec
+	uint32 vegas_info_minrtt                        = 1704; // struct tcpvegas_info.tcpv_minrtt (__u32) usec
 
-	// vegas_info vegas_info                        = 1700; // INET_DIAG_VEGASINFO
+	// ---- payload: struct tcp_dctcp_info, INET_DIAG_DCTCPINFO 9 (1800s) --------
+	// Only present when the socket's CC module is dctcp (tcp_dctcp.c
+	// dctcp_get_info); requested via the VEGASINFO bit. Free: 1800, 1806-1899.
+	uint32 dctcp_info_enabled                       = 1801; // struct tcp_dctcp_info.dctcp_enabled (__u16)
+	uint32 dctcp_info_ce_state                      = 1802; // struct tcp_dctcp_info.dctcp_ce_state (__u16)
+	uint32 dctcp_info_alpha                         = 1803; // struct tcp_dctcp_info.dctcp_alpha (__u32)
+	uint32 dctcp_info_ab_ecn                        = 1804; // struct tcp_dctcp_info.dctcp_ab_ecn (__u32)
+	uint32 dctcp_info_ab_tot                        = 1805; // struct tcp_dctcp_info.dctcp_ab_tot (__u32)
 
-	uint32 vegas_info_enabled                       = 1701;
-	uint32 vegas_info_rtt_cnt                       = 1702;
-	uint32 vegas_info_rtt                           = 1703;
-	uint32 vegas_info_min_rtt                       = 1704;
+	// ---- payload: struct tcp_bbr_info, INET_DIAG_BBRINFO 16 (1900s) -----------
+	// Only present when the socket's CC module is bbr (tcp_bbr.c bbr_get_info);
+	// requested via the VEGASINFO bit. Free: 1900, 1906-1999.
+	uint32 bbr_info_bw_lo                           = 1901; // struct tcp_bbr_info.bbr_bw_lo (__u32) lower 32 bits of bw, bytes/sec
+	uint32 bbr_info_bw_hi                           = 1902; // struct tcp_bbr_info.bbr_bw_hi (__u32) upper 32 bits of bw
+	uint32 bbr_info_min_rtt                         = 1903; // struct tcp_bbr_info.bbr_min_rtt (__u32) min-filtered RTT, usec
+	uint32 bbr_info_pacing_gain                     = 1904; // struct tcp_bbr_info.bbr_pacing_gain (__u32) pacing gain << 8
+	uint32 bbr_info_cwnd_gain                       = 1905; // struct tcp_bbr_info.bbr_cwnd_gain (__u32) cwnd gain << 8
 
-	// dctcp_info dctcp_info                        = 1800; // INET_DIAG_DCTCPINFO
-
-	uint32 dctcp_info_enabled                       = 1801;
-	uint32 dctcp_info_ce_state                      = 1802;
-	uint32 dctcp_info_alpha                         = 1803;
-	uint32 dctcp_info_ab_ecn                        = 1804;
-	uint32 dctcp_info_ab_tot                        = 1805;
-
-	// bbr_info bbr_info                            = 1900; // INET_DIAG_BBRINFO 16
-
-	uint32 bbr_info_bw_lo                           = 1901;
-	uint32 bbr_info_bw_hi                           = 1902;
-	uint32 bbr_info_min_rtt                         = 1903;
-	uint32 bbr_info_pacing_gain                     = 1904;
-	uint32 bbr_info_cwnd_gain                       = 1905;
-
-	uint32 class_id                                 = 2001; // INET_DIAG_CLASS_ID 17 uint32
-	uint32 sock_opt                                 = 2002; // INET_DIAG_SOCKOPT
-	uint64 c_group                                  = 2103; // INET_DIAG_BC_CGROUP_COND
+	// ---- payload: socket classification attributes (2000s) --------------------
+	// INET_DIAG_CLASS_ID 17, INET_DIAG_SOCKOPT 22, INET_DIAG_CGROUP_ID 21 — the
+	// per-socket scalars inet_diag_msg_attrs_fill emits after the CC extensions.
+	// Free: 2000, 2004-2099. Next free block: 2100.
+	uint32 inet_diag_class_id                       = 2001; // INET_DIAG_CLASS_ID (17): classid (__u32, inet_diag.c) net_cls cgroup classid, else sk->sk_priority
+	uint32 inet_diag_sockopt                        = 2002; // INET_DIAG_SOCKOPT (22): struct inet_diag_sockopt (2 x __u8 bitfields, inet_diag.h) packed little-endian u16: recverr,is_icsk,freebind,hdrincl,mc_loop,transparent,mc_all,nodefrag | bind_address_no_port,recverr_rfc4884,defer_connect
+	uint64 inet_diag_cgroup_id                      = 2003; // INET_DIAG_CGROUP_ID (21): cgroup_id(sock_cgroup_ptr(&sk->sk_cgrp_data)) (__u64, inet_diag.c) cgroup v2 id
 };
 
 service XTCPFlatRecordService {
@@ -383,7 +511,6 @@ message FlatRecordsRequest {
 
 message FlatRecordsResponse {
 	XtcpFlatRecord xtcp_flat_record                 = 1;
-	// Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
 }
 
 message PollFlatRecordsRequest {
@@ -392,7 +519,6 @@ message PollFlatRecordsRequest {
 
 message PollFlatRecordsResponse {
 	XtcpFlatRecord xtcp_flat_record                 = 1;
-	// Envelope.XtcpFlatRecord xtcp_flat_record                 = 1;
 }
 
 // end

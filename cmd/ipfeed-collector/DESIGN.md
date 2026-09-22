@@ -4,25 +4,30 @@
 
 `ipfeed-collector` fetches the authoritative cloud / CDN / SaaS **IP-range
 feeds** catalogued in the "Authoritative IP Address Sources" document,
-normalizes every feed into a single record schema, and produces one combined
-**Parquet** file that is uploaded to S3 under a timestamped key. The result is
-an **IP → provider / service / region** classification dataset that can be
-refreshed on a schedule (daily polling is reasonable; some feeds change less
-often but polling is a cheap safety net).
+normalizes every feed into a single record schema, tags each record with a
+representative ASN for its network owner, and produces one combined **Parquet**
+file that is uploaded to S3 under a timestamped key. The result is an
+**IP → provider / service / region / representative ASN** classification
+dataset that can be refreshed on a schedule (the daemon defaults to every 6h;
+some feeds change less often but polling is a cheap safety net).
 
-The tool is intentionally a **self-contained Go module** living under
-`tools/ipfeed-collector/` in the `runpod/xtcp2` packaging repo. It does not
-import the upstream `randomizedcoder/xtcp2` Go packages (they are consumed here
-only as a Nix flake input), so it re-implements the small helpers it needs.
+The tool lives in the `randomizedcoder/xtcp2` repo as `cmd/ipfeed-collector`
+(main + bundled `sources/*.yaml`) plus the library packages under
+`internal/ipfeed/` (`asnmap`, `combine`, `config`, `fetch`, `health`, `model`,
+`output`, `parse`, `s3`, `summary`, `telemetry`). It shares the repo's
+`go.mod` and Nix build, but is a leaf: nothing in `pkg/` or the xtcp2 daemon
+imports `internal/ipfeed`. The consumer side is `pkg/ipasn`, which reads only
+the Parquet artifact (see "Downstream consumer").
 
 ## Goals
 
 1. Download many feeds concurrently, with **retries + full-jitter exponential
-   backoff**.
+   backoff** and a bounded response-body size.
 2. **Parse** each feed — formats vary widely (JSON with many schemas, CSV,
    plain-text CIDR lists, and one that requires URL discovery) — into a common
    normalized record.
-3. Aggregate into a single combined dataset and write it as **Parquet**.
+3. Validate, annotate with a representative ASN, aggregate into a single
+   combined dataset, and write it as **Parquet**.
 4. **Upload to S3** with filename `YYYY-MM-DD-HH-MM.parquet` (UTC).
 5. **OpenTelemetry (OTLP)** metrics + traces and **structured slog** logging.
 6. Emit a **run summary**: files processed, records processed, with explicit
@@ -33,57 +38,88 @@ only as a Nix flake input), so it re-implements the small helpers it needs.
 
 ## Non-goals
 
-- Building an IP-lookup service or query API (this only produces the dataset).
-- ASN/RPKI/BGP enrichment (Tier C in the source doc) — future work.
+- Building an IP-lookup service or query API here (the lookup side is
+  `pkg/ipasn`, inside the xtcp2 daemon).
+- Per-prefix BGP-origin or next-hop ASN, RPKI, or any BGP RIB (MRT) source —
+  the `asn` column is a lossy per-provider value (see "Representative ASN").
 - Diffing / alerting on large changes between runs — noted as a follow-up.
+- Conditional (ETag / If-Modified-Since) fetching with persisted per-source
+  state: `fetch.Client` supports it, but the collector currently fetches every
+  source unconditionally each cycle.
 
 ## Architecture
 
 ```
-sources/*.yaml ──▶ config.Load ──▶ []Source
-                                     │  (bounded worker pool, -concurrency)
-                                     ▼
-              ┌── per source ────────────────────────────────┐
-              │ fetch.Get (retry + backoff, ETag, discover)   │
-              │        │ raw bytes                            │
-              │        ▼                                       │
-              │ parse.Registry[source.Parser].Parse ──▶ rows  │
-              └────────────────────────────────┬──────────────┘
+sources/*.yaml ──▶ config.LoadDir ──▶ []config.Source (enabled, sorted, unique names)
+                                       │  (bounded worker pool, -concurrency)
+                                       ▼
+              ┌── processSource, per source ──────────────────────┐
+              │ fetch.Client.Discover (none | azure_download_page) │
+              │ fetch.Client.Get      (retry + backoff, 256 MiB cap)│
+              │        │ raw bytes                                 │
+              │        ▼                                           │
+              │ parse.Get(source.Parser).Parse ──▶ []model.Record  │
+              │        ▼                                           │
+              │ combine.Validate (CIDR canonicalize, dedup, +/-)   │
+              └─────────────────────────────────┬──────────────────┘
                                                 ▼
-                       combine.Combine (validate CIDRs, +/- boundaries)
+                       summary.Summary.Add + concat valid records
+                                                ▼
+                       asnmap.Annotate (network_owner/provider -> asn)
+                                                ▼
+                       sort by (prefix, source_name)
                                                 ▼
                        output.WriteParquet (YYYY-MM-DD-HH-MM.parquet)
                                                 ▼
-                       s3.Upload (minio-go v7)     summary.Print
+                       s3.Uploader.Put (minio-go v7)     summary.Print (stdout)
 ```
 
 Telemetry (OTel) and logging (slog) are threaded through every stage.
 
 ## Normalized record schema
 
-Derived from the source document's recommended schema. Parquet columns:
+`internal/ipfeed/model.Record`, derived from the source document's recommended
+schema. Parquet columns (struct tags double as the JSON names):
 
-| column | notes |
-|---|---|
-| `prefix` | canonical CIDR string (validated) |
-| `ip_version` | `4` or `6` |
-| `network_owner` | who owns the routed space (e.g. `aws`) |
-| `service_operator` | who operates the service (may differ from owner) |
-| `provider` | source's provider label |
-| `service` | service tag when the feed provides one |
-| `product` | product/scope when provided |
-| `region` | region/location when provided |
-| `network_border_group` | AWS-specific, else empty |
-| `direction` | ingress/egress when provided |
-| `source_name` | source config `name` |
-| `source_type` | provenance: `provider_feed`, `provider_api`, `provider_documentation`, … |
-| `source_url` | feed URL actually fetched |
-| `source_timestamp` | feed-declared publish time when available |
-| `retrieved_at` | fetch time (UTC) |
-| `confidence` | e.g. `authoritative` |
+| column | type | notes |
+|---|---|---|
+| `prefix` | string | canonical masked CIDR (validated by `combine`) |
+| `ip_version` | int32 | `4` or `6` (set by `combine`) |
+| `asn` | uint32 | **representative** ASN of `network_owner` (fallback `provider`); `0` if unknown — see below |
+| `network_owner` | string | who owns the routed space (e.g. `aws`) |
+| `service_operator` | string | who operates the service (may differ from owner) |
+| `provider` | string | source's provider label |
+| `service` | string | service tag when the feed provides one |
+| `product` | string | product/scope when provided |
+| `region` | string | region/location when provided |
+| `network_border_group` | string | AWS-specific, else empty |
+| `direction` | string | ingress/egress when provided |
+| `source_name` | string | source config `name` |
+| `source_type` | string | provenance: `provider_feed`, `provider_api`, `provider_documentation`, … |
+| `source_url` | string | feed URL from the source config |
+| `source_timestamp` | string | feed-declared publish time when available |
+| `retrieved_at` | string | fetch time (UTC, RFC3339) |
+| `confidence` | string | e.g. `authoritative` |
 
+Empty strings mean "not provided by this feed" — values are never invented.
 Overlapping records are **kept** — an address can legitimately be AWS-owned and
 Atlassian-operated at once. We do not collapse to one provider per prefix.
+
+### Representative ASN
+
+`internal/ipfeed/asnmap` holds a small curated table from lowercased
+`network_owner` / `provider` spellings to a provider's primary public ASN
+(`aws`/`amazon` → 16509, `google`/`gcp` → 15169, `microsoft`/`azure` → 8075,
+`cloudflare` → 13335, `fastly` → 54113, `apple` → 714, `digitalocean` → 14061,
+`github` → 36459, `oracle` → 31898, `salesforce` → 14340, `atlassian` → 133530).
+`Annotate` sets `asn` on every combined record whose owner (then provider)
+matches; unmatched records stay `0`.
+
+This is deliberately **lossy**: the feeds identify a prefix's *owner*, not its
+BGP-origin ASN, and large providers announce from several ASNs (AWS also uses
+AS14618/AS8987; Google also AS36040/AS36384). Treat `asn` as "the provider's
+representative ASN", exact only in the sense that the owner is exact. True
+per-prefix origin/next-hop ASN needs a BGP RIB source and is a separate phase.
 
 ## Source configuration (one YAML per feed)
 
@@ -102,20 +138,28 @@ parser_opts: {}                # parser-specific options (CSV columns, etc.)
 enabled: true
 ```
 
-Adding a feed = drop a new YAML in `sources/`. Removing = delete it (or set
-`enabled: false`). The tool globs `sources/*.yaml`, validates each config, and
-fans work out across a bounded worker pool.
+Adding a feed = drop a new YAML in `cmd/ipfeed-collector/sources/`. Removing =
+delete it (or set `enabled: false`). `config.LoadDir` stats the directory
+(clear error if missing or not a directory), globs `*.yaml` and `*.yml`,
+decodes with unknown keys rejected, validates each file (required `name`,
+`url`, `parser`; registered parser; known `discover` mode), rejects duplicate
+`name`s across files, drops disabled sources, and returns the rest sorted by
+name. Any single bad file fails the whole load so a broken config fails fast
+rather than silently dropping a feed.
 
 ## Parsers
 
-A registry maps the `parser:` key to a `Parser` implementation. Simple shapes
-are handled by config-driven generic parsers; novel JSON schemas get a small
-dedicated parser.
+`internal/ipfeed/parse` keeps a registry mapping the `parser:` key to a
+`Parser` implementation (`Parse(data []byte, meta SourceMeta, retrievedAt
+string) ([]model.Record, error)`). Simple shapes are handled by config-driven
+generic parsers; novel JSON schemas get a small dedicated parser. Parsers only
+set feed-derived fields on top of `SourceMeta.Base`; CIDR validation and
+`ip_version` derivation happen later in `combine`.
 
 | parser key | feeds | shape |
 |---|---|---|
 | `text_cidr` | Cloudflare v4/v6 | one CIDR per line |
-| `csv` | DigitalOcean, Apple Private Relay, AWS geo-feed | column map in `parser_opts` |
+| `csv` | DigitalOcean, Apple Private Relay, AWS geo-feed | column map in `parser_opts` (`has_header`, `prefix_column`, `region_column`, …) |
 | `aws_ip_ranges` | AWS | `prefixes[]`/`ipv6_prefixes[]` + service/region/network_border_group |
 | `gcp_ipranges` | GCP cloud.json/goog.json | `prefixes[].ipv4Prefix/ipv6Prefix`, scope, service |
 | `oci` | Oracle | `regions[].cidrs[].cidr` + tags |
@@ -123,36 +167,50 @@ dedicated parser.
 | `github_meta` | GitHub `/meta` | object of named arrays → `service` |
 | `atlassian` | Atlassian | `items[]` w/ cidr, product, region, direction |
 | `salesforce` | Salesforce Hyperforce | prefixes + direction |
-| `applebot` / `google_crawlers` | Apple, Google crawlers | `prefixes[].ipv4Prefix/ipv6Prefix` |
+| `applebot` / `google_crawlers` | Apple, Google crawlers | `prefixes[].ipv4Prefix/ipv6Prefix` (shares the `gcp_ipranges` implementation) |
 | `m365` | Microsoft 365 | areas array, each with `ips[]` + serviceArea |
 | `azure_service_tags` | Azure | discover current dated JSON, then `values[].properties.addressPrefixes` |
 
-New provider with a novel schema = add one `parse/json_x.go`, register it, add a
-YAML. New feed that reuses an existing shape = YAML only.
+New provider with a novel schema = add one `internal/ipfeed/parse/json_x.go`,
+register it in its `init()`, add a YAML. New feed that reuses an existing shape
+= YAML only.
 
 ## Fetch: retries, backoff, robustness
 
-- A single reused `*http.Client` with a configured timeout; per-request
-  `context.WithTimeout` + `http.NewRequestWithContext`.
-- **Full-jitter exponential backoff** on retryable failures (network errors,
-  timeouts, HTTP 5xx / 429): window `= base << (attempt-1)` clamped to a cap;
-  the actual sleep is drawn uniformly in `[0, window]` from `crypto/rand`, and
+- A single reused `*http.Client` with the `-timeout` value as its overall
+  per-request timeout; requests are built with `http.NewRequestWithContext` so
+  the cycle context cancels in-flight fetches.
+- **Full-jitter exponential backoff** on retryable failures (transport errors,
+  HTTP 5xx / 429): window `= base << (attempt-1)` clamped to a cap;
+  the actual sleep is drawn uniformly in `[0, window)` from `crypto/rand`, and
   the sleep is context-aware. Configurable `-max-attempts`, `-backoff-base`,
   `-backoff-cap`. The jitter and sleep are injectable seams so tests are
-  deterministic and never actually sleep.
-- Optional `ETag` / `Last-Modified` conditional requests (per-source state);
-  a `304 Not Modified` reuses the prior parse where a state file exists.
-- **Never accept an empty/invalid response**: a non-2xx status, or a body that
-  yields zero valid records, marks that source **failed** — it contributes
-  nothing to the combined dataset.
+  deterministic and never actually sleep. Other 4xx fail immediately; a
+  malformed URL or a canceled context is terminal.
+- **Bounded body:** a 2xx body is read through `io.LimitReader` capped at
+  256 MiB (`fetch.maxBodyBytes`). Exactly the limit is accepted; anything
+  larger fails with `fetch.ErrBodyTooLarge` and is *not* retried (it would be
+  just as large next time), so a runaway feed cannot OOM the collector.
+- `ETag` / `Last-Modified` are captured on the `Result` and `Get` accepts a
+  `Conditional`, but the collector passes an empty one — there is no persisted
+  per-source state yet (see Non-goals).
+- **Never accept an empty/invalid response**: a discover or fetch error, a
+  parse error, or a body that yields zero valid records marks that source
+  **failed** (logged with `source` + `err`, carried into the summary `note`) —
+  it contributes nothing to the combined dataset.
 
 ## Combine + positive/negative boundaries
 
-- Each parsed row's `prefix` is validated with `net/netip.ParsePrefix`.
+- Each parsed row's `prefix` is validated with `net/netip.ParsePrefix`, then
+  masked and canonicalized (`1.2.3.4/24` → `1.2.3.0/24`); `ip_version` is set.
 - **Positive (+)** = a valid CIDR that passes validation → included in output.
 - **Negative (−)** = rejected → counted with a bounded reason enum so metric
   cardinality stays safe (raw error text is never used as a label):
   `ParseError`, `Empty`, `Duplicate`, `SourceFailed`.
+- Duplicates are detected on `prefix` + the classification fields
+  (`network_owner`, `service_operator`, `service`, `product`, `region`,
+  `direction`, `source_name`), so the same prefix under a different
+  service/region is intentionally kept.
 - The combined dataset is written only if at least `-min-successful-sources`
   succeeded, so a bad run never overwrites good data downstream.
 
@@ -171,33 +229,77 @@ YAML. New feed that reuses an existing shape = YAML only.
 - Credentials/region resolve flag > `IPFEED_S3_*` env > standard `AWS_*` env
   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) > default, so an
   existing AWS SDK/CLI environment works unmodified.
-- The uploader sits behind a small interface so tests use a fake. The S3 key is
-  `<-s3-prefix>/<basename>` (the timestamped name, or the `-out-file` basename).
+- The uploader sits behind the `s3.Uploader` interface so tests use a fake. The
+  S3 key is `<-s3-prefix>/<basename>` (the timestamped name, or the `-out-file`
+  basename).
 - `-no-upload` performs a dry run (local Parquet only).
 
-## Telemetry (OTel / OTLP)
+## Downstream consumer
 
-- OTLP metric + trace exporters via the OTel SDK; endpoint from the standard
-  `OTEL_EXPORTER_OTLP_ENDPOINT` env. Resource `service.name=ipfeed-collector`.
-  Providers are flushed/shut down gracefully at exit.
-- Instruments (attributes `source`, `provider`): counters `fetch.bytes`,
-  `fetch.attempts`, `fetch.failures`, `records.valid`, `records.invalid`,
-  `upload.bytes`, and `cycles` (attribute `outcome=success|failure`, for daemon
-  health); histograms `fetch.duration`, `parse.duration`; gauge
-  `sources.succeeded`.
-- Trace spans: a root run span, a per-source span (with fetch/parse children),
-  and combine + upload spans.
+`pkg/ipasn` (in this repo) is the read side. It loads the artifact's `prefix`,
+`asn`, and `network_owner` columns into a `github.com/gaissmai/bart`
+longest-prefix-match table, swapped atomically on reload so lookups on the
+xtcp2 per-socket hot path never block or see a half-built table. The xtcp2
+daemon uses it to fill `enrich_socket_dest_asn` and
+`enrich_socket_dest_network_owner`; the daemon flags `-enrichAsn`,
+`-asnDbPath`, `-asnRefreshInterval` (env `ENRICH_ASN`, `ASN_DB_PATH`,
+`ASN_REFRESH_INTERVAL`) are being added alongside this work. The end-to-end
+design is in `docs/ipfeed-asn-enrichment.md`.
+
+## Telemetry (OTel / OTLP / Prometheus)
+
+- One set of OTel instruments, two exporters. OTLP metric + trace exporters via
+  the OTel SDK; endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` env
+  (no exporter when unset). In daemon mode with `-http-addr`,
+  `telemetry.Setup` is called with `Options{Prometheus: true}`, which adds the
+  `go.opentelemetry.io/otel/exporters/prometheus` pull reader on a **private**
+  `prometheus.Registry` and hands back `Telemetry.PrometheusHandler`; `run`
+  mounts it as `/metrics` on the health server (`health.Server.Handle`). A
+  private registry keeps two `Setup`s in one process (tests) from colliding.
+  Resource `service.name=ipfeed-collector`. Providers are flushed/shut down
+  gracefully at exit.
+- Per-source instruments (attributes `source`, `provider`): counters
+  `ipfeed.fetch.bytes`, `ipfeed.fetch.attempts`, `ipfeed.fetch.failures`,
+  `ipfeed.records.valid`, `ipfeed.records.invalid`; histograms
+  `ipfeed.fetch.duration` (discover + download), `ipfeed.parse.duration`
+  (seconds); gauge `ipfeed.source.records` — valid prefix entries the source
+  contributed in the latest cycle, recorded for every source each cycle (0 for
+  a failed one) so a feed that stops contributing is visible rather than frozen
+  at its last value.
+- Per-cycle instruments: counter `ipfeed.cycles` and histogram
+  `ipfeed.cycle.duration` (attribute `outcome=success|failure`); gauges
+  `ipfeed.sources.succeeded`, `ipfeed.artifact.records` (entries in the Parquet
+  artifact just written — the lookup-table size the xtcp2 daemon will load) and
+  `ipfeed.artifact.size` (unit `By`); histograms `ipfeed.write.duration` (sort +
+  Parquet write, recorded even when the write fails) and `ipfeed.upload.duration`
+  (S3 PUT); counter `ipfeed.upload.bytes`.
+- Prometheus rendering: dotted names become underscored with the conventional
+  suffixes (`ipfeed_fetch_duration_seconds`, `ipfeed_cycles_total`,
+  `ipfeed_artifact_size_bytes`), plus the exporter's `otel_scope_name` /
+  `otel_scope_version` labels and a `target_info` series. The instrument is
+  named `artifact.size`, not `artifact.bytes`, precisely so the unit suffix does
+  not double up. The operator-facing table is in `README.md`.
+- Trace spans: `cycle` (root, per collection), `source` (one per source,
+  attribute `source`), and `upload` (attribute `key`).
+- The consumer side of the same table (`pkg/xtcp` `loadAsn`: entries loaded,
+  artifact bytes, load time, build duration) is documented in
+  `docs/ipfeed-asn-enrichment.md`.
 
 ## Logging
 
-Structured `slog` (JSON handler); verbosity via `-v` / `-debug`. Common fields:
-`source`, `url`, `status`, `bytes`, `dur`. Secrets are never logged.
+Structured `slog` (JSON handler on stderr); verbosity via `-v` / `-debug`.
+Common fields: `source`, `parser`, `url`, `http`, `bytes`, `valid`,
+`rejected`, `err`. Every per-source failure (discover, fetch, parse, no valid
+records) is logged with the source name and the error. Secrets are never
+logged.
 
 ## Run summary
 
-Printed to stdout and logged at end — a per-source table plus totals showing
-files processed, records processed, and the +valid / −rejected boundaries;
-process exits non-zero if fewer than `-min-successful-sources` succeeded.
+Printed to stdout at the end of each cycle — a per-source table (`status`,
+`http`, `fetched`, `parsed`, `+valid`, `-rejected`, `dur`, `note`) plus totals
+showing sources ok/fail and the +valid / −rejected record boundaries, and the
+uploaded `s3://` URL when an upload happened. The process exits non-zero if
+fewer than `-min-successful-sources` succeeded (the summary is still printed).
 
 ## Run modes (single-shot & daemon)
 
@@ -220,9 +322,9 @@ long-running services.
     authoritative and there is no spurious final cycle.
   - **Fault tolerance:** a failed cycle is logged and the loop continues (a
     transient upstream outage does not kill the daemon). Each cycle records the
-    `cycles` counter with `outcome=success|failure`.
-  - **Hot reload:** every cycle re-globs `sources/`, so feeds can be added or
-    removed without restarting.
+    `ipfeed.cycles` counter with `outcome=success|failure`.
+  - **Hot reload:** every cycle re-reads `-sources-dir`, so feeds can be added
+    or removed without restarting.
 
 `runDaemon` takes plain `collect`/`ready` function seams (no telemetry or HTTP
 types) so it is tested deterministically: the fake `collect` cancels the context
@@ -231,127 +333,134 @@ transitions without sleeping on real timers.
 
 ### Health endpoints
 
-When `-http-addr` is set, the daemon starts an HTTP server (via the `health`
-package) exposing `/healthz` (liveness — always `200` once bound) and `/readyz`
-(readiness — `200` only after ≥1 successful cycle, else `503`). Readiness is an
-`atomic.Bool` flipped by the daemon after each successful cycle, letting an
-orchestrator hold traffic/alerts until the first dataset exists. `Start` binds
-the listener synchronously so a bad `-http-addr` fails fast; serving runs in a
-background goroutine and is stopped by `Shutdown` on exit.
+When `-http-addr` is set, the daemon starts an HTTP server (via the
+`internal/ipfeed/health` package) exposing `/healthz` (liveness — always `200`
+once bound), `/readyz` (readiness — `200` only after ≥1 successful cycle,
+else `503`) and `/metrics` (the Prometheus handler from the telemetry
+package, mounted through `Server.Handle` before `Start`). Readiness is an
+`atomic.Bool` flipped by the daemon after each
+successful cycle, letting an orchestrator hold traffic/alerts until the first
+dataset exists. `Start` binds the listener synchronously so a bad `-http-addr`
+fails fast; serving runs in a background goroutine and is stopped by
+`Shutdown` on exit.
 
 ## Configuration (flags + env)
 
 Configuration is stdlib `flag` with an `IPFEED_*` environment-variable fallback
-per flag. Precedence is **CLI flag > `IPFEED_*` env > built-in default**. The S3
-credential and region flags insert the standard `AWS_*` names between their
-`IPFEED_S3_*` env and the default (**flag > `IPFEED_S3_*` > `AWS_*` > default**).
-An invalid env value falls back to the built-in default rather than erroring, so
-a malformed variable cannot crash-loop the daemon. Daemon mode additionally
-validates `-interval > 0` at startup. See the README for the full flag ↔ env
-mapping.
+per flag (except `-version`). Precedence is **CLI flag > `IPFEED_*` env >
+built-in default**. The S3 credential and region flags insert the standard
+`AWS_*` names between their `IPFEED_S3_*` env and the default (**flag >
+`IPFEED_S3_*` > `AWS_*` > default**). An invalid env value falls back to the
+built-in default rather than erroring, so a malformed variable cannot
+crash-loop the daemon. Daemon mode additionally validates `-interval > 0` at
+startup; a failed validation is printed to stderr and exits 2. See the README
+for the full flag ↔ env mapping.
 
 ## Testing
 
-All unit tests are **table-driven**; each row carries a `name`, a
-human-readable `desc`, the input, `want`, and `wantErr` (expected outcome), and
-every table explicitly covers **positive, negative, boundary, and corner**
-cases (see the repo test standard). Parser tables use small `testdata/`
-fixtures; fetch/backoff and S3 tests use injected seams and fakes so they are
-deterministic and offline.
+All unit tests are **table-driven**; each row carries a human-readable
+`description`, the input, and explicit expected-outcome fields, and every
+table covers **positive, negative, boundary, and corner** cases (see the repo
+test standard). Parser tables use small inline fixtures (there is no
+`testdata/` directory); fetch/backoff tests use `httptest` plus the injected
+jitter/sleep seams, and the body-size cap is exercised by lowering
+`fetch.maxBodyBytes` in-test rather than streaming 256 MiB. Config tests build
+temporary source directories per row.
 
 ### Race tests
 
-Concurrency is exercised under the Go race detector (`go test -race ./...`),
-with tests that give it real shared state to inspect: the health server's
+Concurrency is exercised under the Go race detector (`go test -race`), with
+tests that give it real shared state to inspect: the health server's
 `atomic.Bool` readiness (many goroutines calling `SetReady()` while others
-serve `/readyz`), the `collectOnce` worker-pool fan-in (concurrent
-`processSource` results aggregated into shared slices/summary), and concurrent
-`fetch.Client.Get` calls sharing one `*Client`. The race detector **requires
-cgo**, so the Nix `race` check compiles with `CGO_ENABLED=1` and a C toolchain
-on PATH — the one place the pipeline diverges from the default `CGO_ENABLED=0`
-static build.
+serve `/readyz`) and concurrent `fetch.Client.Get` calls sharing one `*Client`
+through a retry. The race detector **requires cgo**, so the Nix
+`test-go-race` runner (`nix build .#test-go-race`, whole-repo
+`go test -race ./...`) compiles with `CGO_ENABLED=1` and gcc on PATH — the one
+place the pipeline diverges from the default `CGO_ENABLED=0` static build.
 
 ### Benchmarks
 
-Go benchmarks cover the hot paths: `internal/parse` (per-format decode over
-`testdata/` fixtures), `internal/combine` `Validate` (CIDR parse +
-canonicalization + dedup over 1e2 / 1e4 / 1e5 records — the hottest path at
-~17k+ records/run), and `internal/output` `WriteParquet` throughput. Each uses
+Go benchmarks cover the hot paths: `internal/ipfeed/parse` (`BenchmarkParse`,
+per-format decode), `internal/ipfeed/combine` (`BenchmarkValidate`: CIDR parse
++ canonicalization + dedup, size-swept — the hottest path at ~17k+
+records/run), and `internal/ipfeed/output` (`BenchmarkWriteParquet`). Each uses
 `b.ReportAllocs()` and size-swept `b.Run` sub-benchmarks (the table-driven
-analog for benches). Perf *numbers* are gathered on a real host with
-`benchstat`; the Nix `bench-smoke` check only runs `-benchtime=1x` to prove
-benchmarks build and execute (the build sandbox is not a stable perf
-environment).
+analog for benches). Run them directly with
+`go test -bench=. -benchmem -run='^$' ./internal/ipfeed/...` and compare with
+`benchstat`; the Nix `test-go-bench` target only benches `pkg/xtcpnl` and does
+not cover these packages.
 
 ## Build & packaging (Nix)
 
-The tool ships a **self-contained flake** under `tools/ipfeed-collector/`
-(alongside its own `go.mod`), mirroring the upstream `xtcp2` Nix layout but
-without its protos/giouring/microvm/flavor machinery — this is a single
-standalone binary. The repo-root RunPod flake (which re-exports the upstream
-s3parquet image) is intentionally left untouched.
+The collector is built by the repo-root flake (`flake.nix` → `nix/default.nix`),
+not a flake of its own. Relevant pieces:
 
 ```
-tools/ipfeed-collector/
-  flake.nix                 # thin orchestrator -> ./nix (eachSystem x86_64-linux)
-  nix/
-    default.nix             # per-system aggregator: packages, devShells, checks
-    versions.nix            # Go pin + buildVariants {debug, compact} + goVendorHash
-    packages.nix            # dev tool list
-    devshell.nix            # `nix develop` + helpers, via `ipfeed-help`
-    lib/mkGoBinary.nix      # reusable buildGoModule wrapper (consumed by OCI)
-    lib/mkOciImage.nix      # scratch streamLayeredImage wrapper
-    containers/default.nix  # oci-ipfeed-collector (compact) + -debug
-    checks/default.nix      # gofmt, vet, test, race, bench-smoke
+flake.nix                    # thin orchestrator -> ./nix (per-system aggregator)
+nix/
+  default.nix                # packages / devShells / checks / apps aggregator
+  versions.nix               # Go pin (go_1_26 overridden to 1.26.5), buildVariants, goVendorHash
+  binaries.nix               # binaryNames includes "ipfeed-collector" -> packages.ipfeed-collector
+  lib/mkGoBinary.nix         # buildGoModule wrapper: static, -trimpath, -X main.{version,commit,date}
+  lib/mkOciImage.nix         # scratch streamLayeredImage + dockerTools.caCertificates
+  containers/default.nix     # oci-ipfeed-collector (Cmd -daemon -http-addr :8080, HEALTHCHECK)
+  checks/                    # gofmt, go-vet, golangci-lint*, go-sec, cli-help-smoke (runs `ipfeed-collector -h`), …
+  tests/                     # test-go-race (whole repo, CGO), test-go-bench (pkg/xtcpnl only), …
 ```
 
 ### Build variants
 
-`versions.nix` defines two variants that drive `mkGoBinary`:
+`versions.nix` defines three variants that drive `mkGoBinary`:
 
 | variant | ldflags | strip | use |
 |---|---|---|---|
 | `debug` | none (keeps symbols + DWARF) | no | delve / `pprof` symbolization, post-mortems |
-| `compact` | `-s -w` | yes (`binutils strip`) | production default; smallest image |
+| `default` | `-s -w` | no | production default (`packages.ipfeed-collector`) |
+| `stripped` | `-s -w` | yes (`binutils strip`) | smallest possible binary |
 
-Builds are static (`CGO_ENABLED=0`, tags `netgo,osusergo`) with `-trimpath` and
-`-X main.{version,commit,date}` injected. The Go toolchain is pinned to match
-`go.mod` (1.26.x).
+Only the `default` variant is exposed as a top-level package for
+`ipfeed-collector`; the `-debug` / `-stripped` top-level attrs exist for
+`xtcp2` only. Builds are static (`CGO_ENABLED=0`) with `-trimpath` and
+`-X main.{version,commit,date}` injected (`version` comes from the repo-root
+`VERSION` file). The Go toolchain is pinned in `versions.nix` (1.26.x; `go.mod`
+declares `go 1.25.0` as the minimum).
 
 ### Reusable Go-binary derivation
 
 `lib/mkGoBinary.nix` wraps `buildGoModule` (overridden to the pinned Go),
-building `cmd/ipfeed-collector` with the requested variant. It is the single
-source of the compiled binary and is **reused by the OCI images** so the image
-contents are byte-identical to `nix build .#ipfeed-collector`. The module has
-no local `replace` directives, so no `go.mod` patching is needed; `vendorHash`
-lives in `versions.nix` (bootstrap with `lib.fakeHash`, then paste the reported
-`got: sha256-…`).
+building `cmd/ipfeed-collector` from the shared vendored module set
+(`goVendorHash` in `versions.nix`). It is the single source of the compiled
+binary and is **reused by the OCI image** so the image contents are
+byte-identical to `nix build .#ipfeed-collector`.
 
-### OCI images
+### OCI image
 
 `lib/mkOciImage.nix` uses `dockerTools.streamLayeredImage` over a scratch base
 plus `dockerTools.caCertificates` (HTTPS to real feeds and S3 needs a CA
-bundle; `SSL_CERT_FILE` is pointed at it). Two images:
+bundle; `SSL_CERT_FILE` is pointed at it). One image:
 
-- `oci-ipfeed-collector` — compact variant, `tag=latest`.
-- `oci-ipfeed-collector-debug` — debug variant, `tag=debug`.
+- `oci-ipfeed-collector` — default variant, `tag=latest`.
 
-Entrypoint is `/bin/ipfeed-collector` with `Cmd=["-daemon"]`, so a bare
-`docker run` starts the service (all `IPFEED_*` env overridable at runtime); the
-health port is exposed by convention. The image carries a Docker **HEALTHCHECK**
-(`/bin/ipfeed-collector -healthcheck`) — a self-probe mode that issues an HTTP
-GET to `127.0.0.1<http-addr>/readyz` and exits `0`/`1`, so the scratch image
-needs no shell or `curl` (mirrors upstream xtcp2's `-healthcheck`).
+Entrypoint is `/bin/ipfeed-collector` with
+`Cmd=["-daemon", "-http-addr", ":8080"]` and port `8080` exposed, so a bare
+`docker run` starts the daemon with health endpoints (all `IPFEED_*` env
+overridable at runtime). Feed definitions are **not** baked in: mount a
+directory and set `IPFEED_SOURCES_DIR`. The image carries a Docker
+**HEALTHCHECK** (`/bin/ipfeed-collector -healthcheck`, interval 30s, timeout
+5s, start period 15s, 3 retries) — a self-probe mode that issues an HTTP GET to
+`127.0.0.1:8080/readyz` and exits `0`/`1`, so the scratch image needs no shell
+or `curl` (mirrors the xtcp2 daemon's `-healthcheck`).
 
 Load with `nix build .#oci-ipfeed-collector && ./result | docker load`.
 
 ### Dev shell
 
-`nix develop` lands in a shell with the pinned Go plus `gopls`,
-`golangci-lint`, `delve`, `benchstat`, and `nixfmt`. Helper functions
-(discoverable via `ipfeed-help`) wrap the common loops: `build`, `test`,
-`test-race`, `bench`, `bench-compare`, `lint`.
+`nix develop` (repo root) lands in the shared xtcp2 shell with the pinned Go
+plus `gopls`, `golangci-lint`, `delve`, `nixfmt`, and the proto toolchain.
+Helper functions (discoverable via `xtcp2-help`) wrap the common repo-wide
+loops: `lint-quick`, `lint`, `lint-comprehensive`, `lint-fix`, `lint-new`,
+`regen-protos`. There are no ipfeed-specific helpers; use the `go` commands in
+the README.
 
 Wiring the image into the RunPod release pipeline and adding a committed PGO
-profile are noted follow-ups, out of scope for the initial packaging.
+profile are noted follow-ups.

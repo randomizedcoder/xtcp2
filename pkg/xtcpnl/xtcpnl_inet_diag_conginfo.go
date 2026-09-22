@@ -94,7 +94,7 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 	// against 3-char strings would never match, so we use the 3-char prefix.
 	switch string(data[0:3]) {
 	case "cub":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
+		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
 	case "bbr":
 		// Distinguish bbr1 / bbr2 / bbr3 via the 4th byte. The XtcpFlatRecord
 		// proto defines BBR1/BBR2/BBR3 as separate enum values — previously
@@ -104,16 +104,16 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		// the buffer is long enough.
 		switch {
 		case len(data) >= 4 && data[3] == '3':
-			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3
+			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3
 		case len(data) >= 4 && data[3] == '2':
-			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2
+			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2
 		default:
-			x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
+			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
 		}
 	case "dct":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
+		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
 	case "veg":
-		x.CongestionAlgorithmEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
+		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
 	}
 
 	return nil

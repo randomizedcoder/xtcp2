@@ -40,6 +40,15 @@ var (
 	ErrBadMsgLen = errors.New("xtcpnl: rtnetlink message length out of range")
 	// ErrNetlinkError indicates a malformed NLMSG_ERROR (too short for errno).
 	ErrNetlinkError = errors.New("xtcpnl: rtnetlink error message truncated")
+	// ErrDumpInterrupted indicates the kernel flagged a reply with
+	// NLM_F_DUMP_INTR: the table changed while it was being dumped, so the
+	// stream may be inconsistent (entries missing or duplicated). DumpRtnetlink
+	// still drains the stream to NLMSG_DONE before returning this, so the socket
+	// is immediately reusable; callers should discard what onMsg collected and
+	// re-issue the request.
+	ErrDumpInterrupted = errors.New("xtcpnl: rtnetlink dump interrupted (NLM_F_DUMP_INTR), retry")
+	// ErrShortRequest indicates a request shorter than a bare nlmsghdr.
+	ErrShortRequest = errors.New("xtcpnl: rtnetlink request shorter than nlmsghdr")
 )
 
 // buildDumpRequest lays out a DUMP request: a 16-byte nlmsghdr
@@ -87,58 +96,155 @@ func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 }
 
 // DumpRtnetlink sends request on fd and drives the multipart reply, invoking
-// onMsg for every RTM_NEW* message body (the bytes after the 16-byte nlmsghdr).
-// It returns nil at NLMSG_DONE (or a zero-errno ACK), a wrapped syscall.Errno
-// for a non-zero NLMSG_ERROR, and skips NLMSG_NOOP. The socket should have a
-// receive timeout set so a missing DONE degrades to an error instead of
-// blocking. onMsg must copy any bytes it needs to retain — the receive buffer
-// is reused across recvs.
+// onMsg for every RTM_NEW* message body (the bytes after the 16-byte nlmsghdr)
+// whose nlmsg_seq matches the request's. It returns nil at NLMSG_DONE (or a
+// zero-errno ACK), a wrapped syscall.Errno for a non-zero NLMSG_ERROR, and
+// skips NLMSG_NOOP. The socket should have a receive timeout set so a missing
+// DONE degrades to an error instead of blocking. onMsg must copy any bytes it
+// needs to retain — the receive buffer is reused across recvs.
+//
+// Hardening (see walkNlMsgs for the per-datagram rules):
+//   - datagrams whose sender pid is not the kernel (nlmsg from another
+//     userspace process on a multicast-joined socket) are ignored;
+//   - messages whose nlmsg_seq differs from the request's are ignored, so a
+//     stale reply (or a stale NLMSG_DONE) left over from an earlier timed-out
+//     dump on the same socket cannot be mistaken for this one;
+//   - a reply flagged NLM_F_DUMP_INTR makes the whole dump return
+//     ErrDumpInterrupted — but only after the stream has been drained to
+//     NLMSG_DONE, so the caller can retry on the same socket straight away.
+//
+// sa may be nil for a connected socket (tests drive this over an AF_UNIX
+// SOCK_SEQPACKET socketpair); on a bound NETLINK_ROUTE socket pass the kernel
+// address {Family: AF_NETLINK}.
 func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(msgType uint16, body []byte) error) error {
-	if err := unix.Sendto(fd, request, 0, sa); err != nil {
+	if len(request) < NlMsgHdrSizeCst {
+		return ErrShortRequest
+	}
+	seq := binary.LittleEndian.Uint32(request[8:12])
+
+	var to unix.Sockaddr
+	if sa != nil {
+		to = sa
+	}
+	if err := unix.Sendto(fd, request, 0, to); err != nil {
 		return fmt.Errorf("xtcpnl: rtnetlink send: %w", err)
 	}
 
 	buf := make([]byte, rtnetlinkRecvBufCst)
+	interrupted := false
 	for {
-		n, _, err := unix.Recvfrom(fd, buf, 0)
+		n, from, err := unix.Recvfrom(fd, buf, 0)
 		if err != nil {
 			return fmt.Errorf("xtcpnl: rtnetlink recv: %w", err)
 		}
-		if n < NlMsgHdrSizeCst {
-			return ErrShortRecv
+		if !fromKernel(from) {
+			continue
 		}
 
-		data := buf[:n]
-		for len(data) >= NlMsgHdrSizeCst {
-			var h NlMsgHdr
-			if _, err := DeserializeNlMsgHdr(data, &h); err != nil {
-				return err
+		deliver := onMsg
+		if interrupted {
+			deliver = nil // draining only: nothing more is delivered after an interruption
+		}
+		done, werr := walkNlMsgs(buf[:n], seq, deliver)
+		switch {
+		case errors.Is(werr, ErrDumpInterrupted):
+			interrupted = true
+		case werr != nil:
+			return werr
+		}
+		if done {
+			if interrupted {
+				return ErrDumpInterrupted
 			}
-			msgLen := int(h.Len)
-			if msgLen < NlMsgHdrSizeCst || msgLen > len(data) {
-				return ErrBadMsgLen
-			}
-
-			switch h.Type {
-			case uint16(unix.NLMSG_DONE):
-				return nil
-			case uint16(unix.NLMSG_ERROR):
-				return netlinkErr(data[NlMsgHdrSizeCst:msgLen])
-			case uint16(unix.NLMSG_NOOP):
-				// nothing to do
-			default:
-				if err := onMsg(h.Type, data[NlMsgHdrSizeCst:msgLen]); err != nil {
-					return err
-				}
-			}
-
-			adv := msgLen + FourByteAlignPadding(msgLen)
-			if adv <= 0 || adv > len(data) {
-				break
-			}
-			data = data[adv:]
+			return nil
 		}
 	}
+}
+
+// fromKernel reports whether a datagram's sender address is the kernel. On a
+// netlink socket the kernel is always nlmsg_pid 0; a datagram from any other
+// netlink port id is a userspace peer and is dropped. A nil or non-netlink
+// address (AF_UNIX socketpair in tests) is accepted.
+func fromKernel(from unix.Sockaddr) bool {
+	sn, ok := from.(*unix.SockaddrNetlink)
+	return !ok || sn.Pid == 0
+}
+
+// walkNlMsgs parses one received datagram: a run of 4-byte-aligned netlink
+// messages. It is pure (no I/O) so it can be table- and fuzz-tested directly.
+//
+// Rules, in order, for each message:
+//   - fewer than 16 bytes in the datagram at all → ErrShortRecv;
+//   - nlmsg_len < 16 or overrunning the datagram → ErrBadMsgLen;
+//   - nlmsg_seq != seq → skipped entirely (stale reply, including a stale DONE);
+//   - NLM_F_DUMP_INTR set → the rest of this datagram is walked but not
+//     delivered, and the return error is ErrDumpInterrupted (with done set if
+//     DONE was also reached);
+//   - NLMSG_DONE → done=true; NLMSG_ERROR → done=true with netlinkErr (nil for
+//     a zero-errno ACK); NLMSG_NOOP skipped; anything else → onMsg (a nil onMsg
+//     discards), whose error is returned immediately.
+//
+// A trailing remainder shorter than a header is ignored, mirroring the
+// kernel's NLMSG_OK walk. done=false, err=nil means the dump continues in the
+// next datagram.
+func walkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
+	if len(data) < NlMsgHdrSizeCst {
+		return false, ErrShortRecv
+	}
+
+	interrupted := false
+	for len(data) >= NlMsgHdrSizeCst {
+		var h NlMsgHdr
+		if _, derr := DeserializeNlMsgHdr(data, &h); derr != nil {
+			return false, derr
+		}
+		msgLen := int(h.Len)
+		if msgLen < NlMsgHdrSizeCst || msgLen > len(data) {
+			return false, ErrBadMsgLen
+		}
+		body := data[NlMsgHdrSizeCst:msgLen]
+
+		adv := msgLen + FourByteAlignPadding(msgLen)
+		if adv > len(data) {
+			adv = len(data) // last message: padding may legitimately be absent
+		}
+
+		if h.Seq != seq {
+			data = data[adv:]
+			continue
+		}
+		if h.Flags&uint16(unix.NLM_F_DUMP_INTR) != 0 {
+			interrupted = true
+		}
+
+		switch h.Type {
+		case uint16(unix.NLMSG_DONE):
+			if interrupted {
+				return true, ErrDumpInterrupted
+			}
+			return true, nil
+		case uint16(unix.NLMSG_ERROR):
+			if interrupted {
+				return true, ErrDumpInterrupted
+			}
+			return true, netlinkErr(body)
+		case uint16(unix.NLMSG_NOOP):
+			// nothing to do
+		default:
+			if !interrupted && onMsg != nil {
+				if cerr := onMsg(h.Type, body); cerr != nil {
+					return false, cerr
+				}
+			}
+		}
+
+		data = data[adv:]
+	}
+
+	if interrupted {
+		return false, ErrDumpInterrupted
+	}
+	return false, nil
 }
 
 // netlinkErr decodes an NLMSG_ERROR body. The kernel puts a negative errno in

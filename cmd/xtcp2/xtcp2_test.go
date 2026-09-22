@@ -810,6 +810,20 @@ func TestPrintFlags(t *testing.T) {
 	f.ioUring = &b
 	f.ioUringRecvBatch = &n
 	f.ioUringCqeBatch = &n
+	f.enrichContainer = &b
+	f.dockerSocket = &s
+	f.enrichLldp = &b
+	f.lldpdSocket = &s
+	f.lldpdVersionHint = &s
+	f.enrichNic = &b
+	f.uplinkCount = &n
+	f.uplinkInterfaces = &s
+	f.populateNsid = &b
+	f.enrichAsn = &b
+	f.asnDbPath = &s
+	f.asnRefreshInterval = &d
+	f.enrichLocality = &b
+	f.localityRefreshInterval = &d
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -915,6 +929,12 @@ func TestBuildConfig(t *testing.T) {
 		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,
 		profileMode: &pm, v: &v, conf: &conf, d: &d,
 		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
+		enrichContainer: &iu, dockerSocket: &mar,
+		enrichLldp: &iu, lldpdSocket: &mar, lldpdVersionHint: &mar,
+		enrichNic: &iu, uplinkCount: &wf, uplinkInterfaces: &mar,
+		populateNsid: &iu,
+		enrichAsn:    &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
+		enrichLocality: &iu, localityRefreshInterval: &rf,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1143,6 +1163,73 @@ func TestDefaultDestFor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := defaultDestFor(tt.libs, lookup); got != tt.want {
 				t.Errorf("defaultDestFor(%v) = %q, want %q", tt.libs, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestEnvOverrideEnrichmentAsnLocality covers the ASN + locality environment
+// overrides handled by envOverrideLabeling: valid values are applied, unset and
+// unparseable values leave the config untouched.
+func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
+	tests := []struct {
+		description string
+		env         map[string]string
+		want        func(c *xtcp_config.XtcpConfig) bool
+	}{
+		// positive
+		{"ENRICH_ASN=true enables ASN enrichment", map[string]string{"ENRICH_ASN": "true"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.EnrichAsnEnable }},
+		{"ASN_DB_PATH sets the artifact path verbatim", map[string]string{"ASN_DB_PATH": "/var/lib/xtcp/feeds.parquet"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.AsnDbPath == "/var/lib/xtcp/feeds.parquet" }},
+		{"ASN_REFRESH_INTERVAL=30m parses as a duration", map[string]string{"ASN_REFRESH_INTERVAL": "30m"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.AsnRefreshInterval.AsDuration() == 30*time.Minute }},
+		{"ENRICH_LOCALITY=1 enables locality enrichment", map[string]string{"ENRICH_LOCALITY": "1"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.EnrichLocalityEnable }},
+		{"LOCALITY_REFRESH_INTERVAL=90s parses as a duration", map[string]string{"LOCALITY_REFRESH_INTERVAL": "90s"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.LocalityRefreshInterval.AsDuration() == 90*time.Second }},
+		{"all five together", map[string]string{
+			"ENRICH_ASN": "true", "ASN_DB_PATH": "/f.parquet", "ASN_REFRESH_INTERVAL": "1h",
+			"ENRICH_LOCALITY": "true", "LOCALITY_REFRESH_INTERVAL": "2m"},
+			func(c *xtcp_config.XtcpConfig) bool {
+				return c.EnrichAsnEnable && c.AsnDbPath == "/f.parquet" && c.AsnRefreshInterval.AsDuration() == time.Hour &&
+					c.EnrichLocalityEnable && c.LocalityRefreshInterval.AsDuration() == 2*time.Minute
+			}},
+		// negative — unset leaves zero values
+		{"nothing set -> all zero", map[string]string{},
+			func(c *xtcp_config.XtcpConfig) bool {
+				return !c.EnrichAsnEnable && c.AsnDbPath == "" && c.AsnRefreshInterval == nil &&
+					!c.EnrichLocalityEnable && c.LocalityRefreshInterval == nil
+			}},
+		{"ENRICH_ASN=maybe (unparseable bool) is ignored", map[string]string{"ENRICH_ASN": "maybe"},
+			func(c *xtcp_config.XtcpConfig) bool { return !c.EnrichAsnEnable }},
+		{"ASN_REFRESH_INTERVAL=soon (unparseable duration) is ignored", map[string]string{"ASN_REFRESH_INTERVAL": "soon"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.AsnRefreshInterval == nil }},
+		// boundary
+		{"ENRICH_ASN=false explicitly false", map[string]string{"ENRICH_ASN": "false"},
+			func(c *xtcp_config.XtcpConfig) bool { return !c.EnrichAsnEnable }},
+		{"ASN_REFRESH_INTERVAL=0 -> zero duration set (load once)", map[string]string{"ASN_REFRESH_INTERVAL": "0"},
+			func(c *xtcp_config.XtcpConfig) bool {
+				return c.AsnRefreshInterval != nil && c.AsnRefreshInterval.AsDuration() == 0
+			}},
+		// corner
+		{"ASN_DB_PATH set to empty string is applied as empty", map[string]string{"ASN_DB_PATH": ""},
+			func(c *xtcp_config.XtcpConfig) bool { return c.AsnDbPath == "" }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			for _, k := range []string{"ENRICH_ASN", "ASN_DB_PATH", "ASN_REFRESH_INTERVAL", "ENRICH_LOCALITY", "LOCALITY_REFRESH_INTERVAL"} {
+				if v, ok := tc.env[k]; ok {
+					t.Setenv(k, v)
+				} else {
+					t.Setenv(k, "")
+					os.Unsetenv(k) //nolint:errcheck,usetesting // t.Setenv registered the restore; Unsetenv makes "absent" observable
+				}
+			}
+			c := &xtcp_config.XtcpConfig{}
+			envOverrideLabeling(c, 0)
+			if !tc.want(c) {
+				t.Errorf("config after env override does not match expectation: %+v", c)
 			}
 		})
 	}

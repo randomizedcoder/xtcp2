@@ -133,6 +133,15 @@ type XTCP struct {
 	// and is touched only under reconcileMu (the reconcile owner).
 	localityByInode     atomic.Pointer[map[uint64]*localnet.Snapshot]
 	lastLocalityRefresh time.Time
+	// localityRetry is the per-namespace negative cache for locality dumps: a
+	// namespace whose dump failed, or came back loopback-only (veth not plumbed
+	// yet), is retried on a 30s→5m backoff instead of every reconcile. Owned by
+	// the reconcile path (reconcileMu). See refreshLocality.
+	localityRetry map[uint64]localityRetryState
+	// localityDumper / localityClock are test seams for refreshLocality: nil
+	// means nsLocalitySnapshot (setns + rtnetlink dumps) and time.Now.
+	localityDumper func(nsIdentity) (*localnet.Snapshot, bool)
+	localityClock  func() time.Time
 
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
@@ -199,6 +208,10 @@ type XTCP struct {
 	pC *prometheus.CounterVec
 	pH *prometheus.SummaryVec
 	pG prometheus.Gauge
+	// pGV is the labelled gauge family for point-in-time sizes that are not
+	// the namespace-map count pG already carries (e.g. how many namespaces
+	// hold a locality snapshot / sit in the retry backoff).
+	pGV *prometheus.GaugeVec
 
 	debugLevel uint32
 }

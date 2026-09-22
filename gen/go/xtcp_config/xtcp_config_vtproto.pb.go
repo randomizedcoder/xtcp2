@@ -669,7 +669,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf
 		i--
-		dAtA[i] = 0x9a
+		dAtA[i] = 0xb2
 	}
 	if m.EnrichLocalityEnable {
 		i--
@@ -681,7 +681,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf
 		i--
-		dAtA[i] = 0x90
+		dAtA[i] = 0xa8
 	}
 	if m.AsnRefreshInterval != nil {
 		size, err := (*durationpb.Duration)(m.AsnRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
@@ -693,7 +693,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf
 		i--
-		dAtA[i] = 0x8a
+		dAtA[i] = 0x92
 	}
 	if len(m.AsnDbPath) > 0 {
 		i -= len(m.AsnDbPath)
@@ -702,7 +702,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf
 		i--
-		dAtA[i] = 0x82
+		dAtA[i] = 0x8a
 	}
 	if m.EnrichAsnEnable {
 		i--
@@ -712,9 +712,9 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xf
 		i--
-		dAtA[i] = 0xf8
+		dAtA[i] = 0x80
 	}
 	if m.PopulateNsid {
 		i--
@@ -726,7 +726,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xe
 		i--
-		dAtA[i] = 0xf0
+		dAtA[i] = 0xb0
 	}
 	if len(m.UplinkInterfaces) > 0 {
 		for iNdEx := len(m.UplinkInterfaces) - 1; iNdEx >= 0; iNdEx-- {
@@ -734,17 +734,17 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			copy(dAtA[i:], m.UplinkInterfaces[iNdEx])
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.UplinkInterfaces[iNdEx])))
 			i--
-			dAtA[i] = 0xe
+			dAtA[i] = 0xd
 			i--
-			dAtA[i] = 0xea
+			dAtA[i] = 0xf2
 		}
 	}
 	if m.UplinkCount != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.UplinkCount))
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xd
 		i--
-		dAtA[i] = 0xe0
+		dAtA[i] = 0xe8
 	}
 	if m.EnrichNicEnable {
 		i--
@@ -754,27 +754,27 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xd
 		i--
-		dAtA[i] = 0xd8
+		dAtA[i] = 0xe0
 	}
 	if len(m.LldpdVersionHint) > 0 {
 		i -= len(m.LldpdVersionHint)
 		copy(dAtA[i:], m.LldpdVersionHint)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LldpdVersionHint)))
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xd
 		i--
-		dAtA[i] = 0xd2
+		dAtA[i] = 0xa2
 	}
 	if len(m.LldpdSocketPath) > 0 {
 		i -= len(m.LldpdSocketPath)
 		copy(dAtA[i:], m.LldpdSocketPath)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LldpdSocketPath)))
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xd
 		i--
-		dAtA[i] = 0xca
+		dAtA[i] = 0x9a
 	}
 	if m.EnrichLldpEnable {
 		i--
@@ -784,18 +784,18 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xd
 		i--
-		dAtA[i] = 0xc0
+		dAtA[i] = 0x90
 	}
 	if len(m.DockerSocketPath) > 0 {
 		i -= len(m.DockerSocketPath)
 		copy(dAtA[i:], m.DockerSocketPath)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DockerSocketPath)))
 		i--
-		dAtA[i] = 0xe
+		dAtA[i] = 0xc
 		i--
-		dAtA[i] = 0xba
+		dAtA[i] = 0xd2
 	}
 	if m.EnrichContainerEnable {
 		i--
@@ -805,162 +805,9 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0xb0
-	}
-	if m.ReconcileBeforePoll {
-		i--
-		if m.ReconcileBeforePoll {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0xa0
-	}
-	if m.ReconcileFrequency != nil {
-		size, err := (*durationpb.Duration)(m.ReconcileFrequency).MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0x9a
-	}
-	if m.S3UploadBackoffCap != nil {
-		size, err := (*durationpb.Duration)(m.S3UploadBackoffCap).MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0x92
-	}
-	if m.S3UploadMaxAttempts != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3UploadMaxAttempts))
-		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0x88
-	}
-	if m.S3FlushThresholdJitterPct != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushThresholdJitterPct))
-		i--
-		dAtA[i] = 0xe
-		i--
-		dAtA[i] = 0x80
-	}
-	if m.S3FlushJitterPct != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushJitterPct))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0xf8
-	}
-	if m.S3FlushInterval != nil {
-		size, err := (*durationpb.Duration)(m.S3FlushInterval).MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0xf2
-	}
-	if m.PollJitterPct != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PollJitterPct))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0xe8
-	}
-	if len(m.CsvColumns) > 0 {
-		i -= len(m.CsvColumns)
-		copy(dAtA[i:], m.CsvColumns)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CsvColumns)))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0xe2
-	}
-	if m.IoUringCqeBatchSize != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IoUringCqeBatchSize))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0xa0
-	}
-	if m.IoUringRecvBatchSize != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IoUringRecvBatchSize))
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0x98
-	}
-	if m.IoUring {
-		i--
-		if m.IoUring {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0xd
-		i--
-		dAtA[i] = 0x90
-	}
-	if m.EnabledDeserializers != nil {
-		size, err := m.EnabledDeserializers.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
 		dAtA[i] = 0xc
 		i--
-		dAtA[i] = 0xc2
-	}
-	if m.GrpcPort != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.GrpcPort))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xf0
-	}
-	if len(m.DaemonVersion) > 0 {
-		i -= len(m.DaemonVersion)
-		copy(dAtA[i:], m.DaemonVersion)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DaemonVersion)))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xd2
-	}
-	if m.Ipv6HopLimit != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv6HopLimit))
-		i--
-		dAtA[i] = 0xb
-		i--
 		dAtA[i] = 0xc8
-	}
-	if m.Ipv4Ttl != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv4Ttl))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xc0
 	}
 	if m.ResolveContainerId {
 		i--
@@ -970,130 +817,159 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0xb
+		dAtA[i] = 0xc
 		i--
-		dAtA[i] = 0xb8
-	}
-	if len(m.Hostname) > 0 {
-		i -= len(m.Hostname)
-		copy(dAtA[i:], m.Hostname)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Hostname)))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xb2
-	}
-	if len(m.Location) > 0 {
-		i -= len(m.Location)
-		copy(dAtA[i:], m.Location)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Location)))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xaa
-	}
-	if len(m.Tag) > 0 {
-		i -= len(m.Tag)
-		copy(dAtA[i:], m.Tag)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tag)))
-		i--
-		dAtA[i] = 0xb
-		i--
-		dAtA[i] = 0xa2
-	}
-	if len(m.Label) > 0 {
-		i -= len(m.Label)
-		copy(dAtA[i:], m.Label)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Label)))
-		i--
-		dAtA[i] = 0xa
-		i--
-		dAtA[i] = 0xd2
-	}
-	if m.DebugLevel != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DebugLevel))
-		i--
-		dAtA[i] = 0xa
-		i--
-		dAtA[i] = 0x80
-	}
-	if m.KafkaProduceTimeout != nil {
-		size, err := (*durationpb.Duration)(m.KafkaProduceTimeout).MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x9
-		i--
-		dAtA[i] = 0xb2
-	}
-	if len(m.KafkaSchemaUrl) > 0 {
-		i -= len(m.KafkaSchemaUrl)
-		copy(dAtA[i:], m.KafkaSchemaUrl)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.KafkaSchemaUrl)))
-		i--
-		dAtA[i] = 0x9
-		i--
-		dAtA[i] = 0x8a
-	}
-	if len(m.XtcpProtoFile) > 0 {
-		i -= len(m.XtcpProtoFile)
-		copy(dAtA[i:], m.XtcpProtoFile)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.XtcpProtoFile)))
-		i--
-		dAtA[i] = 0x8
-		i--
-		dAtA[i] = 0xfa
-	}
-	if len(m.Topic) > 0 {
-		i -= len(m.Topic)
-		copy(dAtA[i:], m.Topic)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Topic)))
-		i--
-		dAtA[i] = 0x8
-		i--
-		dAtA[i] = 0xe2
+		dAtA[i] = 0xc0
 	}
 	if m.PyroscopeUploadIntervalSec != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PyroscopeUploadIntervalSec))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
 		i--
-		dAtA[i] = 0xd8
+		dAtA[i] = 0xe8
 	}
 	if m.PyroscopeSampleHz != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PyroscopeSampleHz))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
 		i--
-		dAtA[i] = 0xd0
+		dAtA[i] = 0xe0
 	}
 	if len(m.PyroscopeAppName) > 0 {
 		i -= len(m.PyroscopeAppName)
 		copy(dAtA[i:], m.PyroscopeAppName)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.PyroscopeAppName)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
 		i--
-		dAtA[i] = 0xca
+		dAtA[i] = 0xda
 	}
 	if len(m.PyroscopeUrl) > 0 {
 		i -= len(m.PyroscopeUrl)
 		copy(dAtA[i:], m.PyroscopeUrl)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.PyroscopeUrl)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
 		i--
-		dAtA[i] = 0xc2
+		dAtA[i] = 0xd2
 	}
-	if m.DestWriteFiles != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DestWriteFiles))
+	if m.GrpcPort != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.GrpcPort))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
+		i--
+		dAtA[i] = 0x80
+	}
+	if m.Ipv6HopLimit != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv6HopLimit))
+		i--
+		dAtA[i] = 0x9
 		i--
 		dAtA[i] = 0xb8
+	}
+	if m.Ipv4Ttl != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Ipv4Ttl))
+		i--
+		dAtA[i] = 0x9
+		i--
+		dAtA[i] = 0xb0
+	}
+	if len(m.DaemonVersion) > 0 {
+		i -= len(m.DaemonVersion)
+		copy(dAtA[i:], m.DaemonVersion)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DaemonVersion)))
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0xb2
+	}
+	if len(m.Tag) > 0 {
+		i -= len(m.Tag)
+		copy(dAtA[i:], m.Tag)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tag)))
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0xaa
+	}
+	if len(m.Label) > 0 {
+		i -= len(m.Label)
+		copy(dAtA[i:], m.Label)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Label)))
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0xa2
+	}
+	if len(m.Location) > 0 {
+		i -= len(m.Location)
+		copy(dAtA[i:], m.Location)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Location)))
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0x9a
+	}
+	if len(m.Hostname) > 0 {
+		i -= len(m.Hostname)
+		copy(dAtA[i:], m.Hostname)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Hostname)))
+		i--
+		dAtA[i] = 0x8
+		i--
+		dAtA[i] = 0x92
+	}
+	if m.S3UploadBackoffCap != nil {
+		size, err := (*durationpb.Duration)(m.S3UploadBackoffCap).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0x9a
+	}
+	if m.S3UploadMaxAttempts != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3UploadMaxAttempts))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0x90
+	}
+	if m.S3FlushThresholdJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushThresholdJitterPct))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0x88
+	}
+	if m.S3FlushJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3FlushJitterPct))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0x80
+	}
+	if m.S3FlushInterval != nil {
+		size, err := (*durationpb.Duration)(m.S3FlushInterval).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xfa
+	}
+	if m.S3ParquetFlushThresholdBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3ParquetFlushThresholdBytes))
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xf0
 	}
 	if m.S3SkipBucketProbe {
 		i--
@@ -1103,176 +979,294 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0xb0
-	}
-	if len(m.S3Region) > 0 {
-		i -= len(m.S3Region)
-		copy(dAtA[i:], m.S3Region)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3Region)))
-		i--
-		dAtA[i] = 0x8
-		i--
-		dAtA[i] = 0xaa
-	}
-	if m.S3ParquetFlushThresholdBytes != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3ParquetFlushThresholdBytes))
-		i--
-		dAtA[i] = 0x8
-		i--
-		dAtA[i] = 0xa0
-	}
-	if len(m.Dest) > 0 {
-		i -= len(m.Dest)
-		copy(dAtA[i:], m.Dest)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Dest)))
-		i--
-		dAtA[i] = 0x8
-		i--
-		dAtA[i] = 0x92
+		dAtA[i] = 0xd0
 	}
 	if len(m.S3SecretKey) > 0 {
 		i -= len(m.S3SecretKey)
 		copy(dAtA[i:], m.S3SecretKey)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3SecretKey)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0x8a
+		dAtA[i] = 0xca
 	}
 	if len(m.S3AccessKey) > 0 {
 		i -= len(m.S3AccessKey)
 		copy(dAtA[i:], m.S3AccessKey)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3AccessKey)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0x82
+		dAtA[i] = 0xc2
 	}
 	if len(m.S3Prefix) > 0 {
 		i -= len(m.S3Prefix)
 		copy(dAtA[i:], m.S3Prefix)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3Prefix)))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0xfa
+		dAtA[i] = 0xba
 	}
 	if len(m.S3Bucket) > 0 {
 		i -= len(m.S3Bucket)
 		copy(dAtA[i:], m.S3Bucket)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3Bucket)))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0xf2
+		dAtA[i] = 0xb2
+	}
+	if len(m.S3Region) > 0 {
+		i -= len(m.S3Region)
+		copy(dAtA[i:], m.S3Region)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3Region)))
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xaa
 	}
 	if len(m.S3Endpoint) > 0 {
 		i -= len(m.S3Endpoint)
 		copy(dAtA[i:], m.S3Endpoint)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3Endpoint)))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x6
 		i--
-		dAtA[i] = 0xea
+		dAtA[i] = 0xa2
 	}
 	if len(m.KafkaCompression) > 0 {
 		i -= len(m.KafkaCompression)
 		copy(dAtA[i:], m.KafkaCompression)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.KafkaCompression)))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x5
 		i--
-		dAtA[i] = 0xe2
+		dAtA[i] = 0x9a
+	}
+	if m.KafkaProduceTimeout != nil {
+		size, err := (*durationpb.Duration)(m.KafkaProduceTimeout).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x92
+	}
+	if len(m.KafkaSchemaUrl) > 0 {
+		i -= len(m.KafkaSchemaUrl)
+		copy(dAtA[i:], m.KafkaSchemaUrl)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.KafkaSchemaUrl)))
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x8a
+	}
+	if len(m.Topic) > 0 {
+		i -= len(m.Topic)
+		copy(dAtA[i:], m.Topic)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Topic)))
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x82
 	}
 	if m.EnvelopeFlushThresholdRows != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnvelopeFlushThresholdRows))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x4
 		i--
-		dAtA[i] = 0xd8
+		dAtA[i] = 0x88
 	}
 	if m.EnvelopeFlushThresholdBytes != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnvelopeFlushThresholdBytes))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x4
 		i--
-		dAtA[i] = 0xd0
+		dAtA[i] = 0x80
+	}
+	if len(m.XtcpProtoFile) > 0 {
+		i -= len(m.XtcpProtoFile)
+		copy(dAtA[i:], m.XtcpProtoFile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.XtcpProtoFile)))
+		i--
+		dAtA[i] = 0x3
+		i--
+		dAtA[i] = 0xfa
+	}
+	if len(m.CsvColumns) > 0 {
+		i -= len(m.CsvColumns)
+		copy(dAtA[i:], m.CsvColumns)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CsvColumns)))
+		i--
+		dAtA[i] = 0x3
+		i--
+		dAtA[i] = 0xf2
 	}
 	if len(m.MarshalTo) > 0 {
 		i -= len(m.MarshalTo)
 		copy(dAtA[i:], m.MarshalTo)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.MarshalTo)))
 		i--
-		dAtA[i] = 0x7
+		dAtA[i] = 0x3
 		i--
-		dAtA[i] = 0xc2
+		dAtA[i] = 0xea
 	}
-	if m.Modulus != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Modulus))
+	if len(m.Dest) > 0 {
+		i -= len(m.Dest)
+		copy(dAtA[i:], m.Dest)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Dest)))
 		i--
-		dAtA[i] = 0x6
+		dAtA[i] = 0x3
 		i--
-		dAtA[i] = 0xf0
+		dAtA[i] = 0xe2
+	}
+	if m.DebugLevel != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DebugLevel))
+		i--
+		dAtA[i] = 0x3
+		i--
+		dAtA[i] = 0xa8
+	}
+	if m.DestWriteFiles != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DestWriteFiles))
+		i--
+		dAtA[i] = 0x3
+		i--
+		dAtA[i] = 0xa0
 	}
 	if len(m.CapturePath) > 0 {
 		i -= len(m.CapturePath)
 		copy(dAtA[i:], m.CapturePath)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CapturePath)))
 		i--
-		dAtA[i] = 0x6
+		dAtA[i] = 0x3
 		i--
-		dAtA[i] = 0xa2
+		dAtA[i] = 0x9a
 	}
 	if m.WriteFiles != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.WriteFiles))
-		i--
-		dAtA[i] = 0x5
-		i--
-		dAtA[i] = 0xd0
-	}
-	if m.PacketSizeMply != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PacketSizeMply))
-		i--
-		dAtA[i] = 0x5
-		i--
-		dAtA[i] = 0x80
-	}
-	if m.PacketSize != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PacketSize))
-		i--
-		dAtA[i] = 0x4
-		i--
-		dAtA[i] = 0xb0
-	}
-	if m.NlmsgSeq != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NlmsgSeq))
-		i--
-		dAtA[i] = 0x3
-		i--
-		dAtA[i] = 0xe0
-	}
-	if m.NetlinkersDoneChanSize != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NetlinkersDoneChanSize))
-		i--
-		dAtA[i] = 0x3
-		i--
-		dAtA[i] = 0x98
-	}
-	if m.Netlinkers != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Netlinkers))
 		i--
 		dAtA[i] = 0x3
 		i--
 		dAtA[i] = 0x90
 	}
-	if m.MaxLoops != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaxLoops))
+	if m.ReconcileBeforePoll {
+		i--
+		if m.ReconcileBeforePoll {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
 		i--
 		dAtA[i] = 0x2
 		i--
+		dAtA[i] = 0xc8
+	}
+	if m.ReconcileFrequency != nil {
+		size, err := (*durationpb.Duration)(m.ReconcileFrequency).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0xc2
+	}
+	if m.IoUringCqeBatchSize != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IoUringCqeBatchSize))
+		i--
+		dAtA[i] = 0x1
+		i--
 		dAtA[i] = 0xc0
+	}
+	if m.IoUringRecvBatchSize != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IoUringRecvBatchSize))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xb8
+	}
+	if m.IoUring {
+		i--
+		if m.IoUring {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xb0
+	}
+	if m.EnabledDeserializers != nil {
+		size, err := m.EnabledDeserializers.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xaa
+	}
+	if m.Modulus != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Modulus))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa0
+	}
+	if m.PacketSizeMply != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PacketSizeMply))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x98
+	}
+	if m.PacketSize != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PacketSize))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x90
+	}
+	if m.NlmsgSeq != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NlmsgSeq))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x88
+	}
+	if m.NetlinkersDoneChanSize != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NetlinkersDoneChanSize))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x80
+	}
+	if m.Netlinkers != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Netlinkers))
+		i--
+		dAtA[i] = 0x78
+	}
+	if m.MaxLoops != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaxLoops))
+		i--
+		dAtA[i] = 0x70
+	}
+	if m.PollJitterPct != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.PollJitterPct))
+		i--
+		dAtA[i] = 0x68
 	}
 	if m.PollTimeout != nil {
 		size, err := (*durationpb.Duration)(m.PollTimeout).MarshalToSizedBufferVT(dAtA[:i])
@@ -1282,9 +1276,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xf2
+		dAtA[i] = 0x62
 	}
 	if m.PollFrequency != nil {
 		size, err := (*durationpb.Duration)(m.PollFrequency).MarshalToSizedBufferVT(dAtA[:i])
@@ -1294,9 +1286,7 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xa2
+		dAtA[i] = 0x5a
 	}
 	if m.NlTimeoutMilliseconds != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NlTimeoutMilliseconds))
@@ -1571,17 +1561,20 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.PollFrequency != nil {
 		l = (*durationpb.Duration)(m.PollFrequency).SizeVT()
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.PollTimeout != nil {
 		l = (*durationpb.Duration)(m.PollTimeout).SizeVT()
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.PollJitterPct != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.PollJitterPct))
 	}
 	if m.MaxLoops != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.MaxLoops))
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.MaxLoops))
 	}
 	if m.Netlinkers != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.Netlinkers))
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.Netlinkers))
 	}
 	if m.NetlinkersDoneChanSize != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.NetlinkersDoneChanSize))
@@ -1595,6 +1588,29 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.PacketSizeMply != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.PacketSizeMply))
 	}
+	if m.Modulus != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.Modulus))
+	}
+	if m.EnabledDeserializers != nil {
+		l = m.EnabledDeserializers.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.IoUring {
+		n += 3
+	}
+	if m.IoUringRecvBatchSize != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.IoUringRecvBatchSize))
+	}
+	if m.IoUringCqeBatchSize != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.IoUringCqeBatchSize))
+	}
+	if m.ReconcileFrequency != nil {
+		l = (*durationpb.Duration)(m.ReconcileFrequency).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.ReconcileBeforePoll {
+		n += 3
+	}
 	if m.WriteFiles != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.WriteFiles))
 	}
@@ -1602,10 +1618,25 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.Modulus != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.Modulus))
+	if m.DestWriteFiles != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.DestWriteFiles))
+	}
+	if m.DebugLevel != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.DebugLevel))
+	}
+	l = len(m.Dest)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.MarshalTo)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.CsvColumns)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.XtcpProtoFile)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -1615,11 +1646,27 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.EnvelopeFlushThresholdRows != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.EnvelopeFlushThresholdRows))
 	}
+	l = len(m.Topic)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.KafkaSchemaUrl)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.KafkaProduceTimeout != nil {
+		l = (*durationpb.Duration)(m.KafkaProduceTimeout).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	l = len(m.KafkaCompression)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.S3Endpoint)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.S3Region)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -1639,107 +1686,11 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.Dest)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.S3ParquetFlushThresholdBytes != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3ParquetFlushThresholdBytes))
-	}
-	l = len(m.S3Region)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	if m.S3SkipBucketProbe {
 		n += 3
 	}
-	if m.DestWriteFiles != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.DestWriteFiles))
-	}
-	l = len(m.PyroscopeUrl)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.PyroscopeAppName)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.PyroscopeSampleHz != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.PyroscopeSampleHz))
-	}
-	if m.PyroscopeUploadIntervalSec != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.PyroscopeUploadIntervalSec))
-	}
-	l = len(m.Topic)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.XtcpProtoFile)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.KafkaSchemaUrl)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.KafkaProduceTimeout != nil {
-		l = (*durationpb.Duration)(m.KafkaProduceTimeout).SizeVT()
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.DebugLevel != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.DebugLevel))
-	}
-	l = len(m.Label)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Tag)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Location)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Hostname)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.ResolveContainerId {
-		n += 3
-	}
-	if m.Ipv4Ttl != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv4Ttl))
-	}
-	if m.Ipv6HopLimit != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv6HopLimit))
-	}
-	l = len(m.DaemonVersion)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.GrpcPort != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.GrpcPort))
-	}
-	if m.EnabledDeserializers != nil {
-		l = m.EnabledDeserializers.SizeVT()
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.IoUring {
-		n += 3
-	}
-	if m.IoUringRecvBatchSize != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.IoUringRecvBatchSize))
-	}
-	if m.IoUringCqeBatchSize != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.IoUringCqeBatchSize))
-	}
-	l = len(m.CsvColumns)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.PollJitterPct != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.PollJitterPct))
+	if m.S3ParquetFlushThresholdBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3ParquetFlushThresholdBytes))
 	}
 	if m.S3FlushInterval != nil {
 		l = (*durationpb.Duration)(m.S3FlushInterval).SizeVT()
@@ -1758,11 +1709,50 @@ func (m *XtcpConfig) SizeVT() (n int) {
 		l = (*durationpb.Duration)(m.S3UploadBackoffCap).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.ReconcileFrequency != nil {
-		l = (*durationpb.Duration)(m.ReconcileFrequency).SizeVT()
+	l = len(m.Hostname)
+	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.ReconcileBeforePoll {
+	l = len(m.Location)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Label)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Tag)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.DaemonVersion)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.Ipv4Ttl != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv4Ttl))
+	}
+	if m.Ipv6HopLimit != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.Ipv6HopLimit))
+	}
+	if m.GrpcPort != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.GrpcPort))
+	}
+	l = len(m.PyroscopeUrl)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.PyroscopeAppName)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.PyroscopeSampleHz != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.PyroscopeSampleHz))
+	}
+	if m.PyroscopeUploadIntervalSec != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.PyroscopeUploadIntervalSec))
+	}
+	if m.ResolveContainerId {
 		n += 3
 	}
 	if m.EnrichContainerEnable {
@@ -3091,7 +3081,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 20:
+		case 11:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PollFrequency", wireType)
 			}
@@ -3127,7 +3117,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 30:
+		case 12:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PollTimeout", wireType)
 			}
@@ -3163,7 +3153,26 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 40:
+		case 13:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PollJitterPct", wireType)
+			}
+			m.PollJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PollJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 14:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field MaxLoops", wireType)
 			}
@@ -3182,7 +3191,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 50:
+		case 15:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Netlinkers", wireType)
 			}
@@ -3201,7 +3210,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 51:
+		case 16:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field NetlinkersDoneChanSize", wireType)
 			}
@@ -3220,7 +3229,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 60:
+		case 17:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field NlmsgSeq", wireType)
 			}
@@ -3239,7 +3248,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 70:
+		case 18:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PacketSize", wireType)
 			}
@@ -3258,7 +3267,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 80:
+		case 19:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PacketSizeMply", wireType)
 			}
@@ -3277,58 +3286,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 90:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field WriteFiles", wireType)
-			}
-			m.WriteFiles = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.WriteFiles |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 100:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CapturePath", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CapturePath = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 110:
+		case 20:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Modulus", wireType)
 			}
@@ -3347,881 +3305,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 120:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MarshalTo", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.MarshalTo = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 122:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field EnvelopeFlushThresholdBytes", wireType)
-			}
-			m.EnvelopeFlushThresholdBytes = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.EnvelopeFlushThresholdBytes |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 123:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field EnvelopeFlushThresholdRows", wireType)
-			}
-			m.EnvelopeFlushThresholdRows = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.EnvelopeFlushThresholdRows |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 124:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KafkaCompression", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.KafkaCompression = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 125:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3Endpoint", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3Endpoint = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 126:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3Bucket", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3Bucket = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 127:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3Prefix", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3Prefix = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 128:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3AccessKey", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3AccessKey = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 129:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3SecretKey", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3SecretKey = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 130:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Dest", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Dest = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 132:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3ParquetFlushThresholdBytes", wireType)
-			}
-			m.S3ParquetFlushThresholdBytes = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.S3ParquetFlushThresholdBytes |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 133:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3Region", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.S3Region = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 134:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3SkipBucketProbe", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.S3SkipBucketProbe = bool(v != 0)
-		case 135:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DestWriteFiles", wireType)
-			}
-			m.DestWriteFiles = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.DestWriteFiles |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 136:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeUrl", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PyroscopeUrl = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 137:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeAppName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PyroscopeAppName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 138:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeSampleHz", wireType)
-			}
-			m.PyroscopeSampleHz = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.PyroscopeSampleHz |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 139:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeUploadIntervalSec", wireType)
-			}
-			m.PyroscopeUploadIntervalSec = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.PyroscopeUploadIntervalSec |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 140:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Topic", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Topic = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 143:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field XtcpProtoFile", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XtcpProtoFile = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 145:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KafkaSchemaUrl", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.KafkaSchemaUrl = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 150:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KafkaProduceTimeout", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.KafkaProduceTimeout == nil {
-				m.KafkaProduceTimeout = &durationpb1.Duration{}
-			}
-			if err := (*durationpb.Duration)(m.KafkaProduceTimeout).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 160:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DebugLevel", wireType)
-			}
-			m.DebugLevel = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.DebugLevel |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 170:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Label", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Label = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 180:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Tag", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Tag = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 181:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Location", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Location = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 182:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Hostname = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 183:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResolveContainerId", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.ResolveContainerId = bool(v != 0)
-		case 184:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Ipv4Ttl", wireType)
-			}
-			m.Ipv4Ttl = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Ipv4Ttl |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 185:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Ipv6HopLimit", wireType)
-			}
-			m.Ipv6HopLimit = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Ipv6HopLimit |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 186:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DaemonVersion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.DaemonVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 190:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GrpcPort", wireType)
-			}
-			m.GrpcPort = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.GrpcPort |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 200:
+		case 21:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnabledDeserializers", wireType)
 			}
@@ -4257,7 +3341,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 210:
+		case 22:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IoUring", wireType)
 			}
@@ -4277,7 +3361,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.IoUring = bool(v != 0)
-		case 211:
+		case 23:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IoUringRecvBatchSize", wireType)
 			}
@@ -4296,7 +3380,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 212:
+		case 24:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IoUringCqeBatchSize", wireType)
 			}
@@ -4315,187 +3399,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 220:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CsvColumns", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CsvColumns = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 221:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PollJitterPct", wireType)
-			}
-			m.PollJitterPct = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.PollJitterPct |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 222:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushInterval", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.S3FlushInterval == nil {
-				m.S3FlushInterval = &durationpb1.Duration{}
-			}
-			if err := (*durationpb.Duration)(m.S3FlushInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 223:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushJitterPct", wireType)
-			}
-			m.S3FlushJitterPct = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.S3FlushJitterPct |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 224:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushThresholdJitterPct", wireType)
-			}
-			m.S3FlushThresholdJitterPct = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.S3FlushThresholdJitterPct |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 225:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadMaxAttempts", wireType)
-			}
-			m.S3UploadMaxAttempts = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.S3UploadMaxAttempts |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 226:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadBackoffCap", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.S3UploadBackoffCap == nil {
-				m.S3UploadBackoffCap = &durationpb1.Duration{}
-			}
-			if err := (*durationpb.Duration)(m.S3UploadBackoffCap).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 227:
+		case 40:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ReconcileFrequency", wireType)
 			}
@@ -4531,7 +3435,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 228:
+		case 41:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ReconcileBeforePoll", wireType)
 			}
@@ -4551,7 +3455,1093 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ReconcileBeforePoll = bool(v != 0)
-		case 230:
+		case 50:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriteFiles", wireType)
+			}
+			m.WriteFiles = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.WriteFiles |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 51:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CapturePath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CapturePath = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 52:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DestWriteFiles", wireType)
+			}
+			m.DestWriteFiles = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DestWriteFiles |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 53:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DebugLevel", wireType)
+			}
+			m.DebugLevel = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DebugLevel |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 60:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Dest", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Dest = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 61:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MarshalTo", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MarshalTo = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 62:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CsvColumns", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CsvColumns = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 63:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field XtcpProtoFile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XtcpProtoFile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 64:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnvelopeFlushThresholdBytes", wireType)
+			}
+			m.EnvelopeFlushThresholdBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnvelopeFlushThresholdBytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 65:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnvelopeFlushThresholdRows", wireType)
+			}
+			m.EnvelopeFlushThresholdRows = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnvelopeFlushThresholdRows |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 80:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Topic", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Topic = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 81:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KafkaSchemaUrl", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KafkaSchemaUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 82:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KafkaProduceTimeout", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.KafkaProduceTimeout == nil {
+				m.KafkaProduceTimeout = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.KafkaProduceTimeout).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 83:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KafkaCompression", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KafkaCompression = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 100:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3Endpoint", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3Endpoint = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 101:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3Region", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3Region = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 102:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3Bucket", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3Bucket = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 103:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3Prefix", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3Prefix = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 104:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3AccessKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3AccessKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 105:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3SecretKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3SecretKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 106:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3SkipBucketProbe", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.S3SkipBucketProbe = bool(v != 0)
+		case 110:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3ParquetFlushThresholdBytes", wireType)
+			}
+			m.S3ParquetFlushThresholdBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3ParquetFlushThresholdBytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 111:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushInterval", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.S3FlushInterval == nil {
+				m.S3FlushInterval = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.S3FlushInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 112:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushJitterPct", wireType)
+			}
+			m.S3FlushJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3FlushJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 113:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3FlushThresholdJitterPct", wireType)
+			}
+			m.S3FlushThresholdJitterPct = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3FlushThresholdJitterPct |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 114:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadMaxAttempts", wireType)
+			}
+			m.S3UploadMaxAttempts = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3UploadMaxAttempts |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 115:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3UploadBackoffCap", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.S3UploadBackoffCap == nil {
+				m.S3UploadBackoffCap = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.S3UploadBackoffCap).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 130:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hostname = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 131:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Location", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Location = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 132:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Label", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Label = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 133:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Tag", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Tag = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 134:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DaemonVersion", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DaemonVersion = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 150:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ipv4Ttl", wireType)
+			}
+			m.Ipv4Ttl = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Ipv4Ttl |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 151:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ipv6HopLimit", wireType)
+			}
+			m.Ipv6HopLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Ipv6HopLimit |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 160:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GrpcPort", wireType)
+			}
+			m.GrpcPort = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.GrpcPort |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 170:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeUrl", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PyroscopeUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 171:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeAppName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PyroscopeAppName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 172:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeSampleHz", wireType)
+			}
+			m.PyroscopeSampleHz = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PyroscopeSampleHz |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 173:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PyroscopeUploadIntervalSec", wireType)
+			}
+			m.PyroscopeUploadIntervalSec = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PyroscopeUploadIntervalSec |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 200:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResolveContainerId", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ResolveContainerId = bool(v != 0)
+		case 201:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnrichContainerEnable", wireType)
 			}
@@ -4571,7 +4561,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EnrichContainerEnable = bool(v != 0)
-		case 231:
+		case 202:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field DockerSocketPath", wireType)
 			}
@@ -4603,7 +4593,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.DockerSocketPath = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 232:
+		case 210:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnrichLldpEnable", wireType)
 			}
@@ -4623,7 +4613,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EnrichLldpEnable = bool(v != 0)
-		case 233:
+		case 211:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LldpdSocketPath", wireType)
 			}
@@ -4655,7 +4645,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.LldpdSocketPath = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 234:
+		case 212:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LldpdVersionHint", wireType)
 			}
@@ -4687,7 +4677,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.LldpdVersionHint = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 235:
+		case 220:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnrichNicEnable", wireType)
 			}
@@ -4707,7 +4697,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EnrichNicEnable = bool(v != 0)
-		case 236:
+		case 221:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UplinkCount", wireType)
 			}
@@ -4726,7 +4716,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 237:
+		case 222:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UplinkInterfaces", wireType)
 			}
@@ -4758,7 +4748,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.UplinkInterfaces = append(m.UplinkInterfaces, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
-		case 238:
+		case 230:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PopulateNsid", wireType)
 			}
@@ -4778,7 +4768,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.PopulateNsid = bool(v != 0)
-		case 239:
+		case 240:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnrichAsnEnable", wireType)
 			}
@@ -4798,7 +4788,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EnrichAsnEnable = bool(v != 0)
-		case 240:
+		case 241:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AsnDbPath", wireType)
 			}
@@ -4830,7 +4820,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			}
 			m.AsnDbPath = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 241:
+		case 242:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AsnRefreshInterval", wireType)
 			}
@@ -4866,7 +4856,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 242:
+		case 245:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EnrichLocalityEnable", wireType)
 			}
@@ -4886,7 +4876,7 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EnrichLocalityEnable = bool(v != 0)
-		case 243:
+		case 246:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LocalityRefreshInterval", wireType)
 			}

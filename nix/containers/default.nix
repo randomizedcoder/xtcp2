@@ -77,14 +77,25 @@ let
       #   TCP_PADS     bytes of zero-pad per message   (default 2048)
       #   TCP_CONNECT  host the clients dial           (default 127.0.0.1)
       #   TCP_BIND     iface the server listens on     (default 0.0.0.0)
+      #   TCP_SRCADDR  bind clients' source IP         (default: kernel picks)
+      #   TCP_IFACE    bind clients to this interface  (default: kernel picks)
+      #                (SO_BINDTODEVICE — drives xtcp2 interface-name enrichment)
       MODE="''${TCP_MODE:-both}"
       COUNT="''${TCP_COUNT:-100}"
       SLEEP="''${TCP_SLEEP:-5s}"
       PADS="''${TCP_PADS:-2048}"
       CONNECT="''${TCP_CONNECT:-127.0.0.1}"
       BIND="''${TCP_BIND:-0.0.0.0}"
+      SRCADDR="''${TCP_SRCADDR:-}"
+      IFACE="''${TCP_IFACE:-}"
 
-      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS connect=$CONNECT bind=$BIND"
+      # Optional source-address / interface binds for the client half. Left out
+      # entirely when unset so the kernel keeps choosing (original behaviour).
+      CLIENT_EXTRA=()
+      if [ -n "$SRCADDR" ]; then CLIENT_EXTRA+=(-srcaddr "$SRCADDR"); fi
+      if [ -n "$IFACE" ]; then CLIENT_EXTRA+=(-iface "$IFACE"); fi
+
+      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS connect=$CONNECT bind=$BIND srcaddr=''${SRCADDR:-<default>} iface=''${IFACE:-<default>}"
 
       case "$MODE" in
         server)
@@ -92,7 +103,7 @@ let
           ;;
         client)
           exec /bin/tcp_client -count "$COUNT" -connect "$CONNECT" \
-            -sleep "$SLEEP" -pads "$PADS"
+            -sleep "$SLEEP" -pads "$PADS" "''${CLIENT_EXTRA[@]}"
           ;;
         both)
           # In single-container mode we run both halves: server in
@@ -101,7 +112,7 @@ let
           /bin/tcp_server -count "$COUNT" -bind "$BIND" &
           sleep 2
           exec /bin/tcp_client -count "$COUNT" -connect "$CONNECT" \
-            -sleep "$SLEEP" -pads "$PADS"
+            -sleep "$SLEEP" -pads "$PADS" "''${CLIENT_EXTRA[@]}"
           ;;
         *)
           echo "unknown TCP_MODE: $MODE (want: server | client | both)" >&2

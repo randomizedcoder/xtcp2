@@ -1,7 +1,9 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -82,6 +84,77 @@ func TestGet(t *testing.T) {
 			}
 			if !tc.wantErr && string(res.Body) != tc.wantBody {
 				t.Errorf("%s: body = %q, want %q", tc.desc, res.Body, tc.wantBody)
+			}
+		})
+	}
+}
+
+// TestGetBodyLimit covers the response-body size cap. The package-level
+// maxBodyBytes is lowered for the test (and restored via t.Cleanup) so the
+// boundary can be exercised with a few KiB rather than 256 MiB over httptest.
+func TestGetBodyLimit(t *testing.T) {
+	const limit = 4096
+	prev := maxBodyBytes
+	maxBodyBytes = limit
+	t.Cleanup(func() { maxBodyBytes = prev })
+
+	tests := []struct {
+		description   string
+		bodySize      int
+		maxAttempts   int
+		expectErr     bool
+		expectTooBig  bool // errors.Is(err, ErrBodyTooLarge)
+		expectBodyLen int  // only checked when !expectErr
+		expectCalls   int  // server hits: an over-limit body must not be retried
+	}{
+		// positive
+		{description: "positive: a small body under the limit is returned whole",
+			bodySize: 10, maxAttempts: 3, expectErr: false, expectBodyLen: 10, expectCalls: 1},
+		{description: "positive: a body well under the limit is returned whole",
+			bodySize: limit / 2, maxAttempts: 3, expectErr: false, expectBodyLen: limit / 2, expectCalls: 1},
+		// negative
+		{description: "negative: a body far over the limit fails with ErrBodyTooLarge",
+			bodySize: limit * 4, maxAttempts: 3, expectErr: true, expectTooBig: true, expectCalls: 1},
+		// boundary
+		{description: "boundary: a body exactly at the limit is accepted",
+			bodySize: limit, maxAttempts: 3, expectErr: false, expectBodyLen: limit, expectCalls: 1},
+		{description: "boundary: a body one byte over the limit is rejected",
+			bodySize: limit + 1, maxAttempts: 3, expectErr: true, expectTooBig: true, expectCalls: 1},
+		{description: "boundary: an empty 200 body is accepted (zero bytes)",
+			bodySize: 0, maxAttempts: 3, expectErr: false, expectBodyLen: 0, expectCalls: 1},
+		// corner
+		{description: "corner: an over-limit body is not retried even with attempts remaining",
+			bodySize: limit + 1, maxAttempts: 5, expectErr: true, expectTooBig: true, expectCalls: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(bytes.Repeat([]byte{'x'}, tc.bodySize))
+			}))
+			defer srv.Close()
+			c := testClient(tc.maxAttempts, nil)
+
+			res, err := c.Get(context.Background(), srv.URL, Conditional{})
+			if tc.expectErr && err == nil {
+				t.Fatalf("expected error, got nil (body len %d)", len(res.Body))
+			}
+			if !tc.expectErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if errors.Is(err, ErrBodyTooLarge) != tc.expectTooBig {
+				t.Errorf("errors.Is(err, ErrBodyTooLarge) = %v, want %v (err=%v)", !tc.expectTooBig, tc.expectTooBig, err)
+			}
+			if !tc.expectErr && len(res.Body) != tc.expectBodyLen {
+				t.Errorf("body len = %d, want %d", len(res.Body), tc.expectBodyLen)
+			}
+			if tc.expectErr && res.Body != nil {
+				t.Errorf("body should not be retained on error, got %d bytes", len(res.Body))
+			}
+			if calls != tc.expectCalls {
+				t.Errorf("server calls = %d, want %d", calls, tc.expectCalls)
 			}
 		})
 	}

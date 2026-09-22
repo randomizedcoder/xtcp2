@@ -520,6 +520,7 @@ in
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-interface-naming = microvms.vmsInterfaceNaming.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
       microvm-x86_64-clickhouse-http = microvms.vmsClickHttp.x86_64;
       microvm-x86_64-clickhouse-pipeline-rate = microvms.vmsClickPipeRate.x86_64;
@@ -563,6 +564,7 @@ in
       test-microvm-lifecycle-x86_64-unixgram-sink = microvms.lifecycleUnixgramSink.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nats = microvms.lifecycleNats.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nsq = microvms.lifecycleNsq.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-interface-naming = microvms.lifecycleInterfaceNaming.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
 

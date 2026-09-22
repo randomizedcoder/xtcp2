@@ -79,7 +79,13 @@ pkgs.writeShellApplication {
     sudo "$IP" link add "$IFACE" type nlmon
     sudo "$IP" link set dev "$IFACE" up
 
-    cleanup() { sudo "$IP" link del "$IFACE" 2>/dev/null || true; }
+    # The trap also chowns $OUT back: tcpdump/tee run as root, so an abort
+    # halfway (Ctrl-C, a failed dump) would otherwise leave root-owned files
+    # the unprivileged caller cannot delete or overwrite on the next run.
+    cleanup() {
+      sudo "$IP" link del "$IFACE" 2>/dev/null || true
+      sudo "$CHOWN" -R "$USER_NAME:$GROUP_NAME" "$OUT" 2>/dev/null || true
+    }
     trap cleanup EXIT
 
     # Capture one dump type into a raw pcap, then filter to NETLINK_ROUTE.
@@ -103,6 +109,8 @@ pkgs.writeShellApplication {
       echo "   -> $OUT/$name.pcap ($n NETLINK_ROUTE packets)"
     }
 
+    # Note: `ip addr show` issues an RTM_GETLINK dump before RTM_GETADDR, so the
+    # getaddr pcaps also carry RTM_NEWLINK replies; parsers filter by type.
     gen_addr() { "$IP" -4 addr show; "$IP" -6 addr show; }
     gen_route() { "$IP" route show table all; }
     gen_link() { "$IP" link show; }

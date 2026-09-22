@@ -4,7 +4,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -112,8 +114,20 @@ func LoadFile(path string) (Source, error) {
 
 // LoadDir loads every *.yaml / *.yml file in dir, returning only enabled
 // sources sorted by name. A parse/validation error in any file is returned so
-// a broken config fails fast rather than silently dropping a feed.
+// a broken config fails fast rather than silently dropping a feed. The
+// directory is stat'ed first so a missing or wrong -sources-dir produces a
+// clear error instead of an empty glob that looks like "no sources".
 func LoadDir(dir string) ([]Source, error) {
+	fi, err := os.Stat(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, fmt.Errorf("sources dir %s: not found", dir)
+	case err != nil:
+		return nil, fmt.Errorf("sources dir %s: %w", dir, err)
+	case !fi.IsDir():
+		return nil, fmt.Errorf("sources dir %s: not a directory", dir)
+	}
+
 	var paths []string
 	for _, pat := range []string{"*.yaml", "*.yml"} {
 		m, err := filepath.Glob(filepath.Join(dir, pat))

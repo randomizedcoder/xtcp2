@@ -1,8 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	// Import parse so its parsers register via init(), making parser keys like
@@ -55,40 +58,167 @@ func TestLoadFile(t *testing.T) {
 	}
 }
 
+// TestLoadDir covers directory-level loading: the up-front stat of the
+// sources dir, file globbing, enabled filtering, ordering, and cross-file
+// duplicate detection. Each row's setup builds the directory (or non-directory)
+// to load and returns the path to pass to LoadDir.
 func TestLoadDir(t *testing.T) {
-	t.Run("positive_enabled_only_sorted", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, "b.yaml", "name: bbb\nurl: https://x\nparser: text_cidr\n")
-		writeFile(t, dir, "a.yaml", "name: aaa\nurl: https://x\nparser: text_cidr\n")
-		writeFile(t, dir, "off.yaml", "name: ccc\nurl: https://x\nparser: text_cidr\nenabled: false\n")
-		got, err := LoadDir(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(got) != 2 {
-			t.Fatalf("got %d sources, want 2 (disabled excluded)", len(got))
-		}
-		if got[0].Name != "aaa" || got[1].Name != "bbb" {
-			t.Errorf("not sorted by name: %q, %q", got[0].Name, got[1].Name)
-		}
-	})
+	const valid = "name: %s\nurl: https://x\nparser: text_cidr\n"
 
-	t.Run("negative_duplicate_name", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, "one.yaml", "name: dup\nurl: https://x\nparser: csv\n")
-		writeFile(t, dir, "two.yaml", "name: dup\nurl: https://y\nparser: csv\n")
-		if _, err := LoadDir(dir); err == nil {
-			t.Fatal("expected duplicate-name error, got nil")
-		}
-	})
-
-	t.Run("boundary_empty_dir", func(t *testing.T) {
-		got, err := LoadDir(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(got) != 0 {
-			t.Fatalf("got %d, want 0", len(got))
-		}
-	})
+	tests := []struct {
+		description   string
+		setup         func(t *testing.T) string // returns the path handed to LoadDir
+		expectErr     bool
+		expectErrText string   // substring the error must contain (when expectErr)
+		expectNames   []string // enabled source names, in returned order (when !expectErr)
+	}{
+		// positive
+		{
+			description: "positive: a dir with one valid yaml loads that source",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "cf.yaml", fmt.Sprintf(valid, "cloudflare"))
+				return dir
+			},
+			expectNames: []string{"cloudflare"},
+		},
+		{
+			description: "positive: multiple files load sorted by source name, disabled ones excluded",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "b.yaml", fmt.Sprintf(valid, "bbb"))
+				writeFile(t, dir, "a.yaml", fmt.Sprintf(valid, "aaa"))
+				writeFile(t, dir, "off.yaml", fmt.Sprintf(valid, "ccc")+"enabled: false\n")
+				return dir
+			},
+			expectNames: []string{"aaa", "bbb"},
+		},
+		// negative
+		{
+			description: "negative: a missing dir errors with a clear 'not found'",
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "does-not-exist")
+			},
+			expectErr:     true,
+			expectErrText: "not found",
+		},
+		{
+			description: "negative: a path that is a file, not a dir, errors with 'not a directory'",
+			setup: func(t *testing.T) string {
+				return writeFile(t, t.TempDir(), "sources.yaml", fmt.Sprintf(valid, "x"))
+			},
+			expectErr:     true,
+			expectErrText: "not a directory",
+		},
+		{
+			description: "negative: a dir containing an invalid yaml fails the whole load (fail fast)",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "good.yaml", fmt.Sprintf(valid, "good"))
+				writeFile(t, dir, "bad.yaml", "name: bad\nurl: https://x\nparser: nope_parser\n")
+				return dir
+			},
+			expectErr:     true,
+			expectErrText: "unknown parser",
+		},
+		{
+			description: "negative: malformed yaml syntax fails the load",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "broken.yaml", "name: [unterminated\n")
+				return dir
+			},
+			expectErr:     true,
+			expectErrText: "decode",
+		},
+		{
+			description: "negative: two files sharing a source name are rejected as duplicates",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "one.yaml", "name: dup\nurl: https://x\nparser: csv\n")
+				writeFile(t, dir, "two.yaml", "name: dup\nurl: https://y\nparser: csv\n")
+				return dir
+			},
+			expectErr:     true,
+			expectErrText: "duplicate source name",
+		},
+		// boundary
+		{
+			description: "boundary: an empty dir loads zero sources without error",
+			setup:       func(t *testing.T) string { return t.TempDir() },
+			expectNames: nil,
+		},
+		{
+			description: "boundary: a dir whose only source is disabled loads zero sources",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "off.yaml", fmt.Sprintf(valid, "off")+"enabled: false\n")
+				return dir
+			},
+			expectNames: nil,
+		},
+		// corner
+		{
+			description: "corner: .yml files are picked up alongside .yaml",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "a.yml", fmt.Sprintf(valid, "yml-source"))
+				writeFile(t, dir, "b.yaml", fmt.Sprintf(valid, "yaml-source"))
+				return dir
+			},
+			expectNames: []string{"yaml-source", "yml-source"},
+		},
+		{
+			description: "corner: non-yaml files in the dir are ignored, not parsed",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "README.md", "# not yaml at all\n")
+				writeFile(t, dir, "notes.txt", "name: [broken\n")
+				writeFile(t, dir, "ok.yaml", fmt.Sprintf(valid, "ok"))
+				return dir
+			},
+			expectNames: []string{"ok"},
+		},
+		{
+			description: "corner: a disabled duplicate still counts as a duplicate name",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				writeFile(t, dir, "one.yaml", fmt.Sprintf(valid, "dup"))
+				writeFile(t, dir, "two.yaml", fmt.Sprintf(valid, "dup")+"enabled: false\n")
+				return dir
+			},
+			expectErr:     true,
+			expectErrText: "duplicate source name",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			path := tc.setup(t)
+			got, err := LoadDir(path)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil (loaded %d sources)", tc.expectErrText, len(got))
+				}
+				if !strings.Contains(err.Error(), tc.expectErrText) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tc.expectErrText)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			var names []string
+			for _, s := range got {
+				names = append(names, s.Name)
+			}
+			if !slices.Equal(names, tc.expectNames) {
+				t.Errorf("source names = %q, want %q", names, tc.expectNames)
+			}
+			for _, s := range got {
+				if s.Path == "" {
+					t.Errorf("source %q: Path not recorded for diagnostics", s.Name)
+				}
+			}
+		})
+	}
 }

@@ -22,7 +22,7 @@ func vtEnvelope(rows int) *xtcp_flat_record.Envelope {
 			InetDiagMsgState:            1,
 			InetDiagMsgSocketSource:     []byte(net.ParseIP("10.0.0.5").To4()),
 			InetDiagMsgSocketSourcePort: 443,
-			CongestionAlgorithmEnum:     xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
+			InetDiagCongEnum:            xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
 			TcpInfoRtt:                  uint32(18000 + i),
 			TcpInfoMinRtt:               12011,
 			TcpInfoSndCwnd:              64,

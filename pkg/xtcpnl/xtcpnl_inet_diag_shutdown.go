@@ -84,7 +84,7 @@ func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrShutdownSmall
 	}
 
-	x.ShutdownState = uint32(data[0])
+	x.InetDiagShutdown = uint32(data[0])
 
 	return nil
 }

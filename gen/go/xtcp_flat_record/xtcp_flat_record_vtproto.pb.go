@@ -93,24 +93,22 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.CGroup != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.CGroup))
+	if m.InetDiagCgroupId != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagCgroupId))
 		i--
-		dAtA[i] = 0x1
+		dAtA[i] = 0x7d
 		i--
-		dAtA[i] = 0x83
-		i--
-		dAtA[i] = 0xb8
+		dAtA[i] = 0x98
 	}
-	if m.SockOpt != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SockOpt))
+	if m.InetDiagSockopt != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagSockopt))
 		i--
 		dAtA[i] = 0x7d
 		i--
 		dAtA[i] = 0x90
 	}
-	if m.ClassId != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ClassId))
+	if m.InetDiagClassId != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagClassId))
 		i--
 		dAtA[i] = 0x7d
 		i--
@@ -186,8 +184,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xc8
 	}
-	if m.VegasInfoMinRtt != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.VegasInfoMinRtt))
+	if m.VegasInfoMinrtt != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.VegasInfoMinrtt))
 		i--
 		dAtA[i] = 0x6a
 		i--
@@ -200,8 +198,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xb8
 	}
-	if m.VegasInfoRttCnt != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.VegasInfoRttCnt))
+	if m.VegasInfoRttcnt != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.VegasInfoRttcnt))
 		i--
 		dAtA[i] = 0x6a
 		i--
@@ -214,8 +212,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xa8
 	}
-	if m.ShutdownState != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ShutdownState))
+	if m.InetDiagShutdown != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagShutdown))
 		i--
 		dAtA[i] = 0x64
 		i--
@@ -256,8 +254,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x88
 	}
-	if m.SkMemInfoSndBuf != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SkMemInfoSndBuf))
+	if m.SkMemInfoSndbuf != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SkMemInfoSndbuf))
 		i--
 		dAtA[i] = 0x5e
 		i--
@@ -270,8 +268,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf8
 	}
-	if m.SkMemInfoRcvBuf != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SkMemInfoRcvBuf))
+	if m.SkMemInfoRcvbuf != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SkMemInfoRcvbuf))
 		i--
 		dAtA[i] = 0x5d
 		i--
@@ -284,31 +282,31 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xe8
 	}
-	if m.TrafficClass != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TrafficClass))
+	if m.InetDiagTclass != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagTclass))
 		i--
 		dAtA[i] = 0x57
 		i--
 		dAtA[i] = 0xd0
 	}
-	if m.TypeOfService != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TypeOfService))
+	if m.InetDiagTos != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagTos))
 		i--
 		dAtA[i] = 0x57
 		i--
 		dAtA[i] = 0xc8
 	}
-	if m.CongestionAlgorithmEnum != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.CongestionAlgorithmEnum))
+	if m.InetDiagCongEnum != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagCongEnum))
 		i--
 		dAtA[i] = 0x51
 		i--
 		dAtA[i] = 0xa8
 	}
-	if len(m.CongestionAlgorithmString) > 0 {
-		i -= len(m.CongestionAlgorithmString)
-		copy(dAtA[i:], m.CongestionAlgorithmString)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CongestionAlgorithmString)))
+	if len(m.InetDiagCong) > 0 {
+		i -= len(m.InetDiagCong)
+		copy(dAtA[i:], m.InetDiagCong)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.InetDiagCong)))
 		i--
 		dAtA[i] = 0x51
 		i--
@@ -454,8 +452,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf0
 	}
-	if m.TcpInfoNotSentBytes != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoNotSentBytes))
+	if m.TcpInfoNotsentBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoNotsentBytes))
 		i--
 		dAtA[i] = 0x4d
 		i--
@@ -531,8 +529,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x98
 	}
-	if m.TcpInfoAdvMss != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoAdvMss))
+	if m.TcpInfoAdvmss != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoAdvmss))
 		i--
 		dAtA[i] = 0x4d
 		i--
@@ -552,8 +550,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x80
 	}
-	if m.TcpInfoRttVar != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoRttVar))
+	if m.TcpInfoRttvar != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoRttvar))
 		i--
 		dAtA[i] = 0x4c
 		i--
@@ -671,8 +669,8 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf8
 	}
-	if m.TcpInfoFastOpenClientFailed != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoFastOpenClientFailed))
+	if m.TcpInfoFastopenClientFail != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoFastopenClientFail))
 		i--
 		dAtA[i] = 0x4b
 		i--
@@ -685,15 +683,15 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xc8
 	}
-	if m.TcpInfoRcvScale != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoRcvScale))
+	if m.TcpInfoRcvWscale != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoRcvWscale))
 		i--
 		dAtA[i] = 0x4b
 		i--
 		dAtA[i] = 0xc0
 	}
-	if m.TcpInfoSendScale != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoSendScale))
+	if m.TcpInfoSndWscale != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoSndWscale))
 		i--
 		dAtA[i] = 0x4b
 		i--
@@ -769,22 +767,6 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xe8
 	}
-	if m.InetDiagMsgSocketDestLocality != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgSocketDestLocality))
-		i--
-		dAtA[i] = 0x3f
-		i--
-		dAtA[i] = 0xd8
-	}
-	if len(m.InetDiagMsgSocketDestNetworkOwner) > 0 {
-		i -= len(m.InetDiagMsgSocketDestNetworkOwner)
-		copy(dAtA[i:], m.InetDiagMsgSocketDestNetworkOwner)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.InetDiagMsgSocketDestNetworkOwner)))
-		i--
-		dAtA[i] = 0x3f
-		i--
-		dAtA[i] = 0xd2
-	}
 	if m.InetDiagMsgInode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgInode))
 		i--
@@ -819,20 +801,6 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x3f
 		i--
 		dAtA[i] = 0xa8
-	}
-	if m.InetDiagMsgSocketNextHopAsn != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgSocketNextHopAsn))
-		i--
-		dAtA[i] = 0x3f
-		i--
-		dAtA[i] = 0xa0
-	}
-	if m.InetDiagMsgSocketDestAsn != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgSocketDestAsn))
-		i--
-		dAtA[i] = 0x3f
-		i--
-		dAtA[i] = 0x98
 	}
 	if m.InetDiagMsgSocketCookie != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InetDiagMsgSocketCookie))
@@ -907,6 +875,61 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x3e
 		i--
 		dAtA[i] = 0xc8
+	}
+	if len(m.EnrichSocketDestNetworkOwner) > 0 {
+		i -= len(m.EnrichSocketDestNetworkOwner)
+		copy(dAtA[i:], m.EnrichSocketDestNetworkOwner)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.EnrichSocketDestNetworkOwner)))
+		i--
+		dAtA[i] = 0x14
+		i--
+		dAtA[i] = 0x92
+	}
+	if m.EnrichSocketDestNextHopAsn != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnrichSocketDestNextHopAsn))
+		i--
+		dAtA[i] = 0x14
+		i--
+		dAtA[i] = 0x88
+	}
+	if m.EnrichSocketDestAsn != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnrichSocketDestAsn))
+		i--
+		dAtA[i] = 0x14
+		i--
+		dAtA[i] = 0x80
+	}
+	if len(m.EnrichSocketDestEgressIfname) > 0 {
+		i -= len(m.EnrichSocketDestEgressIfname)
+		copy(dAtA[i:], m.EnrichSocketDestEgressIfname)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.EnrichSocketDestEgressIfname)))
+		i--
+		dAtA[i] = 0x13
+		i--
+		dAtA[i] = 0xc2
+	}
+	if m.EnrichSocketDestEgressIfindex != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnrichSocketDestEgressIfindex))
+		i--
+		dAtA[i] = 0x13
+		i--
+		dAtA[i] = 0xb8
+	}
+	if m.EnrichSocketDestLocality != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.EnrichSocketDestLocality))
+		i--
+		dAtA[i] = 0x13
+		i--
+		dAtA[i] = 0xb0
+	}
+	if len(m.EnrichSocketInterfaceName) > 0 {
+		i -= len(m.EnrichSocketInterfaceName)
+		copy(dAtA[i:], m.EnrichSocketInterfaceName)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.EnrichSocketInterfaceName)))
+		i--
+		dAtA[i] = 0x12
+		i--
+		dAtA[i] = 0xe2
 	}
 	if len(m.Uplink2LldpPortDescr) > 0 {
 		i -= len(m.Uplink2LldpPortDescr)
@@ -1599,6 +1622,30 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	l = len(m.EnrichSocketInterfaceName)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.EnrichSocketDestLocality != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.EnrichSocketDestLocality))
+	}
+	if m.EnrichSocketDestEgressIfindex != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.EnrichSocketDestEgressIfindex))
+	}
+	l = len(m.EnrichSocketDestEgressIfname)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.EnrichSocketDestAsn != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.EnrichSocketDestAsn))
+	}
+	if m.EnrichSocketDestNextHopAsn != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.EnrichSocketDestNextHopAsn))
+	}
+	l = len(m.EnrichSocketDestNetworkOwner)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	if m.InetDiagMsgFamily != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgFamily))
 	}
@@ -1631,12 +1678,6 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.InetDiagMsgSocketCookie != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgSocketCookie))
 	}
-	if m.InetDiagMsgSocketDestAsn != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgSocketDestAsn))
-	}
-	if m.InetDiagMsgSocketNextHopAsn != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgSocketNextHopAsn))
-	}
 	if m.InetDiagMsgExpires != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgExpires))
 	}
@@ -1651,13 +1692,6 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	}
 	if m.InetDiagMsgInode != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgInode))
-	}
-	l = len(m.InetDiagMsgSocketDestNetworkOwner)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	if m.InetDiagMsgSocketDestLocality != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagMsgSocketDestLocality))
 	}
 	if m.MemInfoRmem != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.MemInfoRmem))
@@ -1689,17 +1723,17 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.TcpInfoOptions != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoOptions))
 	}
-	if m.TcpInfoSendScale != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoSendScale))
+	if m.TcpInfoSndWscale != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoSndWscale))
 	}
-	if m.TcpInfoRcvScale != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRcvScale))
+	if m.TcpInfoRcvWscale != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRcvWscale))
 	}
 	if m.TcpInfoDeliveryRateAppLimited != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoDeliveryRateAppLimited))
 	}
-	if m.TcpInfoFastOpenClientFailed != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoFastOpenClientFailed))
+	if m.TcpInfoFastopenClientFail != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoFastopenClientFail))
 	}
 	if m.TcpInfoRto != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRto))
@@ -1749,8 +1783,8 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.TcpInfoRtt != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRtt))
 	}
-	if m.TcpInfoRttVar != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRttVar))
+	if m.TcpInfoRttvar != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoRttvar))
 	}
 	if m.TcpInfoSndSsthresh != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoSndSsthresh))
@@ -1758,8 +1792,8 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.TcpInfoSndCwnd != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoSndCwnd))
 	}
-	if m.TcpInfoAdvMss != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoAdvMss))
+	if m.TcpInfoAdvmss != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoAdvmss))
 	}
 	if m.TcpInfoReordering != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoReordering))
@@ -1791,8 +1825,8 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.TcpInfoSegsIn != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoSegsIn))
 	}
-	if m.TcpInfoNotSentBytes != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoNotSentBytes))
+	if m.TcpInfoNotsentBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoNotsentBytes))
 	}
 	if m.TcpInfoMinRtt != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoMinRtt))
@@ -1854,30 +1888,30 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.TcpInfoTotalRtoTime != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoTotalRtoTime))
 	}
-	l = len(m.CongestionAlgorithmString)
+	l = len(m.InetDiagCong)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.CongestionAlgorithmEnum != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.CongestionAlgorithmEnum))
+	if m.InetDiagCongEnum != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagCongEnum))
 	}
-	if m.TypeOfService != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TypeOfService))
+	if m.InetDiagTos != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagTos))
 	}
-	if m.TrafficClass != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.TrafficClass))
+	if m.InetDiagTclass != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagTclass))
 	}
 	if m.SkMemInfoRmemAlloc != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoRmemAlloc))
 	}
-	if m.SkMemInfoRcvBuf != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoRcvBuf))
+	if m.SkMemInfoRcvbuf != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoRcvbuf))
 	}
 	if m.SkMemInfoWmemAlloc != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoWmemAlloc))
 	}
-	if m.SkMemInfoSndBuf != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoSndBuf))
+	if m.SkMemInfoSndbuf != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoSndbuf))
 	}
 	if m.SkMemInfoFwdAlloc != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoFwdAlloc))
@@ -1894,20 +1928,20 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.SkMemInfoDrops != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.SkMemInfoDrops))
 	}
-	if m.ShutdownState != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.ShutdownState))
+	if m.InetDiagShutdown != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagShutdown))
 	}
 	if m.VegasInfoEnabled != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoEnabled))
 	}
-	if m.VegasInfoRttCnt != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoRttCnt))
+	if m.VegasInfoRttcnt != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoRttcnt))
 	}
 	if m.VegasInfoRtt != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoRtt))
 	}
-	if m.VegasInfoMinRtt != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoMinRtt))
+	if m.VegasInfoMinrtt != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.VegasInfoMinrtt))
 	}
 	if m.DctcpInfoEnabled != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.DctcpInfoEnabled))
@@ -1939,14 +1973,14 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	if m.BbrInfoCwndGain != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.BbrInfoCwndGain))
 	}
-	if m.ClassId != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.ClassId))
+	if m.InetDiagClassId != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagClassId))
 	}
-	if m.SockOpt != 0 {
-		n += 2 + protohelpers.SizeOfVarint(uint64(m.SockOpt))
+	if m.InetDiagSockopt != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagSockopt))
 	}
-	if m.CGroup != 0 {
-		n += 3 + protohelpers.SizeOfVarint(uint64(m.CGroup))
+	if m.InetDiagCgroupId != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.InetDiagCgroupId))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3321,6 +3355,178 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Uplink2LldpPortDescr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 300:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketInterfaceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EnrichSocketInterfaceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 310:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestLocality", wireType)
+			}
+			m.EnrichSocketDestLocality = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnrichSocketDestLocality |= XtcpFlatRecord_Locality(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 311:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestEgressIfindex", wireType)
+			}
+			m.EnrichSocketDestEgressIfindex = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnrichSocketDestEgressIfindex |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 312:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestEgressIfname", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EnrichSocketDestEgressIfname = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 320:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestAsn", wireType)
+			}
+			m.EnrichSocketDestAsn = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnrichSocketDestAsn |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 321:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestNextHopAsn", wireType)
+			}
+			m.EnrichSocketDestNextHopAsn = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EnrichSocketDestNextHopAsn |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 322:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EnrichSocketDestNetworkOwner", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EnrichSocketDestNetworkOwner = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 1001:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgFamily", wireType)
@@ -3541,44 +3747,6 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 1011:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgSocketDestAsn", wireType)
-			}
-			m.InetDiagMsgSocketDestAsn = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.InetDiagMsgSocketDestAsn |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 1012:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgSocketNextHopAsn", wireType)
-			}
-			m.InetDiagMsgSocketNextHopAsn = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.InetDiagMsgSocketNextHopAsn |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		case 1013:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgExpires", wireType)
@@ -3670,57 +3838,6 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.InetDiagMsgInode |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 1018:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgSocketDestNetworkOwner", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.InetDiagMsgSocketDestNetworkOwner = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 1019:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagMsgSocketDestLocality", wireType)
-			}
-			m.InetDiagMsgSocketDestLocality = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.InetDiagMsgSocketDestLocality |= XtcpFlatRecord_Locality(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -3917,9 +4034,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1207:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoSendScale", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoSndWscale", wireType)
 			}
-			m.TcpInfoSendScale = 0
+			m.TcpInfoSndWscale = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -3929,16 +4046,16 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoSendScale |= uint32(b&0x7F) << shift
+				m.TcpInfoSndWscale |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 1208:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoRcvScale", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoRcvWscale", wireType)
 			}
-			m.TcpInfoRcvScale = 0
+			m.TcpInfoRcvWscale = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -3948,7 +4065,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoRcvScale |= uint32(b&0x7F) << shift
+				m.TcpInfoRcvWscale |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -3974,9 +4091,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1210:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoFastOpenClientFailed", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoFastopenClientFail", wireType)
 			}
-			m.TcpInfoFastOpenClientFailed = 0
+			m.TcpInfoFastopenClientFail = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -3986,7 +4103,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoFastOpenClientFailed |= uint32(b&0x7F) << shift
+				m.TcpInfoFastopenClientFail |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4297,9 +4414,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1231:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoRttVar", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoRttvar", wireType)
 			}
-			m.TcpInfoRttVar = 0
+			m.TcpInfoRttvar = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -4309,7 +4426,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoRttVar |= uint32(b&0x7F) << shift
+				m.TcpInfoRttvar |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4354,9 +4471,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1234:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoAdvMss", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoAdvmss", wireType)
 			}
-			m.TcpInfoAdvMss = 0
+			m.TcpInfoAdvmss = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -4366,7 +4483,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoAdvMss |= uint32(b&0x7F) << shift
+				m.TcpInfoAdvmss |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4563,9 +4680,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1245:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoNotSentBytes", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoNotsentBytes", wireType)
 			}
-			m.TcpInfoNotSentBytes = 0
+			m.TcpInfoNotsentBytes = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -4575,7 +4692,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TcpInfoNotSentBytes |= uint32(b&0x7F) << shift
+				m.TcpInfoNotsentBytes |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4962,7 +5079,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1300:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CongestionAlgorithmString", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagCong", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4990,13 +5107,13 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.CongestionAlgorithmString = string(dAtA[iNdEx:postIndex])
+			m.InetDiagCong = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 1301:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CongestionAlgorithmEnum", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagCongEnum", wireType)
 			}
-			m.CongestionAlgorithmEnum = 0
+			m.InetDiagCongEnum = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5006,16 +5123,16 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.CongestionAlgorithmEnum |= XtcpFlatRecord_CongestionAlgorithm(b&0x7F) << shift
+				m.InetDiagCongEnum |= XtcpFlatRecord_CongestionAlgorithm(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 1401:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TypeOfService", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagTos", wireType)
 			}
-			m.TypeOfService = 0
+			m.InetDiagTos = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5025,16 +5142,16 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TypeOfService |= uint32(b&0x7F) << shift
+				m.InetDiagTos |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 1402:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TrafficClass", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagTclass", wireType)
 			}
-			m.TrafficClass = 0
+			m.InetDiagTclass = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5044,7 +5161,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TrafficClass |= uint32(b&0x7F) << shift
+				m.InetDiagTclass |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5070,9 +5187,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1502:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SkMemInfoRcvBuf", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SkMemInfoRcvbuf", wireType)
 			}
-			m.SkMemInfoRcvBuf = 0
+			m.SkMemInfoRcvbuf = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5082,7 +5199,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.SkMemInfoRcvBuf |= uint32(b&0x7F) << shift
+				m.SkMemInfoRcvbuf |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5108,9 +5225,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1504:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SkMemInfoSndBuf", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SkMemInfoSndbuf", wireType)
 			}
-			m.SkMemInfoSndBuf = 0
+			m.SkMemInfoSndbuf = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5120,7 +5237,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.SkMemInfoSndBuf |= uint32(b&0x7F) << shift
+				m.SkMemInfoSndbuf |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5222,9 +5339,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1600:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ShutdownState", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagShutdown", wireType)
 			}
-			m.ShutdownState = 0
+			m.InetDiagShutdown = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5234,7 +5351,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.ShutdownState |= uint32(b&0x7F) << shift
+				m.InetDiagShutdown |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5260,9 +5377,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1702:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VegasInfoRttCnt", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field VegasInfoRttcnt", wireType)
 			}
-			m.VegasInfoRttCnt = 0
+			m.VegasInfoRttcnt = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5272,7 +5389,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.VegasInfoRttCnt |= uint32(b&0x7F) << shift
+				m.VegasInfoRttcnt |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5298,9 +5415,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 1704:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VegasInfoMinRtt", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field VegasInfoMinrtt", wireType)
 			}
-			m.VegasInfoMinRtt = 0
+			m.VegasInfoMinrtt = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5310,7 +5427,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.VegasInfoMinRtt |= uint32(b&0x7F) << shift
+				m.VegasInfoMinrtt |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5507,9 +5624,9 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 			}
 		case 2001:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClassId", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagClassId", wireType)
 			}
-			m.ClassId = 0
+			m.InetDiagClassId = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5519,16 +5636,16 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.ClassId |= uint32(b&0x7F) << shift
+				m.InetDiagClassId |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 2002:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SockOpt", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagSockopt", wireType)
 			}
-			m.SockOpt = 0
+			m.InetDiagSockopt = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5538,16 +5655,16 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.SockOpt |= uint32(b&0x7F) << shift
+				m.InetDiagSockopt |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-		case 2103:
+		case 2003:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CGroup", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InetDiagCgroupId", wireType)
 			}
-			m.CGroup = 0
+			m.InetDiagCgroupId = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5557,7 +5674,7 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.CGroup |= uint64(b&0x7F) << shift
+				m.InetDiagCgroupId |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

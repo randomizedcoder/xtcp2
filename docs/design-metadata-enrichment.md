@@ -79,6 +79,11 @@ Precedence: **defaults < flags < env < `XTCP_CONFIG_JSON`** (`cmd/xtcp2/xtcp2.go
 | `-uplinkCount` | `UPLINK_COUNT` | `uplink_count` | 2 |
 | `-uplinkInterfaces` | `UPLINK_INTERFACES` (CSV) | `uplink_interfaces` | auto (default routes) |
 | `-populateNsid` | `POPULATE_NSID` | `populate_nsid` | false |
+| `-enrichAsn` | `ENRICH_ASN` | `enrich_asn_enable` | false |
+| `-asnDbPath` | `ASN_DB_PATH` | `asn_db_path` | "" (required when enabled) |
+| `-asnRefreshInterval` | `ASN_REFRESH_INTERVAL` | `asn_refresh_interval` | 1h (0 = load once; a missing artifact is retried on this cadence) |
+| `-enrichLocality` | `ENRICH_LOCALITY` | `enrich_locality_enable` | false |
+| `-localityRefreshInterval` | `LOCALITY_REFRESH_INTERVAL` | `locality_refresh_interval` | 60s |
 
 ## 4. ClickHouse
 
