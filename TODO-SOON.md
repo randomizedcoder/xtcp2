@@ -211,6 +211,27 @@ where the `SINGLE_ISSUER` contract lives — the one you reach for while
 iterating. The other eleven packages stay `CGO_ENABLED=0` so the fast path
 stays fast.
 
+**A second, unrelated cause of a red `test-go-race`, found 2026-09-24 and also
+fixed.** `pkg/xsync` `TestPool_PutThenGetReuses` asserted pointer identity
+after a single `sync.Pool` Put/Get round trip. That assertion is invalid under
+the race detector, and not because of GC or host load, which is how it had
+previously been written off: Go's own `sync/pool.go` throws the value away
+roughly one time in four when `-race` is on —
+
+```go
+if race.Enabled {
+    if runtime_randn(4) == 0 {
+        // Randomly drop x on floor.
+        return
+```
+
+so the test failed ~25% of `-race` runs and passed 100% without it. Fixed by
+looping the Put/Get up to 20 rounds and requiring *at least one* reuse: that
+still proves the pool is wired (zero reuse in 20 rounds has probability
+0.25²⁰ ≈ 9e-13) while tolerating the deliberate drop. The fix is in the test,
+not the pool — `sync.Pool` is behaving as documented, and "Get may choose to
+ignore the pool and treat it as empty" is part of its contract.
+
 ### 3b. `microvm-lifecycle-x86_64` — 180 s deadline — FIXED
 
 The deadline was a flat wall-clock budget with no notion of progress: a run
