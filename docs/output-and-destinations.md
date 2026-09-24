@@ -1,6 +1,6 @@
 # Output formats & destinations
 
-Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the wire format; destinations control where the bytes go. Destinations that need a heavy client library are gated behind build tags, so a binary only carries the backends it was compiled with.
+Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the wire format; destinations control where the bytes go. Destinations that need a heavy client library are gated behind build tags, so a binary only carries the backends it was compiled with. The same mechanism gates the two heavyweight *enrichers* (ASN and locality) — see [Build flavors](build-flavors.md).
 
 ## Table of contents
 

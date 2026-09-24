@@ -1,7 +1,8 @@
 # nix/binaries.nix
 #
 # Enumerates the buildable `cmd/<name>/` entries and produces derivations for
-# every {binary} × {variant} × {destination-flavor} cell relevant to its cmd.
+# every {binary} × {variant} × {destination-flavor} × {enrichment-flavor} cell
+# relevant to its cmd.
 #
 # Variant axis (debug / default / stripped) is in versions.nix → buildVariants
 # and affects ldflags + strip. Applies to all cmds.
@@ -11,18 +12,32 @@
 # `xtcp2` and `ns` — the other 8 cmds don't import pkg/xtcp so destinations
 # are irrelevant to them.
 #
+# Enrichment-flavor axis (none / asn / locality / enrich) is in versions.nix →
+# enrichmentFlavors and likewise affects build tags. Same scope as the
+# destination axis. These are the two heavyweight enrichers (pkg/ipasn drags in
+# parquet-go; pkg/localnet drags in bart), gated so the slim flavors stay slim.
+#
 # Top-level exports (those that show up in `nix flake show .#packages`):
-#   <cmd>                         default variant, full destination set
-#   xtcp2-debug                   main xtcp2, debug variant, full
-#   xtcp2-stripped                main xtcp2, stripped variant, full
-#   xtcp2-min                     main xtcp2, default variant, stdlib only
-#   xtcp2-kafka                   main xtcp2, default variant, kafka only
+#   <cmd>                         default variant, full destinations, all enrichers
+#   xtcp2-debug                   main xtcp2, debug variant, full, all enrichers
+#   xtcp2-stripped                main xtcp2, stripped variant, full, all enrichers
+#   xtcp2-min                     main xtcp2, default variant, stdlib only, no enrichers
+#   xtcp2-kafka                   main xtcp2, default variant, kafka only, no enrichers
 #   xtcp2-nats / -nsq / -valkey   ditto for nats / nsq / valkey
 #   xtcp2-s3parquet               main xtcp2, default variant, s3parquet only
-#   xtcp2-all                     symlinkJoin of every binary, full
+#   xtcp2-<dest>-asn              …plus the ASN enricher
+#   xtcp2-<dest>-locality         …plus the locality enricher
+#   xtcp2-<dest>-enrich           …plus both
+#   xtcp2-full-<enrich>           full destination set × each enrichment set
+#   xtcp2-all                     symlinkJoin of every binary, full, all enrichers
 #   xtcp2-all-debug               symlinkJoin, debug variant, full
 #   xtcp2-all-stripped            symlinkJoin, stripped variant, full
 #   byVariant / joins             internal nested attrsets used by containers/
+#
+# Note the deliberate asymmetry: the fat `xtcp2-all*` joins and every plain
+# `<cmd>` attr keep ALL enrichers (mkGoBinary's `enrichments ? null` default),
+# while the slim per-destination attrs default to NONE. The fat images are the
+# "everything" images; the slim ones are where opting in matters.
 #
 # Not every directory under cmd/ is buildable: grpcurl is README-only, io_uring
 # and io_uring_peek are stashed under .not files. The list below tracks the
@@ -62,7 +77,11 @@ let
   ];
 
   variantNames = builtins.attrNames versions.buildVariants;
-  flavorNames = builtins.attrNames versions.destinationFlavors;
+
+  # Attr-name suffix for an enrichment flavor. The `none` cell keeps the
+  # historical unsuffixed name (xtcp2-min, xtcp2-s3parquet, …) so existing
+  # references stay valid; the other cells append their flavor name.
+  flavorSuffix = enrich: lib.optionalString (enrich != "none") "-${enrich}";
 
   # byVariant.<variant>.<cmd>: every cmd in every build variant, with the
   # default (full) destination set. Used by the OCI image fan-out and as the
@@ -84,22 +103,32 @@ let
     )
   );
 
-  # xtcp2 destination flavors: only built in the default variant, since
-  # debug/stripped × per-flavor would explode the eval surface for marginal
-  # value. Users wanting `xtcp2-kafka-stripped` can call mkGoBinary directly.
+  # xtcp2 destination × enrichment flavors: only built in the default variant,
+  # since debug/stripped × per-flavor would explode the eval surface for
+  # marginal value. Users wanting `xtcp2-kafka-stripped` can call mkGoBinary
+  # directly.
+  #
+  # Two-level: xtcp2ByFlavor.<dest>.<enrich>. The `none` enrichment cell is
+  # what the historical `xtcp2-<dest>` attrs point at, so the slim flavors are
+  # slim again — before the enrichment build tags, pkg/ipasn dragged parquet-go
+  # into every one of them including `min`.
   xtcp2ByFlavor = lib.mapAttrs (
-    flavor: destList:
-    mkGoBinary {
-      name = "xtcp2";
-      inherit
-        src
-        commit
-        date
-        version
-        ;
-      variant = "default";
-      destinations = destList;
-    }
+    _dest: destList:
+    lib.mapAttrs (
+      _enrich: enrichList:
+      mkGoBinary {
+        name = "xtcp2";
+        inherit
+          src
+          commit
+          date
+          version
+          ;
+        variant = "default";
+        destinations = destList;
+        enrichments = enrichList;
+      }
+    ) versions.enrichmentFlavors
   ) versions.destinationFlavors;
 
   # Joined /bin trees per build variant (full destination set). OCI images
@@ -115,21 +144,34 @@ let
       # default variant join — they're test utilities, not production.
       # Building them in every variant just for the sake of join symmetry
       # would explode the eval surface for no benefit.
+      #
+      # ipfeed-collector is excluded on the same opt-in principle as the
+      # enrichment axis: it is a standalone daemon that builds the ASN Parquet
+      # artifact on its own schedule, not something the xtcp2 daemon invokes,
+      # and at ~24.9 MB it was 12.7% of the fat image. Anyone who wants it has
+      # `nix build .#ipfeed-collector` or the slim `oci-ipfeed-collector`
+      # image, which is how it is meant to be deployed (sidecar / separate
+      # unit). It stays in binaryNames, so that attr and the cli-help-smoke
+      # check are unaffected.
       paths =
-        lib.attrValues byVariant.${variant}
+        lib.attrValues (removeAttrs byVariant.${variant} [ "ipfeed-collector" ])
         ++ lib.optionals (variant == "default") (lib.attrValues toolBinaries);
     };
 
   joins = lib.genAttrs variantNames joinVariant;
 
   # Per-flavor single-binary join: a derivation containing only the xtcp2
-  # binary for that flavor. Used by the per-flavor OCI images.
+  # binary for that {destination, enrichment} cell. Used by the per-flavor
+  # OCI images. Same two-level shape as xtcp2ByFlavor.
   xtcp2OnlyByFlavor = lib.mapAttrs (
-    flavor: drv:
-    pkgs.symlinkJoin {
-      name = "xtcp2-only-${flavor}-${version}";
-      paths = [ drv ];
-    }
+    dest: byEnrich:
+    lib.mapAttrs (
+      enrich: drv:
+      pkgs.symlinkJoin {
+        name = "xtcp2-only-${dest}${flavorSuffix enrich}-${version}";
+        paths = [ drv ];
+      }
+    ) byEnrich
   ) xtcp2ByFlavor;
 
   # Test-utility binaries that live under tools/ rather than cmd/. Built
@@ -166,6 +208,25 @@ let
   # Default-variant attrs (every cmd → default-variant derivation).
   defaultBinaries = byVariant.default;
 
+  # Flatten the two-level {dest}.{enrich} matrix into top-level attrs:
+  #   xtcp2-min, xtcp2-min-asn, xtcp2-min-locality, xtcp2-min-enrich, …
+  #
+  # The `none` enrichment cell is elided from the name so the historical slim
+  # attrs (xtcp2-min, xtcp2-kafka, …) keep pointing at a no-enrichment build.
+  # `full` is the exception: it always spells its enrichment out, because a
+  # bare `xtcp2-full` would read as a synonym for the plain `xtcp2` attr when
+  # in fact they differ (`xtcp2` has every enricher, dest=full/enrich=none has
+  # none). 7 destinations × 4 enrichment sets = 28 attrs.
+  flavorAttrs = lib.listToAttrs (
+    lib.concatMap (
+      dest:
+      map (enrich: {
+        name = if dest == "full" then "xtcp2-full-${enrich}" else "xtcp2-${dest}${flavorSuffix enrich}";
+        value = xtcp2ByFlavor.${dest}.${enrich};
+      }) (builtins.attrNames versions.enrichmentFlavors)
+    ) (builtins.attrNames versions.destinationFlavors)
+  );
+
   # Coverage-instrumented xtcp2: `-cover` build flag plus `-coverpkg` set
   # to the in-scope namespace. Writes Go coverage data to $GOCOVERDIR on
   # clean exit. Consumed by the wave 10 microvm coverage harness; not
@@ -176,6 +237,10 @@ let
   # dest_nsq/dest_valkey build tags. Keeping the block universe in sync
   # with host tests lets the VM profile merge cleanly with host coverage
   # without introducing build-tag-gated blocks that drag the total down.
+  #
+  # `enrichments = [ ]` is there for exactly the same reason: untagged host
+  # tests don't compile the enrich_asn / enrich_locality files either, so
+  # including them here would add blocks the host profile can never cover.
   xtcp2-cover = mkGoBinary {
     name = "xtcp2";
     inherit
@@ -186,25 +251,19 @@ let
       ;
     variant = "default";
     destinations = [ ];
+    enrichments = [ ];
     coverage = true;
     coverPkg = "github.com/randomizedcoder/xtcp2/...";
   };
 in
 defaultBinaries
+// flavorAttrs
 // {
   default = defaultBinaries.xtcp2;
 
   # Build-variant axis for xtcp2.
   xtcp2-debug = byVariant.debug.xtcp2;
   xtcp2-stripped = byVariant.stripped.xtcp2;
-
-  # Destination-flavor axis for xtcp2 (default build variant).
-  xtcp2-min = xtcp2ByFlavor.min;
-  xtcp2-kafka = xtcp2ByFlavor.kafka;
-  xtcp2-nats = xtcp2ByFlavor.nats;
-  xtcp2-nsq = xtcp2ByFlavor.nsq;
-  xtcp2-valkey = xtcp2ByFlavor.valkey;
-  xtcp2-s3parquet = xtcp2ByFlavor.s3parquet;
 
   # Coverage-instrumented xtcp2 for the microvm coverage harness.
   inherit xtcp2-cover;
@@ -215,9 +274,11 @@ defaultBinaries
   xtcp2-all-stripped = joins.stripped;
 
   # tools/ helper binaries (test utilities, default variant only).
-  tcp_server = toolBinaries.tcp_server;
-  tcp_client = toolBinaries.tcp_client;
-  discovery-bench = toolBinaries.discovery-bench;
+  inherit (toolBinaries)
+    tcp_server
+    tcp_client
+    discovery-bench
+    ;
 
   # Internal nested sets for downstream consumers (containers/).
   inherit

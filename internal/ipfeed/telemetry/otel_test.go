@@ -34,7 +34,7 @@ func TestSetupPrometheus(t *testing.T) {
 		// wantAbsent are regexps that must match no line.
 		wantAbsent []string
 	}{
-		// negative — default keeps the OTLP-only behaviour
+		// negative — default keeps the OTLP-only behavior
 		{"zero Options: no Prometheus handler", Options{}, nil, false, nil, nil},
 
 		// positive — every new instrument renders under its Prometheus name

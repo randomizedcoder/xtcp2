@@ -4,8 +4,7 @@
 #
 {
   pkgs,
-  lib,
   src,
 }:
 
-import ../protos/buf-lint.nix { inherit pkgs lib src; }
+import ../protos/buf-lint.nix { inherit pkgs src; }

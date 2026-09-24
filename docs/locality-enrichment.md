@@ -128,27 +128,51 @@ the hot path, published atomically, read lock/alloc-free.
 
 ### Hot-path wiring (`pkg/xtcp`)
 
+**Compile-time gating.** `pkg/xtcp/enrich_locality.go` carries
+`//go:build enrich_locality` and registers itself from `init()` into the
+enricher registry in `pkg/xtcp/enrich_core.go`, exactly as the ASN enricher and
+the `dest_<scheme>` destinations do. `pkg/localnet` holds a `gaissmai/bart`
+prefix trie per namespace, and the rtnetlink discovery below is a meaningful
+amount of code to carry in a build that will never run it.
+
+The per-namespace snapshot map therefore lives on the tagged `localityIndex`
+type, not on `XTCP`, which holds only a `localityEnricher` interface returning
+the untagged `localityResult` struct. That is the whole mechanism: a single
+`*localnet.Snapshot`-typed field on `XTCP` would re-link the package into every
+flavor. The reconcile path calls the untagged `x.refreshLocality` dispatcher, so
+`ns_discover.go` needs no build tag; `pkg/xtcpnl` stays untagged too (generic
+netlink, used elsewhere).
+
+As with ASN: `-enrichLocality` on a binary without the tag is a fatal startup
+error, a runtime flip via the gRPC `Set` is `FailedPrecondition`,
+`compiledInEnrichers{type="locality"}` reports which you have, and the tests
+need `go test -tags enrich_locality ./pkg/xtcp/`. Nix exposes the
+`-locality` / `-enrich` flavors; see [build-flavors.md](build-flavors.md).
+
 `applyEnrichment` computes the destination `netip.Addr` once (via the existing
 alloc-free `destAddr` helper), classifies it against the per-namespace snapshot,
 stores the locality, and gates the ASN lookup on `REMOTE`. `remote` defaults to
-`true`, so when locality is disabled (nil map) or no snapshot exists for the
-namespace, the ASN block runs exactly as before — a strict superset of previous
+`true`, so when locality is disabled, not compiled in, or no snapshot exists for
+the namespace, the ASN block runs exactly as before — a strict superset of previous
 behaviour.
 
 ```go
+localityOn := x.locality != nil && x.locality.Active()
+if x.asn == nil && !localityOn {
+    return // neither enricher installed: a true no-op, no address conversion
+}
 if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
     remote := true
-    if m := x.localityByInode.Load(); m != nil {
-        if snap := (*m)[r.NetnsInode]; snap != nil {
-            res := snap.Resolve(addr, r.InetDiagMsgSocketInterface)
-            r.EnrichSocketDestLocality = xtcp_flat_record.XtcpFlatRecord_Locality(res.Locality)
+    if localityOn {
+        if res, found := x.locality.Resolve(r.NetnsInode, addr, r.InetDiagMsgSocketInterface); found {
+            r.EnrichSocketDestLocality = res.Locality
             r.EnrichSocketDestEgressIfindex = res.EgressIfindex
             r.EnrichSocketDestEgressIfname = res.EgressIfname
             r.EnrichSocketInterfaceName = res.BoundIfname
-            remote = res.Locality == localnet.LocalityRemote
+            remote = res.Remote
         }
     }
-    if remote && x.asnIndex != nil {
+    if remote && x.asn != nil {
         // ... existing dest-ASN / network-owner lookup ...
     }
 }

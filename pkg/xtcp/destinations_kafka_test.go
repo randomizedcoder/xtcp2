@@ -28,7 +28,7 @@ import (
 // — only built under the `dest_kafka` build tag, which the
 // `nix build .#test-go-flavor-kafka` target sets explicitly. The
 // default `go test ./...` skips this file entirely (matches the
-// production behaviour: only kafka-flavor builds compile it in).
+// production behavior: only kafka-flavor builds compile it in).
 //
 // Scope: tests the helpers that DON'T require a real Kafka broker
 // (schema-registry HTTP exchange, init-time registration in the

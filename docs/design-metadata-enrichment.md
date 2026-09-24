@@ -16,6 +16,21 @@ it can never make the daemon fatal. LLDP + NIC are captured **once at startup**
 (static per boot); container/netns/nsid are captured **per namespace** as
 namespaces appear.
 
+> **The two later enrichers have a different contract.** The four described
+> here are *runtime* opt-ins: always compiled in, off by default, switched on
+> with an ansible var. The ASN
+> ([docs/ipfeed-asn-enrichment.md](ipfeed-asn-enrichment.md)) and locality
+> ([docs/locality-enrichment.md](locality-enrichment.md)) enrichers added later
+> are **compile-time gated as well**, behind `//go:build enrich_asn` /
+> `//go:build enrich_locality`, because `pkg/ipasn` pulls in parquet-go and
+> both pull in bart — weight the stdlib-only `min` flavor exists to avoid. So
+> for those two, an image built without the tag cannot run them at any runtime
+> setting, and asking for one is a **fatal startup error**, not a best-effort
+> degradation: a missing build tag is a property of the artifact, identical on
+> every host, whereas a missing socket is a property of one host. See
+> [docs/build-flavors.md](build-flavors.md) for the flavor matrix, and the
+> `compiledInEnrichers` gauge to see what a running daemon actually contains.
+
 ## 1. Discovery fix (the linchpin)
 
 Namespace discovery is a `/proc` scan ("Method B", `pkg/nsdiscover`): it can only

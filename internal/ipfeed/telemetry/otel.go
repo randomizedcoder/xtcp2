@@ -31,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Options tunes Setup. The zero value keeps the OTLP-only behaviour.
+// Options tunes Setup. The zero value keeps the OTLP-only behavior.
 type Options struct {
 	// Prometheus additionally exposes every instrument in the Prometheus text
 	// format through Telemetry.PrometheusHandler (nil when false). Meant for the

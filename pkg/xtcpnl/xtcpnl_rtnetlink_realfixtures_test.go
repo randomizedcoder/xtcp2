@@ -9,7 +9,7 @@ import (
 )
 
 // This file holds the REAL-fixture-driven deserialize tests for the rtnetlink
-// dump parsers. Unlike xtcpnl_rtnetlink_test.go (which synthesises exact
+// dump parsers. Unlike xtcpnl_rtnetlink_test.go (which synthesizes exact
 // positive/negative/boundary/corner wire bytes in-code), these tests read the
 // committed multi-message dump fixtures captured on a live 7.1.8 kernel with
 // nlmon (see xtcpnl_extract_7_1_8_fixtures_test.go and

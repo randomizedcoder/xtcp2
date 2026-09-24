@@ -26,26 +26,31 @@ let
   capChecks = import ./capability-check.nix { inherit pkgs lib binaries; };
 in
 {
-  go-vet = import ./go-vet.nix { inherit pkgs lib vendoredSource; };
-  gofmt = import ./gofmt.nix { inherit pkgs lib src; };
-  nix-fmt = import ./nix-fmt.nix { inherit pkgs lib src; };
+  go-vet = import ./go-vet.nix { inherit pkgs vendoredSource; };
+  gofmt = import ./gofmt.nix { inherit pkgs src; };
+  nix-fmt = import ./nix-fmt.nix { inherit pkgs src; };
+  # Nix static analysis, gating since 2026-09-23. nix-fmt only checks layout;
+  # these two check content — deadnix for unused bindings/arguments, statix for
+  # antipatterns. Lint scope for statix lives in the repo-root statix.toml.
+  deadnix = import ./deadnix.nix { inherit pkgs src; };
+  statix = import ./statix.nix { inherit pkgs src; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run it from `nix develop` via the `buf lint` shell
   # function instead. The file proto-lint.nix is preserved for future hermetic
   # use once buf module deps are pre-fetched as Nix sources.
 
-  golangci-lint-quick = import ./golangci-lint-quick.nix { inherit pkgs lib vendoredSource; };
-  golangci-lint = import ./golangci-lint.nix { inherit pkgs lib vendoredSource; };
+  golangci-lint-quick = import ./golangci-lint-quick.nix { inherit pkgs vendoredSource; };
+  golangci-lint = import ./golangci-lint.nix { inherit pkgs vendoredSource; };
   golangci-lint-comprehensive = import ./golangci-lint-comprehensive.nix {
-    inherit pkgs lib vendoredSource;
+    inherit pkgs vendoredSource;
   };
-  go-sec = import ./go-sec.nix { inherit pkgs lib vendoredSource; };
+  go-sec = import ./go-sec.nix { inherit pkgs vendoredSource; };
 
-  netlink-audit = import ./netlink-audit.nix { inherit pkgs lib vendoredSource; };
-  iouring-audit = import ./iouring-audit.nix { inherit pkgs lib vendoredSource; };
-  metrics-audit = import ./metrics-audit.nix { inherit pkgs lib vendoredSource; };
-  proto-field-audit = import ./proto-field-audit.nix { inherit pkgs lib vendoredSource; };
+  netlink-audit = import ./netlink-audit.nix { inherit pkgs vendoredSource; };
+  iouring-audit = import ./iouring-audit.nix { inherit pkgs vendoredSource; };
+  metrics-audit = import ./metrics-audit.nix { inherit pkgs vendoredSource; };
+  proto-field-audit = import ./proto-field-audit.nix { inherit pkgs vendoredSource; };
 }
 // helpSmokes
 // capChecks

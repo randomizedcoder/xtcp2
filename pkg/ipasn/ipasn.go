@@ -76,7 +76,7 @@ type row struct {
 type Index struct {
 	tbl atomic.Pointer[bart.Table[Attr]]
 
-	// mu serialises reloads and guards the loaded* bookkeeping below, which
+	// mu serializes reloads and guards the loaded* bookkeeping below, which
 	// ReloadIfChanged compares against the file's current stat to skip
 	// rebuilding a trie from an unchanged artifact.
 	mu          sync.Mutex

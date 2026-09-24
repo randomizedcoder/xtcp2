@@ -1,0 +1,33 @@
+# statix.toml
+#
+# Configuration for `statix`, the Nix antipattern linter. Wired into
+# `nix flake check` as the `statix` check (nix/checks/statix.nix) on
+# 2026-09-23, alongside `deadnix`.
+#
+# Policy matches the Go side (see CONTRIBUTING.md): findings are fixed by
+# rewriting the code, never silenced per-site. There are no `# statix: ignore`
+# comments anywhere in this tree, and adding one should be treated as a review
+# blocker. The list below is a *linter-scope* decision — made once, in config,
+# with a written reason — which is a different thing from a suppression, and is
+# the same kind of choice as `misspell.locale = US` in .golangci.yml.
+
+# W20 `repeated_keys`.
+#
+# W20 fires when one attrset assigns the same top-level key more than once via
+# dotted paths — `systemd.tmpfiles.rules = ...` in one place and
+# `systemd.services.xtcp2 = ...` in another. That is the idiomatic way NixOS
+# module and machine definitions are written: assignments are grouped by the
+# *concern* they configure, so the unit that runs xtcp2 sits next to the
+# firewall rule and the tmpfiles entry that it needs, not three hundred lines
+# away under a shared `systemd = { ... }` umbrella.
+#
+# Complying would mean merging 26 `systemd.*` assignments scattered through the
+# 2900-line nix/microvms/mkVm.nix into a single block (plus `boot`, `services`
+# and `documentation`, and three more in nix/modules/broker-server.nix). That
+# is a large, error-prone restructure of the microVM definitions the lifecycle
+# checks depend on, and it would make those files harder to read, not easier —
+# no defect is being prevented. Nix itself merges the paths either way.
+#
+# W04 `manual_inherit_from` (the other code this tree used to trip) was NOT
+# disabled — all 19 of those were fixed.
+disabled = ["repeated_keys"]

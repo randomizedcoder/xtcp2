@@ -15,7 +15,7 @@ import (
 //
 // Why a generator: nlmon mirrors EVERY NETLINK_ROUTE datagram in the namespace,
 // so a raw capture interleaves our RTM_GET* dump with unrelated route traffic
-// (neighbour dumps, per-ifindex link lookups the `ip` tool issues, etc.), and
+// (neighbor dumps, per-ifindex link lookups the `ip` tool issues, etc.), and
 // nlmsg_seq collides across sockets. Our dump is the set of messages sharing one
 // (nlmsg_seq, nlmsg_pid) that forms a run of RTM_NEW* of one family terminated by
 // NLMSG_DONE. This test isolates that run and re-emits it as one pcap record

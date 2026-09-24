@@ -90,4 +90,26 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 		promLabels,
 	)
 
+	x.publishCompiledInEnrichers()
+}
+
+// publishCompiledInEnrichers records which compile-time-gated enrichers this
+// artifact contains: one series per knownEnrichers entry, 1 when the code is
+// linked in and 0 when it is not.
+//
+// The absent ones are published deliberately rather than omitted. Without
+// them, "this image was built without enrich_asn" is invisible in every other
+// metric — a binary built without the tag simply never touches the asn
+// counters, so the absence looks exactly like "enabled but the artifact never
+// loaded". This gauge is what lets an operator staring at empty
+// enrich_socket_dest_asn columns tell those two apart, and it is what the
+// microVM self-test asserts on as a precondition.
+func (x *XTCP) publishCompiledInEnrichers() {
+	for _, name := range knownEnrichers {
+		compiled := 0.0
+		if _, status := lookupEnricherFactory(name); status == enricherLookupFound {
+			compiled = 1.0
+		}
+		x.pGV.WithLabelValues("InitPromethus", "compiledInEnrichers", name).Set(compiled)
+	}
 }

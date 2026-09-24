@@ -13,7 +13,7 @@
 #   # or from inside `nix develop`:
 #   regen-protos
 #
-{ pkgs, lib }:
+{ pkgs }:
 
 let
   versions = import ../versions.nix { inherit pkgs; };

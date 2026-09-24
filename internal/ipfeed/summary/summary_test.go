@@ -134,15 +134,18 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("sink clo
 // normalizeLines splits output into lines and collapses runs of whitespace so
 // tabwriter column padding does not make expectations alignment-dependent.
 func normalizeLines(s string) []string {
-	var out []string
-	for _, ln := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+	// One output element per input line, unconditionally, so the final
+	// length is known up front.
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
 		out = append(out, strings.Join(strings.Fields(ln), " "))
 	}
 	return out
 }
 
 // TestSummaryPrint covers the rendered report: header, name-sorted rows, ok/FAIL
-// status, "-" for a missing HTTP status, humanised bytes, millisecond-rounded
+// status, "-" for a missing HTTP status, humanized bytes, millisecond-rounded
 // durations, the TOTALS line, and the optional uploaded line.
 func TestSummaryPrint(t *testing.T) {
 	tests := []struct {

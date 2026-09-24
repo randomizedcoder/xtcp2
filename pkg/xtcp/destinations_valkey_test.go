@@ -256,14 +256,13 @@ func TestValkeyDest_Close_table(t *testing.T) {
 	}
 }
 
-// TestValkeyDest_RedisClientAdapter pins the production adapter wraps
-// a real *redis.Client through the interface. The adapter itself
-// can't deeply exercise the real client without a server, but the
-// type check + factory call should still work.
-func TestValkeyDest_RedisClientAdapter_satisfiesIface(t *testing.T) {
-	adapter := &redisClientAdapter{c: nil}
-	var _ valkeyPublisher = adapter
-}
+// The production adapter must satisfy the interface the destination depends
+// on. This is purely a compile-time fact, so it is a var assertion rather than
+// a test body: the previous form built a value and wrote `c: nil` — the field's
+// own zero value, read by nothing — which govet's unusedwrite flags, correctly.
+// The adapter's actual behavior is covered by
+// TestValkeyDest_RedisClientAdapter_methods below.
+var _ valkeyPublisher = (*redisClientAdapter)(nil)
 
 // TestValkeyDest_RedisClientAdapter_methods drives the production
 // adapter's three methods (Publish, Ping, Close) against an

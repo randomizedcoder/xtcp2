@@ -1439,7 +1439,10 @@ rec {
   #   suffix         (string)  optional name suffix for the wrapper binary
   #   extraSentinels (list)    flavor-specific sentinel tokens surfaced in the
   #                            summary grep on top of baseSentinels + OVERALL.
-  #   timeoutSec     (int)     overall scrape timeout in seconds.
+  #   timeoutSec     (int)     absolute backstop for the scrape, in seconds.
+  #   stallSec       (int)     no-progress watchdog: fail if no new sentinel
+  #                            appears for this long. This, not timeoutSec, is
+  #                            the guard that catches a hang.
   # The self-test sentinels every lifecycle flavor emits (Checks 1-10 +
   # the runtime-control ones). Each flavor's summary grep is
   # `baseSentinels ++ its extraSentinels ++ [ "OVERALL" ]`, so a new
@@ -1477,7 +1480,28 @@ rec {
       # to baseSentinels (e.g. [ "VALKEY_CONSUME" ]). Order is irrelevant —
       # the tokens become a regex alternation.
       extraSentinels ? [ ],
-      timeoutSec ? 180,
+      # Absolute backstop, in seconds. This is deliberately NOT the primary
+      # guard — stallSec is. Keep it high enough that a slow-but-progressing
+      # run can never hit it; it exists only to bound the pathological case
+      # of a VM that dribbles a sentinel forever without finishing.
+      timeoutSec ? 1800,
+      # No-progress watchdog, in seconds. The run fails if no NEW
+      # XTCP2_SELF_TEST_*_{PASS,FAIL} sentinel appears for this long. This is
+      # what actually catches a hang, and it is what makes the runner
+      # load-insensitive: a host under heavy load stretches every check's wall
+      # clock, but it does not stop progress. Raise it per-flavor for anything
+      # with a legitimately long quiet stretch (docker pulls, ClickHouse init).
+      #
+      # Floor: this MUST exceed the longest single in-guest check's silence,
+      # or the watchdog fires mid-check and reports TIMEOUT for what is really
+      # a FAIL. The longest budget in self-test.nix is 45 iterations x 3 s =
+      # 135 s, multiplied by its waitScale (4) = 540 s. Hence 600.
+      #
+      # Measured against that floor on this host at load ~46: a full passing
+      # run took 561 s of guest time across 18 sentinels, and its largest gap
+      # between two sentinels was 187 s (OUTPUT_CONTENT). 600 s leaves ~3.2x
+      # headroom over the worst observed quiet stretch.
+      stallSec ? 600,
       # When true, after a passing OVERALL sentinel the runner also looks
       # for an XTCP2_COVERAGE_DUMP_START / _END block in the log, decodes
       # it (base64 + gzip + tar), writes the resulting Go coverage data
@@ -1515,6 +1539,13 @@ rec {
         SERIAL_PORT=${toString cfg.serialPort}
         VIRTCON_PORT=${toString cfg.virtioPort}
         TIMEOUT=${toString timeoutSec}
+        STALL=${toString stallSec}
+        # Seconds to wait for each console TCP port to accept a connection.
+        # Generous on purpose: on a loaded host qemu can take far longer than
+        # the old hard 30 s to get far enough into boot to open its consoles,
+        # and a missed console means an otherwise-healthy run scrapes an empty
+        # log and reports a bogus timeout.
+        BOOT_WAIT=180
         LOG=$(mktemp -t xtcp2-vm-XXXX.log)
 
         echo "==> launching microvm (${arch}${suffix}); serial=$SERIAL_PORT virtio-console=$VIRTCON_PORT"
@@ -1543,7 +1574,7 @@ rec {
 
         nc_serial_pid=""
         nc_virtcon_pid=""
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 "$BOOT_WAIT"); do
           if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
             nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
             nc_serial_pid=$!
@@ -1551,7 +1582,7 @@ rec {
           fi
           sleep 1
         done
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 "$BOOT_WAIT"); do
           if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
             nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
             nc_virtcon_pid=$!
@@ -1580,8 +1611,23 @@ rec {
           fi
         ' EXIT
 
-        # Wait for the overall sentinel or for timeout
+        # Wait for the overall sentinel, for a stall, or for the absolute cap.
+        #
+        # This used to be a flat wall-clock budget with no notion of progress:
+        # a run healthily emitting sentinel after sentinel was killed at
+        # exactly the same moment as one that wedged on boot. On a busy host
+        # (this one routinely sits at load ~45 on 24 cores, and the guest gets
+        # 2 vCPUs) that made the check fail for reasons unrelated to the code
+        # under test.
+        #
+        # Now the stall timer resets every time a NEW self-test sentinel lands.
+        # A slow-but-progressing run survives up to the absolute backstop,
+        # while a genuine hang still fails in ~STALL seconds instead of burning
+        # the whole budget.
         waited=0
+        stalled=0
+        seen=0
+        last_sentinel="(none)"
         rc=2
         while [ "$waited" -lt "$TIMEOUT" ]; do
           if grep -q 'XTCP2_SELF_TEST_OVERALL_PASS' "$LOG"; then
@@ -1590,6 +1636,21 @@ rec {
           if grep -q 'XTCP2_SELF_TEST_OVERALL_FAIL' "$LOG"; then
             rc=1; break
           fi
+
+          # Progress probe. grep -c prints 0 but exits 1 when nothing matches,
+          # and errexit/pipefail are on (writeShellApplication), hence || true.
+          now=$(grep -cE 'XTCP2_SELF_TEST_[A-Z0-9_]+_(PASS|FAIL)' "$LOG" || true)
+          if [ "$now" -gt "$seen" ]; then
+            seen=$now
+            stalled=0
+            last_sentinel=$(grep -oE 'XTCP2_SELF_TEST_[A-Z0-9_]+_(PASS|FAIL)' "$LOG" | tail -n 1 || true)
+          else
+            stalled=$((stalled + 2))
+            if [ "$stalled" -ge "$STALL" ]; then
+              break
+            fi
+          fi
+
           sleep 2
           waited=$((waited + 2))
         done
@@ -1604,7 +1665,20 @@ rec {
         case "$rc" in
           0) echo "PASS: all checks passed" ;;
           1) echo "FAIL: one or more checks failed (see lines above)" ;;
-          *) echo "TIMEOUT: no overall sentinel after ''${TIMEOUT}s — last 40 log lines:"; tail -n 40 "$LOG" ;;
+          *)
+            # Say WHICH kind of timeout and how far the run actually got. The
+            # difference between "this host is slow" and "this wedged in
+            # GRPC_ROUNDTRIP" is the whole diagnostic value of this line.
+            if [ "$stalled" -ge "$STALL" ]; then
+              echo "TIMEOUT: no new sentinel for ''${stalled}s (stall watchdog, limit ''${STALL}s)"
+            else
+              echo "TIMEOUT: hit the absolute cap of ''${TIMEOUT}s while still making progress" \
+                   "— raise timeoutSec for this flavor"
+            fi
+            echo "         progress: $seen sentinel(s) seen, last was $last_sentinel, elapsed ''${waited}s"
+            echo "         last 40 log lines:"
+            tail -n 40 "$LOG"
+            ;;
         esac
         ${
           if scrapeCoverage then

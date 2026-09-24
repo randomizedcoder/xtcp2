@@ -33,21 +33,29 @@ nix build .#xtcp2-all      # every cmd/* binary, joined under one bin/
 nix build .#oci-xtcp2      # OCI container image
 ```
 
-xtcp2 has a two-axis build matrix — a **build variant** (`debug` / default / `stripped`) and a **destination flavor** (`full` / `min` / `kafka` / `nats` / `nsq` / `valkey`). The library destinations are gated behind `//go:build dest_<scheme>` tags so slim binaries omit clients they don't need. The full matrix is documented in [docs/build-flavors.md](docs/build-flavors.md).
+xtcp2 has a three-axis build matrix — a **build variant** (`debug` / default / `stripped`), a **destination flavor** (`full` / `min` / `kafka` / `nats` / `nsq` / `valkey` / `s3parquet`), and an **enrichment flavor** (none / `asn` / `locality` / `enrich`). Library destinations are gated behind `//go:build dest_<scheme>` tags and the two heavyweight enrichers behind `//go:build enrich_<feature>`, so slim binaries omit code they don't need. The full matrix, with measured sizes, is documented in [docs/build-flavors.md](docs/build-flavors.md).
 
-To build outside Nix, set the build tags for the destinations you want:
+To build outside Nix, set the build tags for the destinations and enrichers you want:
 
 ```sh
-# Full daemon (all library destinations)
-CGO_ENABLED=0 go build -tags "netgo,osusergo,dest_kafka,dest_nats,dest_nsq,dest_valkey" \
+# Full daemon (all library destinations, all enrichers)
+CGO_ENABLED=0 go build -tags "netgo,osusergo,dest_kafka,dest_nats,dest_nsq,dest_valkey,enrich_asn,enrich_locality" \
     -ldflags "-s -w" -trimpath -o xtcp2 ./cmd/xtcp2
 
-# Minimal (stdlib destinations only: null/udp/unix/unixgram)
+# Minimal (stdlib destinations only: null/udp/unix/unixgram; no enrichers)
 CGO_ENABLED=0 go build -tags "netgo,osusergo" -ldflags "-s -w" -trimpath -o xtcp2-min ./cmd/xtcp2
 
 # Kafka only
 CGO_ENABLED=0 go build -tags "netgo,osusergo,dest_kafka" -ldflags "-s -w" -trimpath -o xtcp2-kafka ./cmd/xtcp2
+
+# Kafka plus both enrichers
+CGO_ENABLED=0 go build -tags "netgo,osusergo,dest_kafka,enrich_asn,enrich_locality" \
+    -ldflags "-s -w" -trimpath -o xtcp2-kafka-enrich ./cmd/xtcp2
 ```
+
+The enricher tags are load-bearing at runtime, not just at link time: asking for `-enrichAsn` on a
+binary built without `enrich_asn` is a fatal startup error, not a silent no-op. That is deliberate —
+a fleet quietly emitting empty ASN columns is the failure mode the tags exist to make visible.
 
 ## Nix targets reference
 
@@ -56,13 +64,13 @@ Run `nix flake show` for the complete, current list. The main groups:
 ### Binary packages (`nix build .#<name>`)
 
 - `xtcp2`, `xtcp2-debug`, `xtcp2-stripped` — main daemon, per build variant.
-- `xtcp2-min`, `xtcp2-kafka`, `xtcp2-nats`, `xtcp2-nsq`, `xtcp2-valkey` — destination-flavor builds.
+- `xtcp2-min`, `xtcp2-kafka`, `xtcp2-nats`, `xtcp2-nsq`, `xtcp2-valkey`, `xtcp2-s3parquet` — destination-flavor builds. Each also has `-asn`, `-locality` and `-enrich` variants (e.g. `xtcp2-kafka-enrich`) carrying the compile-time-gated enrichers; the unsuffixed name is the no-enricher build. 6 x 4 = 24 cells, generated from `nix/versions.nix`. See [docs/build-flavors.md](docs/build-flavors.md).
 - `xtcp2-all`, `xtcp2-all-debug`, `xtcp2-all-stripped` — every `cmd/*` binary joined under one `bin/`.
 - `xtcp2client`, `xtcp2_kafka_client`, `ns`, `nsTest`, `register_schema`, `kafka_to_clickhouse`, `clickhouse_protobuflist`, `clickhouse_protobuflist_db`, `clickhouse_http_insert_protobuflist` — the supporting tools.
 
 ### OCI images (`nix build .#oci-<name>`)
 
-`oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` (fat images with every binary), the slim single-binary daemon images `oci-xtcp2-min`, `oci-xtcp2-kafka`, `oci-xtcp2-nats`, `oci-xtcp2-nsq`, `oci-xtcp2-valkey`, `oci-xtcp2-s3parquet`, the slim client images `oci-xtcp2client` and `oci-xtcp2ctl`, plus `oci-xtcp2-tcp-stress` for load testing.
+`oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` (fat images with every binary, every destination and every enricher), the 24 slim single-binary daemon images `oci-xtcp2-<dest>[-<enrich>]` (`oci-xtcp2-min`, `oci-xtcp2-kafka-enrich`, `oci-xtcp2-s3parquet-asn`, ...), the slim client images `oci-xtcp2client` and `oci-xtcp2ctl`, `oci-ipfeed-collector` (the standalone ASN-artifact builder), plus `oci-xtcp2-tcp-stress` for load testing. `nix flake show` has the live list.
 
 ### MicroVM integration tests (`nix build .#microvm-x86_64*` / `nix run .#microvm-x86_64-*`)
 
@@ -93,15 +101,25 @@ Per-package sandboxed runs are exposed too: `test-pkg-xtcp`, `test-pkg-xtcpnl`, 
 go test -bench=. ./pkg/xtcpnl/...   # benchmarks
 nix build .#test-go-bench
 nix build .#test-go-race            # race detector (CGO enabled in the sandbox)
+nix build .#test-pkg-io-uring       # localised race run for pkg/io_uring only
 ```
+
+`test-go-race` covers every package but is slow. `test-pkg-io-uring` is the same detector scoped to one package — that is where io_uring's `IORING_SETUP_SINGLE_ISSUER` contract lives (the kernel rejects submissions from any task other than the ring's creator), so it is the one most likely to be broken by a change. The other per-package targets run without `-race` to stay fast; the flag is per-package in `nix/tests/go-test-per-package.nix`.
 
 ### Per-flavor tests
 
-The destination build tags change which code compiles, so coverage is measured per flavor:
+The destination and enrichment build tags change which code compiles, so coverage is measured per flavor:
 
 ```sh
-nix build .#test-go-flavor-kafka     # also: -nats, -nsq, -valkey, -all
+nix build .#test-go-flavor-kafka            # also: -nats, -nsq, -valkey, -s3parquet
+nix build .#test-go-flavor-enrich           # also: -asn, -locality, -s3parquet-enrich
+nix build .#test-go-flavor-all              # every tag at once
 ```
+
+These are deliberately not the full destination × enrichment cross product. The two axes are
+orthogonal in the Go code, so the four enrichment cells above cover every compilation outcome that
+28 would; `s3parquet-enrich` earns its place because it is the one combination where `parquet-go` is
+reachable from two directions at once.
 
 ### Protobuf golden tests
 
@@ -132,19 +150,30 @@ Three tiers, all configured via `.golangci*.yml`:
 
 | Command | Tier | Approx. time | When |
 |---|---|---|---|
-| `lint-quick` | 0 | ~30s | pre-commit |
+| `lint-quick` | 0 | ~90s | pre-commit |
 | `lint` | 1 | ~2min | CI gating |
 | `lint-comprehensive` | 2 | ~10min | nightly |
 | `lint-fix` | — | — | apply auto-fixable findings |
 | `lint-new` | — | — | lint only the diff since `HEAD~1` |
 
-Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), `go-vet`, `gofmt`, `gosec`, `nixfmt`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
+Which linter sits in which tier is a deliberate choice, not an accident of history. `misspell` is in **Tier 1** (see "Spelling" below) because it only ever caught regressions long after the fact when it ran nightly. `prealloc` is deliberately left in Tier 2: a single `continue` anywhere in a file silences every `prealloc` hint in that file, so it makes a poor gate.
+
+All three configs set `issues.max-issues-per-linter: 0` and `issues.max-same-issues: 0`. The golangci-lint defaults (50 and 3) truncate the report *silently*, which once made a 35-finding cleanup look like a 19-finding one. If you add a config, set them there too.
+
+The Nix tree is linted as well: `nixfmt` for layout, plus **`deadnix`** (unused bindings and lambda arguments) and **`statix`** (antipatterns), both gating in `nix flake check`. statix's lint scope lives in the repo-root `statix.toml`; `repeated_keys` is disabled there with a written reason, and per-site `# statix: ignore` comments are not used. When fixing a deadnix finding, remember that removing a lambda argument also means removing it from every `inherit` at the call sites — diff `nix flake show --all-systems` before and after to prove evaluation still works.
+
+Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
 
 ```sh
 nix flake check
 ```
 
 The aggregated linter/coverage status is regenerated into [docs/quality-report.md](docs/quality-report.md) with `nix run .#update-quality-report` (that file is auto-generated — do not hand-edit it).
+
+`nix flake check` does not currently pass end to end. The known failures — which
+tier they are in, whether they are code or environment, and what fixing each one
+involves — are tracked in [TODO-SOON.md](TODO-SOON.md). Check there before
+assuming a red check is something you broke.
 
 ## Protobuf
 
@@ -161,5 +190,8 @@ See [docs/protobuf-formats.md](docs/protobuf-formats.md) for a reference of ever
 ## Code conventions
 
 - **Handle every error.** The codebase does not use `//nolint` suppressions; lint classes are eliminated structurally rather than silenced. Keep that standard in new code — if a linter complains, fix the cause.
+- **Spelling: US English.** `behavior`, `serialization`, `canceled`, `neighbor`, `initialization`, `labeled`, `honor`. This is enforced by `misspell` in **Tier 1**, so a British spelling fails CI on the commit that introduces it — which is the point. The repo swept British→US four times before this was written down, and it regressed every time, because `misspell` only ran in the nightly tier.
+
+  Two things the linter cannot see, so they are conventions rather than rules: `misspell` skips camelCase/PascalCase tokens unconditionally (identifiers and Prometheus label values like `cancelledDuringInit` are out of its reach), and it only reads `.go` files (`docs/`, `.nix` and `.sql` are not checked). `proto/headers/sock.c` is verbatim Linux kernel source — leave its spelling alone.
 - Match the surrounding style: comment density, naming, and idioms of the file you're editing.
 - Keep the low-level netlink machinery (`pkg/xtcpnl`) and the type-safe sync wrappers (`pkg/xsync`) independently testable.

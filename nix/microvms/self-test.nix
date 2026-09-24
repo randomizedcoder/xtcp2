@@ -221,6 +221,14 @@
   asnExpectedAsn ? "15169",
   asnExpectedOwner ? "google",
   asnExpectedPrefixes ? "3",
+  # Multiplier applied to every retry budget in the script below. See the
+  # "Retry-budget scaling" block in `text` for the reasoning; in short these
+  # are poll-until-true loops, so a higher ceiling costs nothing when a check
+  # passes and only slows down reporting a genuine failure. 4 matches the
+  # measured stretch on a ~2x-oversubscribed host with a 2-vCPU guest. The
+  # guest env var XTCP2_SELF_TEST_WAIT_SCALE overrides this at runtime.
+  # Keep mkLifecycleFullTest's stallSec above (longest single check) x this.
+  waitScale ? 4,
 }:
 
 pkgs.writeShellApplication {
@@ -252,10 +260,44 @@ pkgs.writeShellApplication {
 
     overall_ok=1
 
+    # ─── Retry-budget scaling ──────────────────────────────────────────────
+    # Every check below polls for a condition with a fixed iteration count and
+    # a 1 s (sometimes 2 s) sleep. Those counts were sized on an idle host. On
+    # a loaded one the guest's 2 vCPUs get descheduled hard and a check that
+    # normally settles in 3 s can take 30+, so a fixed budget turns "slow" into
+    # a spurious FAIL — which, unlike a host-side timeout, looks exactly like a
+    # real product defect and cannot be distinguished by the runner.
+    #
+    # WAIT_SCALE multiplies every budget by one number instead of hand-tuning
+    # ~22 separate counts. It defaults to the build-time waitScale parameter
+    # and can be overridden per-boot with XTCP2_SELF_TEST_WAIT_SCALE.
+    #
+    # Scale the ITERATION COUNT, not the sleep: these are poll-until-true
+    # loops, so a bigger ceiling does NOT slow down a check that passes — the
+    # loop still exits the moment the condition holds. The only thing a larger
+    # scale costs is that a check which genuinely fails takes proportionally
+    # longer to say so, and the host runner's stall watchdog bounds that.
+    # That asymmetry is why the default errs high: a slow PASS misreported as
+    # a FAIL is far more expensive than a slow FAIL.
+    WAIT_SCALE="''${XTCP2_SELF_TEST_WAIT_SCALE:-${toString waitScale}}"
+    case "$WAIT_SCALE" in
+      "" | *[!0-9]*) WAIT_SCALE=1 ;;
+    esac
+    if [ "$WAIT_SCALE" -lt 1 ]; then
+      WAIT_SCALE=1
+    fi
+    #
+    # A function rather than a set of precomputed W<n> variables: the checks
+    # below are assembled conditionally per flavor, so any fixed set of
+    # variables is genuinely unused in some builds and shellcheck rejects it
+    # (SC2034) at writeShellApplication build time.
+    scaled() { echo "$(($1 * WAIT_SCALE))"; }
+
     echo "================================================"
     echo " xtcp2 microvm self-test"
     echo " kernel: $(uname -r)"
     echo " host:   $(uname -n)"
+    echo " wait-scale: ''${WAIT_SCALE}x"
     echo "================================================"
 
     # Metric-counter helper: scrape one prom counter value from the
@@ -286,7 +328,7 @@ pkgs.writeShellApplication {
     # ─── Check 1: systemd unit active ──────────────────────────────────────
     echo "--- check 1: systemctl is-active xtcp2 ---"
     check1=1
-    for i in $(seq 1 30); do
+    for i in $(seq 1 "$(scaled 30)"); do
       if systemctl is-active --quiet xtcp2; then
         echo "XTCP2_SELF_TEST_SYSTEMD_PASS  (active after ''${i}s)"
         check1=0
@@ -295,7 +337,7 @@ pkgs.writeShellApplication {
       sleep 1
     done
     if [ "$check1" -ne 0 ]; then
-      echo "XTCP2_SELF_TEST_SYSTEMD_FAIL  (not active after 30s)"
+      echo "XTCP2_SELF_TEST_SYSTEMD_FAIL  (not active after $(scaled 30)s)"
       systemctl status xtcp2 --no-pager || true
       overall_ok=0
     fi
@@ -303,7 +345,7 @@ pkgs.writeShellApplication {
     # ─── Check 2: Prometheus /metrics endpoint reachable ──────────────────
     echo "--- check 2: GET http://127.0.0.1:${toString promPort}/metrics ---"
     check2=1
-    for i in $(seq 1 30); do
+    for i in $(seq 1 "$(scaled 30)"); do
       if curl --silent --fail --max-time 2 \
            "http://127.0.0.1:${toString promPort}/metrics" \
            | grep -q '^xtcp_'; then
@@ -314,7 +356,7 @@ pkgs.writeShellApplication {
       sleep 1
     done
     if [ "$check2" -ne 0 ]; then
-      echo "XTCP2_SELF_TEST_METRICS_FAIL  (no xtcp2_* metric exposed in 30s)"
+      echo "XTCP2_SELF_TEST_METRICS_FAIL  (no xtcp2_* metric exposed in $(scaled 30)s)"
       overall_ok=0
     fi
 
@@ -338,7 +380,7 @@ pkgs.writeShellApplication {
     ( echo "hi" | nc -w 8 127.0.0.1 17321 >/dev/null 2>&1 ) &
     client_pid=$!
     netlink_seen=0
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 "$(scaled 20)"); do
       sample=$(metric_value "xtcp_counts" 'variable="p"' 'type="count"')
       if [ "$sample" -gt 0 ]; then
         netlink_seen=$sample
@@ -349,7 +391,7 @@ pkgs.writeShellApplication {
     if [ "$netlink_seen" -gt 0 ]; then
       echo "XTCP2_SELF_TEST_NETLINK_PASS  (Netlinker parsed $netlink_seen sockets via inet_diag)"
     else
-      echo "XTCP2_SELF_TEST_NETLINK_FAIL  (no inet_diag socket parsed in 20s)"
+      echo "XTCP2_SELF_TEST_NETLINK_FAIL  (no inet_diag socket parsed in $(scaled 20)s)"
       overall_ok=0
     fi
     kill "$listener_pid" "$client_pid" 2>/dev/null || true
@@ -493,7 +535,7 @@ pkgs.writeShellApplication {
       echo "--- check 5d: daemon jsonl output content (${fileOutputPath}) ---"
       check5d=1
       # Wait for the file to appear + accrue at least one record.
-      for _ in $(seq 1 20); do
+      for _ in $(seq 1 "$(scaled 20)"); do
         if [ -s "${fileOutputPath}" ]; then break; fi
         sleep 1
       done
@@ -570,12 +612,45 @@ pkgs.writeShellApplication {
     # We poll the jsonl because the locality snapshot is discovered on the
     # reconcile path a few seconds after the veths come up. Runs after 5e so the
     # generators have had the longest possible time to come up.
+    # enricherCompiledIn <name> — reads the daemon's
+    # xtcp_gauges{function="InitPromethus",variable="compiledInEnrichers",type="<name>"}
+    # series, which is 1 when the binary carries that enricher's code and 0
+    # when it was built without the `enrich_<name>` tag. Checks 5f and 5g both
+    # gate on it: without this, running them against a slim image fails with
+    # "no record carried the column", which reads like a daemon bug rather
+    # than the wrong artifact. Prints nothing on success.
+    #
+    # Emitted only when one of those two checks is actually enabled. Defining it
+    # unconditionally leaves a function with no caller in every other flavor's
+    # script, which shellcheck flags as SC2329.
+    ${lib.optionalString (runInterfaceNamingCheck || runAsnCheck) ''
+      enricherCompiledIn() {
+        local want="$1" line
+        line=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null \
+          | grep -E "^xtcp_gauges\{[^}]*variable=\"compiledInEnrichers\"[^}]*type=\"$want\"[^}]*\} " \
+          | tail -1)
+        if [ -z "$line" ]; then
+          echo "  enricher '$want': compiledInEnrichers gauge absent (pre-gauge daemon?) — proceeding"
+          return 0
+        fi
+        case "''${line##* }" in
+          1|1.0|1.0e+00) return 0 ;;
+          *) return 1 ;;
+        esac
+      }
+    ''}
+
     ${lib.optionalString runInterfaceNamingCheck ''
       echo "--- check 5f: interface-naming (bound=${ifnameBound} egress=${ifnameEgress}) ---"
       check5f=1
+      if ! enricherCompiledIn locality; then
+        echo "XTCP2_SELF_TEST_IFNAME_FAIL  (the locality enricher is NOT compiled into this binary;"
+        echo "  this flavor needs an -enrich / -locality image, i.e. a build with -tags enrich_locality)"
+        overall_ok=0
+      fi
       boundOk=0
       egressOk=0
-      for _ in $(seq 1 60); do
+      for _ in $(seq 1 "$(scaled 60)"); do
         if [ -s "${fileOutputPath}" ]; then
           cp "${fileOutputPath}" /tmp/xtcp2-ifname.snap 2>/dev/null || true
           if [ "$boundOk" -eq 0 ] && \
@@ -624,6 +699,11 @@ pkgs.writeShellApplication {
     ${lib.optionalString runAsnCheck ''
       echo "--- check 5g: asn enrichment (dest=${asnDialTarget}:${toString asnDialPort} want asn=${asnExpectedAsn} owner=${asnExpectedOwner}) ---"
       check5g=1
+      if ! enricherCompiledIn asn; then
+        echo "XTCP2_SELF_TEST_ASN_FAIL  (the asn enricher is NOT compiled into this binary;"
+        echo "  this flavor needs an -enrich / -asn image, i.e. a build with -tags enrich_asn)"
+        overall_ok=0
+      fi
       # protojson renders idiag_dst as base64. The daemon copies the kernel's
       # raw __be32[4] (16 bytes) for every family, so a v4 address is the 4
       # octets followed by 12 zero bytes; accept the bare 4-byte form as well
@@ -636,7 +716,7 @@ pkgs.writeShellApplication {
       echo "expecting inetDiagMsgSocketDestination=$dest_b64_16 (or $dest_b64_4)"
       artifact_seen=0
       asnOk=0
-      for _ in $(seq 1 60); do
+      for _ in $(seq 1 "$(scaled 60)"); do
         if [ "$artifact_seen" -eq 0 ] && [ -s "${asnDbPath}" ]; then
           artifact_seen=1
           echo "asn artifact present: $(ls -la ${asnDbPath})"
@@ -714,7 +794,7 @@ pkgs.writeShellApplication {
       echo "--- check 5f: raw ${socketSinkScheme} dest → ncat sink (${socketSinkFile}) ---"
       check5f=1
       # Wait for records to arrive at the sink file.
-      for _ in $(seq 1 20); do
+      for _ in $(seq 1 "$(scaled 20)"); do
         if [ -s "${socketSinkFile}" ]; then break; fi
         sleep 1
       done
@@ -817,7 +897,7 @@ pkgs.writeShellApplication {
       # happy path is faster than the old fixed wait) and cap the wait well
       # above a jittered cycle. The sleep 60 above outlives this loop.
       after_inst=$before_inst
-      for _ in $(seq 1 20); do
+      for _ in $(seq 1 "$(scaled 20)"); do
         after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
         if [ "$after_inst" -gt "$before_inst" ] 2>/dev/null; then break; fi
         sleep 1
@@ -829,7 +909,7 @@ pkgs.writeShellApplication {
       # Poll for the daemon to notice the ns is gone (nsDelete) — same
       # jittered-cadence retry loop as the instantiate side above.
       after_del=$before_del
-      for _ in $(seq 1 20); do
+      for _ in $(seq 1 "$(scaled 20)"); do
         after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
         if [ "$after_del" -gt "$before_del" ] 2>/dev/null; then break; fi
         sleep 1
@@ -988,7 +1068,7 @@ pkgs.writeShellApplication {
       mc alias set local ${s3Endpoint} ${s3AccessKey} ${s3SecretKey} >/dev/null 2>&1 || true
       check13=1
       parquet_key=""
-      for _ in $(seq 1 90); do
+      for _ in $(seq 1 "$(scaled 90)"); do
         parquet_key=$(mc find local/${s3Bucket} --name '*.parquet' 2>/dev/null | head -n1)
         if [ -n "$parquet_key" ]; then
           break
@@ -999,7 +1079,7 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_FILES_PASS  (first object=$parquet_key)"
         check13=0
       else
-        echo "XTCP2_SELF_TEST_S3PARQUET_FILES_FAIL  (no .parquet object after 90s)"
+        echo "XTCP2_SELF_TEST_S3PARQUET_FILES_FAIL  (no .parquet object after $(scaled 90)s)"
       fi
       if [ "$check13" -ne 0 ]; then overall_ok=0; fi
 
@@ -1099,7 +1179,7 @@ pkgs.writeShellApplication {
       checkValkey=1
       recv=0
       pub=0
-      for _ in $(seq 1 60); do
+      for _ in $(seq 1 "$(scaled 60)"); do
         pub=$(metric_value "xtcp_counts" 'function="destValKey"' 'variable="Publish"')
         recv=$(journalctl -u valkey-subscriber.service -o cat --no-pager 2>/dev/null \
           | grep -c '"message"')
@@ -1132,7 +1212,7 @@ pkgs.writeShellApplication {
       checkNats=1
       nrecv=0
       npub=0
-      for _ in $(seq 1 60); do
+      for _ in $(seq 1 "$(scaled 60)"); do
         npub=$(metric_value "xtcp_counts" 'function="destNATS"' 'variable="Publish"')
         nrecv=$(journalctl -u nats-subscriber.service -o cat --no-pager 2>/dev/null \
           | grep -c 'Received on')
@@ -1165,7 +1245,7 @@ pkgs.writeShellApplication {
       checkNsq=1
       qrecv=0
       qpub=0
-      for _ in $(seq 1 60); do
+      for _ in $(seq 1 "$(scaled 60)"); do
         qpub=$(metric_value "xtcp_counts" 'function="destNSQ"' 'variable="Publish"')
         # nsqd's text /stats prints one line per channel:
         #   [selftest ...] depth: 0 ... msgs: 58 ...
@@ -1213,7 +1293,7 @@ pkgs.writeShellApplication {
       rows_before=$(chq "SELECT count() FROM xtcp.xtcp_flat_records")
       rows_before=''${rows_before:-0}
       rows=$rows_before
-      for _ in $(seq 1 30); do
+      for _ in $(seq 1 "$(scaled 30)"); do
         rows=$(chq "SELECT count() FROM xtcp.xtcp_flat_records")
         rows=''${rows:-0}
         if [ "$rows" -gt "$rows_before" ] 2>/dev/null; then break; fi
@@ -1250,7 +1330,7 @@ pkgs.writeShellApplication {
       echo "--- check 11: ClickHouse received >0 rows ---"
       check11=1
       rows=0
-      for _ in $(seq 1 30); do
+      for _ in $(seq 1 "$(scaled 30)"); do
         rows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
           -q "SELECT count() FROM xtcp.xtcp_flat_records" 2>/dev/null | tr -d '\r\n' || echo 0)
         if [ "''${rows:-0}" -gt 0 ] 2>/dev/null; then
@@ -1321,7 +1401,7 @@ pkgs.writeShellApplication {
       echo "--- check 15: ClickHouse s3() reads MinIO parquet ---"
       check15=1
       parquetRows=0
-      for _ in $(seq 1 45); do
+      for _ in $(seq 1 "$(scaled 45)"); do
         # The s3() URL uses host.docker.internal because we're inside
         # the clickhouse container. Glob ** matches the Hive-style
         # host=…/date=…/hour=… partitioning xtcp2's parquet writer uses.
@@ -1362,7 +1442,7 @@ pkgs.writeShellApplication {
       echo "--- enrich: ENRICH_NIC (uplink1_nic_driver populated) ---"
       checkENic=1
       nicRows=0
-      for _ in $(seq 1 30); do
+      for _ in $(seq 1 "$(scaled 30)"); do
         nicRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(uplink1_nic_driver) > 0")
         if [ "''${nicRows:-0}" -gt 0 ] 2>/dev/null; then break; fi
         sleep 2
@@ -1404,7 +1484,7 @@ pkgs.writeShellApplication {
         dsamp=$(chqe "SELECT concat('if=[',uplink1_ifname,'] drv=[',uplink1_nic_driver,'] spd=[',toString(uplink1_nic_speed_mbps),']') FROM xtcp.xtcp_flat_records WHERE length(container_id) > 0 LIMIT 1")
         dtype=$(chqe "SELECT type FROM system.columns WHERE database='xtcp' AND table='xtcp_flat_records' AND name='uplink1_ifname'")
         dcherr=$(docker logs clickhouse 2>&1 | grep -iE 'protobuf|cannot parse|no_column|uplink' | tail -n 1 | tr -d '\r' | cut -c1-160)
-        echo "XTCP2_SELF_TEST_ENRICH_NIC_FAIL  (no uplink1_nic_driver after 60s; stamped_ifname='$dif' cnt_none=$dnone cnt_fallback=$dfb cnt_collected=$dcol pop=[$dpop] enriched_row=[$dsamp] iftype=[$dtype] cherr=[$dcherr] daemon='$ddaemon' sysfs_nics=[$dnics ])"
+        echo "XTCP2_SELF_TEST_ENRICH_NIC_FAIL  (no uplink1_nic_driver after $(scaled 60)s; stamped_ifname='$dif' cnt_none=$dnone cnt_fallback=$dfb cnt_collected=$dcol pop=[$dpop] enriched_row=[$dsamp] iftype=[$dtype] cherr=[$dcherr] daemon='$ddaemon' sysfs_nics=[$dnics ])"
       fi
       if [ "$checkENic" -ne 0 ]; then overall_ok=0; fi
 
@@ -1419,7 +1499,7 @@ pkgs.writeShellApplication {
       checkECont=1
       nsRows=0
       cidRows=0
-      for _ in $(seq 1 45); do
+      for _ in $(seq 1 "$(scaled 45)"); do
         nsRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE netns != 'default' AND length(netns) > 0")
         cidRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records WHERE length(container_id) > 0")
         if [ "''${nsRows:-0}" -gt 0 ] 2>/dev/null && [ "''${cidRows:-0}" -gt 0 ] 2>/dev/null; then
@@ -1455,7 +1535,7 @@ pkgs.writeShellApplication {
       echo "--- schema: SCHEMA_VERSION (per-version routing + daemon_version) ---"
       checkSV=1
       v1Rows=0
-      for _ in $(seq 1 30); do
+      for _ in $(seq 1 "$(scaled 30)"); do
         v1Rows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records_v1 WHERE schema_version = 1")
         if [ "''${v1Rows:-0}" -gt 0 ] 2>/dev/null; then break; fi
         sleep 3
@@ -1490,7 +1570,7 @@ pkgs.writeShellApplication {
       sockOk=0
       # lldpd's control socket is /run/lldpd.socket (see services.lldpd). -S = is
       # a socket. Give lldpd a moment to create it.
-      for _ in $(seq 1 15); do
+      for _ in $(seq 1 "$(scaled 15)"); do
         if [ -S /run/lldpd.socket ]; then sockOk=1; break; fi
         sleep 1
       done
@@ -1527,7 +1607,7 @@ pkgs.writeShellApplication {
           >/tmp/xtcp2-enrich-neg.log 2>&1 &
         neg_pid=$!
         neg_up=0
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 "$(scaled 30)"); do
           if curl --silent --fail --max-time 2 "http://$neg_prom/metrics" | grep -q '^xtcp_'; then
             neg_up=1
             break
@@ -1643,7 +1723,7 @@ pkgs.writeShellApplication {
           # exported records carry it too. Same MainPID confirms it was an
           # in-place re-exec, not a full service restart.
           back=0
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 "$(scaled 30)"); do
             if xtcp2ctl get "''${CTL[@]}" 2>/dev/null | grep -q "$reconf_tag"; then back=1; break; fi
             sleep 1
           done

@@ -11,7 +11,6 @@
 #
 {
   pkgs,
-  lib,
   src,
   giouring,
   vendorHash,

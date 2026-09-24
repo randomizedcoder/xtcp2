@@ -1,3 +1,5 @@
+//go:build enrich_locality
+
 package xtcp
 
 import (
@@ -8,16 +10,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"golang.org/x/sys/unix"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/localnet"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
+
+// newLocalityFixture builds the shared metrics fixture plus an installed
+// locality index, returning both. The tests drive the index's seams (clock,
+// dumper) and assert on its published map and negative cache directly, while
+// entering through x.refreshLocality — the untagged dispatcher the reconcile
+// path actually calls.
+func newLocalityFixture(t *testing.T, interval time.Duration) (*XTCP, *localityIndex) {
+	t.Helper()
+	x := newMetricsFixture(t, interval)
+	li := newLocalityIndex(x)
+	x.locality = li
+	return x, li
+}
 
 // ---- refreshLocality lifecycle ------------------------------------------------
 //
@@ -25,35 +36,6 @@ import (
 // full vs partial pass, keep-last-good, negative cache + backoff, loopback-only
 // re-dump, the per-pass cap, vanished-namespace cleanup — is asserted without
 // setns or a kernel.
-
-// newLocalityFixture builds an XTCP with just enough state for refreshLocality:
-// config, fresh metrics, and a recording dumper.
-func newLocalityFixture(t *testing.T, interval time.Duration) *XTCP {
-	t.Helper()
-	x := new(XTCP)
-	x.config = &xtcp_config.XtcpConfig{
-		EnrichLocalityEnable:    true,
-		LocalityRefreshInterval: durationpb.New(interval),
-	}
-	reg := prometheus.NewRegistry()
-	x.pC = promauto.With(reg).NewCounterVec(
-		prometheus.CounterOpts{Subsystem: "xtcp_loctest", Name: promNameCounts, Help: promNameCounts},
-		promLabels,
-	)
-	x.pH = promauto.With(reg).NewSummaryVec(
-		prometheus.SummaryOpts{
-			Subsystem: "xtcp_loctest", Name: promNameHistograms, Help: promNameHistograms,
-			Objectives: map[float64]float64{0.5: quantileError, 0.99: quantileError},
-			MaxAge:     summaryVecMaxAge,
-		},
-		promLabels,
-	)
-	x.pGV = promauto.With(reg).NewGaugeVec(
-		prometheus.GaugeOpts{Subsystem: "xtcp_loctest", Name: promNameGauges, Help: promNameGauges},
-		promLabels,
-	)
-	return x
-}
 
 // Snapshot fixtures: a "real" namespace (non-loopback self address) and a
 // freshly-created one that only has lo.
@@ -292,14 +274,14 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			x := newLocalityFixture(t, tc.interval)
+			x, li := newLocalityFixture(t, tc.interval)
 			t0 := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
 			now := t0
-			x.localityClock = func() time.Time { return now }
+			li.clock = func() time.Time { return now }
 
 			var asked []uint64
 			var outcomes map[uint64]dumpOutcome
-			x.localityDumper = func(id nsIdentity) (*localnet.Snapshot, bool) {
+			li.dumper = func(id nsIdentity) (*localnet.Snapshot, bool) {
 				asked = append(asked, id.inode)
 				switch outcomes[id.inode] {
 				case dumpFail:
@@ -322,8 +304,8 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 				}
 
 				// Retry entries untouched by this pass must keep their deadline.
-				prevRetry := make(map[uint64]localityRetryState, len(x.localityRetry))
-				for k, v := range x.localityRetry {
+				prevRetry := make(map[uint64]localityRetryState, len(li.retry))
+				for k, v := range li.retry {
 					prevRetry[k] = v
 				}
 
@@ -346,7 +328,7 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 				}
 
 				// published map
-				pub := x.localityByInode.Load()
+				pub := li.byInode.Load()
 				if pub == nil {
 					t.Fatalf("%s: no snapshot map published", p.description)
 				}
@@ -378,11 +360,11 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 
 				// retry map
 				if p.wantRetry != nil {
-					if len(x.localityRetry) != len(p.wantRetry) {
-						t.Errorf("%s: retry map has %d entries %v, want %d %v", p.description, len(x.localityRetry), x.localityRetry, len(p.wantRetry), p.wantRetry)
+					if len(li.retry) != len(p.wantRetry) {
+						t.Errorf("%s: retry map has %d entries %v, want %d %v", p.description, len(li.retry), li.retry, len(p.wantRetry), p.wantRetry)
 					}
 					for inode, backoff := range p.wantRetry {
-						st, ok := x.localityRetry[inode]
+						st, ok := li.retry[inode]
 						if !ok {
 							t.Errorf("%s: retry[%d] missing, want backoff %s", p.description, inode, backoff)
 							continue
@@ -397,7 +379,7 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 						}
 					}
 				}
-				for inode := range x.localityRetry {
+				for inode := range li.retry {
 					if _, present := nss[inode]; !present {
 						t.Errorf("%s: retry state kept for vanished namespace %d", p.description, inode)
 					}
@@ -407,8 +389,8 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 				if g := testutil.ToFloat64(x.pGV.WithLabelValues("refreshLocality", "namespaces", "gauge")); int(g) != len(m) {
 					t.Errorf("%s: namespaces gauge = %v, want %d", p.description, g, len(m))
 				}
-				if g := testutil.ToFloat64(x.pGV.WithLabelValues("refreshLocality", "retryBackoff", "gauge")); int(g) != len(x.localityRetry) {
-					t.Errorf("%s: retryBackoff gauge = %v, want %d", p.description, g, len(x.localityRetry))
+				if g := testutil.ToFloat64(x.pGV.WithLabelValues("refreshLocality", "retryBackoff", "gauge")); int(g) != len(li.retry) {
+					t.Errorf("%s: retryBackoff gauge = %v, want %d", p.description, g, len(li.retry))
 				}
 			}
 		})
@@ -471,10 +453,10 @@ func TestRefreshLocalityDeferredCounter(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			x := newLocalityFixture(t, time.Minute)
+			x, li := newLocalityFixture(t, time.Minute)
 			now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-			x.localityClock = func() time.Time { return now }
-			x.localityDumper = func(nsIdentity) (*localnet.Snapshot, bool) { return realSnap, true }
+			li.clock = func() time.Time { return now }
+			li.dumper = func(nsIdentity) (*localnet.Snapshot, bool) { return realSnap, true }
 
 			mk := func(in []uint64) map[uint64]nsIdentity {
 				m := make(map[uint64]nsIdentity, len(in))
@@ -582,7 +564,7 @@ func TestDumpRetrying(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			x := newLocalityFixture(t, time.Minute)
+			x := newMetricsFixture(t, time.Minute)
 
 			fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC, 0)
 			if err != nil {

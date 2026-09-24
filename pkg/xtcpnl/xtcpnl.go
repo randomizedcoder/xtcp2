@@ -1,6 +1,6 @@
 // Package xtcpnl owns the low-level netlink machinery: opening netlink
 // sockets, building netlink_sock_diag request payloads, sending them, and
-// deserialising the responses into XtcpFlatRecord fields.
+// deserializing the responses into XtcpFlatRecord fields.
 //
 // Entry points:
 //   - openNetlinkSocketWithTimeout — opens a netlink socket via syscalls

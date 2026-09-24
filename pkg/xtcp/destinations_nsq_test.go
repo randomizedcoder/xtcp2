@@ -52,7 +52,7 @@ func TestNewNSQDest_table(t *testing.T) {
 		{"positive_host_port", "positive", "nsq:127.0.0.1:4150"},
 		{"positive_localhost", "positive", "nsq:localhost:4150"},
 		{"boundary_high_port", "boundary", "nsq:127.0.0.1:65535"},
-		// Documented permissive behaviour: nsq.NewProducer doesn't dial
+		// Documented permissive behavior: nsq.NewProducer doesn't dial
 		// at construction time and accepts almost any addr string;
 		// errors surface later via Publish. Pin that — a future
 		// NewProducer that pre-validates would catch these rows.
@@ -66,7 +66,7 @@ func TestNewNSQDest_table(t *testing.T) {
 			x := newTestXTCP(t, tc.dest)
 			d, err := newNSQDest(context.Background(), x)
 			if err != nil {
-				t.Errorf("newNSQDest err = %v; current NSQ behaviour is permissive at construction time", err)
+				t.Errorf("newNSQDest err = %v; current NSQ behavior is permissive at construction time", err)
 			}
 			if d != nil {
 				_ = d.Close()

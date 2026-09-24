@@ -11,7 +11,6 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
-	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
 	"github.com/randomizedcoder/xtcp2/pkg/lldp"
 	"github.com/randomizedcoder/xtcp2/pkg/nicinfo"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
@@ -92,133 +91,24 @@ func (s *uplinkStamp) apply(r *xtcp_flat_record.XtcpFlatRecord) {
 
 // initEnrichers wires up the best-effort metadata enrichers gated by config.
 // Every enricher degrades to leaving its columns empty on any failure; none can
-// make the daemon fatal. Called once from Init.
+// make the daemon fatal. Called once from Init, after the Prometheus vectors
+// exist (see init.go) because every enricher reports its outcome through them.
+//
+// The one non-best-effort case is a compile-time-gated enricher (ASN,
+// locality) that the operator asked for but that is not in this binary. That
+// is a property of the artifact rather than of this host, so it is fatal
+// before anything else runs — see enrich_core.go.
 func (x *XTCP) initEnrichers(ctx context.Context) {
 	if x.config == nil {
 		return
 	}
+	if err := x.checkEnrichersCompiledIn(); err != nil {
+		x.callFatalf("initEnrichers: %v", err)
+		return
+	}
 	x.initDockerEnricher(ctx)
 	x.initUplinkEnrichers(ctx)
-	x.initAsnEnricher(ctx)
-	x.initLocalityEnricher()
-}
-
-// initAsnEnricher wires destination IP -> {ASN, network owner} enrichment from
-// the ipfeed-collector Parquet artifact (pkg/ipasn, an in-process
-// longest-prefix-match trie).
-//
-// The index is always created and the first load attempted; the outcome only
-// decides how failure is handled:
-//   - load ok: enrichment is live, and when asn_refresh_interval > 0 a
-//     background goroutine re-stats the file every interval and rebuilds the
-//     trie only when its size/mtime changed (ipasn.ReloadIfChanged);
-//   - load failed, interval > 0: the (empty) index is still installed and the
-//     same goroutine retries on every tick, so an artifact that arrives after
-//     the daemon started — or a refreshed one — is picked up without a restart;
-//     lookups miss until then;
-//   - load failed, interval <= 0: nothing would ever load, so enrichment stays
-//     disabled (asnIndex nil) exactly as before.
-//
-// A failed reload never touches the trie in service. Outcomes are counted
-// under function="initEnrichers"/"refreshAsn"; the table itself (entries,
-// artifact size, load time, build duration) is published by loadAsn.
-func (x *XTCP) initAsnEnricher(ctx context.Context) {
-	if !x.config.EnrichAsnEnable {
-		return
-	}
-	path := x.config.AsnDbPath
-	if path == "" {
-		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
-		log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort): asn_db_path is empty")
-		return
-	}
-	interval := x.config.GetAsnRefreshInterval().AsDuration()
-
-	idx := &ipasn.Index{}
-	if _, err := x.loadAsn(idx, path, true); err != nil {
-		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
-		if interval <= 0 {
-			log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort, asn_refresh_interval is 0 so it will not retry): %v", err)
-			return
-		}
-		log.Printf("initAsnEnricher: ASN artifact not loaded (will retry every %s; lookups miss until then): %v", interval, err)
-	} else {
-		x.pC.WithLabelValues("initEnrichers", "asn", "enabled").Inc()
-		if x.debugLevel > 10 {
-			log.Printf("initAsnEnricher: ASN enrichment enabled (db:%s prefixes:%d)", path, idx.Len())
-		}
-	}
-	x.asnIndex = idx
-
-	if interval <= 0 {
-		return // load-once; no background refresh
-	}
-	go x.refreshAsn(ctx, idx, path, interval)
-}
-
-// refreshAsn is initAsnEnricher's background loop: every interval it asks the
-// index to reload path if the file changed (or was never loaded). Runs until
-// ctx is cancelled.
-func (x *XTCP) refreshAsn(ctx context.Context, idx *ipasn.Index, path string, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			reloaded, err := x.loadAsn(idx, path, false)
-			switch {
-			case err != nil:
-				x.pC.WithLabelValues("refreshAsn", "reload", "error").Inc()
-				log.Printf("initAsnEnricher: ASN reload failed (keeping current table): %v", err)
-			case !reloaded:
-				x.pC.WithLabelValues("refreshAsn", "reload", "unchanged").Inc()
-			default:
-				x.pC.WithLabelValues("refreshAsn", "reload", "ok").Inc()
-				if x.debugLevel > 10 {
-					log.Printf("initAsnEnricher: ASN artifact reloaded (db:%s prefixes:%d)", path, idx.Len())
-				}
-			}
-		}
-	}
-}
-
-// loadAsn runs one load attempt against idx — forced (start-up) or stat-gated
-// (refresh tick) — and publishes what an operator needs to see about the ASN
-// lookup table, all under function="loadAsn" so the start-up load and every
-// refresh land on the same series:
-//
-//   - gauges prefixes (entries in the trie in service), artifactBytes (size of
-//     the Parquet file it was built from) and loadedAt (unix seconds of the
-//     last successful load, so `time() - loadedAt` is the table's age);
-//   - summary build/duration — read + trie build of a successful load — and
-//     error/duration — how long a failed attempt took before giving up.
-//
-// A stat-gated attempt that finds the artifact unchanged publishes nothing: the
-// gauges already describe the table in service. The bool reports whether a
-// new table was swapped in.
-func (x *XTCP) loadAsn(idx *ipasn.Index, path string, force bool) (reloaded bool, err error) {
-	start := time.Now()
-	if force {
-		err = idx.Reload(path)
-		reloaded = err == nil
-	} else {
-		reloaded, err = idx.ReloadIfChanged(path)
-	}
-	if err != nil {
-		x.pH.WithLabelValues("loadAsn", "error", "duration").Observe(time.Since(start).Seconds())
-		return false, err
-	}
-	if !reloaded {
-		return false, nil
-	}
-	st := idx.Stats()
-	x.pGV.WithLabelValues("loadAsn", "prefixes", "gauge").Set(float64(st.Prefixes))
-	x.pGV.WithLabelValues("loadAsn", "artifactBytes", "gauge").Set(float64(st.ArtifactBytes))
-	x.pGV.WithLabelValues("loadAsn", "loadedAt", "gauge").Set(float64(st.LoadedAt.Unix()))
-	x.pH.WithLabelValues("loadAsn", "build", "duration").Observe(st.BuildDuration.Seconds())
-	return true, nil
+	x.initGatedEnrichers(ctx)
 }
 
 // initDockerEnricher builds the netns-inode -> container index over the Docker
@@ -368,25 +258,27 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 		}
 	}
 
-	// Neither destination enricher enabled (no ASN index, no locality snapshot
-	// ever published): skip the address conversion so disabled mode is a true
-	// no-op on the hot path.
-	if x.asnIndex == nil && x.localityByInode.Load() == nil {
+	// Neither destination enricher installed (not compiled in, disabled, or —
+	// for locality — no snapshot ever published): skip the address conversion
+	// so disabled mode is a true no-op on the hot path. Both fields are
+	// interfaces, so in a build without the tags they are permanently nil and
+	// the branch predicts perfectly.
+	localityOn := x.locality != nil && x.locality.Active()
+	if x.asn == nil && !localityOn {
 		return
 	}
 
 	if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
 		// Classify the destination's locality first. remote defaults to true so
-		// that with locality disabled (nil map) or no snapshot for this namespace
+		// that with locality disabled, or with no snapshot for this namespace,
 		// the ASN lookup runs exactly as before. A self / connected-subnet
 		// destination is tagged and skips the internet ASN feed. The same snapshot
 		// resolves the destination's egress interface (from the matched route's
 		// Oif) and the socket's own bound interface (kernel idiag_if, field 1009).
 		remote := true
-		if m := x.localityByInode.Load(); m != nil {
-			if snap := (*m)[r.NetnsInode]; snap != nil {
-				res := snap.Resolve(addr, r.InetDiagMsgSocketInterface)
-				r.EnrichSocketDestLocality = xtcp_flat_record.XtcpFlatRecord_Locality(res.Locality)
+		if localityOn {
+			if res, found := x.locality.Resolve(r.NetnsInode, addr, r.InetDiagMsgSocketInterface); found {
+				r.EnrichSocketDestLocality = res.Locality
 				r.EnrichSocketDestEgressIfindex = res.EgressIfindex
 				r.EnrichSocketDestEgressIfname = res.EgressIfname
 				r.EnrichSocketInterfaceName = res.BoundIfname
@@ -394,10 +286,10 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 			}
 		}
 
-		if remote && x.asnIndex != nil {
-			if a, found := x.asnIndex.Lookup(addr); found {
-				r.EnrichSocketDestAsn = uint64(a.ASN)
-				r.EnrichSocketDestNetworkOwner = a.NetworkOwner
+		if remote && x.asn != nil {
+			if asn, owner, found := x.asn.LookupAsn(addr); found {
+				r.EnrichSocketDestAsn = uint64(asn)
+				r.EnrichSocketDestNetworkOwner = owner
 			}
 		}
 	}

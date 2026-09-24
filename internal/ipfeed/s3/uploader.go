@@ -72,7 +72,7 @@ func New(ctx context.Context, cfg Config) (Uploader, error) {
 // parseEndpoint derives the bare host[:port] minio expects and whether to use
 // TLS from a configured endpoint. An explicit "https://" or "http://" scheme
 // is stripped and selects TLS on/off respectively; anything else (a bare host,
-// or an unrecognised scheme) is passed through verbatim and defaults to TLS.
+// or an unrecognized scheme) is passed through verbatim and defaults to TLS.
 // A single trailing "/" is removed. No further validation is done here: minio
 // reports a malformed host when the client is constructed.
 func parseEndpoint(raw string) (host string, secure bool) {

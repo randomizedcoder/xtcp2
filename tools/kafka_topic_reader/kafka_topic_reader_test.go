@@ -87,7 +87,7 @@ func TestPollLoop_cancelledCtx(t *testing.T) {
 	}
 }
 
-// PollLoop with an active (uncancelled) ctx + an unreachable broker:
+// PollLoop with an active (uncanceled) ctx + an unreachable broker:
 // PollFetches returns a fetch error each loop iteration; the loop logs
 // + continues. Cancel ctx after a few iterations so the loop exits via
 // the ctx.Err()-after-Err branch.

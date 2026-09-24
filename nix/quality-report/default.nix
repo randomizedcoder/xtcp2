@@ -20,7 +20,6 @@
 #
 {
   pkgs,
-  lib,
   vendoredSource,
   src,
 }:
@@ -180,20 +179,36 @@ pkgs.runCommand "xtcp2-quality-report"
         ./...
 
     # ── per-flavor coverage runs ──────────────────────────────────────
-    # The default `go test ./...` above compiles WITHOUT any
-    # `dest_*` build tags, so pkg/xtcp/destinations_{kafka,nats,nsq,
-    # valkey}.go (each guarded by `//go:build dest_<name>`) are
-    # excluded from the profile. Re-run pkg/xtcp/... once per flavor
-    # with the matching tag so the destination files contribute to
-    # coverage. The merged profile then feeds the existing TSV+HTML
-    # post-processing below.
+    # The default `go test ./...` above compiles WITHOUT any `dest_*` or
+    # `enrich_*` build tags, so pkg/xtcp/destinations_{kafka,nats,nsq,
+    # valkey,s3parquet}.go and pkg/xtcp/enrich_{asn,locality}.go (each
+    # guarded by `//go:build <tag>`) are excluded from the profile.
+    # Re-run pkg/xtcp/... once per flavor with the matching tag so those
+    # files contribute to coverage. The merged profile then feeds the
+    # existing TSV+HTML post-processing below.
     #
     # Each per-flavor run is independent and writes to its own .out
     # file; we concatenate them below (skipping the duplicate
     # `mode: atomic` header) and let the existing awk dedupe by
     # max-count-per-block, mirroring what `go tool cover` does.
-    for flavor in kafka nats nsq valkey; do
-      go test -tags "dest_$flavor" \
+    #
+    # `<name>:<build tag>` pairs — the tag no longer derives from the name
+    # now that there are two tag prefixes. Declared once and reused by the
+    # merge loop below so the two cannot drift apart.
+    coverageFlavors=(
+      kafka:dest_kafka
+      nats:dest_nats
+      nsq:dest_nsq
+      valkey:dest_valkey
+      s3parquet:dest_s3parquet
+      asn:enrich_asn
+      locality:enrich_locality
+    )
+
+    for spec in "''${coverageFlavors[@]}"; do
+      flavor="''${spec%%:*}"
+      flavorTag="''${spec#*:}"
+      go test -tags "$flavorTag" \
         -coverprofile="$RAW/coverage-$flavor.out" -covermode=atomic \
         -coverpkg="$coverPkg" \
         ./pkg/xtcp/... \
@@ -208,7 +223,8 @@ pkgs.runCommand "xtcp2-quality-report"
     if [ -s "$RAW/coverage-default.out" ]; then
       head -n 1 "$RAW/coverage-default.out" > "$RAW/coverage.out"
       tail -n +2 "$RAW/coverage-default.out" >> "$RAW/coverage.out"
-      for flavor in kafka nats nsq valkey; do
+      for spec in "''${coverageFlavors[@]}"; do
+        flavor="''${spec%%:*}"
         if [ -s "$RAW/coverage-$flavor.out" ]; then
           tail -n +2 "$RAW/coverage-$flavor.out" >> "$RAW/coverage.out"
         fi

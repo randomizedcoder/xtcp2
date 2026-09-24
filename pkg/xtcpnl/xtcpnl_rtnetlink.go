@@ -6,7 +6,7 @@ package xtcpnl
 // IP->ASN lookup.
 //
 // It mirrors the existing inet_diag request/parse style in this package: manual
-// little-endian (de)serialisation with explicit length checks (the host targets
+// little-endian (de)serialization with explicit length checks (the host targets
 // are amd64/arm64, both little-endian). The kernel UAPI enum values (RTM_*,
 // IFA_*, RTA_*, RTN_*, RT_SCOPE_*, RT_TABLE_*, NLM_*, NLMSG_*) are taken from
 // golang.org/x/sys/unix, which exports all of them.

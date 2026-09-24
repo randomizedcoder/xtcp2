@@ -102,7 +102,7 @@ func runMain(args []string, stderr io.Writer) int {
 // newDialer builds the net.Dialer used for every connection, applying the
 // optional source-address bind (LocalAddr) and interface bind (SO_BINDTODEVICE).
 // Both are empty by default, yielding a zero-value Dialer identical to the
-// previous behaviour. A non-empty but unparseable srcaddr is a hard error so a
+// previous behavior. A non-empty but unparseable srcaddr is a hard error so a
 // misconfigured load container fails loudly rather than silently binding nothing.
 func newDialer(srcaddr, iface string) (net.Dialer, error) {
 	var d net.Dialer

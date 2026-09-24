@@ -48,7 +48,7 @@ func TestParseEndpoint(t *testing.T) {
 		{"positive: bare host:port without scheme is passed through and defaults to TLS", "minio.local:9000", "minio.local:9000", true},
 		{"positive: bare hostname without port or scheme defaults to TLS", "s3.us-east-1.amazonaws.com", "s3.us-east-1.amazonaws.com", true},
 		// negative
-		{"negative: an unrecognised scheme is not stripped and defaults to TLS (minio rejects it later)", "ftp://host:21", "ftp://host:21", true},
+		{"negative: an unrecognized scheme is not stripped and defaults to TLS (minio rejects it later)", "ftp://host:21", "ftp://host:21", true},
 		{"negative: a malformed URL is passed through verbatim", "ht!tp://bad host", "ht!tp://bad host", true},
 		// boundary
 		{"boundary: empty string yields empty host with TLS default", "", "", true},
@@ -59,7 +59,7 @@ func TestParseEndpoint(t *testing.T) {
 		{"corner: trailing slash on bare host:port is trimmed", "minio.local:9000/", "minio.local:9000", true},
 		{"corner: only one trailing slash is trimmed", "http://host//", "host/", false},
 		{"corner: a path component is kept after the host", "https://host:9000/bucket/", "host:9000/bucket", true},
-		{"corner: uppercase scheme is not recognised and is kept verbatim", "HTTPS://host", "HTTPS://host", true},
+		{"corner: uppercase scheme is not recognized and is kept verbatim", "HTTPS://host", "HTTPS://host", true},
 		{"corner: an IPv4 literal with port and http scheme", "http://127.0.0.1:9000/", "127.0.0.1:9000", false},
 		{"corner: a bracketed IPv6 literal with port and https scheme", "https://[::1]:9000", "[::1]:9000", true},
 	}

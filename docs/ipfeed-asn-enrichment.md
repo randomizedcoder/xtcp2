@@ -83,7 +83,36 @@ enrichers:
 
 ### Hot-path wiring (`pkg/xtcp`)
 
-- `initAsnEnricher` (`enrich.go`) loads `asn_db_path` at startup, gated by
+**Compile-time gating.** All of the daemon-side code below lives in
+`pkg/xtcp/enrich_asn.go`, behind `//go:build enrich_asn`, and registers itself
+from `init()` into the enricher registry in `pkg/xtcp/enrich_core.go` — the same
+mechanism the `dest_<scheme>` destinations use. The reason is `pkg/ipasn`: it
+reads Parquet, so it pulls in `parquet-go` (plus `gaissmai/bart` for the trie),
+which is the single heaviest dependency the daemon can acquire and which
+otherwise reaches it only through `dest_s3parquet`. `XTCP` therefore holds an
+`asnLookuper` interface, never an `*ipasn.Index` — a concrete field would
+re-link the package into every flavor and defeat the gating entirely.
+
+Consequences:
+
+- Nix: `xtcp2-<dest>-asn` / `-enrich` binaries and `oci-xtcp2-<dest>-asn` /
+  `-enrich` images carry it; the unsuffixed flavors do not. See
+  [build-flavors.md](build-flavors.md). The fat `oci-xtcp2` images carry
+  everything.
+- Setting `-enrichAsn` on a binary built without the tag is a **fatal startup
+  error** naming the flag, the tag and what the binary does have — not a silent
+  no-op. Flipping `enrich_asn_enable` over the gRPC ConfigService `Set` on such
+  a binary is rejected with `FailedPrecondition` (`Set` re-execs the *same*
+  binary, so restarting could not help).
+- `xtcp_gauges{function="InitPromethus",variable="compiledInEnrichers",type="asn"}`
+  is 1 when the code is present and 0 when it is not, so empty ASN columns can
+  be attributed to the artifact rather than guessed at. `xtcp2 -help` and
+  `xtcp2 -conf` say the same thing.
+- Testing needs the tag too: `go test -tags enrich_asn ./pkg/xtcp/`. `nix flake
+  check` runs it via the `asn`, `enrich` and `s3parquet-enrich` targets in
+  `nix/tests/go-test-flavors.nix`.
+
+- `initAsnEnricher` (`enrich_asn.go`) loads `asn_db_path` at startup, gated by
   `enrich_asn_enable`. If `asn_refresh_interval > 0` (daemon default **1h**), a
   background goroutine calls `ReloadIfChanged` on that cadence (bound to the
   daemon context): an unchanged file is not rebuilt, a changed one is swapped
@@ -109,8 +138,8 @@ enrichers:
   (`inet_diag_msg_socket_destination`, a kernel `__be32[4]` slot) to a
   `netip.Addr` **alloc-free**, keyed on `inet_diag_msg_family` (IPv4 lives in the
   first 4 bytes, so family is authoritative — see `destAddr`), then
-  `asnIndex.Lookup` sets `dest_asn` and `dest_network_owner`. No-op when the
-  enricher is disabled or the index is nil.
+  `x.asn.LookupAsn` sets `dest_asn` and `dest_network_owner`. No-op when the
+  enricher is disabled, not compiled in, or the index is nil.
 
 ### Configuration (`proto/xtcp_config/v1`)
 

@@ -1,16 +1,34 @@
+//go:build enrich_locality
+
+// Locality enrichment. Gated behind `enrich_locality` because pkg/localnet
+// holds a gaissmai/bart prefix trie per network namespace, and because the
+// per-namespace rtnetlink discovery below is a meaningful amount of code to
+// carry in a build that will never run it. See enrich_core.go for the registry
+// and the seam; pkg/xtcpnl stays untagged (generic netlink, used elsewhere).
+
 package xtcp
 
 import (
+	"context"
 	"errors"
 	"log"
+	"net/netip"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/localnet"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
+
+func init() {
+	RegisterEnricher(EnricherLocality, func(_ context.Context, x *XTCP) {
+		x.initLocalityEnricher()
+	})
+}
 
 // localityRecvTimeout bounds each rtnetlink dump's recv so a missing NLMSG_DONE
 // degrades to a discovery error (that namespace stays unclassified) instead of
@@ -70,15 +88,50 @@ func nextLocalityRetry(prev localityRetryState, retrying bool, now time.Time, ha
 	return localityRetryState{nextRetry: now.Add(b), backoff: b}
 }
 
-// initLocalityEnricher records that locality classification is enabled. The
-// actual per-namespace discovery is driven by the single-owner reconcile path
-// (refreshLocality, called from discoverNamespaces), so there is nothing to
-// load or spawn here — this just logs intent and bumps a counter, mirroring the
-// other initEnrichers gates.
+// localityIndex is the locality enricher: it owns the per-namespace snapshot
+// map, the negative cache that throttles re-dumping a namespace that keeps
+// failing, and the refresh clock. All of this used to live on the XTCP struct;
+// it moved here so that *localnet.Snapshot — and therefore gaissmai/bart —
+// appears nowhere an untagged build can see it, which is what lets the linker
+// drop pkg/localnet entirely. XTCP holds only the localityEnricher interface.
+//
+// The x back-pointer is for the shared daemon state the discovery path needs:
+// the Prometheus vectors, debugLevel and the config's refresh interval.
+type localityIndex struct {
+	x *XTCP
+
+	// byInode maps a socket's netns inode -> that namespace's local
+	// address/route snapshot. Published atomically by Refresh, read lock-free
+	// on the stamping path.
+	byInode atomic.Pointer[map[uint64]*localnet.Snapshot]
+
+	// lastRefresh throttles the full re-dump to locality_refresh_interval;
+	// retry is the per-namespace negative cache. Both are touched only from
+	// Refresh, which runs on the single-owner reconcile path under
+	// reconcileMu, so neither needs a lock.
+	lastRefresh time.Time
+	retry       map[uint64]localityRetryState
+
+	// dumper / clock are test seams: nil means nsLocalitySnapshot (setns +
+	// rtnetlink dumps) and time.Now.
+	dumper func(nsIdentity) (*localnet.Snapshot, bool)
+	clock  func() time.Time
+}
+
+func newLocalityIndex(x *XTCP) *localityIndex {
+	return &localityIndex{x: x, retry: make(map[uint64]localityRetryState)}
+}
+
+// initLocalityEnricher installs the locality index. The actual per-namespace
+// discovery is driven by the single-owner reconcile path (refreshLocality,
+// called from discoverNamespaces), so there is nothing to load or spawn here —
+// this just publishes intent and bumps a counter, mirroring the other
+// initEnrichers gates.
 func (x *XTCP) initLocalityEnricher() {
-	if !x.config.EnrichLocalityEnable {
+	if x.config == nil || !x.config.EnrichLocalityEnable {
 		return
 	}
+	x.locality = newLocalityIndex(x)
 	x.pC.WithLabelValues("initEnrichers", "locality", "enabled").Inc()
 	if x.debugLevel > 10 {
 		log.Printf("initLocalityEnricher: locality enrichment enabled (refresh:%s); per-namespace discovery runs on the reconcile path",
@@ -86,27 +139,55 @@ func (x *XTCP) initLocalityEnricher() {
 	}
 }
 
-// localityNow is the reconcile clock (time.Now unless a test injected one).
-func (x *XTCP) localityNow() time.Time {
-	if x.localityClock != nil {
-		return x.localityClock()
+// Active implements localityEnricher: true once any pass has published a map,
+// which is what keeps the stamping path a true no-op before the first
+// reconcile.
+func (l *localityIndex) Active() bool {
+	return l.byInode.Load() != nil
+}
+
+// Resolve implements localityEnricher, flattening localnet.Resolution into the
+// untagged localityResult so that type stays inside this build.
+func (l *localityIndex) Resolve(inode uint64, dst netip.Addr, boundIfindex uint32) (localityResult, bool) {
+	m := l.byInode.Load()
+	if m == nil {
+		return localityResult{}, false
+	}
+	snap := (*m)[inode]
+	if snap == nil {
+		return localityResult{}, false
+	}
+	res := snap.Resolve(dst, boundIfindex)
+	return localityResult{
+		Locality:      xtcp_flat_record.XtcpFlatRecord_Locality(res.Locality),
+		EgressIfindex: res.EgressIfindex,
+		EgressIfname:  res.EgressIfname,
+		BoundIfname:   res.BoundIfname,
+		Remote:        res.Remote,
+	}, true
+}
+
+// now is the reconcile clock (time.Now unless a test injected one).
+func (l *localityIndex) now() time.Time {
+	if l.clock != nil {
+		return l.clock()
 	}
 	return time.Now()
 }
 
-// dumpLocality performs one namespace's discovery (nsLocalitySnapshot unless a
-// test injected a dumper).
-func (x *XTCP) dumpLocality(id nsIdentity) (*localnet.Snapshot, bool) {
-	if x.localityDumper != nil {
-		return x.localityDumper(id)
+// dump performs one namespace's discovery (nsLocalitySnapshot unless a test
+// injected a dumper).
+func (l *localityIndex) dump(id nsIdentity) (*localnet.Snapshot, bool) {
+	if l.dumper != nil {
+		return l.dumper(id)
 	}
-	return x.nsLocalitySnapshot(id)
+	return l.x.nsLocalitySnapshot(id)
 }
 
-// refreshLocality rebuilds the netns-inode -> locality snapshot for the current
+// Refresh rebuilds the netns-inode -> locality snapshot for the current
 // namespace set and publishes it atomically for the stamping path. It is called
 // only from the single-owner reconcile path (discoverNamespaces) under
-// reconcileMu, so lastLocalityRefresh and localityRetry need no additional lock.
+// reconcileMu, so lastRefresh and retry need no additional lock.
 //
 // Which namespaces get dumped on a pass:
 //   - a FULL pass (first ever, or locality_refresh_interval elapsed) re-dumps
@@ -127,17 +208,18 @@ func (x *XTCP) dumpLocality(id nsIdentity) (*localnet.Snapshot, bool) {
 // Retry state for namespaces that vanished is dropped. interval <= 0 means
 // there is never another full pass: each namespace is discovered once (plus
 // its retries) and never refreshed.
-func (x *XTCP) refreshLocality(nss map[uint64]nsIdentity) {
-	start := x.localityNow()
+func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
+	x := l.x
+	start := l.now()
 	interval := x.config.GetLocalityRefreshInterval().AsDuration()
-	full := x.lastLocalityRefresh.IsZero() || (interval > 0 && start.Sub(x.lastLocalityRefresh) >= interval)
+	full := l.lastRefresh.IsZero() || (interval > 0 && start.Sub(l.lastRefresh) >= interval)
 
 	var cur map[uint64]*localnet.Snapshot
-	if p := x.localityByInode.Load(); p != nil {
+	if p := l.byInode.Load(); p != nil {
 		cur = *p
 	}
-	if x.localityRetry == nil {
-		x.localityRetry = make(map[uint64]localityRetryState)
+	if l.retry == nil {
+		l.retry = make(map[uint64]localityRetryState)
 	}
 
 	budget := localityNewNsPerPassCst
@@ -149,7 +231,7 @@ func (x *XTCP) refreshLocality(nss map[uint64]nsIdentity) {
 	m := make(map[uint64]*localnet.Snapshot, len(nss))
 	for inode, id := range nss {
 		prev, had := cur[inode]
-		retry, retrying := x.localityRetry[inode]
+		retry, retrying := l.retry[inode]
 
 		need := full || !had
 		if retrying {
@@ -176,34 +258,34 @@ func (x *XTCP) refreshLocality(nss map[uint64]nsIdentity) {
 			budget--
 		}
 
-		snap, ok := x.dumpLocality(id)
+		snap, ok := l.dump(id)
 		dumped++
 		switch {
 		case !ok:
 			failed++
-			x.localityRetry[inode] = nextLocalityRetry(retry, retrying, start, true)
+			l.retry[inode] = nextLocalityRetry(retry, retrying, start, true)
 			if had {
 				m[inode] = prev // keep the last good snapshot on a discovery failure
 			}
 		case !snap.HasNonLoopbackSelf():
 			loOnly++
 			m[inode] = snap
-			x.localityRetry[inode] = nextLocalityRetry(retry, retrying, start, false)
+			l.retry[inode] = nextLocalityRetry(retry, retrying, start, false)
 		default:
 			m[inode] = snap
-			delete(x.localityRetry, inode)
+			delete(l.retry, inode)
 		}
 	}
 
-	for inode := range x.localityRetry {
+	for inode := range l.retry {
 		if _, present := nss[inode]; !present {
-			delete(x.localityRetry, inode)
+			delete(l.retry, inode)
 		}
 	}
 
-	x.localityByInode.Store(&m)
+	l.byInode.Store(&m)
 	if full {
-		x.lastLocalityRefresh = start
+		l.lastRefresh = start
 	}
 
 	passType := "partial"
@@ -216,12 +298,12 @@ func (x *XTCP) refreshLocality(nss map[uint64]nsIdentity) {
 	x.pC.WithLabelValues("refreshLocality", "loopbackOnly", "count").Add(float64(loOnly))
 	x.pC.WithLabelValues("refreshLocality", "deferred", "count").Add(float64(deferred))
 	x.pGV.WithLabelValues("refreshLocality", "namespaces", "gauge").Set(float64(len(m)))
-	x.pGV.WithLabelValues("refreshLocality", "retryBackoff", "gauge").Set(float64(len(x.localityRetry)))
-	x.pH.WithLabelValues("refreshLocality", passType, "duration").Observe(x.localityNow().Sub(start).Seconds())
+	x.pGV.WithLabelValues("refreshLocality", "retryBackoff", "gauge").Set(float64(len(l.retry)))
+	x.pH.WithLabelValues("refreshLocality", passType, "duration").Observe(l.now().Sub(start).Seconds())
 
 	if x.debugLevel > 10 {
 		log.Printf("refreshLocality: %s pass namespaces:%d dumped:%d reused:%d failed:%d loopbackOnly:%d deferred:%d inBackoff:%d took:%s",
-			passType, len(m), dumped, reused, failed, loOnly, deferred, len(x.localityRetry), x.localityNow().Sub(start))
+			passType, len(m), dumped, reused, failed, loOnly, deferred, len(l.retry), l.now().Sub(start))
 	}
 }
 

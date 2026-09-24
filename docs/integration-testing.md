@@ -182,12 +182,12 @@ Two exposure shapes:
 | `microvm-x86_64-lifecycle-coverage` | `coverage` | runner | 1024 | xtcp2 built `-cover`; scrapes the coverage dump into `$XTCP2_COVERDIR`. |
 | `microvm-x86_64-lifecycle-coverage-iouring` | `coverage-iouring` | runner | 1024 | Coverage + `-ioUring` so the `netlinkerIoUring` path runs. |
 | `microvm-x86_64-lifecycle-s3parquet` | `s3parquet` | runner | 6144 | s3parquet lifecycle; adds the `S3PARQUET_FILES`/`S3PARQUET_ROWS` checks. |
-| `microvm-x86_64-lifecycle-clickhouse-http` | `clickhouse-http` | runner | 6144 | xtcp2 inserts **directly into ClickHouse over HTTP** (`FORMAT ProtobufList`, no Kafka); adds `CLICKHOUSE_HTTP` (rows grew **and** `destHTTP` posts). 1200 s timeout (docker pull + CH init). |
+| `microvm-x86_64-lifecycle-clickhouse-http` | `clickhouse-http` | runner | 6144 | xtcp2 inserts **directly into ClickHouse over HTTP** (`FORMAT ProtobufList`, no Kafka); adds `CLICKHOUSE_HTTP` (rows grew **and** `destHTTP` posts). Runs under a raised `stallSec` (900 s) because the docker pull + ClickHouse init is one legitimately silent stretch. |
 | `microvm-x86_64-lifecycle-valkey` | `valkey` | runner | 1024 | Native in-VM Valkey + a pre-subscribed consumer; the daemon PUBLISHes each poll's records and `VALKEY_CONSUME` counts them back (pub/sub). |
 | `microvm-x86_64-lifecycle-nats` | `nats` | runner | 1024 | Native in-VM NATS server + subscriber; `NATS_CONSUME` counts consumed records. |
 | `microvm-x86_64-lifecycle-nsq` | `nsq` | runner | 1024 | Native in-VM nsqd + an `nsq_tail` consumer; `NSQ_CONSUME` reads nsqd's per-channel `finish_count`. |
 | `microvm-x86_64-lifecycle-{tcp,udp,unix,unixgram}-sink` | `{tcp,udp,unix,unixgram}-sink` | runner | 1024 | Raw-socket dest → an in-VM `ncat`/`socat` receiver; `RAW_SOCKET` validates the records arrived + the per-scheme `Writes` counter grew. Four flavors sharing one `mkLifecycleSocketSink` factory. |
-| `test-microvm-lifecycle-x86_64-interface-naming` (package; `nix run .#test-microvm-lifecycle-x86_64-interface-naming`) | `interface-naming` | runner | 1024 | Docker-free **enrichment-content** flavor: two veth pairs + a peer netns, `tcp_client` bound with `SO_BINDTODEVICE` and unbound-via-route, xtcp2 `-enrichLocality -enrichAsn`. `IFNAME` asserts the bound (`idiag_if`-derived) and route-egress interface names on distinguishable records. `ASN` runs the **real `ipfeed-collector`** against a loopback-served synthetic `goog.json` (8.8.8.0/24 → AS15169/google, real gstatic format, no internet needed for the feed), ordered *after* xtcp2 so the daemon picks the artifact up on its `-asnRefreshInterval` tick, and asserts the record for a held TCP connection to `8.8.8.8:53` carries `enrich_socket_dest_asn=15169`, `network_owner=google`, `LOCALITY_REMOTE`. 600 s timeout. |
+| `test-microvm-lifecycle-x86_64-interface-naming` (package; `nix run .#test-microvm-lifecycle-x86_64-interface-naming`) | `interface-naming` | runner | 1024 | Docker-free **enrichment-content** flavor: two veth pairs + a peer netns, `tcp_client` bound with `SO_BINDTODEVICE` and unbound-via-route, xtcp2 `-enrichLocality -enrichAsn`. `IFNAME` asserts the bound (`idiag_if`-derived) and route-egress interface names on distinguishable records. `ASN` runs the **real `ipfeed-collector`** against a loopback-served synthetic `goog.json` (8.8.8.0/24 → AS15169/google, real gstatic format, no internet needed for the feed), ordered *after* xtcp2 so the daemon picks the artifact up on its `-asnRefreshInterval` tick, and asserts the record for a held TCP connection to `8.8.8.8:53` carries `enrich_socket_dest_asn=15169`, `network_owner=google`, `LOCALITY_REMOTE`. Checks 5f/5g each poll for up to 2 min (x `waitScale`), well inside the default stall watchdog. |
 | `microvm-x86_64-s3parquet-pipeline` | `s3parquet` | raw boot | 6144 | The s3parquet lifecycle VM (in-VM MinIO, xtcp2 writes Parquet), booted directly. |
 | `microvm-x86_64-soak` | `soak` | runner | 3072 | xtcp2 (`-dest null`) + nsTest churn + tcp_server/client + /metrics scraper. Long stability (1h default, `--duration 24h`); asserts no panic/restart, ≥10 churn events, bounded RSS/threads. |
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | runner | 3072 | dockerd + 20 containers × 250 sockets, each its own netns. Asserts Method B discovered ≥ container-count namespaces, 0 panics. |
@@ -206,6 +206,19 @@ Coverage flavors exist only when the coverage build is enabled; the `tcp-stress`
 ### Running the whole suite — `integration-all`
 
 `nix run .#integration-all` drives the whole microVM suite from one command. Because `/dev/kvm` is a single slot, flavors run **sequentially**; each runner's exit code (`0`/`1`/`2` = PASS/FAIL/TIMEOUT) is captured, the run continues past failures, and a per-flavor summary plus an aggregate exit code are printed at the end.
+
+#### How a runner decides it has timed out
+
+The host runner does **not** use a flat wall-clock budget. It watches the scraped transcript for `XTCP2_SELF_TEST_*_{PASS,FAIL}` sentinels and applies two limits (`mkLifecycleFullTest`, `nix/microvms/lib.nix`):
+
+| Knob | Default | Meaning |
+|---|---|---|
+| `stallSec` | 600 | **No-progress watchdog.** Fails if no *new* sentinel appears for this long. The timer resets on every new sentinel, so a slow-but-progressing run is never killed. This is the limit that actually catches a hang. |
+| `timeoutSec` | 1800 | Absolute backstop. Only reached by a run that keeps dribbling sentinels without ever finishing. |
+
+This matters because the wall-clock cost of a run is dominated by host load: a 2-vCPU guest on an oversubscribed host stretches several-fold, which used to cut healthy runs off mid-flight. A stall still exits **2**, same as before, and the timeout message names the last sentinel seen, how many were reached, and whether it was the stall watchdog or the absolute cap.
+
+The in-guest side has a matching knob. Every retry budget in `nix/microvms/self-test.nix` is multiplied by `waitScale` (default 4), overridable per boot with the `XTCP2_SELF_TEST_WAIT_SCALE` environment variable. These are poll-until-true loops, so a larger scale does not slow down a check that passes — it only gives a slow guest more room before declaring failure. Keep `stallSec` above (longest single check) × `waitScale`, or the watchdog fires mid-check and reports TIMEOUT for what is really a FAIL.
 
 ```sh
 nix run .#integration-all                          # ~12 lifecycle flavors (default)

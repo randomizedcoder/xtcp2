@@ -17,7 +17,6 @@
 #
 {
   pkgs,
-  lib,
   vendoredSource,
 }:
 

@@ -32,6 +32,8 @@
   arch,
   xtcp2Package,
   xtcp2AllPackage,
+  # Standalone ipfeed-collector (no longer inside the xtcp2-all join).
+  ipfeedCollectorPackage,
   sink ? "minimal",
   # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
   # script) that the in-VM container spawn unit loads via `docker load`.
@@ -239,8 +241,7 @@ let
 
   selfTest = import ./self-test.nix {
     inherit pkgs lib;
-    promPort = cfg.promPort;
-    grpcPort = cfg.grpcPort;
+    inherit (cfg) promPort grpcPort;
     coverageEnabled = isCoverage;
     inherit coverDir;
     # The kafka-oriented rows+errors check (Check 11) runs on the kafka
@@ -1885,7 +1886,7 @@ in
         microvm = {
           hypervisor = "qemu";
           mem = effectiveMem;
-          vcpu = cfg.vcpu;
+          inherit (cfg) vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
           # Default: no disk. /var/lib/docker lives on the root tmpfs.
           # For clickhouse-pipeline this proved a problem at hour ~1
@@ -2676,7 +2677,7 @@ in
             # RuntimeDirectory lives as long as this (RemainAfterExit) unit does.
             RuntimeDirectory = baseNameOf asnDir;
             RuntimeDirectoryMode = "0755";
-            ExecStart = "${xtcp2AllPackage}/bin/ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v";
+            ExecStart = "${ipfeedCollectorPackage}/bin/ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };

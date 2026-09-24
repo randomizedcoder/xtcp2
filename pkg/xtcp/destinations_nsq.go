@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	nsq "github.com/nsqio/go-nsq"
 )
@@ -54,21 +53,16 @@ func newNSQDest(_ context.Context, x *XTCP) (Destination, error) {
 	return &nsqDest{x: x, producer: producer}, nil
 }
 
-func (d *nsqDest) Send(_ context.Context, b *[]byte) (int, error) {
-	start := time.Now()
-	err := d.producer.Publish(d.x.config.Topic, *b)
-	dur := time.Since(start)
-	if err != nil {
-		d.x.pH.WithLabelValues("destNSQ", "Publish", "error").Observe(dur.Seconds())
-		d.x.pC.WithLabelValues("destNSQ", "Publish", "error").Inc()
-		return 0, err
-	}
-	if d.x.debugLevel > 10 {
-		log.Printf("destNSQ %0.6fs", dur.Seconds())
-	}
-	d.x.pH.WithLabelValues("destNSQ", "Publish", "count").Observe(dur.Seconds())
-	d.x.pC.WithLabelValues("destNSQ", "Publish", "count").Inc()
-	return 1, nil
+// Send hands the record to sendViaPublisher, which owns the timing, metrics
+// and debug-log boilerplate shared with the nats and valkey sinks. The
+// timeout is 0 because nsq.Producer.Publish takes no context — it blocks on
+// the producer's own response channel and is bounded by the nsq.Config
+// write/dial timeouts, not by ours.
+func (d *nsqDest) Send(ctx context.Context, b *[]byte) (int, error) {
+	return sendViaPublisher(ctx, d.x, "destNSQ", 0,
+		func(_ context.Context, topic string, body []byte) error {
+			return d.producer.Publish(topic, body)
+		}, b)
 }
 
 func (d *nsqDest) Close() error {

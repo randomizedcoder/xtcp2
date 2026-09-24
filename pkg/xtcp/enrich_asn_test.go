@@ -1,3 +1,5 @@
+//go:build enrich_asn
+
 package xtcp
 
 import (
@@ -18,6 +20,18 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/ipfeed/output"
 	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
 )
+
+// asnIdx returns the live *ipasn.Index behind x's asnLookuper seam, or nil
+// when the ASN enricher was not installed. The tests assert against the table
+// actually answering lookups, which the seam deliberately hides from untagged
+// code.
+func asnIdx(x *XTCP) *ipasn.Index {
+	a, ok := x.asn.(asnIndex)
+	if !ok {
+		return nil
+	}
+	return a.idx
+}
 
 // ---- initAsnEnricher --------------------------------------------------------
 //
@@ -42,19 +56,6 @@ func writeAsnArtifact(t *testing.T, path string, rows []model.Record) {
 	}
 }
 
-// waitFor polls cond until it is true or the deadline passes.
-func waitFor(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", what)
-}
-
 // go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestInitAsnEnricher
 func TestInitAsnEnricher(t *testing.T) {
 	const tick = 20 * time.Millisecond
@@ -64,7 +65,7 @@ func TestInitAsnEnricher(t *testing.T) {
 		enable      bool
 		pathMode    string // "valid" | "missing" | "empty" | "corrupt"
 		interval    time.Duration
-		wantIndex   bool   // x.asnIndex != nil after init
+		wantIndex   bool   // the ASN seam is installed after init
 		wantOwner   string // owner of 1.1.1.1 right after init ("" = miss)
 		// after is an optional second phase exercising the refresh loop.
 		after func(t *testing.T, x *XTCP, path string)
@@ -78,10 +79,10 @@ func TestInitAsnEnricher(t *testing.T) {
 				time.Sleep(15 * time.Millisecond)
 				writeAsnArtifact(t, path, asnRowsB)
 				waitFor(t, "reload of the rewritten artifact", func() bool {
-					a, ok := x.asnIndex.Lookup(netip.MustParseAddr("1.1.1.1"))
+					a, ok := asnIdx(x).Lookup(netip.MustParseAddr("1.1.1.1"))
 					return ok && a.NetworkOwner == "replaced-owner"
 				})
-				if _, ok := x.asnIndex.Lookup(netip.MustParseAddr("8.8.8.8")); ok {
+				if _, ok := asnIdx(x).Lookup(netip.MustParseAddr("8.8.8.8")); ok {
 					t.Error("old prefix still present after reload (table not swapped atomically)")
 				}
 			}},
@@ -109,7 +110,7 @@ func TestInitAsnEnricher(t *testing.T) {
 				})
 				writeAsnArtifact(t, path, asnRowsA)
 				waitFor(t, "late-arriving artifact to load", func() bool {
-					a, ok := x.asnIndex.Lookup(netip.MustParseAddr("1.1.1.1"))
+					a, ok := asnIdx(x).Lookup(netip.MustParseAddr("1.1.1.1"))
 					return ok && a.NetworkOwner == "cloudflare"
 				})
 			}},
@@ -120,7 +121,7 @@ func TestInitAsnEnricher(t *testing.T) {
 				waitFor(t, "the failed reload to be counted", func() bool {
 					return testutil.ToFloat64(x.pC.WithLabelValues("refreshAsn", "reload", "error")) >= 1
 				})
-				if a, ok := x.asnIndex.Lookup(netip.MustParseAddr("1.1.1.1")); !ok || a.NetworkOwner != "cloudflare" {
+				if a, ok := asnIdx(x).Lookup(netip.MustParseAddr("1.1.1.1")); !ok || a.NetworkOwner != "cloudflare" {
 					t.Errorf("table degraded after failed reload: (%+v,%v)", a, ok)
 				}
 			}},
@@ -128,7 +129,7 @@ func TestInitAsnEnricher(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			x := newLocalityFixture(t, time.Minute)
+			x := newMetricsFixture(t, time.Minute)
 			dir := t.TempDir()
 			path := filepath.Join(dir, "feeds.parquet")
 			switch tc.pathMode {
@@ -151,11 +152,11 @@ func TestInitAsnEnricher(t *testing.T) {
 
 			x.initAsnEnricher(ctx)
 
-			if (x.asnIndex != nil) != tc.wantIndex {
-				t.Fatalf("asnIndex != nil = %v, want %v", x.asnIndex != nil, tc.wantIndex)
+			if (asnIdx(x) != nil) != tc.wantIndex {
+				t.Fatalf("asn enricher installed = %v, want %v", asnIdx(x) != nil, tc.wantIndex)
 			}
-			if x.asnIndex != nil {
-				a, ok := x.asnIndex.Lookup(netip.MustParseAddr("1.1.1.1"))
+			if asnIdx(x) != nil {
+				a, ok := asnIdx(x).Lookup(netip.MustParseAddr("1.1.1.1"))
 				if got := ownerOrEmpty(a.NetworkOwner, ok); got != tc.wantOwner {
 					t.Errorf("Lookup(1.1.1.1) owner = %q, want %q", got, tc.wantOwner)
 				}
@@ -229,7 +230,7 @@ func TestLoadAsnMetrics(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			x := newLocalityFixture(t, time.Minute)
+			x := newMetricsFixture(t, time.Minute)
 			path := filepath.Join(t.TempDir(), "feeds.parquet")
 			idx := &ipasn.Index{}
 			if tc.prime {
@@ -294,11 +295,4 @@ func ownerOrEmpty(owner string, ok bool) string {
 		return ""
 	}
 	return owner
-}
-
-func writeBytesFile(t *testing.T, path string, b []byte) {
-	t.Helper()
-	if err := os.WriteFile(path, b, 0o600); err != nil {
-		t.Fatal(err)
-	}
 }

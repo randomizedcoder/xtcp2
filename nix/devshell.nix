@@ -9,14 +9,14 @@
 #     lint-fix, lint-new, vm-up) discoverable via `xtcp2-help` in the shell.
 #   - No magic env vars — keep the shell predictable.
 #
-{ pkgs, lib }:
+{ pkgs }:
 
 let
   versions = import ./versions.nix { inherit pkgs; };
   packages = import ./packages.nix { inherit pkgs; };
   # Same generator as `nix run .#regen-protos` — a single offline, nix-pinned
   # implementation so the dev-shell helper and the flake app can't drift.
-  regenProtos = import ./protos/buf-generate.nix { inherit pkgs lib; };
+  regenProtos = import ./protos/buf-generate.nix { inherit pkgs; };
 in
 pkgs.mkShell {
   name = "xtcp2-dev";
@@ -41,7 +41,7 @@ pkgs.mkShell {
       buf lint                                Hermetic proto lint
 
     Static analysis (fix issues, do not ignore):
-      lint-quick                              Tier 0  (~30s, pre-commit)
+      lint-quick                              Tier 0  (~90s, pre-commit)
       lint                                    Tier 1  (~2min, CI gating)
       lint-comprehensive                      Tier 2  (~10min, nightly)
       lint-fix                                Apply auto-fixable findings
@@ -59,6 +59,15 @@ pkgs.mkShell {
                                               Local workaround when the toolchain
                                               rejects giouring's syscall linkname
                                               ("invalid reference to syscall.munmap")
+      go test -tags 'enrich_asn enrich_locality' ./pkg/xtcp/ ./cmd/xtcp2/
+                                              The gated enrichers. Untagged runs
+                                              skip enrich_{asn,locality}.go
+                                              entirely, so their tests never
+                                              compile without this. Combine with
+                                              -ldflags=-checklinkname=0 above.
+                                              Same for dest_* — see
+                                              nix/tests/go-test-flavors.nix,
+                                              which nix flake check runs for you.
       nix build .#tests.microvm-lifecycle     Boot xtcp2 in a VM and verify
 
     Nix:
@@ -74,7 +83,7 @@ pkgs.mkShell {
 
         lint-quick() {
           ${versions.golangci-lint}/bin/golangci-lint run \
-            --config .golangci-quick.yml --timeout 60s ./...
+            --config .golangci-quick.yml --timeout 180s ./...
         }
 
         lint() {

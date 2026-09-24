@@ -28,13 +28,12 @@ let
   goMods = import ./lib/goModules.nix {
     inherit
       pkgs
-      lib
       src
       giouring
       ;
     vendorHash = versions.goVendorHash;
   };
-  vendoredSource = goMods.vendoredSource;
+  inherit (goMods) vendoredSource;
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
   containers = import ./containers {
@@ -66,6 +65,7 @@ let
       ;
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
+    ipfeedCollectorPackage = binaries."ipfeed-collector";
     xtcp2CoverPackage = binaries.xtcp2-cover;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
@@ -86,24 +86,22 @@ let
     inherit
       pkgs
       lib
-      src
       vendoredSource
       microvms
       ;
   };
 
   # Dev shell
-  devshell = import ./devshell.nix { inherit pkgs lib; };
+  devshell = import ./devshell.nix { inherit pkgs; };
 
   # Proto plumbing
-  protos = import ./protos { inherit pkgs lib src; };
+  protos = import ./protos { inherit pkgs src; };
 
   # Pedantic code-quality aggregator: runs every static-analysis tool +
   # custom audit, never short-circuits, emits a single markdown report.
   qualityReport = import ./quality-report {
     inherit
       pkgs
-      lib
       vendoredSource
       src
       ;
@@ -485,35 +483,16 @@ in
       "xtcp2ByFlavor"
       "xtcp2OnlyByFlavor"
     ])
+    # Every OCI image, by prefix rather than by hand. `containers` exports
+    # nothing but `oci-*` attrs, so filtering instead of enumerating stops a
+    # new flavor from having to be declared both there and here. Covers:
+    #   oci-xtcp2{,-debug,-stripped}   fat, every cmd binary
+    #   oci-xtcp2-<dest>[-<enrich>]    24 slim single-binary daemons
+    #   oci-xtcp2client / oci-xtcp2ctl slim gRPC clients
+    #   oci-ipfeed-collector           ASN artifact builder
+    #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
     // {
-      # Build-variant OCI images (fat: every cmd binary).
-      inherit (containers)
-        oci-xtcp2
-        oci-xtcp2-debug
-        oci-xtcp2-stripped
-        ;
-      # Per-flavor OCI images (slim: single xtcp2 binary for one destination).
-      inherit (containers)
-        oci-xtcp2-min
-        oci-xtcp2-kafka
-        oci-xtcp2-nats
-        oci-xtcp2-nsq
-        oci-xtcp2-valkey
-        oci-xtcp2-s3parquet
-        ;
-      # Per-client OCI images (slim: single gRPC-client binary).
-      inherit (containers)
-        oci-xtcp2client
-        oci-xtcp2ctl
-        ;
-      # ipfeed-collector daemon image (slim: single binary + CA bundle).
-      inherit (containers) oci-ipfeed-collector;
-
-      # Phase B: TCP-stress container for the multi-container test
-      # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,
-      # TCP_SLEEP, TCP_PADS, TCP_CONNECT, TCP_BIND env vars.
-      inherit (containers) oci-xtcp2-tcp-stress;
-
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;

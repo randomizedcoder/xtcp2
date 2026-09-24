@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -187,44 +188,100 @@ func TestOnRingClosedResult_sendBuf(t *testing.T) {
 	x.onRingClosedResult(xio.Result{Op: xio.OpSendUDP, Buf: &b})
 }
 
-// iouringPrefillRecvs err branch: swap packetBufferPool to yield an
-// empty buffer so EnqueueRecvMsg rejects it and the function returns
-// the error.
-func TestIouringPrefillRecvs_enqueueErr(t *testing.T) {
+// iouringPrefillRecvs against a real ring and a real socketpair fd.
+//
+// withPinnedRing pins the goroutine for the whole lifetime of the ring.
+// Rings are created with IORING_SETUP_SINGLE_ISSUER (see setupFlags in
+// pkg/io_uring/ring.go), so the kernel binds each ring to the task that
+// created it and io_uring_enter(2) from any other task fails with EEXIST
+// — surfaced by Go as "file exists". Without the pin, Go's scheduler can
+// migrate this goroutine between ring creation and Submit; that is what
+// made these tests flaky under -race, which adds preemption points.
+// Same reasoning as runIoUringDestRow in destinations_test.go.
+func withPinnedRing(t *testing.T, fn func(ring *xio.Ring)) {
+	t.Helper()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: io_uring test pins to one thread so the SINGLE_ISSUER ring keeps one owning task; no netns mutation.
+
 	ring, err := xioRingNew(t)
 	if err != nil {
 		t.Skipf("io_uring unavailable: %v", err)
 	}
-	t.Cleanup(func() { ring.Close(time.Second, nil) })
+	defer ring.Close(time.Second, nil)
 
-	x := newIouringFixture(t)
-	x.packetBufferPool.Init(func() *[]byte {
-		// Empty slice — EnqueueRecvMsg rejects it.
-		b := make([]byte, 0)
-		return &b
-	})
-	if err := x.iouringPrefillRecvs(ring, 3, 1); err == nil {
-		t.Error("empty buf should make EnqueueRecvMsg return an error")
-	}
+	fn(ring)
 }
 
-// iouringPrefillRecvs + iouringWaitWithTimeout: drive with a real ring
-// + socketpair fd. Prefill submits one recv SQE; wait should timeout
-// with ETIME since no peer wrote to the socket.
-func TestIouringPrefillRecvs_smoke(t *testing.T) {
-	ring, err := xioRingNew(t)
-	if err != nil {
-		t.Skipf("io_uring unavailable: %v", err)
+func TestIouringPrefillRecvs(t *testing.T) {
+	cases := []struct {
+		description string
+		n           int
+		emptyBufs   bool // pool yields zero-length buffers → EnqueueRecvMsg rejects
+		closeFD     bool // close the recv end before enqueueing
+		wantErr     bool
+		wantSQReady uint32 // SQEs pending after prefill, before Submit
+	}{
+		{
+			description: "positive: two recvs on a live socketpair fd are enqueued and submit cleanly",
+			n:           2,
+			wantSQReady: 2,
+		},
+		{
+			description: "negative: an empty pool buffer makes EnqueueRecvMsg reject and prefill return the error",
+			n:           1,
+			emptyBufs:   true,
+			wantErr:     true,
+			wantSQReady: 0,
+		},
+		{
+			description: "boundary: n=0 enqueues nothing and still submits cleanly",
+			n:           0,
+			wantSQReady: 0,
+		},
+		{
+			description: "corner: a closed fd still enqueues — io_uring validates the fd at completion, not at prep",
+			n:           1,
+			closeFD:     true,
+			wantSQReady: 1,
+		},
 	}
-	t.Cleanup(func() { ring.Close(time.Second, nil) })
 
-	x := newIouringFixture(t)
-	// packetBufferPool yields 64-byte buffers (set in newIouringFixture).
-	if err := x.iouringPrefillRecvs(ring, 3, 2); err != nil {
-		t.Errorf("err = %v", err)
-	}
-	if _, err := ring.Submit(); err != nil {
-		t.Errorf("Submit: %v", err)
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			readFD, _, closeRead := makeSocketPair(t)
+			if c.closeFD {
+				closeRead()
+			}
+
+			x := newIouringFixture(t)
+			if c.emptyBufs {
+				x.packetBufferPool.Init(func() *[]byte {
+					b := make([]byte, 0)
+					return &b
+				})
+			}
+
+			withPinnedRing(t, func(ring *xio.Ring) {
+				err := x.iouringPrefillRecvs(ring, readFD, c.n)
+				if gotErr := err != nil; gotErr != c.wantErr {
+					t.Fatalf("iouringPrefillRecvs err = %v, wantErr %v", err, c.wantErr)
+				}
+				if got := ring.SQReady(); got != c.wantSQReady {
+					t.Errorf("SQReady = %d, want %d", got, c.wantSQReady)
+				}
+				// Submit must always succeed: a failure here means the
+				// ring lost its owning task (EEXIST), not that the SQEs
+				// were bad.
+				submitted, err := ring.Submit()
+				if err != nil {
+					t.Fatalf("Submit: %v", err)
+				}
+				if submitted != int(c.wantSQReady) {
+					t.Errorf("Submit submitted = %d, want %d", submitted, c.wantSQReady)
+				}
+			})
+		})
 	}
 }
 
@@ -284,17 +341,13 @@ func TestHandleRecvCQE_successPathTruncated(t *testing.T) {
 }
 
 func TestIouringWaitWithTimeout_etime(t *testing.T) {
-	ring, err := xioRingNew(t)
-	if err != nil {
-		t.Skipf("io_uring unavailable: %v", err)
-	}
-	t.Cleanup(func() { ring.Close(time.Second, nil) })
-
 	x := newIouringFixture(t)
-	// No SQEs queued, no peer writes → WaitOneTimeout should return
-	// an ETIME-like error.
-	_, werr := x.iouringWaitWithTimeout(ring, 30*time.Millisecond)
-	if werr == nil {
-		t.Error("expected timeout error when no CQEs available")
-	}
+	withPinnedRing(t, func(ring *xio.Ring) {
+		// No SQEs queued, no peer writes → WaitOneTimeout should return
+		// an ETIME-like error.
+		_, werr := x.iouringWaitWithTimeout(ring, 30*time.Millisecond)
+		if werr == nil {
+			t.Error("expected timeout error when no CQEs available")
+		}
+	})
 }

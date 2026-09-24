@@ -143,7 +143,7 @@ func TestResourceExhaustedSleep_liveCtxRunsFullSleep(t *testing.T) {
 	start := time.Now()
 	got := resourceExhaustedSleep(ctx, errors.New("RE"))
 	if got {
-		t.Error("uncancelled ctx with shrunken sleep should return false")
+		t.Error("uncanceled ctx with shrunken sleep should return false")
 	}
 	if elapsed := time.Since(start); elapsed > 1*time.Second {
 		t.Errorf("sleep took %v with shrunken base+jitter; should be sub-second", elapsed)

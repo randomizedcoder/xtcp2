@@ -92,23 +92,15 @@ func newValKeyDest(ctx context.Context, x *XTCP) (Destination, error) {
 	return &valkeyDest{x: x, client: client}, nil
 }
 
+// Send hands the record to sendViaPublisher, which owns the timing, metrics
+// and debug-log boilerplate shared with the nats and nsq sinks. Unlike those
+// two, the redis client's Publish does honor a context, so valkeyTimeoutCst
+// is passed through as a real per-send deadline.
 func (d *valkeyDest) Send(ctx context.Context, b *[]byte) (int, error) {
-	start := time.Now()
-	pCtx, cancel := context.WithTimeout(ctx, valkeyTimeoutCst)
-	defer cancel()
-	err := d.client.Publish(pCtx, d.x.config.Topic, *b)
-	dur := time.Since(start)
-	if err != nil {
-		d.x.pH.WithLabelValues("destValKey", "Publish", "error").Observe(dur.Seconds())
-		d.x.pC.WithLabelValues("destValKey", "Publish", "error").Inc()
-		return 0, err
-	}
-	if d.x.debugLevel > 10 {
-		log.Printf("destValKey %0.6fs", dur.Seconds())
-	}
-	d.x.pH.WithLabelValues("destValKey", "Publish", "count").Observe(dur.Seconds())
-	d.x.pC.WithLabelValues("destValKey", "Publish", "count").Inc()
-	return 1, nil
+	return sendViaPublisher(ctx, d.x, "destValKey", valkeyTimeoutCst,
+		func(pCtx context.Context, channel string, msg []byte) error {
+			return d.client.Publish(pCtx, channel, msg)
+		}, b)
 }
 
 func (d *valkeyDest) Close() error {

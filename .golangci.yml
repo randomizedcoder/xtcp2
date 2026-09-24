@@ -14,6 +14,20 @@ version: "2"
 run:
   timeout: 5m
   modules-download-mode: vendor
+  # Lint the build-tag-gated files too. Without this, golangci-lint only ever
+  # sees the untagged build, so pkg/xtcp/destinations_{kafka,nats,nsq,valkey,
+  # s3parquet}.go and pkg/xtcp/enrich_{asn,locality}.go — together a large
+  # share of the package — are never linted by any tier. Enabling every tag at
+  # once matches the `all` target in nix/tests/go-test-flavors.nix: the
+  # registries key on distinct schemes/names, so the union compiles.
+  build-tags:
+    - dest_kafka
+    - dest_nats
+    - dest_nsq
+    - dest_valkey
+    - dest_s3parquet
+    - enrich_asn
+    - enrich_locality
 
 formatters:
   enable:
@@ -40,6 +54,12 @@ linters:
     # also do setns/unshare, because the pairing is dangerous (see the
     # forbidigo block below for the why).
     - forbidigo
+    # Promoted from Tier 2 on 2026-09-23. US spelling had been swept four
+    # times (most recently bd3081c) and regressed every time, because
+    # misspell only ran in the nightly comprehensive tier — nobody saw the
+    # finding until long after the comment was written. Gating it here
+    # catches the next `behaviour` on the commit that introduces it.
+    - misspell
 
   settings:
     errcheck:
@@ -68,6 +88,14 @@ linters:
       checks:
         - "all"
         - "-SA1019"
+
+    # US English throughout. Note misspell runs in plain-text mode here
+    # (`mode` unset), so it reads whole files — comments AND string
+    # literals — but skips camelCase/PascalCase tokens unconditionally, so
+    # identifiers and metric label values like `cancelledDuringInit` are
+    # out of its reach and are not part of this convention.
+    misspell:
+      locale: US
 
     gosec:
       excludes:
@@ -193,6 +221,16 @@ linters:
       - linters:
           - staticcheck
         text: "SA9003:"
+
+issues:
+  # golangci-lint defaults to max-issues-per-linter: 50 and max-same-issues: 3,
+  # which silently truncates the report. That is not a cosmetic difference for
+  # a fix-list: the 2026-09-23 misspell sweep was scoped from a reported "19
+  # issues" when the true count was 35 — every `behaviour` past the third was
+  # hidden, in files the capped output never named. A run whose output is the
+  # work queue has to show all of it.
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 output:
   formats:

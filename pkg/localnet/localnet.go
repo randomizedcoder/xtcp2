@@ -226,7 +226,7 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 		case unix.RTN_LOCAL:
 			// A locally-attached address (RT_TABLE_LOCAL, scope host). Usually a
 			// host route, but the kernel also installs `local 127.0.0.0/8 dev lo`:
-			// honour the prefix length so the whole range is self.
+			// honor the prefix length so the whole range is self.
 			if pfx, ok := prefixFromBytes(ri.Dst, ri.DstLen); ok {
 				tbl.Insert(pfx, routeEntry{loc: LocalitySelf, oif: ri.Oif})
 				if !isLoopbackPrefix(pfx) {

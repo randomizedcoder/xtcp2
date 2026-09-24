@@ -59,7 +59,7 @@ func gatewayRoute(family uint8, dst []byte, bits uint8, gw []byte) xtcpnl.RouteI
 }
 
 // defaultRoute builds the kernel's form of a default route: no RTA_DST at all
-// (Dst nil, DstLen 0) — BuildSnapshot must synthesise the family /0. gw may be
+// (Dst nil, DstLen 0) — BuildSnapshot must synthesize the family /0. gw may be
 // nil for a gatewayless `default dev <iface>` (point-to-point) route.
 func defaultRoute(family uint8, gw []byte, oif uint32) xtcpnl.RouteInfo {
 	return xtcpnl.RouteInfo{
@@ -347,7 +347,7 @@ func TestBuildSnapshot(t *testing.T) {
 			want:        LocalitySubnet,
 		},
 		{
-			description: "/32 connected route does not cover a neighbour",
+			description: "/32 connected route does not cover a neighbor",
 			routes:      []xtcpnl.RouteInfo{connectedRoute(unix.AF_INET, v4(t, "10.9.9.9"), 32)},
 			probe:       "10.9.9.10",
 			want:        LocalityRemote,
@@ -554,7 +554,7 @@ func TestIfName(t *testing.T) {
 }
 
 // TestDefaultPrefix covers the defaultPrefix helper directly: the kernel emits a
-// default route with no RTA_DST, so BuildSnapshot must synthesise the family-wide
+// default route with no RTA_DST, so BuildSnapshot must synthesize the family-wide
 // /0 from the rtmsg family. Positive for both families, negative for anything else.
 //
 // go test ./pkg/localnet/ -run TestDefaultPrefix
@@ -624,8 +624,8 @@ func TestLookupEgressDefaultsAndPrecedence(t *testing.T) {
 		wantIfName  string
 	}{
 		// positive — RTA_DST-less default routes (defaultPrefix AF_INET6 / AF_INET)
-		{"remote v6 matches the synthesised ::/0 default -> remote via eth0", "2606:4700::1111", LocalityRemote, 2, "eth0"},
-		{"remote v4 not in any specific route -> synthesised 0.0.0.0/0 default egress eth0", "8.8.8.8", LocalityRemote, 2, "eth0"},
+		{"remote v6 matches the synthesized ::/0 default -> remote via eth0", "2606:4700::1111", LocalityRemote, 2, "eth0"},
+		{"remote v4 not in any specific route -> synthesized 0.0.0.0/0 default egress eth0", "8.8.8.8", LocalityRemote, 2, "eth0"},
 		// positive — longest-prefix egress precedence: the /24 beats the /0
 		{"remote v4 in a more-specific route -> its egress eth1", "203.0.113.9", LocalityRemote, 3, "eth1"},
 		// boundary — connected subnet route with no Oif

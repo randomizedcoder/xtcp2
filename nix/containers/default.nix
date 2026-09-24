@@ -1,27 +1,43 @@
 # nix/containers/default.nix
 #
-# Entry point for container images. Two axes:
+# Entry point for container images. Three axes:
 #
 #   1. Build variant (debug / default / stripped) — three "fat" OCI images
-#      that carry every cmd/* binary built with the named variant. Used
-#      for production deployments that need every tool in one image.
+#      that carry every cmd/* binary built with the named variant, with every
+#      destination AND every enricher. Used for production deployments that
+#      need every tool in one image.
 #
-#   2. Destination flavor (min / kafka / nats / nsq / valkey / s3parquet) — six
-#      single-binary scratch images, each carrying just the matching
-#      `xtcp2-<flavor>` binary. Used for slim production deployments
-#      that only need one destination.
+#   2. Destination flavor (min / kafka / nats / nsq / valkey / s3parquet) —
+#      which message-destination client is compiled in.
 #
-#   oci-xtcp2           variant=default, full destinations, all 10 cmds   (~119 MiB)
-#   oci-xtcp2-debug     variant=debug,   full destinations, all 10 cmds   (~171 MiB)
-#   oci-xtcp2-stripped  variant=stripped,full destinations, all 10 cmds   (~119 MiB)
-#   oci-xtcp2-min       single xtcp2 binary, stdlib destinations only     (~22 MiB)
-#   oci-xtcp2-kafka     single xtcp2 binary, kafka only                   (~26 MiB)
-#   oci-xtcp2-nats      single xtcp2 binary, nats only                    (~26 MiB)
-#   oci-xtcp2-nsq       single xtcp2 binary, nsq only                     (~25 MiB)
-#   oci-xtcp2-valkey    single xtcp2 binary, valkey only                  (~26 MiB)
-#   oci-xtcp2-s3parquet single xtcp2 binary, s3parquet only               (~26 MiB)
+#   3. Enrichment flavor (none / asn / locality / enrich) — whether the two
+#      heavyweight enrichers are compiled in. `asn` links parquet-go + bart;
+#      `locality` links bart. Both are off at runtime by default even when
+#      present; the tag only decides whether the code is in the image at all.
+#      See nix/versions.nix and pkg/xtcp/enrich_core.go.
 #
-#   3. Client binaries — slim single-binary scratch images for the gRPC
+#   Axes 2 and 3 cross-produce into 6 x 4 = 24 slim single-binary scratch
+#   images named oci-xtcp2-<dest>[-<enrich>], generated below rather than
+#   hand-listed. The `none` cell keeps the historical unsuffixed name
+#   (oci-xtcp2-s3parquet), so existing consumers are unmoved — but note that
+#   those images no longer carry ASN/locality; the `-enrich` suffix is the
+#   equivalent of what they were before the enrichment axis existed.
+#
+#   oci-xtcp2                   variant=default, full dests + all enrichers, every cmd
+#   oci-xtcp2-debug             variant=debug,   same contents, full symbols
+#   oci-xtcp2-stripped          variant=stripped,same contents
+#   oci-xtcp2-min               single xtcp2 binary, stdlib destinations, no enrichers
+#   oci-xtcp2-min-enrich        ... plus both enrichers
+#   oci-xtcp2-kafka             single xtcp2 binary, kafka only, no enrichers
+#   oci-xtcp2-kafka-asn         ... plus the ASN enricher
+#   oci-xtcp2-kafka-locality    ... plus the locality enricher
+#   oci-xtcp2-kafka-enrich      ... plus both
+#   (likewise for nats / nsq / valkey / s3parquet)
+#
+#   Sizes are in docs/build-flavors.md, which is re-measured rather than
+#   guessed; they are deliberately not duplicated here.
+#
+#   4. Client binaries — slim single-binary scratch images for the gRPC
 #      clients, for users who want just the client (not the fat image).
 #
 #   oci-xtcp2client     single xtcp2client binary (FlatRecords / poll)
@@ -36,6 +52,7 @@
 
 let
   mkOciImage = import ../lib/mkOciImage.nix { inherit pkgs lib; };
+  versions = import ../versions.nix { inherit pkgs; };
 
   # Self-contained container HEALTHCHECK for the xtcp2-daemon images (scratch,
   # no shell/curl): the binary probes its own /readyz via `-healthcheck`.
@@ -152,12 +169,17 @@ let
       healthcheck = xtcp2Healthcheck;
     };
 
+  # Slim single-binary daemon image for one {destination, enrichment} cell.
+  # `enrich = "none"` keeps the historical unsuffixed attr name and image tag
+  # (oci-xtcp2-s3parquet → xtcp2:s3parquet), so existing consumers — including
+  # the downstream runpod/xtcp2 pin and its config drift guard — are unmoved.
+  # The other cells append their enrichment flavor to both.
   mkFlavorImage =
-    flavor:
+    { dest, enrich }:
     mkOciImage {
       name = "xtcp2";
-      tag = flavor;
-      binaries = binaries.xtcp2OnlyByFlavor.${flavor};
+      tag = "${dest}${lib.optionalString (enrich != "none") "-${enrich}"}";
+      binaries = binaries.xtcp2OnlyByFlavor.${dest}.${enrich};
       protoFile = src + "/proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
       exposedPorts = [
         9088
@@ -166,6 +188,21 @@ let
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
     };
+
+  # The slim daemon images: 6 destination flavors × 4 enrichment flavors = 24.
+  # `full` is excluded because the fat oci-xtcp2 images already cover the
+  # full-destination build. Generated rather than hand-listed so a new flavor
+  # in versions.nix produces its images (and, via the "oci-" prefix filter in
+  # nix/default.nix, its flake attrs) without being declared three times.
+  slimDaemonImages = lib.listToAttrs (
+    lib.concatMap (
+      dest:
+      map (enrich: {
+        name = "oci-xtcp2-${dest}${lib.optionalString (enrich != "none") "-${enrich}"}";
+        value = mkFlavorImage { inherit dest enrich; };
+      }) (builtins.attrNames versions.enrichmentFlavors)
+    ) (lib.remove "full" (builtins.attrNames versions.destinationFlavors))
+  );
 
   # Slim single-binary images for the gRPC clients (xtcp2client, xtcp2ctl).
   # Same scratch + CA-bundle base as the flavor images, carrying just the one
@@ -197,7 +234,8 @@ let
     Retries = 3;
   };
 in
-{
+slimDaemonImages
+// {
   oci-xtcp2 = mkFatImage {
     attr = "xtcp2-all";
     tag = "latest";
@@ -211,12 +249,8 @@ in
     tag = "stripped";
   };
 
-  oci-xtcp2-min = mkFlavorImage "min";
-  oci-xtcp2-kafka = mkFlavorImage "kafka";
-  oci-xtcp2-nats = mkFlavorImage "nats";
-  oci-xtcp2-nsq = mkFlavorImage "nsq";
-  oci-xtcp2-valkey = mkFlavorImage "valkey";
-  oci-xtcp2-s3parquet = mkFlavorImage "s3parquet";
+  # The 24 slim per-flavor daemon images (oci-xtcp2-<dest>[-<enrich>]) are
+  # merged in from `slimDaemonImages` above rather than listed here.
 
   # Slim per-client images (gRPC clients that talk to the daemon).
   oci-xtcp2client = mkClientImage "xtcp2client";

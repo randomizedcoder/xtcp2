@@ -26,7 +26,6 @@
 }:
 
 {
-  config,
   lib,
   pkgs,
   ...

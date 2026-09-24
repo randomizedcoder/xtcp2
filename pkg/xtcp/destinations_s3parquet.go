@@ -740,12 +740,29 @@ func utcDateFromNs(ns int64) string {
 }
 
 // rowFromProto translates one *xtcp_flat_record.XtcpFlatRecord into a
-// ParquetRow value. Mechanical field-by-field copy. New proto fields
-// surface here as a compile error (the ParquetRow struct doesn't have
-// the field yet) — drift defense alongside the runtime schema test in
-// destinations_s3parquet_schema_test.go.
+// ParquetRow value. Mechanical field-by-field copy, split along the same
+// section boundaries the ParquetRow struct itself uses: the parent holds the
+// record's provenance and host/namespace/uplink/enrichment metadata, and one
+// helper per kernel structure carries the rest.
+//
+// Drift defense, stated accurately. A proto field RENAME is a compile error
+// here, because the old ParquetRow field name stops resolving. A proto field
+// ADDITION is caught by TestS3ParquetSchema_matchesProto, which compares the
+// `parquet:` tag set against the proto descriptor. Neither catches an
+// assignment simply being DROPPED: a keyed composite literal with a field
+// omitted is legal Go, and a helper that forgets a line compiles just as
+// happily. That last case — the only one that fails silently, writing zeros
+// into a live column — is covered by TestRowFromProto_everyFieldMapped in
+// destinations_s3parquet_rowfromproto_test.go, which puts a distinct
+// sentinel in every proto field and asserts it arrives in the matching
+// column. An earlier version of this comment claimed the compile error
+// covered additions too; it never did.
+//
+// EventDate is deliberately not set here. It is derived from TimestampNs and
+// stamped by the caller (see the row-append path above), which is why the
+// schema test allowlists it as a derived column.
 func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
-	return ParquetRow{
+	row := ParquetRow{
 		SchemaVersion: r.SchemaVersion,
 		DaemonVersion: r.DaemonVersion,
 
@@ -805,129 +822,158 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		EnrichSocketDestAsn:           r.EnrichSocketDestAsn,
 		EnrichSocketDestNextHopAsn:    r.EnrichSocketDestNextHopAsn,
 		EnrichSocketDestNetworkOwner:  r.EnrichSocketDestNetworkOwner,
-
-		InetDiagMsgFamily:                r.InetDiagMsgFamily,
-		InetDiagMsgState:                 r.InetDiagMsgState,
-		InetDiagMsgTimer:                 r.InetDiagMsgTimer,
-		InetDiagMsgRetrans:               r.InetDiagMsgRetrans,
-		InetDiagMsgSocketSourcePort:      r.InetDiagMsgSocketSourcePort,
-		InetDiagMsgSocketDestinationPort: r.InetDiagMsgSocketDestinationPort,
-		InetDiagMsgSocketSource:          r.InetDiagMsgSocketSource,
-		InetDiagMsgSocketDestination:     r.InetDiagMsgSocketDestination,
-		InetDiagMsgSocketInterface:       r.InetDiagMsgSocketInterface,
-		InetDiagMsgSocketCookie:          r.InetDiagMsgSocketCookie,
-		InetDiagMsgExpires:               r.InetDiagMsgExpires,
-		InetDiagMsgRqueue:                r.InetDiagMsgRqueue,
-		InetDiagMsgWqueue:                r.InetDiagMsgWqueue,
-		InetDiagMsgUid:                   r.InetDiagMsgUid,
-		InetDiagMsgInode:                 r.InetDiagMsgInode,
-
-		MemInfoRmem: r.MemInfoRmem,
-		MemInfoWmem: r.MemInfoWmem,
-		MemInfoFmem: r.MemInfoFmem,
-		MemInfoTmem: r.MemInfoTmem,
-
-		TcpInfoState:                  r.TcpInfoState,
-		TcpInfoCaState:                r.TcpInfoCaState,
-		TcpInfoRetransmits:            r.TcpInfoRetransmits,
-		TcpInfoProbes:                 r.TcpInfoProbes,
-		TcpInfoBackoff:                r.TcpInfoBackoff,
-		TcpInfoOptions:                r.TcpInfoOptions,
-		TcpInfoSndWscale:              r.TcpInfoSndWscale,
-		TcpInfoRcvWscale:              r.TcpInfoRcvWscale,
-		TcpInfoDeliveryRateAppLimited: r.TcpInfoDeliveryRateAppLimited,
-		TcpInfoFastopenClientFail:     r.TcpInfoFastopenClientFail,
-		TcpInfoRto:                    r.TcpInfoRto,
-		TcpInfoAto:                    r.TcpInfoAto,
-		TcpInfoSndMss:                 r.TcpInfoSndMss,
-		TcpInfoRcvMss:                 r.TcpInfoRcvMss,
-		TcpInfoUnacked:                r.TcpInfoUnacked,
-		TcpInfoSacked:                 r.TcpInfoSacked,
-		TcpInfoLost:                   r.TcpInfoLost,
-		TcpInfoRetrans:                r.TcpInfoRetrans,
-		TcpInfoFackets:                r.TcpInfoFackets,
-		TcpInfoLastDataSent:           r.TcpInfoLastDataSent,
-		TcpInfoLastAckSent:            r.TcpInfoLastAckSent,
-		TcpInfoLastDataRecv:           r.TcpInfoLastDataRecv,
-		TcpInfoLastAckRecv:            r.TcpInfoLastAckRecv,
-		TcpInfoPmtu:                   r.TcpInfoPmtu,
-		TcpInfoRcvSsthresh:            r.TcpInfoRcvSsthresh,
-		TcpInfoRtt:                    r.TcpInfoRtt,
-		TcpInfoRttvar:                 r.TcpInfoRttvar,
-		TcpInfoSndSsthresh:            r.TcpInfoSndSsthresh,
-		TcpInfoSndCwnd:                r.TcpInfoSndCwnd,
-		TcpInfoAdvmss:                 r.TcpInfoAdvmss,
-		TcpInfoReordering:             r.TcpInfoReordering,
-		TcpInfoRcvRtt:                 r.TcpInfoRcvRtt,
-		TcpInfoRcvSpace:               r.TcpInfoRcvSpace,
-		TcpInfoTotalRetrans:           r.TcpInfoTotalRetrans,
-		TcpInfoPacingRate:             r.TcpInfoPacingRate,
-		TcpInfoMaxPacingRate:          r.TcpInfoMaxPacingRate,
-		TcpInfoBytesAcked:             r.TcpInfoBytesAcked,
-		TcpInfoBytesReceived:          r.TcpInfoBytesReceived,
-		TcpInfoSegsOut:                r.TcpInfoSegsOut,
-		TcpInfoSegsIn:                 r.TcpInfoSegsIn,
-		TcpInfoNotsentBytes:           r.TcpInfoNotsentBytes,
-		TcpInfoMinRtt:                 r.TcpInfoMinRtt,
-		TcpInfoDataSegsIn:             r.TcpInfoDataSegsIn,
-		TcpInfoDataSegsOut:            r.TcpInfoDataSegsOut,
-		TcpInfoDeliveryRate:           r.TcpInfoDeliveryRate,
-		TcpInfoBusyTime:               r.TcpInfoBusyTime,
-		TcpInfoRwndLimited:            r.TcpInfoRwndLimited,
-		TcpInfoSndbufLimited:          r.TcpInfoSndbufLimited,
-		TcpInfoDelivered:              r.TcpInfoDelivered,
-		TcpInfoDeliveredCe:            r.TcpInfoDeliveredCe,
-		TcpInfoBytesSent:              r.TcpInfoBytesSent,
-		TcpInfoBytesRetrans:           r.TcpInfoBytesRetrans,
-		TcpInfoDsackDups:              r.TcpInfoDsackDups,
-		TcpInfoReordSeen:              r.TcpInfoReordSeen,
-		TcpInfoRcvOoopack:             r.TcpInfoRcvOoopack,
-		TcpInfoSndWnd:                 r.TcpInfoSndWnd,
-		TcpInfoRcvWnd:                 r.TcpInfoRcvWnd,
-		TcpInfoRehash:                 r.TcpInfoRehash,
-		TcpInfoTotalRto:               r.TcpInfoTotalRto,
-		TcpInfoTotalRtoRecoveries:     r.TcpInfoTotalRtoRecoveries,
-		TcpInfoTotalRtoTime:           r.TcpInfoTotalRtoTime,
-
-		InetDiagCong:     r.InetDiagCong,
-		InetDiagCongEnum: int32(r.InetDiagCongEnum),
-
-		InetDiagTos:    r.InetDiagTos,
-		InetDiagTclass: r.InetDiagTclass,
-
-		SkMemInfoRmemAlloc:  r.SkMemInfoRmemAlloc,
-		SkMemInfoRcvbuf:     r.SkMemInfoRcvbuf,
-		SkMemInfoWmemAlloc:  r.SkMemInfoWmemAlloc,
-		SkMemInfoSndbuf:     r.SkMemInfoSndbuf,
-		SkMemInfoFwdAlloc:   r.SkMemInfoFwdAlloc,
-		SkMemInfoWmemQueued: r.SkMemInfoWmemQueued,
-		SkMemInfoOptmem:     r.SkMemInfoOptmem,
-		SkMemInfoBacklog:    r.SkMemInfoBacklog,
-		SkMemInfoDrops:      r.SkMemInfoDrops,
-
-		InetDiagShutdown: r.InetDiagShutdown,
-
-		VegasInfoEnabled: r.VegasInfoEnabled,
-		VegasInfoRttcnt:  r.VegasInfoRttcnt,
-		VegasInfoRtt:     r.VegasInfoRtt,
-		VegasInfoMinrtt:  r.VegasInfoMinrtt,
-
-		DctcpInfoEnabled: r.DctcpInfoEnabled,
-		DctcpInfoCeState: r.DctcpInfoCeState,
-		DctcpInfoAlpha:   r.DctcpInfoAlpha,
-		DctcpInfoAbEcn:   r.DctcpInfoAbEcn,
-		DctcpInfoAbTot:   r.DctcpInfoAbTot,
-
-		BbrInfoBwLo:       r.BbrInfoBwLo,
-		BbrInfoBwHi:       r.BbrInfoBwHi,
-		BbrInfoMinRtt:     r.BbrInfoMinRtt,
-		BbrInfoPacingGain: r.BbrInfoPacingGain,
-		BbrInfoCwndGain:   r.BbrInfoCwndGain,
-
-		InetDiagClassId:  r.InetDiagClassId,
-		InetDiagSockopt:  r.InetDiagSockopt,
-		InetDiagCgroupId: r.InetDiagCgroupId,
 	}
+
+	fillInetDiag(&row, r)
+	fillMemInfo(&row, r)
+	fillTCPInfo(&row, r)
+	fillCCAlgos(&row, r)
+
+	return row
+}
+
+// fillInetDiag copies the `inet_diag_msg` header plus the standalone
+// INET_DIAG_* attributes that describe the socket rather than its transport
+// state: the congestion-algorithm name and its derived enum, TOS/TCLASS, and
+// the shutdown bitmask.
+func fillInetDiag(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
+	p.InetDiagMsgFamily = r.InetDiagMsgFamily
+	p.InetDiagMsgState = r.InetDiagMsgState
+	p.InetDiagMsgTimer = r.InetDiagMsgTimer
+	p.InetDiagMsgRetrans = r.InetDiagMsgRetrans
+	p.InetDiagMsgSocketSourcePort = r.InetDiagMsgSocketSourcePort
+	p.InetDiagMsgSocketDestinationPort = r.InetDiagMsgSocketDestinationPort
+	p.InetDiagMsgSocketSource = r.InetDiagMsgSocketSource
+	p.InetDiagMsgSocketDestination = r.InetDiagMsgSocketDestination
+	p.InetDiagMsgSocketInterface = r.InetDiagMsgSocketInterface
+	p.InetDiagMsgSocketCookie = r.InetDiagMsgSocketCookie
+	p.InetDiagMsgExpires = r.InetDiagMsgExpires
+	p.InetDiagMsgRqueue = r.InetDiagMsgRqueue
+	p.InetDiagMsgWqueue = r.InetDiagMsgWqueue
+	p.InetDiagMsgUid = r.InetDiagMsgUid
+	p.InetDiagMsgInode = r.InetDiagMsgInode
+
+	p.InetDiagCong = r.InetDiagCong
+	p.InetDiagCongEnum = int32(r.InetDiagCongEnum)
+
+	p.InetDiagTos = r.InetDiagTos
+	p.InetDiagTclass = r.InetDiagTclass
+
+	p.InetDiagShutdown = r.InetDiagShutdown
+}
+
+// fillMemInfo copies both kernel memory views: INET_DIAG_MEMINFO (the four
+// r/w/f/t counters) and the larger INET_DIAG_SKMEMINFO. They are separate
+// netlink attributes and are kept as separate groups here for that reason.
+func fillMemInfo(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
+	p.MemInfoRmem = r.MemInfoRmem
+	p.MemInfoWmem = r.MemInfoWmem
+	p.MemInfoFmem = r.MemInfoFmem
+	p.MemInfoTmem = r.MemInfoTmem
+
+	p.SkMemInfoRmemAlloc = r.SkMemInfoRmemAlloc
+	p.SkMemInfoRcvbuf = r.SkMemInfoRcvbuf
+	p.SkMemInfoWmemAlloc = r.SkMemInfoWmemAlloc
+	p.SkMemInfoSndbuf = r.SkMemInfoSndbuf
+	p.SkMemInfoFwdAlloc = r.SkMemInfoFwdAlloc
+	p.SkMemInfoWmemQueued = r.SkMemInfoWmemQueued
+	p.SkMemInfoOptmem = r.SkMemInfoOptmem
+	p.SkMemInfoBacklog = r.SkMemInfoBacklog
+	p.SkMemInfoDrops = r.SkMemInfoDrops
+}
+
+// fillTCPInfo copies `struct tcp_info` — by far the largest group, and the
+// reason rowFromProto needed splitting at all. Field order mirrors the
+// kernel struct so it can be diffed against include/uapi/linux/tcp.h.
+func fillTCPInfo(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
+	p.TcpInfoState = r.TcpInfoState
+	p.TcpInfoCaState = r.TcpInfoCaState
+	p.TcpInfoRetransmits = r.TcpInfoRetransmits
+	p.TcpInfoProbes = r.TcpInfoProbes
+	p.TcpInfoBackoff = r.TcpInfoBackoff
+	p.TcpInfoOptions = r.TcpInfoOptions
+	p.TcpInfoSndWscale = r.TcpInfoSndWscale
+	p.TcpInfoRcvWscale = r.TcpInfoRcvWscale
+	p.TcpInfoDeliveryRateAppLimited = r.TcpInfoDeliveryRateAppLimited
+	p.TcpInfoFastopenClientFail = r.TcpInfoFastopenClientFail
+	p.TcpInfoRto = r.TcpInfoRto
+	p.TcpInfoAto = r.TcpInfoAto
+	p.TcpInfoSndMss = r.TcpInfoSndMss
+	p.TcpInfoRcvMss = r.TcpInfoRcvMss
+	p.TcpInfoUnacked = r.TcpInfoUnacked
+	p.TcpInfoSacked = r.TcpInfoSacked
+	p.TcpInfoLost = r.TcpInfoLost
+	p.TcpInfoRetrans = r.TcpInfoRetrans
+	p.TcpInfoFackets = r.TcpInfoFackets
+	p.TcpInfoLastDataSent = r.TcpInfoLastDataSent
+	p.TcpInfoLastAckSent = r.TcpInfoLastAckSent
+	p.TcpInfoLastDataRecv = r.TcpInfoLastDataRecv
+	p.TcpInfoLastAckRecv = r.TcpInfoLastAckRecv
+	p.TcpInfoPmtu = r.TcpInfoPmtu
+	p.TcpInfoRcvSsthresh = r.TcpInfoRcvSsthresh
+	p.TcpInfoRtt = r.TcpInfoRtt
+	p.TcpInfoRttvar = r.TcpInfoRttvar
+	p.TcpInfoSndSsthresh = r.TcpInfoSndSsthresh
+	p.TcpInfoSndCwnd = r.TcpInfoSndCwnd
+	p.TcpInfoAdvmss = r.TcpInfoAdvmss
+	p.TcpInfoReordering = r.TcpInfoReordering
+	p.TcpInfoRcvRtt = r.TcpInfoRcvRtt
+	p.TcpInfoRcvSpace = r.TcpInfoRcvSpace
+	p.TcpInfoTotalRetrans = r.TcpInfoTotalRetrans
+	p.TcpInfoPacingRate = r.TcpInfoPacingRate
+	p.TcpInfoMaxPacingRate = r.TcpInfoMaxPacingRate
+	p.TcpInfoBytesAcked = r.TcpInfoBytesAcked
+	p.TcpInfoBytesReceived = r.TcpInfoBytesReceived
+	p.TcpInfoSegsOut = r.TcpInfoSegsOut
+	p.TcpInfoSegsIn = r.TcpInfoSegsIn
+	p.TcpInfoNotsentBytes = r.TcpInfoNotsentBytes
+	p.TcpInfoMinRtt = r.TcpInfoMinRtt
+	p.TcpInfoDataSegsIn = r.TcpInfoDataSegsIn
+	p.TcpInfoDataSegsOut = r.TcpInfoDataSegsOut
+	p.TcpInfoDeliveryRate = r.TcpInfoDeliveryRate
+	p.TcpInfoBusyTime = r.TcpInfoBusyTime
+	p.TcpInfoRwndLimited = r.TcpInfoRwndLimited
+	p.TcpInfoSndbufLimited = r.TcpInfoSndbufLimited
+	p.TcpInfoDelivered = r.TcpInfoDelivered
+	p.TcpInfoDeliveredCe = r.TcpInfoDeliveredCe
+	p.TcpInfoBytesSent = r.TcpInfoBytesSent
+	p.TcpInfoBytesRetrans = r.TcpInfoBytesRetrans
+	p.TcpInfoDsackDups = r.TcpInfoDsackDups
+	p.TcpInfoReordSeen = r.TcpInfoReordSeen
+	p.TcpInfoRcvOoopack = r.TcpInfoRcvOoopack
+	p.TcpInfoSndWnd = r.TcpInfoSndWnd
+	p.TcpInfoRcvWnd = r.TcpInfoRcvWnd
+	p.TcpInfoRehash = r.TcpInfoRehash
+	p.TcpInfoTotalRto = r.TcpInfoTotalRto
+	p.TcpInfoTotalRtoRecoveries = r.TcpInfoTotalRtoRecoveries
+	p.TcpInfoTotalRtoTime = r.TcpInfoTotalRtoTime
+}
+
+// fillCCAlgos copies the congestion-control algorithm union
+// (INET_DIAG_VEGASINFO / DCTCPINFO / BBRINFO — at most one is populated per
+// socket, whichever algorithm is in use) along with the three remaining
+// scalar attributes: class id, sockopt flags and cgroup id.
+func fillCCAlgos(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
+	p.VegasInfoEnabled = r.VegasInfoEnabled
+	p.VegasInfoRttcnt = r.VegasInfoRttcnt
+	p.VegasInfoRtt = r.VegasInfoRtt
+	p.VegasInfoMinrtt = r.VegasInfoMinrtt
+
+	p.DctcpInfoEnabled = r.DctcpInfoEnabled
+	p.DctcpInfoCeState = r.DctcpInfoCeState
+	p.DctcpInfoAlpha = r.DctcpInfoAlpha
+	p.DctcpInfoAbEcn = r.DctcpInfoAbEcn
+	p.DctcpInfoAbTot = r.DctcpInfoAbTot
+
+	p.BbrInfoBwLo = r.BbrInfoBwLo
+	p.BbrInfoBwHi = r.BbrInfoBwHi
+	p.BbrInfoMinRtt = r.BbrInfoMinRtt
+	p.BbrInfoPacingGain = r.BbrInfoPacingGain
+	p.BbrInfoCwndGain = r.BbrInfoCwndGain
+
+	p.InetDiagClassId = r.InetDiagClassId
+	p.InetDiagSockopt = r.InetDiagSockopt
+	p.InetDiagCgroupId = r.InetDiagCgroupId
 }
 
 func init() {
