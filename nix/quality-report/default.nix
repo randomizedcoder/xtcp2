@@ -139,9 +139,13 @@ pkgs.runCommand "xtcp2-quality-report"
     echo "gofmt=0" >> "$RAW/exit-codes.txt"
 
     # ── gosec ──────────────────────────────────────────────────────────
-    # Mirrors nix/checks/go-sec.nix exclusions verbatim.
+    # Mirrors nix/checks/go-sec.nix exclusions verbatim. Keep the two
+    # lists identical — they drifted once (G702 was added to the gate
+    # and not here, so the report published a high-severity command
+    # injection for cmd/xtcp2's deliberate self-re-exec while
+    # `nix flake check` was green), and nothing mechanically enforces it.
     runtool gosec "$RAW/gosec.json" -- \
-      gosec -exclude=G103,G115,G204,G304 -fmt=json ./...
+      gosec -exclude=G103,G115,G204,G304,G702 -fmt=json ./...
 
     # ── nix-fmt ────────────────────────────────────────────────────────
     # Mirrors nix/checks/nix-fmt.nix
@@ -313,8 +317,22 @@ pkgs.runCommand "xtcp2-quality-report"
     # without aborting under `set -eu`. The earlier `set +e`/`set -e`
     # dance interacted badly with Nix's runCommand wrapper (the
     # WARNING echo never ran on a ratchet breach).
+    #
+    # Build the aggregator and run the binary rather than `go run`ing it.
+    # `go run` does NOT propagate the child's exit status: it prints
+    # "exit status 3" to stderr and itself exits 1 (golang/go#26139).
+    # That made the `-eq 3` branch below unreachable, so every ratchet
+    # breach took the `-ne 0` path and failed the whole derivation —
+    # which is the opposite of the intent, since emit() has already
+    # written the complete markdown by the time the ratchet is checked
+    # (tools/quality-report/main.go: emit() at the top, `return 3` at
+    # the bottom). Verified 2026-09-24 with go 1.25.12.
     qr_rc=0
-    go run ./tools/quality-report \
+    # Build into $TMPDIR, not $RAW — $RAW is copied wholesale into
+    # $out/raw below, and a ~10 MB Go binary does not belong in the
+    # report output.
+    go build -o "$TMPDIR/quality-report-bin" ./tools/quality-report
+    "$TMPDIR/quality-report-bin" \
       -raw-dir "$RAW" \
       -repo-root . \
       -known-failures ./tools/quality-report/known-failures.txt \

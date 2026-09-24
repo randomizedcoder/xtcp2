@@ -252,15 +252,31 @@ let
         chmod -R +w "$MERGED_RAW"
 
         echo "==> re-running quality-report with merged profile"
-        go run ./tools/quality-report \
+        # Build and run the binary rather than `go run`: `go run` reports
+        # "exit status N" and exits 1 regardless (golang/go#26139), which
+        # would collapse a coverage-ratchet breach (3) into the generic
+        # failure path and print "report may be incomplete" for a report
+        # that is in fact complete — the aggregator emits the whole
+        # markdown before it evaluates the ratchet. Same fix as
+        # nix/quality-report/default.nix.
+        QR_BIN=$(mktemp -t quality-report-bin-XXXXXX)
+        go build -o "$QR_BIN" ./tools/quality-report
+        qr_rc=0
+        "$QR_BIN" \
           -raw-dir "$MERGED_RAW" \
           -repo-root . \
           -known-failures ./tools/quality-report/known-failures.txt \
           -coverage-baseline ./docs/coverage-baseline.txt \
           -coverage-max-drop 0.5 \
           -coverage-out "$MERGED" \
-          > docs/quality-report.md \
-          || echo "WARNING: aggregator exited non-zero; report may be incomplete"
+          > docs/quality-report.md || qr_rc=$?
+        rm -f "$QR_BIN"
+        if [ "$qr_rc" -eq 3 ]; then
+          echo "WARNING: coverage ratchet breach; report is complete, but the" \
+               "merged total is below docs/coverage-baseline.txt"
+        elif [ "$qr_rc" -ne 0 ]; then
+          echo "WARNING: aggregator exited $qr_rc; report may be incomplete"
+        fi
       else
         cp "$result/quality-report.md" docs/quality-report.md
       fi

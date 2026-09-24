@@ -396,3 +396,26 @@ knows about them.
   in a path no `nix build` target you happened to run touches. Diff
   `nix flake show --all-systems` before and after; it is cheap and it is the
   check that caught the call-site cascades in §4c.
+
+- **`go run` does not propagate exit codes.** It prints `exit status N` to
+  stderr and itself exits `1` (golang/go#26139). Any script that branches on a
+  specific exit code from a Go program must `go build` it and run the binary.
+  This silently broke the coverage ratchet's "emit the report, warn, succeed"
+  path for months — see §6.
+
+- **The gosec exclusion list is duplicated by hand.** `nix/checks/go-sec.nix`
+  and `nix/quality-report/default.nix` each carry their own `-exclude=` string,
+  and the latter's comment claims it "mirrors" the former. They drifted: `G702`
+  was added to the gate and not the report, so `docs/quality-report.md`
+  published a **high**-severity command-injection finding against
+  `cmd/xtcp2`'s deliberate self-re-exec while `nix flake check` was green. They
+  are aligned again as of 2026-09-24, but nothing enforces it — if you change
+  one, change both.
+
+- **A malformed `docs/coverage-baseline.txt` disables the ratchet silently.**
+  `readCoverageBaseline` (`tools/quality-report/main.go`) does
+  `TrimSpace` → `TrimSuffix "%"` → `ParseFloat`, and on *any* parse failure
+  returns `ok=false`, which `evaluateCoverageRatchet` treats as "no baseline,
+  nothing to check". So a stray comment line, a blank file, or a typo turns the
+  guard off with no diagnostic. Keep the file a bare number; put rationale in
+  the commit message or here.
