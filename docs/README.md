@@ -64,6 +64,8 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Fleet jitter & upload backoff](design-jitter-and-backoff.md) — thundering-herd avoidance: poll jitter, jittered S3 flush (size + time), and jittered proportional upload retry, for fleet-scale (5–10k machine) deployments.
 - [Namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — proposed pull-based (pre-poll) reconcile, proportional/optional background reconcile, inotify overflow self-heal, and the dir-scan vs `/proc`-scan discovery analysis (with the `discovery-bench` benchmark).
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
+- [Netlink parsing comparison](netlink-parsing-comparison.md) — what `pkg/xtcpnl` parses versus `vishvananda/netlink`: message-type and attribute coverage on both sides, the two test strategies, and the prioritised gaps.
+- [Netlink coverage expansion](design-netlink-coverage-expansion.md) — the phased roadmap acting on that audit: target subpackage layout, the read-only constraint, generalising the `nlmon` capture harness to every protocol family, and the rtnetlink multicast listener.
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
 - [Stability & soak testing](stability-testing.md) — the soak/perf testing campaign: methods, bugs found & fixed, the OS-thread scaling model, soak results, and operator guidance (`-netlinkers` / `-maxThreads`).
