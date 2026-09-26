@@ -611,8 +611,13 @@ them.
   the kernel UAPI headers **by wire bit offset rather than by field name**,
   which is the property that lets it report a field the struct does not have;
   and it replays this repo's own pcaps through a generated dissector for a
-  Gold/Silver/Bronze grade. Advisory in Phase 0 (always exits 0), gating from
-  Phase 2 via `gating = true`. Accepted deltas live in
+  Gold/Silver/Bronze grade. **Gating per protocol**, via `gatedProtocols` in
+  `nix/checks/default.nix`: a protocol named there fails the build on any
+  unallowlisted delta, everything else is advisory and exits 0. It is
+  `[ "NL_Diag_TCPInfo" ]` today; each phase adds the protocol it covers once
+  that protocol's deltas are triaged. Gating all 26 at once is one line and
+  would be wrong — the 179 untriaged deltas across 18 protocols would make the
+  check permanently red and so permanently ignored. Accepted deltas live in
   `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
   `offset_bits` + field, so a field that moves offset stops being allowlisted
   and resurfaces. 22 entries today, **none of them an xtcp2 layout defect**:

@@ -1436,9 +1436,13 @@ not a regression here:
   today.
 
 The 11 are allowlisted as `kind: "upstream-registry-pin"` in
-`nix/checks/proto-audit-netlink-allowlist.json` so the oracle can gate in Phase
-2, and are to be **deleted** once the xdp2 pin is bumped past a fix, at which
-point they should become 11 agreements. Pin drift is tracked by
+`nix/checks/proto-audit-netlink-allowlist.json`, which is what lets
+`NL_Diag_TCPInfo` be the first protocol the oracle actually **gates** on
+(`gatedProtocols` in `nix/checks/default.nix`) rather than merely reporting.
+They are to be **deleted** once the xdp2 pin is bumped past a fix, at which
+point they should become 11 agreements — and because allowlist entries match on
+protocol + offset + field, leaving them would mask a genuine future delta at
+those offsets. Pin drift is tracked by
 `nix/upstream-pins.json` and reported by `nix run .#check-upstream-pins`.
 
 Worth noting that the oracle **corroborated** the fix even while unable to see

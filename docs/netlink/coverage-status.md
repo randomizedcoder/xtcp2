@@ -64,7 +64,7 @@ Phases and scope are as defined in
 
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
-| **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | The ClickHouse DDL for 0b's 11 columns; promoting 0c from advisory to gating (Phase 2); deleting the 11 `upstream-registry-pin` allowlist entries once the xdp2 pin is bumped past the `.xtcp2("TCPInfo6_10_3")` fix; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
+| **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | Deleting the 11 `upstream-registry-pin` allowlist entries once the xdp2 pin is bumped past the `.xtcp2("TCPInfo6_10_3")` fix; gating the other 17 protocols that currently report deltas, one per phase as each is triaged; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), `BuildDumpNeighRequest`, `ENOBUFS` resync, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | not started | — | all of it |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | not started | — | all of it |
@@ -159,8 +159,10 @@ a checklist so a phase can be signed off against it.
       checkbox used to require a `…Reflection` twin per struct; see [decision 2
       was reversed](coverage-expansion.md#decision-2-was-reversed).
 - [ ] The **layout oracle** agrees with `~/Downloads/linux` by bit offset, with
-      any delta allowlisted by protocol + offset + reason. Advisory in Phase 0,
-      gating from Phase 2.
+      any delta allowlisted by protocol + offset + reason, **and the protocol
+      this phase covers added to `gatedProtocols`** in
+      `nix/checks/default.nix` so a future delta on it fails the build.
+      Protocols no phase has reached yet stay advisory.
 - [ ] The **performance gate** passes: `0 allocs/op` on every manual decoder on
       every build including `-race`, and — on ordinary builds only — each one
       still comfortably faster than its reflection twin. The speedup assertion
@@ -184,10 +186,12 @@ a checklist so a phase can be signed off against it.
       the corpus's one synthetic fixture, which
       [`TODO-SOON.md`](../../TODO-SOON.md) §19 tracks as a defect.
 - [ ] `nix build .#checks.x86_64-linux.netlink-audit` passes.
-- [ ] The layout oracle's `$out/unallowlisted.json` is `[]` — and any new
+- [ ] The layout oracle's `$out/unallowlisted-gated.json` is `[]` — and any new
       allowlist entry carries a reason establishing *which side* is wrong, not
       just that the check was red. See the three `kind` values in
-      `nix/checks/proto-audit-netlink-allowlist.json`.
+      `nix/checks/proto-audit-netlink-allowlist.json`. Note this is the **gated**
+      file: `$out/unallowlisted.json` holds every protocol's deltas and is 179
+      today, which is expected and does not fail the build.
 - [ ] Decoder and tests landed in the **same** change — the coverage ratchet
       exits 3 on a drop over 0.5, so untested production code trips it.
 - [ ] `docs/coverage-baseline.txt` re-baselined **upward** if the phase raised
@@ -212,7 +216,7 @@ code that already matters before ~20 families are built on them.
 |---|---|---|
 | **0a** | Reflection out of the shipped library: 30 `*Reflection` decoders and `DecodeNetlinkDagRequestFromBytes` moved to `_test.go` and unexported; the `…Relection` typo fixed | **landed** |
 | **0b** | The AccECN gap — the 11 fields the oracle found missing | **landed** |
-| **0c** | The oracle wired as a nix check, advisory | **landed** |
+| **0c** | The oracle wired as a nix check, gating for `NL_Diag_TCPInfo` and advisory for the other 25 | **landed** |
 | **0d** | The performance gate, `pkg/xtcpnl/xtcpnl_perf_gate_test.go` | **landed** |
 | **0e** | Upstream pin drift guard — `nix/upstream-pins.json` plus a hermetic check and a networked runner | **landed** |
 
@@ -279,8 +283,35 @@ and then *asserts* the override took by grepping the audited source for
 `TCPInfo7_0_3` — a file-existence check would not distinguish, since the stale
 snapshot has `xtcpnl_inet_diag_tcpinfo.go` too.
 
-Advisory means it always exits 0; `gating = true` flips it. Deltas are filtered
-through `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
+**Gating is per protocol, not all-or-nothing.** `gatedProtocols` in
+`nix/checks/default.nix` names the protocols whose unallowlisted deltas fail
+the build; it is `[ "NL_Diag_TCPInfo" ]` today. Everything else is advisory:
+its deltas are written to `$out/unallowlisted.json` and printed in full, and
+the check still exits 0. The gated subset is written separately to
+`$out/unallowlisted-gated.json`, derived from the same JSON so the two cannot
+disagree, and a non-empty file is the only thing that turns the check red.
+
+A blanket flip was the obvious move and would have been wrong. It is one line —
+but `unallowlisted.json` holds **179 deltas across 18 protocols**, none of them
+triaged, so the check would be permanently red and therefore permanently
+ignored. `NL_Diag_TCPInfo` is the one protocol whose deltas are fully accounted
+for by the 22-entry allowlist, so its count is 0 and a delta appearing there is
+a real finding. Each later phase earns the gate for the protocol it covers:
+triage that protocol's deltas into the allowlist with reasons, get it to 0,
+then add its name to `gatedProtocols`. A name not in the check's `protocols`
+list fails at **eval** time, since it would never be audited and the gate
+would be silently inert.
+
+**The gate was proved able to fail, which matters more than proving it passes.**
+Deleting one `split` entry (`tcpi_snd_wscale` @ bit 48) from the allowlist and
+rebuilding gave `FAIL: 1 unallowlisted delta(s) on gated protocol(s):
+NL_Diag_TCPInfo` and a non-zero exit, listing exactly that field — while the
+other 179 deltas still printed as advisory and did not contribute. Restoring the
+entry returned the check to green. Re-run that experiment after any change to
+the filtering jq; a gate that cannot be made to fail is not a gate.
+
+Deltas are filtered through
+`nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
 `offset_bits` + field name, so a field that moves offset stops being
 allowlisted and resurfaces — the offset is the thing being asserted.
 
@@ -343,8 +374,9 @@ source set (a kernel tarball, DPDK, nDPI, suricata, tshark, a scapy python). On
 a cold cache it dominates `nix flake check` wall time by a wide margin. Moving
 the attribute out of the returned set into `packages` is a one-line change if
 that bites; `proto-lint` is the existing precedent for a check kept out of the
-default set for an infrastructural reason. Advisory mode never gates, so nothing
-else would need to change.
+default set for an infrastructural reason. Note that doing so now genuinely
+loses coverage rather than just moving a report: `NL_Diag_TCPInfo` is gated, so
+this attribute is the thing that fails CI on a layout regression there.
 
 **0d.** Measured on a quiet `nix build .#test-go-bench` run:
 
@@ -477,10 +509,20 @@ grep -rn 'Reflection(' --include=*.go . | grep -v /vendor/ | grep -v _test.go
 nix build .#test-go-bench && ./result/bin/xtcp2-go-bench
 go test -count=1 -run TestDecoderPerformanceGate ./pkg/xtcpnl/
 
-# the layout oracle (0c) — advisory, so read $out rather than the exit code
+# the layout oracle (0c) — gating for NL_Diag_TCPInfo, advisory for the rest,
+# so a non-zero exit means a GATED delta and $out still holds everything else
 nix build .#checks.x86_64-linux.proto-audit-netlink
 jq -r '.[] | "\(.protocol) missing=\(.fields_missing)"' result/audit.json
-cat result/unallowlisted.json   # expect []
+
+# the gate: this is the file that can turn the check red. Expect [] / 0.
+jq 'length' result/unallowlisted-gated.json   # expect 0
+
+# the advisory set is NOT empty and is not meant to be — 179 deltas across 18
+# of the 26 audited protocols, none triaged yet. Only the NL_Diag_TCPInfo slice
+# is empty, which is what makes it the one protocol currently gated.
+jq 'length' result/unallowlisted.json                                  # expect 179
+jq '[.[] | select(.protocol == "NL_Diag_TCPInfo")] | length' \
+  result/unallowlisted.json                                            # expect 0
 
 # the upstream-registry-pin diagnosis: 61 fields / 248 bytes means proto-audit
 # is reading TCPInfo6_10_3, so the AccECN trailer cannot be reported present

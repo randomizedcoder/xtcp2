@@ -21,9 +21,17 @@
 #                      generated dissector, do the decoded values line up?
 #                      Grades each protocol Gold/Silver/Bronze.
 #
-# ADVISORY in Phase 0: it writes its findings to $out, prints a summary, and
-# exits 0 regardless. Phase 2 flips it to gating — see `gating` below, which is
-# the whole of the change.
+# GATING PER PROTOCOL, not all-or-nothing — see `gatedProtocols` below. A
+# protocol named there fails the build on any unallowlisted delta; every other
+# protocol is advisory, its findings written to $out and printed in full, exit
+# 0. Today the list is just NL_Diag_TCPInfo, the one protocol whose deltas are
+# fully triaged. The remaining 17 hold 179 untriaged deltas between them, which
+# is why a blanket flip would make the check permanently red and therefore
+# permanently ignored; each later phase gates the protocol it covers.
+#
+# Two outputs, so the two are never confused:
+#   $out/unallowlisted.json        every unallowlisted delta (advisory)
+#   $out/unallowlisted-gated.json  the gated subset (non-empty ⇒ build fails)
 #
 # THE WIRING DETAIL THAT MATTERS: proto-audit defaults --xtcp2-src to a
 # fetchFromGitHub snapshot pinned inside xdp2's own flake
@@ -47,8 +55,17 @@
   lib,
   src,
   xdp2,
-  # Phase 2: set to true to make unallowlisted deltas fail the build.
-  gating ? false,
+  # Protocols whose unallowlisted deltas FAIL the build. Everything not named
+  # here stays advisory: its deltas are printed in full and exit 0.
+  #
+  # A list rather than a boolean because scope is the whole difficulty. A
+  # blanket flip is one line, but $out/unallowlisted.json currently holds 179
+  # deltas across 18 protocols, none of them triaged, so turning it on wholesale
+  # makes the check permanently red and therefore ignored. Gating is earned one
+  # protocol at a time: triage that protocol's deltas into the allowlist with
+  # reasons, get it to zero, then add its name here. Each later phase gates the
+  # protocol it covers.
+  gatedProtocols ? [ ],
 }:
 
 let
@@ -89,6 +106,25 @@ let
   ];
 
   protoList = lib.concatStringsSep "," protocols;
+
+  unknownGated = lib.subtractLists protocols gatedProtocols;
+
+  # A gated name that is not in `protocols` would never be audited, so its
+  # deltas would be zero for the wrong reason and the gate would be silently
+  # inert. Fail at eval rather than build: it is a typo, not a finding.
+  gatedJSON =
+    assert lib.assertMsg (unknownGated == [ ]) (
+      "proto-audit-netlink: gatedProtocols names protocol(s) that are not audited: "
+      + lib.concatStringsSep ", " unknownGated
+    );
+    builtins.toJSON gatedProtocols;
+
+  anyGated = gatedProtocols != [ ];
+
+  # Pre-rendered so the shell body below interpolates a short identifier rather
+  # than a multi-line expression; nixfmt re-indents the whole script otherwise.
+  gatedNames = lib.concatStringsSep " " gatedProtocols;
+  gatedLabel = if anyGated then gatedNames else "(none — fully advisory)";
 in
 pkgs.runCommand "xtcp2-proto-audit-netlink"
   {
@@ -104,7 +140,7 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
     PROTO_AUDIT_XTCP2_PCAPS = "${src}/pkg/xtcpnl/testdata";
 
     passthru = {
-      inherit gating protocols;
+      inherit gatedProtocols protocols;
     };
 
     meta = {
@@ -117,6 +153,7 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
     echo "proto-audit xtcp2 source : $PROTO_AUDIT_XTCP2_SRC"
     echo "proto-audit pcap corpus  : $PROTO_AUDIT_XTCP2_PCAPS"
     echo "protocols                : ${toString (builtins.length protocols)}"
+    echo "gated protocols          : ${gatedLabel}"
     echo
 
     # Guard the override rather than trusting it. If the source path is not
@@ -168,10 +205,11 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
       echo "WARNING: audit.json is not a JSON array; proto-audit likely failed." >&2
       echo "--- stderr ---" >&2
       cat $out/audit.stderr >&2 || true
-      # Advisory mode tolerates this; gating mode must not, or a crashing
-      # oracle reads as a clean one.
-      ${lib.optionalString gating ''
-        echo "FAIL: gating mode requires a parseable audit.json" >&2
+      # Fully-advisory mode tolerates this; as soon as ANY protocol is gated it
+      # must not, or a crashing oracle reads as a clean one — we cannot verify
+      # a gated protocol from a run that produced no findings at all.
+      ${lib.optionalString anyGated ''
+        echo "FAIL: ${toString (builtins.length gatedProtocols)} gated protocol(s) require a parseable audit.json" >&2
         exit 1
       ''}
       exit 0
@@ -220,13 +258,21 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
         ]
     ' > $out/unallowlisted.json
 
+    # The gated slice of the same set. Derived from unallowlisted.json rather
+    # than recomputed, so the two can never disagree about what a delta is.
+    jq --argjson gated '${gatedJSON}' \
+      '[ .[] | select(.protocol as $p | $gated | index($p)) ]' \
+      $out/unallowlisted.json > $out/unallowlisted-gated.json
+
     unallowlisted=$(jq 'length' $out/unallowlisted.json)
+    gated_deltas=$(jq 'length' $out/unallowlisted-gated.json)
     missing_total=$(jq '[.[] | (.fields_missing // 0)] | add // 0' $out/audit.json)
     tcpinfo_missing=$(jq '[.[] | select(.protocol == "NL_Diag_TCPInfo") | (.fields_missing // 0)] | add // 0' $out/audit.json)
 
     echo
     echo "=== oracle result ==="
-    echo "unallowlisted deltas        : $unallowlisted"
+    echo "unallowlisted deltas        : $unallowlisted (advisory)"
+    echo "  of which gated            : $gated_deltas (fails the build if non-zero)"
     echo "fields missing (all protos) : $missing_total"
     echo "fields missing NL_Diag_TCPInfo : $tcpinfo_missing"
 
@@ -260,17 +306,30 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
       echo "choice that belongs in nix/checks/proto-audit-netlink-allowlist.json"
       echo "with a reason. Do not add an entry to quiet the check without"
       echo "establishing which of the two it is."
-      ${
-        if gating then
-          ''
-            echo "FAIL: gating mode, $unallowlisted unallowlisted delta(s)." >&2
-            exit 1
-          ''
-        else
-          ''
-            echo "(advisory in Phase 0 — not failing the build)"
-          ''
-      }
+      echo "(advisory — none of these fails the build unless its protocol is gated)"
+    fi
+
+    # The gate. Deliberately a separate branch from the advisory print above:
+    # the advisory count is expected to be large and to move as new protocols
+    # are registered upstream, and nothing about that should be able to turn
+    # this red. Only a delta on a protocol we have actually triaged does.
+    if [ "$gated_deltas" != "0" ]; then
+      echo
+      echo "--- GATED deltas ---" >&2
+      jq -r '.[] | "\(.protocol)  \(.field) @ bit \(.offset_bits) (\(.size_bits)b)"' \
+        $out/unallowlisted-gated.json >&2
+      echo >&2
+      echo "FAIL: $gated_deltas unallowlisted delta(s) on gated protocol(s):" >&2
+      echo "      ${gatedNames}" >&2
+      echo "      These protocols are triaged, so a delta here is a real finding:" >&2
+      echo "      either pkg/xtcpnl no longer matches the kernel layout, or a" >&2
+      echo "      field moved offset and its allowlist entry stopped matching." >&2
+      echo "      Read \$out/unallowlisted-gated.json before touching the allowlist." >&2
+      exit 1
+    fi
+    # Empty when nothing is gated, so this says nothing in fully-advisory mode.
+    if [ -n "${gatedNames}" ]; then
+      echo "gated protocols clean: ${gatedNames}"
     fi
 
     echo
