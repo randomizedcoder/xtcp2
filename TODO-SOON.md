@@ -1428,7 +1428,13 @@ not a regression here:
   handed is already concrete. Proof:
   `PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- extract --source xtcp2
   --proto NL_Diag_TCPInfo --json` reports `field_count 61, min_header_bytes
-  248`. Fix is one word: `.xtcp2("TCPInfo")`.
+  248`. Fix is one word: `.xtcp2("TCPInfo")` — submitted upstream as
+  **[randomizedcoder/xdp2#11](https://github.com/randomizedcoder/xdp2/pull/11)**.
+  The `47d3a425` → `47a82df2` pin bump waits on it: `47a82df2` is real and is
+  xdp2 `main` HEAD, but it is 2 commits touching only
+  `generator/pcap/embedded.rs` and `table.rs:552-555` still reads
+  `.xtcp2("TCPInfo6_10_3")` verbatim, so bumping to it buys an ERSPAN fix and
+  clears the drift warning while changing nothing here.
 - `extract_size_const()` (`src/extractors/xtcp2.rs:143`) builds the pattern
   `{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an
   underscore, so no versioned size constant is ever matched and the size is
@@ -1439,11 +1445,33 @@ The 11 are allowlisted as `kind: "upstream-registry-pin"` in
 `nix/checks/proto-audit-netlink-allowlist.json`, which is what lets
 `NL_Diag_TCPInfo` be the first protocol the oracle actually **gates** on
 (`gatedProtocols` in `nix/checks/default.nix`) rather than merely reporting.
-They are to be **deleted** once the xdp2 pin is bumped past a fix, at which
-point they should become 11 agreements — and because allowlist entries match on
-protocol + offset + field, leaving them would mask a genuine future delta at
-those offsets. Pin drift is tracked by
+They are to be **deleted** once the xdp2 pin is bumped past a fix — allowlist
+entries match on protocol + offset + field, so leaving them would mask a
+genuine future delta at those offsets. Pin drift is tracked by
 `nix/upstream-pins.json` and reported by `nix run .#check-upstream-pins`.
+
+**The bump is not just that deletion, and getting this wrong turns the gated
+check red.** Measured by building proto-audit from the PR branch and running it
+against this tree:
+
+| | total | agree | type_differ | mismatch | missing |
+|---|---|---|---|---|---|
+| pinned `47d3a425` | 76 | 54 | 3 | 8 | **11** |
+| with the PR | 80 | 61 | 3 | **16** | **0** |
+
+The 11 do not become 11 agreements. Seven do — the plain `__u32` counters
+`tcpi_received_ce` and `tcpi_{delivered,received}_e{0,1,ce}_bytes`. The other
+four surface as *new* deltas of the existing `split` kind, because the kernel
+packs `tcpi_ecn_mode:2` / `accecn_opt_seen:2` / `accecn_fail_mode:4` /
+`options2:24` into one `__u32` at `[276:280]` while xtcp2 unpacks them into
+four Go fields (`xtcpnl_inet_diag_tcpinfo.go:260-263`), and proto-audit's
+kernel extractor does not model C bitfields. Same gap as the eight existing
+`split` entries, just newly visible now the fields are read at all.
+
+So the bump commit must do **both**, together: delete the 11
+`upstream-registry-pin` entries *and* add 4 `kind: "split"` entries at offsets
+2208, 2216, 2224 and 2232. Allowlist goes 22 → 15. Doing only the deletion
+leaves 4 unallowlisted deltas on a **gated** protocol, i.e. a red check.
 
 Worth noting that the oracle **corroborated** the fix even while unable to see
 it: proto-audit's *kernel* extractor places `tcpi_ecn_mode` at bit 2208 (= byte

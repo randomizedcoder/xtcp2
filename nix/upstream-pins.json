@@ -3,8 +3,8 @@
     "Expected state of every upstream pin that xtcp2 depends on for its netlink",
     "tooling, recorded so that drift is visible rather than silent.",
     "",
-    "WHY THIS FILE EXISTS. proto-audit — the netlink layout oracle wired up in",
-    "nix/checks/proto-audit-netlink.nix — reaches xtcp2 through TWO pins, and",
+    "WHY THIS FILE EXISTS. proto-audit \u2014 the netlink layout oracle wired up in",
+    "nix/checks/proto-audit-netlink.nix \u2014 reaches xtcp2 through TWO pins, and",
     "both can go stale independently:",
     "",
     "  1. xtcp2's own `xdp2` flake input. If xdp2's main moves, we keep",
@@ -16,7 +16,7 @@
     "     is proto-audit's DEFAULT for --xtcp2-src. Left at the default, the",
     "     oracle audits a GitHub snapshot of xtcp2 from over a year ago and",
     "     reports findings about code nobody is running. The oracle check",
-    "     overrides it to this tree and asserts the override took — see",
+    "     overrides it to this tree and asserts the override took \u2014 see",
     "     `stale_note` below for exactly how stale it is.",
     "",
     "HOW THIS FILE IS CHECKED. Two halves, because a `nix flake check` sandbox",
@@ -43,10 +43,11 @@
       "consumed_by": "nix/checks/proto-audit-netlink.nix",
       "known_stale": false,
       "known_bugs_at_this_rev": [
-        "samples/proto_audit/src/name_mapping/table.rs:552-555 hardcodes .xtcp2(\"TCPInfo6_10_3\") for NL_Diag_TCPInfo, so resolve_alias() never follows `type TCPInfo TCPInfo7_0_3` and the 11 Accurate ECN fields read as missing from xtcp2. Fix is .xtcp2(\"TCPInfo\"). The 11 are allowlisted as kind=upstream-registry-pin in nix/checks/proto-audit-netlink-allowlist.json; DELETE those entries when this pin is bumped past a fix.",
+        "samples/proto_audit/src/name_mapping/table.rs:552-555 hardcodes .xtcp2(\"TCPInfo6_10_3\") for NL_Diag_TCPInfo, so resolve_alias() never follows `type TCPInfo TCPInfo7_0_3` and the 11 Accurate ECN fields read as missing from xtcp2. Fix is .xtcp2(\"TCPInfo\"), submitted upstream as https://github.com/randomizedcoder/xdp2/pull/11. MEASURED with that patch applied against this tree: NL_Diag_TCPInfo goes 76/54/3/8/11 to 80/61/3/16/0 (total/agree/type_differ/mismatch/missing). So bumping past the fix is NOT just a deletion. Do BOTH in the same commit or the check goes red, because NL_Diag_TCPInfo is gated: (1) DELETE the 11 kind=upstream-registry-pin entries from nix/checks/proto-audit-netlink-allowlist.json - they match on protocol+offset+field, so leaving them would mask a genuine future delta at those offsets; (2) ADD 4 new kind=split entries for ecn_mode @2208, accecn_opt_seen @2216, accecn_fail_mode @2224, options2 @2232. Those 4 are the same C-bitfield modelling gap as the existing 8 split entries: the kernel packs tcpi_ecn_mode:2 / accecn_opt_seen:2 / accecn_fail_mode:4 / options2:24 into one __u32 at [276:280], xtcp2 unpacks them into four Go fields (xtcpnl_inet_diag_tcpinfo.go:260-263), and proto-audit's kernel extractor does not model C bitfields. Net allowlist after the bump: 22 - 11 + 4 = 15 entries.",
         "samples/proto_audit/src/extractors/xtcp2.rs:143 extract_size_const() builds the pattern `{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an underscore, so no versioned size constant is ever matched and the struct size is inferred from field offsets. Harmless, independent of the above."
       ],
-      "on_bump": "Re-run `nix build .#checks.x86_64-linux.proto-audit-netlink` and read $out/unallowlisted.json before anything else. A proto-audit bump can change what the oracle reports, so it should land on its own rather than inside unrelated work."
+      "on_bump": "Re-run `nix build .#checks.x86_64-linux.proto-audit-netlink` and read $out/unallowlisted.json before anything else. A proto-audit bump can change what the oracle reports, so it should land on its own rather than inside unrelated work.",
+      "recheck_on_bump": "Rebuild .#checks.x86_64-linux.proto-audit-netlink and read $out/unallowlisted-gated.json, not $out/unallowlisted.json. NL_Diag_TCPInfo is a gated protocol, so a delta there fails the build; the ~179 advisory deltas on the other protocols are expected and do not."
     },
     "xdp2-embedded-xtcp2": {
       "repo": "randomizedcoder/xtcp2",
@@ -57,7 +58,7 @@
       "role": "proto-audit's DEFAULT value for --xtcp2-src / PROTO_AUDIT_XTCP2_SRC.",
       "consumed_by": "proto-audit itself, whenever --xtcp2-src is NOT overridden",
       "known_stale": true,
-      "stale_note": "Dated 2025-04-19 and 732 commits behind xtcp2 main as of 2026-09-26 — it predates essentially all of the netlink coverage work, including the 7 kernel-versioned TCPInfo variants and the AccECN trailer. Auditing it would re-report the very gap that work closed. This is EXPECTED to be stale and is not a bug to fix here: the fix is that every xtcp2-side proto-audit invocation overrides the path. The runner still reports it so the number cannot quietly grow into something worse without anyone noticing, and so that bumping it upstream is an informed choice rather than a surprise."
+      "stale_note": "Dated 2025-04-19 and 732 commits behind xtcp2 main as of 2026-09-26 \u2014 it predates essentially all of the netlink coverage work, including the 7 kernel-versioned TCPInfo variants and the AccECN trailer. Auditing it would re-report the very gap that work closed. This is EXPECTED to be stale and is not a bug to fix here: the fix is that every xtcp2-side proto-audit invocation overrides the path. The runner still reports it so the number cannot quietly grow into something worse without anyone noticing, and so that bumping it upstream is an informed choice rather than a surprise."
     }
   }
 }
