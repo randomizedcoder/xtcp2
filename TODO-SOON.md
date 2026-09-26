@@ -1335,7 +1335,7 @@ is ambiguous and errors with *"both revision and filename"*. Disambiguate with
 
 ---
 
-## 21. `tcp_info` silently truncated the Accurate ECN trailer — FIXED (decode), OPEN (ClickHouse DDL)
+## 21. `tcp_info` silently truncated the Accurate ECN trailer — FIXED (decode), FIXED (ClickHouse DDL), OPEN (upstream xdp2)
 
 `DeserializeTCPInfo` stopped at 248 bytes — the kernel 6.10 `struct tcp_info`
 length — and discarded whatever followed. Kernel 7.0 appended an Accurate ECN
@@ -1370,18 +1370,50 @@ the pre-assigned numbers 1266–1276, 11 parquet columns, and
 **only when the message is long enough to carry it**; a hard length guard would
 have broken every older-kernel fixture in the corpus.
 
-**Still open:** the ClickHouse DDL for the 11 columns —
-`build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records{,_mv,_kafka}.sql`,
-a new `build/containers/clickhouse/sql/migrations/v3.sql`, and
-`build/k8s/clickhouse/*.proto.configMap.yaml`. Until that lands the fields
-decode and reach parquet but not ClickHouse. It is an outward-facing schema
-migration, so it wants a deliberate decision rather than being folded into a
-decode change.
+**ClickHouse DDL — landed.** Until it did, the fields decoded and reached
+parquet but were dropped at ClickHouse ingestion, because no table had columns
+to land them in. Five `CREATE`s gained the 11 `UInt32 CODEC(LZ4)` columns
+immediately after `tcp_info_total_rto_time`, in proto-tag order:
+`xtcp_xtcp_flat_records.sql` `_v0` and `_v2`, `..._kafka.sql`, and
+`..._mv.sql`'s `_v0_mv` / `_v1_mv` alias lists. Two needed nothing: `_v1` is
+`AS xtcp.xtcp_flat_records_v0`, a structural clone, and `_v2_mv` uses
+`* EXCEPT (timestamp_ns)`.
 
-**Reading a zero here is ambiguous** and the DDL comments should say so: the
+**No `schema_version` bump.** `pkg/xtcp/schema_version.go:9-12` — "Adding a
+field in a free slot is not a bump" — and 1266–1276 were pre-reserved.
+`XtcpFlatRecordSchemaVersion` stays `2`. The migration for existing deployments
+is therefore named for its purpose, **not** `v3.sql`: an earlier draft of this
+section called for `v3.sql`, which would have implied a fourth record epoch and
+a fourth `_vN` table, exactly the confusion §11 already records. It is
+`build/containers/clickhouse/sql/migrations/accecn-columns.sql` — drop the MVs
+and the Kafka table, `ADD COLUMN IF NOT EXISTS … AFTER …` on `_v0`/`_v1`/`_v2`
+(idempotent), recreate the Kafka table and MVs, re-declare the Merge view.
+Columns go on `_v0`/`_v1` too, even though those epochs predate AccECN and will
+never populate them, so the
+`Merge('xtcp', '^xtcp_flat_records_v[0-9]+$')` view sees one consistent column
+set — the same thing `v2.sql` did for the enrichment columns.
+
+**`build/k8s/clickhouse/*.proto.configMap.yaml` was never in scope**, contrary
+to an earlier draft of this section. Those files carry a "STALE (last
+regenerated 2025-03) … Do NOT apply as-is" header, and
+`build/k8s/clickhouse/readme.md` ("Schema staleness") names the compose stack as
+the source of truth.
+
+**Reading a zero here is ambiguous** and the DDL comments say so: the
 trailer is optional, so `tcp_info_received_ce = 0` means *"this kernel did not
 report it"* on anything before 7.0, not *"no CE marks"*. Every pre-7.0 capture
-in the corpus reports zero for all 11.
+in the corpus reports zero for all 11. Disambiguate on the reporting host's
+kernel version, never on the value.
+
+**Nothing enforces proto↔ClickHouse DDL parity — that is why these 11 went
+missing in the first place, and it is still true.** `tools/proto-field-audit`
+checks the proto against *Go* usage; `TestS3ParquetSchema_matchesProto` checks
+the proto against the *Parquet* row. No check compares the proto against the
+ClickHouse column set, so the next field added in a free slot can be dropped at
+ingestion exactly the same way, silently. The durable fix is a check that parses
+`build/containers/clickhouse/format_schemas/xtcp_flat_record.proto` and the
+`CREATE TABLE` column lists and asserts they agree — cheap, hermetic, and it
+would have caught this. Not built here.
 
 **Also open, upstream in xdp2, and it is why the oracle still reports these 11
 as missing.** `nix build .#checks.x86_64-linux.proto-audit-netlink` shows

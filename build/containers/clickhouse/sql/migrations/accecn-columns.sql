@@ -1,36 +1,114 @@
 --
--- Recreate xtcp_xtcp_flat_records_kafka.sql
+-- Migration: add the 11 Accurate ECN columns from kernel 7.0's struct tcp_info
 --
+-- This is NOT a record-format epoch bump. XtcpFlatRecordSchemaVersion stays 2:
+-- pkg/xtcp/schema_version.go says "Adding a field in a free slot is not a bump",
+-- and proto tags 1266-1276 were pre-reserved for exactly these members. The file
+-- is therefore named for what it does, not v3.sql, which would wrongly imply a
+-- fourth epoch and a fourth _vN table.
+--
+-- For EXISTING deployments already running the epoch-2 layout from
+-- build/containers/clickhouse/initdb.d/sql/. Fresh deployments do not need this:
+-- initdb.d now creates the columns from scratch.
+--
+-- Apply with (all existing data is untouched; only the Kafka table, the MVs and
+-- the Merge view are recreated, plus 11 new columns on each _vN table):
+--
+--   clickhouse-client --multiquery < build/containers/clickhouse/sql/migrations/accecn-columns.sql
+--
+-- Copy the regenerated schema file into the server's format_schemas dir BEFORE
+-- running this — the Kafka table recreated below references it, and without the
+-- new fields the added columns would simply stay empty:
+--   build/containers/clickhouse/format_schemas/xtcp_flat_record.proto
+--   -> /var/lib/clickhouse/format_schemas/xtcp_flat_record.proto
+--
+-- What changed
+--   Kernel 7.0 appended 11 members to `struct tcp_info`, growing the wire struct
+--   from 248 to 280 bytes. xtcp2's DeserializeTCPInfo previously stopped at 248
+--   and discarded them; it now decodes the trailer and puts it on the wire at
+--   proto tags 1266-1276. Until this migration runs there are no columns to
+--   land them in, so ClickHouse drops them at ingestion.
+--
+--     tcp_info_received_ce          tcpi_received_ce         CE marked segments received
+--     tcp_info_delivered_e1_bytes   tcpi_delivered_e1_bytes
+--     tcp_info_delivered_e0_bytes   tcpi_delivered_e0_bytes
+--     tcp_info_delivered_ce_bytes   tcpi_delivered_ce_bytes
+--     tcp_info_received_e1_bytes    tcpi_received_e1_bytes
+--     tcp_info_received_e0_bytes    tcpi_received_e0_bytes
+--     tcp_info_received_ce_bytes    tcpi_received_ce_bytes
+--     tcp_info_ecn_mode             tcpi_ecn_mode            (__u32:2)
+--     tcp_info_accecn_opt_seen      tcpi_accecn_opt_seen     (__u32:2)
+--     tcp_info_accecn_fail_mode     tcpi_accecn_fail_mode    (__u32:4)
+--     tcp_info_options2             tcpi_options2            (__u32:24)
+--
+-- READING THE DATA: a zero is AMBIGUOUS
+--   The trailer is optional on the wire. The kernel only emits it from 7.0, and
+--   xtcp2 decodes it only when the INET_DIAG_INFO attribute is long enough to
+--   carry it. So `tcp_info_received_ce = 0` means "this kernel did not report
+--   the field" on anything older than 7.0 — NOT "no CE marks". Every pre-7.0
+--   capture in the test corpus reports zero for all 11. Disambiguate on the
+--   reporting host's kernel version, never on the value:
+--
+--     SELECT hostname, count() FROM xtcp.xtcp_flat_records
+--      WHERE tcp_info_ecn_mode != 0 OR tcp_info_received_ce != 0 GROUP BY 1;
+--
+--   Columns are added to _v0 and _v1 as well, even though those epochs predate
+--   AccECN and will never populate them, so that the Merge view
+--   xtcp.xtcp_flat_records sees one consistent column set. v2.sql did the same
+--   for the enrichment columns.
 
--- Kafka Topic --> Kakfa Table Engine --> Materialized View -> MergeTree Table
-
--- Not using Nested!
--- https://clickhouse.com/docs/en/sql-reference/data-types/nested-data-structures/nested
--- Not using Nullable, because it uses more space and apparently "almost always negatively affects performance"
--- https://clickhouse.com/docs/en/sql-reference/data-types/nullable
-
--- Column set = epoch-2 record format (schema_version = 2), in proto field-number
--- order. ClickHouse's Protobuf/ProtobufList input maps table column NAME ->
--- schema field -> wire tag, using format_schemas/xtcp_flat_record.proto (a
--- generated copy of proto/xtcp_flat_record/v1/xtcp_flat_record.proto). So:
---   * epoch-1 daemons still in the fleet: a field that only changed NAME keeps
---     its tag, so its bytes decode into the v2-named column here and the v0/v1
---     MVs alias it back onto the old column name. Nothing lost.
---   * epoch-1 fields that changed NUMBER (enrich_socket_dest_egress_ifindex/
---     ifname 301/302 -> 311/312, c_group 2103 -> inet_diag_cgroup_id 2003) are
---     unknown tags to this schema and are dropped for epoch-1 rows. Those three
---     columns read as 0/'' in _v1 until the daemon fleet is on epoch 2.
---   * epoch-0 daemons never sent any of the affected fields.
-
--- To debug clickhouse
--- make build_clickhouse_and_deploy
--- docker logs xtcp-clickhouse-1 --follow
--- docker exec -ti xtcp-clickhouse-1 tail -f -n 30 /var/log/clickhouse-server/clickhouse-server.log
--- docker exec -ti xtcp-clickhouse-1 tail -f -n 30 /var/log/clickhouse-server/clickhouse-server.err.log
--- docker exec -ti xtcp-clickhouse-1 bash
-
+-- 1. Stop ingestion while the schema swaps. Kafka engine tables cannot be
+--    safely ALTERed while attached, so it is dropped and recreated in step 3.
+DROP VIEW IF EXISTS xtcp.xtcp_flat_records_mv;
+DROP VIEW IF EXISTS xtcp.xtcp_flat_records_v0_mv;
+DROP VIEW IF EXISTS xtcp.xtcp_flat_records_v1_mv;
+DROP VIEW IF EXISTS xtcp.xtcp_flat_records_v2_mv;
 DROP TABLE IF EXISTS xtcp.xtcp_flat_records_kafka;
 
+-- 2. Add the columns to every epoch table. ADD COLUMN IF NOT EXISTS is a no-op
+--    where they already exist, so this file is idempotent; AFTER pins the
+--    ordering to proto-tag order, immediately following the last member of the
+--    6.10-era 248-byte struct.
+ALTER TABLE xtcp.xtcp_flat_records_v0
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce         UInt32 CODEC(LZ4) AFTER tcp_info_total_rto_time,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e1_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_received_ce,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e0_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_ce_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e1_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_delivered_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e0_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_ecn_mode            UInt32 CODEC(LZ4) AFTER tcp_info_received_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_opt_seen     UInt32 CODEC(LZ4) AFTER tcp_info_ecn_mode,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_fail_mode    UInt32 CODEC(LZ4) AFTER tcp_info_accecn_opt_seen,
+    ADD COLUMN IF NOT EXISTS tcp_info_options2            UInt32 CODEC(LZ4) AFTER tcp_info_accecn_fail_mode;
+ALTER TABLE xtcp.xtcp_flat_records_v1
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce         UInt32 CODEC(LZ4) AFTER tcp_info_total_rto_time,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e1_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_received_ce,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e0_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_ce_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e1_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_delivered_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e0_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_ecn_mode            UInt32 CODEC(LZ4) AFTER tcp_info_received_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_opt_seen     UInt32 CODEC(LZ4) AFTER tcp_info_ecn_mode,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_fail_mode    UInt32 CODEC(LZ4) AFTER tcp_info_accecn_opt_seen,
+    ADD COLUMN IF NOT EXISTS tcp_info_options2            UInt32 CODEC(LZ4) AFTER tcp_info_accecn_fail_mode;
+ALTER TABLE xtcp.xtcp_flat_records_v2
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce         UInt32 CODEC(LZ4) AFTER tcp_info_total_rto_time,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e1_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_received_ce,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_e0_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_delivered_ce_bytes  UInt32 CODEC(LZ4) AFTER tcp_info_delivered_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e1_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_delivered_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_e0_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e1_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_received_ce_bytes   UInt32 CODEC(LZ4) AFTER tcp_info_received_e0_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_ecn_mode            UInt32 CODEC(LZ4) AFTER tcp_info_received_ce_bytes,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_opt_seen     UInt32 CODEC(LZ4) AFTER tcp_info_ecn_mode,
+    ADD COLUMN IF NOT EXISTS tcp_info_accecn_fail_mode    UInt32 CODEC(LZ4) AFTER tcp_info_accecn_opt_seen,
+    ADD COLUMN IF NOT EXISTS tcp_info_options2            UInt32 CODEC(LZ4) AFTER tcp_info_accecn_fail_mode;
+
+-- 3. Recreate the Kafka table and the per-epoch MVs with the new column set.
+--    Both blocks below are verbatim copies of the initdb.d files, which is what
+--    a fresh deployment gets; keep them in step if either file changes.
 CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
 (
     -- ---- metadata: record format provenance (1-2) --------------------------
@@ -398,5 +476,404 @@ SETTINGS
 -- DETACH TABLE xtcp.xtcp_flat_records_kafka;
 
 -- https://clickhouse.com/docs/engines/table-engines/integrations/kafka#virtual-columns
+
+-- Legacy bucket: pre-versioning daemons never set schema_version, so it decodes to
+-- proto3 zero. Those rows land in _v0. Epoch 0 never sent enrichment fields, so
+-- the aliased enrichment columns are always default here.
+CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_v0_mv TO xtcp.xtcp_flat_records_v0
+  AS SELECT
+    schema_version,
+    daemon_version,
+    fromUnixTimestamp64Nano(timestamp_ns) AS timestamp_ns,
+    hostname,
+    location,
+    netns,
+    netns_inode,
+    nsid,
+    container_id,
+    container_runtime,
+    container_name,
+    container_image,
+    label,
+    tag,
+    record_counter,
+    socket_fd,
+    netlinker_id,
+    uplink1_ifname,
+    uplink1_nic_driver,
+    uplink1_nic_model,
+    uplink1_nic_pci_vendor,
+    uplink1_nic_pci_device,
+    uplink1_nic_bus_info,
+    uplink1_nic_speed_mbps,
+    uplink1_nic_fw_version,
+    uplink1_lldp_chassis_name,
+    uplink1_lldp_chassis_id,
+    uplink1_lldp_mgmt_ip,
+    uplink1_lldp_port_id,
+    uplink1_lldp_port_descr,
+    uplink2_ifname,
+    uplink2_nic_driver,
+    uplink2_nic_model,
+    uplink2_nic_pci_vendor,
+    uplink2_nic_pci_device,
+    uplink2_nic_bus_info,
+    uplink2_nic_speed_mbps,
+    uplink2_nic_fw_version,
+    uplink2_lldp_chassis_name,
+    uplink2_lldp_chassis_id,
+    uplink2_lldp_mgmt_ip,
+    uplink2_lldp_port_id,
+    uplink2_lldp_port_descr,
+    enrich_socket_interface_name,
+    toUInt8(enrich_socket_dest_locality) AS enrich_socket_dest_locality,
+    enrich_socket_dest_egress_ifindex,
+    enrich_socket_dest_egress_ifname,
+    enrich_socket_dest_asn,
+    enrich_socket_dest_next_hop_asn          AS enrich_socket_next_hop_asn,
+    enrich_socket_dest_network_owner,
+    inet_diag_msg_family,
+    inet_diag_msg_state,
+    inet_diag_msg_timer,
+    inet_diag_msg_retrans,
+    inet_diag_msg_socket_source_port,
+    inet_diag_msg_socket_destination_port,
+    inet_diag_msg_socket_source,
+    inet_diag_msg_socket_destination,
+    inet_diag_msg_socket_interface,
+    inet_diag_msg_socket_cookie,
+    inet_diag_msg_expires,
+    inet_diag_msg_rqueue,
+    inet_diag_msg_wqueue,
+    inet_diag_msg_uid,
+    inet_diag_msg_inode,
+    mem_info_rmem,
+    mem_info_wmem,
+    mem_info_fmem,
+    mem_info_tmem,
+    tcp_info_state,
+    tcp_info_ca_state,
+    tcp_info_retransmits,
+    tcp_info_probes,
+    tcp_info_backoff,
+    tcp_info_options,
+    tcp_info_snd_wscale                      AS tcp_info_send_scale,
+    tcp_info_rcv_wscale                      AS tcp_info_rcv_scale,
+    tcp_info_delivery_rate_app_limited,
+    tcp_info_fastopen_client_fail            AS tcp_info_fast_open_client_failed,
+    tcp_info_rto,
+    tcp_info_ato,
+    tcp_info_snd_mss,
+    tcp_info_rcv_mss,
+    tcp_info_unacked,
+    tcp_info_sacked,
+    tcp_info_lost,
+    tcp_info_retrans,
+    tcp_info_fackets,
+    tcp_info_last_data_sent,
+    tcp_info_last_ack_sent,
+    tcp_info_last_data_recv,
+    tcp_info_last_ack_recv,
+    tcp_info_pmtu,
+    tcp_info_rcv_ssthresh,
+    tcp_info_rtt,
+    tcp_info_rttvar                          AS tcp_info_rtt_var,
+    tcp_info_snd_ssthresh,
+    tcp_info_snd_cwnd,
+    tcp_info_advmss                          AS tcp_info_adv_mss,
+    tcp_info_reordering,
+    tcp_info_rcv_rtt,
+    tcp_info_rcv_space,
+    tcp_info_total_retrans,
+    tcp_info_pacing_rate,
+    tcp_info_max_pacing_rate,
+    tcp_info_bytes_acked,
+    tcp_info_bytes_received,
+    tcp_info_segs_out,
+    tcp_info_segs_in,
+    tcp_info_notsent_bytes                   AS tcp_info_not_sent_bytes,
+    tcp_info_min_rtt,
+    tcp_info_data_segs_in,
+    tcp_info_data_segs_out,
+    tcp_info_delivery_rate,
+    tcp_info_busy_time,
+    tcp_info_rwnd_limited,
+    tcp_info_sndbuf_limited,
+    tcp_info_delivered,
+    tcp_info_delivered_ce,
+    tcp_info_bytes_sent,
+    tcp_info_bytes_retrans,
+    tcp_info_dsack_dups,
+    tcp_info_reord_seen,
+    tcp_info_rcv_ooopack,
+    tcp_info_snd_wnd,
+    tcp_info_rcv_wnd,
+    tcp_info_rehash,
+    tcp_info_total_rto,
+    tcp_info_total_rto_recoveries,
+    tcp_info_total_rto_time,
+
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- The 11 members kernel 7.0 appended to `struct tcp_info` (248 -> 280 bytes,
+    -- proto tags 1266-1276). Names pass through unchanged, so no AS alias. The
+    -- trailer is optional on the wire and this epoch predates it, so these will
+    -- be zero here — and a zero is ambiguous: it means "not reported by this
+    -- kernel", not "no CE marks". See xtcp_xtcp_flat_records.sql.
+    tcp_info_received_ce,
+    tcp_info_delivered_e1_bytes,
+    tcp_info_delivered_e0_bytes,
+    tcp_info_delivered_ce_bytes,
+    tcp_info_received_e1_bytes,
+    tcp_info_received_e0_bytes,
+    tcp_info_received_ce_bytes,
+    tcp_info_ecn_mode,
+    tcp_info_accecn_opt_seen,
+    tcp_info_accecn_fail_mode,
+    tcp_info_options2,
+    inet_diag_cong                           AS congestion_algorithm_string,
+    toUInt8(inet_diag_cong_enum) AS congestion_algorithm_enum,
+    inet_diag_tos                            AS type_of_service,
+    inet_diag_tclass                         AS traffic_class,
+    sk_mem_info_rmem_alloc,
+    sk_mem_info_rcvbuf                       AS sk_mem_info_rcv_buf,
+    sk_mem_info_wmem_alloc,
+    sk_mem_info_sndbuf                       AS sk_mem_info_snd_buf,
+    sk_mem_info_fwd_alloc,
+    sk_mem_info_wmem_queued,
+    sk_mem_info_optmem,
+    sk_mem_info_backlog,
+    sk_mem_info_drops,
+    inet_diag_shutdown                       AS shutdown_state,
+    vegas_info_enabled,
+    vegas_info_rttcnt                        AS vegas_info_rtt_cnt,
+    vegas_info_rtt,
+    vegas_info_minrtt                        AS vegas_info_min_rtt,
+    dctcp_info_enabled,
+    dctcp_info_ce_state,
+    dctcp_info_alpha,
+    dctcp_info_ab_ecn,
+    dctcp_info_ab_tot,
+    bbr_info_bw_lo,
+    bbr_info_bw_hi,
+    bbr_info_min_rtt,
+    bbr_info_pacing_gain,
+    bbr_info_cwnd_gain,
+    inet_diag_class_id                       AS class_id,
+    inet_diag_sockopt                        AS sock_opt,
+    inet_diag_cgroup_id                      AS c_group
+  FROM xtcp.xtcp_flat_records_kafka
+  WHERE length(_error) == 0 AND schema_version = 0;
+
+-- Epoch 1 (XtcpFlatRecordSchemaVersion = 1). Same alias list as _v0_mv. Note the
+-- three renumbered fields (egress_ifindex/ifname, cgroup id) cannot be recovered
+-- for epoch-1 rows: the Kafka schema only knows their epoch-2 tags.
+CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_v1_mv TO xtcp.xtcp_flat_records_v1
+  AS SELECT
+    schema_version,
+    daemon_version,
+    fromUnixTimestamp64Nano(timestamp_ns) AS timestamp_ns,
+    hostname,
+    location,
+    netns,
+    netns_inode,
+    nsid,
+    container_id,
+    container_runtime,
+    container_name,
+    container_image,
+    label,
+    tag,
+    record_counter,
+    socket_fd,
+    netlinker_id,
+    uplink1_ifname,
+    uplink1_nic_driver,
+    uplink1_nic_model,
+    uplink1_nic_pci_vendor,
+    uplink1_nic_pci_device,
+    uplink1_nic_bus_info,
+    uplink1_nic_speed_mbps,
+    uplink1_nic_fw_version,
+    uplink1_lldp_chassis_name,
+    uplink1_lldp_chassis_id,
+    uplink1_lldp_mgmt_ip,
+    uplink1_lldp_port_id,
+    uplink1_lldp_port_descr,
+    uplink2_ifname,
+    uplink2_nic_driver,
+    uplink2_nic_model,
+    uplink2_nic_pci_vendor,
+    uplink2_nic_pci_device,
+    uplink2_nic_bus_info,
+    uplink2_nic_speed_mbps,
+    uplink2_nic_fw_version,
+    uplink2_lldp_chassis_name,
+    uplink2_lldp_chassis_id,
+    uplink2_lldp_mgmt_ip,
+    uplink2_lldp_port_id,
+    uplink2_lldp_port_descr,
+    enrich_socket_interface_name,
+    toUInt8(enrich_socket_dest_locality) AS enrich_socket_dest_locality,
+    enrich_socket_dest_egress_ifindex,
+    enrich_socket_dest_egress_ifname,
+    enrich_socket_dest_asn,
+    enrich_socket_dest_next_hop_asn          AS enrich_socket_next_hop_asn,
+    enrich_socket_dest_network_owner,
+    inet_diag_msg_family,
+    inet_diag_msg_state,
+    inet_diag_msg_timer,
+    inet_diag_msg_retrans,
+    inet_diag_msg_socket_source_port,
+    inet_diag_msg_socket_destination_port,
+    inet_diag_msg_socket_source,
+    inet_diag_msg_socket_destination,
+    inet_diag_msg_socket_interface,
+    inet_diag_msg_socket_cookie,
+    inet_diag_msg_expires,
+    inet_diag_msg_rqueue,
+    inet_diag_msg_wqueue,
+    inet_diag_msg_uid,
+    inet_diag_msg_inode,
+    mem_info_rmem,
+    mem_info_wmem,
+    mem_info_fmem,
+    mem_info_tmem,
+    tcp_info_state,
+    tcp_info_ca_state,
+    tcp_info_retransmits,
+    tcp_info_probes,
+    tcp_info_backoff,
+    tcp_info_options,
+    tcp_info_snd_wscale                      AS tcp_info_send_scale,
+    tcp_info_rcv_wscale                      AS tcp_info_rcv_scale,
+    tcp_info_delivery_rate_app_limited,
+    tcp_info_fastopen_client_fail            AS tcp_info_fast_open_client_failed,
+    tcp_info_rto,
+    tcp_info_ato,
+    tcp_info_snd_mss,
+    tcp_info_rcv_mss,
+    tcp_info_unacked,
+    tcp_info_sacked,
+    tcp_info_lost,
+    tcp_info_retrans,
+    tcp_info_fackets,
+    tcp_info_last_data_sent,
+    tcp_info_last_ack_sent,
+    tcp_info_last_data_recv,
+    tcp_info_last_ack_recv,
+    tcp_info_pmtu,
+    tcp_info_rcv_ssthresh,
+    tcp_info_rtt,
+    tcp_info_rttvar                          AS tcp_info_rtt_var,
+    tcp_info_snd_ssthresh,
+    tcp_info_snd_cwnd,
+    tcp_info_advmss                          AS tcp_info_adv_mss,
+    tcp_info_reordering,
+    tcp_info_rcv_rtt,
+    tcp_info_rcv_space,
+    tcp_info_total_retrans,
+    tcp_info_pacing_rate,
+    tcp_info_max_pacing_rate,
+    tcp_info_bytes_acked,
+    tcp_info_bytes_received,
+    tcp_info_segs_out,
+    tcp_info_segs_in,
+    tcp_info_notsent_bytes                   AS tcp_info_not_sent_bytes,
+    tcp_info_min_rtt,
+    tcp_info_data_segs_in,
+    tcp_info_data_segs_out,
+    tcp_info_delivery_rate,
+    tcp_info_busy_time,
+    tcp_info_rwnd_limited,
+    tcp_info_sndbuf_limited,
+    tcp_info_delivered,
+    tcp_info_delivered_ce,
+    tcp_info_bytes_sent,
+    tcp_info_bytes_retrans,
+    tcp_info_dsack_dups,
+    tcp_info_reord_seen,
+    tcp_info_rcv_ooopack,
+    tcp_info_snd_wnd,
+    tcp_info_rcv_wnd,
+    tcp_info_rehash,
+    tcp_info_total_rto,
+    tcp_info_total_rto_recoveries,
+    tcp_info_total_rto_time,
+
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- The 11 members kernel 7.0 appended to `struct tcp_info` (248 -> 280 bytes,
+    -- proto tags 1266-1276). Names pass through unchanged, so no AS alias. The
+    -- trailer is optional on the wire and this epoch predates it, so these will
+    -- be zero here — and a zero is ambiguous: it means "not reported by this
+    -- kernel", not "no CE marks". See xtcp_xtcp_flat_records.sql.
+    tcp_info_received_ce,
+    tcp_info_delivered_e1_bytes,
+    tcp_info_delivered_e0_bytes,
+    tcp_info_delivered_ce_bytes,
+    tcp_info_received_e1_bytes,
+    tcp_info_received_e0_bytes,
+    tcp_info_received_ce_bytes,
+    tcp_info_ecn_mode,
+    tcp_info_accecn_opt_seen,
+    tcp_info_accecn_fail_mode,
+    tcp_info_options2,
+    inet_diag_cong                           AS congestion_algorithm_string,
+    toUInt8(inet_diag_cong_enum) AS congestion_algorithm_enum,
+    inet_diag_tos                            AS type_of_service,
+    inet_diag_tclass                         AS traffic_class,
+    sk_mem_info_rmem_alloc,
+    sk_mem_info_rcvbuf                       AS sk_mem_info_rcv_buf,
+    sk_mem_info_wmem_alloc,
+    sk_mem_info_sndbuf                       AS sk_mem_info_snd_buf,
+    sk_mem_info_fwd_alloc,
+    sk_mem_info_wmem_queued,
+    sk_mem_info_optmem,
+    sk_mem_info_backlog,
+    sk_mem_info_drops,
+    inet_diag_shutdown                       AS shutdown_state,
+    vegas_info_enabled,
+    vegas_info_rttcnt                        AS vegas_info_rtt_cnt,
+    vegas_info_rtt,
+    vegas_info_minrtt                        AS vegas_info_min_rtt,
+    dctcp_info_enabled,
+    dctcp_info_ce_state,
+    dctcp_info_alpha,
+    dctcp_info_ab_ecn,
+    dctcp_info_ab_tot,
+    bbr_info_bw_lo,
+    bbr_info_bw_hi,
+    bbr_info_min_rtt,
+    bbr_info_pacing_gain,
+    bbr_info_cwnd_gain,
+    inet_diag_class_id                       AS class_id,
+    inet_diag_sockopt                        AS sock_opt,
+    inet_diag_cgroup_id                      AS c_group
+  FROM xtcp.xtcp_flat_records_kafka
+  WHERE length(_error) == 0 AND schema_version = 1;
+
+-- Current format (XtcpFlatRecordSchemaVersion = 2). Column names match 1:1.
+CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_v2_mv TO xtcp.xtcp_flat_records_v2
+  AS SELECT
+    fromUnixTimestamp64Nano(timestamp_ns) AS timestamp_ns,
+    * EXCEPT (timestamp_ns)
+  FROM xtcp.xtcp_flat_records_kafka
+  WHERE length(_error) == 0 AND schema_version = 2;
+
+-- https://github.com/ClickHouse/ClickHouse/blob/master/tests/integration/test_storage_kafka/test_batch_fast.py#L2678
+
+-- SHOW CREATE TABLE xtcp.xtcp_flat_records_v2_mv;
+
+-- 4. Re-declare the Merge view AS the newest epoch, so the new column names
+--    resolve across every _vN table.
+DROP TABLE IF EXISTS xtcp.xtcp_flat_records;
+CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records
+  AS xtcp.xtcp_flat_records_v2
+  ENGINE = Merge('xtcp', '^xtcp_flat_records_v[0-9]+$');
+
+-- 5. Verify.
+-- DESCRIBE xtcp.xtcp_flat_records_v2 FORMAT TSV;   -- expect the 11 new columns
+-- SELECT countIf(tcp_info_ecn_mode != 0) AS accecn_rows, count() AS total
+--   FROM xtcp.xtcp_flat_records WHERE timestamp_ns > now() - INTERVAL 5 MINUTE;
+-- SELECT * FROM system.kafka_consumers WHERE table = 'xtcp_flat_records_kafka' FORMAT Vertical;
 
 -- end

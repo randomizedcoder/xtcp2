@@ -165,6 +165,24 @@ CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_v0_mv TO xtcp.xtcp_flat_records_
     tcp_info_total_rto,
     tcp_info_total_rto_recoveries,
     tcp_info_total_rto_time,
+
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- The 11 members kernel 7.0 appended to `struct tcp_info` (248 -> 280 bytes,
+    -- proto tags 1266-1276). Names pass through unchanged, so no AS alias. The
+    -- trailer is optional on the wire and this epoch predates it, so these will
+    -- be zero here — and a zero is ambiguous: it means "not reported by this
+    -- kernel", not "no CE marks". See xtcp_xtcp_flat_records.sql.
+    tcp_info_received_ce,
+    tcp_info_delivered_e1_bytes,
+    tcp_info_delivered_e0_bytes,
+    tcp_info_delivered_ce_bytes,
+    tcp_info_received_e1_bytes,
+    tcp_info_received_e0_bytes,
+    tcp_info_received_ce_bytes,
+    tcp_info_ecn_mode,
+    tcp_info_accecn_opt_seen,
+    tcp_info_accecn_fail_mode,
+    tcp_info_options2,
     inet_diag_cong                           AS congestion_algorithm_string,
     toUInt8(inet_diag_cong_enum) AS congestion_algorithm_enum,
     inet_diag_tos                            AS type_of_service,
@@ -334,6 +352,24 @@ CREATE MATERIALIZED VIEW xtcp.xtcp_flat_records_v1_mv TO xtcp.xtcp_flat_records_
     tcp_info_total_rto,
     tcp_info_total_rto_recoveries,
     tcp_info_total_rto_time,
+
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- The 11 members kernel 7.0 appended to `struct tcp_info` (248 -> 280 bytes,
+    -- proto tags 1266-1276). Names pass through unchanged, so no AS alias. The
+    -- trailer is optional on the wire and this epoch predates it, so these will
+    -- be zero here — and a zero is ambiguous: it means "not reported by this
+    -- kernel", not "no CE marks". See xtcp_xtcp_flat_records.sql.
+    tcp_info_received_ce,
+    tcp_info_delivered_e1_bytes,
+    tcp_info_delivered_e0_bytes,
+    tcp_info_delivered_ce_bytes,
+    tcp_info_received_e1_bytes,
+    tcp_info_received_e0_bytes,
+    tcp_info_received_ce_bytes,
+    tcp_info_ecn_mode,
+    tcp_info_accecn_opt_seen,
+    tcp_info_accecn_fail_mode,
+    tcp_info_options2,
     inet_diag_cong                           AS congestion_algorithm_string,
     toUInt8(inet_diag_cong_enum) AS congestion_algorithm_enum,
     inet_diag_tos                            AS type_of_service,

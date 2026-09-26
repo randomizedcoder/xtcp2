@@ -218,6 +218,30 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_v0
     tcp_info_total_rto_recoveries                               UInt32 CODEC(LZ4),
     tcp_info_total_rto_time                                     UInt32 CODEC(LZ4),
 
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- Kernel 7.0 appended these 11 members to `struct tcp_info`, growing the
+    -- wire struct from 248 to 280 bytes (proto tags 1266-1276, pre-reserved).
+    -- The trailer is optional on the wire, so A ZERO HERE IS AMBIGUOUS: on any
+    -- kernel older than 7.0 it means "this kernel did not report the field",
+    -- NOT "no CE marks". Every pre-7.0 capture in the corpus reports zero for
+    -- all 11. Disambiguate with the reporting host's kernel version, never with
+    -- the value itself.
+    --
+    -- This epoch predates AccECN and will never populate these columns. They are
+    -- carried anyway so that the Merge('xtcp', '^xtcp_flat_records_v[0-9]+$')
+    -- table at the bottom of this file sees one consistent column set.
+    tcp_info_received_ce                                        UInt32 CODEC(LZ4),
+    tcp_info_delivered_e1_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_delivered_e0_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_delivered_ce_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_received_e1_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_received_e0_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_received_ce_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_ecn_mode                                           UInt32 CODEC(LZ4),
+    tcp_info_accecn_opt_seen                                    UInt32 CODEC(LZ4),
+    tcp_info_accecn_fail_mode                                   UInt32 CODEC(LZ4),
+    tcp_info_options2                                           UInt32 CODEC(LZ4),
+
     congestion_algorithm_string                                 LowCardinality(String),
     -- congestion_algorithm_enum                                   LowCardinality(String),
     congestion_algorithm_enum                                   Enum(''        = 0,
@@ -477,6 +501,26 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_v2
     tcp_info_total_rto                                          UInt32 CODEC(LZ4),
     tcp_info_total_rto_recoveries                               UInt32 CODEC(LZ4),
     tcp_info_total_rto_time                                     UInt32 CODEC(LZ4),
+
+    -- ---- payload: INET_DIAG_INFO Accurate ECN trailer (7.0+) -----------------
+    -- Kernel 7.0 appended these 11 members to `struct tcp_info`, growing the
+    -- wire struct from 248 to 280 bytes (proto tags 1266-1276, pre-reserved).
+    -- The trailer is optional on the wire, so A ZERO HERE IS AMBIGUOUS: on any
+    -- kernel older than 7.0 it means "this kernel did not report the field",
+    -- NOT "no CE marks". Every pre-7.0 capture in the corpus reports zero for
+    -- all 11. Disambiguate with the reporting host's kernel version, never with
+    -- the value itself.
+    tcp_info_received_ce                                        UInt32 CODEC(LZ4),
+    tcp_info_delivered_e1_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_delivered_e0_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_delivered_ce_bytes                                 UInt32 CODEC(LZ4),
+    tcp_info_received_e1_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_received_e0_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_received_ce_bytes                                  UInt32 CODEC(LZ4),
+    tcp_info_ecn_mode                                           UInt32 CODEC(LZ4),
+    tcp_info_accecn_opt_seen                                    UInt32 CODEC(LZ4),
+    tcp_info_accecn_fail_mode                                   UInt32 CODEC(LZ4),
+    tcp_info_options2                                           UInt32 CODEC(LZ4),
 
     -- ---- payload: INET_DIAG_CONG (4) (1300s) ---------------------------------
     -- inet_diag_cong is the kernel ca_ops->name string; inet_diag_cong_enum is
