@@ -87,6 +87,15 @@ regressions, and both have since been demonstrated green on this same tree:
 The host carries a permanent ~60-65 load average and ~50 GB of swap in use from
 other tenants' VMs, which is the proximate cause of both reds. See §10.
 
+Updated 2026-09-25: **§20 added** — the unmerged-branch follow-ups. The netlink
+work sits at the top of a four-deep stack whose third rung is the open **draft
+PR #126**, and that PR is three commits behind its own local branch, so the
+ratchet fix (§6) and the xsync race fix (§3a) are both absent from what
+reviewers currently see. Also records the parked `wip/io-uring-resource-snapshot`
+branch, the pre-existing `stash@{0}`, and why `git branch --no-merged main` is
+currently useless as a signal: only 4 of its 23 entries are live work, and 15
+are long-dead branches that look unmerged only because they were squash-merged.
+
 ---
 
 ## 1. Lint findings newly surfaced by `run.build-tags`
@@ -1223,3 +1232,103 @@ Either is better than the current state: a decoder that looks tested and
 supported but cannot be reached, resting on bytes nobody's kernel produced.
 
 Found by the audit in `docs/netlink/parsing-comparison.md`.
+
+## 20. Unmerged branches need follow-up — OPEN
+
+The netlink work is not on `main`; it sits at the top of a four-deep stack of
+unmerged branches, one of which is an open draft PR. Nothing here is lost work,
+but the ordering constraint is real and easy to forget: **the netlink branch
+cannot be reviewed or merged on its own**, because its diff against `main`
+contains the eight commits below it.
+
+Measured 2026-09-25. `git branch` lists **123** local branches;
+`git branch --no-merged main` reports **23**.
+
+### 20a. The live stack
+
+Each row is an ancestor of the row below it, so this is a linear stack rather
+than four independent lines of work.
+
+| Branch | Commits ahead of `main` | Remote | State |
+|---|---|---|---|
+| `feat/locality-enrichment` | 3 | in sync with `origin` | content already in proto-v2 |
+| `feat/ipfeed-collector-asn-enrichment` | 2 | **no remote at all** | content already in proto-v2 |
+| `feat/enrichment-hardening-proto-v2` | 8 (contains both above) | `origin`, **ahead 3** | **open draft PR #126** |
+| `feat/netlink-events-and-coverage-roadmap` | 13 (5 of its own) | **no remote** | no PR |
+
+Follow-ups, in the order they block each other:
+
+1. **PR #126 is three commits stale.** `feat/enrichment-hardening-proto-v2` is
+   ahead of its own remote by `3d67564` (xsync race fix), `40cf015` (make the
+   coverage ratchet non-fatal as designed) and `ebb2424` (refresh the report,
+   lower the baseline to 78.6). The PR as reviewers see it therefore still has
+   the fatal ratchet and the race flake — i.e. the two things §6 and §3a say are
+   fixed are not fixed *in the PR*. Push before asking for review.
+2. **Decide how the netlink branch lands.** Either wait for #126 to merge and
+   rebase onto `main`, or open it now as a stacked PR with base
+   `feat/enrichment-hardening-proto-v2`. Do not open it against `main` — the
+   diff would misattribute #126's work to it.
+3. **`feat/ipfeed-collector-asn-enrichment` exists only on this machine.** Its
+   two commits are already contained in proto-v2, so the *content* is safe on
+   `origin`; the branch ref is not. Push it or delete it, but do not leave it as
+   the only copy of a ref someone might look for.
+
+### 20b. Parked and stray work
+
+- **`wip/io-uring-resource-snapshot`** — 1 commit ahead, **99 behind**, and its
+  own subject line says `(parked)`. It is on `origin`. Decide explicitly:
+  revive it against current `main`, or delete it. At 99 behind, reviving is a
+  rewrite rather than a rebase.
+- **`stash@{0}` on `soak-iouring-ab`** — `WIP on soak-iouring-ab: 61a1f87`,
+  70 insertions confined to `nix/microvms/mkVm.nix`. Not created by the current
+  work and not touched by it. Needs triage: inspect, then apply or drop.
+  **Do not use `git stash` in this repo** — a previous
+  `git stash push --include-untracked` swept in the untracked
+  `ipfeed-collector`, `resume` and `uds-netlink-proxy/` paths. Use a detached
+  worktree instead.
+- **Three small stale branches** — `soak-validation-combined` (2 ahead, 166
+  behind), `docs/overhaul-readme-and-docs` (2 ahead, 197 behind),
+  `docs/protobuf-formats` (1 ahead, 191 behind). Each is one or two commits;
+  check whether the content survived into `main` by another route and delete if
+  so.
+
+### 20c. The pre-squash-merge duplicates make the signal useless
+
+Eleven of the 23 "unmerged" branches sit at 731 commits behind `main` with large
+ahead counts — `s3parquet-destination` (481 ahead), `protobuf-list-migration`
+(449), `complexity-reduction` (443), `coverage-sweep` (353), `unlambda-cleanup`
+(93), `gocritic-cleanup` (40), `small-surface-wins` (36), `goconst-extraction`
+(30), `lint-fix-sweep` (23), `vector-microvm` (11), `nix-support` (6). Four more
+are from 2024: `gomod2nix2`, `gomod2nix`, `kakfa`, `uds-netlink-proxy`.
+
+These are squash-merge duplicates: the content reached `main` as a single
+squashed commit, so the graph never records the branch as merged and
+`--no-merged` keeps reporting it forever. The cost is that
+`git branch --no-merged main` cannot currently be used to answer "what still
+needs landing" — the four live branches in §20a are buried in nineteen that are
+not live.
+
+`nix-support` is the clearest example and shows how to read the rest: its six
+commits are *"Add Nix flake: build, dev shell, OCI image, microvm, pedantic lint
+tiers"*, *"io_uring package"* and *"Add unix/unixgram destinations"*. All three
+features are plainly in `main` today, so nothing is outstanding.
+
+**Two verification methods that do not work here**, both worth knowing before
+someone wastes an afternoon:
+
+- **Diffing the branch against `main` proves nothing.** `nix-support` vs `main`
+  is 1402 insertions across the files it touched — not lost work, just 731
+  commits of subsequent evolution on top of the same features.
+- **Grepping `main`'s log for the branch's messages is unreliable.** A squash
+  commit does not have to keep the branch's subject lines: `git log main
+  --oneline | grep -i nix-support` returns **0**, even though its work is
+  unambiguously present.
+
+So verify by asking *"does the feature exist in `main` today?"* — a question
+answered by reading `main`, not by comparing refs — then delete. Do not delete
+on the ahead/behind numbers alone.
+
+**Gotcha while doing it:** the branch `uds-netlink-proxy` has the same name as
+the untracked `uds-netlink-proxy/` directory, so `git <cmd> uds-netlink-proxy`
+is ambiguous and errors with *"both revision and filename"*. Disambiguate with
+`git <cmd> refs/heads/uds-netlink-proxy` or a trailing `--`.
