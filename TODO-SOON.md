@@ -1060,7 +1060,7 @@ per-family wrappers that join the groups above are
 `RouteSubscribeWithOptions` (`route_linux.go:1824`) and
 `NeighSubscribeWithOptions` (`neigh_linux.go:394`). Note especially how they
 handle `ENOBUFS` — the part flagged above as easy to get wrong. Full comparison
-in `docs/netlink-parsing-comparison.md`.
+in `docs/netlink/parsing-comparison.md`.
 
 ---
 
@@ -1158,7 +1158,7 @@ already exist, so the work is one builder plus its table-driven test rows and a
 §13's listener lands, because a multicast listener must re-dump to resync after
 `ENOBUFS`, and for neighbours there is currently nothing to re-dump with.
 
-Found by the audit in `docs/netlink-parsing-comparison.md`.
+Found by the audit in `docs/netlink/parsing-comparison.md`.
 
 ---
 
@@ -1193,7 +1193,7 @@ Each addition is additive to its `*Info` struct, so existing consumers keep
 compiling; each needs its own positive/negative/boundary/corner rows and,
 where a real capture exists, a real-fixture assertion.
 
-Found by the audit in `docs/netlink-parsing-comparison.md`.
+Found by the audit in `docs/netlink/parsing-comparison.md`.
 
 ---
 
@@ -1222,4 +1222,4 @@ something the fleet will actually run:
 Either is better than the current state: a decoder that looks tested and
 supported but cannot be reached, resting on bytes nobody's kernel produced.
 
-Found by the audit in `docs/netlink-parsing-comparison.md`.
+Found by the audit in `docs/netlink/parsing-comparison.md`.

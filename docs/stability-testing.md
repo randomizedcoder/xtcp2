@@ -105,7 +105,7 @@ kernel CPU either.)
 
 The only approach that decouples thread count from `ns × netlinkers` is reading
 netlink non-blocking through Go's runtime poller (readers park instead of
-pinning threads) — designed in [design-nonblocking-netlink.md](design-nonblocking-netlink.md).
+pinning threads) — designed in [netlink/nonblocking.md](netlink/nonblocking.md).
 
 ## Soak results
 
@@ -312,7 +312,7 @@ namespaces or sustained heavy churn.
 ## Known limitation & future work
 
 - **Thread scaling** at very high namespace counts / churn — addressed by the
-  non-blocking-netlink design ([design-nonblocking-netlink.md](design-nonblocking-netlink.md)); not required for the ≤200-container target.
+  non-blocking-netlink design ([netlink/nonblocking.md](netlink/nonblocking.md)); not required for the ≤200-container target.
 - **Soak runner restart detection** — it greps for a log pattern that misses Go
   `fatal error` exits, so it reported `restarts=0` while the daemon crash-looped.
   Harden it (assert a thread-count ceiling, detect fatal-error exits) so a

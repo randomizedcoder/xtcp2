@@ -139,7 +139,7 @@ by four families relative to what the tree actually uses.
 xtcp2 fully decodes all eight `RTM_NEW*`/`RTM_DEL*` event types for the four
 families and verifies them against committed `nlmon` captures, but **nothing in
 the repo joins a multicast group** — the parsers have no live feed. That is the
-single largest actionable gap ([TODO-SOON §13](../TODO-SOON.md)).
+single largest actionable gap ([TODO-SOON §13](../../TODO-SOON.md)).
 
 The inverse is also true and is why xtcp2 needs a discriminator the fork does
 not: because xtcp2 replays captures that mix requests, dump replies and
@@ -284,7 +284,7 @@ telemetry daemon wants.
 
 Ranked by value to xtcp2's actual mission.
 
-1. **No live rtnetlink multicast listener** — [TODO-SOON §13](../TODO-SOON.md).
+1. **No live rtnetlink multicast listener** — [TODO-SOON §13](../../TODO-SOON.md).
    The event parsers are complete and fixture-tested but have no feed. The fork
    shows exactly the shape to copy: `nl.Subscribe` / `nl.SubscribeAt`
    (`nl/nl_linux.go:830,860`) with per-family wrappers joining `RTNLGRP_LINK`
@@ -292,20 +292,20 @@ Ranked by value to xtcp2's actual mission.
    (`addr_linux.go:354`), `RTNLGRP_IPV4_ROUTE`/`IPV6_ROUTE`
    (`route_linux.go:1824`) and `RTNLGRP_NEIGH` (`neigh_linux.go:394`). This is
    the most actionable thing this audit found.
-2. **No `RTM_GETNEIGH` dump builder** — [TODO-SOON §17](../TODO-SOON.md). The
+2. **No `RTM_GETNEIGH` dump builder** — [TODO-SOON §17](../../TODO-SOON.md). The
    smallest real gap: `ParseNeigh` already exists, so this is one
    `BuildDumpNeighRequest` beside the other three at
    `xtcpnl_rtnetlink.go:74-96`.
-3. **Attribute depth where telemetry cares** — [TODO-SOON §18](../TODO-SOON.md):
+3. **Attribute depth where telemetry cares** — [TODO-SOON §18](../../TODO-SOON.md):
    `IFA_CACHEINFO`/`IFA_FLAGS` first (address validity affects source-address
    selection today), then `IFLA_ADDRESS`, `IFLA_STATS64`, `RTA_EXPIRES`. The
    nested `rtnexthop` walk belongs here too, as a fidelity improvement rather
-   than a fix, and would give [§12](../TODO-SOON.md) — `walkRTAttrs` nested
+   than a fix, and would give [§12](../../TODO-SOON.md) — `walkRTAttrs` nested
    descent — its first real caller.
-4. **`INET_DIAG_PRAGUEINFO` is orphaned** — [TODO-SOON §19](../TODO-SOON.md).
+4. **`INET_DIAG_PRAGUEINFO` is orphaned** — [TODO-SOON §19](../../TODO-SOON.md).
    Either wire it into the dispatch table with a real capture, or delete it and
    its synthetic fixture. A decoder no live path can reach is worse than none.
-5. **Duplicate netlink parser in `pkg/nsdiscover`** — [TODO-SOON §15](../TODO-SOON.md),
+5. **Duplicate netlink parser in `pkg/nsdiscover`** — [TODO-SOON §15](../../TODO-SOON.md),
    reinforced by this audit: the fork maintains exactly one wire layer (`nl/`)
    for seven protocol families, while xtcp2 has two for one.
 
@@ -321,7 +321,7 @@ would then have to cover.
 > audit. The decision has since been taken to cover the full surface it lists —
 > everything except link *creation*, and write support generally, since read-only
 > remains the invariant. See
-> [netlink coverage expansion](design-netlink-coverage-expansion.md) for the
+> [netlink coverage expansion](coverage-expansion.md) for the
 > phased roadmap. The rest of this audit stands as written; only this
 > out-of-mission verdict changed.
 
@@ -336,16 +336,16 @@ because xtcp2's entire test strategy is built on replaying captured bytes.
 
 ## See also
 
-- [Netlink coverage expansion](design-netlink-coverage-expansion.md) — the
+- [Netlink coverage expansion](coverage-expansion.md) — the
   phased roadmap acting on this audit: target subpackage layout, generalising
   the `nlmon` capture harness to every family, and the multicast listener.
-- [Netlink TCP collection](netlink-collection.md) — how xtcp2 talks to netlink,
+- [Netlink TCP collection](collection.md) — how xtcp2 talks to netlink,
   and the dump-vs-event distinction in detail.
-- [Locality enrichment](locality-enrichment.md) — the consumer of `LinkInfo` /
+- [Locality enrichment](../locality-enrichment.md) — the consumer of `LinkInfo` /
   `AddrInfo` / `RouteInfo`.
-- [Testing & quality](testing-and-quality.md) — the fixture corpus and audit
+- [Testing & quality](../testing-and-quality.md) — the fixture corpus and audit
   tooling behind the xtcp2 column of [§5](#5-test-coverage).
-- [TODO-SOON.md](../TODO-SOON.md) — §12–§19, the open items this audit feeds.
+- [TODO-SOON.md](../../TODO-SOON.md) — §12–§19, the open items this audit feeds.
 - [`randomizedcoder/netlink`](https://github.com/randomizedcoder/netlink) —
   the fork compared here (Apache-2.0), tracking
   [`vishvananda/netlink`](https://github.com/vishvananda/netlink).

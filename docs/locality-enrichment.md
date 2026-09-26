@@ -308,7 +308,7 @@ nix run .#microvm-x86_64-nlmon-capture    # EVENTS (link/addr/route/neigh), herm
 Both write into `pkg/xtcpnl/testdata/<kernel>/` and must be run from the repo
 root. The microVM one needs no `sudo` and gives a quiet namespace, which matters
 because `nlmon` mirrors *every* netlink datagram it can see. See
-[netlink-collection](netlink-collection.md#regenerating-the-fixtures).
+[netlink-collection](netlink/collection.md#regenerating-the-fixtures).
 
 Manually, `nlmon0` mirrors netlink so tcpdump records both the request and the
 multipart replies (per target kernel; the `testdata/<uname>/` layout, e.g.

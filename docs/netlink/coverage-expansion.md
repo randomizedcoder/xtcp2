@@ -3,12 +3,17 @@
 ## Status
 
 Proposed. No code written. This document is the roadmap that
-[netlink-parsing-comparison](netlink-parsing-comparison.md) exists to feed — that
+[netlink-parsing-comparison](parsing-comparison.md) exists to feed — that
 document audits what `pkg/xtcpnl` parses today against
 [`vishvananda/netlink`](https://github.com/vishvananda/netlink); this one decides
 what to do about the gaps and in what order.
 
 Read the audit first. This document does not restate its tables.
+
+For what has actually landed against this roadmap — the measured baseline, the
+per-phase state, and each phase's exit criteria — see
+[netlink coverage status](coverage-status.md). This document is the plan and
+should change rarely; that one is the tracker and changes every phase.
 
 ## Problem
 
@@ -477,7 +482,7 @@ them.
   with a comment citing the UAPI header and the kernel version that introduced
   the field.
 - **Spelling.** British spelling is fine in prose ("neighbour", matching
-  [netlink-collection](netlink-collection.md)); `misspell` enforces US spelling
+  [netlink-collection](collection.md)); `misspell` enforces US spelling
   in Go files only.
 - **Formatting and linting.** `nixfmt` 1.4.0 (`nix/versions.nix:49`). Fix
   shellcheck, golangci and statix findings by rewriting, never by suppressing.
@@ -516,18 +521,20 @@ them.
   `unsafe.Pointer` reinterpretation, has no offline fixture path.)
 - **`TODO-SOON.md` §14, the export/proto surface** for the new families — flagged
   above as the deferred interaction, not scoped here.
-- **Re-deriving the audit.** [netlink-parsing-comparison](netlink-parsing-comparison.md)
+- **Re-deriving the audit.** [netlink-parsing-comparison](parsing-comparison.md)
   is the input; this document does not duplicate its tables.
 
 ## See also
 
-- [Netlink parsing comparison](netlink-parsing-comparison.md) — the audit this
+- [Netlink coverage status](coverage-status.md) — the live tracker for this
+  roadmap: what has landed, the measured baseline, and per-phase exit criteria.
+- [Netlink parsing comparison](parsing-comparison.md) — the audit this
   roadmap acts on: per-family and per-attribute coverage on both sides, the two
   test strategies, and the prioritised gaps.
-- [Netlink TCP collection](netlink-collection.md) — how the `inet_diag` path
+- [Netlink TCP collection](collection.md) — how the `inet_diag` path
   works today, and how to regenerate the fixtures.
-- [Integration testing](integration-testing.md) — the microVM harness, the flavor
+- [Integration testing](../integration-testing.md) — the microVM harness, the flavor
   catalogue, and the self-test sentinel protocol.
-- [Testing & quality](testing-and-quality.md) — the fixture corpus, the audit
+- [Testing & quality](../testing-and-quality.md) — the fixture corpus, the audit
   tools, and the coverage ratchet.
 - `TODO-SOON.md` §12–§19 — the individual follow-ups this roadmap sequences.

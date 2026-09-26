@@ -206,7 +206,7 @@ let
   # we capture. It also needs no sudo.
   #
   # Both harnesses stay: the host one captures DUMPS (RTM_GET* replies), this
-  # one captures EVENTS. See docs/netlink-collection.md.
+  # one captures EVENTS. See docs/netlink/collection.md.
   isNlmonCapture = sink == "nlmon-capture";
   # valkey = a native in-VM Valkey (Redis-protocol) server + a pre-subscribed
   # consumer; xtcp2 PUBLISHes each record to the pub/sub channel and the

@@ -89,7 +89,7 @@ Within a namespace, the actual receive loop lives in a *netlinker*:
 
 - `pkg/xtcp/netlinker.go` — a goroutine that sends the dump request and loops on `recvfrom`, handing each raw packet to the deserializer.
 - `pkg/xtcp/init_netlinkers.go` — spins up `-netlinkers` readers per namespace so hosts with many flows can parse replies in parallel rather than serializing on one goroutine.
-- `pkg/xtcp/netlinker_iouring.go` — an alternative receive loop that uses `io_uring` instead of blocking `recvfrom` (see [performance](performance.md)).
+- `pkg/xtcp/netlinker_iouring.go` — an alternative receive loop that uses `io_uring` instead of blocking `recvfrom` (see [performance](../performance.md)).
 
 ## Attribute deserializers
 
@@ -240,7 +240,7 @@ Netlink dump replies can be large, so the receive buffer is tunable. The buffer 
 
 ## See also
 
-- [Netlink parsing comparison](netlink-parsing-comparison.md) — how this package's coverage compares to `vishvananda/netlink`, and which gaps are deliberate.
-- [Polling & batching](polling-and-batching.md) — how decoded records are accumulated and flushed.
-- [Network namespaces](network-namespaces.md) — how a netlink socket is opened per namespace.
-- [Performance](performance.md) — the `io_uring` receive path and pooled buffers.
+- [Netlink parsing comparison](parsing-comparison.md) — how this package's coverage compares to `vishvananda/netlink`, and which gaps are deliberate.
+- [Polling & batching](../polling-and-batching.md) — how decoded records are accumulated and flushed.
+- [Network namespaces](../network-namespaces.md) — how a netlink socket is opened per namespace.
+- [Performance](../performance.md) — the `io_uring` receive path and pooled buffers.

@@ -129,7 +129,7 @@ numbers are `reserved` in the proto.
 > `mem_info_wmem`=`sk_mem_info_wmem_queued`, `mem_info_fmem`=`sk_mem_info_fwd_alloc`,
 > `mem_info_tmem`=`sk_mem_info_wmem_alloc`) — the kernel derives both from the same `sk`
 > counters. The `meminfo` deserializer is off by default, so on current records these columns
-> ship as `0`; use `sk_mem_info_*` instead (see [netlink-collection.md](netlink-collection.md)).
+> ship as `0`; use `sk_mem_info_*` instead (see [netlink/collection.md](netlink/collection.md)).
 > The fields are **retained** (never renumbered), so the deprecation alone did not bump
 > `schema_version`: the record is structurally identical and the data is fully recoverable
 > from `sk_mem_info_*`.

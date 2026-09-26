@@ -102,7 +102,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full target list and [integrat
 
 ## See also
 
-- [Netlink collection](netlink-collection.md) — the deserializers these tests exercise.
+- [Netlink collection](netlink/collection.md) — the deserializers these tests exercise.
 - [Performance](performance.md) — the reflection-free hot path and pooled allocations.
 - [Integration testing](integration-testing.md) — the QEMU microVM end-to-end tests.
 - [quality-report.md](quality-report.md) — the auto-generated coverage and lint report.
