@@ -53,17 +53,6 @@ func DeserializeIfAddrmsg(data []byte, m *IfAddrmsg) (n int, err error) {
 	return IfAddrmsgReadCst, nil
 }
 
-func DeserializeIfAddrmsgReflection(data []byte, m *IfAddrmsg) (n int, err error) {
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, m)
-	if err != nil {
-		return 0, err
-	}
-
-	return IfAddrmsgReadCst, err
-}
-
 // AddrInfo is the subset of an RTM_NEWADDR message xtcp2 keeps. The prefix
 // length comes from the ifaddrmsg header (not an attribute). Address/Local hold
 // the raw network-order address bytes (4 for IPv4, 16 for IPv6); the caller

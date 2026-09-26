@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"testing"
 )
@@ -18,96 +31,96 @@ func TestReflectionShortBuffers(t *testing.T) {
 	}{
 		{"ClassID", func() error {
 			c := new(ClassID)
-			_, err := DeserializeClassIDReflection(short, c)
+			_, err := deserializeClassIDReflection(short, c)
 			return err
 		}},
 		{"CGroupID", func() error {
 			c := new(CGroupID)
-			_, err := DeserializeCGroupIDReflection(short, c)
+			_, err := deserializeCGroupIDReflection(short, c)
 			return err
 		}},
 		{"DCTCPInfo", func() error {
 			d := new(DCTCPInfo)
-			_, err := DeserializeDCTCPInfoReflection(short, d)
+			_, err := deserializeDCTCPInfoReflection(short, d)
 			return err
 		}},
 		{"PragueInfo", func() error {
 			p := new(PragueInfo)
-			_, err := DeserializePragueInfoReflection(short, p)
+			_, err := deserializePragueInfoReflection(short, p)
 			return err
 		}},
 		{"VegasInfo", func() error {
 			v := new(VegasInfo)
-			_, err := DeserializeVegasInfoReflection(short, v)
+			_, err := deserializeVegasInfoReflection(short, v)
 			return err
 		}},
 		{"SockOpt", func() error {
 			s := new(SockOpt)
-			_, err := DeserializeSockOptReflection(short, s)
+			_, err := deserializeSockOptReflection(short, s)
 			return err
 		}},
 		{"BBRInfo", func() error {
 			b := new(BBRInfo)
-			_, err := DeserializeBBRInfoReflection(short, b)
+			_, err := deserializeBBRInfoReflection(short, b)
 			return err
 		}},
 		{"Shutdown", func() error {
 			// Shutdown is a single byte; use 0-byte buffer.
 			s := new(Shutdown)
-			_, err := DeserializeShutdownReflection([]byte{}, s)
+			_, err := deserializeShutdownReflection([]byte{}, s)
 			return err
 		}},
 		{"TrafficClass", func() error {
 			// TrafficClass is a single byte; 1-byte buffer is "full".
 			// Use 0-byte to force the EOF branch.
 			tc := new(TrafficClass)
-			_, err := DeserializeTrafficClassReflection([]byte{}, tc)
+			_, err := deserializeTrafficClassReflection([]byte{}, tc)
 			return err
 		}},
 		{"TypeOfService", func() error {
 			tos := new(TypeOfService)
-			_, err := DeserializeTypeOfServiceReflection([]byte{}, tos)
+			_, err := deserializeTypeOfServiceReflection([]byte{}, tos)
 			return err
 		}},
 		{"SkMemInfo", func() error {
 			sm := new(SkMemInfo)
-			_, err := DeserializeSkMemInfoReflection(short, sm)
+			_, err := deserializeSkMemInfoReflection(short, sm)
 			return err
 		}},
 		{"PcapHeader", func() error {
 			p := new(PcapHeader)
-			_, err := DeserializePcapHeaderReflection(short, p)
+			_, err := deserializePcapHeaderReflection(short, p)
 			return err
 		}},
 		{"PcapRecordHeader", func() error {
 			p := new(PcapRecordHeader)
-			_, err := DeserializePcapRecordHeaderReflection(short, p)
+			_, err := deserializePcapRecordHeaderReflection(short, p)
 			return err
 		}},
 		{"InetDiagMsgViaReflection", func() error {
 			idm := new(InetDiagMsg)
 			s := new(InetDiagSockID)
-			_, err := DeserializeInetDiagMsgViaReflection(short, idm, s)
+			_, err := deserializeInetDiagMsgReflection(short, idm, s)
 			return err
 		}},
 		{"TCPInfo6_10_3", func() error {
 			ti := new(TCPInfo6_10_3)
-			_, err := DeserializeTCPInfoTCPInfoTCPInfo6_10_3Reflection(short, ti)
+			_, err := deserializeTCPInfo6_10_3Reflection(short, ti)
 			return err
 		}},
 		{"TCPInfo6_6_44", func() error {
 			ti := new(TCPInfo6_6_44)
-			_, err := DeserializeTCPInfoTCPInfo6_6_44Reflection(short, ti)
+			_, err := deserializeTCPInfo6_6_44Reflection(short, ti)
 			return err
 		}},
 		{"TCPInfo5_4_281", func() error {
 			ti := new(TCPInfo5_4_281)
-			_, err := DeserializeTCPInfo5_4_281Reflection(short, ti)
+			_, err := deserializeTCPInfo5_4_281Reflection(short, ti)
 			return err
 		}},
 		{"TCPInfo4_19_219", func() error {
 			ti := new(TCPInfo4_19_219)
-			_, err := DeserializeTCPInfo4_19_219Reflection(short, ti)
+			_, err := deserializeTCPInfo4_19_219Reflection(short, ti)
 			return err
 		}},
 	}

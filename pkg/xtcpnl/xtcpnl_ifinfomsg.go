@@ -56,17 +56,6 @@ func DeserializeIfInfomsg(data []byte, m *IfInfomsg) (n int, err error) {
 	return IfInfomsgReadCst, nil
 }
 
-func DeserializeIfInfomsgReflection(data []byte, m *IfInfomsg) (n int, err error) {
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, m)
-	if err != nil {
-		return 0, err
-	}
-
-	return IfInfomsgReadCst, err
-}
-
 // IF_OPER_* are the RFC 2863 operational states carried in IFLA_OPERSTATE.
 // golang.org/x/sys/unix does not export them (unlike IFLA_OPERSTATE itself), so
 // they are declared here from the kernel UAPI, as RtaNhID is in

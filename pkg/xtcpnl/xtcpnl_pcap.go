@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -79,7 +78,7 @@ const SllProtocolOffsetCst = 14
 // `LinkType`), which split the value: a DLT_NETLINK (253) capture read back as
 // FCS=253, LinkType=0, so LinkType was 0 for every file this package has ever
 // parsed. The struct is still exactly PcapHeaderSizeCst bytes, so
-// DeserializePcapHeaderReflection's binary.Read is unaffected.
+// deserializePcapHeaderReflection's binary.Read is unaffected.
 type PcapHeader struct {
 	Magic        uint32 // 4 = 4
 	VersionMajor uint16 // 2 = 6
@@ -111,18 +110,6 @@ func DeserializePcapHeader(data []byte, ph *PcapHeader) (n int, err error) {
 	ph.LinkType = binary.LittleEndian.Uint32(data[20:24])
 
 	return PcapHeaderSizeCst, nil
-}
-
-func DeserializePcapHeaderReflection(data []byte, ph *PcapHeader) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, ph)
-	if err != nil {
-		return 0, err
-	}
-
-	return PcapHeaderSizeCst, err
 }
 
 // https://github.com/the-tcpdump-group/libpcap/blob/master/pcap/pcap.h#L299C1-L303C3
@@ -160,18 +147,6 @@ func DeserializePcapRecordHeader(data []byte, prh *PcapRecordHeader) (n int, err
 	prh.Len = binary.LittleEndian.Uint32(data[12:16])
 
 	return PcapRecordHeaderSizeCst, nil
-}
-
-func DeserializePcapRecordHeaderReflection(data []byte, prh *PcapRecordHeader) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, prh)
-	if err != nil {
-		return 0, err
-	}
-
-	return PcapRecordHeaderSizeCst, err
 }
 
 // PcapRecord is one packet record: its header plus the captured bytes.

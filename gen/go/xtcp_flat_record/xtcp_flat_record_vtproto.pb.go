@@ -312,6 +312,83 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xa2
 	}
+	if m.TcpInfoOptions2 != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoOptions2))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xe0
+	}
+	if m.TcpInfoAccecnFailMode != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoAccecnFailMode))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xd8
+	}
+	if m.TcpInfoAccecnOptSeen != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoAccecnOptSeen))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xd0
+	}
+	if m.TcpInfoEcnMode != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoEcnMode))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xc8
+	}
+	if m.TcpInfoReceivedCeBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoReceivedCeBytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xc0
+	}
+	if m.TcpInfoReceivedE0Bytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoReceivedE0Bytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xb8
+	}
+	if m.TcpInfoReceivedE1Bytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoReceivedE1Bytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xb0
+	}
+	if m.TcpInfoDeliveredCeBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoDeliveredCeBytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xa8
+	}
+	if m.TcpInfoDeliveredE0Bytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoDeliveredE0Bytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0xa0
+	}
+	if m.TcpInfoDeliveredE1Bytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoDeliveredE1Bytes))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0x98
+	}
+	if m.TcpInfoReceivedCe != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoReceivedCe))
+		i--
+		dAtA[i] = 0x4f
+		i--
+		dAtA[i] = 0x90
+	}
 	if m.TcpInfoTotalRtoTime != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TcpInfoTotalRtoTime))
 		i--
@@ -1887,6 +1964,39 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	}
 	if m.TcpInfoTotalRtoTime != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoTotalRtoTime))
+	}
+	if m.TcpInfoReceivedCe != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoReceivedCe))
+	}
+	if m.TcpInfoDeliveredE1Bytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoDeliveredE1Bytes))
+	}
+	if m.TcpInfoDeliveredE0Bytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoDeliveredE0Bytes))
+	}
+	if m.TcpInfoDeliveredCeBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoDeliveredCeBytes))
+	}
+	if m.TcpInfoReceivedE1Bytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoReceivedE1Bytes))
+	}
+	if m.TcpInfoReceivedE0Bytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoReceivedE0Bytes))
+	}
+	if m.TcpInfoReceivedCeBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoReceivedCeBytes))
+	}
+	if m.TcpInfoEcnMode != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoEcnMode))
+	}
+	if m.TcpInfoAccecnOptSeen != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoAccecnOptSeen))
+	}
+	if m.TcpInfoAccecnFailMode != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoAccecnFailMode))
+	}
+	if m.TcpInfoOptions2 != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.TcpInfoOptions2))
 	}
 	l = len(m.InetDiagCong)
 	if l > 0 {
@@ -5073,6 +5183,215 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.TcpInfoTotalRtoTime |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1266:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoReceivedCe", wireType)
+			}
+			m.TcpInfoReceivedCe = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoReceivedCe |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1267:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoDeliveredE1Bytes", wireType)
+			}
+			m.TcpInfoDeliveredE1Bytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoDeliveredE1Bytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1268:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoDeliveredE0Bytes", wireType)
+			}
+			m.TcpInfoDeliveredE0Bytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoDeliveredE0Bytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1269:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoDeliveredCeBytes", wireType)
+			}
+			m.TcpInfoDeliveredCeBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoDeliveredCeBytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1270:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoReceivedE1Bytes", wireType)
+			}
+			m.TcpInfoReceivedE1Bytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoReceivedE1Bytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1271:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoReceivedE0Bytes", wireType)
+			}
+			m.TcpInfoReceivedE0Bytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoReceivedE0Bytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1272:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoReceivedCeBytes", wireType)
+			}
+			m.TcpInfoReceivedCeBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoReceivedCeBytes |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1273:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoEcnMode", wireType)
+			}
+			m.TcpInfoEcnMode = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoEcnMode |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1274:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoAccecnOptSeen", wireType)
+			}
+			m.TcpInfoAccecnOptSeen = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoAccecnOptSeen |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1275:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoAccecnFailMode", wireType)
+			}
+			m.TcpInfoAccecnFailMode = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoAccecnFailMode |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 1276:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TcpInfoOptions2", wireType)
+			}
+			m.TcpInfoOptions2 = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TcpInfoOptions2 |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

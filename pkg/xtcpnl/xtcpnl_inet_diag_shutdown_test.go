@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"io"
 	"os"
@@ -28,7 +41,7 @@ func TestDeserializeShutdown(t *testing.T) {
 			description: "attribute_shutdown_reflection",
 			filename:    tdAttrShutdown_6_6_44,
 			s:           Shutdown(0),
-			Func:        DeserializeShutdownReflection,
+			Func:        deserializeShutdownReflection,
 		},
 	}
 	for i, test := range tests {
@@ -81,7 +94,7 @@ func BenchmarkDeserializeShutdown(b *testing.B) {
 }
 
 func BenchmarkDeserializeShutdownReflection(b *testing.B) {
-	DeserializeShutdownBoth(b, DeserializeShutdownReflection)
+	DeserializeShutdownBoth(b, deserializeShutdownReflection)
 }
 
 func DeserializeShutdownBoth(b *testing.B, fn func(data []byte, s *Shutdown) (n int, err error)) {

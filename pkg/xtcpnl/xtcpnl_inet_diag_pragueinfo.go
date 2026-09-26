@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 )
@@ -84,18 +83,6 @@ func DeserializePragueInfo(data []byte, p *PragueInfo) (n int, err error) {
 	p.RttTarget = binary.LittleEndian.Uint32(data[32:36])
 
 	return PragueInfoReadCst, nil
-}
-
-func DeserializePragueInfoReflection(data []byte, p *PragueInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, p)
-	if err != nil {
-		return 0, err
-	}
-
-	return PragueInfoReadCst, err
 }
 
 // func DeserializePragueInfoXTCP(data []byte, x *xtcppb.XtcpFlatRecord) (err error) {

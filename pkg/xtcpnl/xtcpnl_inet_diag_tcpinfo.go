@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -133,7 +132,136 @@ import (
 // 				 */
 // };
 
-type TCPInfo TCPInfo6_10_3
+type TCPInfo TCPInfo7_0_3
+
+// TCPInfo7_0_3 mirrors the kernel's `struct tcp_info` for Linux 7.0.3 —
+// TCPInfo6_10_3 plus the Accurate ECN (AccECN) trailer the kernel appended
+// after tcpi_total_rto_time, growing the wire struct from 248 to 280 bytes.
+//
+// ~/Downloads/linux/include/uapi/linux/tcp.h:337-347
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#L337
+//
+//	__u32	tcpi_received_ce;        /* # of CE marked segments received */
+//	__u32	tcpi_delivered_e1_bytes; /* Accurate ECN byte counters */
+//	__u32	tcpi_delivered_e0_bytes;
+//	__u32	tcpi_delivered_ce_bytes;
+//	__u32	tcpi_received_e1_bytes;
+//	__u32	tcpi_received_e0_bytes;
+//	__u32	tcpi_received_ce_bytes;
+//	__u32	tcpi_ecn_mode:2,
+//		tcpi_accecn_opt_seen:2,
+//		tcpi_accecn_fail_mode:4,
+//		tcpi_options2:24;
+//
+// The corpus already carried these bytes before the decoder read them: every
+// testdata/7_0_3/*_info fixture is a 284-byte INET_DIAG_INFO attribute
+// (4-byte nla header + 280-byte payload), and in two of the three,
+// tcpi_received_e0_bytes equals tcpi_bytes_received exactly — 11648 and
+// 98264 — which pins the trailer offsets independently of the header.
+// DeserializeTCPInfo used to stop at 248 and silently discard the rest.
+type TCPInfo7_0_3 struct {
+	State                  uint8 // bytes:1 [0:1]
+	CaState                uint8 // bytes:1 [1:2]
+	Retransmits            uint8 // bytes:1 [2:3]
+	Probes                 uint8 // bytes:1 [3:4]
+	Backoff                uint8 // bytes:1 [4:5]
+	Options                uint8 // bytes:1 [5:6]
+	SndWscale              uint8 // 4 bits from byte [6], low nibble
+	RcvWscale              uint8 // 4 bits from byte [6], high nibble
+	DeliveryRateAppLimited uint8 // 1 bit from byte [7], bit 0
+	FastopenClientFail     uint8 // 2 bits from byte [7], bits 1-2
+
+	Rto    uint32 // bytes:4 [8:12]
+	Ato    uint32 // bytes:4 [12:16]
+	SndMss uint32 // bytes:4 [16:20]
+	RcvMss uint32 // bytes:4 [20:24]
+
+	Unacked uint32 // bytes:4 [24:28]
+	Sacked  uint32 // bytes:4 [28:32]
+	Lost    uint32 // bytes:4 [32:36]
+	Retrans uint32 // bytes:4 [36:40]
+	Fackets uint32 // bytes:4 [40:44] // legacy, "has no effect anymore"
+
+	LastDataSent uint32 // bytes:4 [44:48]
+	LastAckSent  uint32 // bytes:4 [48:52]
+	LastDataRecv uint32 // bytes:4 [52:56]
+	LastAckRecv  uint32 // bytes:4 [56:60]
+
+	Pmtu        uint32 // bytes:4 [60:64]
+	RcvSsthresh uint32 // bytes:4 [64:68]
+	Rtt         uint32 // bytes:4 [68:72]
+	Rttvar      uint32 // bytes:4 [72:76]
+	SndSsthresh uint32 // bytes:4 [76:80]
+	SndCwnd     uint32 // bytes:4 [80:84]
+	AdvMss      uint32 // bytes:4 [84:88]
+	Reordering  uint32 // bytes:4 [88:92]
+
+	RcvRtt   uint32 // bytes:4 [92:96]
+	RcvSpace uint32 // bytes:4 [96:100]
+
+	TotalRetrans uint32 // bytes:4 [100:104]
+
+	PacingRate    uint64 // bytes:8 [104:112]
+	MaxPacingRate uint64 // bytes:8 [112:120]
+	BytesAcked    uint64 // bytes:8 [120:128] // RFC4898 tcpEStatsAppHCThruOctetsAcked
+	BytesReceived uint64 // bytes:8 [128:136] // RFC4898 tcpEStatsAppHCThruOctetsReceived
+
+	SegsOut uint32 // bytes:4 [136:140] // RFC4898 tcpEStatsPerfSegsOut
+	SegsIn  uint32 // bytes:4 [140:144] // RFC4898 tcpEStatsPerfSegsIn
+
+	NotSentBytes uint32 // bytes:4 [144:148]
+	MinRtt       uint32 // bytes:4 [148:152]
+	DataSegsIn   uint32 // bytes:4 [152:156] // RFC4898 tcpEStatsDataSegsIn
+	DataSegsOut  uint32 // bytes:4 [156:160] // RFC4898 tcpEStatsDataSegsOut
+
+	DeliveryRate uint64 // bytes:8 [160:168]
+
+	BusyTime      uint64 // bytes:8 [168:176] // Time (usec) busy sending data
+	RwndLimited   uint64 // bytes:8 [176:184] // Time (usec) limited by receive window
+	SndbufLimited uint64 // bytes:8 [184:192] // Time (usec) limited by send buffer
+
+	// 4.15 kernel tcp_info ends here, 5+ below
+
+	Delivered   uint32 // bytes:4 [192:196]
+	DeliveredCe uint32 // bytes:4 [196:200]
+
+	BytesSent    uint64 // bytes:8 [200:208] // RFC4898 tcpEStatsPerfHCDataOctetsOut
+	BytesRetrans uint64 // bytes:8 [208:216] // RFC4898 tcpEStatsPerfOctetsRetrans
+
+	DsackDups uint32 // bytes:4 [216:220] // RFC4898 tcpEStatsStackDSACKDups
+	ReordSeen uint32 // bytes:4 [220:224] // reordering events seen
+
+	RcvOoopack uint32 // bytes:4 [224:228] // Out-of-order packets received
+
+	SndWnd uint32 // bytes:4 [228:232] // peer's advertised receive window after scaling (bytes)
+
+	// 6.5+ below
+	RcvWnd uint32 // bytes:4 [232:236] // local advertised receive window after scaling (bytes)
+	Rehash uint32 // bytes:4 [236:240] // PLB or timeout triggered rehash attempts
+
+	TotalRTO           uint16 // bytes:2 [240:242] // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+	TotalRTORecoveries uint16 // bytes:2 [242:244] // Total number of RTO recoveries, including any unfinished recovery
+	TotalRTOTime       uint32 // bytes:4 [244:248] // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+
+	// 6.10 kernel tcp_info ends here. AccECN trailer below.
+
+	ReceivedCe       uint32 // bytes:4 [248:252] // tcpi_received_ce — CE marked segments received
+	DeliveredE1Bytes uint32 // bytes:4 [252:256] // tcpi_delivered_e1_bytes
+	DeliveredE0Bytes uint32 // bytes:4 [256:260] // tcpi_delivered_e0_bytes
+	DeliveredCeBytes uint32 // bytes:4 [260:264] // tcpi_delivered_ce_bytes
+	ReceivedE1Bytes  uint32 // bytes:4 [264:268] // tcpi_received_e1_bytes
+	ReceivedE0Bytes  uint32 // bytes:4 [268:272] // tcpi_received_e0_bytes
+	ReceivedCeBytes  uint32 // bytes:4 [272:276] // tcpi_received_ce_bytes
+
+	// One kernel __u32 at [276:280], split into its four bitfields the same
+	// way SndWscale/RcvWscale split byte [6]. Little-endian bit order:
+	// ecn_mode is bits 0-1, accecn_opt_seen bits 2-3, accecn_fail_mode bits
+	// 4-7, options2 bits 8-31.
+	EcnMode        uint8  // 2 bits from [276:280], bits 0-1   // tcpi_ecn_mode
+	AccecnOptSeen  uint8  // 2 bits from [276:280], bits 2-3   // tcpi_accecn_opt_seen
+	AccecnFailMode uint8  // 4 bits from [276:280], bits 4-7   // tcpi_accecn_fail_mode
+	Options2       uint32 // 24 bits from [276:280], bits 8-31 // tcpi_options2
+}
 
 // TCPInfo6_10_3 mirrors the kernel's `struct tcp_info` for Linux 6.10.3
 // (tcp_info_for kernel 6.5+).
@@ -652,7 +780,38 @@ type TCPInfo4_15 struct {
 // -rw-r--r-- 1 das users 228 Aug  8 14:14 ./4_19_319/attribute_info
 // -rw-r--r-- 1 das users 228 Aug  8 19:31 ./4_19_319/attribute_info2
 
+// [das@l:~/Downloads/xtcp2/pkg/xtcpnl/testdata]$ ls -la 7_0_3/*_info
+// -rw-r--r-- 1 das users 284 Jun 14 21:32 ./7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6_info
+// -rw-r--r-- 1 das users 284 Jun 14 21:32 ./7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443_info
+// -rw-r--r-- 1 das users 284 Jun 14 21:32 ./7_0_3/netlink_sock_diag_response_7_0_3_sport63282_dport443_rcvrtt_info
+
+// Values for TCPInfo.EcnMode, TCPInfo.AccecnOptSeen and
+// TCPInfo.AccecnFailMode.
+//
+// ~/Downloads/linux/include/uapi/linux/tcp.h:229-245
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#L229
 const (
+	// /* Values for tcpi_ecn_mode after negotiation */
+	TCPIEcnModeDisabledCst = 0x0 // TCPI_ECN_MODE_DISABLED
+	TCPIEcnModeRFC3168Cst  = 0x1 // TCPI_ECN_MODE_RFC3168 — classic ECN, not AccECN
+	TCPIEcnModeAccECNCst   = 0x2 // TCPI_ECN_MODE_ACCECN
+	TCPIEcnModePendingCst  = 0x3 // TCPI_ECN_MODE_PENDING
+
+	// /* Values for accecn_opt_seen */
+	TCPAccECNOptNotSeenCst     = 0x0 // TCP_ACCECN_OPT_NOT_SEEN
+	TCPAccECNOptEmptySeenCst   = 0x1 // TCP_ACCECN_OPT_EMPTY_SEEN
+	TCPAccECNOptCounterSeenCst = 0x2 // TCP_ACCECN_OPT_COUNTER_SEEN
+	TCPAccECNOptFailSeenCst    = 0x3 // TCP_ACCECN_OPT_FAIL_SEEN
+
+	// /* Values for accecn_fail_mode */ — a bitmask, not an enum
+	TCPAccECNAceFailSendCst = 1 << 0 // TCP_ACCECN_ACE_FAIL_SEND
+	TCPAccECNAceFailRecvCst = 1 << 1 // TCP_ACCECN_ACE_FAIL_RECV
+	TCPAccECNOptFailSendCst = 1 << 2 // TCP_ACCECN_OPT_FAIL_SEND
+	TCPAccECNOptFailRecvCst = 1 << 3 // TCP_ACCECN_OPT_FAIL_RECV
+)
+
+const (
+	TCPInfo7_0_3_SizeCst    = 280 // 284 - 4
 	TCPInfo6_10_3_SizeCst   = 248 // 252 - 4
 	TCPInfo6_6_44_SizeCst   = 240 // 244 - 4
 	TCPInfo5_4_281_SizeCst  = 232 // 236 - 4
@@ -698,7 +857,15 @@ func DeserializeTCPInfo(data []byte, t *TCPInfo) (n int, err error) {
 		return TCPInfo6_6_44_SizeCst, nil
 	}
 	deserializeTCPInfoTail6_10(data, t)
-	return TCPInfo6_10_3_SizeCst, nil
+	// Anything shorter than 7.0's 280 bytes carries no complete AccECN
+	// trailer. Report the 6.10 size rather than a length the message does not
+	// have — this is also the branch every pre-7.0 fixture in the corpus
+	// takes, so the optional tail must never be a hard length requirement.
+	if len(data) < TCPInfo7_0_3_SizeCst {
+		return TCPInfo6_10_3_SizeCst, nil
+	}
+	deserializeTCPInfoTail7_0(data, t)
+	return TCPInfo7_0_3_SizeCst, nil
 }
 
 // deserializeTCPInfoBase reads fields present in every supported kernel
@@ -823,64 +990,28 @@ func deserializeTCPInfoTail6_10(data []byte, t *TCPInfo) {
 	t.TotalRTOTime = binary.LittleEndian.Uint32(data[244:248])
 }
 
-func DeserializeTCPInfoReflection(data []byte, mi *TCPInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, mi)
-	if err != nil {
-		return 0, err
+// deserializeTCPInfoTail7_0 reads the Accurate ECN trailer appended in
+// kernel 7.0 (bytes 248..279). See TCPInfo7_0_3 for the kernel source.
+func deserializeTCPInfoTail7_0(data []byte, t *TCPInfo) {
+	if len(data) < TCPInfo7_0_3_SizeCst {
+		return
 	}
+	t.ReceivedCe = binary.LittleEndian.Uint32(data[248:252])
+	t.DeliveredE1Bytes = binary.LittleEndian.Uint32(data[252:256])
+	t.DeliveredE0Bytes = binary.LittleEndian.Uint32(data[256:260])
+	t.DeliveredCeBytes = binary.LittleEndian.Uint32(data[260:264])
+	t.ReceivedE1Bytes = binary.LittleEndian.Uint32(data[264:268])
+	t.ReceivedE0Bytes = binary.LittleEndian.Uint32(data[268:272])
+	t.ReceivedCeBytes = binary.LittleEndian.Uint32(data[272:276])
 
-	return MemInfoReadCst, err
-}
-
-func DeserializeTCPInfoTCPInfoTCPInfo6_10_3Reflection(data []byte, t *TCPInfo6_10_3) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, t)
-	if err != nil {
-		return 0, err
-	}
-
-	return MemInfoReadCst, err
-}
-
-func DeserializeTCPInfoTCPInfo6_6_44Reflection(data []byte, t *TCPInfo6_6_44) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, t)
-	if err != nil {
-		return 0, err
-	}
-
-	return MemInfoReadCst, err
-}
-
-func DeserializeTCPInfo5_4_281Reflection(data []byte, t *TCPInfo5_4_281) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, t)
-	if err != nil {
-		return 0, err
-	}
-
-	return MemInfoReadCst, err
-}
-
-func DeserializeTCPInfo4_19_219Reflection(data []byte, t *TCPInfo4_19_219) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, t)
-	if err != nil {
-		return 0, err
-	}
-
-	return MemInfoReadCst, err
+	// Same little-endian bitfield assumption as the snd/rcv_wscale split in
+	// deserializeTCPInfoBase: ecn_mode:2, accecn_opt_seen:2,
+	// accecn_fail_mode:4, options2:24 packed low-bits-first.
+	flags2 := binary.LittleEndian.Uint32(data[276:280])
+	t.EcnMode = uint8(flags2 & 0x03)
+	t.AccecnOptSeen = uint8((flags2 >> 2) & 0x03)
+	t.AccecnFailMode = uint8((flags2 >> 4) & 0x0F)
+	t.Options2 = (flags2 >> 8) & 0x00FFFFFF
 }
 
 // DeserializeTCPInfoXTCP reads a kernel tcp_info payload directly into
@@ -907,6 +1038,11 @@ func DeserializeTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 		return nil
 	}
 	deserializeTCPInfoXTCPTail6_10(data, x)
+	// The AccECN trailer is optional — see DeserializeTCPInfo.
+	if len(data) < TCPInfo7_0_3_SizeCst {
+		return nil
+	}
+	deserializeTCPInfoXTCPTail7_0(data, x)
 	return nil
 }
 
@@ -1013,4 +1149,25 @@ func deserializeTCPInfoXTCPTail6_10(data []byte, x *xtcp_flat_record.XtcpFlatRec
 	x.TcpInfoTotalRto = uint32(binary.LittleEndian.Uint16(data[240:242]))
 	x.TcpInfoTotalRtoRecoveries = uint32(binary.LittleEndian.Uint16(data[242:244]))
 	x.TcpInfoTotalRtoTime = binary.LittleEndian.Uint32(data[244:248])
+}
+
+// deserializeTCPInfoXTCPTail7_0 reads the Accurate ECN trailer appended in
+// kernel 7.0 (bytes 248..279). See TCPInfo7_0_3 for the kernel source.
+func deserializeTCPInfoXTCPTail7_0(data []byte, x *xtcp_flat_record.XtcpFlatRecord) {
+	if len(data) < TCPInfo7_0_3_SizeCst {
+		return
+	}
+	x.TcpInfoReceivedCe = binary.LittleEndian.Uint32(data[248:252])
+	x.TcpInfoDeliveredE1Bytes = binary.LittleEndian.Uint32(data[252:256])
+	x.TcpInfoDeliveredE0Bytes = binary.LittleEndian.Uint32(data[256:260])
+	x.TcpInfoDeliveredCeBytes = binary.LittleEndian.Uint32(data[260:264])
+	x.TcpInfoReceivedE1Bytes = binary.LittleEndian.Uint32(data[264:268])
+	x.TcpInfoReceivedE0Bytes = binary.LittleEndian.Uint32(data[268:272])
+	x.TcpInfoReceivedCeBytes = binary.LittleEndian.Uint32(data[272:276])
+
+	flags2 := binary.LittleEndian.Uint32(data[276:280])
+	x.TcpInfoEcnMode = flags2 & 0x03
+	x.TcpInfoAccecnOptSeen = (flags2 >> 2) & 0x03
+	x.TcpInfoAccecnFailMode = (flags2 >> 4) & 0x0F
+	x.TcpInfoOptions2 = (flags2 >> 8) & 0x00FFFFFF
 }

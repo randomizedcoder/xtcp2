@@ -2,7 +2,8 @@
 
 ## Where we are
 
-**Phase 1 partially landed; Phase 0 not started.**
+**Phase 1 partially landed. Phase 0 re-scoped: 0a–0e landed; the original four
+Phase 0 items still outstanding.**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -27,7 +28,9 @@ recollection.
 - [Capture readiness](#capture-readiness)
 - [What has landed](#what-has-landed)
 - [Phase exit criteria](#phase-exit-criteria)
-- [Next up: Phase 0](#next-up-phase-0)
+- [Phase 0](#phase-0)
+  - [0a–0e — conventions, proven on inet_diag](#0a0e--conventions-proven-on-inet_diag)
+  - [The original Phase 0 scope, still outstanding](#the-original-phase-0-scope-still-outstanding)
 - [Known blockers](#known-blockers)
 - [How to re-measure this document](#how-to-re-measure-this-document)
 - [See also](#see-also)
@@ -47,7 +50,7 @@ Every figure here was measured on `feat/netlink-events-and-coverage-roadmap` at
 | `pkg/localnet` coverage | **97.8 %** | `go test -cover ./pkg/localnet/` |
 | `pkg/nsdiscover` coverage | **77.2 %** | `go test -cover ./pkg/nsdiscover/` |
 | Repo coverage ratchet baseline | **78.6** | `docs/coverage-baseline.txt` |
-| `nix flake check` checks | **39** | `nix eval .#checks.x86_64-linux` attr count |
+| `nix flake check` checks | **41** | `nix eval .#checks.x86_64-linux` attr count |
 | Kernel fixture corpora | 10 kernels, `4_19_319` → `7_1_8` | `ls pkg/xtcpnl/testdata/` |
 | Dump-request builders | **3** (`Link`, `Addr`, `Route`) | `grep 'func BuildDump' pkg/xtcpnl/*.go` |
 | Subpackages under `pkg/xtcpnl` | **0** — still flat | `find pkg/xtcpnl -mindepth 1 -type d` |
@@ -61,7 +64,7 @@ Phases and scope are as defined in
 
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
-| **0** | Core wire export, subpackage skeleton, capture generalisation | **not started** | The rtnetlink-only capture flavor that Phase 0 generalises | `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
+| **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | The ClickHouse DDL for 0b's 11 columns; promoting 0c from advisory to gating (Phase 2); deleting the 11 `upstream-registry-pin` allowlist entries once the xdp2 pin is bumped past the `.xtcp2("TCPInfo6_10_3")` fix; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), `BuildDumpNeighRequest`, `ENOBUFS` resync, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | not started | — | all of it |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | not started | — | all of it |
@@ -119,7 +122,7 @@ delivers them.
 | Component | File | Notes |
 |---|---|---|
 | Event parsing | `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` (211) | `EventAction`, four event types, `ParseRtnetlinkEvent`, `IsRtnetlinkNotification`. Its own header comment records that these parsers **have no live feed** — that is Phase 1's job. |
-| `ndmsg` decoder | `pkg/xtcpnl/xtcpnl_ndmsg.go` (229) | `DeserializeNdMsg` + `DeserializeNdMsgReflection` twin + `ParseNeigh`. This is the template every new family's struct decoder copies. |
+| `ndmsg` decoder | `pkg/xtcpnl/xtcpnl_ndmsg.go` (229) | `DeserializeNdMsg` + `ParseNeigh`. This is the template every new family's struct decoder copies. It shipped with a `DeserializeNdMsgReflection` twin, since moved to `_test.go` — see Phase 0a below. |
 | pcap reader extension | `pkg/xtcpnl/xtcpnl_pcap.go` (+149) | Per-record netlink family access, which is what makes the Phase 0 "split per family in Go, not in tcpdump" decision cheap. |
 | Real event fixtures | `pkg/xtcpnl/testdata/7_1_4/` | 5 pcaps + 6 `ip -d` sidecars + `uname`, captured off an `nlmon` device in a microVM. |
 | Capture flavor | `nix/microvms/*`, `nix/default.nix` | `nix run .#microvm-x86_64-nlmon-capture`. A runner, **not** a check — a nix check cannot write fixtures into the working tree. |
@@ -150,10 +153,23 @@ are the gates from
 [conventions and gates](coverage-expansion.md#conventions-and-gates), restated as
 a checklist so a phase can be signed off against it.
 
-- [ ] Every new kernel struct has **both** a manual decoder and a
-      `…Reflection` twin, asserted against the same `want`.
-- [ ] Tests are table-driven with `description` and expected outcome, covering
-      positive, negative, boundary and corner rows.
+- [ ] Every new kernel struct has a **manual decoder and no shipped
+      reflection** — the two greps in [conventions and
+      gates](coverage-expansion.md#conventions-and-gates) stay empty. This
+      checkbox used to require a `…Reflection` twin per struct; see [decision 2
+      was reversed](coverage-expansion.md#decision-2-was-reversed).
+- [ ] The **layout oracle** agrees with `~/Downloads/linux` by bit offset, with
+      any delta allowlisted by protocol + offset + reason. Advisory in Phase 0,
+      gating from Phase 2.
+- [ ] The **performance gate** passes: `0 allocs/op` on every manual decoder on
+      every build including `-race`, and — on ordinary builds only — each one
+      still comfortably faster than its reflection twin. The speedup assertion
+      is not measurable under the race detector; see 0d for why. See
+      [the performance gate](coverage-expansion.md#the-performance-gate).
+- [ ] Tests are table-driven with `description`, expected outcome, **and the
+      bytes to parse in the row**, covering positive, negative, boundary and
+      corner rows. A struct packing a kernel bitfield needs corner rows a real
+      capture cannot supply — bit saturation and a distinct value per field.
 - [ ] **Positive fixtures are real `nlmon` captures** committed under
       `pkg/xtcpnl/testdata/<kernel>/`, generated by
       `nix run .#microvm-x86_64-nlmon-capture` (events) or
@@ -168,6 +184,10 @@ a checklist so a phase can be signed off against it.
       the corpus's one synthetic fixture, which
       [`TODO-SOON.md`](../../TODO-SOON.md) §19 tracks as a defect.
 - [ ] `nix build .#checks.x86_64-linux.netlink-audit` passes.
+- [ ] The layout oracle's `$out/unallowlisted.json` is `[]` — and any new
+      allowlist entry carries a reason establishing *which side* is wrong, not
+      just that the check was red. See the three `kind` values in
+      `nix/checks/proto-audit-netlink-allowlist.json`.
 - [ ] Decoder and tests landed in the **same** change — the coverage ratchet
       exits 3 on a drop over 0.5, so untested production code trips it.
 - [ ] `docs/coverage-baseline.txt` re-baselined **upward** if the phase raised
@@ -177,10 +197,217 @@ a checklist so a phase can be signed off against it.
 - [ ] This document's phase table and baseline re-measured, not edited from
       memory.
 
-## Next up: Phase 0
+## Phase 0
 
-Phase 0 is first because everything else depends on it, and it is the smallest
-of the eight. Concretely:
+Phase 0 is first because everything else depends on it. It was re-scoped when
+[decision 2 was reversed](coverage-expansion.md#decision-2-was-reversed): the
+reflection removal, the oracle and the perf gate were added as **0a–0e** and
+deliberately done *on the production inet_diag path* rather than on a new
+family, so that the oracle, the test shape and the perf gate are all proven on
+code that already matters before ~20 families are built on them.
+
+### 0a–0e — conventions, proven on inet_diag
+
+| Sub-phase | Scope | Status |
+|---|---|---|
+| **0a** | Reflection out of the shipped library: 30 `*Reflection` decoders and `DecodeNetlinkDagRequestFromBytes` moved to `_test.go` and unexported; the `…Relection` typo fixed | **landed** |
+| **0b** | The AccECN gap — the 11 fields the oracle found missing | **landed** |
+| **0c** | The oracle wired as a nix check, advisory | **landed** |
+| **0d** | The performance gate, `pkg/xtcpnl/xtcpnl_perf_gate_test.go` | **landed** |
+| **0e** | Upstream pin drift guard — `nix/upstream-pins.json` plus a hermetic check and a networked runner | **landed** |
+
+**0a.** `pkg/xtcpnl` now contains **no `binary.Read` call outside `_test.go`**,
+which makes the "reflection-free typed deserializers" claim at
+`docs/README.md:57` true of the shipped library rather than aspirational. The 30
+twins live in `xtcpnl_reflection_twins_test.go`. Nothing outside `pkg/xtcpnl`
+ever called one, so no consumer changed. Each of the 27
+`_test.go` files holding reflection now opens with a banner stating the code is
+for performance comparison only and is strongly not recommended in production.
+
+**0b.** `TCPInfo7_0_3` (280 bytes) = `TCPInfo6_10_3` (248) plus the Accurate ECN
+trailer from `~/Downloads/linux/include/uapi/linux/tcp.h:337-347`, with
+`type TCPInfo TCPInfo7_0_3`. **No new capture was needed** — the three
+`testdata/7_0_3/*_info` fixtures are 284-byte `INET_DIAG_INFO` attributes
+(4-byte nla header + 280-byte payload), so the bytes were already committed and
+`DeserializeTCPInfo` was silently truncating them at 248. That also dissolves
+the "252 vs 248" puzzle in earlier notes: 252 = 4 + 248, never a discrepancy.
+
+The trailer offsets are pinned *independently of the struct definition*: in two
+of the three fixtures `tcpi_received_e0_bytes` (payload `[268:272]`) equals
+`tcpi_bytes_received` (payload `[128:136]`) exactly — **11648** and **98264**.
+Two values read 140 bytes apart agreeing on two separate captures cannot come
+from a mis-set offset. The semantics corroborate it: `ecn_mode = 1` is
+`TCPI_ECN_MODE_RFC3168`, classic ECN rather than AccECN, which is precisely why
+every received byte counts as E0 while the peer-fed `delivered_*` counters stay
+zero.
+
+The tail is **optional**, which was the part to get right — a hard
+`len(data) < TCPInfo7_0_3_SizeCst` guard would break every older-kernel fixture
+in the corpus. Below 280 bytes the decoder returns `TCPInfo6_10_3_SizeCst`
+rather than a length the message does not have. Export path: 11 proto fields at
+the pre-assigned numbers 1266–1276, 11 parquet columns (mandatory, not
+optional — `TestS3ParquetSchema_matchesProto` asserts the column set matches the
+proto descriptor in declaration order), and `deserializeTCPInfoXTCPTail7_0`
+alongside the plain decoder, with a test asserting both, since one can be
+extended and the other forgotten.
+
+**Still outstanding from 0b:** the ClickHouse DDL for the 11 columns
+(`build/containers/clickhouse/initdb.d/sql/*`, a new
+`build/containers/clickhouse/sql/migrations/v3.sql`, and the k8s configMaps).
+That is an outward-facing schema migration with operational consequences, so it
+is flagged rather than invented.
+
+**0c.** `nix/checks/proto-audit-netlink.nix`, fed by a new `xdp2` flake input
+pinned to `47d3a425`. It runs two different questions over the 26 registered
+`NL_*` protocols and writes both to `$out`:
+
+- `proto-audit audit` — **static**: does the Go struct agree with the kernel UAPI
+  headers, compared by wire bit offset rather than by field name?
+- `proto-audit validate-netlink` — **dynamic**: replaying this repo's own
+  captured pcaps through a generated dissector, do the decoded values line up?
+  Grades each protocol Gold/Silver/Bronze.
+
+**The wiring detail that decides whether this check is worth anything:**
+proto-audit defaults `--xtcp2-src` to a `fetchFromGitHub` snapshot pinned inside
+xdp2's flake (`xdp2/nix/proto-audit-sources.nix:224`). That snapshot is stale —
+rev `a52e2f46`, **dated 2025-04-19 and 732 commits behind `main`**, measured
+rather than estimated (`nix run .#check-upstream-pins`). It predates the whole
+netlink effort. Left at the default the check would audit a year-old copy of
+xtcp2 and dutifully re-report the bug it exists to catch. The derivation
+overrides `PROTO_AUDIT_XTCP2_SRC` and `PROTO_AUDIT_XTCP2_PCAPS` to this tree,
+and then *asserts* the override took by grepping the audited source for
+`TCPInfo7_0_3` — a file-existence check would not distinguish, since the stale
+snapshot has `xtcpnl_inet_diag_tcpinfo.go` too.
+
+Advisory means it always exits 0; `gating = true` flips it. Deltas are filtered
+through `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
+`offset_bits` + field name, so a field that moves offset stops being
+allowlisted and resurfaces — the offset is the thing being asserted.
+
+**What the oracle actually reports, which is not what the plan predicted.**
+`NL_Diag_TCPInfo`: `total=76 agree=54 type_differ=3 mismatch=8 missing=11`,
+graded `Silver` statically and **`Gold (wire-validated across 8 kernel
+versions)`** dynamically — 82,799 records over 73 pcaps. The plan expected the
+11 missing to become 11 agreements once 0b landed. They did not, and the reason
+is worth stating because it is the exact opposite of what the output looks like:
+
+> xdp2's protocol registry hardcodes the Go struct name —
+> `PN::new("NL_Diag_TCPInfo", 248).kernel("tcp_info", …).xtcp2("TCPInfo6_10_3")`
+> (`samples/proto_audit/src/name_mapping/table.rs:552-555`). So the extractor is
+> asked for `TCPInfo6_10_3`, the 248-byte pre-AccECN struct, and its
+> `resolve_alias()` step — which exists precisely to follow
+> `type TCPInfo TCPInfo7_0_3` to the newest variant — is never reached, because
+> the name it is handed is already concrete. Measured directly:
+> `proto-audit extract --source xtcp2 --proto NL_Diag_TCPInfo --json` reports
+> `field_count 61, min_header_bytes 248`, which is `TCPInfo6_10_3` exactly.
+
+So the 11 are a **proto-audit bug, not an xtcp2 gap**, and the upstream fix is
+one word: `.xtcp2("TCPInfo")`. Ruled out first, because both were more likely:
+the override did take (`PROTO_AUDIT_XTCP2_SRC` resolved to a store path of this
+tree) and that store path does contain the fields.
+
+The offsets proto-audit reports for those 11 **corroborate** the 0b decoder
+rather than contradicting it. Its kernel extractor places `tcpi_ecn_mode` at bit
+2208 = byte 276, `accecn_opt_seen` at 2210, `accecn_fail_mode` at 2212 and
+`options2` at 2216 — one `__u32` at `[276:280]` split 2/2/4/24 in little-endian
+bit order, which is field-for-field what
+`xtcpnl_inet_diag_tcpinfo.go:256-263` decodes. An oracle that cannot see the
+fields still confirmed where they go.
+
+The allowlist therefore has **22 entries**, in three kinds, and the distinction
+matters because they are not equally permanent:
+
+| kind | n | what it is |
+|---|---|---|
+| `semantic` | 3 | proto-audit's name-based `infer_field_type()` labels a field `Enum`/`Flags` where its own kernel extractor says `Uint` (`tcpi_state`, `tcpi_ca_state`, `tcpi_options`). Offsets and sizes agree. An annotation disagreement. |
+| `split` | 8 | One side models a C bitfield byte whole, the other models the bits. proto-audit's **kernel** extractor does not handle C bitfields, so it spends a full byte on each of `tcpi_delivery_rate_app_limited` and `tcpi_fastopen_client_fail` and lands them on bytes 8 and 9 — which are really `tcpi_rto`. Layout-equivalent; xtcp2's side is the kernel's own view. |
+| `upstream-registry-pin` | 11 | The AccECN trailer, above. **Delete these when the xdp2 pin is bumped past a fix**; they should then turn into 11 agreements. |
+
+An earlier draft of this document recorded two entries, `scale_temp` (bit 48)
+and `flags_temp` (bit 56), on the plan's authority. Those names do not appear in
+the real audit output at all: they live in `samples/proto_audit/src/netlink.rs`
+**inside `mod tests`**, in a fixture whose own comment says "Full TCPInfo has 59
+fields but we'll define a few for testing". They were never production IR, and
+the entries have been replaced with the measured ones.
+
+A second, independent upstream nit found while diagnosing this:
+`extract_size_const()` (`src/extractors/xtcp2.rs:143`) builds the pattern
+`{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an
+underscore, so no versioned size constant is ever found and the size is inferred
+from field offsets. Harmless today; it means the `248` in the registry is the
+only size proto-audit has for this protocol.
+
+**Cost, since it is not visible from the one line in `nix/checks/default.nix`:**
+this drags in xdp2's proto-audit closure — a Rust build plus a large pinned
+source set (a kernel tarball, DPDK, nDPI, suricata, tshark, a scapy python). On
+a cold cache it dominates `nix flake check` wall time by a wide margin. Moving
+the attribute out of the returned set into `packages` is a one-line change if
+that bites; `proto-lint` is the existing precedent for a check kept out of the
+default set for an infrastructural reason. Advisory mode never gates, so nothing
+else would need to change.
+
+**0d.** Measured on a quiet `nix build .#test-go-bench` run:
+
+| benchmark | ns/op | B/op | allocs/op |
+|---|---|---|---|
+| `DeserializeTCPInfo` (6.10 path, 248 B) | 28.51 | 0 | 0 |
+| `deserializeTCPInfoReflection` | 2353 | 336 | 2 |
+| `DeserializeTCPInfo7_0_3` (full AccECN, 280 B) | 33.61 | 0 | 0 |
+| `deserializeTCPInfo7_0_3Reflection` | 2517 | 336 | 2 |
+
+**75× on the AccECN path**, and the 32-byte trailer costs about 5 ns. The gate
+itself runs 18 rows: `0 allocs/op` on every manual decoder, ratios 16.7×–336×,
+against a floor of 5×. Across repeated `-count=1` runs the worst observed
+TCPInfo ratio was 25.9× — still 5× clear of the floor, which is why the floor is
+set where it is. Use `-count=1`: cached runs return byte-identical timings that
+look like excellent stability and mean nothing.
+
+The ratio half is **skipped under `-race`**, which the first full `nix flake
+check` of this work discovered the hard way: `test-go-race` went red on the
+280-byte AccECN row at 4.5×, against a decoder that had not changed. A ratio
+survives host load because load scales both halves together; the race detector
+does not, because it instruments every memory access and so taxes a manual
+decoder's ~70 individual field writes far more, proportionally, than it taxes
+`binary.Read`'s already-slow reflect work. Turning the detector on alone moved
+that row 75× → 4.5×, and compressed the whole table from 16.7×–336× down to
+**5.2×–44.9×** — with the two narrowest decoders landing at 5.2× and 5.6×, so
+even the 5× floor would have been a coin flip. The fix was to skip the
+assertion, not to lower the floor: `perfGateRaceEnabled`
+(`pkg/xtcpnl/xtcpnl_perf_gate_race_test.go`, a `//go:build race` const) reports
+the measured ratio and asserts nothing, while `0 allocs/op` — host-independent,
+and it held exactly under the detector — stays asserted on every run.
+
+**0e.** The oracle reaches this repo through **two** pins that can go stale
+independently, and 0c's diagnosis is what makes that concrete: one of them was
+already a year old, and the other has a bug we now depend on the version of.
+`nix/upstream-pins.json` records both with their role, where each is declared,
+how to verify it, and — for the deliberately-stale one — the measured distance
+rather than an adjective.
+
+The guard is **two halves, because a `nix flake check` sandbox has no network**
+and so physically cannot ask GitHub whether a branch has moved. A check
+claiming otherwise would either be lying or be baking a stale answer into a
+cached derivation, which is worse than no check because it would report "up to
+date" forever.
+
+| half | question | wired as |
+|---|---|---|
+| `nix/checks/upstream-pins.nix` | "do the revs in the manifest still match the revs this build uses?" — `jq` over `flake.lock`, `sed` over xdp2's own `proto-audit-sources.nix`, both already in the store | `checks.upstream-pins`, gating, cheap |
+| `nix/check-upstream-pins.nix` | "has upstream `main` moved?" — `git ls-remote`, plus `git rev-list --count` when the objects are local | `nix run .#check-upstream-pins`, warns by default, `--strict` for CI |
+
+The hermetic half catches a pin *changing* without the manifest being updated,
+which is what makes the runner's drift report trustworthy. The runner iterates
+`.pins | keys[]`, so adding a pin to the JSON is the only edit needed to have it
+checked. Pins marked `known_stale: true` are reported but never gate, even under
+`--strict` — the embedded xtcp2 snapshot is *supposed* to be behind; the point of
+printing it is that the number should be known rather than a surprise.
+
+First run already earned its keep: xdp2's `main` had moved past our `47d3a425`
+pin to `47a82df2` while this work was in progress. Not bumped here on purpose —
+a proto-audit bump changes what the layout oracle reports, which is the kind of
+change that should land on its own rather than inside unrelated work.
+
+### The original Phase 0 scope, still outstanding
 
 1. **Export the core wire layer** — `WalkRTAttrs`, `WalkRTAttrsNested`,
    `WalkNlMsgs`, `BuildDumpRequest`, `CopyBytes`. `buildDumpRequest` is already
@@ -199,8 +426,11 @@ of the eight. Concretely:
    `nix/capture-netlink-fixtures.nix` alone: that harness runs on a real
    workstation where the filter **is** load-bearing.
 
-Phase 0 adds no new family and should not move coverage much; it is measured by
-the ratchet holding and the `nsdiscover` duplicate disappearing.
+These four add no new family and should not move coverage much; they are
+measured by the ratchet holding and the `nsdiscover` duplicate disappearing.
+0a–0e *do* move it: moving 29 twins into `_test.go` removes production lines
+that nothing covered, so `docs/coverage-baseline.txt` should be re-baselined
+upward rather than left to drift.
 
 ## Known blockers
 
@@ -238,6 +468,29 @@ grep -rn 'Subscribe\|NETLINK_ADD_MEMBERSHIP' pkg/xtcpnl/*.go
 
 # check count
 nix eval .#checks.x86_64-linux --apply 'x: builtins.length (builtins.attrNames x)'
+
+# no reflection in the shipped library (both must print nothing)
+grep -n 'binary\.Read(' pkg/xtcpnl/*.go | grep -v _test | grep -v ':[0-9]*://'
+grep -rn 'Reflection(' --include=*.go . | grep -v /vendor/ | grep -v _test.go
+
+# the benchmark numbers in 0d above, and the gate that guards them
+nix build .#test-go-bench && ./result/bin/xtcp2-go-bench
+go test -count=1 -run TestDecoderPerformanceGate ./pkg/xtcpnl/
+
+# the layout oracle (0c) — advisory, so read $out rather than the exit code
+nix build .#checks.x86_64-linux.proto-audit-netlink
+jq -r '.[] | "\(.protocol) missing=\(.fields_missing)"' result/audit.json
+cat result/unallowlisted.json   # expect []
+
+# the upstream-registry-pin diagnosis: 61 fields / 248 bytes means proto-audit
+# is reading TCPInfo6_10_3, so the AccECN trailer cannot be reported present
+PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- \
+  extract --source xtcp2 --proto NL_Diag_TCPInfo --json \
+  | jq '.sources.xtcp2 | {field_count, min_header_bytes}'
+
+# upstream pin drift (0e) — the manifest, then the remotes
+nix build .#checks.x86_64-linux.upstream-pins -L
+nix run .#check-upstream-pins
 
 # regenerate the event fixtures (run from the repo root)
 nix run .#microvm-x86_64-nlmon-capture

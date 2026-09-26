@@ -35,6 +35,22 @@
       url = "github:randomizedcoder/giouring/9e96b7216bf07ce3c97281092444e85311f7b2e4";
       flake = false;
     };
+
+    # xdp2 provides `proto-audit`, the netlink layout oracle. It normalises the
+    # kernel UAPI headers and 15 other sources to one IR indexed by wire bit
+    # offset, which is what lets it find a field xtcp2's Go structs are
+    # *missing* rather than merely mis-reading one they have. Consumed by
+    # nix/checks/proto-audit-netlink.nix; see docs/netlink/coverage-status.md.
+    #
+    # Deliberately NOT `inputs.nixpkgs.follows = "nixpkgs"`. proto-audit is a
+    # Rust build over a large pinned source set (a kernel tarball, DPDK, nDPI,
+    # suricata, tshark, a scapy python) and is built against the nixpkgs it was
+    # tested with. Following xtcp2's nixpkgs would trade one duplicated nixpkgs
+    # evaluation for a build that may simply not work.
+    #
+    # Override to a local checkout when iterating on the oracle itself:
+    #   nix build .#proto-audit-netlink --override-input xdp2 path:/home/das/Downloads/xdp2
+    xdp2.url = "github:randomizedcoder/xdp2/47d3a425bb4f3a03701848f0579630e1019d3d51";
   };
 
   nixConfig = {
@@ -51,6 +67,7 @@
       flake-utils,
       microvm,
       giouring,
+      xdp2,
     }:
     flake-utils.lib.eachSystem [ "x86_64-linux" ] (
       system:
@@ -75,6 +92,7 @@
             microvm
             nixpkgs
             giouring
+            xdp2
             ;
           src = ./.;
         };

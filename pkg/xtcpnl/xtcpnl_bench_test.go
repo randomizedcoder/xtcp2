@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"io"
 	"net"
@@ -32,7 +45,7 @@ func BenchmarkDecodeNetlinkDagRequestFromBytes(b *testing.B) {
 	)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		nlh, req = DecodeNetlinkDagRequestFromBytes(bs)
+		nlh, req = decodeNetlinkDagRequestFromBytes(bs)
 	}
 	resultN = nlh
 	resultR = req
@@ -61,7 +74,7 @@ func BenchmarkSerializeNetlinkDagRequest(b *testing.B) {
 		nlh NlMsgHdr
 		req InetDiagReqV2
 	)
-	nlh, req = DecodeNetlinkDagRequestFromBytes(bs)
+	nlh, req = decodeNetlinkDagRequestFromBytes(bs)
 
 	requestBytes := make([]byte, InetDiagRequestSizeCst)
 
@@ -81,14 +94,14 @@ func BenchmarkDeserializeNlMsgHdr(b *testing.B) {
 }
 
 func BenchmarkDeserializeNlMsgHdrReflection(b *testing.B) {
-	DeserializeNlMsgHdrBoth(b, DeserializeNlMsgHdrRelection)
+	DeserializeNlMsgHdrBoth(b, deserializeNlMsgHdrReflection)
 }
 
 func DeserializeNlMsgHdrBoth(b *testing.B, fn func(data []byte, nlmsghr *NlMsgHdr) (n int, err error)) {
 	var tests = []DeserializeNlMsgHdrTest{
 		{
 			description: "request_all_response",
-			filename:    "./testdata/6_6_44/large_netlink_sock_diag_protocol_export",
+			filename:    tdLargeSockDiagExport_6_6_44,
 			length:      448,
 			tyype:       20,
 			flags:       2,
@@ -139,7 +152,7 @@ func BenchmarkDeserializeInetDiagReqV2(b *testing.B) {
 
 func BenchmarkDeserializeInetDiagReqV2Reflection(b *testing.B) {
 
-	DeserializeInetDiagReqV2Both(b, DeserializeInetDiagReqV2Relection)
+	DeserializeInetDiagReqV2Both(b, deserializeInetDiagReqV2Reflection)
 
 }
 
@@ -201,7 +214,7 @@ func BenchmarkDeserializeInetDiagMsg(b *testing.B) {
 
 func BenchmarkDeserializeInetDiagMsgReflection(b *testing.B) {
 
-	DeserializeInetDiagMsgBoth(b, DeserializeInetDiagMsgViaReflection)
+	DeserializeInetDiagMsgBoth(b, deserializeInetDiagMsgReflection)
 }
 
 func DeserializeInetDiagMsgBoth(b *testing.B, fn func(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error)) {
@@ -269,14 +282,14 @@ func BenchmarkDeserializeInetDiagSockID(b *testing.B) {
 }
 
 func BenchmarkDeserializeInetDiagSockIDReflection(b *testing.B) {
-	DeserializeInetDiagSockIDBoth(b, DeserializeInetDiagSockIDReflection)
+	DeserializeInetDiagSockIDBoth(b, deserializeInetDiagSockIDReflection)
 }
 
 func DeserializeInetDiagSockIDBoth(b *testing.B, fn func(data []byte, sockid *InetDiagSockID) (n int, err error)) {
 	var tests = []DeserializeInetDiagSockIDTest{
 		{
 			description: "port443v6_2",
-			filename:    "./testdata/6_6_44/netlink_sock_diag_reply_single_packet_port443v6_2.pcap",
+			filename:    tdReplyPort443V6b_6_6_44,
 			sport:       43163,
 			dport:       443,
 			proto:       6,
@@ -321,7 +334,7 @@ func BenchmarkDeserializeRTAttr(b *testing.B) {
 }
 
 func BenchmarkDeserializeRTAttrReflection(b *testing.B) {
-	DeserializeRTAttrBoth(b, DeserializeRTAttrReflection)
+	DeserializeRTAttrBoth(b, deserializeRTAttrReflection)
 }
 
 func DeserializeRTAttrBoth(b *testing.B, fn func(data []byte, rta *RTAttr) (n int, err error)) {

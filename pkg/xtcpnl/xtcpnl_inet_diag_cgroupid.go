@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -79,18 +78,6 @@ func DeserializeCGroupID(data []byte, c *CGroupID) (n int, err error) {
 	*c = CGroupID(binary.LittleEndian.Uint64(data[0:8]))
 
 	return CGroupIDSizeCst, nil
-}
-
-func DeserializeCGroupIDReflection(data []byte, c *CGroupID) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, c)
-	if err != nil {
-		return 0, err
-	}
-
-	return CGroupIDSizeCst, err
 }
 
 func DeserializeCGroupIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {

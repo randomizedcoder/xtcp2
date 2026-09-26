@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"sync"
@@ -111,18 +110,6 @@ func DeserializeInetDiagMsg(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n
 	return InetDiagMsgReadCst, nil
 }
 
-func DeserializeInetDiagMsgViaReflection(data []byte, idm *InetDiagMsg, s *InetDiagSockID) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, idm)
-	if err != nil {
-		return 0, err
-	}
-
-	return InetDiagMsgReadCst, err
-}
-
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L14
 // https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L14C1-L22C3
 // https://github.com/iproute2/iproute2/blob/b176b9f40368735b5bd4e6d49f8ebcbe8b8bef4a/include/uapi/linux/inet_diag.h#L14
@@ -183,18 +170,6 @@ func DeserializeInetDiagSockID(data []byte, sockid *InetDiagSockID) (n int, err 
 	sockid.Cookie = binary.LittleEndian.Uint64(data[40:48])
 
 	return InetDiagSockIDReadCst, nil
-}
-
-func DeserializeInetDiagSockIDReflection(data []byte, sockid *InetDiagSockID) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, sockid)
-	if err != nil {
-		return 0, err
-	}
-
-	return InetDiagSockIDReadCst, err
 }
 
 // XTCP

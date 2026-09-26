@@ -70,17 +70,9 @@ func DeserializeCongInfo(data []byte, ci *CongInfo) (n int, err error) {
 	return n, nil
 }
 
-// func DeserializeCongInfoReflection(data []byte, ci *CongInfo) (n int, err error) {
-
-// 	reader := bytes.NewReader(data)
-
-// 	err = binary.Read(reader, binary.LittleEndian, ci)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	return CongInfoReadCst, err
-// }
+// CongInfo has no reflection twin: Cong is a []byte, and binary.Read cannot
+// decode into a slice of unknown length. DeserializeCongInfo is the only
+// implementation, so its layout is pinned by the captured fixtures alone.
 
 func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	// func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {

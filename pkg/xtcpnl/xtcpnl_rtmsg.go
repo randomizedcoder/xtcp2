@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -67,17 +66,6 @@ func DeserializeRtMsg(data []byte, m *RtMsg) (n int, err error) {
 	m.Flags = binary.LittleEndian.Uint32(data[8:12])
 
 	return RtMsgReadCst, nil
-}
-
-func DeserializeRtMsgReflection(data []byte, m *RtMsg) (n int, err error) {
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, m)
-	if err != nil {
-		return 0, err
-	}
-
-	return RtMsgReadCst, err
 }
 
 // RouteInfo is the subset of an RTM_NEWROUTE message xtcp2 keeps. DstLen and the

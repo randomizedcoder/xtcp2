@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -79,19 +78,6 @@ func DeserializeSockOpt(data []byte, c *SockOpt) (n int, err error) {
 	*c = SockOpt(binary.LittleEndian.Uint16(data[0:2]))
 
 	return SockOptReadCst, nil
-}
-
-func DeserializeSockOptReflection(data []byte, c *SockOpt) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, c)
-	if err != nil {
-		return 0, err
-	}
-	n = len(data)
-
-	return n, err
 }
 
 // DeserializeSockOptXTCP reads an INET_DIAG_SOCKOPT (22) attribute into

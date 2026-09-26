@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"os"
 	"path/filepath"
@@ -67,22 +80,22 @@ func TestReadfile_largeFile(t *testing.T) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// DeserializeNlMsgHdrRelection / DeserializeInetDiagReqV2Relection
-// + DeserializeInetDiagSockIDReflection — happy paths via fixtures
+// deserializeNlMsgHdrReflection / deserializeInetDiagReqV2Reflection
+// + deserializeInetDiagSockIDReflection — happy paths via fixtures
 // ───────────────────────────────────────────────────────────────────────
 
 func TestDeserializeNlMsgHdrRelection(t *testing.T) {
 	// 16-byte NlMsgHdr requires exactly 16 bytes.
 	data := make([]byte, NlMsgHdrSizeCst)
 	hdr := new(NlMsgHdr)
-	if _, err := DeserializeNlMsgHdrRelection(data, hdr); err != nil {
+	if _, err := deserializeNlMsgHdrReflection(data, hdr); err != nil {
 		t.Errorf("err = %v", err)
 	}
 }
 
 func TestDeserializeNlMsgHdrRelection_short(t *testing.T) {
 	hdr := new(NlMsgHdr)
-	if _, err := DeserializeNlMsgHdrRelection([]byte{0x01}, hdr); err == nil {
+	if _, err := deserializeNlMsgHdrReflection([]byte{0x01}, hdr); err == nil {
 		t.Error("short buffer should error")
 	}
 }
@@ -90,14 +103,14 @@ func TestDeserializeNlMsgHdrRelection_short(t *testing.T) {
 func TestDeserializeInetDiagSockIDReflection(t *testing.T) {
 	data := make([]byte, InetDiagSockIDSizeCst)
 	sock := new(InetDiagSockID)
-	if _, err := DeserializeInetDiagSockIDReflection(data, sock); err != nil {
+	if _, err := deserializeInetDiagSockIDReflection(data, sock); err != nil {
 		t.Errorf("err = %v", err)
 	}
 }
 
 func TestDeserializeInetDiagSockIDReflection_short(t *testing.T) {
 	sock := new(InetDiagSockID)
-	if _, err := DeserializeInetDiagSockIDReflection([]byte{0x01}, sock); err == nil {
+	if _, err := deserializeInetDiagSockIDReflection([]byte{0x01}, sock); err == nil {
 		t.Error("short buffer should error")
 	}
 }
@@ -108,7 +121,7 @@ func TestDeserializeInetDiagReqV2Relection(t *testing.T) {
 	data := make([]byte, InetDiagReqV2SizeCst)
 	req := new(InetDiagReqV2)
 	sock := new(InetDiagSockID)
-	if _, err := DeserializeInetDiagReqV2Relection(data, req, sock); err != nil {
+	if _, err := deserializeInetDiagReqV2Reflection(data, req, sock); err != nil {
 		t.Errorf("err = %v", err)
 	}
 }

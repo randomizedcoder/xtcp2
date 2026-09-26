@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 )
@@ -44,16 +43,4 @@ func DeserializeRTAttr(data []byte, rta *RTAttr) (n int, err error) {
 	rta.Type = binary.LittleEndian.Uint16(data[2:4])
 
 	return RTAttrReadCst, nil
-}
-
-func DeserializeRTAttrReflection(data []byte, rta *RTAttr) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, rta)
-	if err != nil {
-		return 0, err
-	}
-
-	return RTAttrReadCst, err
 }

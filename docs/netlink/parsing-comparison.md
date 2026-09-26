@@ -211,17 +211,27 @@ one deliberate exception is inet_diag (`socket_linux.go:113`), read field-by-fie
 through a hand-rolled `readBuffer` precisely because the v4-vs-v6 address width
 makes a straight cast unsound.
 
-**xtcp2** gives every one of nine kernel structs **two** decoders — a manual
-little-endian one and a `binary.Read` reflection one — then asserts they agree
-(`xtcpnl_reflection_test.go`) and that the struct size matches the kernel's
-(`xtcpnl_struct_size_test.go`). Slower to write, self-verifying, and the
-benchmarks quantify what the manual path buys.
+**xtcp2** hand-writes a manual little-endian decoder for every one of nine
+kernel structs, reading fields at fixed byte offsets, and asserts the struct
+size matches the kernel's (`xtcpnl_struct_size_test.go`). The shipped package
+contains **no reflection at all**.
+
+It used to ship a `binary.Read` reflection twin per struct as well and assert
+the two agreed. That was demoted to test-only, because a twin decodes the same
+Go struct a second way and so can only confirm the struct is consistent with
+itself — it cannot discover a field the struct is *missing*, which is the
+failure that actually happens as kernels grow. Thirty twins agreed happily
+across the 11-field Accurate ECN block that `tcp_info` had been silently
+truncating. The twins now live in `xtcpnl_reflection_twins_test.go` as the
+control group for the benchmarks, which is the one job they do that nothing else
+does. See
+[coverage-expansion](coverage-expansion.md#decision-2-was-reversed).
 
 ### Sub-struct decoders
 
 | Kernel struct | Fork | xtcp2 |
 |---|---|---|
-| `tcp_info` | ◑ one layout | ✅ **6 kernel-version variants**, 4.15 → 6.10.3 (`xtcpnl_inet_diag_tcpinfo.go:142`) |
+| `tcp_info` | ◑ one layout | ✅ **7 kernel-version variants**, 4.15 → 7.0.3 (`xtcpnl_inet_diag_tcpinfo.go:162`), the newest carrying the 280-byte Accurate ECN layout |
 | `tcpvegas_info`, `tcp_bbr_info`, `tcp_dctcp_info` | ◑ partial | ✅ |
 | `inet_diag_meminfo`, `sk_meminfo`, `inet_diag_sockopt` | ◑ | ✅ |
 | `nda_cacheinfo` | ➖ | ✅ (`xtcpnl_ndmsg.go:89`) |
@@ -256,7 +266,7 @@ nothing enforces that.
 | Subtests (`--- PASS` lines) | not table-driven enough to be meaningful | **501** |
 | Statement coverage | **unmeasurable overall**; `nl/` alone = **33.1%** | **93.3%** |
 | Fuzz targets | 0 | **6** |
-| Benchmarks | few | **~40**, manual-vs-reflection paired |
+| Benchmarks | few | **~40**, manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
 | Static fixtures | **2 files** (`testdata/ipset_{protocol,list}_result`) | real `.pcap` corpus across **10 kernel versions** |
 | Requires root + netns | **~30 of 47 files** | **none** |
 | Custom audit tooling | none | `tools/netlink-audit`, wired as a `nix flake check` (`nix/checks/netlink-audit.nix`) |

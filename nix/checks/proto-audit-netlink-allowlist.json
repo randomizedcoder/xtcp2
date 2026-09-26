@@ -1,0 +1,240 @@
+{
+  "_comment": [
+    "Accepted deltas for the proto-audit netlink layout oracle.",
+    "",
+    "The oracle (nix/checks/proto-audit-netlink.nix) compares xtcp2's Go netlink",
+    "structs against the Linux kernel UAPI headers and 14 other sources, indexed",
+    "by WIRE BIT OFFSET rather than by field name. Some reported deltas are",
+    "deliberate design choices, and some are limitations of proto-audit itself;",
+    "each one is recorded here so the check can gate without being permanently",
+    "red.",
+    "",
+    "Reviewed like docs/coverage-baseline.txt: an entry is a standing decision,",
+    "so adding one needs the same scrutiny as lowering a coverage floor. A delta",
+    "that is merely inconvenient does not belong here — only one that is correct.",
+    "",
+    "Keys are protocol names as proto-audit reports them (see `proto-audit list`).",
+    "Each entry is matched on protocol + offset_bits + field, so a field moving",
+    "to a different offset stops being allowlisted and the check goes red again.",
+    "That is intentional: the offset is the thing being asserted.",
+    "",
+    "THREE KINDS APPEAR BELOW, and they are not equally permanent:",
+    "",
+    "  kind=semantic   proto-audit's own name-based type heuristic",
+    "                  (src/extractors/xtcp2.rs infer_field_type) labels a field",
+    "                  Enum/Flags where its kernel extractor says Uint. An",
+    "                  annotation disagreement, not a layout one. Permanent.",
+    "",
+    "  kind=split      one side models a C bitfield byte as a whole byte and the",
+    "                  other models the individual bitfields. Layout-equivalent.",
+    "                  Permanent until proto-audit's kernel extractor learns C",
+    "                  bitfields.",
+    "",
+    "  kind=upstream-registry-pin",
+    "                  NOT a real delta at all — proto-audit is reading the wrong",
+    "                  xtcp2 struct. DELETE these entries when the upstream fix",
+    "                  lands; see the note on NL_Diag_TCPInfo below."
+  ],
+  "_note_NL_Diag_TCPInfo": [
+    "The 11 kind=upstream-registry-pin entries are a proto-audit bug, not an",
+    "xtcp2 gap, and this is worth stating precisely because it is the exact",
+    "opposite of what the oracle appears to say.",
+    "",
+    "xdp2's protocol registry hardcodes the Go struct name:",
+    "",
+    "    samples/proto_audit/src/name_mapping/table.rs:552-555",
+    "      PN::new(\"NL_Diag_TCPInfo\", 248)",
+    "        .kernel(\"tcp_info\", \"linux/tcp.h\")",
+    "        .xtcp2(\"TCPInfo6_10_3\")",
+    "        .variable(),",
+    "",
+    "So the extractor is asked for TCPInfo6_10_3 — a 248-byte struct that ends at",
+    "tcpi_total_rto_time and predates Accurate ECN. Its resolve_alias() step",
+    "(src/extractors/xtcp2.rs:56) exists precisely to follow",
+    "`type TCPInfo TCPInfo7_0_3` to the newest variant, but it is never reached,",
+    "because the name it is handed is already a concrete struct rather than the",
+    "alias. Measured directly against THIS tree:",
+    "",
+    "    proto-audit extract --source xtcp2 --proto NL_Diag_TCPInfo --json",
+    "      -> field_count 61, min_header_bytes 248",
+    "",
+    "61 fields and 248 bytes is TCPInfo6_10_3 exactly. The AccECN trailer cannot",
+    "be reported as present because the struct being read does not contain it.",
+    "",
+    "The offsets proto-audit reports for the 11 fields independently CONFIRM the",
+    "decoder rather than contradicting it. Its kernel extractor puts",
+    "tcpi_ecn_mode at bit 2208 = byte 276, with accecn_opt_seen at 2210,",
+    "accecn_fail_mode at 2212 and options2 at 2216 — i.e. one __u32 at [276:280]",
+    "split 2/2/4/24 in little-endian bit order. That is field-for-field what",
+    "pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:256-263 decodes.",
+    "",
+    "Upstream fix is one word: `.xtcp2(\"TCPInfo\")` instead of",
+    "`.xtcp2(\"TCPInfo6_10_3\")`, letting resolve_alias() do its job. A second,",
+    "independent upstream nit found while diagnosing this: extract_size_const",
+    "(src/extractors/xtcp2.rs:143) builds the pattern `{struct}SizeCst`, but",
+    "xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an underscore, so the size",
+    "constant is never found for any versioned variant and the size is inferred",
+    "from field offsets instead. Harmless here, but it means the `248` in the",
+    "registry is the only size proto-audit has.",
+    "",
+    "Both are tracked in nix/upstream-pins.json; when the xdp2 pin is bumped past",
+    "a fix, these 11 entries must be deleted, at which point they should turn",
+    "into 11 agreements."
+  ],
+  "NL_Diag_TCPInfo": [
+    {
+      "field": "tcpi_state",
+      "offset_bits": 0,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "proto-audit's infer_field_type() sees \"state\" in the name and labels xtcp2's field Enum; its kernel extractor says Uint. Both agree it is 8 bits at offset 0. Annotation, not layout."
+    },
+    {
+      "field": "tcpi_ca_state",
+      "offset_bits": 8,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "Same heuristic as tcpi_state: \"state\" in the name yields Enum vs the kernel's Uint. Offset and size agree."
+    },
+    {
+      "field": "tcpi_options",
+      "offset_bits": 40,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "infer_field_type() labels anything containing \"options\" as Flags; the kernel extractor says Uint. It IS a flags byte (TCPI_OPT_TIMESTAMPS etc., linux/include/uapi/linux/tcp.h), so the heuristic is arguably the more accurate of the two. Offset and size agree."
+    },
+    {
+      "field": "tcpi_snd_wscale",
+      "offset_bits": 48,
+      "size_bits": 4,
+      "kind": "split",
+      "reason": "Kernel byte 6 is `__u8 tcpi_snd_wscale:4, tcpi_rcv_wscale:4` (linux/include/uapi/linux/tcp.h). xtcp2 decodes the two nibbles into SndWscale and RcvWscale, which is the kernel's own view; proto-audit's kernel extractor does not model C bitfields and emits a single 8-bit field for the byte, so the nibbles read as overlapping it. Layout-equivalent."
+    },
+    {
+      "field": "snd_wscale",
+      "offset_bits": 48,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "The kernel-side half of the same disagreement: proto-audit emits the whole of byte 6 as one 8-bit field and reports it overlapping xtcp2's two nibbles. Same single root cause as tcpi_snd_wscale @48."
+    },
+    {
+      "field": "tcpi_rcv_wscale",
+      "offset_bits": 52,
+      "size_bits": 4,
+      "kind": "split",
+      "reason": "Low nibble of kernel byte 6; see tcpi_snd_wscale @48."
+    },
+    {
+      "field": "tcpi_delivery_rate_app_limited",
+      "offset_bits": 56,
+      "size_bits": 1,
+      "kind": "split",
+      "reason": "Kernel byte 7 is `__u8 tcpi_delivery_rate_app_limited:1, tcpi_fastopen_client_fail:2`. xtcp2 decodes the individual bits; proto-audit's kernel extractor emits byte 7 whole (as `rcv_wscale`, its name for it), so the bits read as overlapping. Layout-equivalent."
+    },
+    {
+      "field": "rcv_wscale",
+      "offset_bits": 56,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "Kernel-side half of the byte-7 disagreement. The NAME is also off by one byte on proto-audit's side — rcv_wscale is really the low nibble of byte 6 — which is a symptom of the same missing bitfield support, and is why this allowlist matches on offset rather than on name."
+    },
+    {
+      "field": "tcpi_fastopen_client_fail",
+      "offset_bits": 57,
+      "size_bits": 2,
+      "kind": "split",
+      "reason": "Bits 1-2 of kernel byte 7; see tcpi_delivery_rate_app_limited @56."
+    },
+    {
+      "field": "delivery_rate_app_limited",
+      "offset_bits": 64,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "A phantom: having spent a whole byte on each of the two byte-7 bitfields, proto-audit's kernel extractor lands this one on byte 8, which is really tcpi_rto — hence `overlaps with: tcpi_rto`. xtcp2's Rto @64 is correct and is confirmed by the pcap corpus (validate-netlink grades NL_Diag_TCPInfo Gold across 8 kernel versions). Downstream of the same missing bitfield support."
+    },
+    {
+      "field": "fastopen_client_fail",
+      "offset_bits": 72,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "Second phantom byte from the same cause; see delivery_rate_app_limited @64."
+    },
+    {
+      "field": "tcpi_received_ce",
+      "offset_bits": 1984,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Reported missing because proto-audit reads TCPInfo6_10_3, not TCPInfo7_0_3. Present at pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:248, byte [248:252]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_delivered_e1_bytes",
+      "offset_bits": 2016,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:249, byte [252:256]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_delivered_e0_bytes",
+      "offset_bits": 2048,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:250, byte [256:260]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_delivered_ce_bytes",
+      "offset_bits": 2080,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:251, byte [260:264]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_received_e1_bytes",
+      "offset_bits": 2112,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:252, byte [264:268]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_received_e0_bytes",
+      "offset_bits": 2144,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:253, byte [268:272]. Independently corroborated on the wire: in two of the three 7.0.3 fixtures this field equals tcpi_bytes_received exactly (11648 and 98264), which is what RFC3168-mode ECN (tcpi_ecn_mode=1) should produce. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_received_ce_bytes",
+      "offset_bits": 2176,
+      "size_bits": 32,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:254, byte [272:276]. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_ecn_mode",
+      "offset_bits": 2208,
+      "size_bits": 2,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:260 as bits 0-1 of the __u32 at [276:280] — the same bit offset proto-audit's kernel extractor reports. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_accecn_opt_seen",
+      "offset_bits": 2210,
+      "size_bits": 2,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:261 as bits 2-3 of the [276:280] __u32. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_accecn_fail_mode",
+      "offset_bits": 2212,
+      "size_bits": 4,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:262 as bits 4-7 of the [276:280] __u32. See _note_NL_Diag_TCPInfo."
+    },
+    {
+      "field": "tcpi_options2",
+      "offset_bits": 2216,
+      "size_bits": 24,
+      "kind": "upstream-registry-pin",
+      "reason": "Present at xtcpnl_inet_diag_tcpinfo.go:263 as bits 8-31 of the [276:280] __u32. See _note_NL_Diag_TCPInfo."
+    }
+  ]
+}

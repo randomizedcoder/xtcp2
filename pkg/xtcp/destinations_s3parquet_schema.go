@@ -185,6 +185,22 @@ type ParquetRow struct {
 	TcpInfoTotalRtoRecoveries     uint32 `parquet:"tcp_info_total_rto_recoveries,snappy"`
 	TcpInfoTotalRtoTime           uint32 `parquet:"tcp_info_total_rto_time,snappy"`
 
+	// Accurate ECN trailer, kernel 7.0+ (tcp_info bytes 248..279). Zero for
+	// every older kernel: DeserializeTCPInfo treats the trailer as optional
+	// and only decodes it when the message is long enough to carry it, so a
+	// zero here means "not reported by this kernel", not "no ECN marks".
+	TcpInfoReceivedCe       uint32 `parquet:"tcp_info_received_ce,snappy"`
+	TcpInfoDeliveredE1Bytes uint32 `parquet:"tcp_info_delivered_e1_bytes,snappy"`
+	TcpInfoDeliveredE0Bytes uint32 `parquet:"tcp_info_delivered_e0_bytes,snappy"`
+	TcpInfoDeliveredCeBytes uint32 `parquet:"tcp_info_delivered_ce_bytes,snappy"`
+	TcpInfoReceivedE1Bytes  uint32 `parquet:"tcp_info_received_e1_bytes,snappy"`
+	TcpInfoReceivedE0Bytes  uint32 `parquet:"tcp_info_received_e0_bytes,snappy"`
+	TcpInfoReceivedCeBytes  uint32 `parquet:"tcp_info_received_ce_bytes,snappy"`
+	TcpInfoEcnMode          uint32 `parquet:"tcp_info_ecn_mode,snappy"`
+	TcpInfoAccecnOptSeen    uint32 `parquet:"tcp_info_accecn_opt_seen,snappy"`
+	TcpInfoAccecnFailMode   uint32 `parquet:"tcp_info_accecn_fail_mode,snappy"`
+	TcpInfoOptions2         uint32 `parquet:"tcp_info_options2,snappy"`
+
 	// ---- payload: INET_DIAG_CONG (1300s)
 	InetDiagCong     string `parquet:"inet_diag_cong,zstd"`
 	InetDiagCongEnum int32  `parquet:"inet_diag_cong_enum,snappy"`

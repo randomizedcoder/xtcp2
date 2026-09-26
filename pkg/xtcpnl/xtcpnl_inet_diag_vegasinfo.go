@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -79,18 +78,6 @@ func DeserializeVegasInfo(data []byte, vi *VegasInfo) (n int, err error) {
 	vi.MinRtt = binary.LittleEndian.Uint32(data[12:16])
 
 	return VegasInfoReadCst, nil
-}
-
-func DeserializeVegasInfoReflection(data []byte, vi *VegasInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, vi)
-	if err != nil {
-		return 0, err
-	}
-
-	return VegasInfoReadCst, err
 }
 
 func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {

@@ -464,6 +464,23 @@ type XtcpFlatRecord struct {
 	TcpInfoTotalRto           uint32 `protobuf:"varint,1263,opt,name=tcp_info_total_rto,json=tcpInfoTotalRto,proto3" json:"tcp_info_total_rto,omitempty"`                                 // struct tcp_info.tcpi_total_rto (__u16) RTO timeouts incl. SYN/SYN-ACK and recurring (6.10+)
 	TcpInfoTotalRtoRecoveries uint32 `protobuf:"varint,1264,opt,name=tcp_info_total_rto_recoveries,json=tcpInfoTotalRtoRecoveries,proto3" json:"tcp_info_total_rto_recoveries,omitempty"` // struct tcp_info.tcpi_total_rto_recoveries (__u16) RTO recoveries incl. any unfinished (6.10+)
 	TcpInfoTotalRtoTime       uint32 `protobuf:"varint,1265,opt,name=tcp_info_total_rto_time,json=tcpInfoTotalRtoTime,proto3" json:"tcp_info_total_rto_time,omitempty"`                   // struct tcp_info.tcpi_total_rto_time (__u32) ms in RTO recoveries incl. any unfinished (6.10+)
+	// 6.10 kernel tcp_info ends here (248 bytes). The Accurate ECN trailer below
+	// grows the wire struct to 280 bytes; it is emitted only by kernels new
+	// enough to carry it, so DeserializeTCPInfo treats the tail as optional and
+	// these fields stay zero for every pre-7.0 capture in the corpus. The
+	// fixtures are testdata/7_0_3/*_info (284-byte INET_DIAG_INFO attributes).
+	// Numbers 1266-1276 were pre-assigned for exactly these members.
+	TcpInfoReceivedCe       uint32 `protobuf:"varint,1266,opt,name=tcp_info_received_ce,json=tcpInfoReceivedCe,proto3" json:"tcp_info_received_ce,omitempty"`                     // struct tcp_info.tcpi_received_ce (__u32) CE marked segments received (7.0+)
+	TcpInfoDeliveredE1Bytes uint32 `protobuf:"varint,1267,opt,name=tcp_info_delivered_e1_bytes,json=tcpInfoDeliveredE1Bytes,proto3" json:"tcp_info_delivered_e1_bytes,omitempty"` // struct tcp_info.tcpi_delivered_e1_bytes (__u32) (7.0+)
+	TcpInfoDeliveredE0Bytes uint32 `protobuf:"varint,1268,opt,name=tcp_info_delivered_e0_bytes,json=tcpInfoDeliveredE0Bytes,proto3" json:"tcp_info_delivered_e0_bytes,omitempty"` // struct tcp_info.tcpi_delivered_e0_bytes (__u32) (7.0+)
+	TcpInfoDeliveredCeBytes uint32 `protobuf:"varint,1269,opt,name=tcp_info_delivered_ce_bytes,json=tcpInfoDeliveredCeBytes,proto3" json:"tcp_info_delivered_ce_bytes,omitempty"` // struct tcp_info.tcpi_delivered_ce_bytes (__u32) (7.0+)
+	TcpInfoReceivedE1Bytes  uint32 `protobuf:"varint,1270,opt,name=tcp_info_received_e1_bytes,json=tcpInfoReceivedE1Bytes,proto3" json:"tcp_info_received_e1_bytes,omitempty"`    // struct tcp_info.tcpi_received_e1_bytes (__u32) (7.0+)
+	TcpInfoReceivedE0Bytes  uint32 `protobuf:"varint,1271,opt,name=tcp_info_received_e0_bytes,json=tcpInfoReceivedE0Bytes,proto3" json:"tcp_info_received_e0_bytes,omitempty"`    // struct tcp_info.tcpi_received_e0_bytes (__u32) (7.0+)
+	TcpInfoReceivedCeBytes  uint32 `protobuf:"varint,1272,opt,name=tcp_info_received_ce_bytes,json=tcpInfoReceivedCeBytes,proto3" json:"tcp_info_received_ce_bytes,omitempty"`    // struct tcp_info.tcpi_received_ce_bytes (__u32) (7.0+)
+	TcpInfoEcnMode          uint32 `protobuf:"varint,1273,opt,name=tcp_info_ecn_mode,json=tcpInfoEcnMode,proto3" json:"tcp_info_ecn_mode,omitempty"`                              // struct tcp_info.tcpi_ecn_mode (__u32:2) (7.0+)
+	TcpInfoAccecnOptSeen    uint32 `protobuf:"varint,1274,opt,name=tcp_info_accecn_opt_seen,json=tcpInfoAccecnOptSeen,proto3" json:"tcp_info_accecn_opt_seen,omitempty"`          // struct tcp_info.tcpi_accecn_opt_seen (__u32:2) (7.0+)
+	TcpInfoAccecnFailMode   uint32 `protobuf:"varint,1275,opt,name=tcp_info_accecn_fail_mode,json=tcpInfoAccecnFailMode,proto3" json:"tcp_info_accecn_fail_mode,omitempty"`       // struct tcp_info.tcpi_accecn_fail_mode (__u32:4) (7.0+)
+	TcpInfoOptions2         uint32 `protobuf:"varint,1276,opt,name=tcp_info_options2,json=tcpInfoOptions2,proto3" json:"tcp_info_options2,omitempty"`                             // struct tcp_info.tcpi_options2 (__u32:24) (7.0+)
 	// ---- payload: INET_DIAG_CONG 4 (1300s) ------------------------------------
 	// The kernel emits the congestion-control module name as a NUL-terminated
 	// string (nla_put_string(skb, INET_DIAG_CONG, ca_ops->name), inet_diag.c).
@@ -1464,6 +1481,83 @@ func (x *XtcpFlatRecord) GetTcpInfoTotalRtoTime() uint32 {
 	return 0
 }
 
+func (x *XtcpFlatRecord) GetTcpInfoReceivedCe() uint32 {
+	if x != nil {
+		return x.TcpInfoReceivedCe
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveredE1Bytes() uint32 {
+	if x != nil {
+		return x.TcpInfoDeliveredE1Bytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveredE0Bytes() uint32 {
+	if x != nil {
+		return x.TcpInfoDeliveredE0Bytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoDeliveredCeBytes() uint32 {
+	if x != nil {
+		return x.TcpInfoDeliveredCeBytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoReceivedE1Bytes() uint32 {
+	if x != nil {
+		return x.TcpInfoReceivedE1Bytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoReceivedE0Bytes() uint32 {
+	if x != nil {
+		return x.TcpInfoReceivedE0Bytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoReceivedCeBytes() uint32 {
+	if x != nil {
+		return x.TcpInfoReceivedCeBytes
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoEcnMode() uint32 {
+	if x != nil {
+		return x.TcpInfoEcnMode
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoAccecnOptSeen() uint32 {
+	if x != nil {
+		return x.TcpInfoAccecnOptSeen
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoAccecnFailMode() uint32 {
+	if x != nil {
+		return x.TcpInfoAccecnFailMode
+	}
+	return 0
+}
+
+func (x *XtcpFlatRecord) GetTcpInfoOptions2() uint32 {
+	if x != nil {
+		return x.TcpInfoOptions2
+	}
+	return 0
+}
+
 func (x *XtcpFlatRecord) GetInetDiagCong() string {
 	if x != nil {
 		return x.InetDiagCong
@@ -1848,7 +1942,7 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xc7D\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xbaI\n" +
 	"\x0eXtcpFlatRecord\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12%\n" +
 	"\x0edaemon_version\x18\x02 \x01(\tR\rdaemonVersion\x12!\n" +
@@ -1984,7 +2078,18 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x0ftcp_info_rehash\x18\xee\t \x01(\rR\rtcpInfoRehash\x12,\n" +
 	"\x12tcp_info_total_rto\x18\xef\t \x01(\rR\x0ftcpInfoTotalRto\x12A\n" +
 	"\x1dtcp_info_total_rto_recoveries\x18\xf0\t \x01(\rR\x19tcpInfoTotalRtoRecoveries\x125\n" +
-	"\x17tcp_info_total_rto_time\x18\xf1\t \x01(\rR\x13tcpInfoTotalRtoTime\x12%\n" +
+	"\x17tcp_info_total_rto_time\x18\xf1\t \x01(\rR\x13tcpInfoTotalRtoTime\x120\n" +
+	"\x14tcp_info_received_ce\x18\xf2\t \x01(\rR\x11tcpInfoReceivedCe\x12=\n" +
+	"\x1btcp_info_delivered_e1_bytes\x18\xf3\t \x01(\rR\x17tcpInfoDeliveredE1Bytes\x12=\n" +
+	"\x1btcp_info_delivered_e0_bytes\x18\xf4\t \x01(\rR\x17tcpInfoDeliveredE0Bytes\x12=\n" +
+	"\x1btcp_info_delivered_ce_bytes\x18\xf5\t \x01(\rR\x17tcpInfoDeliveredCeBytes\x12;\n" +
+	"\x1atcp_info_received_e1_bytes\x18\xf6\t \x01(\rR\x16tcpInfoReceivedE1Bytes\x12;\n" +
+	"\x1atcp_info_received_e0_bytes\x18\xf7\t \x01(\rR\x16tcpInfoReceivedE0Bytes\x12;\n" +
+	"\x1atcp_info_received_ce_bytes\x18\xf8\t \x01(\rR\x16tcpInfoReceivedCeBytes\x12*\n" +
+	"\x11tcp_info_ecn_mode\x18\xf9\t \x01(\rR\x0etcpInfoEcnMode\x127\n" +
+	"\x18tcp_info_accecn_opt_seen\x18\xfa\t \x01(\rR\x14tcpInfoAccecnOptSeen\x129\n" +
+	"\x19tcp_info_accecn_fail_mode\x18\xfb\t \x01(\rR\x15tcpInfoAccecnFailMode\x12+\n" +
+	"\x11tcp_info_options2\x18\xfc\t \x01(\rR\x0ftcpInfoOptions2\x12%\n" +
 	"\x0einet_diag_cong\x18\x94\n" +
 	" \x01(\tR\finetDiagCong\x12g\n" +
 	"\x13inet_diag_cong_enum\x18\x95\n" +

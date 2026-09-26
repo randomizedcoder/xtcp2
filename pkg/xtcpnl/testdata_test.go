@@ -66,6 +66,11 @@ const (
 	tdReplyPort4018_6_6_44  = tdBase + "/6_6_44/netlink_sock_diag_reply_single_packet_port4018.pcap"
 	tdReplyPort443V4_6_6_44 = tdBase + "/6_6_44/netlink_sock_diag_reply_single_packet_port443v4.pcap"
 	tdReplyPort443V6_6_6_44 = tdBase + "/6_6_44/netlink_sock_diag_reply_single_packet_port443v6.pcap"
+	// The second port443v6 capture, and a raw (non-pcap) protocol export of a
+	// 448-byte netlink message. Both were previously spelled as literals in
+	// the benchmarks, which is what this file exists to avoid.
+	tdReplyPort443V6b_6_6_44     = tdBase + "/6_6_44/netlink_sock_diag_reply_single_packet_port443v6_2.pcap"
+	tdLargeSockDiagExport_6_6_44 = tdBase + "/6_6_44/large_netlink_sock_diag_protocol_export"
 
 	// 6.10.3
 	tdAttrInfo_6_10_3      = tdBase + "/6_10_3/attribute_info"
@@ -75,12 +80,21 @@ const (
 	tdRespDumpDone_6_10_3  = tdBase + "/6_10_3/netlink_sock_diag_response_dump_done.pcap"
 
 	// 4.19.319
+	tdAttrInfo_4_19_319      = tdBase + "/4_19_319/attribute_info"
 	tdAttrMeminfo_4_19_319   = tdBase + "/4_19_319/attribute_meminfo_f4096"
 	tdReplyPort4005_4_19_319 = tdBase + "/4_19_319/netlink_sock_diag_reply_single_packet_port4005.pcap"
 
 	// 7.0.3
 	tdResp26546_7_0_3   = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443.pcap"
 	tdResp19000V6_7_0_3 = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6.pcap"
+
+	// The INET_DIAG_INFO attributes extracted from the three 7.0.3 captures:
+	// 284 bytes each — a 4-byte nla header plus the 280-byte tcp_info that
+	// carries the AccECN trailer (TCPInfo7_0_3). These are the only fixtures
+	// in the corpus long enough to exercise deserializeTCPInfoTail7_0.
+	tdAttrInfo26546_7_0_3   = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport26546_dport443_info"
+	tdAttrInfo19000V6_7_0_3 = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport19000_dport10156_v6_info"
+	tdAttrInfoRcvRtt_7_0_3  = tdBase + "/7_0_3/netlink_sock_diag_response_7_0_3_sport63282_dport443_rcvrtt_info"
 
 	// 7.1.8 rtnetlink captures (nlmon, NETLINK_ROUTE only).
 	//

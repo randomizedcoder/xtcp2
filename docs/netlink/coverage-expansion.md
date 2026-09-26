@@ -42,6 +42,7 @@ large one. The same asymmetry holds for xfrm, ipset, and devlink.
 
 - [Problem](#problem)
 - [Decisions](#decisions)
+  - [Decision 2 was reversed](#decision-2-was-reversed)
 - [Target package layout](#target-package-layout)
 - [What the core must export](#what-the-core-must-export)
 - [Constant availability drives the phase order](#constant-availability-drives-the-phase-order)
@@ -51,6 +52,7 @@ large one. The same asymmetry holds for xfrm, ipset, and devlink.
   - [Fixture provenance: real captures, not hand-assembled bytes](#fixture-provenance-real-captures-not-hand-assembled-bytes)
 - [The phased roadmap](#the-phased-roadmap)
 - [Conventions and gates](#conventions-and-gates)
+  - [The performance gate](#the-performance-gate)
 - [Risks](#risks)
 - [Out of scope](#out-of-scope)
 - [See also](#see-also)
@@ -63,12 +65,46 @@ as decisions, not options, so they are not re-litigated per phase.
 1. **Subpackages over a shared core**, not a flat package. `pkg/xtcpnl` is
    already 72 files and ~4970 non-test lines covering two families; twenty more
    in one package would be unnavigable.
-2. **Dual decoders everywhere.** Every new kernel struct gets both a manual
-   little-endian decoder and a `binary.Read` reflection twin, cross-checked
-   against the same `want`. No hot-path/cold-path tiering.
+2. **Ship zero reflection; the layout oracle is the kernel source.** Every new
+   kernel struct gets a manual little-endian decoder and nothing else in the
+   shipped library. Correctness is settled by a real capture plus an
+   offset-indexed comparison against `~/Downloads/linux`, not by a second Go
+   decoder. A `binary.Read` twin may live in a `_test.go` file as a *timing
+   control*; see [the reversal](#decision-2-was-reversed) below.
 3. **One generalised capture flavor.** Widen the `nlmon` BPF filter so a single
    microVM boot captures every family, then split per family in Go — rather than
    one capture flavor per family.
+
+### Decision 2 was reversed
+
+Decision 2 originally read **"dual decoders everywhere"**: every kernel struct
+got both a manual decoder and a shipped `binary.Read` reflection twin,
+cross-checked against the same `want`. That is no longer the convention. The
+requirement is parsing that is fast *and* reflection-free, and two findings
+showed the twin was not buying what it was credited with:
+
+- **A twin cannot find a missing field.** It decodes the same Go struct a second
+  way, so it can only confirm the struct is self-consistent with itself. When
+  the kernel grows a field the Go struct does not have, both decoders agree —
+  correctly, and about the wrong struct. `proto-audit compare --proto
+  NL_Diag_TCPInfo` found **11 such fields**: the Accurate ECN block at
+  `~/Downloads/linux/include/uapi/linux/tcp.h:337-347`, absent from all of
+  `pkg/`. Eleven twins had been passing over those bytes for as long as the
+  captures existed.
+- **For `TCPInfo` the twin cannot agree field-for-field even in principle.**
+  Kernel bitfields are modeled as separate Go fields — `__u8
+  tcpi_snd_wscale:4, tcpi_rcv_wscale:4` is one wire byte but two `uint8`s — so
+  `binary.Size(TCPInfo{})` is **285** against a **280**-byte wire struct.
+  `binary.Read` has no way to express a bitfield, so it needs the input padded
+  and still cannot reproduce the split fields.
+
+What the twins remain good for is the thing nothing else measures: they are the
+control group proving the manual decoders are worth hand-writing. They live in
+`_test.go` only, each file carrying a banner saying the reflection code is for
+performance comparison and is strongly not recommended in production. See
+[the performance gate](#the-performance-gate) — if reflection is ever measured
+as even close to a manual decoder, that indicates a problem rather than a
+license to use it.
 
 ## Target package layout
 
@@ -147,15 +183,23 @@ order:
 3. `*SizeCst` / `*ReadCst`
 4. `Err*Small` sentinel
 5. Manual `Deserialize*` — `DeserializeNdMsg` (`:51`)
-6. Reflection twin — `DeserializeNdMsgReflection` (`:67`)
+6. **Cross-check the offsets against the kernel**, by bit offset rather than by
+   name: `proto-audit extract --source kernel --proto NL_* --json`. This is the
+   step that replaces the old reflection twin, and it is the step that would
+   have caught AccECN.
 7. The `*Info` struct the consumer sees
 8. Helper predicates (`NudStateString`, `IsReachable`)
 9. `Parse*` via `WalkRTAttrs` — `ParseNeigh` (`:200`)
 
-The reflection twin is **not** enforced by `netlink-audit`, which checks only for
-a `len()` guard. Keeping it is a deliberate choice: cross-checking two
-independent decoders against one `want` has caught real struct-layout errors, and
-that value grows, not shrinks, as the number of hand-written decoders rises.
+Step 6 used to be "reflection twin — `DeserializeNdMsgReflection`", written into
+the same production file. That twin now lives in
+`pkg/xtcpnl/xtcpnl_reflection_twins_test.go`, unexported, alongside the other 28
+— see [decision 2](#decision-2-was-reversed). Writing one for a new family is
+now a *tool*, not a mandate: worth it for a wide struct where offset
+transposition is the real risk, pointless for a 12-byte header the oracle
+already settles. Neither the twin nor step 6 is enforced by `netlink-audit`,
+which checks only for a `len()` guard; the oracle is enforced by its own nix
+check instead.
 
 ## Constant availability drives the phase order
 
@@ -437,13 +481,37 @@ Use the microVM one for events, and run both from the repo root. Details and the
 
 #### The test pattern
 
-Unchanged pattern, just more of it. Committed pcap under
-`pkg/xtcpnl/testdata/<kernel>/`; table-driven rows with
+Committed pcap under `pkg/xtcpnl/testdata/<kernel>/`; table-driven rows with
 `description`/`want`/`wantErr`; `description` prefixed
 `positive:`/`negative:`/`boundary:`/`corner:`; `wantErr` compared with
-`errors.Is`; **both** the manual and `…Reflection` decoder asserted against the
-same `want`; a `// go test ./pkg/xtcpnl/... -run TestX` comment per test
+`errors.Is`; a `// go test ./pkg/xtcpnl/... -run TestX` comment per test
 function.
+
+The row carries **the data to parse**, and the two provenances are separate
+fields so the fixture rule is enforced by the type rather than by review:
+
+```go
+type deserializeFooTest struct {
+    description string  // "positive:" / "negative:" / "boundary:" / "corner:"
+    filename    string  // captured fixture under testdata/<kernel>/ — positives
+    input       []byte  // constructed bytes — negative/boundary/corner only
+    want        FooMsg
+    wantErr     error   // compared with errors.Is
+}
+```
+
+`filename` and `input` are mutually exclusive, and the test body should
+`t.Fatalf` if a row sets both or neither. A positive row setting `input` is the
+thing to reject in review, for the reason in [fixture
+provenance](#fixture-provenance-real-captures-not-hand-assembled-bytes).
+`pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo_accecn_test.go` is the worked example.
+
+One thing the corner rows must cover that a real capture cannot supply: every
+7.0.3 fixture in the corpus has `ecn_mode = 1` and the rest of the AccECN
+bitfield zero, so a table of captures alone would pass even if all four
+bitfield masks bled into one another. The saturation row (every bit set) and the
+distinct-value-per-field row exist for exactly that, and are the shape to copy
+wherever a struct packs a kernel bitfield.
 
 Two existing pieces to reuse rather than reinvent:
 
@@ -525,10 +593,53 @@ before it exists.
 Stated once here rather than repeated per phase. Every phase must satisfy all of
 them.
 
-- **Dual decoder + reflection twin**, cross-checked against one `want`, per the
-  `xtcpnl_ndmsg.go` template.
+- **Manual decoder only in the shipped library.** Both of these must stay
+  **empty**:
+
+  ```bash
+  grep -n 'binary\.Read(' pkg/xtcpnl/*.go | grep -v _test | grep -v ':[0-9]*://'
+  grep -rn 'Reflection(' --include=*.go . | grep -v /vendor/ | grep -v _test.go
+  ```
+
+  That is the literal statement of "no Go reflection in the shipped library", so
+  it is the check, not a style preference. The trailing `grep -v` on the first
+  one drops comment lines: `xtcpnl_pcap.go:81` and
+  `xtcpnl_inet_diag_conginfo.go:73` both *mention* `binary.Read` while
+  explaining why a twin does or does not exist, and neither is a call.
+- **The layout oracle passes** — `nix build
+  .#checks.x86_64-linux.proto-audit-netlink`. It compares each Go struct against
+  the kernel UAPI headers **by wire bit offset rather than by field name**,
+  which is the property that lets it report a field the struct does not have;
+  and it replays this repo's own pcaps through a generated dissector for a
+  Gold/Silver/Bronze grade. Advisory in Phase 0 (always exits 0), gating from
+  Phase 2 via `gating = true`. Accepted deltas live in
+  `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
+  `offset_bits` + field, so a field that moves offset stops being allowlisted
+  and resurfaces. 22 entries today, **none of them an xtcp2 layout defect**:
+  3 are proto-audit's name-based type heuristic disagreeing with its own kernel
+  extractor, 8 are one side modelling a C bitfield byte whole where the other
+  models the bits, and 11 are proto-audit reading the wrong xtcp2 struct
+  entirely — its registry hardcodes `.xtcp2("TCPInfo6_10_3")`, so the
+  `type TCPInfo TCPInfo7_0_3` alias is never followed and the AccECN trailer
+  reads as missing. Those 11 carry `kind: "upstream-registry-pin"` and are to be
+  deleted when the xdp2 pin is bumped past a fix; the full diagnosis is in the
+  allowlist's own `_note_NL_Diag_TCPInfo` and in
+  [coverage-status.md](coverage-status.md). Adding an entry is a standing
+  decision; establish whether a delta is correct before recording it, rather
+  than recording it to quiet the check. See [the performance
+  gate](#the-performance-gate) for its sibling.
+- **Upstream pins are guarded, in two halves.** `nix/upstream-pins.json` records
+  every pin the oracle depends on. `checks.upstream-pins` asserts hermetically
+  that those revs still match `flake.lock` and xdp2's own source;
+  `nix run .#check-upstream-pins` asks the remotes whether `main` has moved.
+  Split that way because a `nix flake check` sandbox has no network and so
+  cannot answer the second question at all — a check pretending to would bake a
+  stale "up to date" into a cached derivation. This exists because the pin that
+  matters most, xdp2's own embedded xtcp2 snapshot, was **732 commits and 17
+  months behind** when the oracle was wired up.
 - **Table-driven tests** across positive / negative / boundary / corner, with
-  `description` and expected outcome on every row.
+  `description` and expected outcome on every row, and the bytes to parse in the
+  row itself.
 - **Positive fixtures are real `nlmon` captures**, committed under
   `pkg/xtcpnl/testdata/<kernel>/` — never hand-assembled bytes. Constructed
   bytes are for truncation and malformed-input rows only. See [fixture
@@ -556,11 +667,48 @@ them.
   Direct `golangci-lint` invocations need `--modules-download-mode=mod`, since
   `.golangci.yml` specifies `vendor` but no `vendor/` directory exists.
 
+### The performance gate
+
+"Fast" has to be something a test can fail on, or it is just a claim.
+`nix/tests/go-bench.nix` runs `go test -bench=. -benchmem ./pkg/xtcpnl/...` and
+prints numbers **nothing checks**; it stays as the human-review artifact.
+`pkg/xtcpnl/xtcpnl_perf_gate_test.go` is the automated half — an ordinary
+`Test*` using `testing.Benchmark`, so it runs inside the normal suite with no
+new tooling. Each row names a decoder, its fixture, and two assertions:
+
+- **`allocs/op == 0`** — the load-bearing half. Host-independent, and the
+  property that actually matters for a decoder on a per-socket hot path. A new
+  decoder that allocates has almost certainly copied a slice it could have
+  indexed.
+- **A minimum speedup over the reflection twin**, rather than an absolute
+  `ns/op` ceiling. This is the ratio the twins exist to produce: reflection
+  measuring anywhere near a manual decoder means something is wrong with the
+  manual decoder, so the gate fails on *convergence*. A ratio also survives
+  moving between hosts, where an absolute `ns/op` bound would either flake under
+  load or be set so loose it catches nothing. The floor is deliberately far
+  below the measured range — `pkg/xtcpnl` currently spans roughly 17× on the
+  widest struct under host load to over 300× on the narrowest.
+
+  The one thing a ratio does *not* survive is `-race`, so this assertion is
+  skipped there. Host load scales both halves together; the race detector does
+  not, because it instruments every memory access and therefore taxes a manual
+  decoder's many individual field writes far more, proportionally, than it taxes
+  `binary.Read`'s already-slow reflect work. Measured: the detector alone moved
+  the 280-byte `TCPInfo` row from 75× to 4.5×, and compressed the table to
+  5.2×–44.9×. Any new decoder added in a later phase inherits this — put the
+  ratio behind `perfGateRaceEnabled`, and never respond to a red
+  `test-go-race` by lowering the floor, which would weaken the gate on the
+  ordinary builds where it actually works.
+
+Measure with `-count=1`. `go test` caches results, and a cached run returns
+byte-identical timings that look like excellent stability and mean nothing.
+
 ## Risks
 
-- **Volume.** Twenty families × dual decoders is a large, sustained amount of
-  hand-written decode. The phase order exists so that value lands early and the
-  expensive tail is optional.
+- **Volume.** Twenty families of hand-written decode is a large, sustained
+  amount of work. Dropping the shipped reflection twin halves the per-struct
+  cost, and the phase order exists so that value lands early and the expensive
+  tail is optional.
 - **Silent capture failure.** A family whose kernel module or multicast
   subscriber is missing captures *nothing* and looks like a pass. Per-family
   non-zero packet-count assertions are the mitigation, and they are not optional.

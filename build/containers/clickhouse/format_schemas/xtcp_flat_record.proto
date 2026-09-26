@@ -405,21 +405,23 @@ message XtcpFlatRecord {
 	uint32 tcp_info_total_rto_recoveries            = 1264; // struct tcp_info.tcpi_total_rto_recoveries (__u16) RTO recoveries incl. any unfinished (6.10+)
 	uint32 tcp_info_total_rto_time                  = 1265; // struct tcp_info.tcpi_total_rto_time (__u32) ms in RTO recoveries incl. any unfinished (6.10+)
 
-	// 6.10 kernel tcp_info ends here (248 bytes). PRE-ASSIGNED for the members
-	// added since (AccECN, Linux 6.13+ / 7.x, tcp.h); declare them when
-	// DeserializeTCPInfo learns the larger struct size and a matching nlmon
-	// fixture exists — do NOT hand these numbers to anything else:
-	//   1266 tcp_info_received_ce          struct tcp_info.tcpi_received_ce (__u32)
-	//   1267 tcp_info_delivered_e1_bytes   struct tcp_info.tcpi_delivered_e1_bytes (__u32)
-	//   1268 tcp_info_delivered_e0_bytes   struct tcp_info.tcpi_delivered_e0_bytes (__u32)
-	//   1269 tcp_info_delivered_ce_bytes   struct tcp_info.tcpi_delivered_ce_bytes (__u32)
-	//   1270 tcp_info_received_e1_bytes    struct tcp_info.tcpi_received_e1_bytes (__u32)
-	//   1271 tcp_info_received_e0_bytes    struct tcp_info.tcpi_received_e0_bytes (__u32)
-	//   1272 tcp_info_received_ce_bytes    struct tcp_info.tcpi_received_ce_bytes (__u32)
-	//   1273 tcp_info_ecn_mode             struct tcp_info.tcpi_ecn_mode (__u32:2)
-	//   1274 tcp_info_accecn_opt_seen      struct tcp_info.tcpi_accecn_opt_seen (__u32:2)
-	//   1275 tcp_info_accecn_fail_mode     struct tcp_info.tcpi_accecn_fail_mode (__u32:4)
-	//   1276 tcp_info_options2             struct tcp_info.tcpi_options2 (__u32:24)
+	// 6.10 kernel tcp_info ends here (248 bytes). The Accurate ECN trailer below
+	// grows the wire struct to 280 bytes; it is emitted only by kernels new
+	// enough to carry it, so DeserializeTCPInfo treats the tail as optional and
+	// these fields stay zero for every pre-7.0 capture in the corpus. The
+	// fixtures are testdata/7_0_3/*_info (284-byte INET_DIAG_INFO attributes).
+	// Numbers 1266-1276 were pre-assigned for exactly these members.
+	uint32 tcp_info_received_ce                     = 1266; // struct tcp_info.tcpi_received_ce (__u32) CE marked segments received (7.0+)
+	uint32 tcp_info_delivered_e1_bytes              = 1267; // struct tcp_info.tcpi_delivered_e1_bytes (__u32) (7.0+)
+	uint32 tcp_info_delivered_e0_bytes              = 1268; // struct tcp_info.tcpi_delivered_e0_bytes (__u32) (7.0+)
+	uint32 tcp_info_delivered_ce_bytes              = 1269; // struct tcp_info.tcpi_delivered_ce_bytes (__u32) (7.0+)
+	uint32 tcp_info_received_e1_bytes               = 1270; // struct tcp_info.tcpi_received_e1_bytes (__u32) (7.0+)
+	uint32 tcp_info_received_e0_bytes               = 1271; // struct tcp_info.tcpi_received_e0_bytes (__u32) (7.0+)
+	uint32 tcp_info_received_ce_bytes               = 1272; // struct tcp_info.tcpi_received_ce_bytes (__u32) (7.0+)
+	uint32 tcp_info_ecn_mode                        = 1273; // struct tcp_info.tcpi_ecn_mode (__u32:2) (7.0+)
+	uint32 tcp_info_accecn_opt_seen                 = 1274; // struct tcp_info.tcpi_accecn_opt_seen (__u32:2) (7.0+)
+	uint32 tcp_info_accecn_fail_mode                = 1275; // struct tcp_info.tcpi_accecn_fail_mode (__u32:4) (7.0+)
+	uint32 tcp_info_options2                        = 1276; // struct tcp_info.tcpi_options2 (__u32:24) (7.0+)
 
 	// ---- payload: INET_DIAG_CONG 4 (1300s) ------------------------------------
 	// The kernel emits the congestion-control module name as a NUL-terminated

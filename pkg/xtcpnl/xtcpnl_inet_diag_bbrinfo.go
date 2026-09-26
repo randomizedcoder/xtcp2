@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -88,18 +87,6 @@ func DeserializeBBRInfo(data []byte, b *BBRInfo) (n int, err error) {
 	b.CwndGain = binary.LittleEndian.Uint32(data[16:20])
 
 	return BBRInfoReadCst, nil
-}
-
-func DeserializeBBRInfoReflection(data []byte, b *BBRInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, b)
-	if err != nil {
-		return 0, err
-	}
-
-	return BBRInfoReadCst, err
 }
 
 func DeserializeBBRInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {

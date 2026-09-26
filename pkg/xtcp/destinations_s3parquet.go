@@ -947,6 +947,29 @@ func fillTCPInfo(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
 	p.TcpInfoTotalRto = r.TcpInfoTotalRto
 	p.TcpInfoTotalRtoRecoveries = r.TcpInfoTotalRtoRecoveries
 	p.TcpInfoTotalRtoTime = r.TcpInfoTotalRtoTime
+
+	fillTCPInfoAccECN(p, r)
+}
+
+// fillTCPInfoAccECN copies the Accurate ECN trailer the kernel appended to
+// `struct tcp_info` in 7.0, growing it from 248 to 280 bytes. Split out of
+// fillTCPInfo for the same reason fillTCPInfo was split out of rowFromProto:
+// the 11 fields pushed it past the statement limit. Keeping them in their own
+// function also keeps the kernel-version boundary visible, which matters
+// because a zero here is ambiguous — see the ParquetRow field comments in
+// destinations_s3parquet_schema.go.
+func fillTCPInfoAccECN(p *ParquetRow, r *xtcp_flat_record.XtcpFlatRecord) {
+	p.TcpInfoReceivedCe = r.TcpInfoReceivedCe
+	p.TcpInfoDeliveredE1Bytes = r.TcpInfoDeliveredE1Bytes
+	p.TcpInfoDeliveredE0Bytes = r.TcpInfoDeliveredE0Bytes
+	p.TcpInfoDeliveredCeBytes = r.TcpInfoDeliveredCeBytes
+	p.TcpInfoReceivedE1Bytes = r.TcpInfoReceivedE1Bytes
+	p.TcpInfoReceivedE0Bytes = r.TcpInfoReceivedE0Bytes
+	p.TcpInfoReceivedCeBytes = r.TcpInfoReceivedCeBytes
+	p.TcpInfoEcnMode = r.TcpInfoEcnMode
+	p.TcpInfoAccecnOptSeen = r.TcpInfoAccecnOptSeen
+	p.TcpInfoAccecnFailMode = r.TcpInfoAccecnFailMode
+	p.TcpInfoOptions2 = r.TcpInfoOptions2
 }
 
 // fillCCAlgos copies the congestion-control algorithm union

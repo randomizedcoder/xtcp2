@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 )
@@ -66,16 +65,4 @@ func DeserializeInetDiagReqV2(data []byte, inetdiagreqv2 *InetDiagReqV2, s *Inet
 	inetdiagreqv2.SocketID = *s
 
 	return InetDiagReqV2ReadCst, nil
-}
-
-func DeserializeInetDiagReqV2Relection(data []byte, inetdiagreqv2 *InetDiagReqV2, s *InetDiagSockID) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, inetdiagreqv2)
-	if err != nil {
-		return 0, err
-	}
-
-	return InetDiagReqV2SizeCst, err
 }

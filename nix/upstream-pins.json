@@ -1,0 +1,63 @@
+{
+  "_comment": [
+    "Expected state of every upstream pin that xtcp2 depends on for its netlink",
+    "tooling, recorded so that drift is visible rather than silent.",
+    "",
+    "WHY THIS FILE EXISTS. proto-audit — the netlink layout oracle wired up in",
+    "nix/checks/proto-audit-netlink.nix — reaches xtcp2 through TWO pins, and",
+    "both can go stale independently:",
+    "",
+    "  1. xtcp2's own `xdp2` flake input. If xdp2's main moves, we keep",
+    "     auditing against an older oracle: new NL_* protocols it has learned",
+    "     about, and fixes to its extractors, never reach us.",
+    "",
+    "  2. xdp2's OWN pin of xtcp2 (`xtcp2Rev` in its",
+    "     nix/proto-audit-sources.nix). This is the one that bites, because it",
+    "     is proto-audit's DEFAULT for --xtcp2-src. Left at the default, the",
+    "     oracle audits a GitHub snapshot of xtcp2 from over a year ago and",
+    "     reports findings about code nobody is running. The oracle check",
+    "     overrides it to this tree and asserts the override took — see",
+    "     `stale_note` below for exactly how stale it is.",
+    "",
+    "HOW THIS FILE IS CHECKED. Two halves, because a `nix flake check` sandbox",
+    "has no network and so physically cannot ask GitHub whether main has moved:",
+    "",
+    "  - nix/checks/upstream-pins.nix (hermetic, in `nix flake check`) asserts",
+    "    the revs below still match flake.lock and xdp2's own source. It catches",
+    "    a pin CHANGING without this file being updated.",
+    "  - `nix run .#check-upstream-pins` (needs network) asks the remotes where",
+    "    main actually is and reports drift. It catches upstream MOVING. Warns",
+    "    by default; --strict exits non-zero for CI.",
+    "",
+    "Refresh `rev` here whenever you move a pin, and re-measure the drift",
+    "numbers with the runner rather than editing them by recollection."
+  ],
+  "pins": {
+    "xdp2": {
+      "repo": "randomizedcoder/xdp2",
+      "branch": "main",
+      "rev": "47d3a425bb4f3a03701848f0579630e1019d3d51",
+      "declared_in": "flake.nix inputs.xdp2.url",
+      "verify_via": "flake.lock nodes.xdp2.locked.rev",
+      "role": "Provides proto-audit, the netlink layout oracle.",
+      "consumed_by": "nix/checks/proto-audit-netlink.nix",
+      "known_stale": false,
+      "known_bugs_at_this_rev": [
+        "samples/proto_audit/src/name_mapping/table.rs:552-555 hardcodes .xtcp2(\"TCPInfo6_10_3\") for NL_Diag_TCPInfo, so resolve_alias() never follows `type TCPInfo TCPInfo7_0_3` and the 11 Accurate ECN fields read as missing from xtcp2. Fix is .xtcp2(\"TCPInfo\"). The 11 are allowlisted as kind=upstream-registry-pin in nix/checks/proto-audit-netlink-allowlist.json; DELETE those entries when this pin is bumped past a fix.",
+        "samples/proto_audit/src/extractors/xtcp2.rs:143 extract_size_const() builds the pattern `{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an underscore, so no versioned size constant is ever matched and the struct size is inferred from field offsets. Harmless, independent of the above."
+      ],
+      "on_bump": "Re-run `nix build .#checks.x86_64-linux.proto-audit-netlink` and read $out/unallowlisted.json before anything else. A proto-audit bump can change what the oracle reports, so it should land on its own rather than inside unrelated work."
+    },
+    "xdp2-embedded-xtcp2": {
+      "repo": "randomizedcoder/xtcp2",
+      "branch": "main",
+      "rev": "a52e2f46e106f5c64e996b76c110d315a6ddacf7",
+      "declared_in": "xdp2:nix/proto-audit-sources.nix xtcp2Rev",
+      "verify_via": "grep xtcp2Rev in the xdp2 flake input's source tree",
+      "role": "proto-audit's DEFAULT value for --xtcp2-src / PROTO_AUDIT_XTCP2_SRC.",
+      "consumed_by": "proto-audit itself, whenever --xtcp2-src is NOT overridden",
+      "known_stale": true,
+      "stale_note": "Dated 2025-04-19 and 732 commits behind xtcp2 main as of 2026-09-26 — it predates essentially all of the netlink coverage work, including the 7 kernel-versioned TCPInfo variants and the AccECN trailer. Auditing it would re-report the very gap that work closed. This is EXPECTED to be stale and is not a bug to fix here: the fix is that every xtcp2-side proto-audit invocation overrides the path. The runner still reports it so the number cannot quietly grow into something worse without anyone noticing, and so that bumping it upstream is an informed choice rather than a surprise."
+    }
+  }
+}

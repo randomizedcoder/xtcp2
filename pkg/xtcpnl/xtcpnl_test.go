@@ -85,7 +85,7 @@ func TestDecodeFromBytesSerializeTo(t *testing.T) {
 			buf = bs
 		}
 
-		nlh, req := DecodeNetlinkDagRequestFromBytes(buf)
+		nlh, req := decodeNetlinkDagRequestFromBytes(buf)
 
 		if test.debugLevel > 100 {
 			t.Logf("test nlh:%v", nlh)

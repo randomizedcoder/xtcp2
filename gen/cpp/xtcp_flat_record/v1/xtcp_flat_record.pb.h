@@ -547,6 +547,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
     kTcpInfoTotalRtoFieldNumber = 1263,
     kTcpInfoTotalRtoRecoveriesFieldNumber = 1264,
     kTcpInfoTotalRtoTimeFieldNumber = 1265,
+    kTcpInfoReceivedCeFieldNumber = 1266,
+    kTcpInfoDeliveredE1BytesFieldNumber = 1267,
+    kTcpInfoDeliveredE0BytesFieldNumber = 1268,
+    kTcpInfoDeliveredCeBytesFieldNumber = 1269,
+    kTcpInfoReceivedE1BytesFieldNumber = 1270,
+    kTcpInfoReceivedE0BytesFieldNumber = 1271,
+    kTcpInfoReceivedCeBytesFieldNumber = 1272,
+    kTcpInfoEcnModeFieldNumber = 1273,
+    kTcpInfoAccecnOptSeenFieldNumber = 1274,
+    kTcpInfoAccecnFailModeFieldNumber = 1275,
+    kTcpInfoOptions2FieldNumber = 1276,
     kInetDiagCongEnumFieldNumber = 1301,
     kInetDiagTosFieldNumber = 1401,
     kInetDiagTclassFieldNumber = 1402,
@@ -575,8 +586,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
     kBbrInfoPacingGainFieldNumber = 1904,
     kBbrInfoCwndGainFieldNumber = 1905,
     kInetDiagClassIdFieldNumber = 2001,
-    kInetDiagCgroupIdFieldNumber = 2003,
     kInetDiagSockoptFieldNumber = 2002,
+    kInetDiagCgroupIdFieldNumber = 2003,
   };
   // string daemon_version = 2 [json_name = "daemonVersion"];
   void clear_daemon_version() ;
@@ -2068,6 +2079,116 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_tcp_info_total_rto_time(::uint32_t value);
 
   public:
+  // uint32 tcp_info_received_ce = 1266 [json_name = "tcpInfoReceivedCe"];
+  void clear_tcp_info_received_ce() ;
+  [[nodiscard]] ::uint32_t tcp_info_received_ce() const;
+  void set_tcp_info_received_ce(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_received_ce() const;
+  void _internal_set_tcp_info_received_ce(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_delivered_e1_bytes = 1267 [json_name = "tcpInfoDeliveredE1Bytes"];
+  void clear_tcp_info_delivered_e1_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_delivered_e1_bytes() const;
+  void set_tcp_info_delivered_e1_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_delivered_e1_bytes() const;
+  void _internal_set_tcp_info_delivered_e1_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_delivered_e0_bytes = 1268 [json_name = "tcpInfoDeliveredE0Bytes"];
+  void clear_tcp_info_delivered_e0_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_delivered_e0_bytes() const;
+  void set_tcp_info_delivered_e0_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_delivered_e0_bytes() const;
+  void _internal_set_tcp_info_delivered_e0_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_delivered_ce_bytes = 1269 [json_name = "tcpInfoDeliveredCeBytes"];
+  void clear_tcp_info_delivered_ce_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_delivered_ce_bytes() const;
+  void set_tcp_info_delivered_ce_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_delivered_ce_bytes() const;
+  void _internal_set_tcp_info_delivered_ce_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_received_e1_bytes = 1270 [json_name = "tcpInfoReceivedE1Bytes"];
+  void clear_tcp_info_received_e1_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_received_e1_bytes() const;
+  void set_tcp_info_received_e1_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_received_e1_bytes() const;
+  void _internal_set_tcp_info_received_e1_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_received_e0_bytes = 1271 [json_name = "tcpInfoReceivedE0Bytes"];
+  void clear_tcp_info_received_e0_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_received_e0_bytes() const;
+  void set_tcp_info_received_e0_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_received_e0_bytes() const;
+  void _internal_set_tcp_info_received_e0_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_received_ce_bytes = 1272 [json_name = "tcpInfoReceivedCeBytes"];
+  void clear_tcp_info_received_ce_bytes() ;
+  [[nodiscard]] ::uint32_t tcp_info_received_ce_bytes() const;
+  void set_tcp_info_received_ce_bytes(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_received_ce_bytes() const;
+  void _internal_set_tcp_info_received_ce_bytes(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_ecn_mode = 1273 [json_name = "tcpInfoEcnMode"];
+  void clear_tcp_info_ecn_mode() ;
+  [[nodiscard]] ::uint32_t tcp_info_ecn_mode() const;
+  void set_tcp_info_ecn_mode(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_ecn_mode() const;
+  void _internal_set_tcp_info_ecn_mode(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_accecn_opt_seen = 1274 [json_name = "tcpInfoAccecnOptSeen"];
+  void clear_tcp_info_accecn_opt_seen() ;
+  [[nodiscard]] ::uint32_t tcp_info_accecn_opt_seen() const;
+  void set_tcp_info_accecn_opt_seen(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_accecn_opt_seen() const;
+  void _internal_set_tcp_info_accecn_opt_seen(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_accecn_fail_mode = 1275 [json_name = "tcpInfoAccecnFailMode"];
+  void clear_tcp_info_accecn_fail_mode() ;
+  [[nodiscard]] ::uint32_t tcp_info_accecn_fail_mode() const;
+  void set_tcp_info_accecn_fail_mode(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_accecn_fail_mode() const;
+  void _internal_set_tcp_info_accecn_fail_mode(::uint32_t value);
+
+  public:
+  // uint32 tcp_info_options2 = 1276 [json_name = "tcpInfoOptions2"];
+  void clear_tcp_info_options2() ;
+  [[nodiscard]] ::uint32_t tcp_info_options2() const;
+  void set_tcp_info_options2(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_tcp_info_options2() const;
+  void _internal_set_tcp_info_options2(::uint32_t value);
+
+  public:
   // .xtcp_flat_record.v1.XtcpFlatRecord.CongestionAlgorithm inet_diag_cong_enum = 1301 [json_name = "inetDiagCongEnum"];
   void clear_inet_diag_cong_enum() ;
   [[nodiscard]] ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm inet_diag_cong_enum() const;
@@ -2348,16 +2469,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_class_id(::uint32_t value);
 
   public:
-  // uint64 inet_diag_cgroup_id = 2003 [json_name = "inetDiagCgroupId"];
-  void clear_inet_diag_cgroup_id() ;
-  [[nodiscard]] ::uint64_t inet_diag_cgroup_id() const;
-  void set_inet_diag_cgroup_id(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_inet_diag_cgroup_id() const;
-  void _internal_set_inet_diag_cgroup_id(::uint64_t value);
-
-  public:
   // uint32 inet_diag_sockopt = 2002 [json_name = "inetDiagSockopt"];
   void clear_inet_diag_sockopt() ;
   [[nodiscard]] ::uint32_t inet_diag_sockopt() const;
@@ -2368,12 +2479,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
   void _internal_set_inet_diag_sockopt(::uint32_t value);
 
   public:
+  // uint64 inet_diag_cgroup_id = 2003 [json_name = "inetDiagCgroupId"];
+  void clear_inet_diag_cgroup_id() ;
+  [[nodiscard]] ::uint64_t inet_diag_cgroup_id() const;
+  void set_inet_diag_cgroup_id(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_inet_diag_cgroup_id() const;
+  void _internal_set_inet_diag_cgroup_id(::uint64_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_flat_record.v1.XtcpFlatRecord)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 161,
-                          0, 814,
+      ::google::protobuf::internal::TcParseTable<5, 172,
+                          0, 822,
                           110>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -2532,6 +2653,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
     ::uint32_t tcp_info_total_rto_;
     ::uint32_t tcp_info_total_rto_recoveries_;
     ::uint32_t tcp_info_total_rto_time_;
+    ::uint32_t tcp_info_received_ce_;
+    ::uint32_t tcp_info_delivered_e1_bytes_;
+    ::uint32_t tcp_info_delivered_e0_bytes_;
+    ::uint32_t tcp_info_delivered_ce_bytes_;
+    ::uint32_t tcp_info_received_e1_bytes_;
+    ::uint32_t tcp_info_received_e0_bytes_;
+    ::uint32_t tcp_info_received_ce_bytes_;
+    ::uint32_t tcp_info_ecn_mode_;
+    ::uint32_t tcp_info_accecn_opt_seen_;
+    ::uint32_t tcp_info_accecn_fail_mode_;
+    ::uint32_t tcp_info_options2_;
     int inet_diag_cong_enum_;
     ::uint32_t inet_diag_tos_;
     ::uint32_t inet_diag_tclass_;
@@ -2560,8 +2692,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpFlatRecord final : public ::goo
     ::uint32_t bbr_info_pacing_gain_;
     ::uint32_t bbr_info_cwnd_gain_;
     ::uint32_t inet_diag_class_id_;
-    ::uint64_t inet_diag_cgroup_id_;
     ::uint32_t inet_diag_sockopt_;
+    ::uint64_t inet_diag_cgroup_id_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -8065,6 +8197,270 @@ inline void XtcpFlatRecord::_internal_set_tcp_info_total_rto_time(::uint32_t val
   _impl_.tcp_info_total_rto_time_ = value;
 }
 
+// uint32 tcp_info_received_ce = 1266 [json_name = "tcpInfoReceivedCe"];
+inline void XtcpFlatRecord::clear_tcp_info_received_ce() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_ce_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000008U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_received_ce() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_ce)
+  return _internal_tcp_info_received_ce();
+}
+inline void XtcpFlatRecord::set_tcp_info_received_ce(::uint32_t value) {
+  _internal_set_tcp_info_received_ce(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000008U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_ce)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_received_ce() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_received_ce_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_received_ce(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_ce_ = value;
+}
+
+// uint32 tcp_info_delivered_e1_bytes = 1267 [json_name = "tcpInfoDeliveredE1Bytes"];
+inline void XtcpFlatRecord::clear_tcp_info_delivered_e1_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_e1_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000010U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_delivered_e1_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_e1_bytes)
+  return _internal_tcp_info_delivered_e1_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_delivered_e1_bytes(::uint32_t value) {
+  _internal_set_tcp_info_delivered_e1_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000010U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_e1_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivered_e1_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_delivered_e1_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_delivered_e1_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_e1_bytes_ = value;
+}
+
+// uint32 tcp_info_delivered_e0_bytes = 1268 [json_name = "tcpInfoDeliveredE0Bytes"];
+inline void XtcpFlatRecord::clear_tcp_info_delivered_e0_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_e0_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000020U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_delivered_e0_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_e0_bytes)
+  return _internal_tcp_info_delivered_e0_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_delivered_e0_bytes(::uint32_t value) {
+  _internal_set_tcp_info_delivered_e0_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000020U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_e0_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivered_e0_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_delivered_e0_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_delivered_e0_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_e0_bytes_ = value;
+}
+
+// uint32 tcp_info_delivered_ce_bytes = 1269 [json_name = "tcpInfoDeliveredCeBytes"];
+inline void XtcpFlatRecord::clear_tcp_info_delivered_ce_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_ce_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000040U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_delivered_ce_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_ce_bytes)
+  return _internal_tcp_info_delivered_ce_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_delivered_ce_bytes(::uint32_t value) {
+  _internal_set_tcp_info_delivered_ce_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000040U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_delivered_ce_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_delivered_ce_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_delivered_ce_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_delivered_ce_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_delivered_ce_bytes_ = value;
+}
+
+// uint32 tcp_info_received_e1_bytes = 1270 [json_name = "tcpInfoReceivedE1Bytes"];
+inline void XtcpFlatRecord::clear_tcp_info_received_e1_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_e1_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000080U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_received_e1_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_e1_bytes)
+  return _internal_tcp_info_received_e1_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_received_e1_bytes(::uint32_t value) {
+  _internal_set_tcp_info_received_e1_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000080U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_e1_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_received_e1_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_received_e1_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_received_e1_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_e1_bytes_ = value;
+}
+
+// uint32 tcp_info_received_e0_bytes = 1271 [json_name = "tcpInfoReceivedE0Bytes"];
+inline void XtcpFlatRecord::clear_tcp_info_received_e0_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_e0_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000100U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_received_e0_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_e0_bytes)
+  return _internal_tcp_info_received_e0_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_received_e0_bytes(::uint32_t value) {
+  _internal_set_tcp_info_received_e0_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000100U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_e0_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_received_e0_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_received_e0_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_received_e0_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_e0_bytes_ = value;
+}
+
+// uint32 tcp_info_received_ce_bytes = 1272 [json_name = "tcpInfoReceivedCeBytes"];
+inline void XtcpFlatRecord::clear_tcp_info_received_ce_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_ce_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000200U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_received_ce_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_ce_bytes)
+  return _internal_tcp_info_received_ce_bytes();
+}
+inline void XtcpFlatRecord::set_tcp_info_received_ce_bytes(::uint32_t value) {
+  _internal_set_tcp_info_received_ce_bytes(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000200U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_received_ce_bytes)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_received_ce_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_received_ce_bytes_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_received_ce_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_received_ce_bytes_ = value;
+}
+
+// uint32 tcp_info_ecn_mode = 1273 [json_name = "tcpInfoEcnMode"];
+inline void XtcpFlatRecord::clear_tcp_info_ecn_mode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_ecn_mode_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000400U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_ecn_mode() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ecn_mode)
+  return _internal_tcp_info_ecn_mode();
+}
+inline void XtcpFlatRecord::set_tcp_info_ecn_mode(::uint32_t value) {
+  _internal_set_tcp_info_ecn_mode(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000400U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_ecn_mode)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_ecn_mode() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_ecn_mode_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_ecn_mode(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_ecn_mode_ = value;
+}
+
+// uint32 tcp_info_accecn_opt_seen = 1274 [json_name = "tcpInfoAccecnOptSeen"];
+inline void XtcpFlatRecord::clear_tcp_info_accecn_opt_seen() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_accecn_opt_seen_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00000800U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_accecn_opt_seen() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_accecn_opt_seen)
+  return _internal_tcp_info_accecn_opt_seen();
+}
+inline void XtcpFlatRecord::set_tcp_info_accecn_opt_seen(::uint32_t value) {
+  _internal_set_tcp_info_accecn_opt_seen(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00000800U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_accecn_opt_seen)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_accecn_opt_seen() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_accecn_opt_seen_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_accecn_opt_seen(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_accecn_opt_seen_ = value;
+}
+
+// uint32 tcp_info_accecn_fail_mode = 1275 [json_name = "tcpInfoAccecnFailMode"];
+inline void XtcpFlatRecord::clear_tcp_info_accecn_fail_mode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_accecn_fail_mode_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00001000U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_accecn_fail_mode() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_accecn_fail_mode)
+  return _internal_tcp_info_accecn_fail_mode();
+}
+inline void XtcpFlatRecord::set_tcp_info_accecn_fail_mode(::uint32_t value) {
+  _internal_set_tcp_info_accecn_fail_mode(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00001000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_accecn_fail_mode)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_accecn_fail_mode() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_accecn_fail_mode_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_accecn_fail_mode(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_accecn_fail_mode_ = value;
+}
+
+// uint32 tcp_info_options2 = 1276 [json_name = "tcpInfoOptions2"];
+inline void XtcpFlatRecord::clear_tcp_info_options2() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_options2_ = 0u;
+  ClearHasBit(_impl_._has_bits_[4], 0x00002000U);
+}
+inline ::uint32_t XtcpFlatRecord::tcp_info_options2() const {
+  // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_options2)
+  return _internal_tcp_info_options2();
+}
+inline void XtcpFlatRecord::set_tcp_info_options2(::uint32_t value) {
+  _internal_set_tcp_info_options2(value);
+  SetHasBit(_impl_._has_bits_[4], 0x00002000U);
+  // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.tcp_info_options2)
+}
+inline ::uint32_t XtcpFlatRecord::_internal_tcp_info_options2() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_info_options2_;
+}
+inline void XtcpFlatRecord::_internal_set_tcp_info_options2(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_info_options2_ = value;
+}
+
 // string inet_diag_cong = 1300 [json_name = "inetDiagCong"];
 inline void XtcpFlatRecord::clear_inet_diag_cong() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
@@ -8133,7 +8529,7 @@ inline void XtcpFlatRecord::set_allocated_inet_diag_cong(::std::string* PROTOBUF
 inline void XtcpFlatRecord::clear_inet_diag_cong_enum() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_cong_enum_ = 0;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00004000U);
 }
 inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord::inet_diag_cong_enum() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_cong_enum)
@@ -8141,7 +8537,7 @@ inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord
 }
 inline void XtcpFlatRecord::set_inet_diag_cong_enum(::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm value) {
   _internal_set_inet_diag_cong_enum(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[4], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_cong_enum)
 }
 inline ::xtcp_flat_record::v1::XtcpFlatRecord_CongestionAlgorithm XtcpFlatRecord::_internal_inet_diag_cong_enum() const {
@@ -8157,7 +8553,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_cong_enum(::xtcp_flat_record
 inline void XtcpFlatRecord::clear_inet_diag_tos() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_tos_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00008000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_tos() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_tos)
@@ -8165,7 +8561,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_tos() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_tos(::uint32_t value) {
   _internal_set_inet_diag_tos(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[4], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_tos)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_tos() const {
@@ -8181,7 +8577,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_tos(::uint32_t value) {
 inline void XtcpFlatRecord::clear_inet_diag_tclass() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_tclass_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00010000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_tclass() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_tclass)
@@ -8189,7 +8585,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_tclass() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_tclass(::uint32_t value) {
   _internal_set_inet_diag_tclass(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[4], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_tclass)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_tclass() const {
@@ -8205,7 +8601,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_tclass(::uint32_t value) {
 inline void XtcpFlatRecord::clear_sk_mem_info_rmem_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_rmem_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00020000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_rmem_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rmem_alloc)
@@ -8213,7 +8609,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_rmem_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_rmem_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_rmem_alloc(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[4], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rmem_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_rmem_alloc() const {
@@ -8229,7 +8625,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_rmem_alloc(::uint32_t valu
 inline void XtcpFlatRecord::clear_sk_mem_info_rcvbuf() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_rcvbuf_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00040000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_rcvbuf() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rcvbuf)
@@ -8237,7 +8633,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_rcvbuf() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_rcvbuf(::uint32_t value) {
   _internal_set_sk_mem_info_rcvbuf(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[4], 0x00040000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_rcvbuf)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_rcvbuf() const {
@@ -8253,7 +8649,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_rcvbuf(::uint32_t value) {
 inline void XtcpFlatRecord::clear_sk_mem_info_wmem_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_wmem_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00080000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_alloc)
@@ -8261,7 +8657,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_wmem_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_wmem_alloc(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[4], 0x00080000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_wmem_alloc() const {
@@ -8277,7 +8673,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_wmem_alloc(::uint32_t valu
 inline void XtcpFlatRecord::clear_sk_mem_info_sndbuf() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_sndbuf_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00100000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_sndbuf() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_sndbuf)
@@ -8285,7 +8681,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_sndbuf() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_sndbuf(::uint32_t value) {
   _internal_set_sk_mem_info_sndbuf(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[4], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_sndbuf)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_sndbuf() const {
@@ -8301,7 +8697,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_sndbuf(::uint32_t value) {
 inline void XtcpFlatRecord::clear_sk_mem_info_fwd_alloc() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_fwd_alloc_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00200000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_fwd_alloc() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_fwd_alloc)
@@ -8309,7 +8705,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_fwd_alloc() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_fwd_alloc(::uint32_t value) {
   _internal_set_sk_mem_info_fwd_alloc(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[4], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_fwd_alloc)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_fwd_alloc() const {
@@ -8325,7 +8721,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_fwd_alloc(::uint32_t value
 inline void XtcpFlatRecord::clear_sk_mem_info_wmem_queued() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_wmem_queued_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00400000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_queued() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_queued)
@@ -8333,7 +8729,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_wmem_queued() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_wmem_queued(::uint32_t value) {
   _internal_set_sk_mem_info_wmem_queued(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[4], 0x00400000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_wmem_queued)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_wmem_queued() const {
@@ -8349,7 +8745,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_wmem_queued(::uint32_t val
 inline void XtcpFlatRecord::clear_sk_mem_info_optmem() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_optmem_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x00800000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_optmem() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_optmem)
@@ -8357,7 +8753,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_optmem() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_optmem(::uint32_t value) {
   _internal_set_sk_mem_info_optmem(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[4], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_optmem)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_optmem() const {
@@ -8373,7 +8769,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_optmem(::uint32_t value) {
 inline void XtcpFlatRecord::clear_sk_mem_info_backlog() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_backlog_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x01000000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_backlog() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_backlog)
@@ -8381,7 +8777,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_backlog() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_backlog(::uint32_t value) {
   _internal_set_sk_mem_info_backlog(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[4], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_backlog)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_backlog() const {
@@ -8397,7 +8793,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_backlog(::uint32_t value) 
 inline void XtcpFlatRecord::clear_sk_mem_info_drops() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sk_mem_info_drops_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x02000000U);
 }
 inline ::uint32_t XtcpFlatRecord::sk_mem_info_drops() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_drops)
@@ -8405,7 +8801,7 @@ inline ::uint32_t XtcpFlatRecord::sk_mem_info_drops() const {
 }
 inline void XtcpFlatRecord::set_sk_mem_info_drops(::uint32_t value) {
   _internal_set_sk_mem_info_drops(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[4], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.sk_mem_info_drops)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_sk_mem_info_drops() const {
@@ -8421,7 +8817,7 @@ inline void XtcpFlatRecord::_internal_set_sk_mem_info_drops(::uint32_t value) {
 inline void XtcpFlatRecord::clear_inet_diag_shutdown() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_shutdown_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x04000000U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_shutdown() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_shutdown)
@@ -8429,7 +8825,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_shutdown() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_shutdown(::uint32_t value) {
   _internal_set_inet_diag_shutdown(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[4], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_shutdown)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_shutdown() const {
@@ -8445,7 +8841,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_shutdown(::uint32_t value) {
 inline void XtcpFlatRecord::clear_vegas_info_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_enabled_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x08000000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_enabled() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_enabled)
@@ -8453,7 +8849,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_enabled() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_enabled(::uint32_t value) {
   _internal_set_vegas_info_enabled(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[4], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_enabled)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_enabled() const {
@@ -8469,7 +8865,7 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_enabled(::uint32_t value) {
 inline void XtcpFlatRecord::clear_vegas_info_rttcnt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_rttcnt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x10000000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_rttcnt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rttcnt)
@@ -8477,7 +8873,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_rttcnt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_rttcnt(::uint32_t value) {
   _internal_set_vegas_info_rttcnt(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[4], 0x10000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rttcnt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_rttcnt() const {
@@ -8493,7 +8889,7 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_rttcnt(::uint32_t value) {
 inline void XtcpFlatRecord::clear_vegas_info_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x20000000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt)
@@ -8501,7 +8897,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_rtt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_rtt(::uint32_t value) {
   _internal_set_vegas_info_rtt(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[4], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_rtt() const {
@@ -8517,7 +8913,7 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_rtt(::uint32_t value) {
 inline void XtcpFlatRecord::clear_vegas_info_minrtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vegas_info_minrtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x40000000U);
 }
 inline ::uint32_t XtcpFlatRecord::vegas_info_minrtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_minrtt)
@@ -8525,7 +8921,7 @@ inline ::uint32_t XtcpFlatRecord::vegas_info_minrtt() const {
 }
 inline void XtcpFlatRecord::set_vegas_info_minrtt(::uint32_t value) {
   _internal_set_vegas_info_minrtt(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[4], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.vegas_info_minrtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_vegas_info_minrtt() const {
@@ -8541,7 +8937,7 @@ inline void XtcpFlatRecord::_internal_set_vegas_info_minrtt(::uint32_t value) {
 inline void XtcpFlatRecord::clear_dctcp_info_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_enabled_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[4], 0x80000000U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_enabled() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_enabled)
@@ -8549,7 +8945,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_enabled() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_enabled(::uint32_t value) {
   _internal_set_dctcp_info_enabled(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[4], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_enabled)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_enabled() const {
@@ -8565,7 +8961,7 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_enabled(::uint32_t value) {
 inline void XtcpFlatRecord::clear_dctcp_info_ce_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ce_state_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00200000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000001U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ce_state() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ce_state)
@@ -8573,7 +8969,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ce_state() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ce_state(::uint32_t value) {
   _internal_set_dctcp_info_ce_state(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ce_state)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ce_state() const {
@@ -8589,7 +8985,7 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ce_state(::uint32_t value) 
 inline void XtcpFlatRecord::clear_dctcp_info_alpha() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_alpha_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000002U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_alpha() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_alpha)
@@ -8597,7 +8993,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_alpha() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_alpha(::uint32_t value) {
   _internal_set_dctcp_info_alpha(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_alpha)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_alpha() const {
@@ -8613,7 +9009,7 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_alpha(::uint32_t value) {
 inline void XtcpFlatRecord::clear_dctcp_info_ab_ecn() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ab_ecn_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000004U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_ecn() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_ecn)
@@ -8621,7 +9017,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_ecn() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ab_ecn(::uint32_t value) {
   _internal_set_dctcp_info_ab_ecn(value);
-  SetHasBit(_impl_._has_bits_[4], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_ecn)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ab_ecn() const {
@@ -8637,7 +9033,7 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ab_ecn(::uint32_t value) {
 inline void XtcpFlatRecord::clear_dctcp_info_ab_tot() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.dctcp_info_ab_tot_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000008U);
 }
 inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_tot() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_tot)
@@ -8645,7 +9041,7 @@ inline ::uint32_t XtcpFlatRecord::dctcp_info_ab_tot() const {
 }
 inline void XtcpFlatRecord::set_dctcp_info_ab_tot(::uint32_t value) {
   _internal_set_dctcp_info_ab_tot(value);
-  SetHasBit(_impl_._has_bits_[4], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.dctcp_info_ab_tot)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_dctcp_info_ab_tot() const {
@@ -8661,7 +9057,7 @@ inline void XtcpFlatRecord::_internal_set_dctcp_info_ab_tot(::uint32_t value) {
 inline void XtcpFlatRecord::clear_bbr_info_bw_lo() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_bw_lo_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000010U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_bw_lo() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_lo)
@@ -8669,7 +9065,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_bw_lo() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_bw_lo(::uint32_t value) {
   _internal_set_bbr_info_bw_lo(value);
-  SetHasBit(_impl_._has_bits_[4], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_lo)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_bw_lo() const {
@@ -8685,7 +9081,7 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_bw_lo(::uint32_t value) {
 inline void XtcpFlatRecord::clear_bbr_info_bw_hi() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_bw_hi_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000020U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_bw_hi() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_hi)
@@ -8693,7 +9089,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_bw_hi() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_bw_hi(::uint32_t value) {
   _internal_set_bbr_info_bw_hi(value);
-  SetHasBit(_impl_._has_bits_[4], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_bw_hi)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_bw_hi() const {
@@ -8709,7 +9105,7 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_bw_hi(::uint32_t value) {
 inline void XtcpFlatRecord::clear_bbr_info_min_rtt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_min_rtt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x08000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000040U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_min_rtt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_min_rtt)
@@ -8717,7 +9113,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_min_rtt() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_min_rtt(::uint32_t value) {
   _internal_set_bbr_info_min_rtt(value);
-  SetHasBit(_impl_._has_bits_[4], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000040U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_min_rtt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_min_rtt() const {
@@ -8733,7 +9129,7 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_min_rtt(::uint32_t value) {
 inline void XtcpFlatRecord::clear_bbr_info_pacing_gain() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_pacing_gain_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x10000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000080U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_pacing_gain() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_pacing_gain)
@@ -8741,7 +9137,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_pacing_gain() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_pacing_gain(::uint32_t value) {
   _internal_set_bbr_info_pacing_gain(value);
-  SetHasBit(_impl_._has_bits_[4], 0x10000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000080U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_pacing_gain)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_pacing_gain() const {
@@ -8757,7 +9153,7 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_pacing_gain(::uint32_t value)
 inline void XtcpFlatRecord::clear_bbr_info_cwnd_gain() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.bbr_info_cwnd_gain_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000100U);
 }
 inline ::uint32_t XtcpFlatRecord::bbr_info_cwnd_gain() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_cwnd_gain)
@@ -8765,7 +9161,7 @@ inline ::uint32_t XtcpFlatRecord::bbr_info_cwnd_gain() const {
 }
 inline void XtcpFlatRecord::set_bbr_info_cwnd_gain(::uint32_t value) {
   _internal_set_bbr_info_cwnd_gain(value);
-  SetHasBit(_impl_._has_bits_[4], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.bbr_info_cwnd_gain)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_bbr_info_cwnd_gain() const {
@@ -8781,7 +9177,7 @@ inline void XtcpFlatRecord::_internal_set_bbr_info_cwnd_gain(::uint32_t value) {
 inline void XtcpFlatRecord::clear_inet_diag_class_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_class_id_ = 0u;
-  ClearHasBit(_impl_._has_bits_[4], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000200U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_class_id() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_class_id)
@@ -8789,7 +9185,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_class_id() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_class_id(::uint32_t value) {
   _internal_set_inet_diag_class_id(value);
-  SetHasBit(_impl_._has_bits_[4], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_class_id)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_class_id() const {
@@ -8805,7 +9201,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_class_id(::uint32_t value) {
 inline void XtcpFlatRecord::clear_inet_diag_sockopt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_sockopt_ = 0u;
-  ClearHasBit(_impl_._has_bits_[5], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000400U);
 }
 inline ::uint32_t XtcpFlatRecord::inet_diag_sockopt() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_sockopt)
@@ -8813,7 +9209,7 @@ inline ::uint32_t XtcpFlatRecord::inet_diag_sockopt() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_sockopt(::uint32_t value) {
   _internal_set_inet_diag_sockopt(value);
-  SetHasBit(_impl_._has_bits_[5], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_sockopt)
 }
 inline ::uint32_t XtcpFlatRecord::_internal_inet_diag_sockopt() const {
@@ -8829,7 +9225,7 @@ inline void XtcpFlatRecord::_internal_set_inet_diag_sockopt(::uint32_t value) {
 inline void XtcpFlatRecord::clear_inet_diag_cgroup_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.inet_diag_cgroup_id_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[4], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[5], 0x00000800U);
 }
 inline ::uint64_t XtcpFlatRecord::inet_diag_cgroup_id() const {
   // @@protoc_insertion_point(field_get:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_cgroup_id)
@@ -8837,7 +9233,7 @@ inline ::uint64_t XtcpFlatRecord::inet_diag_cgroup_id() const {
 }
 inline void XtcpFlatRecord::set_inet_diag_cgroup_id(::uint64_t value) {
   _internal_set_inet_diag_cgroup_id(value);
-  SetHasBit(_impl_._has_bits_[4], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[5], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_flat_record.v1.XtcpFlatRecord.inet_diag_cgroup_id)
 }
 inline ::uint64_t XtcpFlatRecord::_internal_inet_diag_cgroup_id() const {

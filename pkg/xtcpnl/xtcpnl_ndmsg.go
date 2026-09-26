@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"strconv"
@@ -64,17 +63,6 @@ func DeserializeNdMsg(data []byte, m *NdMsg) (n int, err error) {
 	return NdMsgReadCst, nil
 }
 
-func DeserializeNdMsgReflection(data []byte, m *NdMsg) (n int, err error) {
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, m)
-	if err != nil {
-		return 0, err
-	}
-
-	return NdMsgReadCst, err
-}
-
 // NdaCacheInfo mirrors the kernel's `struct nda_cacheinfo` (NDA_CACHEINFO): the
 // neighbor entry's age counters, in units of USER_HZ.
 //
@@ -106,17 +94,6 @@ func DeserializeNdaCacheInfo(data []byte, c *NdaCacheInfo) (n int, err error) {
 	c.Refcnt = binary.LittleEndian.Uint32(data[12:16])
 
 	return NdaCacheInfoSizeCst, nil
-}
-
-func DeserializeNdaCacheInfoReflection(data []byte, c *NdaCacheInfo) (n int, err error) {
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, c)
-	if err != nil {
-		return 0, err
-	}
-
-	return NdaCacheInfoSizeCst, err
 }
 
 // NeighInfo is the subset of an RTM_*NEIGH message xtcp2 keeps. Dst holds the

@@ -61,7 +61,7 @@ func Swap16(i uint16) uint16 {
 }
 
 // // Byte swap a 32 bit value if aren't big endian
-// func Swap32(i uint32) uint32 {
+// func swap32(i uint32) uint32 {
 // 	if NativeEndian() == binary.BigEndian {
 // 		return i
 // 	}

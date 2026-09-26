@@ -1,8 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
@@ -64,18 +62,6 @@ func DeserializeTrafficClass(data []byte, tc *TrafficClass) (n int, err error) {
 	*tc = TrafficClass(data[0])
 
 	return TrafficClassSizeCst, nil
-}
-
-func DeserializeTrafficClassReflection(data []byte, tc *TrafficClass) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, tc)
-	if err != nil {
-		return 0, err
-	}
-
-	return TrafficClassSizeCst, err
 }
 
 func DeserializeTrafficClassXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {

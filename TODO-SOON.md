@@ -393,7 +393,7 @@ The Go side has three lint tiers; the Nix code that *drives* those tiers had
 none.
 
 Both `deadnix` and `statix` are now **gating** checks in `nix flake check`:
-`nix/checks/deadnix.nix` and `nix/checks/statix.nix`, modelled on
+`nix/checks/deadnix.nix` and `nix/checks/statix.nix`, modeled on
 `nix-fmt.nix` and using the same exclusion set (`vendor`, `.git`, `build` —
 `build/` matters, the vendored `not.docker-compose.nix` lives there).
 
@@ -1103,8 +1103,8 @@ covered; the pipeline is a separate, larger decision.
 
 `pkg/nsdiscover/nsid.go` carries its own `nativeEndian`, its own `nlmsgHdrLen`,
 and its own attribute walk — a second, independent copy of machinery
-`pkg/xtcpnl` already owns and tests exhaustively (manual *and* reflection
-decoders, fuzz targets, real-pcap fixtures).
+`pkg/xtcpnl` already owns and tests exhaustively (table-driven tests against
+real-pcap fixtures, fuzz targets, and a benchmark gate).
 
 It should call `xtcpnl` instead. The blocker is only that `walkRTAttrs` and
 `walkNlMsgs` are unexported; exporting them (or a small typed wrapper) is the
@@ -1208,9 +1208,9 @@ Found by the audit in `docs/netlink/parsing-comparison.md`.
 
 ## 19. `INET_DIAG_PRAGUEINFO` is an orphaned decoder with a fake fixture — OPEN
 
-`pkg/xtcpnl/xtcpnl_inet_diag_pragueinfo.go` defines `PragueInfo` with both a
-manual and a reflection decoder, in the same shape as the other twelve
-attribute decoders. Unlike them, it is **never registered in `dispatchTable`**
+`pkg/xtcpnl/xtcpnl_inet_diag_pragueinfo.go` defines `PragueInfo` with a manual
+decoder, in the same shape as the other twelve attribute decoders (plus a
+test-only reflection twin in `xtcpnl_reflection_twins_test.go`). Unlike them, it is **never registered in `dispatchTable`**
 (`pkg/xtcp/deserializers.go`), so no live capture can ever reach it — there is
 no `DeserializePragueInfoXTCP` and nothing writes it into an `XtcpFlatRecord`.
 
@@ -1332,3 +1332,88 @@ on the ahead/behind numbers alone.
 the untracked `uds-netlink-proxy/` directory, so `git <cmd> uds-netlink-proxy`
 is ambiguous and errors with *"both revision and filename"*. Disambiguate with
 `git <cmd> refs/heads/uds-netlink-proxy` or a trailing `--`.
+
+---
+
+## 21. `tcp_info` silently truncated the Accurate ECN trailer — FIXED (decode), OPEN (ClickHouse DDL)
+
+`DeserializeTCPInfo` stopped at 248 bytes — the kernel 6.10 `struct tcp_info`
+length — and discarded whatever followed. Kernel 7.0 appended an Accurate ECN
+trailer after `tcpi_total_rto_time`, growing the wire struct to **280 bytes**:
+`tcpi_received_ce`, `tcpi_delivered_e{0,1,ce}_bytes`,
+`tcpi_received_e{0,1,ce}_bytes`, and one `__u32` split into `tcpi_ecn_mode:2`,
+`tcpi_accecn_opt_seen:2`, `tcpi_accecn_fail_mode:4`, `tcpi_options2:24`
+(`~/Downloads/linux/include/uapi/linux/tcp.h:337-347`). Eleven fields, absent
+from all of `pkg/`.
+
+**The bytes were already committed.** The three
+`pkg/xtcpnl/testdata/7_0_3/*_info` fixtures are 284-byte `INET_DIAG_INFO`
+attributes — a 4-byte nla header plus a 280-byte payload — so no new capture was
+required to fix this, only a decoder that reads to the end of what the kernel
+sent. That also dissolves the "the 6_10_3 fixture is 252 bytes but the struct is
+248" discrepancy some earlier working notes carried: 252 = 4 + 248. It never was
+one.
+
+**Why 30 reflection twins never caught it.** A `binary.Read` twin decodes the
+same Go struct a second way, so it confirms the struct is consistent with
+itself. A field the struct does not have is invisible to it — both decoders
+agree, correctly, about the wrong struct. This is the finding that reversed the
+"dual decoders everywhere" convention; see
+[coverage-expansion](docs/netlink/coverage-expansion.md#decision-2-was-reversed).
+What found it was an offset-indexed comparison against the kernel source.
+
+**Landed:** `TCPInfo7_0_3` + `type TCPInfo TCPInfo7_0_3`,
+`deserializeTCPInfoTail7_0`, `deserializeTCPInfoXTCPTail7_0`, the 13
+`TCPI_ECN_MODE_*` / `TCP_ACCECN_*` kernel value constants, 11 proto fields at
+the pre-assigned numbers 1266–1276, 11 parquet columns, and
+`xtcpnl_inet_diag_tcpinfo_accecn_test.go` (17 subtests). The trailer is decoded
+**only when the message is long enough to carry it**; a hard length guard would
+have broken every older-kernel fixture in the corpus.
+
+**Still open:** the ClickHouse DDL for the 11 columns —
+`build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records{,_mv,_kafka}.sql`,
+a new `build/containers/clickhouse/sql/migrations/v3.sql`, and
+`build/k8s/clickhouse/*.proto.configMap.yaml`. Until that lands the fields
+decode and reach parquet but not ClickHouse. It is an outward-facing schema
+migration, so it wants a deliberate decision rather than being folded into a
+decode change.
+
+**Reading a zero here is ambiguous** and the DDL comments should say so: the
+trailer is optional, so `tcp_info_received_ce = 0` means *"this kernel did not
+report it"* on anything before 7.0, not *"no CE marks"*. Every pre-7.0 capture
+in the corpus reports zero for all 11.
+
+**Also open, upstream in xdp2, and it is why the oracle still reports these 11
+as missing.** `nix build .#checks.x86_64-linux.proto-audit-netlink` shows
+`NL_Diag_TCPInfo … missing=11` *after* the fix above. That is a proto-audit bug,
+not a regression here:
+
+- `samples/proto_audit/src/name_mapping/table.rs:552-555` hardcodes
+  `.xtcp2("TCPInfo6_10_3")`. The extractor is therefore asked for the 248-byte
+  pre-AccECN struct, and its `resolve_alias()` step — which exists precisely to
+  follow `type TCPInfo TCPInfo7_0_3` to the newest variant
+  (`src/extractors/xtcp2.rs:56`) — is never reached, because the name it is
+  handed is already concrete. Proof:
+  `PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- extract --source xtcp2
+  --proto NL_Diag_TCPInfo --json` reports `field_count 61, min_header_bytes
+  248`. Fix is one word: `.xtcp2("TCPInfo")`.
+- `extract_size_const()` (`src/extractors/xtcp2.rs:143`) builds the pattern
+  `{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an
+  underscore, so no versioned size constant is ever matched and the size is
+  inferred from field offsets instead. Independent of the above, and harmless
+  today.
+
+The 11 are allowlisted as `kind: "upstream-registry-pin"` in
+`nix/checks/proto-audit-netlink-allowlist.json` so the oracle can gate in Phase
+2, and are to be **deleted** once the xdp2 pin is bumped past a fix, at which
+point they should become 11 agreements. Pin drift is tracked by
+`nix/upstream-pins.json` and reported by `nix run .#check-upstream-pins`.
+
+Worth noting that the oracle **corroborated** the fix even while unable to see
+it: proto-audit's *kernel* extractor places `tcpi_ecn_mode` at bit 2208 (= byte
+276), `accecn_opt_seen` at 2210, `accecn_fail_mode` at 2212 and `options2` at
+2216 — one `__u32` at `[276:280]` split 2/2/4/24 little-endian, field-for-field
+what `xtcpnl_inet_diag_tcpinfo.go:256-263` decodes. And
+`validate-netlink --proto NL_Diag_TCPInfo` still grades **Gold**, 82,799 records
+across 8 kernel versions, so the optional-tail handling did not break decode of
+the older corpus.

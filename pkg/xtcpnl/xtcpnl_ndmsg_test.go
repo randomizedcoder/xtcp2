@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"encoding/binary"
 	"errors"
@@ -104,7 +117,7 @@ func TestDeserializeNdMsg(t *testing.T) {
 				// own io error rather than ErrNdMsgSmall, so only its
 				// non-nil-ness is comparable — but it must agree that the input
 				// is unusable.
-				if _, errR := DeserializeNdMsgReflection(tc.data, &refl); errR == nil {
+				if _, errR := deserializeNdMsgReflection(tc.data, &refl); errR == nil {
 					t.Error("reflection accepted input the manual decoder rejected")
 				}
 				return
@@ -112,7 +125,7 @@ func TestDeserializeNdMsg(t *testing.T) {
 			if !reflect.DeepEqual(manual, tc.want) {
 				t.Errorf("DeserializeNdMsg = %+v, want %+v", manual, tc.want)
 			}
-			if _, errR := DeserializeNdMsgReflection(tc.data, &refl); errR != nil {
+			if _, errR := deserializeNdMsgReflection(tc.data, &refl); errR != nil {
 				t.Fatalf("reflection err = %v, want nil", errR)
 			}
 			if !reflect.DeepEqual(refl, manual) {
@@ -176,7 +189,7 @@ func TestDeserializeNdaCacheInfo(t *testing.T) {
 				t.Fatalf("manual err = %v, want %v", errM, tc.wantErr)
 			}
 			if tc.wantErr != nil {
-				if _, errR := DeserializeNdaCacheInfoReflection(tc.data, &refl); errR == nil {
+				if _, errR := deserializeNdaCacheInfoReflection(tc.data, &refl); errR == nil {
 					t.Error("reflection accepted input the manual decoder rejected")
 				}
 				return
@@ -184,7 +197,7 @@ func TestDeserializeNdaCacheInfo(t *testing.T) {
 			if !reflect.DeepEqual(manual, tc.want) {
 				t.Errorf("DeserializeNdaCacheInfo = %+v, want %+v", manual, tc.want)
 			}
-			if _, errR := DeserializeNdaCacheInfoReflection(tc.data, &refl); errR != nil {
+			if _, errR := deserializeNdaCacheInfoReflection(tc.data, &refl); errR != nil {
 				t.Fatalf("reflection err = %v, want nil", errR)
 			}
 			if !reflect.DeepEqual(refl, manual) {

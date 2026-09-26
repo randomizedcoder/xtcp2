@@ -752,6 +752,83 @@ const XtcpFlatRecord$json = {
       '5': 13,
       '10': 'tcpInfoTotalRtoTime'
     },
+    {
+      '1': 'tcp_info_received_ce',
+      '3': 1266,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoReceivedCe'
+    },
+    {
+      '1': 'tcp_info_delivered_e1_bytes',
+      '3': 1267,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoDeliveredE1Bytes'
+    },
+    {
+      '1': 'tcp_info_delivered_e0_bytes',
+      '3': 1268,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoDeliveredE0Bytes'
+    },
+    {
+      '1': 'tcp_info_delivered_ce_bytes',
+      '3': 1269,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoDeliveredCeBytes'
+    },
+    {
+      '1': 'tcp_info_received_e1_bytes',
+      '3': 1270,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoReceivedE1Bytes'
+    },
+    {
+      '1': 'tcp_info_received_e0_bytes',
+      '3': 1271,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoReceivedE0Bytes'
+    },
+    {
+      '1': 'tcp_info_received_ce_bytes',
+      '3': 1272,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoReceivedCeBytes'
+    },
+    {
+      '1': 'tcp_info_ecn_mode',
+      '3': 1273,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoEcnMode'
+    },
+    {
+      '1': 'tcp_info_accecn_opt_seen',
+      '3': 1274,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoAccecnOptSeen'
+    },
+    {
+      '1': 'tcp_info_accecn_fail_mode',
+      '3': 1275,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoAccecnFailMode'
+    },
+    {
+      '1': 'tcp_info_options2',
+      '3': 1276,
+      '4': 1,
+      '5': 13,
+      '10': 'tcpInfoOptions2'
+    },
     {'1': 'inet_diag_cong', '3': 1300, '4': 1, '5': 9, '10': 'inetDiagCong'},
     {
       '1': 'inet_diag_cong_enum',
@@ -1120,51 +1197,62 @@ final $typed_data.Uint8List xtcpFlatRecordDescriptor = $convert.base64Decode(
     'NwSW5mb1JlaGFzaBIsChJ0Y3BfaW5mb190b3RhbF9ydG8Y7wkgASgNUg90Y3BJbmZvVG90YWxS'
     'dG8SQQoddGNwX2luZm9fdG90YWxfcnRvX3JlY292ZXJpZXMY8AkgASgNUhl0Y3BJbmZvVG90YW'
     'xSdG9SZWNvdmVyaWVzEjUKF3RjcF9pbmZvX3RvdGFsX3J0b190aW1lGPEJIAEoDVITdGNwSW5m'
-    'b1RvdGFsUnRvVGltZRIlCg5pbmV0X2RpYWdfY29uZxiUCiABKAlSDGluZXREaWFnQ29uZxJnCh'
-    'NpbmV0X2RpYWdfY29uZ19lbnVtGJUKIAEoDjI3Lnh0Y3BfZmxhdF9yZWNvcmQudjEuWHRjcEZs'
-    'YXRSZWNvcmQuQ29uZ2VzdGlvbkFsZ29yaXRobVIQaW5ldERpYWdDb25nRW51bRIjCg1pbmV0X2'
-    'RpYWdfdG9zGPkKIAEoDVILaW5ldERpYWdUb3MSKQoQaW5ldF9kaWFnX3RjbGFzcxj6CiABKA1S'
-    'DmluZXREaWFnVGNsYXNzEjMKFnNrX21lbV9pbmZvX3JtZW1fYWxsb2MY3QsgASgNUhJza01lbU'
-    'luZm9SbWVtQWxsb2MSLAoSc2tfbWVtX2luZm9fcmN2YnVmGN4LIAEoDVIPc2tNZW1JbmZvUmN2'
-    'YnVmEjMKFnNrX21lbV9pbmZvX3dtZW1fYWxsb2MY3wsgASgNUhJza01lbUluZm9XbWVtQWxsb2'
-    'MSLAoSc2tfbWVtX2luZm9fc25kYnVmGOALIAEoDVIPc2tNZW1JbmZvU25kYnVmEjEKFXNrX21l'
-    'bV9pbmZvX2Z3ZF9hbGxvYxjhCyABKA1SEXNrTWVtSW5mb0Z3ZEFsbG9jEjUKF3NrX21lbV9pbm'
-    'ZvX3dtZW1fcXVldWVkGOILIAEoDVITc2tNZW1JbmZvV21lbVF1ZXVlZBIsChJza19tZW1faW5m'
-    'b19vcHRtZW0Y4wsgASgNUg9za01lbUluZm9PcHRtZW0SLgoTc2tfbWVtX2luZm9fYmFja2xvZx'
-    'jkCyABKA1SEHNrTWVtSW5mb0JhY2tsb2cSKgoRc2tfbWVtX2luZm9fZHJvcHMY5QsgASgNUg5z'
-    'a01lbUluZm9Ecm9wcxItChJpbmV0X2RpYWdfc2h1dGRvd24YwAwgASgNUhBpbmV0RGlhZ1NodX'
-    'Rkb3duEi0KEnZlZ2FzX2luZm9fZW5hYmxlZBilDSABKA1SEHZlZ2FzSW5mb0VuYWJsZWQSKwoR'
-    'dmVnYXNfaW5mb19ydHRjbnQYpg0gASgNUg92ZWdhc0luZm9SdHRjbnQSJQoOdmVnYXNfaW5mb1'
-    '9ydHQYpw0gASgNUgx2ZWdhc0luZm9SdHQSKwoRdmVnYXNfaW5mb19taW5ydHQYqA0gASgNUg92'
-    'ZWdhc0luZm9NaW5ydHQSLQoSZGN0Y3BfaW5mb19lbmFibGVkGIkOIAEoDVIQZGN0Y3BJbmZvRW'
-    '5hYmxlZBIuChNkY3RjcF9pbmZvX2NlX3N0YXRlGIoOIAEoDVIQZGN0Y3BJbmZvQ2VTdGF0ZRIp'
-    'ChBkY3RjcF9pbmZvX2FscGhhGIsOIAEoDVIOZGN0Y3BJbmZvQWxwaGESKgoRZGN0Y3BfaW5mb1'
-    '9hYl9lY24YjA4gASgNUg5kY3RjcEluZm9BYkVjbhIqChFkY3RjcF9pbmZvX2FiX3RvdBiNDiAB'
-    'KA1SDmRjdGNwSW5mb0FiVG90EiQKDmJicl9pbmZvX2J3X2xvGO0OIAEoDVILYmJySW5mb0J3TG'
-    '8SJAoOYmJyX2luZm9fYndfaGkY7g4gASgNUgtiYnJJbmZvQndIaRIoChBiYnJfaW5mb19taW5f'
-    'cnR0GO8OIAEoDVINYmJySW5mb01pblJ0dBIwChRiYnJfaW5mb19wYWNpbmdfZ2FpbhjwDiABKA'
-    '1SEWJickluZm9QYWNpbmdHYWluEiwKEmJicl9pbmZvX2N3bmRfZ2FpbhjxDiABKA1SD2Jicklu'
-    'Zm9Dd25kR2FpbhIsChJpbmV0X2RpYWdfY2xhc3NfaWQY0Q8gASgNUg9pbmV0RGlhZ0NsYXNzSW'
-    'QSKwoRaW5ldF9kaWFnX3NvY2tvcHQY0g8gASgNUg9pbmV0RGlhZ1NvY2tvcHQSLgoTaW5ldF9k'
-    'aWFnX2Nncm91cF9pZBjTDyABKARSEGluZXREaWFnQ2dyb3VwSWQiZwoITG9jYWxpdHkSGAoUTE'
-    '9DQUxJVFlfVU5TUEVDSUZJRUQQABIRCg1MT0NBTElUWV9TRUxGEAESGQoVTE9DQUxJVFlfTE9D'
-    'QUxfU1VCTkVUEAISEwoPTE9DQUxJVFlfUkVNT1RFEAMimQIKE0Nvbmdlc3Rpb25BbGdvcml0aG'
-    '0SJAogQ09OR0VTVElPTl9BTEdPUklUSE1fVU5TUEVDSUZJRUQQABIeChpDT05HRVNUSU9OX0FM'
-    'R09SSVRITV9DVUJJQxABEh4KGkNPTkdFU1RJT05fQUxHT1JJVEhNX0RDVENQEAISHgoaQ09OR0'
-    'VTVElPTl9BTEdPUklUSE1fVkVHQVMQAxIfChtDT05HRVNUSU9OX0FMR09SSVRITV9QUkFHVUUQ'
-    'BBIdChlDT05HRVNUSU9OX0FMR09SSVRITV9CQlIxEAUSHQoZQ09OR0VTVElPTl9BTEdPUklUSE'
-    '1fQkJSMhAGEh0KGUNPTkdFU1RJT05fQUxHT1JJVEhNX0JCUjMQB0oGCK0CEK4CSgYIrgIQrwJK'
-    'BgjzBxD0B0oGCPQHEPUHSgYI+gcQ+wdKBgj7BxD8B0oGCLcQELgQUh1pbmV0X2RpYWdfbXNnX3'
-    'NvY2tldF9kZXN0X2FzblIhaW5ldF9kaWFnX21zZ19zb2NrZXRfbmV4dF9ob3BfYXNuUidpbmV0'
-    'X2RpYWdfbXNnX3NvY2tldF9kZXN0X25ldHdvcmtfb3duZXJSImluZXRfZGlhZ19tc2dfc29ja2'
-    'V0X2Rlc3RfbG9jYWxpdHlSGmVucmljaF9zb2NrZXRfbmV4dF9ob3BfYXNuUhN0Y3BfaW5mb19z'
-    'ZW5kX3NjYWxlUhJ0Y3BfaW5mb19yY3Zfc2NhbGVSIHRjcF9pbmZvX2Zhc3Rfb3Blbl9jbGllbn'
-    'RfZmFpbGVkUhB0Y3BfaW5mb19ydHRfdmFyUhB0Y3BfaW5mb19hZHZfbXNzUhd0Y3BfaW5mb19u'
-    'b3Rfc2VudF9ieXRlc1ITc2tfbWVtX2luZm9fcmN2X2J1ZlITc2tfbWVtX2luZm9fc25kX2J1Zl'
-    'ISdmVnYXNfaW5mb19ydHRfY250UhJ2ZWdhc19pbmZvX21pbl9ydHRSG2Nvbmdlc3Rpb25fYWxn'
-    'b3JpdGhtX3N0cmluZ1IZY29uZ2VzdGlvbl9hbGdvcml0aG1fZW51bVIPdHlwZV9vZl9zZXJ2aW'
-    'NlUg10cmFmZmljX2NsYXNzUg5zaHV0ZG93bl9zdGF0ZVIIY2xhc3NfaWRSCHNvY2tfb3B0Ugdj'
-    'X2dyb3Vw');
+    'b1RvdGFsUnRvVGltZRIwChR0Y3BfaW5mb19yZWNlaXZlZF9jZRjyCSABKA1SEXRjcEluZm9SZW'
+    'NlaXZlZENlEj0KG3RjcF9pbmZvX2RlbGl2ZXJlZF9lMV9ieXRlcxjzCSABKA1SF3RjcEluZm9E'
+    'ZWxpdmVyZWRFMUJ5dGVzEj0KG3RjcF9pbmZvX2RlbGl2ZXJlZF9lMF9ieXRlcxj0CSABKA1SF3'
+    'RjcEluZm9EZWxpdmVyZWRFMEJ5dGVzEj0KG3RjcF9pbmZvX2RlbGl2ZXJlZF9jZV9ieXRlcxj1'
+    'CSABKA1SF3RjcEluZm9EZWxpdmVyZWRDZUJ5dGVzEjsKGnRjcF9pbmZvX3JlY2VpdmVkX2UxX2'
+    'J5dGVzGPYJIAEoDVIWdGNwSW5mb1JlY2VpdmVkRTFCeXRlcxI7Chp0Y3BfaW5mb19yZWNlaXZl'
+    'ZF9lMF9ieXRlcxj3CSABKA1SFnRjcEluZm9SZWNlaXZlZEUwQnl0ZXMSOwoadGNwX2luZm9fcm'
+    'VjZWl2ZWRfY2VfYnl0ZXMY+AkgASgNUhZ0Y3BJbmZvUmVjZWl2ZWRDZUJ5dGVzEioKEXRjcF9p'
+    'bmZvX2Vjbl9tb2RlGPkJIAEoDVIOdGNwSW5mb0Vjbk1vZGUSNwoYdGNwX2luZm9fYWNjZWNuX2'
+    '9wdF9zZWVuGPoJIAEoDVIUdGNwSW5mb0FjY2Vjbk9wdFNlZW4SOQoZdGNwX2luZm9fYWNjZWNu'
+    'X2ZhaWxfbW9kZRj7CSABKA1SFXRjcEluZm9BY2NlY25GYWlsTW9kZRIrChF0Y3BfaW5mb19vcH'
+    'Rpb25zMhj8CSABKA1SD3RjcEluZm9PcHRpb25zMhIlCg5pbmV0X2RpYWdfY29uZxiUCiABKAlS'
+    'DGluZXREaWFnQ29uZxJnChNpbmV0X2RpYWdfY29uZ19lbnVtGJUKIAEoDjI3Lnh0Y3BfZmxhdF'
+    '9yZWNvcmQudjEuWHRjcEZsYXRSZWNvcmQuQ29uZ2VzdGlvbkFsZ29yaXRobVIQaW5ldERpYWdD'
+    'b25nRW51bRIjCg1pbmV0X2RpYWdfdG9zGPkKIAEoDVILaW5ldERpYWdUb3MSKQoQaW5ldF9kaW'
+    'FnX3RjbGFzcxj6CiABKA1SDmluZXREaWFnVGNsYXNzEjMKFnNrX21lbV9pbmZvX3JtZW1fYWxs'
+    'b2MY3QsgASgNUhJza01lbUluZm9SbWVtQWxsb2MSLAoSc2tfbWVtX2luZm9fcmN2YnVmGN4LIA'
+    'EoDVIPc2tNZW1JbmZvUmN2YnVmEjMKFnNrX21lbV9pbmZvX3dtZW1fYWxsb2MY3wsgASgNUhJz'
+    'a01lbUluZm9XbWVtQWxsb2MSLAoSc2tfbWVtX2luZm9fc25kYnVmGOALIAEoDVIPc2tNZW1Jbm'
+    'ZvU25kYnVmEjEKFXNrX21lbV9pbmZvX2Z3ZF9hbGxvYxjhCyABKA1SEXNrTWVtSW5mb0Z3ZEFs'
+    'bG9jEjUKF3NrX21lbV9pbmZvX3dtZW1fcXVldWVkGOILIAEoDVITc2tNZW1JbmZvV21lbVF1ZX'
+    'VlZBIsChJza19tZW1faW5mb19vcHRtZW0Y4wsgASgNUg9za01lbUluZm9PcHRtZW0SLgoTc2tf'
+    'bWVtX2luZm9fYmFja2xvZxjkCyABKA1SEHNrTWVtSW5mb0JhY2tsb2cSKgoRc2tfbWVtX2luZm'
+    '9fZHJvcHMY5QsgASgNUg5za01lbUluZm9Ecm9wcxItChJpbmV0X2RpYWdfc2h1dGRvd24YwAwg'
+    'ASgNUhBpbmV0RGlhZ1NodXRkb3duEi0KEnZlZ2FzX2luZm9fZW5hYmxlZBilDSABKA1SEHZlZ2'
+    'FzSW5mb0VuYWJsZWQSKwoRdmVnYXNfaW5mb19ydHRjbnQYpg0gASgNUg92ZWdhc0luZm9SdHRj'
+    'bnQSJQoOdmVnYXNfaW5mb19ydHQYpw0gASgNUgx2ZWdhc0luZm9SdHQSKwoRdmVnYXNfaW5mb1'
+    '9taW5ydHQYqA0gASgNUg92ZWdhc0luZm9NaW5ydHQSLQoSZGN0Y3BfaW5mb19lbmFibGVkGIkO'
+    'IAEoDVIQZGN0Y3BJbmZvRW5hYmxlZBIuChNkY3RjcF9pbmZvX2NlX3N0YXRlGIoOIAEoDVIQZG'
+    'N0Y3BJbmZvQ2VTdGF0ZRIpChBkY3RjcF9pbmZvX2FscGhhGIsOIAEoDVIOZGN0Y3BJbmZvQWxw'
+    'aGESKgoRZGN0Y3BfaW5mb19hYl9lY24YjA4gASgNUg5kY3RjcEluZm9BYkVjbhIqChFkY3RjcF'
+    '9pbmZvX2FiX3RvdBiNDiABKA1SDmRjdGNwSW5mb0FiVG90EiQKDmJicl9pbmZvX2J3X2xvGO0O'
+    'IAEoDVILYmJySW5mb0J3TG8SJAoOYmJyX2luZm9fYndfaGkY7g4gASgNUgtiYnJJbmZvQndIaR'
+    'IoChBiYnJfaW5mb19taW5fcnR0GO8OIAEoDVINYmJySW5mb01pblJ0dBIwChRiYnJfaW5mb19w'
+    'YWNpbmdfZ2FpbhjwDiABKA1SEWJickluZm9QYWNpbmdHYWluEiwKEmJicl9pbmZvX2N3bmRfZ2'
+    'FpbhjxDiABKA1SD2JickluZm9Dd25kR2FpbhIsChJpbmV0X2RpYWdfY2xhc3NfaWQY0Q8gASgN'
+    'Ug9pbmV0RGlhZ0NsYXNzSWQSKwoRaW5ldF9kaWFnX3NvY2tvcHQY0g8gASgNUg9pbmV0RGlhZ1'
+    'NvY2tvcHQSLgoTaW5ldF9kaWFnX2Nncm91cF9pZBjTDyABKARSEGluZXREaWFnQ2dyb3VwSWQi'
+    'ZwoITG9jYWxpdHkSGAoUTE9DQUxJVFlfVU5TUEVDSUZJRUQQABIRCg1MT0NBTElUWV9TRUxGEA'
+    'ESGQoVTE9DQUxJVFlfTE9DQUxfU1VCTkVUEAISEwoPTE9DQUxJVFlfUkVNT1RFEAMimQIKE0Nv'
+    'bmdlc3Rpb25BbGdvcml0aG0SJAogQ09OR0VTVElPTl9BTEdPUklUSE1fVU5TUEVDSUZJRUQQAB'
+    'IeChpDT05HRVNUSU9OX0FMR09SSVRITV9DVUJJQxABEh4KGkNPTkdFU1RJT05fQUxHT1JJVEhN'
+    'X0RDVENQEAISHgoaQ09OR0VTVElPTl9BTEdPUklUSE1fVkVHQVMQAxIfChtDT05HRVNUSU9OX0'
+    'FMR09SSVRITV9QUkFHVUUQBBIdChlDT05HRVNUSU9OX0FMR09SSVRITV9CQlIxEAUSHQoZQ09O'
+    'R0VTVElPTl9BTEdPUklUSE1fQkJSMhAGEh0KGUNPTkdFU1RJT05fQUxHT1JJVEhNX0JCUjMQB0'
+    'oGCK0CEK4CSgYIrgIQrwJKBgjzBxD0B0oGCPQHEPUHSgYI+gcQ+wdKBgj7BxD8B0oGCLcQELgQ'
+    'Uh1pbmV0X2RpYWdfbXNnX3NvY2tldF9kZXN0X2FzblIhaW5ldF9kaWFnX21zZ19zb2NrZXRfbm'
+    'V4dF9ob3BfYXNuUidpbmV0X2RpYWdfbXNnX3NvY2tldF9kZXN0X25ldHdvcmtfb3duZXJSImlu'
+    'ZXRfZGlhZ19tc2dfc29ja2V0X2Rlc3RfbG9jYWxpdHlSGmVucmljaF9zb2NrZXRfbmV4dF9ob3'
+    'BfYXNuUhN0Y3BfaW5mb19zZW5kX3NjYWxlUhJ0Y3BfaW5mb19yY3Zfc2NhbGVSIHRjcF9pbmZv'
+    'X2Zhc3Rfb3Blbl9jbGllbnRfZmFpbGVkUhB0Y3BfaW5mb19ydHRfdmFyUhB0Y3BfaW5mb19hZH'
+    'ZfbXNzUhd0Y3BfaW5mb19ub3Rfc2VudF9ieXRlc1ITc2tfbWVtX2luZm9fcmN2X2J1ZlITc2tf'
+    'bWVtX2luZm9fc25kX2J1ZlISdmVnYXNfaW5mb19ydHRfY250UhJ2ZWdhc19pbmZvX21pbl9ydH'
+    'RSG2Nvbmdlc3Rpb25fYWxnb3JpdGhtX3N0cmluZ1IZY29uZ2VzdGlvbl9hbGdvcml0aG1fZW51'
+    'bVIPdHlwZV9vZl9zZXJ2aWNlUg10cmFmZmljX2NsYXNzUg5zaHV0ZG93bl9zdGF0ZVIIY2xhc3'
+    'NfaWRSCHNvY2tfb3B0UgdjX2dyb3Vw');
 
 @$core.Deprecated('Use flatRecordsRequestDescriptor instead')
 const FlatRecordsRequest$json = {

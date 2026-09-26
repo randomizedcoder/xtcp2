@@ -9,6 +9,7 @@
   giouring,
   microvm,
   nixpkgs,
+  xdp2,
 }:
 
 let
@@ -78,6 +79,7 @@ let
       src
       vendoredSource
       binaries
+      xdp2
       ;
   };
 
@@ -126,6 +128,13 @@ let
   # `nix run .#capture-netlink-fixtures` from the repo root; see the file
   # header for the filtering/versioning rationale.
   captureNetlinkFixtures = import ./capture-netlink-fixtures.nix { inherit pkgs; };
+
+  # Asks the upstream remotes where `main` actually is and reports how far
+  # behind each pin in nix/upstream-pins.json has fallen. A RUNNER rather than
+  # a check for the same reason captureNetlinkFixtures is one: the `nix flake
+  # check` sandbox has no network, so it cannot answer "has upstream moved?".
+  # Its hermetic counterpart, checks.upstream-pins, keeps the manifest honest.
+  checkUpstreamPins = import ./check-upstream-pins.nix { inherit pkgs; };
 
   # The five golangci-lint tier helpers (lint-quick / lint /
   # lint-comprehensive / lint-fix / lint-new). They live in their own file
@@ -552,6 +561,19 @@ in
       # without standing up the whole microvm.
       xtcp-flat-record-desc = xtcpFlatRecordDescPackage;
 
+      # The netlink layout oracle's binary, re-exported at the pin this repo
+      # actually audits with. `checks.proto-audit-netlink` runs it in a fixed
+      # shape; this is for reading individual answers out of it by hand, which
+      # is how the TCPInfo6_10_3 registry pin was diagnosed:
+      #
+      #   PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- \
+      #     extract --source xtcp2 --proto NL_Diag_TCPInfo --json
+      #
+      # Free at eval time and already in the check's closure, so exposing it
+      # costs nothing beyond this comment. Both env vars override the stale
+      # defaults baked into xdp2's wrapper — see nix/upstream-pins.json.
+      proto-audit = xdp2.packages.${pkgs.stdenv.hostPlatform.system}.proto-audit;
+
       # Test runners exposed as packages so they can be built via
       # `nix build .#test-go-unit`, etc.
       test-go-unit = tests.go-unit;
@@ -609,6 +631,12 @@ in
     capture-netlink-fixtures = {
       type = "app";
       program = "${captureNetlinkFixtures}/bin/xtcp2-capture-netlink-fixtures";
+    };
+    # Warns when an upstream pin's `main` has moved. Needs network, so it is an
+    # app and not a check — see nix/upstream-pins.json for the split.
+    check-upstream-pins = {
+      type = "app";
+      program = "${checkUpstreamPins}/bin/xtcp2-check-upstream-pins";
     };
     # Run the whole microVM integration suite sequentially. Lifecycle sweep
     # by default; `-- --soak [--duration 1h]` adds the duration runners.
