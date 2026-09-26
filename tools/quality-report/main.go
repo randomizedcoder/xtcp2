@@ -1739,6 +1739,21 @@ func statusLabel(s ToolStatus) string {
 	if s.ExitCode == 0 && s.Findings == 0 {
 		return "clean"
 	}
+	// An exit code above 1 is checked BEFORE the findings count, because it
+	// means the tool did not complete and its finding count is therefore a
+	// floor, not a total. Every tool here follows the convention that 1 is
+	// "ran fine, found something" (golangci-lint's --issues-exit-code
+	// defaults to 1; gosec matches it); anything higher is the tool failing.
+	// golangci-lint in particular exits 4 on `run.timeout` expiry — after
+	// printing "0 issues." — so a timed-out tier used to reach the
+	// `Findings > 0` branch or the clean-looking zero and render as if it
+	// had passed. Surface the code in both cases instead.
+	if s.ExitCode > 1 {
+		if s.Findings > 0 {
+			return fmt.Sprintf("incomplete, exit %d", s.ExitCode)
+		}
+		return fmt.Sprintf("exit %d", s.ExitCode)
+	}
 	if s.Findings > 0 {
 		return "findings"
 	}

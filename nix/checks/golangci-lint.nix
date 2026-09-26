@@ -25,6 +25,8 @@ pkgs.runCommand "xtcp2-golangci-lint"
     export HOME=$(mktemp -d)
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
-    golangci-lint run --config .golangci.yml --timeout 5m ./... > $out 2>&1 \
+    # Timeout comes from .golangci.yml (`run.timeout`); a CLI --timeout
+    # would override it silently. See nix/checks/golangci-lint-quick.nix.
+    golangci-lint run --config .golangci.yml ./... > $out 2>&1 \
       || (cat $out && exit 1)
   ''

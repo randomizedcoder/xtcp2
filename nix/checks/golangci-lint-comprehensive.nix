@@ -28,6 +28,8 @@ pkgs.runCommand "xtcp2-golangci-lint-comprehensive"
     export HOME=$(mktemp -d)
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
-    golangci-lint run --config .golangci-comprehensive.yml --timeout 15m ./... > $out 2>&1 \
+    # Timeout comes from .golangci-comprehensive.yml (`run.timeout`); a CLI
+    # --timeout would override it silently. See golangci-lint-quick.nix.
+    golangci-lint run --config .golangci-comprehensive.yml ./... > $out 2>&1 \
       || (cat $out && exit 1)
   ''

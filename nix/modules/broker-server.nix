@@ -45,17 +45,33 @@
 { pkgs, ... }:
 
 let
-  consumerScript = pkgs.writeShellScript "xtcp2-${consumerName}" ''
-    set -u
-    # Wait for the server to accept connections before subscribing.
-    for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
-      if ${readyCheck pkgs}; then
-        break
-      fi
-      sleep 1
-    done
-    ${consumerExec pkgs}
-  '';
+  # writeShellApplication (not writeShellScript) so the body is shellcheck'd at
+  # build time — that check is the only shell linting in this repo. Note the
+  # linted text includes the caller-supplied `readyCheck` / `consumerExec`
+  # fragments, so a finding reported against this file may originate in the
+  # caller (nix/microvms/mkVm.nix, the valkey/nats/nsq module blocks). This is
+  # instantiated three times, so it is three separate lint runs.
+  #
+  # `set -u` used to lead this body; writeShellApplication already sets
+  # errexit/nounset/pipefail, so it is dropped rather than restated.
+  consumerScript = pkgs.writeShellApplication {
+    name = "xtcp2-${consumerName}";
+    runtimeInputs = [ pkgs.coreutils ]; # seq, sleep
+    text = ''
+      # Wait for the server to accept connections before subscribing.
+      # readyCheck sits inside `if`, so errexit is suspended for it and a
+      # refused connection during the poll is still tolerated. If all 60
+      # attempts fail we fall through and exec the consumer anyway, which is
+      # the pre-existing behaviour.
+      for _ in $(seq 1 60); do
+        if ${readyCheck pkgs}; then
+          break
+        fi
+        sleep 1
+      done
+      ${consumerExec pkgs}
+    '';
+  };
 in
 {
   # Native broker server as a plain systemd unit (full control, no auth/persist).
@@ -82,7 +98,7 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
-      ExecStart = "${consumerScript}";
+      ExecStart = "${consumerScript}/bin/xtcp2-${consumerName}";
       Restart = "on-failure";
       StandardOutput = "journal+console";
       StandardError = "journal+console";

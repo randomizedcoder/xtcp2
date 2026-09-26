@@ -73,7 +73,7 @@ essentially for free, and is now I/O-bound rather than marshalling-bound.
 | 6 | Soak runner under-reported xtcp2 restarts (missed Go `fatal error` exits → would falsely PASS) | soak crash-loop analysis | tracked (#54 plan) |
 | 7 | ProtobufList Kafka ingest stalled at a fixed row count: `kafka_schema` used a **package-qualified** message name (`xtcp_flat_record.v1.XtcpFlatRecord`); ClickHouse's ProtobufList resolver needs the **simple** name, so it threw `Could not find a message` (BAD_ARGUMENTS), the consumer detached, and ingest froze | `clickhouse-pipeline` "ceiling" + `clickhouse-local` repro against the real proto | simple name `XtcpFlatRecord` (regression from 60da4c7); also requires ClickHouse **≥ 26.3** for the multi-message fix (CH [#98151](https://github.com/ClickHouse/ClickHouse/pull/98151) / issue [#78746](https://github.com/ClickHouse/ClickHouse/issues/78746)) — see [integration-testing.md](integration-testing.md) |
 | 8 | Debugging red herring: the persistent `/var/lib/docker` disk backs `clickhouse_db`, so ClickHouse skips initdb on every reboot and edited DDL never runs — a schema fix silently had no effect and a frozen `64824` looked like a live ceiling | this campaign (fix wouldn't validate until the disk was wiped) | wipe `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` when iterating on DDL; documented in both test docs |
-| 9 | `s3parquet-stress` retention deleted nothing (bucket would grow unbounded): `mc` aborts with `Unable to get mcConfigDir. exec: getent: not found` because `writeShellApplication`'s minimal PATH lacks `getent` and `$HOME` was unset, so **every** `mc` call failed — hidden by `2>/dev/null` as a silent `expired=0` | 6 h soak (retention swept 35× but `expired=0` every time; disk-full masked because 316 MB is tiny on 16 GB) → made `mc`'s stderr visible | set `HOME` + `MC_CONFIG_DIR` (mc then skips `getent`) + `MC_HOST` env alias; surface `mc` stderr as `err=[…]`; deletions verified in a short-window run |
+| 9 | `s3parquet-stress` retention deleted nothing (bucket would grow unbounded): `mc` aborts with `Unable to get mcConfigDir. exec: getent: not found` because `getent` was on neither the script's `runtimeInputs` nor the unit's inherited PATH (it is its own nixpkgs package, not part of `glibc.bin`; note `writeShellApplication` *prepends* `runtimeInputs` rather than clamping PATH) and `$HOME` was unset, so **every** `mc` call failed — hidden by `2>/dev/null` as a silent `expired=0` | 6 h soak (retention swept 35× but `expired=0` every time; disk-full masked because 316 MB is tiny on 16 GB) → made `mc`'s stderr visible | set `HOME` + `MC_CONFIG_DIR` (mc then skips `getent`) + `MC_HOST` env alias; surface `mc` stderr as `err=[…]`; deletions verified in a short-window run |
 
 > Note on #2: that fix is correct but was **not** the dominant thread consumer —
 > see the scaling model below. It was the soak finding the *real* limit that
@@ -232,8 +232,9 @@ ClickHouse soak, `files`/`rows`/`bytes` are the flow signal, not the object coun
 job deleted **nothing** — it swept 35 times with `expired=0`. It looked harmless
 (disk stayed at 2 %) only because 6 h of parquet (~316 MB) is trivial on the 16 GB
 disk. Making `mc`'s stderr visible showed the cause: `mc` needs `getent` to locate
-its config dir when `$HOME` is unset, and the service's minimal PATH lacks it, so
-*every* `mc` call aborted. Fixed by setting `HOME`/`MC_CONFIG_DIR` (mc then skips
+its config dir when `$HOME` is unset, and `getent` was on neither the script's
+`runtimeInputs` nor the unit's inherited PATH, so *every* `mc` call aborted.
+Fixed by setting `HOME`/`MC_CONFIG_DIR` (mc then skips
 `getent`) and addressing MinIO via `MC_HOST`; verified in-VM that deletions fire
 once objects age past the window. **Lesson (recurring in this campaign): a green
 soak can hide a broken safety mechanism — never let a subprocess's stderr go to

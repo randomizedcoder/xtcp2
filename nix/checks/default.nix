@@ -36,9 +36,11 @@ in
   statix = import ./statix.nix { inherit pkgs src; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
-  # Nix sandbox blocks. Run it from `nix develop` via the `buf lint` shell
-  # function instead. The file proto-lint.nix is preserved for future hermetic
-  # use once buf module deps are pre-fetched as Nix sources.
+  # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
+  # is on PATH via versions.buf (nix/packages.nix) — there is no shell function
+  # wrapping it, despite what this comment used to claim. The file
+  # proto-lint.nix is preserved for future hermetic use once buf module deps
+  # are pre-fetched as Nix sources.
 
   golangci-lint-quick = import ./golangci-lint-quick.nix { inherit pkgs vendoredSource; };
   golangci-lint = import ./golangci-lint.nix { inherit pkgs vendoredSource; };

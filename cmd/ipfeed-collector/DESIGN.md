@@ -457,9 +457,11 @@ Load with `nix build .#oci-ipfeed-collector && ./result | docker load`.
 
 `nix develop` (repo root) lands in the shared xtcp2 shell with the pinned Go
 plus `gopls`, `golangci-lint`, `delve`, `nixfmt`, and the proto toolchain.
-Helper functions (discoverable via `xtcp2-help`) wrap the common repo-wide
+Helper commands (discoverable via `xtcp2-help`) wrap the common repo-wide
 loops: `lint-quick`, `lint`, `lint-comprehensive`, `lint-fix`, `lint-new`,
-`regen-protos`. There are no ipfeed-specific helpers; use the `go` commands in
+`regen-protos`. They are `writeShellApplication` packages on the shell's
+`PATH`, not shell functions, so each is also a flake app (`nix run
+.#lint-quick`). There are no ipfeed-specific helpers; use the `go` commands in
 the README.
 
 Wiring the image into the RunPod release pipeline and adding a committed PGO

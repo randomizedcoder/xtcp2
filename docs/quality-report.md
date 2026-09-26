@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-09-24T17:40:39Z
+Generated: 2026-09-25T04:52:33Z
 
 Tool versions: go=go1.26.5; golangci-lint=2.12.2; gosec=2.28.0; nixfmt=1.4.0; 
 
@@ -15,12 +15,12 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 11 |
+| Total findings | 10 |
 | Findings (Tier 0) | 0 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 0 |
-| Findings (non-tiered) | 11 |
-| Files with at least one finding | 11 |
+| Findings (non-tiered) | 10 |
+| Files with at least one finding | 10 |
 | Test failures (new) | 0 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
@@ -31,19 +31,19 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | clean | 0 | 57s |
-| golangci-lint (standard) | clean | 0 | 49s |
-| golangci-lint (quick) | exit 4 | 0 | 108s |
-| gosec | clean | 0 | 5s |
-| go vet | clean | 0 | 42s |
-| gofmt | clean | 0 | 3s |
-| nixfmt | clean | 0 | 2s |
+| golangci-lint (comprehensive) | clean | 0 | 84s |
+| golangci-lint (standard) | clean | 0 | 84s |
+| golangci-lint (quick) | clean | 0 | 162s |
+| gosec | clean | 0 | 7s |
+| go vet | clean | 0 | 59s |
+| gofmt | clean | 0 | 4s |
+| nixfmt | clean | 0 | 5s |
 | netlink-audit | clean | 0 | 1s |
-| iouring-audit | clean | 0 | 0s |
+| iouring-audit | clean | 0 | 1s |
 | metrics-audit | clean | 0 | 1s |
 | proto-field-audit | clean | 0 | 1s |
-| go test | clean | 0 | 45s |
-| go test -cover | findings | 11 | 4s |
+| go test | clean | 0 | 49s |
+| go test -cover | findings | 10 | 3s |
 
 
 ---
@@ -73,18 +73,18 @@ between commits reveals exactly what changed.
 | `pkg/xtcp` | 1 | below-90pct×1 |
 | `tools/discovery-bench` | 1 | below-90pct×1 |
 | `tools/idiag-extprobe` | 1 | below-90pct×1 |
-| `tools/tcp_client` | 1 | below-90pct×1 |
+| `tools/tcp_server` | 1 | below-90pct×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### go-test-cover / below-90pct — 11
+### go-test-cover / below-90pct — 10
 
-- `cmd/xtcp2_kafka_client`: package coverage 88.6% < 90%
 - `tools/tcp_server`: package coverage 87.8% < 90%
-- `cmd/nsTest`: package coverage 17.5% < 90%
+- `tools/discovery-bench`: package coverage 33.5% < 90%
+- `cmd/ipfeed-collector`: package coverage 28.5% < 90%
 
 ---
 
@@ -106,10 +106,10 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 2560 |
+| Pass | 2568 |
 | Fail (new) | 0 |
 | Fail (pre-existing) | 0 |
-| Skip | 8 |
+| Skip | 9 |
 
 
 
@@ -147,7 +147,7 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **go-test-cover/below-90pct** with 11 findings (100% of total). Concentrate effort here for the biggest quality win.
+- Top contributor: **go-test-cover/below-90pct** with 10 findings (100% of total). Concentrate effort here for the biggest quality win.
 - Hotspot file: `cmd/ipfeed-collector` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
 
 
@@ -173,7 +173,7 @@ the adjacent YAML comment. Rows with no justification need review.
 | `cmd/xtcp2ctl` | 79.5% | 🔴 below 90% |
 | `pkg/io_uring` | 91.2% | 🟢 OK |
 | `pkg/misc` | 94.3% | 🟢 OK |
-| `pkg/xtcp` | 80.5% | 🔴 below 90% |
+| `pkg/xtcp` | 80.4% | 🔴 below 90% |
 | `pkg/xtcpnl` | 91.8% | 🟢 OK |
 | `tools/discovery-bench` | 33.5% | 🔴 below 90% |
 | `tools/idiag-extprobe` | 0.0% | 🔴 below 90% |
@@ -183,8 +183,8 @@ the adjacent YAML comment. Rows with no justification need review.
 | `tools/netlink-audit` | 95.8% | 🟢 OK |
 | `tools/proto-field-audit` | 96.2% | 🟢 OK |
 | `tools/quality-report` | 92.7% | 🟢 OK |
-| `tools/tcp_client` | 89.3% | 🔴 below 90% |
+| `tools/tcp_client` | 91.3% | 🟢 OK |
 | `tools/tcp_server` | 87.8% | 🔴 below 90% |
-| `tools/udp_receiver_server` | 94.0% | 🟢 OK |
+| `tools/udp_receiver_server` | 92.0% | 🟢 OK |
 
 

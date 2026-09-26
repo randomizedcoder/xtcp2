@@ -21,7 +21,7 @@ nix develop
 xtcp2-help        # prints the cheat sheet of build / lint / test commands
 ```
 
-The shell puts Go 1.25, `buf`, `golangci-lint`, `gosec`, `nixfmt`, and the project helper functions on your `PATH`, and sets `CGO_ENABLED=0`.
+The shell puts Go 1.26.5 (pinned in `nix/versions.nix`, not the host toolchain), `buf`, `golangci-lint`, `gosec`, `nixfmt`, and the project helper commands (`lint-quick`, `lint`, `lint-comprehensive`, `lint-fix`, `lint-new`, `regen-protos`, `xtcp2-help`) on your `PATH`, and sets `CGO_ENABLED=0`. Those helpers are real binaries, not shell functions, so `nix run .#lint-quick` works without entering the shell — and because they take relative config paths they exit 2 unless run from the repo root.
 
 ## Building
 
@@ -161,6 +161,13 @@ Which linter sits in which tier is a deliberate choice, not an accident of histo
 All three configs set `issues.max-issues-per-linter: 0` and `issues.max-same-issues: 0`. The golangci-lint defaults (50 and 3) truncate the report *silently*, which once made a 35-finding cleanup look like a 19-finding one. If you add a config, set them there too.
 
 The Nix tree is linted as well: `nixfmt` for layout, plus **`deadnix`** (unused bindings and lambda arguments) and **`statix`** (antipatterns), both gating in `nix flake check`. statix's lint scope lives in the repo-root `statix.toml`; `repeated_keys` is disabled there with a written reason, and per-site `# statix: ignore` comments are not used. When fixing a deadnix finding, remember that removing a lambda argument also means removing it from every `inherit` at the call sites — diff `nix flake show --all-systems` before and after to prove evaluation still works.
+
+**Shell scripts produced by the Nix tree must use `pkgs.writeShellApplication`, never `pkgs.writeShellScript`.** `writeShellApplication` runs `shellcheck` and `bash -n` at build time and prepends `set -o errexit -o nounset -o pipefail`; `writeShellScript` does neither. There is no `shellcheck` check in `nix/checks/`, so that build-time run is the *only* shell linting in this repo — a `writeShellScript` body is genuinely unlinted. Two consequences worth knowing:
+
+- The result is a package directory with `destination = "/bin/<name>"`, so systemd references are `ExecStart = "${theApp}/bin/<name>";`. A bare `"${theApp}"` puts a *directory* in `ExecStart` and fails at VM runtime, which no build-time check catches.
+- `writeShellApplication` *prepends* `runtimeInputs` to `PATH` (`inheritPath` defaults to `true`); it does not clamp `PATH`. A "command not found" inside one of these scripts is a missing `runtimeInputs` entry, not a sandbox.
+
+Findings get fixed, not silenced: `excludeShellChecks`, a relaxed `bashOptions`, and an overridden `checkPhase` appear nowhere in the tree, and there is exactly one `# shellcheck disable` (`nix/microvms/mkVm.nix`, SC2016 on a deliberately single-quoted `bash -c` body). Where `errexit` bites, say why in a comment and use `|| true`, `if ! cmd; then`, or a narrow `set +e` region.
 
 Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
 

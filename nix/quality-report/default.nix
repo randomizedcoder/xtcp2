@@ -111,16 +111,27 @@ pkgs.runCommand "xtcp2-quality-report"
     # golangci-lint v2 replaced --out-format=json with --output.json.path,
     # and ALSO prints a short summary to stdout. Send the summary to a
     # separate `.summary` file so it doesn't collide with the JSON.
+    #
+    # No --timeout here on purpose. Every tier config sets its own
+    # `run.timeout` (.golangci-quick.yml 180s, .golangci.yml 5m,
+    # .golangci-comprehensive.yml 15m) and a CLI --timeout silently
+    # OVERRIDES it. That drifted: this file pinned the quick tier at 60s,
+    # which .golangci-quick.yml had already raised to 180s precisely
+    # because 60s expired before the linters produced a single finding.
+    # golangci-lint then exits 4 (exitcodes.Timeout) having printed
+    # "0 issues.", so the published report showed Tier 0 as clean when it
+    # had in fact never run to completion. One timeout per tier, in the
+    # config the tier already carries — nothing to keep in sync.
     runtool golangci-quick "$RAW/golangci-quick.summary" -- \
-      golangci-lint run --config .golangci-quick.yml --timeout 60s \
+      golangci-lint run --config .golangci-quick.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-quick.json" ./...
     runtool golangci-standard "$RAW/golangci-standard.summary" -- \
-      golangci-lint run --config .golangci.yml --timeout 5m \
+      golangci-lint run --config .golangci.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-standard.json" ./...
     runtool golangci-comprehensive "$RAW/golangci-comprehensive.summary" -- \
-      golangci-lint run --config .golangci-comprehensive.yml --timeout 15m \
+      golangci-lint run --config .golangci-comprehensive.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-comprehensive.json" ./...
 

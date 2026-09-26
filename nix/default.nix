@@ -127,6 +127,12 @@ let
   # header for the filtering/versioning rationale.
   captureNetlinkFixtures = import ./capture-netlink-fixtures.nix { inherit pkgs; };
 
+  # The five golangci-lint tier helpers (lint-quick / lint /
+  # lint-comprehensive / lint-fix / lint-new). They live in their own file
+  # because nix/devshell.nix puts the very same derivations on the dev
+  # shell's PATH — one definition, so the shell and the flake cannot drift.
+  lintTiers = import ./lint-tiers.nix { inherit pkgs; };
+
   lintFixOne = pkgs.writeShellApplication {
     name = "xtcp2-lint-fix-one";
     runtimeInputs = [ versions.golangci-lint ];
@@ -508,6 +514,9 @@ in
     #   oci-ipfeed-collector           ASN artifact builder
     #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
     // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
+    # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
+    # a convenience list for nix/devshell.nix, not a package, so drop it.
+    // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
@@ -794,7 +803,19 @@ in
       type = "app";
       program = "${lintFixOne}/bin/xtcp2-lint-fix-one";
     };
-  };
+  }
+  # The five tiers as apps too, so `nix run .#lint-quick` works without
+  # entering the dev shell. Each derivation's single binary is named for the
+  # attr, so the program path is derivable rather than spelled out.
+  // (
+    let
+      tiers = removeAttrs lintTiers [ "all" ];
+    in
+    lib.mapAttrs (name: drv: {
+      type = "app";
+      program = "${drv}/bin/${name}";
+    }) tiers
+  );
 
   inherit tests;
 }

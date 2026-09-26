@@ -30,6 +30,10 @@ pkgs.runCommand "xtcp2-golangci-lint-quick"
     export GOPROXY=off
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
-    golangci-lint run --config .golangci-quick.yml --timeout 180s ./... > $out 2>&1 \
+    # The timeout lives in .golangci-quick.yml (`run.timeout`), not here. A
+    # CLI --timeout overrides the config silently, which is how the
+    # quality-report copy of this command ended up stuck at the old 60s and
+    # reporting a timed-out run as "0 issues."
+    golangci-lint run --config .golangci-quick.yml ./... > $out 2>&1 \
       || (cat $out && exit 1)
   ''
