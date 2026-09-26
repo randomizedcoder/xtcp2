@@ -91,31 +91,52 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 		want        LinkInfo
 	}{
 		{
-			// ip_link_n:1  "1: lo: <LOOPBACK,UP,LOWER_UP>"
+			// ip_link_n:1  "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 ... state UNKNOWN"
+			// ip_link_n:2  "    link/loopback" -> ifi_type ARPHRD_LOOPBACK (772).
+			// A loopback reports state UNKNOWN, i.e. IF_OPER_UNKNOWN, even though
+			// it is perfectly usable — which is exactly why IsUp() reads ifi_flags
+			// rather than IFLA_OPERSTATE.
 			description: "positive: loopback lo, index 1, IFF_UP|IFF_LOOPBACK set",
-			want:        LinkInfo{Index: 1, Flags: 0x10049, Name: "lo"},
+			want: LinkInfo{
+				Index: 1, Flags: 0x10049, Name: "lo", Type: 772,
+				OperState: IfOperUnknown, Carrier: 1, MTU: 65536,
+			},
 		},
 		{
-			// ip_link_n:3  "2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP>"
+			// ip_link_n:3  "2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UP"
 			description: "positive: primary NIC enp1s0, index 2",
-			want:        LinkInfo{Index: 2, Flags: 0x11043, Name: "enp1s0"},
+			want: LinkInfo{
+				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
+				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+			},
 		},
 		{
-			// ip_link_n:6  "3: enp35s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP>"
+			// ip_link_n:6  "3: enp35s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UP"
 			description: "positive: NIC enp35s0f0np0, index 3",
-			want:        LinkInfo{Index: 3, Flags: 0x11043, Name: "enp35s0f0np0"},
+			want: LinkInfo{
+				Index: 3, Flags: 0x11043, Name: "enp35s0f0np0", Type: 1,
+				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+			},
 		},
 		{
 			// ip_link_n:24 "59: ve-nordlayepDd-@if2" — kernel truncates the name
 			// at IFNAMSIZ, so the dump carries the truncated form, not the altname.
 			description: "corner: long veth name truncated by the kernel, index 59",
-			want:        LinkInfo{Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-"},
+			want: LinkInfo{
+				Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-", Type: 1,
+				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+			},
 		},
 		{
-			// ip_link_n:32 "161: nlmon0: <NOARP,UP,LOWER_UP>" — the monitor iface
-			// the capture itself created; NOARP set, no BROADCAST/MULTICAST.
+			// ip_link_n:32 "161: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 ... state UNKNOWN"
+			// ip_link_n:33 "    link/netlink" -> ifi_type ARPHRD_NETLINK (824).
+			// The monitor iface the capture itself created; NOARP set, no
+			// BROADCAST/MULTICAST.
 			description: "corner: the capture's own nlmon0 monitor iface, index 161",
-			want:        LinkInfo{Index: 161, Flags: 0x100c1, Name: "nlmon0"},
+			want: LinkInfo{
+				Index: 161, Flags: 0x100c1, Name: "nlmon0", Type: 824,
+				OperState: IfOperUnknown, Carrier: 1, MTU: 3776,
+			},
 		},
 	}
 

@@ -285,17 +285,34 @@ table-driven standard), matching `pkg/xtcpnl` conventions.
   unspecified / IPv4-mapped / malformed-attr corners. Plus a race test
   (concurrent `Classify` during atomic `Store`, run under `-race`) and a
   `Classify` benchmark asserting the alloc-free contract.
-- **`pkg/xtcpnl`** — deserializer tests for `ifaddrmsg` / `rtmsg` / `ifinfomsg`
-  (manual vs reflection), parser tests for `ParseNewAddr` / `ParseNewRoute` /
-  `ParseNewLink`, request-builder tests, `walkRTAttrs` and `netlinkErr` tests,
-  a live `DumpRtnetlink` integration test (skipped when netlink is unavailable),
-  and fuzz targets that assert the parsers never panic on arbitrary bytes.
+- **`pkg/xtcpnl`** — deserializer tests for `ifaddrmsg` / `rtmsg` / `ifinfomsg` /
+  `ndmsg` (manual vs reflection), parser tests for `ParseNewAddr` /
+  `ParseNewRoute` / `ParseNewLink` / `ParseNeigh`, event-dispatch tests for
+  `ParseRtnetlinkEvent`, multi-record pcap tests for `ParsePcap` /
+  `ParseNetlinkPcap` / `NetlinkPayload`, request-builder tests, `walkRTAttrs`
+  (including the `NLA_F_NESTED` / `NLA_F_NET_BYTEORDER` masking) and
+  `netlinkErr` tests, a live `DumpRtnetlink` integration test (skipped when
+  netlink is unavailable), and fuzz targets that assert the parsers never panic
+  on arbitrary bytes.
 
 ### Capturing real netlink fixtures with nlmon
 
-To capture real wire bytes for saved fixtures (per target kernel; the
-`testdata/<uname>/` layout, e.g. `7_1_8/`), `nlmon0` mirrors netlink so tcpdump
-records both the request and the multipart replies:
+Both fixture harnesses are in-tree — prefer them to the manual procedure below,
+which is kept only as the explanation of what they do.
+
+```sh
+nix run .#capture-netlink-fixtures        # DUMPS (RTM_GET* replies), host + sudo
+nix run .#microvm-x86_64-nlmon-capture    # EVENTS (link/addr/route/neigh), hermetic microVM
+```
+
+Both write into `pkg/xtcpnl/testdata/<kernel>/` and must be run from the repo
+root. The microVM one needs no `sudo` and gives a quiet namespace, which matters
+because `nlmon` mirrors *every* netlink datagram it can see. See
+[netlink-collection](netlink-collection.md#regenerating-the-fixtures).
+
+Manually, `nlmon0` mirrors netlink so tcpdump records both the request and the
+multipart replies (per target kernel; the `testdata/<uname>/` layout, e.g.
+`7_1_8/`):
 
 ```sh
 sudo modprobe nlmon
@@ -315,9 +332,10 @@ Save the `ip addr` / `ip route` / `ip link` output as an `_info` sidecar (the
 source of truth the expected structs are derived from), and capture at least one
 host-ns and one container-ns example so the per-namespace path has real
 fixtures. Slice per-message-type fixtures out of `netlink.pcap` with a generator
-test (modelled on `xtcpnl_extract_7_0_3_fixtures_test.go`, using
-`PcapNetlinkOffsetCst`) so fixtures are reproducible and `git status` stays
-clean.
+test (modelled on `xtcpnl_extract_7_0_3_fixtures_test.go`) so fixtures are
+reproducible and `git status` stays clean. Single-record dump captures can use
+the fixed `PcapNetlinkOffsetCst` slice; an event capture is a *sequence*, so use
+`ParseNetlinkPcap`, which walks every record.
 
 ## Phasing / out of scope
 

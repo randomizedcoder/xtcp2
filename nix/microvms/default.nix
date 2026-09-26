@@ -416,6 +416,26 @@ let
       sink = "discovery-bench";
     };
 
+  # nlmon-capture: root VM that triggers a scripted sequence of real kernel
+  # network events, captures them off an nlmon device, emits the pcap +
+  # sidecars over the serial console, then powers off. No xtcp2 daemon — a
+  # netlink-silent guest is the whole point (see mkVm.nix isNlmonCapture).
+  mkOneNlmonCapture =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "nlmon-capture";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
@@ -472,6 +492,8 @@ let
   vmsNsq = lib.genAttrs constants.supportedArchs mkOneNsq;
 
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
+
+  vmsNlmonCapture = lib.genAttrs constants.supportedArchs mkOneNlmonCapture;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -682,6 +704,17 @@ let
     };
   });
 
+  # rtnetlink event-capture runner: boots the nlmon-capture VM, waits for
+  # NLCAP_DONE (or --timeout), scrapes the base64 pcap blob off the serial
+  # console and writes it into pkg/xtcpnl/testdata/<guest kernel>/. Must be a
+  # runner, not a check — see mkNlmonCaptureRunner's comment.
+  nlmonCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkNlmonCaptureRunner {
+      inherit arch;
+      vm = vmsNlmonCapture.${arch};
+    };
+  });
+
   # Runtime-control rate test runner: boots the clickhouse-pipeline-rate VM,
   # waits for the in-VM monitor's XTCP2_RATE_DONE (or --timeout), and passes
   # only if the ingest rate responded to set-poll-frequency + poll-burst.
@@ -778,8 +811,10 @@ in
     vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
+    vmsNlmonCapture
     s3parquetLong
     discoveryBench
+    nlmonCapture
     clickPipeRate
     clickPipeStress
     s3ParquetStress

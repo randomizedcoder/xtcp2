@@ -542,6 +542,7 @@ in
       microvm-x86_64-s3parquet-stress = microvms.vmsS3ParquetStress.x86_64;
       microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
+      microvm-x86_64-nlmon-capture = microvms.vmsNlmonCapture.x86_64;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -785,6 +786,21 @@ in
     microvm-x86_64-discovery-bench = {
       type = "app";
       program = "${microvms.discoveryBench.x86_64.runner}/bin/xtcp2-discovery-bench-x86_64";
+    };
+
+    # rtnetlink EVENT capture: boots a quiet root microvm (no xtcp2 daemon),
+    # triggers link up/down + addr add/del + route add/del + neigh add/del on a
+    # veth pair, records them off an nlmon device, and writes the pcap plus the
+    # `ip -d` sidecars into pkg/xtcpnl/testdata/<guest kernel>/. Run from the
+    # repo root. Pass `--timeout <sec>` to bound the wait or `--out <dir>` to
+    # override the destination. Not in `nix flake check` — it needs /dev/kvm and
+    # it writes to the working tree, neither of which a check can do.
+    #
+    # Complements `nix run .#capture-netlink-fixtures`, which captures DUMPS on
+    # the host; this one captures EVENTS in a controlled guest.
+    microvm-x86_64-nlmon-capture = {
+      type = "app";
+      program = "${microvms.nlmonCapture.x86_64.runner}/bin/xtcp2-nlmon-capture-x86_64";
     };
 
     quality-report = {

@@ -94,6 +94,21 @@ let
       # UNIX-RECV, which binds a unix datagram socket and streams received
       # datagrams to stdout (-u = unidirectional recv→stdout).
       "${pkgs.socat}/bin/socat -u UNIX-RECV:${socketSinkPath} -";
+  # Receiver service body. writeShellApplication (not writeShellScript) so the
+  # body is shellcheck'd at build time — that check is the only shell linting
+  # in this repo. One derivation per scheme, so four separate lint runs.
+  socketSinkScript = pkgs.writeShellApplication {
+    name = "xtcp2-socket-sink";
+    runtimeInputs = [ pkgs.coreutils ]; # rm
+    text = ''
+      # A stale unix socket path would make ncat fail to bind on restart.
+      # rm -f already exits 0 for a missing path; `|| true` additionally keeps
+      # a permission error from aborting under errexit, which is not worth
+      # failing the unit for when ncat's own bind is the real gate.
+      rm -f ${socketSinkPath} 2>/dev/null || true
+      exec ${socketSinkReceiverCmd} > ${socketSinkFile}
+    '';
+  };
   # Send-side Writes counter (function, variable) per scheme. udp is labelled
   # under the legacy Inetdiager/udpWrites; the rest are destXxx/Writes.
   socketSinkMetricFn =
@@ -179,6 +194,20 @@ let
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
   isDiscoveryBench = sink == "discovery-bench";
+  # nlmon-capture = a root VM whose only job is to record REAL rtnetlink
+  # NOTIFICATIONS (link up/down, addr add/del, route add/del, neigh add/del)
+  # into a pcap, base64 it out over the serial console, and power off.
+  #
+  # Why a VM and not the existing host script (nix/capture-netlink-fixtures.nix):
+  # `nlmon` mirrors EVERY netlink datagram in its namespace, so on a real
+  # workstation the capture is buried in NetworkManager / nl80211 / systemd
+  # chatter — the host script's `ether[14:2]==0` filter exists solely to survive
+  # that. A guest we control is quiet, so the events we trigger are the events
+  # we capture. It also needs no sudo.
+  #
+  # Both harnesses stay: the host one captures DUMPS (RTM_GET* replies), this
+  # one captures EVENTS. See docs/netlink-collection.md.
+  isNlmonCapture = sink == "nlmon-capture";
   # valkey = a native in-VM Valkey (Redis-protocol) server + a pre-subscribed
   # consumer; xtcp2 PUBLISHes each record to the pub/sub channel and the
   # self-test proves records flow through end-to-end. No docker, no persistence;
@@ -1458,11 +1487,15 @@ let
     text = ''
       # Address MinIO via the MC_HOST_<alias> env var — no `mc alias set` /
       # persisted config needed. Also set HOME + MC_CONFIG_DIR explicitly:
-      # writeShellApplication runs with a minimal PATH that lacks `getent`, and
-      # with HOME unset mc shells out to `getent` to locate its config dir and
-      # aborts ("Unable to get mcConfigDir. exec: getent: not found") — which
-      # silently failed EVERY mc call (that was the real retention bug). With
-      # MC_CONFIG_DIR set, mc uses it directly and never calls getent.
+      # with HOME unset, mc shells out to `getent` to locate its config dir
+      # and aborts ("Unable to get mcConfigDir. exec: getent: not found") —
+      # which silently failed EVERY mc call (that was the real retention bug).
+      # `getent` is simply absent from this unit's PATH: it lives in its own
+      # nixpkgs `getent` package and is in neither runtimeInputs above nor
+      # glibc.bin. Note writeShellApplication PREPENDS runtimeInputs to PATH
+      # rather than clamping it (inheritPath defaults to true), so the fix is
+      # a missing dependency, not a sandboxed PATH. With MC_CONFIG_DIR set,
+      # mc uses it directly and never calls getent at all.
       export MC_HOST_local="http://xtcp2test:xtcp2testsecret@127.0.0.1:9000"
       export HOME=/tmp/xtcp2-s3parquet-mc
       export MC_CONFIG_DIR="$HOME/.mc"
@@ -1490,6 +1523,364 @@ let
         err=$(printf '%s\n' "$out" | grep -iE 'error|unable|fail' | head -1 || true)
         echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}''${err:+ err=[''${err}]}"
       done
+    '';
+  };
+
+  # ── Service bodies converted from writeShellScript ──────────────────────
+  # These three were `pkgs.writeShellScript` inline in their serviceConfig,
+  # which meant their bash was never shellcheck'd (writeShellApplication's
+  # build-time check is the only shell linting in this repo) and never ran
+  # under errexit/nounset/pipefail. Hoisted to let bindings to match the
+  # eleven writeShellApplication scripts above, and referenced as
+  # "''${script}/bin/<name>" — the bare form would put a *directory* in
+  # ExecStart and fail at VM runtime rather than at build time.
+
+  promSnapshotScript = pkgs.writeShellApplication {
+    name = "xtcp2-prom-snapshot";
+    runtimeInputs = with pkgs; [
+      coreutils # seq, sleep, date
+      curl
+      jq
+    ];
+    text = ''
+      # Wait for Prometheus to come up. The curl sits inside `if`, so errexit
+      # is suspended for it and a not-yet-ready Prometheus is tolerated.
+      for _ in $(seq 1 30); do
+        if curl --silent --fail --max-time 2 \
+            http://127.0.0.1:9090/-/ready >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+      while true; do
+        # errexit would kill the unit on a failing date — and with
+        # Restart=on-failure that is a restart loop rather than one degraded
+        # line. A missing timestamp is the lesser harm.
+        ts=$(date -u +%FT%TZ || echo unknown)
+        # Use Prometheus's instant-query API. Each query gives
+        # the current value of one summable counter. Prefix each
+        # line with a sentinel so the host runner can grep it
+        # out of the serial transcript without ambiguity.
+        ns_start=0
+        {
+          printf 'XTCP2_PROM_SNAPSHOT {"t":"%s"' "$ts"
+          # netNamespaceInstance/start = per-namespace instances
+          # started (Method B discovery signal). reconcile/start =
+          # the pre-poll reconcile firing (replaced the removed
+          # watchNamespaces inotify counter, which is dead under
+          # Method B).
+          for q in \
+            'sum(xtcp_counts{variable="p"})' \
+            'sum(xtcp_counts{variable="packets"})' \
+            'sum(xtcp_counts{function="netNamespaceInstance",variable="start"})' \
+            'sum(xtcp_counts{function="reconcile",variable="start"})' \
+            'sum(xtcp_counts{function="nsAdd",variable="store"})' \
+            'sum(xtcp_counts{variable="OrphanCQE"})' ; do
+            # `|| echo "0"` applies to the whole pipeline, so it also absorbs
+            # what pipefail now surfaces: a curl --fail on a 4xx/5xx that jq
+            # would otherwise mask by exiting 0.
+            v=$(curl --silent --fail --max-time 2 \
+              --data-urlencode "query=$q" \
+              http://127.0.0.1:9090/api/v1/query 2>/dev/null \
+              | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null \
+              || echo "0")
+            printf ',"%s":%s' "$q" "$v"
+            case "$q" in *netNamespaceInstance*) ns_start="$v" ;; esac
+          done
+          printf '}\n'
+        }
+        # Clean, unambiguous per-namespace discovery signal for the
+        # host runner. Under Method B there is no inotify CREATE
+        # event to grep — xtcp2 starts one netNamespaceInstance per
+        # netns it discovers via /proc (host + each container). The
+        # tcp-stress runner asserts this is >= the container count.
+        printf 'XTCP2_NS_INSTANCES start=%s\n' "''${ns_start:-0}"
+        sleep 30
+      done
+    '';
+  };
+
+  resourceSnapshotScript = pkgs.writeShellApplication {
+    name = "xtcp2-resource-snapshot";
+    runtimeInputs = with pkgs; [
+      procps # pgrep
+      gnugrep # grep
+      coreutils # head, date, sleep
+      glibc.bin # getconf — see the CLK_TCK note below
+    ];
+    text = ''
+      # getconf lives in glibc.bin, which was NOT on this unit's old
+      # `path = [ procps gnugrep coreutils ]`, so the `|| echo 100` fallback
+      # was firing on every boot and clk was never actually measured. It is in
+      # runtimeInputs now, so the value is correct by construction rather than
+      # by the accident that USER_HZ is 100 on x86_64. The fallback stays as a
+      # belt-and-braces guard.
+      clk=$(getconf CLK_TCK 2>/dev/null || echo 100)
+      while true; do
+        # pgrep exits 1 when nothing matches and pipefail would surface that
+        # past the successful head, hence || true.
+        pid=$(pgrep -x xtcp2 | head -1 || true)
+        if [ -n "''${pid:-}" ] && [ -r "/proc/$pid/stat" ]; then
+          # /proc/PID/stat: utime=14, stime=15 (clock ticks).
+          #
+          # TOCTOU: xtcp2 can exit between the [ -r ] test above and this
+          # read, in which case the redirect fails. Under errexit that would
+          # kill the unit, and with Restart=on-failure it would become a
+          # restart loop on exactly the soak flavors that bounce xtcp2 on
+          # purpose. Skip the sample and try again next tick instead.
+          read -r -a st < "/proc/$pid/stat" || { sleep 30; continue; }
+          # :-0 on the subscripts, not just on the printf args below: under
+          # nounset a short/truncated stat line would abort the unit at the
+          # assignment before the guarded printf ever ran.
+          utime=''${st[13]:-0}; stime=''${st[14]:-0}
+          # grep legitimately finds nothing if the field is absent; || echo 0
+          # keeps errexit/pipefail from killing the loop.
+          vctx=$(grep -m1 '^voluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+          nvctx=$(grep -m1 '^nonvoluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+          rss=$(grep -m1 '^VmRSS' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+          threads=$(grep -m1 '^Threads' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
+          printf 'XTCP2_RES_SNAPSHOT {"t":"%s","clk":%s,"utime":%s,"stime":%s,"vctx":%s,"nvctx":%s,"rss_kb":%s,"threads":%s}\n' \
+            "$(date -u +%FT%TZ)" "$clk" "''${utime:-0}" "''${stime:-0}" "$vctx" "$nvctx" "$rss" "''${threads:-0}"
+        fi
+        sleep 30
+      done
+    '';
+  };
+
+  discoveryBenchRunScript = pkgs.writeShellApplication {
+    name = "discovery-bench-run";
+    runtimeInputs = [ xtcp2AllPackage ]; # provides discovery-bench
+    text = ''
+      # DISCO_* are not set anywhere in the tree; the :- defaults always apply.
+      # They remain as env overrides for a manual run (see nix/default.nix).
+      NS_GRID="''${DISCO_NS_GRID:-1,10,50,100}"
+      PID_GRID="''${DISCO_PID_GRID:-100,500,1000,3000}"
+      ITERS="''${DISCO_ITERS:-30}"
+      echo "DISCOBENCH_START ns_grid=$NS_GRID pid_grid=$PID_GRID iters=$ITERS"
+      # `|| echo` absorbs a non-zero grid run and the DISCOBENCH_DONE echo then
+      # sets exit 0, so this oneshot reports success even when the grid failed.
+      # Pre-existing behaviour, preserved on purpose: the host runner greps
+      # DISCOBENCH_ERR out of the serial transcript rather than reading the
+      # unit result. Without the `|| echo`, errexit would now kill the unit
+      # before DISCOBENCH_DONE and the runner would hang waiting for it.
+      discovery-bench \
+        -mode grid -json \
+        -nsGrid "$NS_GRID" -pidGrid "$PID_GRID" -iters "$ITERS" \
+        || echo "DISCOBENCH_ERR grid exited non-zero"
+      echo "DISCOBENCH_DONE"
+    '';
+  };
+
+  # nlmon-capture flavor: record REAL rtnetlink notifications into a pcap.
+  #
+  # The guest is quiet by construction — services.xtcp2 is disabled for this
+  # flavor (below), so the daemon's periodic RTM_GETLINK/GETADDR/GETROUTE dumps
+  # cannot drown the events. `ip` itself still issues an RTM_GET* dump before
+  # most subcommands, so the capture IS a mix of solicited replies and
+  # unsolicited events; that is expected and is filtered in Go, not in BPF.
+  # The separation is done on nlmsg_flags by xtcpnl.IsRtnetlinkNotification
+  # (NLM_F_REQUEST clear and NLM_F_MULTI clear) — NOT on nlmsg_pid/nlmsg_seq,
+  # which looks right and is not; see that function and
+  # pkg/xtcpnl/xtcpnl_extract_event_fixtures_test.go.
+  #
+  # Output leaves the VM the same way coverage does: tar | gzip -n | base64 -w0
+  # between sentinel lines on the serial console (see self-test.nix's coverage
+  # dump and lib.nix's extractor). gzip -n keeps the blob byte-reproducible by
+  # omitting the mtime.
+  nlmonCaptureRunScript = pkgs.writeShellApplication {
+    name = "nlmon-capture-run";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnutar
+      gzip
+      iproute2
+      kmod
+      tcpdump
+    ];
+    text = ''
+      OUT=/tmp/nlcap
+      PCAP="$OUT/netlink_route_events.pcap"
+      TRIGGERS="$OUT/nlcap_triggers"
+      IFACE=nlmon0
+      # Seconds to let tcpdump bind before the first trigger. A miss here costs
+      # the whole first phase, and boot is the one moment the VM is busy.
+      WARMUP=''${NLCAP_WARMUP:-3}
+
+      mkdir -p "$OUT"
+      : > "$TRIGGERS"
+
+      echo "NLCAP_START"
+
+      # run logs every trigger to the console AND to a committed sidecar, then
+      # tolerates its failure. Tolerance is required, not defensive: one phase
+      # deliberately deletes a route that does not exist so the capture contains
+      # a genuine NLMSG_ERROR, and errexit would otherwise kill the unit before
+      # the pcap is flushed.
+      run() {
+        echo "NLCAP_RUN $*" | tee -a "$TRIGGERS"
+        if "$@"; then
+          :
+        else
+          echo "NLCAP_RUN_FAIL rc=$? $*" | tee -a "$TRIGGERS"
+        fi
+      }
+
+      phase() {
+        echo "NLCAP_PHASE $1" | tee -a "$TRIGGERS"
+      }
+
+      run modprobe nlmon
+      run ip link add "$IFACE" type nlmon
+      run ip link set dev "$IFACE" up
+
+      # The NETLINK_ROUTE filter (family at offset 14-15 of the 16-byte Linux
+      # SLL cooked header, NETLINK_ROUTE == 0) is cheap and documents intent
+      # even in a quiet guest. -U flushes per packet so a SIGINT loses nothing.
+      tcpdump -i "$IFACE" -w "$PCAP" -U -q 'ether[14:2]==0' >/dev/null 2>&1 &
+      tp=$!
+
+      # `ip monitor` here is load-bearing, not decoration.
+      #
+      # nlmon mirrors netlink datagrams that are actually DELIVERED, and the
+      # kernel only generates a multicast notification when some socket has
+      # joined the relevant RTNLGRP_* group. A group with no subscriber
+      # produces no traffic at all, so nlmon records nothing. This guest has a
+      # subscriber for link/addr/route (systemd) but none for RTNLGRP_NEIGH —
+      # so without this line, `ip neigh add/del` put our REQUESTS on the wire
+      # and not a single RTM_NEWNEIGH/RTM_DELNEIGH notification, and the
+      # neighbour fixture came out empty. `ip monitor all` joins every group
+      # the four families need.
+      #
+      # Its decoded output is kept as a sidecar: an ordered, human-readable
+      # ground truth for the events in the pcap — the event-side counterpart
+      # to the ip_link_n / ip_addr_n sidecars the dump fixtures cite.
+      ip -t monitor all label > "$OUT/ip_monitor_all" 2>&1 &
+      mon=$!
+
+      sleep "$WARMUP"
+
+      # ── link: create, carrier loss, carrier restore, admin down/up ─────────
+      # A veth pair is the only cheap way to produce a REAL carrier transition:
+      # downing the peer clears IFF_RUNNING on nlcap0 while IFF_UP stays set,
+      # which is exactly the case LinkInfo.IsCarrierDown exists to distinguish
+      # from LinkInfo.IsAdminDown.
+      phase link
+      run ip link add nlcap0 type veth peer name nlcap1
+      run ip link set dev nlcap0 up
+      run ip link set dev nlcap1 up
+      sleep 1
+      run ip link set dev nlcap1 down
+      sleep 1
+      run ip link set dev nlcap1 up
+      sleep 1
+      run ip link set dev nlcap0 down
+      sleep 1
+      run ip link set dev nlcap0 up
+      sleep 1
+      # A dummy add/del gives a second ARPHRD type and a clean RTM_DELLINK
+      # that is not entangled with a veth peer.
+      run ip link add nlcapd0 type dummy
+      run ip link set dev nlcapd0 up
+      run ip link del nlcapd0
+      sleep 1
+
+      # ── addr: IPv4 /24 and IPv6 /64, added then removed ────────────────────
+      phase addr
+      run ip addr add 192.0.2.1/24 dev nlcap0
+      run ip -6 addr add 2001:db8::1/64 dev nlcap0
+      # IPv6 DAD holds the address tentative for ~1 s; wait so the RTM_NEWADDR
+      # for the final (non-tentative) state is in the capture too.
+      sleep 2
+      run ip addr del 192.0.2.1/24 dev nlcap0
+      run ip -6 addr del 2001:db8::1/64 dev nlcap0
+      sleep 1
+
+      # ── route: on-link, via-gateway, non-main table, blackhole, IPv6 ───────
+      # The addresses go back on first: an on-link or via-gateway route needs a
+      # matching prefix on the device or the add fails with ENETUNREACH.
+      phase route
+      run ip addr add 192.0.2.1/24 dev nlcap0
+      run ip -6 addr add 2001:db8::1/64 dev nlcap0
+      sleep 2
+      run ip route add 198.51.100.0/24 dev nlcap0
+      run ip route del 198.51.100.0/24 dev nlcap0
+      run ip route add 203.0.113.0/24 via 192.0.2.254 dev nlcap0
+      run ip route del 203.0.113.0/24 via 192.0.2.254 dev nlcap0
+      # table 100 exercises RTA_TABLE: rtm_table is 8-bit, so any id above 255
+      # arrives in the attribute instead. 100 fits in the header; the attribute
+      # is present regardless, which is what the parser reads.
+      run ip route add 198.18.0.0/24 dev nlcap0 table 100
+      run ip route del 198.18.0.0/24 dev nlcap0 table 100
+      # blackhole exercises rtm_type != RTN_UNICAST with no oif.
+      run ip route add blackhole 198.19.0.0/24
+      run ip route del blackhole 198.19.0.0/24
+      run ip -6 route add 2001:db8:1::/64 dev nlcap0
+      run ip -6 route del 2001:db8:1::/64 dev nlcap0
+      sleep 1
+
+      # ── neigh: add permanent, transition to stale, delete; v4 and v6 ───────
+      phase neigh
+      run ip neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev nlcap0 nud permanent
+      sleep 1
+      run ip neigh change 192.0.2.50 lladdr 02:00:00:00:00:01 dev nlcap0 nud stale
+      sleep 1
+      run ip neigh del 192.0.2.50 dev nlcap0
+      run ip -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:02 dev nlcap0 nud permanent
+      sleep 1
+      run ip -6 neigh del 2001:db8::50 dev nlcap0
+      sleep 1
+
+      # ── deliberate negative: delete a route that does not exist ────────────
+      # Produces a real NLMSG_ERROR (-ESRCH) in the capture, so the parser's
+      # "not an event" path has a genuine fixture rather than a synthetic one.
+      phase error
+      run ip route del 203.0.113.99/32
+
+      # ── sidecars, taken BEFORE teardown ────────────────────────────────────
+      # The dump fixtures cite ip_link_n / ip_addr_n line numbers as their
+      # source of truth; keep that for events by recording the state while
+      # nlcap0 still exists and is configured.
+      phase sidecars
+      uname -a > "$OUT/uname"
+      ip -d link show > "$OUT/ip_link_n"
+      ip -d addr show > "$OUT/ip_addr_n"
+      ip -d route show table all > "$OUT/ip_route_table_all_n"
+      ip -d neigh show > "$OUT/ip_neigh_n"
+
+      # ── teardown: RTM_DELLINK for both ends of the pair ────────────────────
+      phase teardown
+      run ip link del nlcap0
+      sleep 2
+
+      # Stop the subscriber first so its last notifications are already on the
+      # wire when tcpdump stops, then SIGINT tcpdump — SIGINT (not SIGTERM) is
+      # what tcpdump treats as "stop and flush".
+      kill "$mon" 2>/dev/null || true
+      wait "$mon" 2>/dev/null || true
+      kill -INT "$tp" 2>/dev/null || true
+      wait "$tp" 2>/dev/null || true
+
+      if [ ! -s "$PCAP" ]; then
+        echo "NLCAP_ERR capture is missing or empty: $PCAP"
+        exit 1
+      fi
+
+      # `tcpdump --count` reports the packet count directly. Do NOT count lines
+      # of `tcpdump -q` output instead: on DLT_NETLINK it prints several lines
+      # per packet, which reported 13249 for a 384-packet capture.
+      pkts="$(tcpdump --count -r "$PCAP" 2>&1 | tail -n 1 || true)"
+      echo "NLCAP_PACKETS $pkts"
+      echo "NLCAP_EVENTS $(grep -c . "$OUT/ip_monitor_all" 2>/dev/null || echo 0) decoded by ip monitor"
+
+      # Drop the monitor before dumping so the blob is not chasing its own tail.
+      ip link del "$IFACE" 2>/dev/null || true
+
+      echo "XTCP2_NLCAP_DUMP_START"
+      tar c -C "$OUT" . | gzip -n | base64 -w0
+      echo
+      echo "XTCP2_NLCAP_DUMP_END"
+
+      echo "NLCAP_DONE"
     '';
   };
 
@@ -2232,9 +2623,15 @@ in
         services.getty.autologinUser = "root";
         systemd.enableEmergencyMode = false;
 
-        # The reason we're here: xtcp2 as a systemd unit
+        # The reason we're here: xtcp2 as a systemd unit.
+        #
+        # Except on nlmon-capture, where the daemon is the problem: it polls
+        # RTM_GETLINK/GETADDR/GETROUTE on a timer, nlmon mirrors every one of
+        # those datagrams, and the handful of events we trigger would be lost
+        # in the dump traffic. That flavor's VM runs the capture and nothing
+        # else.
         services.xtcp2 = {
-          enable = true;
+          enable = !isNlmonCapture;
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
@@ -2384,23 +2781,27 @@ in
         # Self-test oneshot. The self-test's check 1 retries `systemctl
         # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
         # boot or via a systemd.path gate. Skipped on long-running flavors
-        # (soak / s3parquet-long), which run heartbeat services instead.
-        systemd.services.xtcp2-self-test = lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate) {
-          description = "xtcp2 microvm self-test";
-          after = [
-            "xtcp2.service"
-            "multi-user.target"
-          ];
-          wants = [ "xtcp2.service" ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            ExecStart = "${selfTest}/bin/xtcp2-self-test";
-            StandardOutput = "journal+console";
-            StandardError = "journal+console";
-          };
-        };
+        # (soak / s3parquet-long), which run heartbeat services instead, and
+        # on nlmon-capture, which has no xtcp2 to test and whose whole point
+        # is a netlink-silent guest.
+        systemd.services.xtcp2-self-test =
+          lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNlmonCapture)
+            {
+              description = "xtcp2 microvm self-test";
+              after = [
+                "xtcp2.service"
+                "multi-user.target"
+              ];
+              wants = [ "xtcp2.service" ];
+              wantedBy = [ "multi-user.target" ];
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+                ExecStart = "${selfTest}/bin/xtcp2-self-test";
+                StandardOutput = "journal+console";
+                StandardError = "journal+console";
+              };
+            };
 
         # socket-sink flavors: an ncat receiver that appends everything xtcp2
         # streams over the raw socket destination (tcp/udp/unix/unixgram) to
@@ -2415,11 +2816,7 @@ in
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
-            ExecStart = "${pkgs.writeShellScript "xtcp2-socket-sink" ''
-              # A stale unix socket path would make ncat fail to bind on restart.
-              rm -f ${socketSinkPath} 2>/dev/null || true
-              exec ${socketSinkReceiverCmd} > ${socketSinkFile}
-            ''}";
+            ExecStart = "${socketSinkScript}/bin/xtcp2-socket-sink";
             Restart = "on-failure";
             RestartSec = "1s";
             StandardError = "journal+console";
@@ -2968,56 +3365,7 @@ in
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
-            ExecStart = pkgs.writeShellScript "xtcp2-prom-snapshot" ''
-              set -u
-              # Wait for Prometheus to come up.
-              for _ in $(seq 1 30); do
-                if ${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
-                    http://127.0.0.1:9090/-/ready >/dev/null 2>&1; then
-                  break
-                fi
-                sleep 1
-              done
-              while true; do
-                ts=$(date -u +%FT%TZ)
-                # Use Prometheus's instant-query API. Each query gives
-                # the current value of one summable counter. Prefix each
-                # line with a sentinel so the host runner can grep it
-                # out of the serial transcript without ambiguity.
-                ns_start=0
-                {
-                  printf 'XTCP2_PROM_SNAPSHOT {"t":"%s"' "$ts"
-                  # netNamespaceInstance/start = per-namespace instances
-                  # started (Method B discovery signal). reconcile/start =
-                  # the pre-poll reconcile firing (replaced the removed
-                  # watchNamespaces inotify counter, which is dead under
-                  # Method B).
-                  for q in \
-                    'sum(xtcp_counts{variable="p"})' \
-                    'sum(xtcp_counts{variable="packets"})' \
-                    'sum(xtcp_counts{function="netNamespaceInstance",variable="start"})' \
-                    'sum(xtcp_counts{function="reconcile",variable="start"})' \
-                    'sum(xtcp_counts{function="nsAdd",variable="store"})' \
-                    'sum(xtcp_counts{variable="OrphanCQE"})' ; do
-                    v=$(${pkgs.curl}/bin/curl --silent --fail --max-time 2 \
-                      --data-urlencode "query=$q" \
-                      http://127.0.0.1:9090/api/v1/query 2>/dev/null \
-                      | ${pkgs.jq}/bin/jq -r '.data.result[0].value[1] // "0"' 2>/dev/null \
-                      || echo "0")
-                    printf ',"%s":%s' "$q" "$v"
-                    case "$q" in *netNamespaceInstance*) ns_start="$v" ;; esac
-                  done
-                  printf '}\n'
-                }
-                # Clean, unambiguous per-namespace discovery signal for the
-                # host runner. Under Method B there is no inotify CREATE
-                # event to grep — xtcp2 starts one netNamespaceInstance per
-                # netns it discovers via /proc (host + each container). The
-                # tcp-stress runner asserts this is >= the container count.
-                printf 'XTCP2_NS_INSTANCES start=%s\n' "''${ns_start:-0}"
-                sleep 30
-              done
-            '';
+            ExecStart = "${promSnapshotScript}/bin/xtcp2-prom-snapshot";
             Restart = "on-failure";
             RestartSec = "5s";
             # journal+console so the lines also stream out the serial
@@ -3042,32 +3390,11 @@ in
               after = [ "xtcp2.service" ];
               wants = [ "xtcp2.service" ];
               wantedBy = [ "multi-user.target" ];
-              path = [
-                pkgs.procps
-                pkgs.gnugrep
-                pkgs.coreutils
-              ];
+              # No `path = [ … ]`: the deps moved into the script's
+              # runtimeInputs, which is the same set plus glibc.bin for getconf.
               serviceConfig = {
                 Type = "simple";
-                ExecStart = pkgs.writeShellScript "xtcp2-resource-snapshot" ''
-                  set -u
-                  clk=$(getconf CLK_TCK 2>/dev/null || echo 100)
-                  while true; do
-                    pid=$(pgrep -x xtcp2 | head -1 || true)
-                    if [ -n "''${pid:-}" ] && [ -r "/proc/$pid/stat" ]; then
-                      # /proc/PID/stat: utime=14, stime=15 (clock ticks).
-                      read -r -a st < "/proc/$pid/stat"
-                      utime=''${st[13]}; stime=''${st[14]}
-                      vctx=$(grep -m1 '^voluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
-                      nvctx=$(grep -m1 '^nonvoluntary_ctxt_switches' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
-                      rss=$(grep -m1 '^VmRSS' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
-                      threads=$(grep -m1 '^Threads' "/proc/$pid/status" | grep -oE '[0-9]+' || echo 0)
-                      printf 'XTCP2_RES_SNAPSHOT {"t":"%s","clk":%s,"utime":%s,"stime":%s,"vctx":%s,"nvctx":%s,"rss_kb":%s,"threads":%s}\n' \
-                        "$(date -u +%FT%TZ)" "$clk" "''${utime:-0}" "''${stime:-0}" "$vctx" "$nvctx" "$rss" "''${threads:-0}"
-                    fi
-                    sleep 30
-                  done
-                '';
+                ExecStart = "${resourceSnapshotScript}/bin/xtcp2-resource-snapshot";
                 Restart = "on-failure";
                 RestartSec = "5s";
                 StandardOutput = "journal+console";
@@ -3217,18 +3544,49 @@ in
             # The largest grid cell spawns thousands of `sleep` procs in this
             # service's cgroup; lift the per-service task cap to fit them.
             TasksMax = 16384;
-            ExecStart = pkgs.writeShellScript "discovery-bench-run" ''
-              set -u
-              NS_GRID="''${DISCO_NS_GRID:-1,10,50,100}"
-              PID_GRID="''${DISCO_PID_GRID:-100,500,1000,3000}"
-              ITERS="''${DISCO_ITERS:-30}"
-              echo "DISCOBENCH_START ns_grid=$NS_GRID pid_grid=$PID_GRID iters=$ITERS"
-              ${xtcp2AllPackage}/bin/discovery-bench \
-                -mode grid -json \
-                -nsGrid "$NS_GRID" -pidGrid "$PID_GRID" -iters "$ITERS" \
-                || echo "DISCOBENCH_ERR grid exited non-zero"
-              echo "DISCOBENCH_DONE"
-            '';
+            ExecStart = "${discoveryBenchRunScript}/bin/discovery-bench-run";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # nlmon-capture flavor: the nlmon monitor device and the veth/dummy
+        # links the capture script drives are all kernel modules that a minimal
+        # microvm does not autoload. Name them so the initrd/boot pulls them in
+        # rather than relying on `modprobe` finding them at runtime.
+        boot.kernelModules = lib.mkIf isNlmonCapture [
+          "nlmon"
+          "veth"
+          "dummy"
+        ];
+
+        # nlmon-capture flavor: trigger a scripted sequence of real kernel
+        # network events on boot, capture them off an nlmon device, emit the
+        # pcap + sidecars as a base64 blob on the serial console, then let the
+        # host runner power the VM off.
+        systemd.services.nlmon-capture-run = lib.mkIf isNlmonCapture {
+          description = "xtcp2 — rtnetlink event capture (nlmon)";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
+          path = with pkgs; [
+            iproute2
+            coreutils
+            kmod
+            tcpdump
+          ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            # CAP_NET_ADMIN creates the nlmon/veth/dummy links and edits the
+            # route + neighbour tables; CAP_NET_RAW is what tcpdump needs to
+            # open the capture socket. CAP_SYS_MODULE covers the `modprobe`
+            # fallback when boot.kernelModules has not already loaded nlmon.
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+              "CAP_SYS_MODULE"
+            ];
+            ExecStart = "${nlmonCaptureRunScript}/bin/nlmon-capture-run";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -3247,6 +3605,16 @@ in
             systemd
           ])
           ++ lib.optionals isTcpStress (with pkgs; [ docker ])
+          # nlmon-capture tars + gzips + base64s the pcap out over the console,
+          # and modprobes nlmon; none of those are in the base set above.
+          ++ lib.optionals isNlmonCapture (
+            with pkgs;
+            [
+              kmod
+              gzip
+              gnutar
+            ]
+          )
           ++ [ xtcp2AllPackage ];
       }
     )

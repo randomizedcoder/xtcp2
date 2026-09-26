@@ -838,6 +838,208 @@ rec {
       '';
     };
 
+  # mkNlmonCaptureRunner — host runner for the nlmon-capture flavor.
+  #
+  # Same shape as mkDiscoveryBenchRunner (boot, tail both consoles, wait for a
+  # DONE sentinel or --timeout, power off), plus the coverage extractor's
+  # base64 scrape: the guest tars the pcap + sidecars between
+  # XTCP2_NLCAP_DUMP_START/_END markers and this unpacks them into the working
+  # tree so the fixtures can be committed.
+  #
+  # This is a runner (app), not a check, and it has to be: a nix check's
+  # $TMPDIR is private, its source is a read-only store copy, and its result is
+  # binary-cached — you would get a stale pcap and no way to write the real one
+  # into pkg/xtcpnl/testdata/. It also needs /dev/kvm, which the sandbox lacks.
+  mkNlmonCaptureRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-nlmon-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gawk
+        gnugrep
+        gnused
+        gnutar
+        gzip
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=600
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots the nlmon-capture microvm, triggers a scripted"
+              echo "  sequence of real kernel network events (link up/down,"
+              echo "  addr add/del, route add/del, neigh add/del), captures"
+              echo "  them off an nlmon device, extracts the pcap + sidecars,"
+              echo "  then powers off."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>,"
+              echo "  e.g. pkg/xtcpnl/testdata/7_1_8, and must be run from the"
+              echo "  xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        # Same repo-root guard as nix/capture-netlink-fixtures.nix: the default
+        # output path is relative, so running from anywhere else would scatter
+        # a pkg/ tree into the current directory.
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "nlmon-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-nlmon-capture-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 microvm nlmon-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'NLCAP_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          if grep -q 'NLCAP_ERR' "$LOG" 2>/dev/null; then
+            echo "FATAL: guest reported NLCAP_ERR:"
+            grep -E 'NLCAP_ERR' "$LOG" || true
+            exit 2
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: NLCAP_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " trigger sequence (as executed in the guest)"
+        echo "================================================"
+        grep -E 'NLCAP_PHASE|NLCAP_RUN_FAIL|NLCAP_PACKETS' "$LOG" 2>/dev/null || true
+
+        # Extract the tar|gzip|base64 blob. systemd routes the unit's
+        # StandardOutput=journal+console, which prefixes every line with
+        # `[TIME] <identifier>[PID]: `; strip that before decoding. The regex
+        # is deliberately generic rather than hard-coding the unit name — a
+        # base64 line can never begin with `[`, so it cannot over-match.
+        STAGE=$(mktemp -d -t xtcp2-nlcap-XXXX)
+        if grep -q 'XTCP2_NLCAP_DUMP_START' "$LOG" \
+          && grep -q 'XTCP2_NLCAP_DUMP_END' "$LOG"; then
+          awk '/XTCP2_NLCAP_DUMP_START/{flag=1;next} /XTCP2_NLCAP_DUMP_END/{flag=0} flag' "$LOG" \
+            | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' \
+            | tr -d '\r\n ' \
+            | base64 -d 2>/dev/null \
+            | gzip -dc 2>/dev/null \
+            | tar x -C "$STAGE" 2>/dev/null || true
+        else
+          echo "FATAL: no XTCP2_NLCAP_DUMP block in the transcript"
+          exit 2
+        fi
+
+        if [ ! -s "$STAGE/netlink_route_events.pcap" ]; then
+          echo "FATAL: extracted blob has no netlink_route_events.pcap"
+          echo "       staged files:"
+          ls -la "$STAGE" || true
+          exit 2
+        fi
+
+        # Version the output by the GUEST kernel, not the host's — the fixture
+        # documents the kernel that produced it. The guest's `uname -a` sidecar
+        # is the only reliable source for that.
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -f "$STAGE"/* "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        ls -la "$OUT_DIR"
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        echo "PASS: rtnetlink event capture complete"
+        exit 0
+      '';
+    };
+
   # mkClickPipeRateRunner — host runner for the clickhouse-pipeline-rate flavor.
   # Mirrors mkDiscoveryBenchRunner (boot, tail both consoles, wait for a DONE
   # sentinel or --timeout, power off). The in-VM xtcp2-clickpipe-rate monitor

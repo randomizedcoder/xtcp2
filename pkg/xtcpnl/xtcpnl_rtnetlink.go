@@ -260,10 +260,26 @@ func netlinkErr(body []byte) error {
 	return fmt.Errorf("xtcpnl: rtnetlink error: %w", syscall.Errno(-errno))
 }
 
+// NlaTypeMaskCst clears the two flag bits the kernel ORs into nla_type, leaving
+// the attribute type itself:
+//
+//	NLA_F_NESTED        0x8000  the payload is itself a stream of attributes
+//	NLA_F_NET_BYTEORDER 0x4000  the payload is big-endian, not host order
+//
+// Both are defined in include/uapi/linux/netlink.h and exported by
+// golang.org/x/sys/unix.
+const NlaTypeMaskCst uint16 = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER)
+
 // walkRTAttrs iterates the RTAttr TLVs in data, calling fn for each with its
 // type and value slice (a view into data — copy what you retain). It validates
 // each attribute length and advances by the 4-byte-aligned length, tolerating a
 // short trailing remainder like the kernel's NLA_ALIGN walk.
+//
+// The type passed to fn has NLA_F_NESTED and NLA_F_NET_BYTEORDER masked off, so
+// a caller comparing against a bare IFLA_*/RTA_*/NDA_* constant matches whether
+// or not the kernel flagged the attribute. Without the mask a nested attribute
+// silently fails every switch case, which is a bug that presents as missing
+// data rather than as an error.
 func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 	for len(data) >= RTAttrSizeCst {
 		var rta RTAttr
@@ -274,7 +290,7 @@ func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 		if alen < RTAttrSizeCst || alen > len(data) {
 			return ErrRTAttrSmall
 		}
-		fn(rta.Type, data[RTAttrSizeCst:alen])
+		fn(rta.Type&NlaTypeMaskCst, data[RTAttrSizeCst:alen])
 
 		adv := alen + FourByteAlignPadding(alen)
 		if adv <= 0 || adv > len(data) {
@@ -283,6 +299,14 @@ func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 		data = data[adv:]
 	}
 	return nil
+}
+
+// walkRTAttrsNested descends into a nested attribute's payload, which is itself
+// a stream of TLVs laid out exactly like a top-level one. It is a thin alias
+// for walkRTAttrs, named so call sites read as a descent and so the nesting is
+// visible when reading a parser.
+func walkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
+	return walkRTAttrs(val, fn)
 }
 
 // copyBytes returns a fresh copy of b, or nil for an empty slice, so parsed

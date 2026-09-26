@@ -31,6 +31,12 @@ const (
 	tnGetAddrV4Dump = "7_1_8 getaddr v4 dump"
 	tnGetAddrV6Dump = "7_1_8 getaddr v6 dump"
 	tnGetRouteDump  = "7_1_8 getroute dump"
+
+	// 7.1.4 rtnetlink event fixtures.
+	tnLinkEvents  = "7_1_4 link events"
+	tnAddrEvents  = "7_1_4 addr events"
+	tnRouteEvents = "7_1_4 route events"
+	tnNeighEvents = "7_1_4 neigh events"
 )
 
 // Testdata file paths. Grouped by kernel-version subdirectory so a new
@@ -92,6 +98,30 @@ const (
 	tdRouteGetAddrV4Dump_7_1_8 = tdBase + "/7_1_8/netlink_route_getaddr_v4_dump.pcap"
 	tdRouteGetAddrV6Dump_7_1_8 = tdBase + "/7_1_8/netlink_route_getaddr_v6_dump.pcap"
 	tdRouteGetRouteDump_7_1_8  = tdBase + "/7_1_8/netlink_route_getroute_dump.pcap"
+
+	// 7.1.4 rtnetlink EVENT captures (nlmon, NETLINK_ROUTE only), produced by
+	// `nix run .#microvm-x86_64-nlmon-capture`. 7_1_4 is the microVM's guest
+	// kernel, not this host's — the fixture is versioned by the kernel that
+	// actually emitted the bytes.
+	//
+	// The bulk capture is the whole session and is deliberately mixed: `ip`
+	// issues an RTM_GET* dump before most subcommands, so solicited replies sit
+	// alongside the unsolicited notifications. The generator
+	// (xtcpnl_extract_event_fixtures_test.go) keeps only the unsolicited
+	// notifications — selected by IsRtnetlinkNotification on nlmsg_flags, not
+	// by nlmsg_pid/nlmsg_seq — and splits them per family into the
+	// *_events_<family>.pcap fixtures the event tests read.
+	tdEventsBulk_7_1_4  = tdBase + "/7_1_4/netlink_route_events.pcap"
+	tdEventsLink_7_1_4  = tdBase + "/7_1_4/netlink_route_events_link.pcap"
+	tdEventsAddr_7_1_4  = tdBase + "/7_1_4/netlink_route_events_addr.pcap"
+	tdEventsRoute_7_1_4 = tdBase + "/7_1_4/netlink_route_events_route.pcap"
+	tdEventsNeigh_7_1_4 = tdBase + "/7_1_4/netlink_route_events_neigh.pcap"
+
+	// Sidecars: the source of truth the event expectations are derived from.
+	// ip_monitor_all is the event-side counterpart to ip_link_n — `ip monitor`
+	// decoded the same notifications live as they were captured.
+	tdEventsMonitor_7_1_4 = tdBase + "/7_1_4/ip_monitor_all"
+	tdEventsIPLink_7_1_4  = tdBase + "/7_1_4/ip_link_n"
 
 	// Bare testdata/ (no kernel subdir — placeholder fixtures)
 	tdAttrPragueinfoFake = tdBase + "/attribute_pragueinfo_fake_fixme"

@@ -1,0 +1,537 @@
+Timestamp: Sat Sep 26 00:13:35 2026 4064 usec
+[LINK]3: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN group default 
+    link/netlink 
+Timestamp: Sat Sep 26 00:13:35 2026 687875 usec
+[ADDR]2: ens4    inet6 fec0::ff:fe00:1001/64 scope site dynamic mngtmpaddr noprefixroute 
+       valid_lft 86399sec preferred_lft 14399sec
+Timestamp: Sat Sep 26 00:13:35 2026 690586 usec
+[ROUTE]local fec0::ff:fe00:1001 dev ens4 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:35 2026 944619 usec
+[ADDR]2: ens4    inet6 fec0::4eb9:6d31:5501:31b6/64 scope site temporary dynamic 
+       valid_lft 86399sec preferred_lft 14399sec
+Timestamp: Sat Sep 26 00:13:35 2026 944666 usec
+[ROUTE]local fec0::4eb9:6d31:5501:31b6 dev ens4 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:38 2026 622063 usec
+[NETCONF]inet nlcap1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:38 2026 625114 usec
+[NETCONF]inet6 nlcap1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:38 2026 625126 usec
+[ADDR]4: nlcap1    inet6 mcast ff01::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:38 2026 625133 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:38 2026 625138 usec
+[LINK]4: nlcap1@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 86:99:1f:74:74:f8 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:38 2026 625148 usec
+[NETCONF]inet nlcap0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:38 2026 625173 usec
+[NETCONF]inet6 nlcap0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:38 2026 625178 usec
+[ADDR]5: nlcap0    inet6 mcast ff01::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:38 2026 625182 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:38 2026 625186 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 3a:0c:eb:d2:0d:cf brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:38 2026 634263 usec
+[LINK]4: nlcap1@nlcap0: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noop state DOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:38 2026 641864 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:38 2026 954903 usec
+[LINK]5: nlcap0@nlcap1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:38 2026 954927 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:39 2026 266304 usec
+[LINK]4: nlcap1@nlcap0: <NO-CARRIER,BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:39 2026 266329 usec
+[ADDR]4: nlcap1    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:39 2026 266337 usec
+[ROUTE]multicast ff00::/8 dev nlcap1 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:39 2026 266344 usec
+[ROUTE]fe80::/64 dev nlcap1 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:39 2026 266348 usec
+[LINK]4: nlcap1@nlcap0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:39 2026 266354 usec
+[ROUTE]multicast ff00::/8 dev nlcap0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:39 2026 266362 usec
+[ROUTE]fe80::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:39 2026 266366 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:39 2026 266371 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1:ff51:ae3f scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:39 2026 266375 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:ff73:294b scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 423228 usec
+[ADDR]4: nlcap1    inet6 fe80::e89f:a4ff:fe51:ae3f/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 429650 usec
+[ROUTE]local fe80::e89f:a4ff:fe51:ae3f dev nlcap1 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:40 2026 429677 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 429683 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 728860 usec
+[LINK]4: nlcap1@nlcap0: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:40 2026 728895 usec
+[ADDR]Deleted 4: nlcap1    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 728903 usec
+[ROUTE]Deleted fe80::/64 dev nlcap1 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:40 2026 728909 usec
+[ROUTE]Deleted local fe80::e89f:a4ff:fe51:ae3f dev nlcap1 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:40 2026 728914 usec
+[ROUTE]Deleted multicast ff00::/8 dev nlcap1 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:40 2026 729747 usec
+[NEIGH]Deleted ff02::2 dev nlcap1 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:13:40 2026 729759 usec
+[NEIGH]Deleted ff02::1:ff51:ae3f dev nlcap1 lladdr 33:33:ff:51:ae:3f NOARP 
+Timestamp: Sat Sep 26 00:13:40 2026 729763 usec
+[NEIGH]Deleted ff02::16 dev nlcap1 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:13:40 2026 729768 usec
+[ADDR]Deleted 4: nlcap1    inet6 fe80::e89f:a4ff:fe51:ae3f/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 729773 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::1:ff51:ae3f scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 729777 usec
+[NEIGH]Deleted ff02::1:ff73:294b dev nlcap0 lladdr 33:33:ff:73:29:4b NOARP 
+Timestamp: Sat Sep 26 00:13:40 2026 729781 usec
+[NEIGH]Deleted ff02::16 dev nlcap0 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:13:40 2026 729786 usec
+[LINK]5: nlcap0@nlcap1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:40 2026 729794 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:40 2026 729797 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:41 2026 64126 usec
+[ADDR]5: nlcap0    inet6 fe80::8cf:64ff:fe73:294b/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:41 2026 64152 usec
+[ROUTE]local fe80::8cf:64ff:fe73:294b dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:42 2026 229169 usec
+[LINK]4: nlcap1@nlcap0: <NO-CARRIER,BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:42 2026 229237 usec
+[ADDR]4: nlcap1    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:42 2026 230938 usec
+[ROUTE]multicast ff00::/8 dev nlcap1 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:42 2026 230973 usec
+[ROUTE]fe80::/64 dev nlcap1 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:42 2026 230982 usec
+[LINK]4: nlcap1@nlcap0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:42 2026 230994 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:42 2026 231002 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1:ff51:ae3f scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:42 2026 233620 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:42 2026 233648 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:43 2026 303481 usec
+[ADDR]4: nlcap1    inet6 fe80::e89f:a4ff:fe51:ae3f/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:43 2026 303548 usec
+[ROUTE]local fe80::e89f:a4ff:fe51:ae3f dev nlcap1 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:43 2026 306334 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:43 2026 306365 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 282911 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:44 2026 282970 usec
+[ADDR]Deleted 5: nlcap0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 282981 usec
+[ROUTE]Deleted fe80::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:44 2026 282989 usec
+[ROUTE]Deleted local fe80::8cf:64ff:fe73:294b dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:44 2026 282996 usec
+[ROUTE]Deleted multicast ff00::/8 dev nlcap0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:44 2026 283003 usec
+[NEIGH]Deleted ff02::fb dev nlcap0 lladdr 33:33:00:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 283009 usec
+[NEIGH]Deleted ff02::1:3 dev nlcap0 lladdr 33:33:00:01:00:03 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 283015 usec
+[NEIGH]Deleted ff02::2 dev nlcap0 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 283021 usec
+[NEIGH]Deleted ff02::16 dev nlcap0 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 283026 usec
+[ADDR]Deleted 5: nlcap0    inet6 fe80::8cf:64ff:fe73:294b/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 283032 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1:ff73:294b scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 284618 usec
+[NEIGH]Deleted ff02::fb dev nlcap1 lladdr 33:33:00:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 284647 usec
+[NEIGH]Deleted ff02::1:3 dev nlcap1 lladdr 33:33:00:01:00:03 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 284655 usec
+[NEIGH]Deleted ff02::2 dev nlcap1 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 284661 usec
+[NEIGH]Deleted ff02::1:ff51:ae3f dev nlcap1 lladdr 33:33:ff:51:ae:3f NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 284667 usec
+[NEIGH]Deleted ff02::16 dev nlcap1 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:13:44 2026 284674 usec
+[LINK]4: nlcap1@nlcap0: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:44 2026 284724 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 284746 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 284755 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:44 2026 284762 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:46 2026 38515 usec
+[LINK]5: nlcap0@nlcap1: <NO-CARRIER,BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:46 2026 38572 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:46 2026 39367 usec
+[ROUTE]multicast ff00::/8 dev nlcap0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:46 2026 39384 usec
+[ROUTE]fe80::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:46 2026 39392 usec
+[LINK]5: nlcap0@nlcap1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:46 2026 39403 usec
+[LINK]4: nlcap1@nlcap0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:46 2026 39412 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:ff73:294b scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:46 2026 42155 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:46 2026 42181 usec
+[ADDR]4: nlcap1    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 528902 usec
+[ADDR]5: nlcap0    inet6 fe80::8cf:64ff:fe73:294b/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 528934 usec
+[ROUTE]local fe80::8cf:64ff:fe73:294b dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:47 2026 528945 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:3 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 528951 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::fb scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 878764 usec
+[NETCONF]inet nlcapd0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:47 2026 878844 usec
+[NETCONF]inet6 nlcapd0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+Timestamp: Sat Sep 26 00:13:47 2026 878853 usec
+[ADDR]6: nlcapd0    inet6 mcast ff01::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 878892 usec
+[ADDR]6: nlcapd0    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:47 2026 878905 usec
+[LINK]6: nlcapd0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 7a:31:c0:01:bc:72 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:48 2026 476797 usec
+[LINK]6: nlcapd0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether 7a:31:c0:01:bc:72 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:48 2026 479270 usec
+[ADDR]6: nlcapd0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:48 2026 479307 usec
+[ROUTE]multicast ff00::/8 dev nlcapd0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:48 2026 479318 usec
+[ROUTE]fe80::/64 dev nlcapd0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:48 2026 479323 usec
+[ADDR]6: nlcapd0    inet6 fe80::7831:c0ff:fe01:bc72/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:48 2026 479330 usec
+[ROUTE]local fe80::7831:c0ff:fe01:bc72 dev nlcapd0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:49 2026 12957 usec
+[LINK]6: nlcapd0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether ea:75:e2:66:88:52 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:49 2026 13007 usec
+[NEIGH]Deleted ff02::2 dev nlcapd0 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:13:49 2026 98155 usec
+[LINK]6: nlcapd0: <BROADCAST,NOARP> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether ea:75:e2:66:88:52 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:49 2026 98190 usec
+[ADDR]Deleted 6: nlcapd0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:49 2026 98201 usec
+[ROUTE]Deleted fe80::/64 dev nlcapd0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:49 2026 98209 usec
+[ROUTE]Deleted local fe80::7831:c0ff:fe01:bc72 dev nlcapd0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:49 2026 98217 usec
+[ROUTE]Deleted multicast ff00::/8 dev nlcapd0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:49 2026 98223 usec
+[ADDR]Deleted 6: nlcapd0    inet6 fe80::7831:c0ff:fe01:bc72/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:49 2026 102216 usec
+[NETCONF]Deleted inet nlcapd0 
+Timestamp: Sat Sep 26 00:13:49 2026 102242 usec
+[ADDR]Deleted 6: nlcapd0    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:49 2026 102253 usec
+[NETCONF]Deleted inet6 nlcapd0 
+Timestamp: Sat Sep 26 00:13:49 2026 102260 usec
+[LINK]Deleted 6: nlcapd0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether ea:75:e2:66:88:52 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:13:50 2026 408352 usec
+[NEIGH]10.0.2.2 dev ens4 lladdr 52:55:0a:00:02:02 STALE 
+Timestamp: Sat Sep 26 00:13:50 2026 408432 usec
+[NEIGH]10.0.2.3 dev ens4 lladdr 52:55:0a:00:02:03 STALE 
+Timestamp: Sat Sep 26 00:13:51 2026 637950 usec
+[ADDR]5: nlcap0    inet 192.0.2.1/24 scope global nlcap0
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:51 2026 639124 usec
+[ROUTE]local 192.0.2.1 dev nlcap0 table local proto kernel scope host src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:51 2026 639145 usec
+[ROUTE]192.0.2.0/24 dev nlcap0 proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:51 2026 639151 usec
+[ROUTE]broadcast 192.0.2.255 dev nlcap0 table local proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:51 2026 639157 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.252 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:51 2026 639164 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.251 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:52 2026 112219 usec
+[ROUTE]2001:db8::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:52 2026 112253 usec
+[ADDR]5: nlcap0    inet6 2001:db8::1/64 scope global tentative 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:52 2026 112262 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:ff00:1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:53 2026 160388 usec
+[ADDR]5: nlcap0    inet6 2001:db8::1/64 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:53 2026 165834 usec
+[ROUTE]local 2001:db8::1 dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:54 2026 868460 usec
+[ADDR]Deleted 5: nlcap0    inet 192.0.2.1/24 scope global nlcap0
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:54 2026 868502 usec
+[ROUTE]Deleted 192.0.2.0/24 dev nlcap0 proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:54 2026 868512 usec
+[ROUTE]Deleted broadcast 192.0.2.255 dev nlcap0 table local proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:54 2026 868519 usec
+[ROUTE]Deleted local 192.0.2.1 dev nlcap0 table local proto kernel scope host src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:54 2026 868525 usec
+[NEIGH]Deleted 224.0.0.251 dev nlcap0 lladdr 01:00:5e:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:13:54 2026 868531 usec
+[NEIGH]Deleted 224.0.0.252 dev nlcap0 lladdr 01:00:5e:00:00:fc NOARP 
+Timestamp: Sat Sep 26 00:13:54 2026 868537 usec
+[NEIGH]Deleted 224.0.0.22 dev nlcap0 lladdr 01:00:5e:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:13:55 2026 335046 usec
+[ADDR]Deleted 5: nlcap0    inet6 2001:db8::1/64 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:55 2026 335118 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1:ff00:1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:55 2026 335130 usec
+[ROUTE]Deleted local 2001:db8::1 dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:13:55 2026 335142 usec
+[ROUTE]Deleted 2001:db8::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:55 2026 336073 usec
+[ADDR]Deleted 5: nlcap0    inet mcast 224.0.0.252 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:55 2026 336088 usec
+[ADDR]Deleted 5: nlcap0    inet mcast 224.0.0.251 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:57 2026 579948 usec
+[ADDR]5: nlcap0    inet 192.0.2.1/24 scope global nlcap0
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:57 2026 579993 usec
+[ROUTE]local 192.0.2.1 dev nlcap0 table local proto kernel scope host src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:57 2026 580007 usec
+[ROUTE]192.0.2.0/24 dev nlcap0 proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:57 2026 580014 usec
+[ROUTE]broadcast 192.0.2.255 dev nlcap0 table local proto kernel scope link src 192.0.2.1 
+Timestamp: Sat Sep 26 00:13:57 2026 580135 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.252 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:57 2026 581499 usec
+[ADDR]5: nlcap0    inet mcast 224.0.0.251 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:57 2026 929753 usec
+[ROUTE]2001:db8::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:13:57 2026 929800 usec
+[ADDR]5: nlcap0    inet6 2001:db8::1/64 scope global tentative 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:57 2026 929809 usec
+[ADDR]5: nlcap0    inet6 mcast ff02::1:ff00:1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:59 2026 816562 usec
+[ADDR]5: nlcap0    inet6 2001:db8::1/64 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:13:59 2026 816596 usec
+[ROUTE]local 2001:db8::1 dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:14:00 2026 801581 usec
+[ROUTE]198.51.100.0/24 dev nlcap0 scope link 
+Timestamp: Sat Sep 26 00:14:01 2026 143783 usec
+[ROUTE]Deleted 198.51.100.0/24 dev nlcap0 scope link 
+Timestamp: Sat Sep 26 00:14:01 2026 697718 usec
+[ROUTE]203.0.113.0/24 via 192.0.2.254 dev nlcap0 
+Timestamp: Sat Sep 26 00:14:02 2026 255745 usec
+[ROUTE]Deleted 203.0.113.0/24 via 192.0.2.254 dev nlcap0 
+Timestamp: Sat Sep 26 00:14:02 2026 821244 usec
+[ROUTE]198.18.0.0/24 dev nlcap0 table 100 scope link 
+Timestamp: Sat Sep 26 00:14:03 2026 246794 usec
+[ROUTE]Deleted 198.18.0.0/24 dev nlcap0 table 100 scope link 
+Timestamp: Sat Sep 26 00:14:03 2026 655878 usec
+[ROUTE]blackhole 198.19.0.0/24 
+Timestamp: Sat Sep 26 00:14:04 2026 43442 usec
+[ROUTE]Deleted blackhole 198.19.0.0/24 
+Timestamp: Sat Sep 26 00:14:04 2026 451937 usec
+[ROUTE]2001:db8:1::/64 dev nlcap0 metric 1024 pref medium
+Timestamp: Sat Sep 26 00:14:04 2026 772469 usec
+[ROUTE]Deleted 2001:db8:1::/64 dev nlcap0 metric 1024 pref medium
+Timestamp: Sat Sep 26 00:14:06 2026 773371 usec
+[NEIGH]192.0.2.50 dev nlcap0 lladdr 02:00:00:00:00:01 PERMANENT 
+Timestamp: Sat Sep 26 00:14:08 2026 668322 usec
+[NEIGH]192.0.2.50 dev nlcap0 lladdr 02:00:00:00:00:01 STALE 
+Timestamp: Sat Sep 26 00:14:09 2026 864819 usec
+[NEIGH]10.0.2.2 dev ens4 lladdr 52:55:0a:00:02:02 PROBE 
+Timestamp: Sat Sep 26 00:14:09 2026 864880 usec
+[NEIGH]10.0.2.2 dev ens4 lladdr 52:55:0a:00:02:02 REACHABLE 
+Timestamp: Sat Sep 26 00:14:10 2026 530732 usec
+[NEIGH]192.0.2.50 dev nlcap0 FAILED 
+Timestamp: Sat Sep 26 00:14:10 2026 530770 usec
+[NEIGH]Deleted 192.0.2.50 dev nlcap0 FAILED 
+Timestamp: Sat Sep 26 00:14:10 2026 887218 usec
+[NEIGH]2001:db8::50 dev nlcap0 lladdr 02:00:00:00:00:02 PERMANENT 
+Timestamp: Sat Sep 26 00:14:12 2026 561501 usec
+[NEIGH]2001:db8::50 dev nlcap0 FAILED 
+Timestamp: Sat Sep 26 00:14:12 2026 561542 usec
+[NEIGH]Deleted 2001:db8::50 dev nlcap0 FAILED 
+Timestamp: Sat Sep 26 00:14:16 2026 513602 usec
+[LINK]5: nlcap0@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:14:16 2026 513644 usec
+[ADDR]Deleted 5: nlcap0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513662 usec
+[NEIGH]Deleted 224.0.0.251 dev nlcap0 lladdr 01:00:5e:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513675 usec
+[NEIGH]Deleted 224.0.0.252 dev nlcap0 lladdr 01:00:5e:00:00:fc NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513684 usec
+[NEIGH]Deleted 224.0.0.22 dev nlcap0 lladdr 01:00:5e:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513697 usec
+[ROUTE]Deleted 2001:db8::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513713 usec
+[ROUTE]Deleted fe80::/64 dev nlcap0 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513721 usec
+[ROUTE]Deleted local 2001:db8::1 dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513732 usec
+[ROUTE]Deleted local fe80::8cf:64ff:fe73:294b dev nlcap0 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513742 usec
+[ROUTE]Deleted multicast ff00::/8 dev nlcap0 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513752 usec
+[NEIGH]Deleted ff02::1:ff00:1 dev nlcap0 lladdr 33:33:ff:00:00:01 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513763 usec
+[NEIGH]Deleted ff02::fb dev nlcap0 lladdr 33:33:00:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513769 usec
+[NEIGH]Deleted ff02::1:3 dev nlcap0 lladdr 33:33:00:01:00:03 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513779 usec
+[NEIGH]Deleted ff02::2 dev nlcap0 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513792 usec
+[NEIGH]Deleted ff02::1:ff73:294b dev nlcap0 lladdr 33:33:ff:73:29:4b NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513804 usec
+[NEIGH]Deleted ff02::16 dev nlcap0 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513810 usec
+[ADDR]Deleted 5: nlcap0    inet6 2001:db8::1/64 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513820 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1:ff00:1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513830 usec
+[ADDR]Deleted 5: nlcap0    inet6 fe80::8cf:64ff:fe73:294b/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513837 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1:ff73:294b scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513843 usec
+[LINK]4: nlcap1@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:14:16 2026 513863 usec
+[ADDR]Deleted 4: nlcap1    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513876 usec
+[ROUTE]Deleted fe80::/64 dev nlcap1 proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513886 usec
+[ROUTE]Deleted local fe80::e89f:a4ff:fe51:ae3f dev nlcap1 table local proto kernel metric 0 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513897 usec
+[ROUTE]Deleted multicast ff00::/8 dev nlcap1 table local proto kernel metric 256 pref medium
+Timestamp: Sat Sep 26 00:14:16 2026 513904 usec
+[NEIGH]Deleted ff02::2 dev nlcap1 lladdr 33:33:00:00:00:02 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513910 usec
+[NEIGH]Deleted ff02::fb dev nlcap1 lladdr 33:33:00:00:00:fb NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513916 usec
+[NEIGH]Deleted ff02::1:3 dev nlcap1 lladdr 33:33:00:01:00:03 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513922 usec
+[NEIGH]Deleted ff02::16 dev nlcap1 lladdr 33:33:00:00:00:16 NOARP 
+Timestamp: Sat Sep 26 00:14:16 2026 513927 usec
+[ADDR]Deleted 4: nlcap1    inet6 fe80::e89f:a4ff:fe51:ae3f/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513934 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::1:ff51:ae3f scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513939 usec
+[ADDR]Deleted 5: nlcap0    inet 192.0.2.1/24 scope global nlcap0
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513945 usec
+[ROUTE]Deleted local 192.0.2.1 dev nlcap0 table local proto kernel scope host src 192.0.2.1 
+Timestamp: Sat Sep 26 00:14:16 2026 513951 usec
+[NETCONF]Deleted inet nlcap0 
+Timestamp: Sat Sep 26 00:14:16 2026 513955 usec
+[ADDR]Deleted 5: nlcap0    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513961 usec
+[NETCONF]Deleted inet6 nlcap0 
+Timestamp: Sat Sep 26 00:14:16 2026 513967 usec
+[LINK]Deleted 5: nlcap0@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 0a:cf:64:73:29:4b brd ff:ff:ff:ff:ff:ff
+Timestamp: Sat Sep 26 00:14:16 2026 513974 usec
+[NETCONF]Deleted inet nlcap1 
+Timestamp: Sat Sep 26 00:14:16 2026 513979 usec
+[ADDR]Deleted 4: nlcap1    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sat Sep 26 00:14:16 2026 513988 usec
+[NETCONF]Deleted inet6 nlcap1 
+Timestamp: Sat Sep 26 00:14:16 2026 513998 usec
+[LINK]Deleted 4: nlcap1@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether ea:9f:a4:51:ae:3f brd ff:ff:ff:ff:ff:ff

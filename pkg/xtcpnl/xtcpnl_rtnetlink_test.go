@@ -521,21 +521,21 @@ func TestParseNewLink(t *testing.T) {
 				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, unix.IFF_UP),
 				rtattr(unix.IFLA_IFNAME, append([]byte("eth0"), 0)),
 			),
-			want: LinkInfo{Index: 2, Flags: unix.IFF_UP, Name: "eth0"},
+			want: LinkInfo{Index: 2, Flags: unix.IFF_UP, Name: "eth0", Type: 1},
 		},
 		{
 			description: "boundary: loopback with no IFLA_IFNAME",
 			body:        ifinfomsgHdr(unix.AF_UNSPEC, 772, 1, unix.IFF_UP|unix.IFF_LOOPBACK),
-			want:        LinkInfo{Index: 1, Flags: unix.IFF_UP | unix.IFF_LOOPBACK},
+			want:        LinkInfo{Index: 1, Flags: unix.IFF_UP | unix.IFF_LOOPBACK, Type: 772},
 		},
 		{
-			description: "corner: other IFLA attributes ignored, name still extracted",
+			description: "corner: unknown IFLA attributes ignored, name and MTU still extracted",
 			body: concat(
 				ifinfomsgHdr(unix.AF_UNSPEC, 1, 5, unix.IFF_UP),
 				rtattr(unix.IFLA_MTU, le32(1500)),
 				rtattr(unix.IFLA_IFNAME, append([]byte("wg0"), 0)),
 			),
-			want: LinkInfo{Index: 5, Flags: unix.IFF_UP, Name: "wg0"},
+			want: LinkInfo{Index: 5, Flags: unix.IFF_UP, Name: "wg0", Type: 1, MTU: 1500},
 		},
 		{
 			description: "corner: truncated ifinfomsg header -> error",

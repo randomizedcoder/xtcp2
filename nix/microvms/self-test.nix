@@ -252,10 +252,15 @@ pkgs.writeShellApplication {
   text = ''
     set +e   # never exit early — we want all checks to run
 
-    # writeShellApplication restricts PATH to runtimeInputs only, so the
-    # cmd binaries that mkVm.nix installs via environment.systemPackages
-    # (xtcp2, xtcp2client, ns, nsTest, …) aren't reachable. Prepend the
-    # NixOS system path so check 4–7 can find them.
+    # writeShellApplication PREPENDS runtimeInputs to PATH (inheritPath
+    # defaults to true — see pkgs/build-support/trivial-builders/default.nix
+    # in nixpkgs); it does NOT clamp PATH to runtimeInputs, as an earlier
+    # version of this comment claimed. What is genuinely unreliable is the
+    # inherited half: the cmd binaries mkVm.nix installs via
+    # environment.systemPackages (xtcp2, xtcp2client, ns, nsTest, …) live
+    # only on the NixOS system path, which a systemd unit's default PATH is
+    # not guaranteed to carry. Prepend it explicitly so checks 4–7 resolve
+    # them whatever the caller's environment.
     export PATH="/run/current-system/sw/bin:$PATH"
 
     overall_ok=1

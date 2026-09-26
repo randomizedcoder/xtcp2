@@ -1,0 +1,44 @@
+NLCAP_RUN modprobe nlmon
+NLCAP_RUN ip link add nlmon0 type nlmon
+NLCAP_RUN ip link set dev nlmon0 up
+NLCAP_PHASE link
+NLCAP_RUN ip link add nlcap0 type veth peer name nlcap1
+NLCAP_RUN ip link set dev nlcap0 up
+NLCAP_RUN ip link set dev nlcap1 up
+NLCAP_RUN ip link set dev nlcap1 down
+NLCAP_RUN ip link set dev nlcap1 up
+NLCAP_RUN ip link set dev nlcap0 down
+NLCAP_RUN ip link set dev nlcap0 up
+NLCAP_RUN ip link add nlcapd0 type dummy
+NLCAP_RUN ip link set dev nlcapd0 up
+NLCAP_RUN ip link del nlcapd0
+NLCAP_PHASE addr
+NLCAP_RUN ip addr add 192.0.2.1/24 dev nlcap0
+NLCAP_RUN ip -6 addr add 2001:db8::1/64 dev nlcap0
+NLCAP_RUN ip addr del 192.0.2.1/24 dev nlcap0
+NLCAP_RUN ip -6 addr del 2001:db8::1/64 dev nlcap0
+NLCAP_PHASE route
+NLCAP_RUN ip addr add 192.0.2.1/24 dev nlcap0
+NLCAP_RUN ip -6 addr add 2001:db8::1/64 dev nlcap0
+NLCAP_RUN ip route add 198.51.100.0/24 dev nlcap0
+NLCAP_RUN ip route del 198.51.100.0/24 dev nlcap0
+NLCAP_RUN ip route add 203.0.113.0/24 via 192.0.2.254 dev nlcap0
+NLCAP_RUN ip route del 203.0.113.0/24 via 192.0.2.254 dev nlcap0
+NLCAP_RUN ip route add 198.18.0.0/24 dev nlcap0 table 100
+NLCAP_RUN ip route del 198.18.0.0/24 dev nlcap0 table 100
+NLCAP_RUN ip route add blackhole 198.19.0.0/24
+NLCAP_RUN ip route del blackhole 198.19.0.0/24
+NLCAP_RUN ip -6 route add 2001:db8:1::/64 dev nlcap0
+NLCAP_RUN ip -6 route del 2001:db8:1::/64 dev nlcap0
+NLCAP_PHASE neigh
+NLCAP_RUN ip neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev nlcap0 nud permanent
+NLCAP_RUN ip neigh change 192.0.2.50 lladdr 02:00:00:00:00:01 dev nlcap0 nud stale
+NLCAP_RUN ip neigh del 192.0.2.50 dev nlcap0
+NLCAP_RUN ip -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:02 dev nlcap0 nud permanent
+NLCAP_RUN ip -6 neigh del 2001:db8::50 dev nlcap0
+NLCAP_PHASE error
+NLCAP_RUN ip route del 203.0.113.99/32
+NLCAP_RUN_FAIL rc=2 ip route del 203.0.113.99/32
+NLCAP_PHASE sidecars
+NLCAP_PHASE teardown
+NLCAP_RUN ip link del nlcap0
