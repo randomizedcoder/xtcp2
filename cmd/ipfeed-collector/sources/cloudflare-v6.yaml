@@ -1,0 +1,11 @@
+name: cloudflare-v6
+provider: cloudflare
+url: https://www.cloudflare.com/ips-v6
+parser: text_cidr
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: cloudflare
+  service_operator: cloudflare
+  service: proxy
+enabled: true

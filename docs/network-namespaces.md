@@ -43,7 +43,7 @@ The per-namespace reader lives in `pkg/xtcp/ns_net_namespace.go`. Because `setns
 
 1. Calls `runtime.LockOSThread()` to pin the goroutine to its OS thread.
 2. Snapshots the original namespace, then `setns(CLONE_NEWNET)` into the target.
-3. Opens a netlink socket — now scoped to that namespace — and runs the [netlinkers](netlink-collection.md#netlinkers).
+3. Opens a netlink socket — now scoped to that namespace — and runs the [netlinkers](netlink/collection.md#netlinkers).
 4. On exit, restores the original namespace and releases the thread.
 
 Entering a namespace requires `CAP_SYS_ADMIN`; without it every `setns` fails with `EPERM`. **Discovering** namespaces requires `CAP_SYS_PTRACE`: Method B enumerates live namespaces by reading `/proc/<pid>/ns/net`, and the kernel gates that readlink/open behind `ptrace_may_access`, which denies non-dumpable targets (system daemons, `ip netns exec` children) even to root. Without `CAP_SYS_PTRACE` the `/proc` scan sees only xtcp2's own namespace — the daemon starts (with a soft-capability warning) but discovers nothing to enter. See [observability](observability.md#capability-checks).
@@ -62,7 +62,7 @@ The watched directories (`/run/netns/`, `/run/docker/netns/`) are built in, not 
 
 ## See also
 
-- [Netlink collection](netlink-collection.md) — what each per-namespace reader does.
+- [Netlink collection](netlink/collection.md) — what each per-namespace reader does.
 - [Performance](performance.md) — thread and parallelism tuning.
 - [Integration testing](integration-testing.md) — the microVM namespace-lifecycle, tcp-stress, and discovery-bench tests that exercise this path.
 - [Design: namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — proposed pull-based reconcile and the dir-scan vs `/proc`-scan discovery analysis.

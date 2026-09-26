@@ -2127,134 +2127,139 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
 
   // accessors -------------------------------------------------------
   enum : int {
-    kS3EndpointFieldNumber = 125,
-    kS3PrefixFieldNumber = 127,
-    kS3SecretKeyFieldNumber = 129,
-    kS3RegionFieldNumber = 133,
-    kPyroscopeAppNameFieldNumber = 137,
-    kPollFrequencyFieldNumber = 20,
-    kPollTimeoutFieldNumber = 30,
+    kDestFieldNumber = 60,
+    kMarshalToFieldNumber = 61,
+    kCsvColumnsFieldNumber = 62,
+    kXtcpProtoFileFieldNumber = 63,
+    kPyroscopeAppNameFieldNumber = 171,
+    kPollFrequencyFieldNumber = 11,
+    kPollTimeoutFieldNumber = 12,
+    kEnabledDeserializersFieldNumber = 21,
     kNlTimeoutMillisecondsFieldNumber = 10,
-    kMaxLoopsFieldNumber = 40,
-    kNetlinkersFieldNumber = 50,
-    kNetlinkersDoneChanSizeFieldNumber = 51,
-    kPacketSizeFieldNumber = 70,
-    kNlmsgSeqFieldNumber = 60,
-    kPacketSizeMplyFieldNumber = 80,
-    kWriteFilesFieldNumber = 90,
-    kEnvelopeFlushThresholdRowsFieldNumber = 123,
-    kDestWriteFilesFieldNumber = 135,
-    kUplinkInterfacesFieldNumber = 237,
-    kCapturePathFieldNumber = 100,
-    kMarshalToFieldNumber = 120,
-    kKafkaCompressionFieldNumber = 124,
-    kS3BucketFieldNumber = 126,
-    kS3AccessKeyFieldNumber = 128,
-    kDestFieldNumber = 130,
-    kPyroscopeUrlFieldNumber = 136,
-    kTopicFieldNumber = 140,
-    kXtcpProtoFileFieldNumber = 143,
-    kKafkaSchemaUrlFieldNumber = 145,
-    kLabelFieldNumber = 170,
-    kTagFieldNumber = 180,
-    kLocationFieldNumber = 181,
-    kHostnameFieldNumber = 182,
-    kDaemonVersionFieldNumber = 186,
-    kCsvColumnsFieldNumber = 220,
-    kDockerSocketPathFieldNumber = 231,
-    kLldpdSocketPathFieldNumber = 233,
-    kLldpdVersionHintFieldNumber = 234,
-    kKafkaProduceTimeoutFieldNumber = 150,
-    kEnabledDeserializersFieldNumber = 200,
-    kS3FlushIntervalFieldNumber = 222,
-    kS3UploadBackoffCapFieldNumber = 226,
-    kReconcileFrequencyFieldNumber = 227,
-    kModulusFieldNumber = 110,
-    kEnvelopeFlushThresholdBytesFieldNumber = 122,
-    kS3ParquetFlushThresholdBytesFieldNumber = 132,
-    kPyroscopeSampleHzFieldNumber = 138,
-    kPyroscopeUploadIntervalSecFieldNumber = 139,
-    kDebugLevelFieldNumber = 160,
-    kIpv4TtlFieldNumber = 184,
-    kIpv6HopLimitFieldNumber = 185,
-    kS3SkipBucketProbeFieldNumber = 134,
-    kResolveContainerIdFieldNumber = 183,
-    kIoUringFieldNumber = 210,
-    kReconcileBeforePollFieldNumber = 228,
-    kGrpcPortFieldNumber = 190,
-    kIoUringRecvBatchSizeFieldNumber = 211,
-    kIoUringCqeBatchSizeFieldNumber = 212,
-    kPollJitterPctFieldNumber = 221,
-    kS3FlushJitterPctFieldNumber = 223,
-    kS3FlushThresholdJitterPctFieldNumber = 224,
-    kS3UploadMaxAttemptsFieldNumber = 225,
-    kEnrichContainerEnableFieldNumber = 230,
-    kEnrichLldpEnableFieldNumber = 232,
-    kEnrichNicEnableFieldNumber = 235,
-    kPopulateNsidFieldNumber = 238,
-    kUplinkCountFieldNumber = 236,
+    kMaxLoopsFieldNumber = 14,
+    kPollJitterPctFieldNumber = 13,
+    kNetlinkersFieldNumber = 15,
+    kNetlinkersDoneChanSizeFieldNumber = 16,
+    kNlmsgSeqFieldNumber = 17,
+    kPacketSizeFieldNumber = 18,
+    kModulusFieldNumber = 20,
+    kPacketSizeMplyFieldNumber = 19,
+    kIoUringRecvBatchSizeFieldNumber = 23,
+    kIoUringCqeBatchSizeFieldNumber = 24,
+    kIoUringFieldNumber = 22,
+    kReconcileBeforePollFieldNumber = 41,
+    kS3SkipBucketProbeFieldNumber = 106,
+    kUplinkInterfacesFieldNumber = 222,
+    kCapturePathFieldNumber = 51,
+    kTopicFieldNumber = 80,
+    kKafkaSchemaUrlFieldNumber = 81,
+    kKafkaCompressionFieldNumber = 83,
+    kS3EndpointFieldNumber = 100,
+    kS3RegionFieldNumber = 101,
+    kS3BucketFieldNumber = 102,
+    kS3PrefixFieldNumber = 103,
+    kS3AccessKeyFieldNumber = 104,
+    kS3SecretKeyFieldNumber = 105,
+    kHostnameFieldNumber = 130,
+    kLocationFieldNumber = 131,
+    kLabelFieldNumber = 132,
+    kTagFieldNumber = 133,
+    kDaemonVersionFieldNumber = 134,
+    kPyroscopeUrlFieldNumber = 170,
+    kDockerSocketPathFieldNumber = 202,
+    kLldpdSocketPathFieldNumber = 211,
+    kLldpdVersionHintFieldNumber = 212,
+    kAsnDbPathFieldNumber = 241,
+    kReconcileFrequencyFieldNumber = 40,
+    kKafkaProduceTimeoutFieldNumber = 82,
+    kS3FlushIntervalFieldNumber = 111,
+    kS3UploadBackoffCapFieldNumber = 115,
+    kAsnRefreshIntervalFieldNumber = 242,
+    kLocalityRefreshIntervalFieldNumber = 246,
+    kWriteFilesFieldNumber = 50,
+    kDestWriteFilesFieldNumber = 52,
+    kDebugLevelFieldNumber = 53,
+    kEnvelopeFlushThresholdBytesFieldNumber = 64,
+    kEnvelopeFlushThresholdRowsFieldNumber = 65,
+    kS3ParquetFlushThresholdBytesFieldNumber = 110,
+    kS3FlushJitterPctFieldNumber = 112,
+    kS3FlushThresholdJitterPctFieldNumber = 113,
+    kS3UploadMaxAttemptsFieldNumber = 114,
+    kIpv4TtlFieldNumber = 150,
+    kIpv6HopLimitFieldNumber = 151,
+    kGrpcPortFieldNumber = 160,
+    kPyroscopeSampleHzFieldNumber = 172,
+    kPyroscopeUploadIntervalSecFieldNumber = 173,
+    kResolveContainerIdFieldNumber = 200,
+    kEnrichContainerEnableFieldNumber = 201,
+    kEnrichLldpEnableFieldNumber = 210,
+    kEnrichNicEnableFieldNumber = 220,
+    kUplinkCountFieldNumber = 221,
+    kPopulateNsidFieldNumber = 230,
+    kEnrichAsnEnableFieldNumber = 240,
+    kEnrichLocalityEnableFieldNumber = 245,
   };
-  // string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
-  void clear_s3_endpoint() ;
-  [[nodiscard]] const ::std::string& s3_endpoint() const;
+  // string dest = 60 [json_name = "dest", (.buf.validate.field) = {
+  void clear_dest() ;
+  [[nodiscard]] const ::std::string& dest() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_endpoint(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_endpoint();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_endpoint();
-  void set_allocated_s3_endpoint(::std::string* PROTOBUF_NULLABLE value);
+  void set_dest(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_dest();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_dest();
+  void set_allocated_dest(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_s3_endpoint() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_endpoint(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_endpoint();
+  const ::std::string& _internal_dest() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_dest(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_dest();
 
   public:
-  // string s3_prefix = 127 [json_name = "s3Prefix", (.buf.validate.field) = {
-  void clear_s3_prefix() ;
-  [[nodiscard]] const ::std::string& s3_prefix() const;
+  // string marshal_to = 61 [json_name = "marshalTo", (.buf.validate.field) = {
+  void clear_marshal_to() ;
+  [[nodiscard]] const ::std::string& marshal_to() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_prefix(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_prefix();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_prefix();
-  void set_allocated_s3_prefix(::std::string* PROTOBUF_NULLABLE value);
+  void set_marshal_to(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_marshal_to();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_marshal_to();
+  void set_allocated_marshal_to(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_s3_prefix() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_prefix(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_prefix();
+  const ::std::string& _internal_marshal_to() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_marshal_to(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_marshal_to();
 
   public:
-  // string s3_secret_key = 129 [json_name = "s3SecretKey", (.buf.validate.field) = {
-  void clear_s3_secret_key() ;
-  [[nodiscard]] const ::std::string& s3_secret_key() const;
+  // string csv_columns = 62 [json_name = "csvColumns", (.buf.validate.field) = {
+  void clear_csv_columns() ;
+  [[nodiscard]] const ::std::string& csv_columns() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_secret_key(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_secret_key();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_secret_key();
-  void set_allocated_s3_secret_key(::std::string* PROTOBUF_NULLABLE value);
+  void set_csv_columns(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_csv_columns();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_csv_columns();
+  void set_allocated_csv_columns(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_s3_secret_key() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_secret_key(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_secret_key();
+  const ::std::string& _internal_csv_columns() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_csv_columns(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_csv_columns();
 
   public:
-  // string s3_region = 133 [json_name = "s3Region", (.buf.validate.field) = {
-  void clear_s3_region() ;
-  [[nodiscard]] const ::std::string& s3_region() const;
+  // string xtcp_proto_file = 63 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+  void clear_xtcp_proto_file() ;
+  [[nodiscard]] const ::std::string& xtcp_proto_file() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_region(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_region();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_region();
-  void set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE value);
+  void set_xtcp_proto_file(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_xtcp_proto_file();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_xtcp_proto_file();
+  void set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_s3_region() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_region(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_region();
+  const ::std::string& _internal_xtcp_proto_file() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_xtcp_proto_file(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_xtcp_proto_file();
 
   public:
-  // string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+  // string pyroscope_app_name = 171 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
   void clear_pyroscope_app_name() ;
   [[nodiscard]] const ::std::string& pyroscope_app_name() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2269,7 +2274,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_pyroscope_app_name();
 
   public:
-  // .google.protobuf.Duration poll_frequency = 20 [json_name = "pollFrequency", (.buf.validate.field) = {
+  // .google.protobuf.Duration poll_frequency = 11 [json_name = "pollFrequency", (.buf.validate.field) = {
   [[nodiscard]] bool has_poll_frequency()
       const;
   void clear_poll_frequency() ;
@@ -2285,7 +2290,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_poll_frequency();
 
   public:
-  // .google.protobuf.Duration poll_timeout = 30 [json_name = "pollTimeout", (.buf.validate.field) = {
+  // .google.protobuf.Duration poll_timeout = 12 [json_name = "pollTimeout", (.buf.validate.field) = {
   [[nodiscard]] bool has_poll_timeout()
       const;
   void clear_poll_timeout() ;
@@ -2301,6 +2306,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_poll_timeout();
 
   public:
+  // .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 21 [json_name = "enabledDeserializers", (.buf.validate.field) = {
+  [[nodiscard]] bool has_enabled_deserializers()
+      const;
+  void clear_enabled_deserializers() ;
+  [[nodiscard]] const ::xtcp_config::v1::EnabledDeserializers& enabled_deserializers() const;
+  [[nodiscard]] ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE release_enabled_deserializers();
+  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL mutable_enabled_deserializers();
+  void set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value);
+  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE unsafe_arena_release_enabled_deserializers();
+
+  private:
+  const ::xtcp_config::v1::EnabledDeserializers& _internal_enabled_deserializers() const;
+  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL _internal_mutable_enabled_deserializers();
+
+  public:
   // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
   void clear_nl_timeout_milliseconds() ;
   [[nodiscard]] ::uint64_t nl_timeout_milliseconds() const;
@@ -2311,7 +2332,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_nl_timeout_milliseconds(::uint64_t value);
 
   public:
-  // uint64 max_loops = 40 [json_name = "maxLoops", (.buf.validate.field) = {
+  // uint64 max_loops = 14 [json_name = "maxLoops", (.buf.validate.field) = {
   void clear_max_loops() ;
   [[nodiscard]] ::uint64_t max_loops() const;
   void set_max_loops(::uint64_t value);
@@ -2321,7 +2342,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_max_loops(::uint64_t value);
 
   public:
-  // uint32 netlinkers = 50 [json_name = "netlinkers", (.buf.validate.field) = {
+  // uint32 poll_jitter_pct = 13 [json_name = "pollJitterPct", (.buf.validate.field) = {
+  void clear_poll_jitter_pct() ;
+  [[nodiscard]] ::uint32_t poll_jitter_pct() const;
+  void set_poll_jitter_pct(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_poll_jitter_pct() const;
+  void _internal_set_poll_jitter_pct(::uint32_t value);
+
+  public:
+  // uint32 netlinkers = 15 [json_name = "netlinkers", (.buf.validate.field) = {
   void clear_netlinkers() ;
   [[nodiscard]] ::uint32_t netlinkers() const;
   void set_netlinkers(::uint32_t value);
@@ -2331,7 +2362,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_netlinkers(::uint32_t value);
 
   public:
-  // uint32 netlinkers_done_chan_size = 51 [json_name = "netlinkersDoneChanSize", (.buf.validate.field) = {
+  // uint32 netlinkers_done_chan_size = 16 [json_name = "netlinkersDoneChanSize", (.buf.validate.field) = {
   void clear_netlinkers_done_chan_size() ;
   [[nodiscard]] ::uint32_t netlinkers_done_chan_size() const;
   void set_netlinkers_done_chan_size(::uint32_t value);
@@ -2341,17 +2372,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_netlinkers_done_chan_size(::uint32_t value);
 
   public:
-  // uint64 packet_size = 70 [json_name = "packetSize", (.buf.validate.field) = {
-  void clear_packet_size() ;
-  [[nodiscard]] ::uint64_t packet_size() const;
-  void set_packet_size(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_packet_size() const;
-  void _internal_set_packet_size(::uint64_t value);
-
-  public:
-  // uint32 nlmsg_seq = 60 [json_name = "nlmsgSeq", (.buf.validate.field) = {
+  // uint32 nlmsg_seq = 17 [json_name = "nlmsgSeq", (.buf.validate.field) = {
   void clear_nlmsg_seq() ;
   [[nodiscard]] ::uint32_t nlmsg_seq() const;
   void set_nlmsg_seq(::uint32_t value);
@@ -2361,7 +2382,27 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_nlmsg_seq(::uint32_t value);
 
   public:
-  // uint32 packet_size_mply = 80 [json_name = "packetSizeMply", (.buf.validate.field) = {
+  // uint64 packet_size = 18 [json_name = "packetSize", (.buf.validate.field) = {
+  void clear_packet_size() ;
+  [[nodiscard]] ::uint64_t packet_size() const;
+  void set_packet_size(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_packet_size() const;
+  void _internal_set_packet_size(::uint64_t value);
+
+  public:
+  // uint64 modulus = 20 [json_name = "modulus", (.buf.validate.field) = {
+  void clear_modulus() ;
+  [[nodiscard]] ::uint64_t modulus() const;
+  void set_modulus(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_modulus() const;
+  void _internal_set_modulus(::uint64_t value);
+
+  public:
+  // uint32 packet_size_mply = 19 [json_name = "packetSizeMply", (.buf.validate.field) = {
   void clear_packet_size_mply() ;
   [[nodiscard]] ::uint32_t packet_size_mply() const;
   void set_packet_size_mply(::uint32_t value);
@@ -2371,37 +2412,57 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_packet_size_mply(::uint32_t value);
 
   public:
-  // uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
-  void clear_write_files() ;
-  [[nodiscard]] ::uint32_t write_files() const;
-  void set_write_files(::uint32_t value);
+  // uint32 io_uring_recv_batch_size = 23 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+  void clear_io_uring_recv_batch_size() ;
+  [[nodiscard]] ::uint32_t io_uring_recv_batch_size() const;
+  void set_io_uring_recv_batch_size(::uint32_t value);
 
   private:
-  ::uint32_t _internal_write_files() const;
-  void _internal_set_write_files(::uint32_t value);
+  ::uint32_t _internal_io_uring_recv_batch_size() const;
+  void _internal_set_io_uring_recv_batch_size(::uint32_t value);
 
   public:
-  // uint32 envelope_flush_threshold_rows = 123 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
-  void clear_envelope_flush_threshold_rows() ;
-  [[nodiscard]] ::uint32_t envelope_flush_threshold_rows() const;
-  void set_envelope_flush_threshold_rows(::uint32_t value);
+  // uint32 io_uring_cqe_batch_size = 24 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+  void clear_io_uring_cqe_batch_size() ;
+  [[nodiscard]] ::uint32_t io_uring_cqe_batch_size() const;
+  void set_io_uring_cqe_batch_size(::uint32_t value);
 
   private:
-  ::uint32_t _internal_envelope_flush_threshold_rows() const;
-  void _internal_set_envelope_flush_threshold_rows(::uint32_t value);
+  ::uint32_t _internal_io_uring_cqe_batch_size() const;
+  void _internal_set_io_uring_cqe_batch_size(::uint32_t value);
 
   public:
-  // uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
-  void clear_dest_write_files() ;
-  [[nodiscard]] ::uint32_t dest_write_files() const;
-  void set_dest_write_files(::uint32_t value);
+  // bool io_uring = 22 [json_name = "ioUring", (.buf.validate.field) = {
+  void clear_io_uring() ;
+  [[nodiscard]] bool io_uring() const;
+  void set_io_uring(bool value);
 
   private:
-  ::uint32_t _internal_dest_write_files() const;
-  void _internal_set_dest_write_files(::uint32_t value);
+  bool _internal_io_uring() const;
+  void _internal_set_io_uring(bool value);
 
   public:
-  // repeated string uplink_interfaces = 237 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
+  // bool reconcile_before_poll = 41 [json_name = "reconcileBeforePoll"];
+  void clear_reconcile_before_poll() ;
+  [[nodiscard]] bool reconcile_before_poll() const;
+  void set_reconcile_before_poll(bool value);
+
+  private:
+  bool _internal_reconcile_before_poll() const;
+  void _internal_set_reconcile_before_poll(bool value);
+
+  public:
+  // bool s3_skip_bucket_probe = 106 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
+  void clear_s3_skip_bucket_probe() ;
+  [[nodiscard]] bool s3_skip_bucket_probe() const;
+  void set_s3_skip_bucket_probe(bool value);
+
+  private:
+  bool _internal_s3_skip_bucket_probe() const;
+  void _internal_set_s3_skip_bucket_probe(bool value);
+
+  public:
+  // repeated string uplink_interfaces = 222 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
   [[nodiscard]] int uplink_interfaces_size()
       const;
   private:
@@ -2428,7 +2489,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::google::protobuf::RepeatedPtrField<::std::string>* PROTOBUF_NONNULL _internal_mutable_uplink_interfaces();
 
   public:
-  // string capture_path = 100 [json_name = "capturePath", (.buf.validate.field) = {
+  // string capture_path = 51 [json_name = "capturePath", (.buf.validate.field) = {
   void clear_capture_path() ;
   [[nodiscard]] const ::std::string& capture_path() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2443,97 +2504,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_capture_path();
 
   public:
-  // string marshal_to = 120 [json_name = "marshalTo", (.buf.validate.field) = {
-  void clear_marshal_to() ;
-  [[nodiscard]] const ::std::string& marshal_to() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_marshal_to(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_marshal_to();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_marshal_to();
-  void set_allocated_marshal_to(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_marshal_to() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_marshal_to(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_marshal_to();
-
-  public:
-  // string kafka_compression = 124 [json_name = "kafkaCompression", (.buf.validate.field) = {
-  void clear_kafka_compression() ;
-  [[nodiscard]] const ::std::string& kafka_compression() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_kafka_compression(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_kafka_compression();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_kafka_compression();
-  void set_allocated_kafka_compression(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_kafka_compression() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_kafka_compression(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_kafka_compression();
-
-  public:
-  // string s3_bucket = 126 [json_name = "s3Bucket", (.buf.validate.field) = {
-  void clear_s3_bucket() ;
-  [[nodiscard]] const ::std::string& s3_bucket() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_bucket(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_bucket();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_bucket();
-  void set_allocated_s3_bucket(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_s3_bucket() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_bucket(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_bucket();
-
-  public:
-  // string s3_access_key = 128 [json_name = "s3AccessKey", (.buf.validate.field) = {
-  void clear_s3_access_key() ;
-  [[nodiscard]] const ::std::string& s3_access_key() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_s3_access_key(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_s3_access_key();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_access_key();
-  void set_allocated_s3_access_key(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_s3_access_key() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_access_key(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_access_key();
-
-  public:
-  // string dest = 130 [json_name = "dest", (.buf.validate.field) = {
-  void clear_dest() ;
-  [[nodiscard]] const ::std::string& dest() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_dest(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_dest();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_dest();
-  void set_allocated_dest(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_dest() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_dest(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_dest();
-
-  public:
-  // string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
-  void clear_pyroscope_url() ;
-  [[nodiscard]] const ::std::string& pyroscope_url() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_pyroscope_url(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_pyroscope_url();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_pyroscope_url();
-  void set_allocated_pyroscope_url(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_pyroscope_url() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_url(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_pyroscope_url();
-
-  public:
-  // string topic = 140 [json_name = "topic", (.buf.validate.field) = {
+  // string topic = 80 [json_name = "topic", (.buf.validate.field) = {
   void clear_topic() ;
   [[nodiscard]] const ::std::string& topic() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2548,22 +2519,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_topic();
 
   public:
-  // string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
-  void clear_xtcp_proto_file() ;
-  [[nodiscard]] const ::std::string& xtcp_proto_file() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_xtcp_proto_file(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_xtcp_proto_file();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_xtcp_proto_file();
-  void set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_xtcp_proto_file() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_xtcp_proto_file(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_xtcp_proto_file();
-
-  public:
-  // string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+  // string kafka_schema_url = 81 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
   void clear_kafka_schema_url() ;
   [[nodiscard]] const ::std::string& kafka_schema_url() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2578,52 +2534,112 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_kafka_schema_url();
 
   public:
-  // string label = 170 [json_name = "label", (.buf.validate.field) = {
-  void clear_label() ;
-  [[nodiscard]] const ::std::string& label() const;
+  // string kafka_compression = 83 [json_name = "kafkaCompression", (.buf.validate.field) = {
+  void clear_kafka_compression() ;
+  [[nodiscard]] const ::std::string& kafka_compression() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_label(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_label();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_label();
-  void set_allocated_label(::std::string* PROTOBUF_NULLABLE value);
+  void set_kafka_compression(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_kafka_compression();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_kafka_compression();
+  void set_allocated_kafka_compression(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_label() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_label(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_label();
+  const ::std::string& _internal_kafka_compression() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_kafka_compression(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_kafka_compression();
 
   public:
-  // string tag = 180 [json_name = "tag", (.buf.validate.field) = {
-  void clear_tag() ;
-  [[nodiscard]] const ::std::string& tag() const;
+  // string s3_endpoint = 100 [json_name = "s3Endpoint", (.buf.validate.field) = {
+  void clear_s3_endpoint() ;
+  [[nodiscard]] const ::std::string& s3_endpoint() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_tag(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_tag();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_tag();
-  void set_allocated_tag(::std::string* PROTOBUF_NULLABLE value);
+  void set_s3_endpoint(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_endpoint();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_endpoint();
+  void set_allocated_s3_endpoint(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_tag() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_tag(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_tag();
+  const ::std::string& _internal_s3_endpoint() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_endpoint(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_endpoint();
 
   public:
-  // string location = 181 [json_name = "location", (.buf.validate.field) = {
-  void clear_location() ;
-  [[nodiscard]] const ::std::string& location() const;
+  // string s3_region = 101 [json_name = "s3Region", (.buf.validate.field) = {
+  void clear_s3_region() ;
+  [[nodiscard]] const ::std::string& s3_region() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_location(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_location();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_location();
-  void set_allocated_location(::std::string* PROTOBUF_NULLABLE value);
+  void set_s3_region(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_region();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_region();
+  void set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_location() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_location(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_location();
+  const ::std::string& _internal_s3_region() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_region(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_region();
 
   public:
-  // string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
+  // string s3_bucket = 102 [json_name = "s3Bucket", (.buf.validate.field) = {
+  void clear_s3_bucket() ;
+  [[nodiscard]] const ::std::string& s3_bucket() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_s3_bucket(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_bucket();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_bucket();
+  void set_allocated_s3_bucket(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_s3_bucket() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_bucket(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_bucket();
+
+  public:
+  // string s3_prefix = 103 [json_name = "s3Prefix", (.buf.validate.field) = {
+  void clear_s3_prefix() ;
+  [[nodiscard]] const ::std::string& s3_prefix() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_s3_prefix(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_prefix();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_prefix();
+  void set_allocated_s3_prefix(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_s3_prefix() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_prefix(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_prefix();
+
+  public:
+  // string s3_access_key = 104 [json_name = "s3AccessKey", (.buf.validate.field) = {
+  void clear_s3_access_key() ;
+  [[nodiscard]] const ::std::string& s3_access_key() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_s3_access_key(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_access_key();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_access_key();
+  void set_allocated_s3_access_key(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_s3_access_key() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_access_key(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_access_key();
+
+  public:
+  // string s3_secret_key = 105 [json_name = "s3SecretKey", (.buf.validate.field) = {
+  void clear_s3_secret_key() ;
+  [[nodiscard]] const ::std::string& s3_secret_key() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_s3_secret_key(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_s3_secret_key();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_s3_secret_key();
+  void set_allocated_s3_secret_key(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_s3_secret_key() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_s3_secret_key(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_s3_secret_key();
+
+  public:
+  // string hostname = 130 [json_name = "hostname", (.buf.validate.field) = {
   void clear_hostname() ;
   [[nodiscard]] const ::std::string& hostname() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2638,7 +2654,52 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_hostname();
 
   public:
-  // string daemon_version = 186 [json_name = "daemonVersion", (.buf.validate.field) = {
+  // string location = 131 [json_name = "location", (.buf.validate.field) = {
+  void clear_location() ;
+  [[nodiscard]] const ::std::string& location() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_location(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_location();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_location();
+  void set_allocated_location(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_location() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_location(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_location();
+
+  public:
+  // string label = 132 [json_name = "label", (.buf.validate.field) = {
+  void clear_label() ;
+  [[nodiscard]] const ::std::string& label() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_label(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_label();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_label();
+  void set_allocated_label(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_label() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_label(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_label();
+
+  public:
+  // string tag = 133 [json_name = "tag", (.buf.validate.field) = {
+  void clear_tag() ;
+  [[nodiscard]] const ::std::string& tag() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_tag(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_tag();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_tag();
+  void set_allocated_tag(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_tag() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_tag(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_tag();
+
+  public:
+  // string daemon_version = 134 [json_name = "daemonVersion", (.buf.validate.field) = {
   void clear_daemon_version() ;
   [[nodiscard]] const ::std::string& daemon_version() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2653,22 +2714,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_daemon_version();
 
   public:
-  // string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
-  void clear_csv_columns() ;
-  [[nodiscard]] const ::std::string& csv_columns() const;
+  // string pyroscope_url = 170 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+  void clear_pyroscope_url() ;
+  [[nodiscard]] const ::std::string& pyroscope_url() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_csv_columns(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_csv_columns();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_csv_columns();
-  void set_allocated_csv_columns(::std::string* PROTOBUF_NULLABLE value);
+  void set_pyroscope_url(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_pyroscope_url();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_pyroscope_url();
+  void set_allocated_pyroscope_url(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_csv_columns() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_csv_columns(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_csv_columns();
+  const ::std::string& _internal_pyroscope_url() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_pyroscope_url(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_pyroscope_url();
 
   public:
-  // string docker_socket_path = 231 [json_name = "dockerSocketPath", (.buf.validate.field) = {
+  // string docker_socket_path = 202 [json_name = "dockerSocketPath", (.buf.validate.field) = {
   void clear_docker_socket_path() ;
   [[nodiscard]] const ::std::string& docker_socket_path() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2683,7 +2744,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_docker_socket_path();
 
   public:
-  // string lldpd_socket_path = 233 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
+  // string lldpd_socket_path = 211 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
   void clear_lldpd_socket_path() ;
   [[nodiscard]] const ::std::string& lldpd_socket_path() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2698,7 +2759,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_lldpd_socket_path();
 
   public:
-  // string lldpd_version_hint = 234 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
+  // string lldpd_version_hint = 212 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
   void clear_lldpd_version_hint() ;
   [[nodiscard]] const ::std::string& lldpd_version_hint() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -2713,71 +2774,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::std::string* PROTOBUF_NONNULL _internal_mutable_lldpd_version_hint();
 
   public:
-  // .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
-  [[nodiscard]] bool has_kafka_produce_timeout()
-      const;
-  void clear_kafka_produce_timeout() ;
-  [[nodiscard]] const ::google::protobuf::Duration& kafka_produce_timeout() const;
-  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_kafka_produce_timeout();
-  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_kafka_produce_timeout();
-  void set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_kafka_produce_timeout();
+  // string asn_db_path = 241 [json_name = "asnDbPath", (.buf.validate.field) = {
+  void clear_asn_db_path() ;
+  [[nodiscard]] const ::std::string& asn_db_path() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_asn_db_path(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_asn_db_path();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_asn_db_path();
+  void set_allocated_asn_db_path(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::google::protobuf::Duration& _internal_kafka_produce_timeout() const;
-  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_kafka_produce_timeout();
+  const ::std::string& _internal_asn_db_path() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_asn_db_path(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_asn_db_path();
 
   public:
-  // .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 200 [json_name = "enabledDeserializers", (.buf.validate.field) = {
-  [[nodiscard]] bool has_enabled_deserializers()
-      const;
-  void clear_enabled_deserializers() ;
-  [[nodiscard]] const ::xtcp_config::v1::EnabledDeserializers& enabled_deserializers() const;
-  [[nodiscard]] ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE release_enabled_deserializers();
-  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL mutable_enabled_deserializers();
-  void set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value);
-  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE unsafe_arena_release_enabled_deserializers();
-
-  private:
-  const ::xtcp_config::v1::EnabledDeserializers& _internal_enabled_deserializers() const;
-  ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL _internal_mutable_enabled_deserializers();
-
-  public:
-  // .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
-  [[nodiscard]] bool has_s3_flush_interval()
-      const;
-  void clear_s3_flush_interval() ;
-  [[nodiscard]] const ::google::protobuf::Duration& s3_flush_interval() const;
-  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_s3_flush_interval();
-  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_s3_flush_interval();
-  void set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_s3_flush_interval();
-
-  private:
-  const ::google::protobuf::Duration& _internal_s3_flush_interval() const;
-  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_s3_flush_interval();
-
-  public:
-  // .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
-  [[nodiscard]] bool has_s3_upload_backoff_cap()
-      const;
-  void clear_s3_upload_backoff_cap() ;
-  [[nodiscard]] const ::google::protobuf::Duration& s3_upload_backoff_cap() const;
-  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_s3_upload_backoff_cap();
-  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_s3_upload_backoff_cap();
-  void set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
-  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_s3_upload_backoff_cap();
-
-  private:
-  const ::google::protobuf::Duration& _internal_s3_upload_backoff_cap() const;
-  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_s3_upload_backoff_cap();
-
-  public:
-  // .google.protobuf.Duration reconcile_frequency = 227 [json_name = "reconcileFrequency", (.buf.validate.field) = {
+  // .google.protobuf.Duration reconcile_frequency = 40 [json_name = "reconcileFrequency", (.buf.validate.field) = {
   [[nodiscard]] bool has_reconcile_frequency()
       const;
   void clear_reconcile_frequency() ;
@@ -2793,57 +2805,107 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_reconcile_frequency();
 
   public:
-  // uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
-  void clear_modulus() ;
-  [[nodiscard]] ::uint64_t modulus() const;
-  void set_modulus(::uint64_t value);
+  // .google.protobuf.Duration kafka_produce_timeout = 82 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
+  [[nodiscard]] bool has_kafka_produce_timeout()
+      const;
+  void clear_kafka_produce_timeout() ;
+  [[nodiscard]] const ::google::protobuf::Duration& kafka_produce_timeout() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_kafka_produce_timeout();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_kafka_produce_timeout();
+  void set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_kafka_produce_timeout();
 
   private:
-  ::uint64_t _internal_modulus() const;
-  void _internal_set_modulus(::uint64_t value);
+  const ::google::protobuf::Duration& _internal_kafka_produce_timeout() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_kafka_produce_timeout();
 
   public:
-  // uint32 envelope_flush_threshold_bytes = 122 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
-  void clear_envelope_flush_threshold_bytes() ;
-  [[nodiscard]] ::uint32_t envelope_flush_threshold_bytes() const;
-  void set_envelope_flush_threshold_bytes(::uint32_t value);
+  // .google.protobuf.Duration s3_flush_interval = 111 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+  [[nodiscard]] bool has_s3_flush_interval()
+      const;
+  void clear_s3_flush_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& s3_flush_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_s3_flush_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_s3_flush_interval();
+  void set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_s3_flush_interval();
 
   private:
-  ::uint32_t _internal_envelope_flush_threshold_bytes() const;
-  void _internal_set_envelope_flush_threshold_bytes(::uint32_t value);
+  const ::google::protobuf::Duration& _internal_s3_flush_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_s3_flush_interval();
 
   public:
-  // uint32 s3_parquet_flush_threshold_bytes = 132 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
-  void clear_s3_parquet_flush_threshold_bytes() ;
-  [[nodiscard]] ::uint32_t s3_parquet_flush_threshold_bytes() const;
-  void set_s3_parquet_flush_threshold_bytes(::uint32_t value);
+  // .google.protobuf.Duration s3_upload_backoff_cap = 115 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+  [[nodiscard]] bool has_s3_upload_backoff_cap()
+      const;
+  void clear_s3_upload_backoff_cap() ;
+  [[nodiscard]] const ::google::protobuf::Duration& s3_upload_backoff_cap() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_s3_upload_backoff_cap();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_s3_upload_backoff_cap();
+  void set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_s3_upload_backoff_cap();
 
   private:
-  ::uint32_t _internal_s3_parquet_flush_threshold_bytes() const;
-  void _internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value);
+  const ::google::protobuf::Duration& _internal_s3_upload_backoff_cap() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_s3_upload_backoff_cap();
 
   public:
-  // uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-  void clear_pyroscope_sample_hz() ;
-  [[nodiscard]] ::uint32_t pyroscope_sample_hz() const;
-  void set_pyroscope_sample_hz(::uint32_t value);
+  // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
+  [[nodiscard]] bool has_asn_refresh_interval()
+      const;
+  void clear_asn_refresh_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& asn_refresh_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_asn_refresh_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_asn_refresh_interval();
+  void set_allocated_asn_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_asn_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_asn_refresh_interval();
 
   private:
-  ::uint32_t _internal_pyroscope_sample_hz() const;
-  void _internal_set_pyroscope_sample_hz(::uint32_t value);
+  const ::google::protobuf::Duration& _internal_asn_refresh_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_asn_refresh_interval();
 
   public:
-  // uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-  void clear_pyroscope_upload_interval_sec() ;
-  [[nodiscard]] ::uint32_t pyroscope_upload_interval_sec() const;
-  void set_pyroscope_upload_interval_sec(::uint32_t value);
+  // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
+  [[nodiscard]] bool has_locality_refresh_interval()
+      const;
+  void clear_locality_refresh_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& locality_refresh_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_locality_refresh_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_locality_refresh_interval();
+  void set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_locality_refresh_interval();
 
   private:
-  ::uint32_t _internal_pyroscope_upload_interval_sec() const;
-  void _internal_set_pyroscope_upload_interval_sec(::uint32_t value);
+  const ::google::protobuf::Duration& _internal_locality_refresh_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_locality_refresh_interval();
 
   public:
-  // uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
+  // uint32 write_files = 50 [json_name = "writeFiles", (.buf.validate.field) = {
+  void clear_write_files() ;
+  [[nodiscard]] ::uint32_t write_files() const;
+  void set_write_files(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_write_files() const;
+  void _internal_set_write_files(::uint32_t value);
+
+  public:
+  // uint32 dest_write_files = 52 [json_name = "destWriteFiles", (.buf.validate.field) = {
+  void clear_dest_write_files() ;
+  [[nodiscard]] ::uint32_t dest_write_files() const;
+  void set_dest_write_files(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_dest_write_files() const;
+  void _internal_set_dest_write_files(::uint32_t value);
+
+  public:
+  // uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
   void clear_debug_level() ;
   [[nodiscard]] ::uint32_t debug_level() const;
   void set_debug_level(::uint32_t value);
@@ -2853,107 +2915,37 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_debug_level(::uint32_t value);
 
   public:
-  // uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-  void clear_ipv4_ttl() ;
-  [[nodiscard]] ::uint32_t ipv4_ttl() const;
-  void set_ipv4_ttl(::uint32_t value);
+  // uint32 envelope_flush_threshold_bytes = 64 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_bytes() ;
+  [[nodiscard]] ::uint32_t envelope_flush_threshold_bytes() const;
+  void set_envelope_flush_threshold_bytes(::uint32_t value);
 
   private:
-  ::uint32_t _internal_ipv4_ttl() const;
-  void _internal_set_ipv4_ttl(::uint32_t value);
+  ::uint32_t _internal_envelope_flush_threshold_bytes() const;
+  void _internal_set_envelope_flush_threshold_bytes(::uint32_t value);
 
   public:
-  // uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-  void clear_ipv6_hop_limit() ;
-  [[nodiscard]] ::uint32_t ipv6_hop_limit() const;
-  void set_ipv6_hop_limit(::uint32_t value);
+  // uint32 envelope_flush_threshold_rows = 65 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+  void clear_envelope_flush_threshold_rows() ;
+  [[nodiscard]] ::uint32_t envelope_flush_threshold_rows() const;
+  void set_envelope_flush_threshold_rows(::uint32_t value);
 
   private:
-  ::uint32_t _internal_ipv6_hop_limit() const;
-  void _internal_set_ipv6_hop_limit(::uint32_t value);
+  ::uint32_t _internal_envelope_flush_threshold_rows() const;
+  void _internal_set_envelope_flush_threshold_rows(::uint32_t value);
 
   public:
-  // bool s3_skip_bucket_probe = 134 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
-  void clear_s3_skip_bucket_probe() ;
-  [[nodiscard]] bool s3_skip_bucket_probe() const;
-  void set_s3_skip_bucket_probe(bool value);
+  // uint32 s3_parquet_flush_threshold_bytes = 110 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+  void clear_s3_parquet_flush_threshold_bytes() ;
+  [[nodiscard]] ::uint32_t s3_parquet_flush_threshold_bytes() const;
+  void set_s3_parquet_flush_threshold_bytes(::uint32_t value);
 
   private:
-  bool _internal_s3_skip_bucket_probe() const;
-  void _internal_set_s3_skip_bucket_probe(bool value);
+  ::uint32_t _internal_s3_parquet_flush_threshold_bytes() const;
+  void _internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value);
 
   public:
-  // bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
-  void clear_resolve_container_id() ;
-  [[nodiscard]] bool resolve_container_id() const;
-  void set_resolve_container_id(bool value);
-
-  private:
-  bool _internal_resolve_container_id() const;
-  void _internal_set_resolve_container_id(bool value);
-
-  public:
-  // bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
-  void clear_io_uring() ;
-  [[nodiscard]] bool io_uring() const;
-  void set_io_uring(bool value);
-
-  private:
-  bool _internal_io_uring() const;
-  void _internal_set_io_uring(bool value);
-
-  public:
-  // bool reconcile_before_poll = 228 [json_name = "reconcileBeforePoll"];
-  void clear_reconcile_before_poll() ;
-  [[nodiscard]] bool reconcile_before_poll() const;
-  void set_reconcile_before_poll(bool value);
-
-  private:
-  bool _internal_reconcile_before_poll() const;
-  void _internal_set_reconcile_before_poll(bool value);
-
-  public:
-  // uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
-  void clear_grpc_port() ;
-  [[nodiscard]] ::uint32_t grpc_port() const;
-  void set_grpc_port(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_grpc_port() const;
-  void _internal_set_grpc_port(::uint32_t value);
-
-  public:
-  // uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
-  void clear_io_uring_recv_batch_size() ;
-  [[nodiscard]] ::uint32_t io_uring_recv_batch_size() const;
-  void set_io_uring_recv_batch_size(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_io_uring_recv_batch_size() const;
-  void _internal_set_io_uring_recv_batch_size(::uint32_t value);
-
-  public:
-  // uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
-  void clear_io_uring_cqe_batch_size() ;
-  [[nodiscard]] ::uint32_t io_uring_cqe_batch_size() const;
-  void set_io_uring_cqe_batch_size(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_io_uring_cqe_batch_size() const;
-  void _internal_set_io_uring_cqe_batch_size(::uint32_t value);
-
-  public:
-  // uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
-  void clear_poll_jitter_pct() ;
-  [[nodiscard]] ::uint32_t poll_jitter_pct() const;
-  void set_poll_jitter_pct(::uint32_t value);
-
-  private:
-  ::uint32_t _internal_poll_jitter_pct() const;
-  void _internal_set_poll_jitter_pct(::uint32_t value);
-
-  public:
-  // uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+  // uint32 s3_flush_jitter_pct = 112 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
   void clear_s3_flush_jitter_pct() ;
   [[nodiscard]] ::uint32_t s3_flush_jitter_pct() const;
   void set_s3_flush_jitter_pct(::uint32_t value);
@@ -2963,7 +2955,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_s3_flush_jitter_pct(::uint32_t value);
 
   public:
-  // uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+  // uint32 s3_flush_threshold_jitter_pct = 113 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
   void clear_s3_flush_threshold_jitter_pct() ;
   [[nodiscard]] ::uint32_t s3_flush_threshold_jitter_pct() const;
   void set_s3_flush_threshold_jitter_pct(::uint32_t value);
@@ -2973,7 +2965,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_s3_flush_threshold_jitter_pct(::uint32_t value);
 
   public:
-  // uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+  // uint32 s3_upload_max_attempts = 114 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
   void clear_s3_upload_max_attempts() ;
   [[nodiscard]] ::uint32_t s3_upload_max_attempts() const;
   void set_s3_upload_max_attempts(::uint32_t value);
@@ -2983,7 +2975,67 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_s3_upload_max_attempts(::uint32_t value);
 
   public:
-  // bool enrich_container_enable = 230 [json_name = "enrichContainerEnable"];
+  // uint32 ipv4_ttl = 150 [json_name = "ipv4Ttl", (.buf.validate.field) = {
+  void clear_ipv4_ttl() ;
+  [[nodiscard]] ::uint32_t ipv4_ttl() const;
+  void set_ipv4_ttl(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv4_ttl() const;
+  void _internal_set_ipv4_ttl(::uint32_t value);
+
+  public:
+  // uint32 ipv6_hop_limit = 151 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
+  void clear_ipv6_hop_limit() ;
+  [[nodiscard]] ::uint32_t ipv6_hop_limit() const;
+  void set_ipv6_hop_limit(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_ipv6_hop_limit() const;
+  void _internal_set_ipv6_hop_limit(::uint32_t value);
+
+  public:
+  // uint32 grpc_port = 160 [json_name = "grpcPort", (.buf.validate.field) = {
+  void clear_grpc_port() ;
+  [[nodiscard]] ::uint32_t grpc_port() const;
+  void set_grpc_port(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_grpc_port() const;
+  void _internal_set_grpc_port(::uint32_t value);
+
+  public:
+  // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+  void clear_pyroscope_sample_hz() ;
+  [[nodiscard]] ::uint32_t pyroscope_sample_hz() const;
+  void set_pyroscope_sample_hz(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_sample_hz() const;
+  void _internal_set_pyroscope_sample_hz(::uint32_t value);
+
+  public:
+  // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+  void clear_pyroscope_upload_interval_sec() ;
+  [[nodiscard]] ::uint32_t pyroscope_upload_interval_sec() const;
+  void set_pyroscope_upload_interval_sec(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pyroscope_upload_interval_sec() const;
+  void _internal_set_pyroscope_upload_interval_sec(::uint32_t value);
+
+  public:
+  // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
+  void clear_resolve_container_id() ;
+  [[nodiscard]] bool resolve_container_id() const;
+  void set_resolve_container_id(bool value);
+
+  private:
+  bool _internal_resolve_container_id() const;
+  void _internal_set_resolve_container_id(bool value);
+
+  public:
+  // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
   void clear_enrich_container_enable() ;
   [[nodiscard]] bool enrich_container_enable() const;
   void set_enrich_container_enable(bool value);
@@ -2993,7 +3045,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_enrich_container_enable(bool value);
 
   public:
-  // bool enrich_lldp_enable = 232 [json_name = "enrichLldpEnable"];
+  // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
   void clear_enrich_lldp_enable() ;
   [[nodiscard]] bool enrich_lldp_enable() const;
   void set_enrich_lldp_enable(bool value);
@@ -3003,7 +3055,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_enrich_lldp_enable(bool value);
 
   public:
-  // bool enrich_nic_enable = 235 [json_name = "enrichNicEnable"];
+  // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
   void clear_enrich_nic_enable() ;
   [[nodiscard]] bool enrich_nic_enable() const;
   void set_enrich_nic_enable(bool value);
@@ -3013,17 +3065,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_enrich_nic_enable(bool value);
 
   public:
-  // bool populate_nsid = 238 [json_name = "populateNsid"];
-  void clear_populate_nsid() ;
-  [[nodiscard]] bool populate_nsid() const;
-  void set_populate_nsid(bool value);
-
-  private:
-  bool _internal_populate_nsid() const;
-  void _internal_set_populate_nsid(bool value);
-
-  public:
-  // uint32 uplink_count = 236 [json_name = "uplinkCount", (.buf.validate.field) = {
+  // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
   void clear_uplink_count() ;
   [[nodiscard]] ::uint32_t uplink_count() const;
   void set_uplink_count(::uint32_t value);
@@ -3033,12 +3075,42 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_uplink_count(::uint32_t value);
 
   public:
+  // bool populate_nsid = 230 [json_name = "populateNsid"];
+  void clear_populate_nsid() ;
+  [[nodiscard]] bool populate_nsid() const;
+  void set_populate_nsid(bool value);
+
+  private:
+  bool _internal_populate_nsid() const;
+  void _internal_set_populate_nsid(bool value);
+
+  public:
+  // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
+  void clear_enrich_asn_enable() ;
+  [[nodiscard]] bool enrich_asn_enable() const;
+  void set_enrich_asn_enable(bool value);
+
+  private:
+  bool _internal_enrich_asn_enable() const;
+  void _internal_set_enrich_asn_enable(bool value);
+
+  public:
+  // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
+  void clear_enrich_locality_enable() ;
+  [[nodiscard]] bool enrich_locality_enable() const;
+  void set_enrich_locality_enable(bool value);
+
+  private:
+  bool _internal_enrich_locality_enable() const;
+  void _internal_set_enrich_locality_enable(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 66,
-                          7, 391,
+      ::google::protobuf::internal::TcParseTable<5, 71,
+                          9, 402,
                           31>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -3066,72 +3138,77 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
         const XtcpConfig& from_msg);
     ::google::protobuf::internal::HasBits<3> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::internal::ArenaStringPtr s3_endpoint_;
-    ::google::protobuf::internal::ArenaStringPtr s3_prefix_;
-    ::google::protobuf::internal::ArenaStringPtr s3_secret_key_;
-    ::google::protobuf::internal::ArenaStringPtr s3_region_;
+    ::google::protobuf::internal::ArenaStringPtr dest_;
+    ::google::protobuf::internal::ArenaStringPtr marshal_to_;
+    ::google::protobuf::internal::ArenaStringPtr csv_columns_;
+    ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
     ::google::protobuf::internal::ArenaStringPtr pyroscope_app_name_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE poll_frequency_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE poll_timeout_;
+    ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE enabled_deserializers_;
     ::uint64_t nl_timeout_milliseconds_;
     ::uint64_t max_loops_;
+    ::uint32_t poll_jitter_pct_;
     ::uint32_t netlinkers_;
     ::uint32_t netlinkers_done_chan_size_;
-    ::uint64_t packet_size_;
     ::uint32_t nlmsg_seq_;
+    ::uint64_t packet_size_;
+    ::uint64_t modulus_;
     ::uint32_t packet_size_mply_;
-    ::uint32_t write_files_;
-    ::uint32_t envelope_flush_threshold_rows_;
-    ::uint32_t dest_write_files_;
+    ::uint32_t io_uring_recv_batch_size_;
+    ::uint32_t io_uring_cqe_batch_size_;
+    bool io_uring_;
+    bool reconcile_before_poll_;
+    bool s3_skip_bucket_probe_;
     ::google::protobuf::RepeatedPtrField<::std::string> uplink_interfaces_;
     ::google::protobuf::internal::ArenaStringPtr capture_path_;
-    ::google::protobuf::internal::ArenaStringPtr marshal_to_;
-    ::google::protobuf::internal::ArenaStringPtr kafka_compression_;
-    ::google::protobuf::internal::ArenaStringPtr s3_bucket_;
-    ::google::protobuf::internal::ArenaStringPtr s3_access_key_;
-    ::google::protobuf::internal::ArenaStringPtr dest_;
-    ::google::protobuf::internal::ArenaStringPtr pyroscope_url_;
     ::google::protobuf::internal::ArenaStringPtr topic_;
-    ::google::protobuf::internal::ArenaStringPtr xtcp_proto_file_;
     ::google::protobuf::internal::ArenaStringPtr kafka_schema_url_;
+    ::google::protobuf::internal::ArenaStringPtr kafka_compression_;
+    ::google::protobuf::internal::ArenaStringPtr s3_endpoint_;
+    ::google::protobuf::internal::ArenaStringPtr s3_region_;
+    ::google::protobuf::internal::ArenaStringPtr s3_bucket_;
+    ::google::protobuf::internal::ArenaStringPtr s3_prefix_;
+    ::google::protobuf::internal::ArenaStringPtr s3_access_key_;
+    ::google::protobuf::internal::ArenaStringPtr s3_secret_key_;
+    ::google::protobuf::internal::ArenaStringPtr hostname_;
+    ::google::protobuf::internal::ArenaStringPtr location_;
     ::google::protobuf::internal::ArenaStringPtr label_;
     ::google::protobuf::internal::ArenaStringPtr tag_;
-    ::google::protobuf::internal::ArenaStringPtr location_;
-    ::google::protobuf::internal::ArenaStringPtr hostname_;
     ::google::protobuf::internal::ArenaStringPtr daemon_version_;
-    ::google::protobuf::internal::ArenaStringPtr csv_columns_;
+    ::google::protobuf::internal::ArenaStringPtr pyroscope_url_;
     ::google::protobuf::internal::ArenaStringPtr docker_socket_path_;
     ::google::protobuf::internal::ArenaStringPtr lldpd_socket_path_;
     ::google::protobuf::internal::ArenaStringPtr lldpd_version_hint_;
+    ::google::protobuf::internal::ArenaStringPtr asn_db_path_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE reconcile_frequency_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE kafka_produce_timeout_;
-    ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE enabled_deserializers_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE s3_flush_interval_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE s3_upload_backoff_cap_;
-    ::google::protobuf::Duration* PROTOBUF_NULLABLE reconcile_frequency_;
-    ::uint64_t modulus_;
-    ::uint32_t envelope_flush_threshold_bytes_;
-    ::uint32_t s3_parquet_flush_threshold_bytes_;
-    ::uint32_t pyroscope_sample_hz_;
-    ::uint32_t pyroscope_upload_interval_sec_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE asn_refresh_interval_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE locality_refresh_interval_;
+    ::uint32_t write_files_;
+    ::uint32_t dest_write_files_;
     ::uint32_t debug_level_;
-    ::uint32_t ipv4_ttl_;
-    ::uint32_t ipv6_hop_limit_;
-    bool s3_skip_bucket_probe_;
-    bool resolve_container_id_;
-    bool io_uring_;
-    bool reconcile_before_poll_;
-    ::uint32_t grpc_port_;
-    ::uint32_t io_uring_recv_batch_size_;
-    ::uint32_t io_uring_cqe_batch_size_;
-    ::uint32_t poll_jitter_pct_;
+    ::uint32_t envelope_flush_threshold_bytes_;
+    ::uint32_t envelope_flush_threshold_rows_;
+    ::uint32_t s3_parquet_flush_threshold_bytes_;
     ::uint32_t s3_flush_jitter_pct_;
     ::uint32_t s3_flush_threshold_jitter_pct_;
     ::uint32_t s3_upload_max_attempts_;
+    ::uint32_t ipv4_ttl_;
+    ::uint32_t ipv6_hop_limit_;
+    ::uint32_t grpc_port_;
+    ::uint32_t pyroscope_sample_hz_;
+    ::uint32_t pyroscope_upload_interval_sec_;
+    bool resolve_container_id_;
     bool enrich_container_enable_;
     bool enrich_lldp_enable_;
     bool enrich_nic_enable_;
-    bool populate_nsid_;
     ::uint32_t uplink_count_;
+    bool populate_nsid_;
+    bool enrich_asn_enable_;
+    bool enrich_locality_enable_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -5629,7 +5706,7 @@ inline void SetEnvelopeFlushResponse::set_allocated_config(::xtcp_config::v1::Xt
 inline void XtcpConfig::clear_nl_timeout_milliseconds() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.nl_timeout_milliseconds_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
 inline ::uint64_t XtcpConfig::nl_timeout_milliseconds() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.nl_timeout_milliseconds)
@@ -5637,7 +5714,7 @@ inline ::uint64_t XtcpConfig::nl_timeout_milliseconds() const {
 }
 inline void XtcpConfig::set_nl_timeout_milliseconds(::uint64_t value) {
   _internal_set_nl_timeout_milliseconds(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.nl_timeout_milliseconds)
 }
 inline ::uint64_t XtcpConfig::_internal_nl_timeout_milliseconds() const {
@@ -5649,7 +5726,7 @@ inline void XtcpConfig::_internal_set_nl_timeout_milliseconds(::uint64_t value) 
   _impl_.nl_timeout_milliseconds_ = value;
 }
 
-// .google.protobuf.Duration poll_frequency = 20 [json_name = "pollFrequency", (.buf.validate.field) = {
+// .google.protobuf.Duration poll_frequency = 11 [json_name = "pollFrequency", (.buf.validate.field) = {
 inline bool XtcpConfig::has_poll_frequency() const {
   bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
   PROTOBUF_ASSUME(!value || _impl_.poll_frequency_ != nullptr);
@@ -5742,7 +5819,7 @@ inline void XtcpConfig::set_allocated_poll_frequency(::google::protobuf::Duratio
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.poll_frequency)
 }
 
-// .google.protobuf.Duration poll_timeout = 30 [json_name = "pollTimeout", (.buf.validate.field) = {
+// .google.protobuf.Duration poll_timeout = 12 [json_name = "pollTimeout", (.buf.validate.field) = {
 inline bool XtcpConfig::has_poll_timeout() const {
   bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
   PROTOBUF_ASSUME(!value || _impl_.poll_timeout_ != nullptr);
@@ -5835,11 +5912,35 @@ inline void XtcpConfig::set_allocated_poll_timeout(::google::protobuf::Duration*
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.poll_timeout)
 }
 
-// uint64 max_loops = 40 [json_name = "maxLoops", (.buf.validate.field) = {
+// uint32 poll_jitter_pct = 13 [json_name = "pollJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_poll_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.poll_jitter_pct_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+}
+inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
+  return _internal_poll_jitter_pct();
+}
+inline void XtcpConfig::set_poll_jitter_pct(::uint32_t value) {
+  _internal_set_poll_jitter_pct(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_poll_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.poll_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_poll_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.poll_jitter_pct_ = value;
+}
+
+// uint64 max_loops = 14 [json_name = "maxLoops", (.buf.validate.field) = {
 inline void XtcpConfig::clear_max_loops() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.max_loops_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
 }
 inline ::uint64_t XtcpConfig::max_loops() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.max_loops)
@@ -5847,7 +5948,7 @@ inline ::uint64_t XtcpConfig::max_loops() const {
 }
 inline void XtcpConfig::set_max_loops(::uint64_t value) {
   _internal_set_max_loops(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.max_loops)
 }
 inline ::uint64_t XtcpConfig::_internal_max_loops() const {
@@ -5859,11 +5960,11 @@ inline void XtcpConfig::_internal_set_max_loops(::uint64_t value) {
   _impl_.max_loops_ = value;
 }
 
-// uint32 netlinkers = 50 [json_name = "netlinkers", (.buf.validate.field) = {
+// uint32 netlinkers = 15 [json_name = "netlinkers", (.buf.validate.field) = {
 inline void XtcpConfig::clear_netlinkers() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netlinkers_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
 }
 inline ::uint32_t XtcpConfig::netlinkers() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.netlinkers)
@@ -5871,7 +5972,7 @@ inline ::uint32_t XtcpConfig::netlinkers() const {
 }
 inline void XtcpConfig::set_netlinkers(::uint32_t value) {
   _internal_set_netlinkers(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.netlinkers)
 }
 inline ::uint32_t XtcpConfig::_internal_netlinkers() const {
@@ -5883,11 +5984,11 @@ inline void XtcpConfig::_internal_set_netlinkers(::uint32_t value) {
   _impl_.netlinkers_ = value;
 }
 
-// uint32 netlinkers_done_chan_size = 51 [json_name = "netlinkersDoneChanSize", (.buf.validate.field) = {
+// uint32 netlinkers_done_chan_size = 16 [json_name = "netlinkersDoneChanSize", (.buf.validate.field) = {
 inline void XtcpConfig::clear_netlinkers_done_chan_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.netlinkers_done_chan_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
 }
 inline ::uint32_t XtcpConfig::netlinkers_done_chan_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.netlinkers_done_chan_size)
@@ -5895,7 +5996,7 @@ inline ::uint32_t XtcpConfig::netlinkers_done_chan_size() const {
 }
 inline void XtcpConfig::set_netlinkers_done_chan_size(::uint32_t value) {
   _internal_set_netlinkers_done_chan_size(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.netlinkers_done_chan_size)
 }
 inline ::uint32_t XtcpConfig::_internal_netlinkers_done_chan_size() const {
@@ -5907,11 +6008,11 @@ inline void XtcpConfig::_internal_set_netlinkers_done_chan_size(::uint32_t value
   _impl_.netlinkers_done_chan_size_ = value;
 }
 
-// uint32 nlmsg_seq = 60 [json_name = "nlmsgSeq", (.buf.validate.field) = {
+// uint32 nlmsg_seq = 17 [json_name = "nlmsgSeq", (.buf.validate.field) = {
 inline void XtcpConfig::clear_nlmsg_seq() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.nlmsg_seq_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
 }
 inline ::uint32_t XtcpConfig::nlmsg_seq() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.nlmsg_seq)
@@ -5919,7 +6020,7 @@ inline ::uint32_t XtcpConfig::nlmsg_seq() const {
 }
 inline void XtcpConfig::set_nlmsg_seq(::uint32_t value) {
   _internal_set_nlmsg_seq(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.nlmsg_seq)
 }
 inline ::uint32_t XtcpConfig::_internal_nlmsg_seq() const {
@@ -5931,11 +6032,11 @@ inline void XtcpConfig::_internal_set_nlmsg_seq(::uint32_t value) {
   _impl_.nlmsg_seq_ = value;
 }
 
-// uint64 packet_size = 70 [json_name = "packetSize", (.buf.validate.field) = {
+// uint64 packet_size = 18 [json_name = "packetSize", (.buf.validate.field) = {
 inline void XtcpConfig::clear_packet_size() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.packet_size_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
 }
 inline ::uint64_t XtcpConfig::packet_size() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.packet_size)
@@ -5943,7 +6044,7 @@ inline ::uint64_t XtcpConfig::packet_size() const {
 }
 inline void XtcpConfig::set_packet_size(::uint64_t value) {
   _internal_set_packet_size(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.packet_size)
 }
 inline ::uint64_t XtcpConfig::_internal_packet_size() const {
@@ -5955,11 +6056,11 @@ inline void XtcpConfig::_internal_set_packet_size(::uint64_t value) {
   _impl_.packet_size_ = value;
 }
 
-// uint32 packet_size_mply = 80 [json_name = "packetSizeMply", (.buf.validate.field) = {
+// uint32 packet_size_mply = 19 [json_name = "packetSizeMply", (.buf.validate.field) = {
 inline void XtcpConfig::clear_packet_size_mply() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.packet_size_mply_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
 }
 inline ::uint32_t XtcpConfig::packet_size_mply() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.packet_size_mply)
@@ -5967,7 +6068,7 @@ inline ::uint32_t XtcpConfig::packet_size_mply() const {
 }
 inline void XtcpConfig::set_packet_size_mply(::uint32_t value) {
   _internal_set_packet_size_mply(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.packet_size_mply)
 }
 inline ::uint32_t XtcpConfig::_internal_packet_size_mply() const {
@@ -5979,11 +6080,322 @@ inline void XtcpConfig::_internal_set_packet_size_mply(::uint32_t value) {
   _impl_.packet_size_mply_ = value;
 }
 
-// uint32 write_files = 90 [json_name = "writeFiles", (.buf.validate.field) = {
+// uint64 modulus = 20 [json_name = "modulus", (.buf.validate.field) = {
+inline void XtcpConfig::clear_modulus() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.modulus_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
+}
+inline ::uint64_t XtcpConfig::modulus() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.modulus)
+  return _internal_modulus();
+}
+inline void XtcpConfig::set_modulus(::uint64_t value) {
+  _internal_set_modulus(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.modulus)
+}
+inline ::uint64_t XtcpConfig::_internal_modulus() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.modulus_;
+}
+inline void XtcpConfig::_internal_set_modulus(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.modulus_ = value;
+}
+
+// .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 21 [json_name = "enabledDeserializers", (.buf.validate.field) = {
+inline bool XtcpConfig::has_enabled_deserializers() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000080U);
+  PROTOBUF_ASSUME(!value || _impl_.enabled_deserializers_ != nullptr);
+  return value;
+}
+inline void XtcpConfig::clear_enabled_deserializers() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.enabled_deserializers_ != nullptr) _impl_.enabled_deserializers_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+}
+inline const ::xtcp_config::v1::EnabledDeserializers& XtcpConfig::_internal_enabled_deserializers() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::xtcp_config::v1::EnabledDeserializers* p = _impl_.enabled_deserializers_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::xtcp_config::v1::EnabledDeserializers>(&::xtcp_config::v1::EnabledDeserializers_globals_);
+}
+inline const ::xtcp_config::v1::EnabledDeserializers& XtcpConfig::enabled_deserializers() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+  return _internal_enabled_deserializers();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_enabled_deserializers(
+    ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.enabled_deserializers_);
+  }
+  _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+}
+inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::release_enabled_deserializers() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::xtcp_config::v1::EnabledDeserializers* released = _impl_.enabled_deserializers_;
+  _impl_.enabled_deserializers_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_enabled_deserializers() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::xtcp_config::v1::EnabledDeserializers* temp = _impl_.enabled_deserializers_;
+  _impl_.enabled_deserializers_ = nullptr;
+  return temp;
+}
+inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_enabled_deserializers() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.enabled_deserializers_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_config::v1::EnabledDeserializers>(GetArena());
+    _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(p);
+  }
+  return _impl_.enabled_deserializers_;
+}
+inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::mutable_enabled_deserializers()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::xtcp_config::v1::EnabledDeserializers* _msg = _internal_mutable_enabled_deserializers();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.enabled_deserializers_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  }
+
+  _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
+}
+
+// bool io_uring = 22 [json_name = "ioUring", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_ = false;
+  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+}
+inline bool XtcpConfig::io_uring() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring)
+  return _internal_io_uring();
+}
+inline void XtcpConfig::set_io_uring(bool value) {
+  _internal_set_io_uring(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring)
+}
+inline bool XtcpConfig::_internal_io_uring() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_;
+}
+inline void XtcpConfig::_internal_set_io_uring(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_ = value;
+}
+
+// uint32 io_uring_recv_batch_size = 23 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring_recv_batch_size() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_recv_batch_size_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+}
+inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
+  return _internal_io_uring_recv_batch_size();
+}
+inline void XtcpConfig::set_io_uring_recv_batch_size(::uint32_t value) {
+  _internal_set_io_uring_recv_batch_size(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
+}
+inline ::uint32_t XtcpConfig::_internal_io_uring_recv_batch_size() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_recv_batch_size_;
+}
+inline void XtcpConfig::_internal_set_io_uring_recv_batch_size(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_recv_batch_size_ = value;
+}
+
+// uint32 io_uring_cqe_batch_size = 24 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
+inline void XtcpConfig::clear_io_uring_cqe_batch_size() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_cqe_batch_size_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+}
+inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
+  return _internal_io_uring_cqe_batch_size();
+}
+inline void XtcpConfig::set_io_uring_cqe_batch_size(::uint32_t value) {
+  _internal_set_io_uring_cqe_batch_size(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
+}
+inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.io_uring_cqe_batch_size_;
+}
+inline void XtcpConfig::_internal_set_io_uring_cqe_batch_size(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.io_uring_cqe_batch_size_ = value;
+}
+
+// .google.protobuf.Duration reconcile_frequency = 40 [json_name = "reconcileFrequency", (.buf.validate.field) = {
+inline bool XtcpConfig::has_reconcile_frequency() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000800U);
+  PROTOBUF_ASSUME(!value || _impl_.reconcile_frequency_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_reconcile_frequency() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.reconcile_frequency_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::reconcile_frequency() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+  return _internal_reconcile_frequency();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_reconcile_frequency(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
+  }
+  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ::google::protobuf::Duration* released = _impl_.reconcile_frequency_;
+  _impl_.reconcile_frequency_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ::google::protobuf::Duration* temp = _impl_.reconcile_frequency_;
+  _impl_.reconcile_frequency_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_reconcile_frequency() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.reconcile_frequency_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.reconcile_frequency_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_reconcile_frequency()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_reconcile_frequency();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  }
+
+  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
+}
+
+// bool reconcile_before_poll = 41 [json_name = "reconcileBeforePoll"];
+inline void XtcpConfig::clear_reconcile_before_poll() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reconcile_before_poll_ = false;
+  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+}
+inline bool XtcpConfig::reconcile_before_poll() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
+  return _internal_reconcile_before_poll();
+}
+inline void XtcpConfig::set_reconcile_before_poll(bool value) {
+  _internal_set_reconcile_before_poll(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
+}
+inline bool XtcpConfig::_internal_reconcile_before_poll() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.reconcile_before_poll_;
+}
+inline void XtcpConfig::_internal_set_reconcile_before_poll(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reconcile_before_poll_ = value;
+}
+
+// uint32 write_files = 50 [json_name = "writeFiles", (.buf.validate.field) = {
 inline void XtcpConfig::clear_write_files() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.write_files_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
 }
 inline ::uint32_t XtcpConfig::write_files() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.write_files)
@@ -5991,7 +6403,7 @@ inline ::uint32_t XtcpConfig::write_files() const {
 }
 inline void XtcpConfig::set_write_files(::uint32_t value) {
   _internal_set_write_files(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.write_files)
 }
 inline ::uint32_t XtcpConfig::_internal_write_files() const {
@@ -6003,11 +6415,11 @@ inline void XtcpConfig::_internal_set_write_files(::uint32_t value) {
   _impl_.write_files_ = value;
 }
 
-// string capture_path = 100 [json_name = "capturePath", (.buf.validate.field) = {
+// string capture_path = 51 [json_name = "capturePath", (.buf.validate.field) = {
 inline void XtcpConfig::clear_capture_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.capture_path_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
 }
 inline const ::std::string& XtcpConfig::capture_path() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6017,13 +6429,13 @@ inline const ::std::string& XtcpConfig::capture_path() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_capture_path(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   _impl_.capture_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.capture_path)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_capture_path()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   ::std::string* _s = _internal_mutable_capture_path();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.capture_path)
   return _s;
@@ -6043,10 +6455,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_capture_pat
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_capture_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.capture_path)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00040000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00800000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
   auto* released = _impl_.capture_path_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.capture_path_.Set("", GetArena());
@@ -6056,9 +6468,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_capture_path() {
 inline void XtcpConfig::set_allocated_capture_path(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
   }
   _impl_.capture_path_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.capture_path_.IsDefault()) {
@@ -6067,35 +6479,123 @@ inline void XtcpConfig::set_allocated_capture_path(::std::string* PROTOBUF_NULLA
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.capture_path)
 }
 
-// uint64 modulus = 110 [json_name = "modulus", (.buf.validate.field) = {
-inline void XtcpConfig::clear_modulus() {
+// uint32 dest_write_files = 52 [json_name = "destWriteFiles", (.buf.validate.field) = {
+inline void XtcpConfig::clear_dest_write_files() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.modulus_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+  _impl_.dest_write_files_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
 }
-inline ::uint64_t XtcpConfig::modulus() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.modulus)
-  return _internal_modulus();
+inline ::uint32_t XtcpConfig::dest_write_files() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.dest_write_files)
+  return _internal_dest_write_files();
 }
-inline void XtcpConfig::set_modulus(::uint64_t value) {
-  _internal_set_modulus(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.modulus)
+inline void XtcpConfig::set_dest_write_files(::uint32_t value) {
+  _internal_set_dest_write_files(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest_write_files)
 }
-inline ::uint64_t XtcpConfig::_internal_modulus() const {
+inline ::uint32_t XtcpConfig::_internal_dest_write_files() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.modulus_;
+  return _impl_.dest_write_files_;
 }
-inline void XtcpConfig::_internal_set_modulus(::uint64_t value) {
+inline void XtcpConfig::_internal_set_dest_write_files(::uint32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.modulus_ = value;
+  _impl_.dest_write_files_ = value;
 }
 
-// string marshal_to = 120 [json_name = "marshalTo", (.buf.validate.field) = {
+// uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
+inline void XtcpConfig::clear_debug_level() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.debug_level_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
+}
+inline ::uint32_t XtcpConfig::debug_level() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.debug_level)
+  return _internal_debug_level();
+}
+inline void XtcpConfig::set_debug_level(::uint32_t value) {
+  _internal_set_debug_level(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.debug_level)
+}
+inline ::uint32_t XtcpConfig::_internal_debug_level() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.debug_level_;
+}
+inline void XtcpConfig::_internal_set_debug_level(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.debug_level_ = value;
+}
+
+// string dest = 60 [json_name = "dest", (.buf.validate.field) = {
+inline void XtcpConfig::clear_dest() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.dest_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+}
+inline const ::std::string& XtcpConfig::dest() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.dest)
+  return _internal_dest();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_dest(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.dest_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_dest()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::std::string* _s = _internal_mutable_dest();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.dest)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_dest() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.dest_.Get();
+}
+inline void XtcpConfig::_internal_set_dest(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.dest_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_dest() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.dest_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_dest() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.dest)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  auto* released = _impl_.dest_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.dest_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_dest(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  _impl_.dest_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.dest_.IsDefault()) {
+    _impl_.dest_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.dest)
+}
+
+// string marshal_to = 61 [json_name = "marshalTo", (.buf.validate.field) = {
 inline void XtcpConfig::clear_marshal_to() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.marshal_to_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
 }
 inline const ::std::string& XtcpConfig::marshal_to() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6105,13 +6605,13 @@ inline const ::std::string& XtcpConfig::marshal_to() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_marshal_to(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   _impl_.marshal_to_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.marshal_to)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_marshal_to()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::std::string* _s = _internal_mutable_marshal_to();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.marshal_to)
   return _s;
@@ -6131,10 +6631,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_marshal_to(
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_marshal_to() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.marshal_to)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00080000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   auto* released = _impl_.marshal_to_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.marshal_to_.Set("", GetArena());
@@ -6144,9 +6644,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_marshal_to() {
 inline void XtcpConfig::set_allocated_marshal_to(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00080000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
   _impl_.marshal_to_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.marshal_to_.IsDefault()) {
@@ -6155,11 +6655,139 @@ inline void XtcpConfig::set_allocated_marshal_to(::std::string* PROTOBUF_NULLABL
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.marshal_to)
 }
 
-// uint32 envelope_flush_threshold_bytes = 122 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
+// string csv_columns = 62 [json_name = "csvColumns", (.buf.validate.field) = {
+inline void XtcpConfig::clear_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+inline const ::std::string& XtcpConfig::csv_columns() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.csv_columns)
+  return _internal_csv_columns();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_csv_columns(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.csv_columns_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.csv_columns)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_csv_columns()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_csv_columns();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.csv_columns)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_csv_columns() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.csv_columns_.Get();
+}
+inline void XtcpConfig::_internal_set_csv_columns(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.csv_columns_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.csv_columns_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_csv_columns() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.csv_columns)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.csv_columns_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.csv_columns_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_csv_columns(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.csv_columns_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.csv_columns_.IsDefault()) {
+    _impl_.csv_columns_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.csv_columns)
+}
+
+// string xtcp_proto_file = 63 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
+inline void XtcpConfig::clear_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+}
+inline const ::std::string& XtcpConfig::xtcp_proto_file() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  return _internal_xtcp_proto_file();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_xtcp_proto_file(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.xtcp_proto_file_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_xtcp_proto_file()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_xtcp_proto_file();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_xtcp_proto_file() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.xtcp_proto_file_.Get();
+}
+inline void XtcpConfig::_internal_set_xtcp_proto_file(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.xtcp_proto_file_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.xtcp_proto_file_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_xtcp_proto_file() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.xtcp_proto_file_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.xtcp_proto_file_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.xtcp_proto_file_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.xtcp_proto_file_.IsDefault()) {
+    _impl_.xtcp_proto_file_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
+}
+
+// uint32 envelope_flush_threshold_bytes = 64 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
 inline void XtcpConfig::clear_envelope_flush_threshold_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.envelope_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
 }
 inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
@@ -6167,7 +6795,7 @@ inline ::uint32_t XtcpConfig::envelope_flush_threshold_bytes() const {
 }
 inline void XtcpConfig::set_envelope_flush_threshold_bytes(::uint32_t value) {
   _internal_set_envelope_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_bytes)
 }
 inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_bytes() const {
@@ -6179,11 +6807,11 @@ inline void XtcpConfig::_internal_set_envelope_flush_threshold_bytes(::uint32_t 
   _impl_.envelope_flush_threshold_bytes_ = value;
 }
 
-// uint32 envelope_flush_threshold_rows = 123 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
+// uint32 envelope_flush_threshold_rows = 65 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
 inline void XtcpConfig::clear_envelope_flush_threshold_rows() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.envelope_flush_threshold_rows_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
 }
 inline ::uint32_t XtcpConfig::envelope_flush_threshold_rows() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_rows)
@@ -6191,7 +6819,7 @@ inline ::uint32_t XtcpConfig::envelope_flush_threshold_rows() const {
 }
 inline void XtcpConfig::set_envelope_flush_threshold_rows(::uint32_t value) {
   _internal_set_envelope_flush_threshold_rows(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.envelope_flush_threshold_rows)
 }
 inline ::uint32_t XtcpConfig::_internal_envelope_flush_threshold_rows() const {
@@ -6203,11 +6831,232 @@ inline void XtcpConfig::_internal_set_envelope_flush_threshold_rows(::uint32_t v
   _impl_.envelope_flush_threshold_rows_ = value;
 }
 
-// string kafka_compression = 124 [json_name = "kafkaCompression", (.buf.validate.field) = {
+// string topic = 80 [json_name = "topic", (.buf.validate.field) = {
+inline void XtcpConfig::clear_topic() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.topic_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+}
+inline const ::std::string& XtcpConfig::topic() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.topic)
+  return _internal_topic();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_topic(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  _impl_.topic_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.topic)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_topic()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ::std::string* _s = _internal_mutable_topic();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.topic)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_topic() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.topic_.Get();
+}
+inline void XtcpConfig::_internal_set_topic(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.topic_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_topic() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.topic_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_topic() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.topic)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x01000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  auto* released = _impl_.topic_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.topic_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_topic(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  }
+  _impl_.topic_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.topic_.IsDefault()) {
+    _impl_.topic_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.topic)
+}
+
+// string kafka_schema_url = 81 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+}
+inline const ::std::string& XtcpConfig::kafka_schema_url() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  return _internal_kafka_schema_url();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_schema_url(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  _impl_.kafka_schema_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_schema_url()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ::std::string* _s = _internal_mutable_kafka_schema_url();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_kafka_schema_url() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.kafka_schema_url_.Get();
+}
+inline void XtcpConfig::_internal_set_kafka_schema_url(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.kafka_schema_url_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.kafka_schema_url_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_schema_url() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x02000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  auto* released = _impl_.kafka_schema_url_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.kafka_schema_url_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_kafka_schema_url(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  }
+  _impl_.kafka_schema_url_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_schema_url_.IsDefault()) {
+    _impl_.kafka_schema_url_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_schema_url)
+}
+
+// .google.protobuf.Duration kafka_produce_timeout = 82 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
+inline bool XtcpConfig::has_kafka_produce_timeout() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00001000U);
+  PROTOBUF_ASSUME(!value || _impl_.kafka_produce_timeout_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_kafka_produce_timeout() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.kafka_produce_timeout_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::kafka_produce_timeout() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
+  return _internal_kafka_produce_timeout();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_kafka_produce_timeout(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.kafka_produce_timeout_);
+  }
+  _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_kafka_produce_timeout() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* released = _impl_.kafka_produce_timeout_;
+  _impl_.kafka_produce_timeout_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_kafka_produce_timeout() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* temp = _impl_.kafka_produce_timeout_;
+  _impl_.kafka_produce_timeout_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_produce_timeout() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.kafka_produce_timeout_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.kafka_produce_timeout_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_produce_timeout()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_kafka_produce_timeout();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.kafka_produce_timeout_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
+  }
+
+  _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
+}
+
+// string kafka_compression = 83 [json_name = "kafkaCompression", (.buf.validate.field) = {
 inline void XtcpConfig::clear_kafka_compression() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.kafka_compression_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
 }
 inline const ::std::string& XtcpConfig::kafka_compression() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6217,13 +7066,13 @@ inline const ::std::string& XtcpConfig::kafka_compression() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_compression(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   _impl_.kafka_compression_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_compression)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_compression()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   ::std::string* _s = _internal_mutable_kafka_compression();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_compression)
   return _s;
@@ -6243,10 +7092,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_compr
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_compression() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_compression)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00100000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x04000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
   auto* released = _impl_.kafka_compression_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.kafka_compression_.Set("", GetArena());
@@ -6256,9 +7105,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_compression() 
 inline void XtcpConfig::set_allocated_kafka_compression(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+    SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00100000U);
+    ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
   }
   _impl_.kafka_compression_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_compression_.IsDefault()) {
@@ -6267,11 +7116,11 @@ inline void XtcpConfig::set_allocated_kafka_compression(::std::string* PROTOBUF_
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_compression)
 }
 
-// string s3_endpoint = 125 [json_name = "s3Endpoint", (.buf.validate.field) = {
+// string s3_endpoint = 100 [json_name = "s3Endpoint", (.buf.validate.field) = {
 inline void XtcpConfig::clear_s3_endpoint() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_endpoint_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
 }
 inline const ::std::string& XtcpConfig::s3_endpoint() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6281,13 +7130,13 @@ inline const ::std::string& XtcpConfig::s3_endpoint() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_endpoint(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   _impl_.s3_endpoint_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_endpoint)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_endpoint()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   ::std::string* _s = _internal_mutable_s3_endpoint();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_endpoint)
   return _s;
@@ -6307,10 +7156,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_endpoint
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_endpoint() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_endpoint)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x08000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
   auto* released = _impl_.s3_endpoint_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.s3_endpoint_.Set("", GetArena());
@@ -6320,9 +7169,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_endpoint() {
 inline void XtcpConfig::set_allocated_s3_endpoint(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+    SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+    ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
   }
   _impl_.s3_endpoint_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_endpoint_.IsDefault()) {
@@ -6331,291 +7180,11 @@ inline void XtcpConfig::set_allocated_s3_endpoint(::std::string* PROTOBUF_NULLAB
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_endpoint)
 }
 
-// string s3_bucket = 126 [json_name = "s3Bucket", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_bucket() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_bucket_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
-}
-inline const ::std::string& XtcpConfig::s3_bucket() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_bucket)
-  return _internal_s3_bucket();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_bucket(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
-  _impl_.s3_bucket_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_bucket)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_bucket()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
-  ::std::string* _s = _internal_mutable_s3_bucket();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_bucket)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_s3_bucket() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_bucket_.Get();
-}
-inline void XtcpConfig::_internal_set_s3_bucket(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_bucket_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_bucket() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.s3_bucket_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_bucket() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_bucket)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00200000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
-  auto* released = _impl_.s3_bucket_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.s3_bucket_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_s3_bucket(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00200000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
-  }
-  _impl_.s3_bucket_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_bucket_.IsDefault()) {
-    _impl_.s3_bucket_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_bucket)
-}
-
-// string s3_prefix = 127 [json_name = "s3Prefix", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_prefix() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_prefix_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
-}
-inline const ::std::string& XtcpConfig::s3_prefix() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_prefix)
-  return _internal_s3_prefix();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_prefix(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  _impl_.s3_prefix_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_prefix)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_prefix()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  ::std::string* _s = _internal_mutable_s3_prefix();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_prefix)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_s3_prefix() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_prefix_.Get();
-}
-inline void XtcpConfig::_internal_set_s3_prefix(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_prefix_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_prefix() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.s3_prefix_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_prefix() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_prefix)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
-  auto* released = _impl_.s3_prefix_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.s3_prefix_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_s3_prefix(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
-  }
-  _impl_.s3_prefix_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_prefix_.IsDefault()) {
-    _impl_.s3_prefix_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_prefix)
-}
-
-// string s3_access_key = 128 [json_name = "s3AccessKey", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_access_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_access_key_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
-}
-inline const ::std::string& XtcpConfig::s3_access_key() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_access_key)
-  return _internal_s3_access_key();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_access_key(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
-  _impl_.s3_access_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_access_key)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_access_key()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
-  ::std::string* _s = _internal_mutable_s3_access_key();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_access_key)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_s3_access_key() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_access_key_.Get();
-}
-inline void XtcpConfig::_internal_set_s3_access_key(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_access_key_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_access_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.s3_access_key_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_access_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_access_key)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00400000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
-  auto* released = _impl_.s3_access_key_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.s3_access_key_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_s3_access_key(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
-  }
-  _impl_.s3_access_key_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_access_key_.IsDefault()) {
-    _impl_.s3_access_key_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_access_key)
-}
-
-// string s3_secret_key = 129 [json_name = "s3SecretKey", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_secret_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_secret_key_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
-}
-inline const ::std::string& XtcpConfig::s3_secret_key() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_secret_key)
-  return _internal_s3_secret_key();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_secret_key(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  _impl_.s3_secret_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_secret_key)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_secret_key()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  ::std::string* _s = _internal_mutable_s3_secret_key();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_secret_key)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_s3_secret_key() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_secret_key_.Get();
-}
-inline void XtcpConfig::_internal_set_s3_secret_key(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_secret_key_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_secret_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.s3_secret_key_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_secret_key() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_secret_key)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
-  auto* released = _impl_.s3_secret_key_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.s3_secret_key_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_s3_secret_key(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
-  }
-  _impl_.s3_secret_key_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_secret_key_.IsDefault()) {
-    _impl_.s3_secret_key_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_secret_key)
-}
-
-// uint32 s3_parquet_flush_threshold_bytes = 132 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_parquet_flush_threshold_bytes() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00001000U);
-}
-inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
-  return _internal_s3_parquet_flush_threshold_bytes();
-}
-inline void XtcpConfig::set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
-  _internal_set_s3_parquet_flush_threshold_bytes(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00001000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
-}
-inline ::uint32_t XtcpConfig::_internal_s3_parquet_flush_threshold_bytes() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_parquet_flush_threshold_bytes_;
-}
-inline void XtcpConfig::_internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_parquet_flush_threshold_bytes_ = value;
-}
-
-// string s3_region = 133 [json_name = "s3Region", (.buf.validate.field) = {
+// string s3_region = 101 [json_name = "s3Region", (.buf.validate.field) = {
 inline void XtcpConfig::clear_s3_region() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_region_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
 }
 inline const ::std::string& XtcpConfig::s3_region() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6625,13 +7194,13 @@ inline const ::std::string& XtcpConfig::s3_region() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_region(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   _impl_.s3_region_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_region)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_region()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   ::std::string* _s = _internal_mutable_s3_region();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_region)
   return _s;
@@ -6651,10 +7220,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_region()
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_region() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_region)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x10000000U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
   auto* released = _impl_.s3_region_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.s3_region_.Set("", GetArena());
@@ -6664,9 +7233,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_region() {
 inline void XtcpConfig::set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
   }
   _impl_.s3_region_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_region_.IsDefault()) {
@@ -6675,11 +7244,267 @@ inline void XtcpConfig::set_allocated_s3_region(::std::string* PROTOBUF_NULLABLE
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_region)
 }
 
-// bool s3_skip_bucket_probe = 134 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
+// string s3_bucket = 102 [json_name = "s3Bucket", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+}
+inline const ::std::string& XtcpConfig::s3_bucket() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_bucket)
+  return _internal_s3_bucket();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_bucket(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  _impl_.s3_bucket_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_bucket)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_bucket()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  ::std::string* _s = _internal_mutable_s3_bucket();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_bucket)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_s3_bucket() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_bucket_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_bucket(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_bucket_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_bucket_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_bucket() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_bucket)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x20000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  auto* released = _impl_.s3_bucket_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.s3_bucket_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_s3_bucket(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
+  }
+  _impl_.s3_bucket_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_bucket_.IsDefault()) {
+    _impl_.s3_bucket_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_bucket)
+}
+
+// string s3_prefix = 103 [json_name = "s3Prefix", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+}
+inline const ::std::string& XtcpConfig::s3_prefix() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_prefix)
+  return _internal_s3_prefix();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_prefix(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  _impl_.s3_prefix_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_prefix)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_prefix()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  ::std::string* _s = _internal_mutable_s3_prefix();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_prefix)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_s3_prefix() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_prefix_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_prefix(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_prefix_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_prefix_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_prefix() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_prefix)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x40000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  auto* released = _impl_.s3_prefix_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.s3_prefix_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_s3_prefix(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x40000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
+  }
+  _impl_.s3_prefix_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_prefix_.IsDefault()) {
+    _impl_.s3_prefix_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_prefix)
+}
+
+// string s3_access_key = 104 [json_name = "s3AccessKey", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+}
+inline const ::std::string& XtcpConfig::s3_access_key() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_access_key)
+  return _internal_s3_access_key();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_access_key(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  _impl_.s3_access_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_access_key)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_access_key()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  ::std::string* _s = _internal_mutable_s3_access_key();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_access_key)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_s3_access_key() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_access_key_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_access_key(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_access_key_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_access_key_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_access_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_access_key)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x80000000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  auto* released = _impl_.s3_access_key_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.s3_access_key_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_s3_access_key(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x80000000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
+  }
+  _impl_.s3_access_key_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_access_key_.IsDefault()) {
+    _impl_.s3_access_key_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_access_key)
+}
+
+// string s3_secret_key = 105 [json_name = "s3SecretKey", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+}
+inline const ::std::string& XtcpConfig::s3_secret_key() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  return _internal_s3_secret_key();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_s3_secret_key(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  _impl_.s3_secret_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_secret_key)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_s3_secret_key()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  ::std::string* _s = _internal_mutable_s3_secret_key();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_s3_secret_key() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_secret_key_.Get();
+}
+inline void XtcpConfig::_internal_set_s3_secret_key(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_secret_key_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.s3_secret_key_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_s3_secret_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_secret_key)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  auto* released = _impl_.s3_secret_key_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.s3_secret_key_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_s3_secret_key(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
+  }
+  _impl_.s3_secret_key_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.s3_secret_key_.IsDefault()) {
+    _impl_.s3_secret_key_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_secret_key)
+}
+
+// bool s3_skip_bucket_probe = 106 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
 inline void XtcpConfig::clear_s3_skip_bucket_probe() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.s3_skip_bucket_probe_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
 }
 inline bool XtcpConfig::s3_skip_bucket_probe() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
@@ -6687,7 +7512,7 @@ inline bool XtcpConfig::s3_skip_bucket_probe() const {
 }
 inline void XtcpConfig::set_s3_skip_bucket_probe(bool value) {
   _internal_set_s3_skip_bucket_probe(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_skip_bucket_probe)
 }
 inline bool XtcpConfig::_internal_s3_skip_bucket_probe() const {
@@ -6699,11 +7524,685 @@ inline void XtcpConfig::_internal_set_s3_skip_bucket_probe(bool value) {
   _impl_.s3_skip_bucket_probe_ = value;
 }
 
-// string pyroscope_url = 136 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
+// uint32 s3_parquet_flush_threshold_bytes = 110 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_parquet_flush_threshold_bytes() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_parquet_flush_threshold_bytes_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
+}
+inline ::uint32_t XtcpConfig::s3_parquet_flush_threshold_bytes() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
+  return _internal_s3_parquet_flush_threshold_bytes();
+}
+inline void XtcpConfig::set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
+  _internal_set_s3_parquet_flush_threshold_bytes(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_parquet_flush_threshold_bytes)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_parquet_flush_threshold_bytes() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_parquet_flush_threshold_bytes_;
+}
+inline void XtcpConfig::_internal_set_s3_parquet_flush_threshold_bytes(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_parquet_flush_threshold_bytes_ = value;
+}
+
+// .google.protobuf.Duration s3_flush_interval = 111 [json_name = "s3FlushInterval", (.buf.validate.field) = {
+inline bool XtcpConfig::has_s3_flush_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00002000U);
+  PROTOBUF_ASSUME(!value || _impl_.s3_flush_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_flush_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.s3_flush_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::s3_flush_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+  return _internal_s3_flush_interval();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_s3_flush_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
+  }
+  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ::google::protobuf::Duration* released = _impl_.s3_flush_interval_;
+  _impl_.s3_flush_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ::google::protobuf::Duration* temp = _impl_.s3_flush_interval_;
+  _impl_.s3_flush_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_flush_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_flush_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.s3_flush_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_flush_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_s3_flush_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  }
+
+  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
+}
+
+// uint32 s3_flush_jitter_pct = 112 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_flush_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_jitter_pct_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
+}
+inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
+  return _internal_s3_flush_jitter_pct();
+}
+inline void XtcpConfig::set_s3_flush_jitter_pct(::uint32_t value) {
+  _internal_set_s3_flush_jitter_pct(value);
+  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_flush_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_flush_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_s3_flush_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_jitter_pct_ = value;
+}
+
+// uint32 s3_flush_threshold_jitter_pct = 113 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_flush_threshold_jitter_pct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_threshold_jitter_pct_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
+}
+inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
+  return _internal_s3_flush_threshold_jitter_pct();
+}
+inline void XtcpConfig::set_s3_flush_threshold_jitter_pct(::uint32_t value) {
+  _internal_set_s3_flush_threshold_jitter_pct(value);
+  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_flush_threshold_jitter_pct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_flush_threshold_jitter_pct_;
+}
+inline void XtcpConfig::_internal_set_s3_flush_threshold_jitter_pct(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_flush_threshold_jitter_pct_ = value;
+}
+
+// uint32 s3_upload_max_attempts = 114 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
+inline void XtcpConfig::clear_s3_upload_max_attempts() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_upload_max_attempts_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
+}
+inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
+  return _internal_s3_upload_max_attempts();
+}
+inline void XtcpConfig::set_s3_upload_max_attempts(::uint32_t value) {
+  _internal_set_s3_upload_max_attempts(value);
+  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
+}
+inline ::uint32_t XtcpConfig::_internal_s3_upload_max_attempts() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.s3_upload_max_attempts_;
+}
+inline void XtcpConfig::_internal_set_s3_upload_max_attempts(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.s3_upload_max_attempts_ = value;
+}
+
+// .google.protobuf.Duration s3_upload_backoff_cap = 115 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
+inline bool XtcpConfig::has_s3_upload_backoff_cap() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00004000U);
+  PROTOBUF_ASSUME(!value || _impl_.s3_upload_backoff_cap_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_upload_backoff_cap() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.s3_upload_backoff_cap_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::s3_upload_backoff_cap() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+  return _internal_s3_upload_backoff_cap();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_s3_upload_backoff_cap(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
+  }
+  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ::google::protobuf::Duration* released = _impl_.s3_upload_backoff_cap_;
+  _impl_.s3_upload_backoff_cap_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ::google::protobuf::Duration* temp = _impl_.s3_upload_backoff_cap_;
+  _impl_.s3_upload_backoff_cap_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_upload_backoff_cap() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.s3_upload_backoff_cap_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.s3_upload_backoff_cap_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_upload_backoff_cap()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_s3_upload_backoff_cap();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  }
+
+  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
+}
+
+// string hostname = 130 [json_name = "hostname", (.buf.validate.field) = {
+inline void XtcpConfig::clear_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+}
+inline const ::std::string& XtcpConfig::hostname() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.hostname)
+  return _internal_hostname();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_hostname(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  _impl_.hostname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.hostname)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_hostname()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  ::std::string* _s = _internal_mutable_hostname();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.hostname)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_hostname() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.hostname_.Get();
+}
+inline void XtcpConfig::_internal_set_hostname(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hostname_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.hostname_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_hostname() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.hostname)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  auto* released = _impl_.hostname_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.hostname_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_hostname(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
+  }
+  _impl_.hostname_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.hostname_.IsDefault()) {
+    _impl_.hostname_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.hostname)
+}
+
+// string location = 131 [json_name = "location", (.buf.validate.field) = {
+inline void XtcpConfig::clear_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+}
+inline const ::std::string& XtcpConfig::location() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.location)
+  return _internal_location();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_location(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  _impl_.location_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.location)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_location()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ::std::string* _s = _internal_mutable_location();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.location)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_location() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.location_.Get();
+}
+inline void XtcpConfig::_internal_set_location(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.location_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.location_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_location() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.location)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  auto* released = _impl_.location_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.location_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_location(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  }
+  _impl_.location_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.location_.IsDefault()) {
+    _impl_.location_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.location)
+}
+
+// string label = 132 [json_name = "label", (.buf.validate.field) = {
+inline void XtcpConfig::clear_label() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.label_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+}
+inline const ::std::string& XtcpConfig::label() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.label)
+  return _internal_label();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_label(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  _impl_.label_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.label)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_label()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ::std::string* _s = _internal_mutable_label();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.label)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_label() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.label_.Get();
+}
+inline void XtcpConfig::_internal_set_label(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.label_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_label() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.label_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_label() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.label)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  auto* released = _impl_.label_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.label_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_label(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  }
+  _impl_.label_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.label_.IsDefault()) {
+    _impl_.label_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.label)
+}
+
+// string tag = 133 [json_name = "tag", (.buf.validate.field) = {
+inline void XtcpConfig::clear_tag() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tag_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+}
+inline const ::std::string& XtcpConfig::tag() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.tag)
+  return _internal_tag();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_tag(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  _impl_.tag_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.tag)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_tag()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ::std::string* _s = _internal_mutable_tag();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.tag)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_tag() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tag_.Get();
+}
+inline void XtcpConfig::_internal_set_tag(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tag_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_tag() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.tag_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_tag() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.tag)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  auto* released = _impl_.tag_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.tag_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_tag(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  }
+  _impl_.tag_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.tag_.IsDefault()) {
+    _impl_.tag_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.tag)
+}
+
+// string daemon_version = 134 [json_name = "daemonVersion", (.buf.validate.field) = {
+inline void XtcpConfig::clear_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+}
+inline const ::std::string& XtcpConfig::daemon_version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.daemon_version)
+  return _internal_daemon_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_daemon_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  _impl_.daemon_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.daemon_version)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_daemon_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  ::std::string* _s = _internal_mutable_daemon_version();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.daemon_version)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_daemon_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.daemon_version_.Get();
+}
+inline void XtcpConfig::_internal_set_daemon_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.daemon_version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.daemon_version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_daemon_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.daemon_version)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000020U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  auto* released = _impl_.daemon_version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
+  }
+  _impl_.daemon_version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.daemon_version_.IsDefault()) {
+    _impl_.daemon_version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.daemon_version)
+}
+
+// uint32 ipv4_ttl = 150 [json_name = "ipv4Ttl", (.buf.validate.field) = {
+inline void XtcpConfig::clear_ipv4_ttl() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv4_ttl_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
+}
+inline ::uint32_t XtcpConfig::ipv4_ttl() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv4_ttl)
+  return _internal_ipv4_ttl();
+}
+inline void XtcpConfig::set_ipv4_ttl(::uint32_t value) {
+  _internal_set_ipv4_ttl(value);
+  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv4_ttl)
+}
+inline ::uint32_t XtcpConfig::_internal_ipv4_ttl() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ipv4_ttl_;
+}
+inline void XtcpConfig::_internal_set_ipv4_ttl(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv4_ttl_ = value;
+}
+
+// uint32 ipv6_hop_limit = 151 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
+inline void XtcpConfig::clear_ipv6_hop_limit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv6_hop_limit_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
+}
+inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
+  return _internal_ipv6_hop_limit();
+}
+inline void XtcpConfig::set_ipv6_hop_limit(::uint32_t value) {
+  _internal_set_ipv6_hop_limit(value);
+  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
+}
+inline ::uint32_t XtcpConfig::_internal_ipv6_hop_limit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ipv6_hop_limit_;
+}
+inline void XtcpConfig::_internal_set_ipv6_hop_limit(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ipv6_hop_limit_ = value;
+}
+
+// uint32 grpc_port = 160 [json_name = "grpcPort", (.buf.validate.field) = {
+inline void XtcpConfig::clear_grpc_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.grpc_port_ = 0u;
+  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
+}
+inline ::uint32_t XtcpConfig::grpc_port() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.grpc_port)
+  return _internal_grpc_port();
+}
+inline void XtcpConfig::set_grpc_port(::uint32_t value) {
+  _internal_set_grpc_port(value);
+  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.grpc_port)
+}
+inline ::uint32_t XtcpConfig::_internal_grpc_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.grpc_port_;
+}
+inline void XtcpConfig::_internal_set_grpc_port(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.grpc_port_ = value;
+}
+
+// string pyroscope_url = 170 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
 inline void XtcpConfig::clear_pyroscope_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_url_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
 }
 inline const ::std::string& XtcpConfig::pyroscope_url() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -6713,13 +8212,13 @@ inline const ::std::string& XtcpConfig::pyroscope_url() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_pyroscope_url(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   _impl_.pyroscope_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_url)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_pyroscope_url()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   ::std::string* _s = _internal_mutable_pyroscope_url();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.pyroscope_url)
   return _s;
@@ -6739,10 +8238,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_pyroscope_u
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_pyroscope_url() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.pyroscope_url)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x01000000U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000040U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   auto* released = _impl_.pyroscope_url_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.pyroscope_url_.Set("", GetArena());
@@ -6752,9 +8251,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_pyroscope_url() {
 inline void XtcpConfig::set_allocated_pyroscope_url(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
   }
   _impl_.pyroscope_url_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pyroscope_url_.IsDefault()) {
@@ -6763,7 +8262,7 @@ inline void XtcpConfig::set_allocated_pyroscope_url(::std::string* PROTOBUF_NULL
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_url)
 }
 
-// string pyroscope_app_name = 137 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
+// string pyroscope_app_name = 171 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
 inline void XtcpConfig::clear_pyroscope_app_name() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_app_name_.ClearToEmpty();
@@ -6827,11 +8326,11 @@ inline void XtcpConfig::set_allocated_pyroscope_app_name(::std::string* PROTOBUF
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.pyroscope_app_name)
 }
 
-// uint32 pyroscope_sample_hz = 138 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+// uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
 inline void XtcpConfig::clear_pyroscope_sample_hz() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_sample_hz_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00002000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
@@ -6839,7 +8338,7 @@ inline ::uint32_t XtcpConfig::pyroscope_sample_hz() const {
 }
 inline void XtcpConfig::set_pyroscope_sample_hz(::uint32_t value) {
   _internal_set_pyroscope_sample_hz(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_sample_hz)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_sample_hz() const {
@@ -6851,11 +8350,11 @@ inline void XtcpConfig::_internal_set_pyroscope_sample_hz(::uint32_t value) {
   _impl_.pyroscope_sample_hz_ = value;
 }
 
-// uint32 pyroscope_upload_interval_sec = 139 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
+// uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
 inline void XtcpConfig::clear_pyroscope_upload_interval_sec() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pyroscope_upload_interval_sec_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00004000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
 }
 inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
@@ -6863,7 +8362,7 @@ inline ::uint32_t XtcpConfig::pyroscope_upload_interval_sec() const {
 }
 inline void XtcpConfig::set_pyroscope_upload_interval_sec(::uint32_t value) {
   _internal_set_pyroscope_upload_interval_sec(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.pyroscope_upload_interval_sec)
 }
 inline ::uint32_t XtcpConfig::_internal_pyroscope_upload_interval_sec() const {
@@ -6875,728 +8374,11 @@ inline void XtcpConfig::_internal_set_pyroscope_upload_interval_sec(::uint32_t v
   _impl_.pyroscope_upload_interval_sec_ = value;
 }
 
-// string dest = 130 [json_name = "dest", (.buf.validate.field) = {
-inline void XtcpConfig::clear_dest() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.dest_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
-}
-inline const ::std::string& XtcpConfig::dest() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.dest)
-  return _internal_dest();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_dest(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
-  _impl_.dest_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_dest()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
-  ::std::string* _s = _internal_mutable_dest();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.dest)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_dest() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.dest_.Get();
-}
-inline void XtcpConfig::_internal_set_dest(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.dest_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_dest() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.dest_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_dest() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.dest)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00800000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
-  auto* released = _impl_.dest_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.dest_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_dest(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00800000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
-  }
-  _impl_.dest_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.dest_.IsDefault()) {
-    _impl_.dest_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.dest)
-}
-
-// uint32 dest_write_files = 135 [json_name = "destWriteFiles", (.buf.validate.field) = {
-inline void XtcpConfig::clear_dest_write_files() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.dest_write_files_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
-}
-inline ::uint32_t XtcpConfig::dest_write_files() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.dest_write_files)
-  return _internal_dest_write_files();
-}
-inline void XtcpConfig::set_dest_write_files(::uint32_t value) {
-  _internal_set_dest_write_files(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.dest_write_files)
-}
-inline ::uint32_t XtcpConfig::_internal_dest_write_files() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.dest_write_files_;
-}
-inline void XtcpConfig::_internal_set_dest_write_files(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.dest_write_files_ = value;
-}
-
-// string topic = 140 [json_name = "topic", (.buf.validate.field) = {
-inline void XtcpConfig::clear_topic() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.topic_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
-}
-inline const ::std::string& XtcpConfig::topic() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.topic)
-  return _internal_topic();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_topic(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
-  _impl_.topic_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.topic)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_topic()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
-  ::std::string* _s = _internal_mutable_topic();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.topic)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_topic() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.topic_.Get();
-}
-inline void XtcpConfig::_internal_set_topic(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.topic_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_topic() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.topic_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_topic() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.topic)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x02000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
-  auto* released = _impl_.topic_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.topic_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_topic(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x02000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
-  }
-  _impl_.topic_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.topic_.IsDefault()) {
-    _impl_.topic_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.topic)
-}
-
-// string xtcp_proto_file = 143 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
-inline void XtcpConfig::clear_xtcp_proto_file() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.xtcp_proto_file_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
-}
-inline const ::std::string& XtcpConfig::xtcp_proto_file() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-  return _internal_xtcp_proto_file();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_xtcp_proto_file(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
-  _impl_.xtcp_proto_file_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_xtcp_proto_file()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
-  ::std::string* _s = _internal_mutable_xtcp_proto_file();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_xtcp_proto_file() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.xtcp_proto_file_.Get();
-}
-inline void XtcpConfig::_internal_set_xtcp_proto_file(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.xtcp_proto_file_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_xtcp_proto_file() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.xtcp_proto_file_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_xtcp_proto_file() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x04000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
-  auto* released = _impl_.xtcp_proto_file_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.xtcp_proto_file_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_xtcp_proto_file(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x04000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
-  }
-  _impl_.xtcp_proto_file_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.xtcp_proto_file_.IsDefault()) {
-    _impl_.xtcp_proto_file_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.xtcp_proto_file)
-}
-
-// string kafka_schema_url = 145 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
-inline void XtcpConfig::clear_kafka_schema_url() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.kafka_schema_url_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
-}
-inline const ::std::string& XtcpConfig::kafka_schema_url() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-  return _internal_kafka_schema_url();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_kafka_schema_url(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
-  _impl_.kafka_schema_url_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_schema_url()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
-  ::std::string* _s = _internal_mutable_kafka_schema_url();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_kafka_schema_url() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.kafka_schema_url_.Get();
-}
-inline void XtcpConfig::_internal_set_kafka_schema_url(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.kafka_schema_url_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_schema_url() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.kafka_schema_url_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_kafka_schema_url() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x08000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
-  auto* released = _impl_.kafka_schema_url_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.kafka_schema_url_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_kafka_schema_url(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x08000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
-  }
-  _impl_.kafka_schema_url_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.kafka_schema_url_.IsDefault()) {
-    _impl_.kafka_schema_url_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_schema_url)
-}
-
-// .google.protobuf.Duration kafka_produce_timeout = 150 [json_name = "kafkaProduceTimeout", (.buf.validate.field) = {
-inline bool XtcpConfig::has_kafka_produce_timeout() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000020U);
-  PROTOBUF_ASSUME(!value || _impl_.kafka_produce_timeout_ != nullptr);
-  return value;
-}
-inline const ::google::protobuf::Duration& XtcpConfig::_internal_kafka_produce_timeout() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::google::protobuf::Duration* p = _impl_.kafka_produce_timeout_;
-  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
-}
-inline const ::google::protobuf::Duration& XtcpConfig::kafka_produce_timeout() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
-  return _internal_kafka_produce_timeout();
-}
-inline void XtcpConfig::unsafe_arena_set_allocated_kafka_produce_timeout(
-    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.kafka_produce_timeout_);
-  }
-  _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_kafka_produce_timeout() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
-  ::google::protobuf::Duration* released = _impl_.kafka_produce_timeout_;
-  _impl_.kafka_produce_timeout_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_kafka_produce_timeout() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
-  ::google::protobuf::Duration* temp = _impl_.kafka_produce_timeout_;
-  _impl_.kafka_produce_timeout_ = nullptr;
-  return temp;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_kafka_produce_timeout() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.kafka_produce_timeout_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
-    _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(p);
-  }
-  return _impl_.kafka_produce_timeout_;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_kafka_produce_timeout()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000020U);
-  ::google::protobuf::Duration* _msg = _internal_mutable_kafka_produce_timeout();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
-  return _msg;
-}
-inline void XtcpConfig::set_allocated_kafka_produce_timeout(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.kafka_produce_timeout_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    SetHasBit(_impl_._has_bits_[1], 0x00000020U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000020U);
-  }
-
-  _impl_.kafka_produce_timeout_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.kafka_produce_timeout)
-}
-
-// uint32 debug_level = 160 [json_name = "debugLevel", (.buf.validate.field) = {
-inline void XtcpConfig::clear_debug_level() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.debug_level_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
-}
-inline ::uint32_t XtcpConfig::debug_level() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.debug_level)
-  return _internal_debug_level();
-}
-inline void XtcpConfig::set_debug_level(::uint32_t value) {
-  _internal_set_debug_level(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.debug_level)
-}
-inline ::uint32_t XtcpConfig::_internal_debug_level() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.debug_level_;
-}
-inline void XtcpConfig::_internal_set_debug_level(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.debug_level_ = value;
-}
-
-// string label = 170 [json_name = "label", (.buf.validate.field) = {
-inline void XtcpConfig::clear_label() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.label_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
-}
-inline const ::std::string& XtcpConfig::label() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.label)
-  return _internal_label();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_label(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
-  _impl_.label_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.label)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_label()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
-  ::std::string* _s = _internal_mutable_label();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.label)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_label() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.label_.Get();
-}
-inline void XtcpConfig::_internal_set_label(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.label_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_label() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.label_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_label() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.label)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x10000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
-  auto* released = _impl_.label_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.label_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_label(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x10000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x10000000U);
-  }
-  _impl_.label_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.label_.IsDefault()) {
-    _impl_.label_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.label)
-}
-
-// string tag = 180 [json_name = "tag", (.buf.validate.field) = {
-inline void XtcpConfig::clear_tag() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tag_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
-}
-inline const ::std::string& XtcpConfig::tag() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.tag)
-  return _internal_tag();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_tag(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
-  _impl_.tag_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.tag)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_tag()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
-  ::std::string* _s = _internal_mutable_tag();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.tag)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_tag() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.tag_.Get();
-}
-inline void XtcpConfig::_internal_set_tag(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tag_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_tag() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.tag_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_tag() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.tag)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x20000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
-  auto* released = _impl_.tag_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.tag_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_tag(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x20000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x20000000U);
-  }
-  _impl_.tag_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.tag_.IsDefault()) {
-    _impl_.tag_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.tag)
-}
-
-// string location = 181 [json_name = "location", (.buf.validate.field) = {
-inline void XtcpConfig::clear_location() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.location_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
-}
-inline const ::std::string& XtcpConfig::location() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.location)
-  return _internal_location();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_location(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
-  _impl_.location_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.location)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_location()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x40000000U);
-  ::std::string* _s = _internal_mutable_location();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.location)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_location() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.location_.Get();
-}
-inline void XtcpConfig::_internal_set_location(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.location_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_location() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.location_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_location() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.location)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x40000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
-  auto* released = _impl_.location_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.location_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_location(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x40000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x40000000U);
-  }
-  _impl_.location_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.location_.IsDefault()) {
-    _impl_.location_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.location)
-}
-
-// string hostname = 182 [json_name = "hostname", (.buf.validate.field) = {
-inline void XtcpConfig::clear_hostname() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.hostname_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
-}
-inline const ::std::string& XtcpConfig::hostname() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.hostname)
-  return _internal_hostname();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_hostname(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
-  _impl_.hostname_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.hostname)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_hostname()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x80000000U);
-  ::std::string* _s = _internal_mutable_hostname();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.hostname)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_hostname() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.hostname_.Get();
-}
-inline void XtcpConfig::_internal_set_hostname(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.hostname_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_hostname() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.hostname_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_hostname() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.hostname)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x80000000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
-  auto* released = _impl_.hostname_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.hostname_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_hostname(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x80000000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x80000000U);
-  }
-  _impl_.hostname_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.hostname_.IsDefault()) {
-    _impl_.hostname_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.hostname)
-}
-
-// string daemon_version = 186 [json_name = "daemonVersion", (.buf.validate.field) = {
-inline void XtcpConfig::clear_daemon_version() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.daemon_version_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
-}
-inline const ::std::string& XtcpConfig::daemon_version() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.daemon_version)
-  return _internal_daemon_version();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_daemon_version(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
-  _impl_.daemon_version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.daemon_version)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_daemon_version()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000001U);
-  ::std::string* _s = _internal_mutable_daemon_version();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.daemon_version)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_daemon_version() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.daemon_version_.Get();
-}
-inline void XtcpConfig::_internal_set_daemon_version(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.daemon_version_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_daemon_version() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.daemon_version_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_daemon_version() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.daemon_version)
-  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000001U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
-  auto* released = _impl_.daemon_version_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.daemon_version_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_daemon_version(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000001U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000001U);
-  }
-  _impl_.daemon_version_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.daemon_version_.IsDefault()) {
-    _impl_.daemon_version_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.daemon_version)
-}
-
-// bool resolve_container_id = 183 [json_name = "resolveContainerId", (.buf.validate.field) = {
+// bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
 inline void XtcpConfig::clear_resolve_container_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.resolve_container_id_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
 }
 inline bool XtcpConfig::resolve_container_id() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.resolve_container_id)
@@ -7604,7 +8386,7 @@ inline bool XtcpConfig::resolve_container_id() const {
 }
 inline void XtcpConfig::set_resolve_container_id(bool value) {
   _internal_set_resolve_container_id(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.resolve_container_id)
 }
 inline bool XtcpConfig::_internal_resolve_container_id() const {
@@ -7616,716 +8398,11 @@ inline void XtcpConfig::_internal_set_resolve_container_id(bool value) {
   _impl_.resolve_container_id_ = value;
 }
 
-// uint32 ipv4_ttl = 184 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-inline void XtcpConfig::clear_ipv4_ttl() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.ipv4_ttl_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
-}
-inline ::uint32_t XtcpConfig::ipv4_ttl() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv4_ttl)
-  return _internal_ipv4_ttl();
-}
-inline void XtcpConfig::set_ipv4_ttl(::uint32_t value) {
-  _internal_set_ipv4_ttl(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv4_ttl)
-}
-inline ::uint32_t XtcpConfig::_internal_ipv4_ttl() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.ipv4_ttl_;
-}
-inline void XtcpConfig::_internal_set_ipv4_ttl(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.ipv4_ttl_ = value;
-}
-
-// uint32 ipv6_hop_limit = 185 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-inline void XtcpConfig::clear_ipv6_hop_limit() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.ipv6_hop_limit_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00020000U);
-}
-inline ::uint32_t XtcpConfig::ipv6_hop_limit() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
-  return _internal_ipv6_hop_limit();
-}
-inline void XtcpConfig::set_ipv6_hop_limit(::uint32_t value) {
-  _internal_set_ipv6_hop_limit(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00020000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.ipv6_hop_limit)
-}
-inline ::uint32_t XtcpConfig::_internal_ipv6_hop_limit() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.ipv6_hop_limit_;
-}
-inline void XtcpConfig::_internal_set_ipv6_hop_limit(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.ipv6_hop_limit_ = value;
-}
-
-// uint32 grpc_port = 190 [json_name = "grpcPort", (.buf.validate.field) = {
-inline void XtcpConfig::clear_grpc_port() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.grpc_port_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00400000U);
-}
-inline ::uint32_t XtcpConfig::grpc_port() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.grpc_port)
-  return _internal_grpc_port();
-}
-inline void XtcpConfig::set_grpc_port(::uint32_t value) {
-  _internal_set_grpc_port(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00400000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.grpc_port)
-}
-inline ::uint32_t XtcpConfig::_internal_grpc_port() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.grpc_port_;
-}
-inline void XtcpConfig::_internal_set_grpc_port(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.grpc_port_ = value;
-}
-
-// .xtcp_config.v1.EnabledDeserializers enabled_deserializers = 200 [json_name = "enabledDeserializers", (.buf.validate.field) = {
-inline bool XtcpConfig::has_enabled_deserializers() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000040U);
-  PROTOBUF_ASSUME(!value || _impl_.enabled_deserializers_ != nullptr);
-  return value;
-}
-inline void XtcpConfig::clear_enabled_deserializers() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.enabled_deserializers_ != nullptr) _impl_.enabled_deserializers_->Clear();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
-}
-inline const ::xtcp_config::v1::EnabledDeserializers& XtcpConfig::_internal_enabled_deserializers() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::xtcp_config::v1::EnabledDeserializers* p = _impl_.enabled_deserializers_;
-  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::xtcp_config::v1::EnabledDeserializers>(&::xtcp_config::v1::EnabledDeserializers_globals_);
-}
-inline const ::xtcp_config::v1::EnabledDeserializers& XtcpConfig::enabled_deserializers() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enabled_deserializers)
-  return _internal_enabled_deserializers();
-}
-inline void XtcpConfig::unsafe_arena_set_allocated_enabled_deserializers(
-    ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.enabled_deserializers_);
-  }
-  _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
-}
-inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::release_enabled_deserializers() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
-  ::xtcp_config::v1::EnabledDeserializers* released = _impl_.enabled_deserializers_;
-  _impl_.enabled_deserializers_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_enabled_deserializers() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.enabled_deserializers)
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
-  ::xtcp_config::v1::EnabledDeserializers* temp = _impl_.enabled_deserializers_;
-  _impl_.enabled_deserializers_ = nullptr;
-  return temp;
-}
-inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_enabled_deserializers() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.enabled_deserializers_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::xtcp_config::v1::EnabledDeserializers>(GetArena());
-    _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(p);
-  }
-  return _impl_.enabled_deserializers_;
-}
-inline ::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NONNULL XtcpConfig::mutable_enabled_deserializers()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000040U);
-  ::xtcp_config::v1::EnabledDeserializers* _msg = _internal_mutable_enabled_deserializers();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.enabled_deserializers)
-  return _msg;
-}
-inline void XtcpConfig::set_allocated_enabled_deserializers(::xtcp_config::v1::EnabledDeserializers* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.enabled_deserializers_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    SetHasBit(_impl_._has_bits_[1], 0x00000040U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000040U);
-  }
-
-  _impl_.enabled_deserializers_ = reinterpret_cast<::xtcp_config::v1::EnabledDeserializers*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.enabled_deserializers)
-}
-
-// bool io_uring = 210 [json_name = "ioUring", (.buf.validate.field) = {
-inline void XtcpConfig::clear_io_uring() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00100000U);
-}
-inline bool XtcpConfig::io_uring() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring)
-  return _internal_io_uring();
-}
-inline void XtcpConfig::set_io_uring(bool value) {
-  _internal_set_io_uring(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00100000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring)
-}
-inline bool XtcpConfig::_internal_io_uring() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.io_uring_;
-}
-inline void XtcpConfig::_internal_set_io_uring(bool value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_ = value;
-}
-
-// uint32 io_uring_recv_batch_size = 211 [json_name = "ioUringRecvBatchSize", (.buf.validate.field) = {
-inline void XtcpConfig::clear_io_uring_recv_batch_size() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_recv_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x00800000U);
-}
-inline ::uint32_t XtcpConfig::io_uring_recv_batch_size() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
-  return _internal_io_uring_recv_batch_size();
-}
-inline void XtcpConfig::set_io_uring_recv_batch_size(::uint32_t value) {
-  _internal_set_io_uring_recv_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00800000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_recv_batch_size)
-}
-inline ::uint32_t XtcpConfig::_internal_io_uring_recv_batch_size() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.io_uring_recv_batch_size_;
-}
-inline void XtcpConfig::_internal_set_io_uring_recv_batch_size(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_recv_batch_size_ = value;
-}
-
-// uint32 io_uring_cqe_batch_size = 212 [json_name = "ioUringCqeBatchSize", (.buf.validate.field) = {
-inline void XtcpConfig::clear_io_uring_cqe_batch_size() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_cqe_batch_size_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x01000000U);
-}
-inline ::uint32_t XtcpConfig::io_uring_cqe_batch_size() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
-  return _internal_io_uring_cqe_batch_size();
-}
-inline void XtcpConfig::set_io_uring_cqe_batch_size(::uint32_t value) {
-  _internal_set_io_uring_cqe_batch_size(value);
-  SetHasBit(_impl_._has_bits_[1], 0x01000000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.io_uring_cqe_batch_size)
-}
-inline ::uint32_t XtcpConfig::_internal_io_uring_cqe_batch_size() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.io_uring_cqe_batch_size_;
-}
-inline void XtcpConfig::_internal_set_io_uring_cqe_batch_size(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.io_uring_cqe_batch_size_ = value;
-}
-
-// string csv_columns = 220 [json_name = "csvColumns", (.buf.validate.field) = {
-inline void XtcpConfig::clear_csv_columns() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.csv_columns_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
-}
-inline const ::std::string& XtcpConfig::csv_columns() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.csv_columns)
-  return _internal_csv_columns();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_csv_columns(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
-  _impl_.csv_columns_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.csv_columns)
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_csv_columns()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000002U);
-  ::std::string* _s = _internal_mutable_csv_columns();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.csv_columns)
-  return _s;
-}
-inline const ::std::string& XtcpConfig::_internal_csv_columns() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.csv_columns_.Get();
-}
-inline void XtcpConfig::_internal_set_csv_columns(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.csv_columns_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_csv_columns() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.csv_columns_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_csv_columns() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.csv_columns)
-  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000002U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
-  auto* released = _impl_.csv_columns_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.csv_columns_.Set("", GetArena());
-  }
-  return released;
-}
-inline void XtcpConfig::set_allocated_csv_columns(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000002U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000002U);
-  }
-  _impl_.csv_columns_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.csv_columns_.IsDefault()) {
-    _impl_.csv_columns_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.csv_columns)
-}
-
-// uint32 poll_jitter_pct = 221 [json_name = "pollJitterPct", (.buf.validate.field) = {
-inline void XtcpConfig::clear_poll_jitter_pct() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.poll_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x02000000U);
-}
-inline ::uint32_t XtcpConfig::poll_jitter_pct() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
-  return _internal_poll_jitter_pct();
-}
-inline void XtcpConfig::set_poll_jitter_pct(::uint32_t value) {
-  _internal_set_poll_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x02000000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.poll_jitter_pct)
-}
-inline ::uint32_t XtcpConfig::_internal_poll_jitter_pct() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.poll_jitter_pct_;
-}
-inline void XtcpConfig::_internal_set_poll_jitter_pct(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.poll_jitter_pct_ = value;
-}
-
-// .google.protobuf.Duration s3_flush_interval = 222 [json_name = "s3FlushInterval", (.buf.validate.field) = {
-inline bool XtcpConfig::has_s3_flush_interval() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000080U);
-  PROTOBUF_ASSUME(!value || _impl_.s3_flush_interval_ != nullptr);
-  return value;
-}
-inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_flush_interval() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::google::protobuf::Duration* p = _impl_.s3_flush_interval_;
-  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
-}
-inline const ::google::protobuf::Duration& XtcpConfig::s3_flush_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_interval)
-  return _internal_s3_flush_interval();
-}
-inline void XtcpConfig::unsafe_arena_set_allocated_s3_flush_interval(
-    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
-  }
-  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_flush_interval() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
-  ::google::protobuf::Duration* released = _impl_.s3_flush_interval_;
-  _impl_.s3_flush_interval_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_s3_flush_interval() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_flush_interval)
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
-  ::google::protobuf::Duration* temp = _impl_.s3_flush_interval_;
-  _impl_.s3_flush_interval_ = nullptr;
-  return temp;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_flush_interval() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.s3_flush_interval_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
-    _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
-  }
-  return _impl_.s3_flush_interval_;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_flush_interval()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
-  ::google::protobuf::Duration* _msg = _internal_mutable_s3_flush_interval();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_flush_interval)
-  return _msg;
-}
-inline void XtcpConfig::set_allocated_s3_flush_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_flush_interval_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
-  }
-
-  _impl_.s3_flush_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_flush_interval)
-}
-
-// uint32 s3_flush_jitter_pct = 223 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_flush_jitter_pct() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_flush_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x04000000U);
-}
-inline ::uint32_t XtcpConfig::s3_flush_jitter_pct() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
-  return _internal_s3_flush_jitter_pct();
-}
-inline void XtcpConfig::set_s3_flush_jitter_pct(::uint32_t value) {
-  _internal_set_s3_flush_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x04000000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_jitter_pct)
-}
-inline ::uint32_t XtcpConfig::_internal_s3_flush_jitter_pct() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_flush_jitter_pct_;
-}
-inline void XtcpConfig::_internal_set_s3_flush_jitter_pct(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_flush_jitter_pct_ = value;
-}
-
-// uint32 s3_flush_threshold_jitter_pct = 224 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_flush_threshold_jitter_pct() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_flush_threshold_jitter_pct_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x08000000U);
-}
-inline ::uint32_t XtcpConfig::s3_flush_threshold_jitter_pct() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
-  return _internal_s3_flush_threshold_jitter_pct();
-}
-inline void XtcpConfig::set_s3_flush_threshold_jitter_pct(::uint32_t value) {
-  _internal_set_s3_flush_threshold_jitter_pct(value);
-  SetHasBit(_impl_._has_bits_[1], 0x08000000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_flush_threshold_jitter_pct)
-}
-inline ::uint32_t XtcpConfig::_internal_s3_flush_threshold_jitter_pct() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_flush_threshold_jitter_pct_;
-}
-inline void XtcpConfig::_internal_set_s3_flush_threshold_jitter_pct(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_flush_threshold_jitter_pct_ = value;
-}
-
-// uint32 s3_upload_max_attempts = 225 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
-inline void XtcpConfig::clear_s3_upload_max_attempts() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_upload_max_attempts_ = 0u;
-  ClearHasBit(_impl_._has_bits_[1], 0x10000000U);
-}
-inline ::uint32_t XtcpConfig::s3_upload_max_attempts() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
-  return _internal_s3_upload_max_attempts();
-}
-inline void XtcpConfig::set_s3_upload_max_attempts(::uint32_t value) {
-  _internal_set_s3_upload_max_attempts(value);
-  SetHasBit(_impl_._has_bits_[1], 0x10000000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.s3_upload_max_attempts)
-}
-inline ::uint32_t XtcpConfig::_internal_s3_upload_max_attempts() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.s3_upload_max_attempts_;
-}
-inline void XtcpConfig::_internal_set_s3_upload_max_attempts(::uint32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.s3_upload_max_attempts_ = value;
-}
-
-// .google.protobuf.Duration s3_upload_backoff_cap = 226 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
-inline bool XtcpConfig::has_s3_upload_backoff_cap() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000100U);
-  PROTOBUF_ASSUME(!value || _impl_.s3_upload_backoff_cap_ != nullptr);
-  return value;
-}
-inline const ::google::protobuf::Duration& XtcpConfig::_internal_s3_upload_backoff_cap() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::google::protobuf::Duration* p = _impl_.s3_upload_backoff_cap_;
-  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
-}
-inline const ::google::protobuf::Duration& XtcpConfig::s3_upload_backoff_cap() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
-  return _internal_s3_upload_backoff_cap();
-}
-inline void XtcpConfig::unsafe_arena_set_allocated_s3_upload_backoff_cap(
-    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
-  }
-  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_s3_upload_backoff_cap() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
-  ::google::protobuf::Duration* released = _impl_.s3_upload_backoff_cap_;
-  _impl_.s3_upload_backoff_cap_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_s3_upload_backoff_cap() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
-  ::google::protobuf::Duration* temp = _impl_.s3_upload_backoff_cap_;
-  _impl_.s3_upload_backoff_cap_ = nullptr;
-  return temp;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_s3_upload_backoff_cap() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.s3_upload_backoff_cap_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
-    _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(p);
-  }
-  return _impl_.s3_upload_backoff_cap_;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_s3_upload_backoff_cap()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
-  ::google::protobuf::Duration* _msg = _internal_mutable_s3_upload_backoff_cap();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
-  return _msg;
-}
-inline void XtcpConfig::set_allocated_s3_upload_backoff_cap(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.s3_upload_backoff_cap_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
-  }
-
-  _impl_.s3_upload_backoff_cap_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap)
-}
-
-// .google.protobuf.Duration reconcile_frequency = 227 [json_name = "reconcileFrequency", (.buf.validate.field) = {
-inline bool XtcpConfig::has_reconcile_frequency() const {
-  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00000200U);
-  PROTOBUF_ASSUME(!value || _impl_.reconcile_frequency_ != nullptr);
-  return value;
-}
-inline const ::google::protobuf::Duration& XtcpConfig::_internal_reconcile_frequency() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::google::protobuf::Duration* p = _impl_.reconcile_frequency_;
-  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
-}
-inline const ::google::protobuf::Duration& XtcpConfig::reconcile_frequency() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_frequency)
-  return _internal_reconcile_frequency();
-}
-inline void XtcpConfig::unsafe_arena_set_allocated_reconcile_frequency(
-    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
-  }
-  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000200U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_reconcile_frequency() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
-  ::google::protobuf::Duration* released = _impl_.reconcile_frequency_;
-  _impl_.reconcile_frequency_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_reconcile_frequency() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.reconcile_frequency)
-
-  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
-  ::google::protobuf::Duration* temp = _impl_.reconcile_frequency_;
-  _impl_.reconcile_frequency_ = nullptr;
-  return temp;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_reconcile_frequency() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.reconcile_frequency_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
-    _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(p);
-  }
-  return _impl_.reconcile_frequency_;
-}
-inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_reconcile_frequency()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
-  ::google::protobuf::Duration* _msg = _internal_mutable_reconcile_frequency();
-  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.reconcile_frequency)
-  return _msg;
-}
-inline void XtcpConfig::set_allocated_reconcile_frequency(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.reconcile_frequency_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    SetHasBit(_impl_._has_bits_[1], 0x00000200U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
-  }
-
-  _impl_.reconcile_frequency_ = reinterpret_cast<::google::protobuf::Duration*>(value);
-  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.reconcile_frequency)
-}
-
-// bool reconcile_before_poll = 228 [json_name = "reconcileBeforePoll"];
-inline void XtcpConfig::clear_reconcile_before_poll() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.reconcile_before_poll_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x00200000U);
-}
-inline bool XtcpConfig::reconcile_before_poll() const {
-  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
-  return _internal_reconcile_before_poll();
-}
-inline void XtcpConfig::set_reconcile_before_poll(bool value) {
-  _internal_set_reconcile_before_poll(value);
-  SetHasBit(_impl_._has_bits_[1], 0x00200000U);
-  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.reconcile_before_poll)
-}
-inline bool XtcpConfig::_internal_reconcile_before_poll() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.reconcile_before_poll_;
-}
-inline void XtcpConfig::_internal_set_reconcile_before_poll(bool value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.reconcile_before_poll_ = value;
-}
-
-// bool enrich_container_enable = 230 [json_name = "enrichContainerEnable"];
+// bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
 inline void XtcpConfig::clear_enrich_container_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_container_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x20000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
 }
 inline bool XtcpConfig::enrich_container_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_container_enable)
@@ -8333,7 +8410,7 @@ inline bool XtcpConfig::enrich_container_enable() const {
 }
 inline void XtcpConfig::set_enrich_container_enable(bool value) {
   _internal_set_enrich_container_enable(value);
-  SetHasBit(_impl_._has_bits_[1], 0x20000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_container_enable)
 }
 inline bool XtcpConfig::_internal_enrich_container_enable() const {
@@ -8345,11 +8422,11 @@ inline void XtcpConfig::_internal_set_enrich_container_enable(bool value) {
   _impl_.enrich_container_enable_ = value;
 }
 
-// string docker_socket_path = 231 [json_name = "dockerSocketPath", (.buf.validate.field) = {
+// string docker_socket_path = 202 [json_name = "dockerSocketPath", (.buf.validate.field) = {
 inline void XtcpConfig::clear_docker_socket_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.docker_socket_path_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
 }
 inline const ::std::string& XtcpConfig::docker_socket_path() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8359,13 +8436,13 @@ inline const ::std::string& XtcpConfig::docker_socket_path() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_docker_socket_path(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   _impl_.docker_socket_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.docker_socket_path)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_docker_socket_path()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   ::std::string* _s = _internal_mutable_docker_socket_path();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.docker_socket_path)
   return _s;
@@ -8385,10 +8462,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_docker_sock
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_docker_socket_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.docker_socket_path)
-  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000004U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000080U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   auto* released = _impl_.docker_socket_path_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.docker_socket_path_.Set("", GetArena());
@@ -8398,9 +8475,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_docker_socket_path()
 inline void XtcpConfig::set_allocated_docker_socket_path(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000080U);
   }
   _impl_.docker_socket_path_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.docker_socket_path_.IsDefault()) {
@@ -8409,11 +8486,11 @@ inline void XtcpConfig::set_allocated_docker_socket_path(::std::string* PROTOBUF
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.docker_socket_path)
 }
 
-// bool enrich_lldp_enable = 232 [json_name = "enrichLldpEnable"];
+// bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
 inline void XtcpConfig::clear_enrich_lldp_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_lldp_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x40000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
 }
 inline bool XtcpConfig::enrich_lldp_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
@@ -8421,7 +8498,7 @@ inline bool XtcpConfig::enrich_lldp_enable() const {
 }
 inline void XtcpConfig::set_enrich_lldp_enable(bool value) {
   _internal_set_enrich_lldp_enable(value);
-  SetHasBit(_impl_._has_bits_[1], 0x40000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_lldp_enable)
 }
 inline bool XtcpConfig::_internal_enrich_lldp_enable() const {
@@ -8433,11 +8510,11 @@ inline void XtcpConfig::_internal_set_enrich_lldp_enable(bool value) {
   _impl_.enrich_lldp_enable_ = value;
 }
 
-// string lldpd_socket_path = 233 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
+// string lldpd_socket_path = 211 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
 inline void XtcpConfig::clear_lldpd_socket_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.lldpd_socket_path_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
 }
 inline const ::std::string& XtcpConfig::lldpd_socket_path() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8447,13 +8524,13 @@ inline const ::std::string& XtcpConfig::lldpd_socket_path() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_lldpd_socket_path(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   _impl_.lldpd_socket_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_lldpd_socket_path()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   ::std::string* _s = _internal_mutable_lldpd_socket_path();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
   return _s;
@@ -8473,10 +8550,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_lldpd_socke
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_socket_path() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
-  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000008U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000100U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   auto* released = _impl_.lldpd_socket_path_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.lldpd_socket_path_.Set("", GetArena());
@@ -8486,9 +8563,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_socket_path() 
 inline void XtcpConfig::set_allocated_lldpd_socket_path(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000100U);
   }
   _impl_.lldpd_socket_path_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.lldpd_socket_path_.IsDefault()) {
@@ -8497,11 +8574,11 @@ inline void XtcpConfig::set_allocated_lldpd_socket_path(::std::string* PROTOBUF_
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.lldpd_socket_path)
 }
 
-// string lldpd_version_hint = 234 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
+// string lldpd_version_hint = 212 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
 inline void XtcpConfig::clear_lldpd_version_hint() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.lldpd_version_hint_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
 }
 inline const ::std::string& XtcpConfig::lldpd_version_hint() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8511,13 +8588,13 @@ inline const ::std::string& XtcpConfig::lldpd_version_hint() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_lldpd_version_hint(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   _impl_.lldpd_version_hint_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_lldpd_version_hint()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   ::std::string* _s = _internal_mutable_lldpd_version_hint();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
   return _s;
@@ -8537,10 +8614,10 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_lldpd_versi
 inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_version_hint() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
-  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000010U)) {
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000200U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   auto* released = _impl_.lldpd_version_hint_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.lldpd_version_hint_.Set("", GetArena());
@@ -8550,9 +8627,9 @@ inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_lldpd_version_hint()
 inline void XtcpConfig::set_allocated_lldpd_version_hint(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[1], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[1], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[1], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[1], 0x00000200U);
   }
   _impl_.lldpd_version_hint_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.lldpd_version_hint_.IsDefault()) {
@@ -8561,11 +8638,11 @@ inline void XtcpConfig::set_allocated_lldpd_version_hint(::std::string* PROTOBUF
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.lldpd_version_hint)
 }
 
-// bool enrich_nic_enable = 235 [json_name = "enrichNicEnable"];
+// bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
 inline void XtcpConfig::clear_enrich_nic_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enrich_nic_enable_ = false;
-  ClearHasBit(_impl_._has_bits_[1], 0x80000000U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000004U);
 }
 inline bool XtcpConfig::enrich_nic_enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
@@ -8573,7 +8650,7 @@ inline bool XtcpConfig::enrich_nic_enable() const {
 }
 inline void XtcpConfig::set_enrich_nic_enable(bool value) {
   _internal_set_enrich_nic_enable(value);
-  SetHasBit(_impl_._has_bits_[1], 0x80000000U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000004U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_nic_enable)
 }
 inline bool XtcpConfig::_internal_enrich_nic_enable() const {
@@ -8585,11 +8662,11 @@ inline void XtcpConfig::_internal_set_enrich_nic_enable(bool value) {
   _impl_.enrich_nic_enable_ = value;
 }
 
-// uint32 uplink_count = 236 [json_name = "uplinkCount", (.buf.validate.field) = {
+// uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
 inline void XtcpConfig::clear_uplink_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.uplink_count_ = 0u;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000008U);
 }
 inline ::uint32_t XtcpConfig::uplink_count() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.uplink_count)
@@ -8597,7 +8674,7 @@ inline ::uint32_t XtcpConfig::uplink_count() const {
 }
 inline void XtcpConfig::set_uplink_count(::uint32_t value) {
   _internal_set_uplink_count(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000008U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.uplink_count)
 }
 inline ::uint32_t XtcpConfig::_internal_uplink_count() const {
@@ -8609,7 +8686,7 @@ inline void XtcpConfig::_internal_set_uplink_count(::uint32_t value) {
   _impl_.uplink_count_ = value;
 }
 
-// repeated string uplink_interfaces = 237 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
+// repeated string uplink_interfaces = 222 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
 inline int XtcpConfig::_internal_uplink_interfaces_size() const {
   return _internal_uplink_interfaces().size();
 }
@@ -8619,7 +8696,7 @@ inline int XtcpConfig::uplink_interfaces_size() const {
 inline void XtcpConfig::clear_uplink_interfaces() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.uplink_interfaces_.Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
 }
 inline ::std::string* PROTOBUF_NONNULL XtcpConfig::add_uplink_interfaces()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8627,7 +8704,7 @@ inline ::std::string* PROTOBUF_NONNULL XtcpConfig::add_uplink_interfaces()
   ::std::string* _s =
       _internal_mutable_uplink_interfaces()->InternalAddWithArena(
           ::google::protobuf::MessageLite::internal_visibility(), GetArena());
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_add_mutable:xtcp_config.v1.XtcpConfig.uplink_interfaces)
   return _s;
 }
@@ -8655,7 +8732,7 @@ inline void XtcpConfig::add_uplink_interfaces(Arg_&& value, Args_... args) {
       ::google::protobuf::MessageLite::internal_visibility(), GetArena(),
       *_internal_mutable_uplink_interfaces(), ::std::forward<Arg_>(value),
       args... );
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_add:xtcp_config.v1.XtcpConfig.uplink_interfaces)
 }
 inline const ::google::protobuf::RepeatedPtrField<::std::string>& XtcpConfig::uplink_interfaces()
@@ -8665,7 +8742,7 @@ inline const ::google::protobuf::RepeatedPtrField<::std::string>& XtcpConfig::up
 }
 inline ::google::protobuf::RepeatedPtrField<::std::string>* PROTOBUF_NONNULL
 XtcpConfig::mutable_uplink_interfaces() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_mutable_list:xtcp_config.v1.XtcpConfig.uplink_interfaces)
   ::google::protobuf::internal::TSanWrite(&_impl_);
   return _internal_mutable_uplink_interfaces();
@@ -8681,11 +8758,11 @@ XtcpConfig::_internal_mutable_uplink_interfaces() {
   return &_impl_.uplink_interfaces_;
 }
 
-// bool populate_nsid = 238 [json_name = "populateNsid"];
+// bool populate_nsid = 230 [json_name = "populateNsid"];
 inline void XtcpConfig::clear_populate_nsid() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.populate_nsid_ = false;
-  ClearHasBit(_impl_._has_bits_[2], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[2], 0x00000010U);
 }
 inline bool XtcpConfig::populate_nsid() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.populate_nsid)
@@ -8693,7 +8770,7 @@ inline bool XtcpConfig::populate_nsid() const {
 }
 inline void XtcpConfig::set_populate_nsid(bool value) {
   _internal_set_populate_nsid(value);
-  SetHasBit(_impl_._has_bits_[2], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[2], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.populate_nsid)
 }
 inline bool XtcpConfig::_internal_populate_nsid() const {
@@ -8703,6 +8780,304 @@ inline bool XtcpConfig::_internal_populate_nsid() const {
 inline void XtcpConfig::_internal_set_populate_nsid(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.populate_nsid_ = value;
+}
+
+// bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
+inline void XtcpConfig::clear_enrich_asn_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_asn_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[2], 0x00000020U);
+}
+inline bool XtcpConfig::enrich_asn_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_asn_enable)
+  return _internal_enrich_asn_enable();
+}
+inline void XtcpConfig::set_enrich_asn_enable(bool value) {
+  _internal_set_enrich_asn_enable(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00000020U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_asn_enable)
+}
+inline bool XtcpConfig::_internal_enrich_asn_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_asn_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_asn_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_asn_enable_ = value;
+}
+
+// string asn_db_path = 241 [json_name = "asnDbPath", (.buf.validate.field) = {
+inline void XtcpConfig::clear_asn_db_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.asn_db_path_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+}
+inline const ::std::string& XtcpConfig::asn_db_path() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.asn_db_path)
+  return _internal_asn_db_path();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void XtcpConfig::set_asn_db_path(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  _impl_.asn_db_path_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.asn_db_path)
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::mutable_asn_db_path()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  ::std::string* _s = _internal_mutable_asn_db_path();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.asn_db_path)
+  return _s;
+}
+inline const ::std::string& XtcpConfig::_internal_asn_db_path() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.asn_db_path_.Get();
+}
+inline void XtcpConfig::_internal_set_asn_db_path(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.asn_db_path_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_asn_db_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.asn_db_path_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE XtcpConfig::release_asn_db_path() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.asn_db_path)
+  if (!CheckHasBit(_impl_._has_bits_[1], 0x00000400U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+  auto* released = _impl_.asn_db_path_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.asn_db_path_.Set("", GetArena());
+  }
+  return released;
+}
+inline void XtcpConfig::set_allocated_asn_db_path(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00000400U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00000400U);
+  }
+  _impl_.asn_db_path_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.asn_db_path_.IsDefault()) {
+    _impl_.asn_db_path_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.asn_db_path)
+}
+
+// .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
+inline bool XtcpConfig::has_asn_refresh_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00008000U);
+  PROTOBUF_ASSUME(!value || _impl_.asn_refresh_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_asn_refresh_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.asn_refresh_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::asn_refresh_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+  return _internal_asn_refresh_interval();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_asn_refresh_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.asn_refresh_interval_);
+  }
+  _impl_.asn_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_asn_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ::google::protobuf::Duration* released = _impl_.asn_refresh_interval_;
+  _impl_.asn_refresh_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_asn_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ::google::protobuf::Duration* temp = _impl_.asn_refresh_interval_;
+  _impl_.asn_refresh_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_asn_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.asn_refresh_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.asn_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.asn_refresh_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_asn_refresh_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_asn_refresh_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_asn_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.asn_refresh_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00008000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  }
+
+  _impl_.asn_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.asn_refresh_interval)
+}
+
+// bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
+inline void XtcpConfig::clear_enrich_locality_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_locality_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[2], 0x00000040U);
+}
+inline bool XtcpConfig::enrich_locality_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.enrich_locality_enable)
+  return _internal_enrich_locality_enable();
+}
+inline void XtcpConfig::set_enrich_locality_enable(bool value) {
+  _internal_set_enrich_locality_enable(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00000040U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.enrich_locality_enable)
+}
+inline bool XtcpConfig::_internal_enrich_locality_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enrich_locality_enable_;
+}
+inline void XtcpConfig::_internal_set_enrich_locality_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enrich_locality_enable_ = value;
+}
+
+// .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
+inline bool XtcpConfig::has_locality_refresh_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[1], 0x00010000U);
+  PROTOBUF_ASSUME(!value || _impl_.locality_refresh_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& XtcpConfig::_internal_locality_refresh_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.locality_refresh_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& XtcpConfig::locality_refresh_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+  return _internal_locality_refresh_interval();
+}
+inline void XtcpConfig::unsafe_arena_set_allocated_locality_refresh_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.locality_refresh_interval_);
+  }
+  _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::release_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ::google::protobuf::Duration* released = _impl_.locality_refresh_interval_;
+  _impl_.locality_refresh_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE XtcpConfig::unsafe_arena_release_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+
+  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ::google::protobuf::Duration* temp = _impl_.locality_refresh_interval_;
+  _impl_.locality_refresh_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::_internal_mutable_locality_refresh_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.locality_refresh_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.locality_refresh_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL XtcpConfig::mutable_locality_refresh_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_locality_refresh_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+  return _msg;
+}
+inline void XtcpConfig::set_allocated_locality_refresh_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.locality_refresh_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[1], 0x00010000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  }
+
+  _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
 }
 
 // -------------------------------------------------------------------

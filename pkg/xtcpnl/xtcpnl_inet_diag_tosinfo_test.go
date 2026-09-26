@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"io"
 	"os"
@@ -28,7 +41,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 			description: "attribute_tos_reflection",
 			filename:    tdAttrTos_6_6_44,
 			tos:         TypeOfService(0),
-			Func:        DeserializeTypeOfServiceReflection,
+			Func:        deserializeTypeOfServiceReflection,
 		},
 		{
 			description: "attribute_tos2",
@@ -40,7 +53,7 @@ func TestDeserializeTypeOfService(t *testing.T) {
 			description: "attribute_tos2_reflection",
 			filename:    tdAttrTos2_6_6_44,
 			tos:         TypeOfService(2),
-			Func:        DeserializeTypeOfServiceReflection,
+			Func:        deserializeTypeOfServiceReflection,
 		},
 	}
 	for i, test := range tests {
@@ -93,7 +106,7 @@ func BenchmarkDeserializeTypeOfService(b *testing.B) {
 }
 
 func BenchmarkDeserializeTypeOfServiceReflection(b *testing.B) {
-	DeserializeTypeOfServiceBoth(b, DeserializeTypeOfServiceReflection)
+	DeserializeTypeOfServiceBoth(b, deserializeTypeOfServiceReflection)
 }
 
 func DeserializeTypeOfServiceBoth(b *testing.B, fn func(data []byte, tos *TypeOfService) (n int, err error)) {

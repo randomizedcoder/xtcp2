@@ -260,8 +260,8 @@ func TestZeroXTCPCongRecord_dispatch(t *testing.T) {
 	// A record with BBR1 cong algo + non-zero BBR fields should have
 	// those fields zeroed.
 	rec := &xtcp_flat_record.XtcpFlatRecord{
-		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1,
-		BbrInfoBwLo:             123456,
+		InetDiagCongEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1,
+		BbrInfoBwLo:      123456,
 	}
 	x.ZeroXTCPCongRecord(rec)
 	if rec.BbrInfoBwLo != 0 {
@@ -279,8 +279,8 @@ func TestZeroXTCPCongRecord_dctcp(t *testing.T) {
 	x.InitZeroizers(&wg)
 	wg.Wait()
 	rec := &xtcp_flat_record.XtcpFlatRecord{
-		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP,
-		DctcpInfoCeState:        12,
+		InetDiagCongEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP,
+		DctcpInfoCeState: 12,
 	}
 	x.ZeroXTCPCongRecord(rec)
 	if rec.DctcpInfoCeState != 0 {
@@ -295,8 +295,8 @@ func TestZeroXTCPCongRecord_vegas(t *testing.T) {
 	x.InitZeroizers(&wg)
 	wg.Wait()
 	rec := &xtcp_flat_record.XtcpFlatRecord{
-		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS,
-		VegasInfoEnabled:        7,
+		InetDiagCongEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS,
+		VegasInfoEnabled: 7,
 	}
 	x.ZeroXTCPCongRecord(rec)
 	if rec.VegasInfoEnabled != 0 {
@@ -312,8 +312,8 @@ func TestZeroXTCPCongRecord_unknownCong(t *testing.T) {
 	wg.Wait()
 	// An unknown cong algorithm should be a no-op (no panic, no mutation).
 	rec := &xtcp_flat_record.XtcpFlatRecord{
-		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED,
-		BbrInfoBwLo:             123456,
+		InetDiagCongEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED,
+		BbrInfoBwLo:      123456,
 	}
 	x.ZeroXTCPCongRecord(rec)
 	if rec.BbrInfoBwLo != 123456 {

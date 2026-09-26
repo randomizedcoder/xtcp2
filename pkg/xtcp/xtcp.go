@@ -1,5 +1,5 @@
 // Package xtcp is the long-running daemon that streams TCP socket state
-// out of the kernel via netlink inet_diag, deserialises the responses, and
+// out of the kernel via netlink inet_diag, deserializes the responses, and
 // fans them out to configurable destinations (unixgram, unix, udp, kafka,
 // nats, nsq, valkey, null). The package owns the netlinker, deserializer,
 // poller, namespace-watcher, marshaller, and destination registries; cmd
@@ -116,6 +116,23 @@ type XTCP struct {
 	uplinkStamp uplinkStamp
 	nsidByInode atomic.Pointer[map[uint64]int32]
 
+	// The two compile-time-gated enrichers. Both are interfaces, and both are
+	// nil unless the matching `enrich_<feature>` build tag is set AND the
+	// runtime toggle is on; the stamping path treats nil as "off". They are
+	// interfaces for the same reason `dest` below is: the concrete types
+	// (*ipasn.Index, the per-namespace *localnet.Snapshot map) would drag
+	// parquet-go and bart into every flavor, including the stdlib-only `min`
+	// build. See enrich_core.go for the registry and enrich_{asn,locality}.go
+	// for the implementations.
+	//
+	// asn maps a destination IP -> {ASN, network owner} by longest-prefix match
+	// over the ipfeed-collector artifact. locality owns the per-namespace
+	// address/route snapshots that classify a destination as self /
+	// connected-subnet / remote BEFORE the ASN lookup; it is refreshed on the
+	// single-owner reconcile path and read lock-free on the stamping path.
+	asn      asnLookuper
+	locality localityEnricher
+
 	RTATypeDeserializer    map[int]func(buf []byte, xtcpRecord *xtcp_flat_record.XtcpFlatRecord) (err error)
 	RTATypeDeserializerStr map[int]string
 
@@ -133,6 +150,12 @@ type XTCP struct {
 	// inside the implementation behind this interface — no destination-typed
 	// fields leak onto XTCP, which is what lets `-tags dest_kafka` etc. omit
 	// entire library packages from the binary.
+	//
+	// The same rule now covers the enrichers (asn / locality above): any
+	// gated feature's concrete types must stay behind an interface declared in
+	// untagged code. A single field of a tagged package's type anywhere on
+	// this struct re-links that package into every flavor and silently undoes
+	// the whole build-tag scheme.
 	dest Destination
 
 	// Signals poller can start
@@ -148,7 +171,7 @@ type XTCP struct {
 	// true. Key is the netlinker id (uint32). Empty / unused on the syscall path.
 	rings sync.Map
 
-	// fatalf is the function used by initialisation paths to abort on startup
+	// fatalf is the function used by initialization paths to abort on startup
 	// errors. Defaults to log.Fatalf; tests override it with t.Fatalf so they
 	// can drive the init paths without taking down the process.
 	fatalf func(format string, args ...any)
@@ -181,6 +204,10 @@ type XTCP struct {
 	pC *prometheus.CounterVec
 	pH *prometheus.SummaryVec
 	pG prometheus.Gauge
+	// pGV is the labeled gauge family for point-in-time sizes that are not
+	// the namespace-map count pG already carries (e.g. how many namespaces
+	// hold a locality snapshot / sit in the retry backoff).
+	pGV *prometheus.GaugeVec
 
 	debugLevel uint32
 }

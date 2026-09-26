@@ -48,7 +48,7 @@ func (d *recordingDest) Count() int {
 // envelope by Deserialize. With the ProtobufList path, records aren't
 // sent via dest.Send per-record any more — they accumulate in
 // x.currentEnvelope until flushEnvelope at cycle end. The corner-case
-// tests assert on this directly to verify deserialise produced output.
+// tests assert on this directly to verify deserialize produced output.
 func (d *recordingDest) EnvelopeRows() int {
 	d.x.envelopeMu.Lock()
 	defer d.x.envelopeMu.Unlock()

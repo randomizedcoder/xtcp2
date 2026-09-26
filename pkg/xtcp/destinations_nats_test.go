@@ -76,7 +76,7 @@ func TestNATSDest_CloseNilClient(t *testing.T) {
 // RetryOnFailedConnect semantics, which vary across versions and can
 // block for MaxReconnect * ReconnectWait = 10s on connection refusal.
 // The stripsScheme test below indirectly covers the bounded-time
-// behaviour by completing within natsTimeoutCst + 2s grace once the
+// behavior by completing within natsTimeoutCst + 2s grace once the
 // fake listener accepts.)
 
 // TestNewNATSDest_stripsScheme verifies that the "nats:" scheme prefix

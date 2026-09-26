@@ -82,7 +82,7 @@ func MarshalHumanizedJSON(r *xtcp_flat_record.XtcpFlatRecord) ([]byte, error) {
 		{"inetDiagMsgSocketDestination", IPString(r.GetInetDiagMsgFamily(), r.GetInetDiagMsgSocketDestination())},
 		{"inetDiagMsgState", TCPStateName(r.GetInetDiagMsgState())},
 		{"tcpInfoState", TCPStateName(r.GetTcpInfoState())},
-		{"congestionAlgorithmEnum", CongestionAlgorithmName(r.GetCongestionAlgorithmEnum())},
+		{"inetDiagCongEnum", CongestionAlgorithmName(r.GetInetDiagCongEnum())},
 		{"timestampNs", TimestampRFC3339(r.GetTimestampNs())},
 	} {
 		if err := set(kv[0], kv[1]); err != nil {

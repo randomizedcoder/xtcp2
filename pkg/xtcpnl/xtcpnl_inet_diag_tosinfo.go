@@ -1,8 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
@@ -66,18 +64,6 @@ func DeserializeTypeOfService(data []byte, tos *TypeOfService) (n int, err error
 	return TypeOfServiceSizeCst, nil
 }
 
-func DeserializeTypeOfServiceReflection(data []byte, tos *TypeOfService) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, tos)
-	if err != nil {
-		return 0, err
-	}
-
-	return TypeOfServiceSizeCst, err
-}
-
 func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	// func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
@@ -85,7 +71,7 @@ func DeserializeTypeOfServiceXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecor
 		return ErrTypeOfServiceSmall
 	}
 
-	x.TypeOfService = uint32(data[0])
+	x.InetDiagTos = uint32(data[0])
 
 	return nil
 }

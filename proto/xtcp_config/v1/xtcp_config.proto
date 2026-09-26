@@ -1,8 +1,8 @@
 //
 // xTCP - config
 //
-// These are all the structs relating to the TCP diagnotic module in the kernel
-//
+// Runtime configuration of the xtcp2 daemon, served and mutated over gRPC
+// (ConfigService) and mirrored one-to-one by the cmd/xtcp2 CLI flags / env.
 //
 // Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
 
@@ -261,7 +261,28 @@ message SetEnvelopeFlushResponse {
 };
 
 // xtcp configuration
+//
+// Field-number layout (renumbered into subject blocks 2026-09; the binary form
+// is never persisted — it only crosses the gRPC hop between xtcp2 and
+// xtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and
+// protojson/prototext map by NAME — so renumbering is safe). Add new knobs in
+// the free space of the matching block; open a new block above 250 for a new
+// subject.
+//   10-39    polling & netlink (dump cadence, netlinker plumbing, io_uring)
+//   40-49    namespace reconcile
+//   50-59    capture / debug
+//   60-79    output, destination-agnostic (dest, marshal, csv, envelope)
+//   80-99    kafka destination
+//   100-129  s3parquet destination
+//   130-149  identity & labels stamped on every record
+//   150-159  network knobs for xtcp2's own listeners
+//   160-169  gRPC
+//   170-179  profiling
+//   200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,
+//            nsid 230s, asn 240-244, locality 245-249)
 message XtcpConfig {
+
+	// ---- polling & netlink (10-39) --------------------------------------------
 
 	// Netlink socket timeout in milliseconds
 	// Recommend 5000
@@ -276,7 +297,7 @@ message XtcpConfig {
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
-	google.protobuf.Duration poll_frequency          = 20 [
+	google.protobuf.Duration poll_frequency          = 11 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).duration = {
 			gt: {
@@ -289,7 +310,7 @@ message XtcpConfig {
 
 	// Poll timeout per name space
 	// Must be less than the poll frequency
-	google.protobuf.Duration poll_timeout            = 30 [
+	google.protobuf.Duration poll_timeout            = 12 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).duration = {
 			gt: {
@@ -306,8 +327,18 @@ message XtcpConfig {
     expression: "this.poll_frequency > this.poll_timeout"
   };
 
+	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
+	// both the startup delay before the first poll and each subsequent tick.
+	// 0 disables (immediate first poll, fixed interval). Default 20. See
+	// docs/design-jitter-and-backoff.md.
+	uint32 poll_jitter_pct                            = 13 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 100
+	}];
+
 	// Maximum number of loops, or zero (0) for forever
-	uint64 max_loops                                 = 40 [
+	uint64 max_loops                                 = 14 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint64 = {
 			gte: 0,
@@ -317,26 +348,26 @@ message XtcpConfig {
 	// Netlinker goroutines per netlink socket ( recommend 1,2,4 range )
 	// Netlinkers read the tcp-diag response messages from the netlink socket
 	// If you have a large number of
-	uint32 netlinkers                                = 50 [
+	uint32 netlinkers                                = 15 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).uint32 = {
 			gte: 1,
 			lte: 100
 	}];
 
-		// netlinkerDoneCh channel size
-		// This channel is used between the netlinkers and the poller
-		// Check the prom counter to see if the channel is too small
-		// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
-		uint32 netlinkers_done_chan_size               = 51 [
-			(buf.validate.field).required = true,
-			(buf.validate.field).uint32 = {
-				gte: 1,
-				lte: 1000
-		}];
+	// netlinkerDoneCh channel size
+	// This channel is used between the netlinkers and the poller
+	// Check the prom counter to see if the channel is too small
+	// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+	uint32 netlinkers_done_chan_size               = 16 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 1000
+	}];
 
 	// nlmsg_seq sequence number (start). This gets incremented.
-	uint32 nlmsg_seq                                 = 60 [
+	uint32 nlmsg_seq                                 = 17 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).uint32 = {
 			gte: 0,
@@ -345,7 +376,7 @@ message XtcpConfig {
 
 	// netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
 	// recommend using 0
-	uint64 packet_size                               = 70 [
+	uint64 packet_size                               = 18 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint64 = {
 			gte: 0,
@@ -353,17 +384,86 @@ message XtcpConfig {
 	}];
 
 	// netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply
-	uint32 packet_size_mply                          = 80 [
+	uint32 packet_size_mply                          = 19 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			gte: 0,
 			lte: 100
 	}];
 
+	// modulus. Report every X socket diag messages to output
+	uint64 modulus                                   = 20 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint64 = {
+			gte: 1,
+			lte: 1000000
+	}];
+
+	// Which INET_DIAG_* extension deserializers run (keyed by short name:
+	// info, skmem, cong, tos, tc, shut, vegas, dctcp, bbr, classid, sockopt,
+	// cgroup, meminfo). Unset = daemon defaults.
+	EnabledDeserializers enabled_deserializers        = 21 [
+		(buf.validate.field).required = false
+	];
+
+	// When true, route netlink reads and raw-socket destination writes
+	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
+	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
+	// flag — they continue to use their own client sockets unchanged.
+	bool io_uring                                     = 22 [
+		(buf.validate.field).required = false
+	];
+
+	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
+	// values reduce io_uring_enter syscalls per dump cycle on hosts with
+	// many sockets, at the cost of more pinned buffers from packet pool.
+	// Ignored unless io_uring=true. Default 64.
+	uint32 io_uring_recv_batch_size                   = 23 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 4096
+	}];
+
+	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
+	// userland loop overhead but increase scheduling latency for the
+	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
+	uint32 io_uring_cqe_batch_size                    = 24 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 4096
+	}];
+
+	// ---- namespace reconcile (40-49) -----------------------------------------
+
+	// Period of the background namespace-reconcile ticker (Method B /proc scan
+	// that converges the tracked namespace set). With reconcile_before_poll the
+	// Poller reconciles every cycle and is the real discovery mechanism, so this
+	// background pass is an occasional safety-net expected to find nothing
+	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
+	// so operators can confirm from the counters that it is redundant. It still
+	// matters when the poller is idle or disabled. 0 disables the background
+	// ticker entirely (the startup reconcile still runs once).
+	google.protobuf.Duration reconcile_frequency       = 40 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	// Run a namespace reconcile immediately before each poll cycle, so a
+	// namespace that appeared since the last cycle is entered and gets a socket
+	// within ~1 poll interval instead of waiting for the background ticker. Ties
+	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
+	// mutex-serialized with the background reconciler. Default true.
+	bool reconcile_before_poll                         = 41;
+
+	// ---- capture / debug (50-59) ---------------------------------------------
+
 	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
 	// xtcp will capture this many Netlink response packets when it starts
 	// This is PER netlinker
-	uint32 write_files                               = 90 [
+	uint32 write_files                               = 50 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			gte: 0,
@@ -371,27 +471,71 @@ message XtcpConfig {
 	}];
 
 	// Write files path
-	string capture_path                              = 100 [
+	string capture_path                              = 51 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).string = {
 			min_len: 1,
 			max_len: 80,
 	}];
 
-	// modulus. Report every X socket diag messages to output
-	uint64 modulus                                   = 110 [
+	// Write marshalled data to dest_write_files number of files ( to allow debugging of the serialization )
+	// xtcp will capture this many examples of the marshalled data
+	// This is PER poller
+	uint32 dest_write_files                          = 52 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
+	// DebugLevel
+	uint32 debug_level                               = 53 [
 		(buf.validate.field).required = true,
-		(buf.validate.field).uint64 = {
-			gte: 1,
-			lte: 1000000
+		(buf.validate.field).uint32 = {
+			gte: 0,
+			lte: 1000
+	}];
+
+	// ---- output, destination-agnostic (60-79) --------------------------------
+
+	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
+	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
+	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
+	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
+	// max_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the
+	// http(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES
+	// and S3 endpoints the INSERT query + FORMAT + format_schema + auth query
+	// params routinely run ~150+ chars, which the old 128 cap rejected.
+	string dest                                      = 60 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).string = {
+			min_len: 4,
+			max_len: 512,
 	}];
 
 	// Marshalling of the exported data (protobufList,json,prototext)
-	string marshal_to                                = 120 [
+	string marshal_to                                = 61 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).string = {
 			min_len: 3,
 			max_len: 40,
+	}];
+
+	// Comma-separated subset of XtcpFlatRecord json field names selecting
+	// which columns the csv/tsv marshallers emit (e.g.
+	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
+	// Empty = all fields. Ignored by non-tabular marshallers.
+	string csv_columns                                = 62 [
+		(buf.validate.field).required = false
+	];
+
+	// XtcpProtoFile — path of the xtcp_flat_record.proto the daemon reads at
+	// startup and POSTs to the Kafka schema registry (kafka_schema_url).
+	string xtcp_proto_file                           = 63 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 80,
 	}];
 
 	// Soft cap on the in-flight envelope's marshalled size, in bytes.
@@ -406,7 +550,7 @@ message XtcpConfig {
 	// Useful primarily as a safety net against records with huge
 	// `bytes` fields. For everyday batch sizing, prefer the row-count
 	// cap (envelope_flush_threshold_rows) below.
-	uint32 envelope_flush_threshold_bytes            = 122 [
+	uint32 envelope_flush_threshold_bytes            = 64 [
 		(buf.validate.field).required = false
 	];
 
@@ -420,9 +564,41 @@ message XtcpConfig {
 	// (EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align
 	// with the ClickHouse kafka_max_rows_per_message setting so a
 	// produced envelope never forces the consumer to split it).
-	uint32 envelope_flush_threshold_rows             = 123 [
+	uint32 envelope_flush_threshold_rows             = 65 [
 		(buf.validate.field).required = false
 	];
+
+	// ---- kafka destination (80-99) -------------------------------------------
+
+	// Kafka or NSQ topic
+	string topic                                     = 80 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 40,
+	}];
+
+	// Kafka schema registry url
+	string kafka_schema_url                          = 81 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 60,
+	}];
+
+	// Kafka Produce context timeout.  Use 0 for no context timeout
+	// Recommend a small timeout, like 1-2 seconds
+	// kgo seems to have a bug, because the timeout is always expired
+	google.protobuf.Duration kafka_produce_timeout   = 82 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: {
+				seconds: 0
+			}
+			lte: {
+				seconds: 600 // 600s = 10 minutes
+			}
+	}];
 
 	// Kafka producer-batch compression codec. franz-go picks one codec
 	// from the supplied preference list that the broker advertises.
@@ -442,62 +618,52 @@ message XtcpConfig {
 	//
 	// Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
 	// "zstd" (the default) if Kafka throughput / disk usage matters more.
-	string kafka_compression                         = 124 [
+	string kafka_compression                         = 83 [
 		(buf.validate.field).required = false
 	];
 
-	// ─── s3parquet destination ───
+	// ---- s3parquet destination (100-129) -------------------------------------
 	//
-	// Endpoint, bucket, credentials, and tuning for the s3parquet
-	// destination. Effective only when -dest s3parquet:... is in use.
+	// Endpoint, bucket, credentials (100-109), then flush / jitter / upload
+	// tuning (110-129). Effective only when -dest s3parquet:... is in use.
 	// If s3_endpoint is empty and -dest is `s3parquet:<addr>`, the
 	// daemon parses the address from the -dest URL instead.
 
 	// S3 endpoint URL, e.g. "http://127.0.0.1:9000" (MinIO) or
 	// "https://s3.amazonaws.com" (AWS). May be empty if -dest carries
 	// it via the s3parquet:<endpoint> form.
-	string s3_endpoint                               = 125 [
+	string s3_endpoint                               = 100 [
+		(buf.validate.field).required = false
+	];
+
+	// S3 region. Required by some S3 implementations even when talking
+	// to a single-region MinIO. Default "us-east-1" when blank.
+	string s3_region                                 = 101 [
 		(buf.validate.field).required = false
 	];
 
 	// Required when -dest s3parquet. Bucket must already exist on the
 	// endpoint; the daemon does not auto-create.
-	string s3_bucket                                 = 126 [
+	string s3_bucket                                 = 102 [
 		(buf.validate.field).required = false
 	];
 
 	// Optional key-prefix WITHIN the bucket. Joined with the Hive-style
 	// partition segments (host=…/date=…/hour=…/<file>.parquet). Empty
 	// = files land at the bucket root level.
-	string s3_prefix                                 = 127 [
+	string s3_prefix                                 = 103 [
 		(buf.validate.field).required = false
 	];
 
 	// Required when -dest s3parquet. Picked up from AWS_ACCESS_KEY_ID
 	// env if blank.
-	string s3_access_key                             = 128 [
+	string s3_access_key                             = 104 [
 		(buf.validate.field).required = false
 	];
 
 	// Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY
 	// env if blank. Never logged.
-	string s3_secret_key                             = 129 [
-		(buf.validate.field).required = false
-	];
-
-	// Soft cap on the in-memory Parquet builder's accumulated
-	// uncompressed row bytes before the worker finalizes the file and
-	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
-	// Operators tune down for faster file rotation (more S3 PUTs,
-	// smaller per-file query latency) or up for fewer larger files
-	// (better compression ratio, more memory).
-	uint32 s3_parquet_flush_threshold_bytes          = 132 [
-		(buf.validate.field).required = false
-	];
-
-	// S3 region. Required by some S3 implementations even when talking
-	// to a single-region MinIO. Default "us-east-1" when blank.
-	string s3_region                                 = 133 [
+	string s3_secret_key                             = 105 [
 		(buf.validate.field).required = false
 	];
 
@@ -507,261 +673,37 @@ message XtcpConfig {
 	// only (write-only key, e.g. a baked deployment credential) so the
 	// daemon can start without list permission. Default false keeps the
 	// fail-fast probe for normal deployments.
-	bool s3_skip_bucket_probe                        = 134 [
+	bool s3_skip_bucket_probe                        = 106 [
 		(buf.validate.field).required = false
 	];
 
-	// Pyroscope continuous-profiling server URL (e.g.
-	// http://127.0.0.1:4040). When set, the daemon streams CPU,
-	// memory, goroutine, mutex, and block profiles to that endpoint.
-	// Empty disables the agent — no overhead in production runs that
-	// don't need it. Operators bring up a Pyroscope OSS server (or
-	// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
-	// data without restarts.
-	string pyroscope_url                             = 136 [
+	// Soft cap on the in-memory Parquet builder's accumulated
+	// uncompressed row bytes before the worker finalizes the file and
+	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
+	// Operators tune down for faster file rotation (more S3 PUTs,
+	// smaller per-file query latency) or up for fewer larger files
+	// (better compression ratio, more memory).
+	uint32 s3_parquet_flush_threshold_bytes          = 110 [
 		(buf.validate.field).required = false
 	];
-
-	// Application name registered with the Pyroscope server (the
-	// "application" facet in the Pyroscope UI). Empty → "xtcp2".
-	// Set per fleet/role for multi-host environments
-	// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
-	string pyroscope_app_name                        = 137 [
-		(buf.validate.field).required = false
-	];
-
-	// CPU profile sampling rate in Hz. Default 100. The Pyroscope
-	// agent uses this to call runtime.SetCPUProfileRate at startup.
-	uint32 pyroscope_sample_hz                       = 138 [
-		(buf.validate.field).required = false
-	];
-
-	// Profile upload interval (seconds between batched profile
-	// pushes). Default 15 s.
-	uint32 pyroscope_upload_interval_sec             = 139 [
-		(buf.validate.field).required = false
-	];
-
-	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
-	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
-	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
-	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
-	// max_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the
-	// http(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES
-	// and S3 endpoints the INSERT query + FORMAT + format_schema + auth query
-	// params routinely run ~150+ chars, which the old 128 cap rejected.
-	string dest                                      = 130 [
-		(buf.validate.field).required = true,
-		(buf.validate.field).string = {
-			min_len: 4,
-			max_len: 512,
-	}];
-
-	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
-	// xtcp will capture this many examples of the marshalled data
-	// This is PER poller
-	uint32 dest_write_files                          = 135 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			gte: 0,
-			lte: 1000
-	}];
-
-
-	// Kafka or NSQ topic
-	string topic                                     = 140 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			min_len: 1,
-			max_len: 40,
-	}];
-
-	// XtcpProtoFile
-	string xtcp_proto_file                           = 143 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			min_len: 1,
-			max_len: 80,
-	}];
-
-	// Kafka schema registry url
-	string kafka_schema_url                          = 145 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			min_len: 1,
-			max_len: 60,
-	}];
-
-	// Kafka Produce context timeout.  Use 0 for no context timeout
-	// Recommend a small timeout, like 1-2 seconds
-	// kgo seems to have a bug, because the timeout is always expired
-	google.protobuf.Duration kafka_produce_timeout   = 150 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).duration = {
-			gte: {
-				seconds: 0
-			}
-			lte: {
-				seconds: 600 // 600s = 10 minutes
-			}
-	}];
-
-	// DebugLevel
-	uint32 debug_level                               = 160 [
-		(buf.validate.field).required = true,
-		(buf.validate.field).uint32 = {
-			gte: 0,
-			lte: 1000
-	}];
-
-	// Label applied to the protobuf
-	string label                                      = 170 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			// min_len: 1,
-			max_len: 40,
-	}];
-
-	// Tag applied to the protobuf
-	string tag                                       = 180 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			// min_len: 1,
-			max_len: 40,
-	}];
-
-	// Deployment grouping / facility this daemon runs in (data center, PoP,
-	// region, site, …). Generic; stamped on every record's `location` field.
-	// Set via -location flag or LOCATION env.
-	string location                                  = 181 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			max_len: 253,
-	}];
-
-	// Hostname override. When empty the daemon uses os.Hostname(); set this to
-	// stamp an explicit hostname on records — required in containers, where
-	// os.Hostname() returns the container id, not the host. Set via -hostname
-	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
-	// container id).
-	string hostname                                  = 182 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			max_len: 253,
-	}];
-
-	// Daemon build provenance stamped on every record's `daemon_version` field
-	// (git commit / date / version). Populated by the daemon from -ldflags build
-	// vars, not a user flag; informational only (debugging which binary produced a
-	// row). See XtcpFlatRecord.daemon_version.
-	string daemon_version                            = 186 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).string = {
-			max_len: 253,
-	}];
-
-	// Resolve each socket's owning container id from its cgroup (sets the
-	// record's container_id / container_runtime). Set via -resolveContainerId
-	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
-	// and run --cgroupns=host in a container).
-	bool resolve_container_id                        = 183 [
-		(buf.validate.field).required = false
-	];
-
-	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
-	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
-	// far if the host is unexpectedly internet-exposed — the per-listener
-	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
-	// (cf. prometheus/exporter-toolkit#396.)
-	uint32 ipv4_ttl                                  = 184 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			lte: 255
-	}];
-
-	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
-	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
-	uint32 ipv6_hop_limit                            = 185 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			lte: 255
-	}];
-
-	// GRPC listening port
-	uint32 grpc_port                                 = 190 [
-		(buf.validate.field).required = true,
-		(buf.validate.field).uint32 = {
-			gte: 1,
-			lte: 65535
-	}];
-
-	EnabledDeserializers enabled_deserializers        = 200 [
-		(buf.validate.field).required = false
-	];
-
-	// When true, route netlink reads and raw-socket destination writes
-	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
-	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
-	// flag — they continue to use their own client sockets unchanged.
-	bool io_uring                                     = 210 [
-		(buf.validate.field).required = false
-	];
-
-	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
-	// values reduce io_uring_enter syscalls per dump cycle on hosts with
-	// many sockets, at the cost of more pinned buffers from packet pool.
-	// Ignored unless io_uring=true. Default 64.
-	uint32 io_uring_recv_batch_size                   = 211 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			gte: 1,
-			lte: 4096
-	}];
-
-	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
-	// userland loop overhead but increase scheduling latency for the
-	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
-	uint32 io_uring_cqe_batch_size                    = 212 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			gte: 1,
-			lte: 4096
-	}];
-
-	// Comma-separated subset of XtcpFlatRecord json field names selecting
-	// which columns the csv/tsv marshallers emit (e.g.
-	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
-	// Empty = all fields. Ignored by non-tabular marshallers.
-	string csv_columns                                = 220 [
-		(buf.validate.field).required = false
-	];
-
-	// Fleet jitter & upload backoff (thundering-herd avoidance). See
-	// docs/design-jitter-and-backoff.md. All jitter is disabled by setting
-	// the relevant *_jitter_pct to 0, restoring deterministic behavior.
-
-	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
-	// both the startup delay before the first poll and each subsequent tick.
-	// 0 disables (immediate first poll, fixed interval). Default 20.
-	uint32 poll_jitter_pct                            = 221 [
-		(buf.validate.field).required = false,
-		(buf.validate.field).uint32 = {
-			lte: 100
-	}];
 
 	// s3parquet staleness ceiling: force-flush the in-memory Parquet object
 	// after this long even if it hasn't reached the byte cap, bounding upload
 	// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
-	google.protobuf.Duration s3_flush_interval        = 222 [
+	google.protobuf.Duration s3_flush_interval        = 111 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).duration = {
 			gte: { seconds: 0 }
 	}];
 
+	// Fleet jitter & upload backoff (thundering-herd avoidance). See
+	// docs/design-jitter-and-backoff.md. All jitter is disabled by setting
+	// the relevant *_jitter_pct to 0, restoring deterministic behavior.
+
 	// Maximum jitter as a percent of s3_flush_interval, applied to the first
 	// timed flush and each interval so the fleet doesn't ceiling-flush in
 	// lockstep. 0 disables. Default 20.
-	uint32 s3_flush_jitter_pct                         = 223 [
+	uint32 s3_flush_jitter_pct                         = 112 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			lte: 100
@@ -771,7 +713,7 @@ message XtcpConfig {
 	// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
 	// size-cap upload path even under uniform load. Downward-only, so an
 	// object never exceeds the in-memory byte bound. 0 disables. Default 20.
-	uint32 s3_flush_threshold_jitter_pct               = 224 [
+	uint32 s3_flush_threshold_jitter_pct               = 113 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			lte: 100
@@ -779,7 +721,7 @@ message XtcpConfig {
 
 	// Maximum S3 upload attempts (original + retries) before dropping the
 	// object. Retries use full-jitter exponential backoff. Default 10.
-	uint32 s3_upload_max_attempts                      = 225 [
+	uint32 s3_upload_max_attempts                      = 114 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {
 			gte: 1,
@@ -789,76 +731,214 @@ message XtcpConfig {
 	// Cap on a single upload retry's backoff window (full jitter draws in
 	// [0, window], window grows exponentially up to this cap). 0 = derive as
 	// clamp(poll_frequency/10, 1s, 1h).
-	google.protobuf.Duration s3_upload_backoff_cap     = 226 [
+	google.protobuf.Duration s3_upload_backoff_cap     = 115 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).duration = {
 			gte: { seconds: 0 }
 	}];
 
-	// Period of the background namespace-reconcile ticker (Method B /proc scan
-	// that converges the tracked namespace set). With reconcile_before_poll the
-	// Poller reconciles every cycle and is the real discovery mechanism, so this
-	// background pass is an occasional safety-net expected to find nothing
-	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
-	// so operators can confirm from the counters that it is redundant. It still
-	// matters when the poller is idle or disabled. 0 disables the background
-	// ticker entirely (the startup reconcile still runs once).
-	google.protobuf.Duration reconcile_frequency       = 227 [
+	// ---- identity & labels stamped on every record (130-149) -----------------
+
+	// Hostname override. When empty the daemon uses os.Hostname(); set this to
+	// stamp an explicit hostname on records — required in containers, where
+	// os.Hostname() returns the container id, not the host. Set via -hostname
+	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
+	// container id).
+	string hostname                                  = 130 [
 		(buf.validate.field).required = false,
-		(buf.validate.field).duration = {
-			gte: { seconds: 0 }
+		(buf.validate.field).string = {
+			max_len: 253,
 	}];
 
-	// Run a namespace reconcile immediately before each poll cycle, so a
-	// namespace that appeared since the last cycle is entered and gets a socket
-	// within ~1 poll interval instead of waiting for the background ticker. Ties
-	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
-	// mutex-serialized with the background reconciler. Default true.
-	bool reconcile_before_poll                         = 228;
+	// Deployment grouping / facility this daemon runs in (data center, PoP,
+	// region, site, …). Generic; stamped on every record's `location` field.
+	// Set via -location flag or LOCATION env.
+	string location                                  = 131 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 253,
+	}];
 
-	// ---- best-effort metadata enrichment (230s) ------------------------------
+	// Label applied to the protobuf
+	string label                                      = 132 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
+
+	// Tag applied to the protobuf
+	string tag                                       = 133 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			// min_len: 1,
+			max_len: 40,
+	}];
+
+	// Daemon build provenance stamped on every record's `daemon_version` field
+	// (git commit / date / version). Populated by the daemon from -ldflags build
+	// vars, not a user flag; informational only (debugging which binary produced a
+	// row). See XtcpFlatRecord.daemon_version.
+	string daemon_version                            = 134 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 253,
+	}];
+
+	// ---- network knobs for xtcp2's own listeners (150-159) -------------------
+
+	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
+	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
+	// far if the host is unexpectedly internet-exposed — the per-listener
+	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
+	// (cf. prometheus/exporter-toolkit#396.)
+	uint32 ipv4_ttl                                  = 150 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 255
+	}];
+
+	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
+	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
+	uint32 ipv6_hop_limit                            = 151 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 255
+	}];
+
+	// ---- gRPC (160-169) ------------------------------------------------------
+
+	// GRPC listening port
+	uint32 grpc_port                                 = 160 [
+		(buf.validate.field).required = true,
+		(buf.validate.field).uint32 = {
+			gte: 1,
+			lte: 65535
+	}];
+
+	// ---- profiling (170-179) -------------------------------------------------
+
+	// Pyroscope continuous-profiling server URL (e.g.
+	// http://127.0.0.1:4040). When set, the daemon streams CPU,
+	// memory, goroutine, mutex, and block profiles to that endpoint.
+	// Empty disables the agent — no overhead in production runs that
+	// don't need it. Operators bring up a Pyroscope OSS server (or
+	// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
+	// data without restarts.
+	string pyroscope_url                             = 170 [
+		(buf.validate.field).required = false
+	];
+
+	// Application name registered with the Pyroscope server (the
+	// "application" facet in the Pyroscope UI). Empty → "xtcp2".
+	// Set per fleet/role for multi-host environments
+	// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
+	string pyroscope_app_name                        = 171 [
+		(buf.validate.field).required = false
+	];
+
+	// CPU profile sampling rate in Hz. Default 100. The Pyroscope
+	// agent uses this to call runtime.SetCPUProfileRate at startup.
+	uint32 pyroscope_sample_hz                       = 172 [
+		(buf.validate.field).required = false
+	];
+
+	// Profile upload interval (seconds between batched profile
+	// pushes). Default 15 s.
+	uint32 pyroscope_upload_interval_sec             = 173 [
+		(buf.validate.field).required = false
+	];
+
+	// ---- best-effort metadata enrichment (200-249) ---------------------------
 	// Each enricher is independent and non-fatal: when enabled but its source
-	// (a daemon socket, sysfs) is unavailable, xtcp2 logs, bumps a Prometheus
-	// counter, and continues with the relevant record columns left empty.
+	// (a daemon socket, sysfs, a feed file) is unavailable, xtcp2 logs, bumps a
+	// Prometheus counter, and continues with the relevant record columns left
+	// empty. One sub-block per enricher.
+
+	// -- container (200-209)
+	// Resolve each socket's owning container id from its cgroup v2 id
+	// (inet_diag_cgroup_id, record field 2003) — sets the record's
+	// container_id / container_runtime. Set via -resolveContainerId flag or
+	// CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it and run
+	// --cgroupns=host in a container).
+	bool resolve_container_id                        = 200 [
+		(buf.validate.field).required = false
+	];
 
 	// Enrich container/netns labels (container_id/name/image/runtime, netns name)
 	// by joining the socket's owning netns inode against the Docker Engine API
 	// index over docker_socket_path. Default false.
-	bool enrich_container_enable                        = 230;
+	bool enrich_container_enable                        = 201;
 
 	// Docker Engine API unix socket. Default "/run/docker.sock".
-	string docker_socket_path                          = 231 [
+	string docker_socket_path                          = 202 [
 		(buf.validate.field).string = { max_len: 255 }];
 
+	// -- lldp (210-219)
 	// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
 	// (lldpd_socket_path) once at startup. Default false.
-	bool enrich_lldp_enable                            = 232;
+	bool enrich_lldp_enable                            = 210;
 
 	// lldpd control socket. Default "/run/lldpd.socket".
-	string lldpd_socket_path                           = 233 [
+	string lldpd_socket_path                           = 211 [
 		(buf.validate.field).string = { max_len: 255 }];
 
 	// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
 	// descriptor for the wire parser. Empty = auto-detect. Default "".
-	string lldpd_version_hint                          = 234 [
+	string lldpd_version_hint                          = 212 [
 		(buf.validate.field).string = { max_len: 16 }];
 
+	// -- nic (220-229)
 	// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
 	// the ethtool ioctl once at startup. Default false.
-	bool enrich_nic_enable                             = 235;
+	bool enrich_nic_enable                             = 220;
 
 	// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
-	uint32 uplink_count                                = 236 [
+	uint32 uplink_count                                = 221 [
 		(buf.validate.field).uint32 = { lte: 2 }];
 
 	// Explicit uplink interface names, slot order. Empty = auto-detect from the
 	// default IPv4/IPv6 routes.
-	repeated string uplink_interfaces                  = 237 [
+	repeated string uplink_interfaces                  = 222 [
 		(buf.validate.field).repeated = { max_items: 2 }];
 
-	// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
+	// -- nsid (230-239)
+	// Populate nsid (record field 32) best-effort via RTM_GETNSID. Usually 0 for
 	// Docker/containerd namespaces. Default false.
-	bool populate_nsid                                 = 238;
+	bool populate_nsid                                 = 230;
+
+	// -- asn (240-244)
+	// Enrich the destination IP's ASN (record field 320) and network owner
+	// (322) by longest-prefix-matching it against the ipfeed-collector Parquet
+	// artifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when
+	// enabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,
+	// and leaves both columns empty. Default false.
+	bool enrich_asn_enable                             = 240;
+
+	// Path to the ipfeed-collector Parquet artifact (prefix -> {asn,
+	// network_owner}). Default "".
+	string asn_db_path                                 = 241 [
+		(buf.validate.field).string = { max_len: 255 }];
+
+	// How often to reload asn_db_path in the background so a refreshed artifact
+	// is picked up without a restart. 0 = load once at startup, never reload.
+	google.protobuf.Duration asn_refresh_interval      = 242;
+
+	// -- locality (245-249)
+	// Classify the destination IP's locality (record field 310) — self /
+	// local-subnet / remote — from each monitored network namespace's local
+	// addresses + routing table, discovered via rtnetlink (pkg/localnet). Also
+	// yields the egress interface (311/312) and the bound-interface name (300).
+	// Runs BEFORE the ASN lookup, so self/local-subnet destinations skip it.
+	// Non-fatal: a per-namespace discovery failure just leaves that namespace's
+	// sockets unclassified (and is retried with backoff). Default false.
+	bool enrich_locality_enable                        = 245;
+
+	// How often to re-discover local addresses/routes per namespace so runtime
+	// changes (interfaces up/down, routes added) are picked up. Newly-appeared
+	// namespaces are always snapshotted on the next reconcile regardless. 0 =
+	// discover once per namespace, never refresh. Daemon default 60s.
+	google.protobuf.Duration locality_refresh_interval = 246;
 };
 
 message EnabledDeserializers {

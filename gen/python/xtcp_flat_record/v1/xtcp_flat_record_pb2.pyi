@@ -14,7 +14,17 @@ class Envelope(_message.Message):
     def __init__(self, row: _Optional[_Iterable[_Union[XtcpFlatRecord, _Mapping]]] = ...) -> None: ...
 
 class XtcpFlatRecord(_message.Message):
-    __slots__ = ("schema_version", "daemon_version", "timestamp_ns", "hostname", "location", "netns", "netns_inode", "nsid", "container_id", "container_runtime", "container_name", "container_image", "label", "tag", "record_counter", "socket_fd", "netlinker_id", "uplink1_ifname", "uplink1_nic_driver", "uplink1_nic_model", "uplink1_nic_pci_vendor", "uplink1_nic_pci_device", "uplink1_nic_bus_info", "uplink1_nic_speed_mbps", "uplink1_nic_fw_version", "uplink1_lldp_chassis_name", "uplink1_lldp_chassis_id", "uplink1_lldp_mgmt_ip", "uplink1_lldp_port_id", "uplink1_lldp_port_descr", "uplink2_ifname", "uplink2_nic_driver", "uplink2_nic_model", "uplink2_nic_pci_vendor", "uplink2_nic_pci_device", "uplink2_nic_bus_info", "uplink2_nic_speed_mbps", "uplink2_nic_fw_version", "uplink2_lldp_chassis_name", "uplink2_lldp_chassis_id", "uplink2_lldp_mgmt_ip", "uplink2_lldp_port_id", "uplink2_lldp_port_descr", "inet_diag_msg_family", "inet_diag_msg_state", "inet_diag_msg_timer", "inet_diag_msg_retrans", "inet_diag_msg_socket_source_port", "inet_diag_msg_socket_destination_port", "inet_diag_msg_socket_source", "inet_diag_msg_socket_destination", "inet_diag_msg_socket_interface", "inet_diag_msg_socket_cookie", "inet_diag_msg_socket_dest_asn", "inet_diag_msg_socket_next_hop_asn", "inet_diag_msg_expires", "inet_diag_msg_rqueue", "inet_diag_msg_wqueue", "inet_diag_msg_uid", "inet_diag_msg_inode", "mem_info_rmem", "mem_info_wmem", "mem_info_fmem", "mem_info_tmem", "tcp_info_state", "tcp_info_ca_state", "tcp_info_retransmits", "tcp_info_probes", "tcp_info_backoff", "tcp_info_options", "tcp_info_send_scale", "tcp_info_rcv_scale", "tcp_info_delivery_rate_app_limited", "tcp_info_fast_open_client_failed", "tcp_info_rto", "tcp_info_ato", "tcp_info_snd_mss", "tcp_info_rcv_mss", "tcp_info_unacked", "tcp_info_sacked", "tcp_info_lost", "tcp_info_retrans", "tcp_info_fackets", "tcp_info_last_data_sent", "tcp_info_last_ack_sent", "tcp_info_last_data_recv", "tcp_info_last_ack_recv", "tcp_info_pmtu", "tcp_info_rcv_ssthresh", "tcp_info_rtt", "tcp_info_rtt_var", "tcp_info_snd_ssthresh", "tcp_info_snd_cwnd", "tcp_info_adv_mss", "tcp_info_reordering", "tcp_info_rcv_rtt", "tcp_info_rcv_space", "tcp_info_total_retrans", "tcp_info_pacing_rate", "tcp_info_max_pacing_rate", "tcp_info_bytes_acked", "tcp_info_bytes_received", "tcp_info_segs_out", "tcp_info_segs_in", "tcp_info_not_sent_bytes", "tcp_info_min_rtt", "tcp_info_data_segs_in", "tcp_info_data_segs_out", "tcp_info_delivery_rate", "tcp_info_busy_time", "tcp_info_rwnd_limited", "tcp_info_sndbuf_limited", "tcp_info_delivered", "tcp_info_delivered_ce", "tcp_info_bytes_sent", "tcp_info_bytes_retrans", "tcp_info_dsack_dups", "tcp_info_reord_seen", "tcp_info_rcv_ooopack", "tcp_info_snd_wnd", "tcp_info_rcv_wnd", "tcp_info_rehash", "tcp_info_total_rto", "tcp_info_total_rto_recoveries", "tcp_info_total_rto_time", "congestion_algorithm_string", "congestion_algorithm_enum", "type_of_service", "traffic_class", "sk_mem_info_rmem_alloc", "sk_mem_info_rcv_buf", "sk_mem_info_wmem_alloc", "sk_mem_info_snd_buf", "sk_mem_info_fwd_alloc", "sk_mem_info_wmem_queued", "sk_mem_info_optmem", "sk_mem_info_backlog", "sk_mem_info_drops", "shutdown_state", "vegas_info_enabled", "vegas_info_rtt_cnt", "vegas_info_rtt", "vegas_info_min_rtt", "dctcp_info_enabled", "dctcp_info_ce_state", "dctcp_info_alpha", "dctcp_info_ab_ecn", "dctcp_info_ab_tot", "bbr_info_bw_lo", "bbr_info_bw_hi", "bbr_info_min_rtt", "bbr_info_pacing_gain", "bbr_info_cwnd_gain", "class_id", "sock_opt", "c_group")
+    __slots__ = ("schema_version", "daemon_version", "timestamp_ns", "hostname", "location", "netns", "netns_inode", "nsid", "container_id", "container_runtime", "container_name", "container_image", "label", "tag", "record_counter", "socket_fd", "netlinker_id", "uplink1_ifname", "uplink1_nic_driver", "uplink1_nic_model", "uplink1_nic_pci_vendor", "uplink1_nic_pci_device", "uplink1_nic_bus_info", "uplink1_nic_speed_mbps", "uplink1_nic_fw_version", "uplink1_lldp_chassis_name", "uplink1_lldp_chassis_id", "uplink1_lldp_mgmt_ip", "uplink1_lldp_port_id", "uplink1_lldp_port_descr", "uplink2_ifname", "uplink2_nic_driver", "uplink2_nic_model", "uplink2_nic_pci_vendor", "uplink2_nic_pci_device", "uplink2_nic_bus_info", "uplink2_nic_speed_mbps", "uplink2_nic_fw_version", "uplink2_lldp_chassis_name", "uplink2_lldp_chassis_id", "uplink2_lldp_mgmt_ip", "uplink2_lldp_port_id", "uplink2_lldp_port_descr", "enrich_socket_interface_name", "enrich_socket_dest_locality", "enrich_socket_dest_egress_ifindex", "enrich_socket_dest_egress_ifname", "enrich_socket_dest_asn", "enrich_socket_dest_next_hop_asn", "enrich_socket_dest_network_owner", "inet_diag_msg_family", "inet_diag_msg_state", "inet_diag_msg_timer", "inet_diag_msg_retrans", "inet_diag_msg_socket_source_port", "inet_diag_msg_socket_destination_port", "inet_diag_msg_socket_source", "inet_diag_msg_socket_destination", "inet_diag_msg_socket_interface", "inet_diag_msg_socket_cookie", "inet_diag_msg_expires", "inet_diag_msg_rqueue", "inet_diag_msg_wqueue", "inet_diag_msg_uid", "inet_diag_msg_inode", "mem_info_rmem", "mem_info_wmem", "mem_info_fmem", "mem_info_tmem", "tcp_info_state", "tcp_info_ca_state", "tcp_info_retransmits", "tcp_info_probes", "tcp_info_backoff", "tcp_info_options", "tcp_info_snd_wscale", "tcp_info_rcv_wscale", "tcp_info_delivery_rate_app_limited", "tcp_info_fastopen_client_fail", "tcp_info_rto", "tcp_info_ato", "tcp_info_snd_mss", "tcp_info_rcv_mss", "tcp_info_unacked", "tcp_info_sacked", "tcp_info_lost", "tcp_info_retrans", "tcp_info_fackets", "tcp_info_last_data_sent", "tcp_info_last_ack_sent", "tcp_info_last_data_recv", "tcp_info_last_ack_recv", "tcp_info_pmtu", "tcp_info_rcv_ssthresh", "tcp_info_rtt", "tcp_info_rttvar", "tcp_info_snd_ssthresh", "tcp_info_snd_cwnd", "tcp_info_advmss", "tcp_info_reordering", "tcp_info_rcv_rtt", "tcp_info_rcv_space", "tcp_info_total_retrans", "tcp_info_pacing_rate", "tcp_info_max_pacing_rate", "tcp_info_bytes_acked", "tcp_info_bytes_received", "tcp_info_segs_out", "tcp_info_segs_in", "tcp_info_notsent_bytes", "tcp_info_min_rtt", "tcp_info_data_segs_in", "tcp_info_data_segs_out", "tcp_info_delivery_rate", "tcp_info_busy_time", "tcp_info_rwnd_limited", "tcp_info_sndbuf_limited", "tcp_info_delivered", "tcp_info_delivered_ce", "tcp_info_bytes_sent", "tcp_info_bytes_retrans", "tcp_info_dsack_dups", "tcp_info_reord_seen", "tcp_info_rcv_ooopack", "tcp_info_snd_wnd", "tcp_info_rcv_wnd", "tcp_info_rehash", "tcp_info_total_rto", "tcp_info_total_rto_recoveries", "tcp_info_total_rto_time", "tcp_info_received_ce", "tcp_info_delivered_e1_bytes", "tcp_info_delivered_e0_bytes", "tcp_info_delivered_ce_bytes", "tcp_info_received_e1_bytes", "tcp_info_received_e0_bytes", "tcp_info_received_ce_bytes", "tcp_info_ecn_mode", "tcp_info_accecn_opt_seen", "tcp_info_accecn_fail_mode", "tcp_info_options2", "inet_diag_cong", "inet_diag_cong_enum", "inet_diag_tos", "inet_diag_tclass", "sk_mem_info_rmem_alloc", "sk_mem_info_rcvbuf", "sk_mem_info_wmem_alloc", "sk_mem_info_sndbuf", "sk_mem_info_fwd_alloc", "sk_mem_info_wmem_queued", "sk_mem_info_optmem", "sk_mem_info_backlog", "sk_mem_info_drops", "inet_diag_shutdown", "vegas_info_enabled", "vegas_info_rttcnt", "vegas_info_rtt", "vegas_info_minrtt", "dctcp_info_enabled", "dctcp_info_ce_state", "dctcp_info_alpha", "dctcp_info_ab_ecn", "dctcp_info_ab_tot", "bbr_info_bw_lo", "bbr_info_bw_hi", "bbr_info_min_rtt", "bbr_info_pacing_gain", "bbr_info_cwnd_gain", "inet_diag_class_id", "inet_diag_sockopt", "inet_diag_cgroup_id")
+    class Locality(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        LOCALITY_UNSPECIFIED: _ClassVar[XtcpFlatRecord.Locality]
+        LOCALITY_SELF: _ClassVar[XtcpFlatRecord.Locality]
+        LOCALITY_LOCAL_SUBNET: _ClassVar[XtcpFlatRecord.Locality]
+        LOCALITY_REMOTE: _ClassVar[XtcpFlatRecord.Locality]
+    LOCALITY_UNSPECIFIED: XtcpFlatRecord.Locality
+    LOCALITY_SELF: XtcpFlatRecord.Locality
+    LOCALITY_LOCAL_SUBNET: XtcpFlatRecord.Locality
+    LOCALITY_REMOTE: XtcpFlatRecord.Locality
     class CongestionAlgorithm(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         CONGESTION_ALGORITHM_UNSPECIFIED: _ClassVar[XtcpFlatRecord.CongestionAlgorithm]
@@ -76,6 +86,13 @@ class XtcpFlatRecord(_message.Message):
     UPLINK2_LLDP_MGMT_IP_FIELD_NUMBER: _ClassVar[int]
     UPLINK2_LLDP_PORT_ID_FIELD_NUMBER: _ClassVar[int]
     UPLINK2_LLDP_PORT_DESCR_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_INTERFACE_NAME_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_LOCALITY_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_EGRESS_IFINDEX_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_EGRESS_IFNAME_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_ASN_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_NEXT_HOP_ASN_FIELD_NUMBER: _ClassVar[int]
+    ENRICH_SOCKET_DEST_NETWORK_OWNER_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_FAMILY_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_STATE_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_TIMER_FIELD_NUMBER: _ClassVar[int]
@@ -86,8 +103,6 @@ class XtcpFlatRecord(_message.Message):
     INET_DIAG_MSG_SOCKET_DESTINATION_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_SOCKET_INTERFACE_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_SOCKET_COOKIE_FIELD_NUMBER: _ClassVar[int]
-    INET_DIAG_MSG_SOCKET_DEST_ASN_FIELD_NUMBER: _ClassVar[int]
-    INET_DIAG_MSG_SOCKET_NEXT_HOP_ASN_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_EXPIRES_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_RQUEUE_FIELD_NUMBER: _ClassVar[int]
     INET_DIAG_MSG_WQUEUE_FIELD_NUMBER: _ClassVar[int]
@@ -103,10 +118,10 @@ class XtcpFlatRecord(_message.Message):
     TCP_INFO_PROBES_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_BACKOFF_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_OPTIONS_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_SEND_SCALE_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_RCV_SCALE_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_SND_WSCALE_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RCV_WSCALE_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_DELIVERY_RATE_APP_LIMITED_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_FAST_OPEN_CLIENT_FAILED_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_FASTOPEN_CLIENT_FAIL_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_RTO_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_ATO_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_SND_MSS_FIELD_NUMBER: _ClassVar[int]
@@ -123,10 +138,10 @@ class XtcpFlatRecord(_message.Message):
     TCP_INFO_PMTU_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_RCV_SSTHRESH_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_RTT_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_RTT_VAR_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RTTVAR_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_SND_SSTHRESH_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_SND_CWND_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_ADV_MSS_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_ADVMSS_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_REORDERING_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_RCV_RTT_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_RCV_SPACE_FIELD_NUMBER: _ClassVar[int]
@@ -137,7 +152,7 @@ class XtcpFlatRecord(_message.Message):
     TCP_INFO_BYTES_RECEIVED_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_SEGS_OUT_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_SEGS_IN_FIELD_NUMBER: _ClassVar[int]
-    TCP_INFO_NOT_SENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_NOTSENT_BYTES_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_MIN_RTT_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_DATA_SEGS_IN_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_DATA_SEGS_OUT_FIELD_NUMBER: _ClassVar[int]
@@ -158,24 +173,35 @@ class XtcpFlatRecord(_message.Message):
     TCP_INFO_TOTAL_RTO_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_TOTAL_RTO_RECOVERIES_FIELD_NUMBER: _ClassVar[int]
     TCP_INFO_TOTAL_RTO_TIME_FIELD_NUMBER: _ClassVar[int]
-    CONGESTION_ALGORITHM_STRING_FIELD_NUMBER: _ClassVar[int]
-    CONGESTION_ALGORITHM_ENUM_FIELD_NUMBER: _ClassVar[int]
-    TYPE_OF_SERVICE_FIELD_NUMBER: _ClassVar[int]
-    TRAFFIC_CLASS_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RECEIVED_CE_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_DELIVERED_E1_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_DELIVERED_E0_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_DELIVERED_CE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RECEIVED_E1_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RECEIVED_E0_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_RECEIVED_CE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_ECN_MODE_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_ACCECN_OPT_SEEN_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_ACCECN_FAIL_MODE_FIELD_NUMBER: _ClassVar[int]
+    TCP_INFO_OPTIONS2_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_CONG_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_CONG_ENUM_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_TOS_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_TCLASS_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_RMEM_ALLOC_FIELD_NUMBER: _ClassVar[int]
-    SK_MEM_INFO_RCV_BUF_FIELD_NUMBER: _ClassVar[int]
+    SK_MEM_INFO_RCVBUF_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_WMEM_ALLOC_FIELD_NUMBER: _ClassVar[int]
-    SK_MEM_INFO_SND_BUF_FIELD_NUMBER: _ClassVar[int]
+    SK_MEM_INFO_SNDBUF_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_FWD_ALLOC_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_WMEM_QUEUED_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_OPTMEM_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_BACKLOG_FIELD_NUMBER: _ClassVar[int]
     SK_MEM_INFO_DROPS_FIELD_NUMBER: _ClassVar[int]
-    SHUTDOWN_STATE_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_SHUTDOWN_FIELD_NUMBER: _ClassVar[int]
     VEGAS_INFO_ENABLED_FIELD_NUMBER: _ClassVar[int]
-    VEGAS_INFO_RTT_CNT_FIELD_NUMBER: _ClassVar[int]
+    VEGAS_INFO_RTTCNT_FIELD_NUMBER: _ClassVar[int]
     VEGAS_INFO_RTT_FIELD_NUMBER: _ClassVar[int]
-    VEGAS_INFO_MIN_RTT_FIELD_NUMBER: _ClassVar[int]
+    VEGAS_INFO_MINRTT_FIELD_NUMBER: _ClassVar[int]
     DCTCP_INFO_ENABLED_FIELD_NUMBER: _ClassVar[int]
     DCTCP_INFO_CE_STATE_FIELD_NUMBER: _ClassVar[int]
     DCTCP_INFO_ALPHA_FIELD_NUMBER: _ClassVar[int]
@@ -186,9 +212,9 @@ class XtcpFlatRecord(_message.Message):
     BBR_INFO_MIN_RTT_FIELD_NUMBER: _ClassVar[int]
     BBR_INFO_PACING_GAIN_FIELD_NUMBER: _ClassVar[int]
     BBR_INFO_CWND_GAIN_FIELD_NUMBER: _ClassVar[int]
-    CLASS_ID_FIELD_NUMBER: _ClassVar[int]
-    SOCK_OPT_FIELD_NUMBER: _ClassVar[int]
-    C_GROUP_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_CLASS_ID_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_SOCKOPT_FIELD_NUMBER: _ClassVar[int]
+    INET_DIAG_CGROUP_ID_FIELD_NUMBER: _ClassVar[int]
     schema_version: int
     daemon_version: str
     timestamp_ns: int
@@ -232,6 +258,13 @@ class XtcpFlatRecord(_message.Message):
     uplink2_lldp_mgmt_ip: str
     uplink2_lldp_port_id: str
     uplink2_lldp_port_descr: str
+    enrich_socket_interface_name: str
+    enrich_socket_dest_locality: XtcpFlatRecord.Locality
+    enrich_socket_dest_egress_ifindex: int
+    enrich_socket_dest_egress_ifname: str
+    enrich_socket_dest_asn: int
+    enrich_socket_dest_next_hop_asn: int
+    enrich_socket_dest_network_owner: str
     inet_diag_msg_family: int
     inet_diag_msg_state: int
     inet_diag_msg_timer: int
@@ -242,8 +275,6 @@ class XtcpFlatRecord(_message.Message):
     inet_diag_msg_socket_destination: bytes
     inet_diag_msg_socket_interface: int
     inet_diag_msg_socket_cookie: int
-    inet_diag_msg_socket_dest_asn: int
-    inet_diag_msg_socket_next_hop_asn: int
     inet_diag_msg_expires: int
     inet_diag_msg_rqueue: int
     inet_diag_msg_wqueue: int
@@ -259,10 +290,10 @@ class XtcpFlatRecord(_message.Message):
     tcp_info_probes: int
     tcp_info_backoff: int
     tcp_info_options: int
-    tcp_info_send_scale: int
-    tcp_info_rcv_scale: int
+    tcp_info_snd_wscale: int
+    tcp_info_rcv_wscale: int
     tcp_info_delivery_rate_app_limited: int
-    tcp_info_fast_open_client_failed: int
+    tcp_info_fastopen_client_fail: int
     tcp_info_rto: int
     tcp_info_ato: int
     tcp_info_snd_mss: int
@@ -279,10 +310,10 @@ class XtcpFlatRecord(_message.Message):
     tcp_info_pmtu: int
     tcp_info_rcv_ssthresh: int
     tcp_info_rtt: int
-    tcp_info_rtt_var: int
+    tcp_info_rttvar: int
     tcp_info_snd_ssthresh: int
     tcp_info_snd_cwnd: int
-    tcp_info_adv_mss: int
+    tcp_info_advmss: int
     tcp_info_reordering: int
     tcp_info_rcv_rtt: int
     tcp_info_rcv_space: int
@@ -293,7 +324,7 @@ class XtcpFlatRecord(_message.Message):
     tcp_info_bytes_received: int
     tcp_info_segs_out: int
     tcp_info_segs_in: int
-    tcp_info_not_sent_bytes: int
+    tcp_info_notsent_bytes: int
     tcp_info_min_rtt: int
     tcp_info_data_segs_in: int
     tcp_info_data_segs_out: int
@@ -314,24 +345,35 @@ class XtcpFlatRecord(_message.Message):
     tcp_info_total_rto: int
     tcp_info_total_rto_recoveries: int
     tcp_info_total_rto_time: int
-    congestion_algorithm_string: str
-    congestion_algorithm_enum: XtcpFlatRecord.CongestionAlgorithm
-    type_of_service: int
-    traffic_class: int
+    tcp_info_received_ce: int
+    tcp_info_delivered_e1_bytes: int
+    tcp_info_delivered_e0_bytes: int
+    tcp_info_delivered_ce_bytes: int
+    tcp_info_received_e1_bytes: int
+    tcp_info_received_e0_bytes: int
+    tcp_info_received_ce_bytes: int
+    tcp_info_ecn_mode: int
+    tcp_info_accecn_opt_seen: int
+    tcp_info_accecn_fail_mode: int
+    tcp_info_options2: int
+    inet_diag_cong: str
+    inet_diag_cong_enum: XtcpFlatRecord.CongestionAlgorithm
+    inet_diag_tos: int
+    inet_diag_tclass: int
     sk_mem_info_rmem_alloc: int
-    sk_mem_info_rcv_buf: int
+    sk_mem_info_rcvbuf: int
     sk_mem_info_wmem_alloc: int
-    sk_mem_info_snd_buf: int
+    sk_mem_info_sndbuf: int
     sk_mem_info_fwd_alloc: int
     sk_mem_info_wmem_queued: int
     sk_mem_info_optmem: int
     sk_mem_info_backlog: int
     sk_mem_info_drops: int
-    shutdown_state: int
+    inet_diag_shutdown: int
     vegas_info_enabled: int
-    vegas_info_rtt_cnt: int
+    vegas_info_rttcnt: int
     vegas_info_rtt: int
-    vegas_info_min_rtt: int
+    vegas_info_minrtt: int
     dctcp_info_enabled: int
     dctcp_info_ce_state: int
     dctcp_info_alpha: int
@@ -342,10 +384,10 @@ class XtcpFlatRecord(_message.Message):
     bbr_info_min_rtt: int
     bbr_info_pacing_gain: int
     bbr_info_cwnd_gain: int
-    class_id: int
-    sock_opt: int
-    c_group: int
-    def __init__(self, schema_version: _Optional[int] = ..., daemon_version: _Optional[str] = ..., timestamp_ns: _Optional[int] = ..., hostname: _Optional[str] = ..., location: _Optional[str] = ..., netns: _Optional[str] = ..., netns_inode: _Optional[int] = ..., nsid: _Optional[int] = ..., container_id: _Optional[str] = ..., container_runtime: _Optional[str] = ..., container_name: _Optional[str] = ..., container_image: _Optional[str] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., record_counter: _Optional[int] = ..., socket_fd: _Optional[int] = ..., netlinker_id: _Optional[int] = ..., uplink1_ifname: _Optional[str] = ..., uplink1_nic_driver: _Optional[str] = ..., uplink1_nic_model: _Optional[str] = ..., uplink1_nic_pci_vendor: _Optional[int] = ..., uplink1_nic_pci_device: _Optional[int] = ..., uplink1_nic_bus_info: _Optional[str] = ..., uplink1_nic_speed_mbps: _Optional[int] = ..., uplink1_nic_fw_version: _Optional[str] = ..., uplink1_lldp_chassis_name: _Optional[str] = ..., uplink1_lldp_chassis_id: _Optional[str] = ..., uplink1_lldp_mgmt_ip: _Optional[str] = ..., uplink1_lldp_port_id: _Optional[str] = ..., uplink1_lldp_port_descr: _Optional[str] = ..., uplink2_ifname: _Optional[str] = ..., uplink2_nic_driver: _Optional[str] = ..., uplink2_nic_model: _Optional[str] = ..., uplink2_nic_pci_vendor: _Optional[int] = ..., uplink2_nic_pci_device: _Optional[int] = ..., uplink2_nic_bus_info: _Optional[str] = ..., uplink2_nic_speed_mbps: _Optional[int] = ..., uplink2_nic_fw_version: _Optional[str] = ..., uplink2_lldp_chassis_name: _Optional[str] = ..., uplink2_lldp_chassis_id: _Optional[str] = ..., uplink2_lldp_mgmt_ip: _Optional[str] = ..., uplink2_lldp_port_id: _Optional[str] = ..., uplink2_lldp_port_descr: _Optional[str] = ..., inet_diag_msg_family: _Optional[int] = ..., inet_diag_msg_state: _Optional[int] = ..., inet_diag_msg_timer: _Optional[int] = ..., inet_diag_msg_retrans: _Optional[int] = ..., inet_diag_msg_socket_source_port: _Optional[int] = ..., inet_diag_msg_socket_destination_port: _Optional[int] = ..., inet_diag_msg_socket_source: _Optional[bytes] = ..., inet_diag_msg_socket_destination: _Optional[bytes] = ..., inet_diag_msg_socket_interface: _Optional[int] = ..., inet_diag_msg_socket_cookie: _Optional[int] = ..., inet_diag_msg_socket_dest_asn: _Optional[int] = ..., inet_diag_msg_socket_next_hop_asn: _Optional[int] = ..., inet_diag_msg_expires: _Optional[int] = ..., inet_diag_msg_rqueue: _Optional[int] = ..., inet_diag_msg_wqueue: _Optional[int] = ..., inet_diag_msg_uid: _Optional[int] = ..., inet_diag_msg_inode: _Optional[int] = ..., mem_info_rmem: _Optional[int] = ..., mem_info_wmem: _Optional[int] = ..., mem_info_fmem: _Optional[int] = ..., mem_info_tmem: _Optional[int] = ..., tcp_info_state: _Optional[int] = ..., tcp_info_ca_state: _Optional[int] = ..., tcp_info_retransmits: _Optional[int] = ..., tcp_info_probes: _Optional[int] = ..., tcp_info_backoff: _Optional[int] = ..., tcp_info_options: _Optional[int] = ..., tcp_info_send_scale: _Optional[int] = ..., tcp_info_rcv_scale: _Optional[int] = ..., tcp_info_delivery_rate_app_limited: _Optional[int] = ..., tcp_info_fast_open_client_failed: _Optional[int] = ..., tcp_info_rto: _Optional[int] = ..., tcp_info_ato: _Optional[int] = ..., tcp_info_snd_mss: _Optional[int] = ..., tcp_info_rcv_mss: _Optional[int] = ..., tcp_info_unacked: _Optional[int] = ..., tcp_info_sacked: _Optional[int] = ..., tcp_info_lost: _Optional[int] = ..., tcp_info_retrans: _Optional[int] = ..., tcp_info_fackets: _Optional[int] = ..., tcp_info_last_data_sent: _Optional[int] = ..., tcp_info_last_ack_sent: _Optional[int] = ..., tcp_info_last_data_recv: _Optional[int] = ..., tcp_info_last_ack_recv: _Optional[int] = ..., tcp_info_pmtu: _Optional[int] = ..., tcp_info_rcv_ssthresh: _Optional[int] = ..., tcp_info_rtt: _Optional[int] = ..., tcp_info_rtt_var: _Optional[int] = ..., tcp_info_snd_ssthresh: _Optional[int] = ..., tcp_info_snd_cwnd: _Optional[int] = ..., tcp_info_adv_mss: _Optional[int] = ..., tcp_info_reordering: _Optional[int] = ..., tcp_info_rcv_rtt: _Optional[int] = ..., tcp_info_rcv_space: _Optional[int] = ..., tcp_info_total_retrans: _Optional[int] = ..., tcp_info_pacing_rate: _Optional[int] = ..., tcp_info_max_pacing_rate: _Optional[int] = ..., tcp_info_bytes_acked: _Optional[int] = ..., tcp_info_bytes_received: _Optional[int] = ..., tcp_info_segs_out: _Optional[int] = ..., tcp_info_segs_in: _Optional[int] = ..., tcp_info_not_sent_bytes: _Optional[int] = ..., tcp_info_min_rtt: _Optional[int] = ..., tcp_info_data_segs_in: _Optional[int] = ..., tcp_info_data_segs_out: _Optional[int] = ..., tcp_info_delivery_rate: _Optional[int] = ..., tcp_info_busy_time: _Optional[int] = ..., tcp_info_rwnd_limited: _Optional[int] = ..., tcp_info_sndbuf_limited: _Optional[int] = ..., tcp_info_delivered: _Optional[int] = ..., tcp_info_delivered_ce: _Optional[int] = ..., tcp_info_bytes_sent: _Optional[int] = ..., tcp_info_bytes_retrans: _Optional[int] = ..., tcp_info_dsack_dups: _Optional[int] = ..., tcp_info_reord_seen: _Optional[int] = ..., tcp_info_rcv_ooopack: _Optional[int] = ..., tcp_info_snd_wnd: _Optional[int] = ..., tcp_info_rcv_wnd: _Optional[int] = ..., tcp_info_rehash: _Optional[int] = ..., tcp_info_total_rto: _Optional[int] = ..., tcp_info_total_rto_recoveries: _Optional[int] = ..., tcp_info_total_rto_time: _Optional[int] = ..., congestion_algorithm_string: _Optional[str] = ..., congestion_algorithm_enum: _Optional[_Union[XtcpFlatRecord.CongestionAlgorithm, str]] = ..., type_of_service: _Optional[int] = ..., traffic_class: _Optional[int] = ..., sk_mem_info_rmem_alloc: _Optional[int] = ..., sk_mem_info_rcv_buf: _Optional[int] = ..., sk_mem_info_wmem_alloc: _Optional[int] = ..., sk_mem_info_snd_buf: _Optional[int] = ..., sk_mem_info_fwd_alloc: _Optional[int] = ..., sk_mem_info_wmem_queued: _Optional[int] = ..., sk_mem_info_optmem: _Optional[int] = ..., sk_mem_info_backlog: _Optional[int] = ..., sk_mem_info_drops: _Optional[int] = ..., shutdown_state: _Optional[int] = ..., vegas_info_enabled: _Optional[int] = ..., vegas_info_rtt_cnt: _Optional[int] = ..., vegas_info_rtt: _Optional[int] = ..., vegas_info_min_rtt: _Optional[int] = ..., dctcp_info_enabled: _Optional[int] = ..., dctcp_info_ce_state: _Optional[int] = ..., dctcp_info_alpha: _Optional[int] = ..., dctcp_info_ab_ecn: _Optional[int] = ..., dctcp_info_ab_tot: _Optional[int] = ..., bbr_info_bw_lo: _Optional[int] = ..., bbr_info_bw_hi: _Optional[int] = ..., bbr_info_min_rtt: _Optional[int] = ..., bbr_info_pacing_gain: _Optional[int] = ..., bbr_info_cwnd_gain: _Optional[int] = ..., class_id: _Optional[int] = ..., sock_opt: _Optional[int] = ..., c_group: _Optional[int] = ...) -> None: ...
+    inet_diag_class_id: int
+    inet_diag_sockopt: int
+    inet_diag_cgroup_id: int
+    def __init__(self, schema_version: _Optional[int] = ..., daemon_version: _Optional[str] = ..., timestamp_ns: _Optional[int] = ..., hostname: _Optional[str] = ..., location: _Optional[str] = ..., netns: _Optional[str] = ..., netns_inode: _Optional[int] = ..., nsid: _Optional[int] = ..., container_id: _Optional[str] = ..., container_runtime: _Optional[str] = ..., container_name: _Optional[str] = ..., container_image: _Optional[str] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., record_counter: _Optional[int] = ..., socket_fd: _Optional[int] = ..., netlinker_id: _Optional[int] = ..., uplink1_ifname: _Optional[str] = ..., uplink1_nic_driver: _Optional[str] = ..., uplink1_nic_model: _Optional[str] = ..., uplink1_nic_pci_vendor: _Optional[int] = ..., uplink1_nic_pci_device: _Optional[int] = ..., uplink1_nic_bus_info: _Optional[str] = ..., uplink1_nic_speed_mbps: _Optional[int] = ..., uplink1_nic_fw_version: _Optional[str] = ..., uplink1_lldp_chassis_name: _Optional[str] = ..., uplink1_lldp_chassis_id: _Optional[str] = ..., uplink1_lldp_mgmt_ip: _Optional[str] = ..., uplink1_lldp_port_id: _Optional[str] = ..., uplink1_lldp_port_descr: _Optional[str] = ..., uplink2_ifname: _Optional[str] = ..., uplink2_nic_driver: _Optional[str] = ..., uplink2_nic_model: _Optional[str] = ..., uplink2_nic_pci_vendor: _Optional[int] = ..., uplink2_nic_pci_device: _Optional[int] = ..., uplink2_nic_bus_info: _Optional[str] = ..., uplink2_nic_speed_mbps: _Optional[int] = ..., uplink2_nic_fw_version: _Optional[str] = ..., uplink2_lldp_chassis_name: _Optional[str] = ..., uplink2_lldp_chassis_id: _Optional[str] = ..., uplink2_lldp_mgmt_ip: _Optional[str] = ..., uplink2_lldp_port_id: _Optional[str] = ..., uplink2_lldp_port_descr: _Optional[str] = ..., enrich_socket_interface_name: _Optional[str] = ..., enrich_socket_dest_locality: _Optional[_Union[XtcpFlatRecord.Locality, str]] = ..., enrich_socket_dest_egress_ifindex: _Optional[int] = ..., enrich_socket_dest_egress_ifname: _Optional[str] = ..., enrich_socket_dest_asn: _Optional[int] = ..., enrich_socket_dest_next_hop_asn: _Optional[int] = ..., enrich_socket_dest_network_owner: _Optional[str] = ..., inet_diag_msg_family: _Optional[int] = ..., inet_diag_msg_state: _Optional[int] = ..., inet_diag_msg_timer: _Optional[int] = ..., inet_diag_msg_retrans: _Optional[int] = ..., inet_diag_msg_socket_source_port: _Optional[int] = ..., inet_diag_msg_socket_destination_port: _Optional[int] = ..., inet_diag_msg_socket_source: _Optional[bytes] = ..., inet_diag_msg_socket_destination: _Optional[bytes] = ..., inet_diag_msg_socket_interface: _Optional[int] = ..., inet_diag_msg_socket_cookie: _Optional[int] = ..., inet_diag_msg_expires: _Optional[int] = ..., inet_diag_msg_rqueue: _Optional[int] = ..., inet_diag_msg_wqueue: _Optional[int] = ..., inet_diag_msg_uid: _Optional[int] = ..., inet_diag_msg_inode: _Optional[int] = ..., mem_info_rmem: _Optional[int] = ..., mem_info_wmem: _Optional[int] = ..., mem_info_fmem: _Optional[int] = ..., mem_info_tmem: _Optional[int] = ..., tcp_info_state: _Optional[int] = ..., tcp_info_ca_state: _Optional[int] = ..., tcp_info_retransmits: _Optional[int] = ..., tcp_info_probes: _Optional[int] = ..., tcp_info_backoff: _Optional[int] = ..., tcp_info_options: _Optional[int] = ..., tcp_info_snd_wscale: _Optional[int] = ..., tcp_info_rcv_wscale: _Optional[int] = ..., tcp_info_delivery_rate_app_limited: _Optional[int] = ..., tcp_info_fastopen_client_fail: _Optional[int] = ..., tcp_info_rto: _Optional[int] = ..., tcp_info_ato: _Optional[int] = ..., tcp_info_snd_mss: _Optional[int] = ..., tcp_info_rcv_mss: _Optional[int] = ..., tcp_info_unacked: _Optional[int] = ..., tcp_info_sacked: _Optional[int] = ..., tcp_info_lost: _Optional[int] = ..., tcp_info_retrans: _Optional[int] = ..., tcp_info_fackets: _Optional[int] = ..., tcp_info_last_data_sent: _Optional[int] = ..., tcp_info_last_ack_sent: _Optional[int] = ..., tcp_info_last_data_recv: _Optional[int] = ..., tcp_info_last_ack_recv: _Optional[int] = ..., tcp_info_pmtu: _Optional[int] = ..., tcp_info_rcv_ssthresh: _Optional[int] = ..., tcp_info_rtt: _Optional[int] = ..., tcp_info_rttvar: _Optional[int] = ..., tcp_info_snd_ssthresh: _Optional[int] = ..., tcp_info_snd_cwnd: _Optional[int] = ..., tcp_info_advmss: _Optional[int] = ..., tcp_info_reordering: _Optional[int] = ..., tcp_info_rcv_rtt: _Optional[int] = ..., tcp_info_rcv_space: _Optional[int] = ..., tcp_info_total_retrans: _Optional[int] = ..., tcp_info_pacing_rate: _Optional[int] = ..., tcp_info_max_pacing_rate: _Optional[int] = ..., tcp_info_bytes_acked: _Optional[int] = ..., tcp_info_bytes_received: _Optional[int] = ..., tcp_info_segs_out: _Optional[int] = ..., tcp_info_segs_in: _Optional[int] = ..., tcp_info_notsent_bytes: _Optional[int] = ..., tcp_info_min_rtt: _Optional[int] = ..., tcp_info_data_segs_in: _Optional[int] = ..., tcp_info_data_segs_out: _Optional[int] = ..., tcp_info_delivery_rate: _Optional[int] = ..., tcp_info_busy_time: _Optional[int] = ..., tcp_info_rwnd_limited: _Optional[int] = ..., tcp_info_sndbuf_limited: _Optional[int] = ..., tcp_info_delivered: _Optional[int] = ..., tcp_info_delivered_ce: _Optional[int] = ..., tcp_info_bytes_sent: _Optional[int] = ..., tcp_info_bytes_retrans: _Optional[int] = ..., tcp_info_dsack_dups: _Optional[int] = ..., tcp_info_reord_seen: _Optional[int] = ..., tcp_info_rcv_ooopack: _Optional[int] = ..., tcp_info_snd_wnd: _Optional[int] = ..., tcp_info_rcv_wnd: _Optional[int] = ..., tcp_info_rehash: _Optional[int] = ..., tcp_info_total_rto: _Optional[int] = ..., tcp_info_total_rto_recoveries: _Optional[int] = ..., tcp_info_total_rto_time: _Optional[int] = ..., tcp_info_received_ce: _Optional[int] = ..., tcp_info_delivered_e1_bytes: _Optional[int] = ..., tcp_info_delivered_e0_bytes: _Optional[int] = ..., tcp_info_delivered_ce_bytes: _Optional[int] = ..., tcp_info_received_e1_bytes: _Optional[int] = ..., tcp_info_received_e0_bytes: _Optional[int] = ..., tcp_info_received_ce_bytes: _Optional[int] = ..., tcp_info_ecn_mode: _Optional[int] = ..., tcp_info_accecn_opt_seen: _Optional[int] = ..., tcp_info_accecn_fail_mode: _Optional[int] = ..., tcp_info_options2: _Optional[int] = ..., inet_diag_cong: _Optional[str] = ..., inet_diag_cong_enum: _Optional[_Union[XtcpFlatRecord.CongestionAlgorithm, str]] = ..., inet_diag_tos: _Optional[int] = ..., inet_diag_tclass: _Optional[int] = ..., sk_mem_info_rmem_alloc: _Optional[int] = ..., sk_mem_info_rcvbuf: _Optional[int] = ..., sk_mem_info_wmem_alloc: _Optional[int] = ..., sk_mem_info_sndbuf: _Optional[int] = ..., sk_mem_info_fwd_alloc: _Optional[int] = ..., sk_mem_info_wmem_queued: _Optional[int] = ..., sk_mem_info_optmem: _Optional[int] = ..., sk_mem_info_backlog: _Optional[int] = ..., sk_mem_info_drops: _Optional[int] = ..., inet_diag_shutdown: _Optional[int] = ..., vegas_info_enabled: _Optional[int] = ..., vegas_info_rttcnt: _Optional[int] = ..., vegas_info_rtt: _Optional[int] = ..., vegas_info_minrtt: _Optional[int] = ..., dctcp_info_enabled: _Optional[int] = ..., dctcp_info_ce_state: _Optional[int] = ..., dctcp_info_alpha: _Optional[int] = ..., dctcp_info_ab_ecn: _Optional[int] = ..., dctcp_info_ab_tot: _Optional[int] = ..., bbr_info_bw_lo: _Optional[int] = ..., bbr_info_bw_hi: _Optional[int] = ..., bbr_info_min_rtt: _Optional[int] = ..., bbr_info_pacing_gain: _Optional[int] = ..., bbr_info_cwnd_gain: _Optional[int] = ..., inet_diag_class_id: _Optional[int] = ..., inet_diag_sockopt: _Optional[int] = ..., inet_diag_cgroup_id: _Optional[int] = ...) -> None: ...
 
 class FlatRecordsRequest(_message.Message):
     __slots__ = ()

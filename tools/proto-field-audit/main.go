@@ -8,6 +8,12 @@
 // written in Go. (Generated bindings live in gen/go/, so the default scan root
 // is the module root rather than pkg/.)
 //
+// It also enforces the kernel-source annotation convention of
+// xtcp_flat_record.proto: every field whose tag is in the kernel-payload
+// range (>= 1000) must carry a trailing comment naming the kernel struct
+// member / INET_DIAG_* attribute / SK_MEMINFO_* slot it copies (or say it is
+// derived by xtcp). See docs/protobuf-formats.md "Field layout policy".
+//
 // This is the inverse of the existing Rust proto-audit tool in the sibling
 // xdp2 repo (which audits which kernel structs map to which proto fields).
 package main
@@ -23,11 +29,28 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 // Match `<type> <name> = <number>;` inside `message { ... }`.
-var fieldRE = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+|required\s+)?[\w.<>,]+\s+(\w+)\s*=\s*\d+`)
+// Group 1 = field name, group 2 = field number.
+var fieldRE = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+|required\s+)?[\w.<>,]+\s+(\w+)\s*=\s*(\d+)`)
+
+// kernelAnnotationMinTag is the first field number of the kernel-payload
+// range in xtcp_flat_record.proto (metadata 1-299, enrichment 300-399, spare
+// 400-999, payload 1000+). Every field at or above it copies a kernel value
+// and must say which one in a trailing comment.
+const kernelAnnotationMinTag = 1000
+
+// kernelAnnotationRE is the shape of the trailing comment every payload field
+// must carry, naming the kernel source it copies. Accepted forms:
+//
+//	// struct tcp_info.tcpi_rttvar (__u32)
+//	// SK_MEMINFO_RCVBUF (__u32, sock_diag.h)
+//	// INET_DIAG_TOS (5): inet->tos (__u8, inet_diag.c)
+//	// derived by xtcp from inet_diag_cong (not a kernel field)
+var kernelAnnotationRE = regexp.MustCompile(`struct \w+\.\w+|INET_DIAG_\w+ \(\d+\)|SK_MEMINFO_\w+|derived by xtcp`)
 
 func main() {
 	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
@@ -74,17 +97,54 @@ func runAudit(protoRoot, goRoot string, stdout, stderr io.Writer) int {
 			unset++
 		}
 	}
-	if unset > 0 {
-		fmt.Fprintf(stderr, "proto-field-audit: %d unset proto field(s)\n", unset)
+	unannotated := reportUnannotatedPayloadFields(fields, stdout)
+	if unset > 0 || unannotated > 0 {
+		fmt.Fprintf(stderr, "proto-field-audit: %d unset proto field(s), %d payload field(s) without kernel-source comment\n",
+			unset, unannotated)
 		return 1
 	}
 	fmt.Fprintln(stdout, "proto-field-audit: no findings")
 	return 0
 }
 
+// reportUnannotatedPayloadFields prints one line per field that needs a
+// kernel-source annotation (tag >= kernelAnnotationMinTag) but lacks one,
+// and returns the count. Fields below the payload range are ignored.
+func reportUnannotatedPayloadFields(fields []field, stdout io.Writer) int {
+	n := 0
+	for _, f := range fields {
+		if f.needsKernelAnnotation() && !f.hasKernelAnnotation() {
+			fmt.Fprintf(stdout, "%s: proto field %q (tag %d) lacks a kernel-source trailing comment "+
+				"(want `// struct <s>.<member> (<type>)`, `// INET_DIAG_<X> (<n>): ...`, `// SK_MEMINFO_<X> ...` or `// derived by xtcp ...`)\n",
+				f.where, f.name, f.number)
+			n++
+		}
+	}
+	return n
+}
+
 type field struct {
-	name  string
-	where string
+	name    string
+	number  int
+	comment string // trailing `//` comment on the declaring line, trimmed; "" if none
+	where   string
+}
+
+// needsKernelAnnotation reports whether the field sits in the kernel-payload
+// tag range and therefore must name its kernel source.
+func (f field) needsKernelAnnotation() bool { return f.number >= kernelAnnotationMinTag }
+
+// hasKernelAnnotation reports whether the field's trailing comment matches
+// one of the accepted kernel-source forms (kernelAnnotationRE).
+func (f field) hasKernelAnnotation() bool { return kernelAnnotationRE.MatchString(f.comment) }
+
+// trailingComment returns the text after the first `//` on a trimmed
+// field line, with surrounding whitespace removed; "" when there is none.
+func trailingComment(trimmed string) string {
+	if i := strings.Index(trimmed, "//"); i >= 0 {
+		return strings.TrimSpace(trimmed[i+2:])
+	}
+	return ""
 }
 
 // updateProtoMessageDepth steps the message-depth state machine for one
@@ -131,9 +191,19 @@ func extractFieldsFromProto(path string, contents []byte) []field {
 			continue
 		}
 		if m := fieldRE.FindStringSubmatch(trimmed); m != nil {
+			number, err := strconv.Atoi(m[2])
+			if err != nil {
+				// \d+ guarantees digits, so this is only reachable on overflow —
+				// a tag no valid proto carries. Keep the field so its name is
+				// still audited; 0 is outside every allocated range and is
+				// flagged by the number checks.
+				number = 0
+			}
 			fields = append(fields, field{
-				name:  m[1],
-				where: fmt.Sprintf("%s:%d", path, i+1),
+				name:    m[1],
+				number:  number,
+				comment: trailingComment(trimmed),
+				where:   fmt.Sprintf("%s:%d", path, i+1),
 			})
 		}
 	}

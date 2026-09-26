@@ -11,7 +11,11 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -20,6 +24,14 @@ const (
 	countCst = 10
 
 	connectCst = "0.0.0.0"
+
+	// srcaddrCst / ifaceCst are empty by default so the client behaves exactly as
+	// before: the kernel picks the source address and egress interface by route.
+	// When set they bind each connection's source, which xtcp2 reads back as the
+	// socket's local address / bound interface (idiag_if) for interface-name
+	// enrichment testing.
+	srcaddrCst = ""
+	ifaceCst   = ""
 
 	writeTimeoutCst = 100 * time.Millisecond
 	readTimeoutCst  = 100 * time.Millisecond
@@ -54,21 +66,71 @@ func runMain(args []string, stderr io.Writer) int {
 	rto := fs.Duration("rto", readTimeoutCst, "read time out")
 	dialr := fs.Int("dialr", dialRetryCst, "dial retries")
 	pads := fs.Int("pads", padSizeCst, "pad size")
+	srcaddr := fs.String("srcaddr", srcaddrCst, "bind each connection's source IP (net.Dialer.LocalAddr); empty = kernel default")
+	iface := fs.String("iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
+	d, err := newDialer(*srcaddr, *iface)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+
+	// dialFailures counts clients that never established a connection. A
+	// client that does connect only returns on a read/write error, so a
+	// non-zero count at the end means part of the requested population was
+	// never created (bad -iface, unreachable peer, …). Exit 1 in that case so
+	// a systemd Restart=on-failure unit retries instead of sitting "active
+	// (exited)" with no sockets behind it.
+	var dialFailures atomic.Int32
 	var wg sync.WaitGroup
 	for i := 0; i < *count; i++ {
 		wg.Add(1)
-		go client(&wg, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
+		go client(&wg, &dialFailures, d, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
 		time.Sleep(*startsleep)
 	}
 	wg.Wait()
+	if n := dialFailures.Load(); n > 0 {
+		fmt.Fprintf(stderr, "tcp_client: %d of %d clients never connected\n", n, *count)
+		return 1
+	}
 	return 0
 }
 
+// newDialer builds the net.Dialer used for every connection, applying the
+// optional source-address bind (LocalAddr) and interface bind (SO_BINDTODEVICE).
+// Both are empty by default, yielding a zero-value Dialer identical to the
+// previous behavior. A non-empty but unparseable srcaddr is a hard error so a
+// misconfigured load container fails loudly rather than silently binding nothing.
+func newDialer(srcaddr, iface string) (net.Dialer, error) {
+	var d net.Dialer
+	if srcaddr != "" {
+		ip := net.ParseIP(srcaddr)
+		if ip == nil {
+			return net.Dialer{}, fmt.Errorf("invalid -srcaddr %q", srcaddr)
+		}
+		d.LocalAddr = &net.TCPAddr{IP: ip}
+	}
+	if iface != "" {
+		name := iface
+		d.Control = func(_, _ string, c syscall.RawConn) error {
+			var operr error
+			if cerr := c.Control(func(fd uintptr) {
+				operr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, name)
+			}); cerr != nil {
+				return cerr
+			}
+			return operr
+		}
+	}
+	return d, nil
+}
+
 func client(wg *sync.WaitGroup,
+	dialFailures *atomic.Int32,
+	d net.Dialer,
 	bind string,
 	port int,
 	sleep time.Duration,
@@ -83,9 +145,10 @@ func client(wg *sync.WaitGroup,
 	buf := buildMessage(port, pads)
 	reply := make([]byte, readBufferSizeCst)
 
-	conn, err := dialWithRetry(bind, port, dialr, dialTimeoutCst)
+	conn, err := dialWithRetryDialer(d, bind, port, dialr, dialTimeoutCst)
 	if err != nil {
 		log.Printf("dialWithRetry: %v", err)
+		dialFailures.Add(1)
 		return
 	}
 
@@ -130,6 +193,13 @@ func buildMessage(port, pads int) []byte {
 // matches the comment, and if attempts <= 0 we report it instead of
 // pretending we ran a loop.
 func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
+	return dialWithRetryDialer(net.Dialer{}, bind, port, attempts, baseTimeout)
+}
+
+// dialWithRetryDialer is dialWithRetry with a caller-supplied base Dialer (so the
+// source-address / interface binds from newDialer are applied). It overrides only
+// the per-attempt Timeout, leaving LocalAddr/Control intact across retries.
+func dialWithRetryDialer(base net.Dialer, bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
 	addr := fmt.Sprintf("%s:%d", bind, port)
 	if attempts <= 0 {
 		return nil, fmt.Errorf("dial %s: attempts must be > 0, got %d", addr, attempts)
@@ -137,7 +207,8 @@ func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (
 	timeout := baseTimeout
 	var lastErr error
 	for r := 0; r < attempts; r++ {
-		dialer := net.Dialer{Timeout: timeout}
+		dialer := base
+		dialer.Timeout = timeout
 		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
 		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
 		cancel()

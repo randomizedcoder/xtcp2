@@ -269,6 +269,6 @@ Consistent with the repo's table-driven, seam-injected style (positive / negativ
 
 - [Multi-namespace visibility](network-namespaces.md) — the discovery/reconcile/setns mechanism this redesigns.
 - [Design: fleet jitter & upload backoff](design-jitter-and-backoff.md) — the "proportional to poll frequency" + jitter precedent reused here.
-- [Netlink collection](netlink-collection.md) — what each per-namespace reader does with its socket.
+- [Netlink collection](netlink/collection.md) — what each per-namespace reader does with its socket.
 - [Polling and batching](polling-and-batching.md) — the poll cycle this hooks the reconcile into.
 - [Observability](observability.md) — capability checks and the counters that would make overflow/self-heal visible.

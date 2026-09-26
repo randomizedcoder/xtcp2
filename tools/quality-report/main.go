@@ -6,7 +6,7 @@
 // The orchestration shell (see nix/quality-report/default.nix) runs each
 // tool with `|| true` and writes the per-tool raw output into a directory.
 // This program reads that directory, parses each tool's output (JSON for
-// golangci-lint and gosec, text for the rest), normalises everything into
+// golangci-lint and gosec, text for the rest), normalizes everything into
 // a uniform Finding shape, and emits markdown on stdout.
 //
 // Invariants:
@@ -78,6 +78,11 @@ var linterTier = map[string]int{
 	"noctx":         1,
 	"contextcheck":  1,
 	"durationcheck": 1,
+	"forbidigo":     1,
+	// misspell was promoted from Tier 2 to Tier 1 on 2026-09-23: it only ever
+	// caught British spellings long after the comment was written while it ran
+	// in the nightly tier, and the same sweep had to be repeated four times.
+	"misspell": 1,
 	// Tier 2 (.golangci-comprehensive.yml)
 	"exhaustive": 2,
 	"prealloc":   2,
@@ -87,10 +92,9 @@ var linterTier = map[string]int{
 	"dupl":       2,
 	"unconvert":  2,
 	"nakedret":   2,
-	"misspell":   2,
 }
 
-// Finding is the normalised shape across every tool.
+// Finding is the normalized shape across every tool.
 type Finding struct {
 	Tool     string // "golangci-lint-quick", "gosec", "netlink-audit", ...
 	Tier     int    // 0/1/2 for golangci-lint, 0 otherwise
@@ -1377,8 +1381,8 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (` + "`lint-quick`" + `) | govet, errcheck, ineffassign, unused, staticcheck | {{.TierCounts.T0}} | {{.QuickFixable.T0}} |
-| 1 (` + "`lint`" + ` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck | {{.TierCounts.T1}} | {{.QuickFixable.T1}} |
-| 2 (` + "`lint-comprehensive`" + `) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret, misspell | {{.TierCounts.T2}} | {{.QuickFixable.T2}} |
+| 1 (` + "`lint`" + ` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck, forbidigo, misspell | {{.TierCounts.T1}} | {{.QuickFixable.T1}} |
+| 2 (` + "`lint-comprehensive`" + `) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret | {{.TierCounts.T2}} | {{.QuickFixable.T2}} |
 
 ¹ Quick-fixable = produced by a linter that supports ` + "`golangci-lint run --fix`" + ` (gofmt, goimports, misspell, unconvert, …).
 
@@ -1734,6 +1738,21 @@ func statusLabel(s ToolStatus) string {
 	}
 	if s.ExitCode == 0 && s.Findings == 0 {
 		return "clean"
+	}
+	// An exit code above 1 is checked BEFORE the findings count, because it
+	// means the tool did not complete and its finding count is therefore a
+	// floor, not a total. Every tool here follows the convention that 1 is
+	// "ran fine, found something" (golangci-lint's --issues-exit-code
+	// defaults to 1; gosec matches it); anything higher is the tool failing.
+	// golangci-lint in particular exits 4 on `run.timeout` expiry — after
+	// printing "0 issues." — so a timed-out tier used to reach the
+	// `Findings > 0` branch or the clean-looking zero and render as if it
+	// had passed. Surface the code in both cases instead.
+	if s.ExitCode > 1 {
+		if s.Findings > 0 {
+			return fmt.Sprintf("incomplete, exit %d", s.ExitCode)
+		}
+		return fmt.Sprintf("exit %d", s.ExitCode)
 	}
 	if s.Findings > 0 {
 		return "findings"

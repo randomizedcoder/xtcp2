@@ -59,6 +59,23 @@ Struct-size and field-offset assertions guard against silent layout regressions,
 
 xtcp2 parses each `inet_diag` attribute with an explicit, statically-typed decoder in `pkg/xtcpnl/xtcpnl_inet_diag_*.go`, dispatched through a typed deserializer registry (`pkg/xtcp/deserializers.go`). The hot collection path therefore does no reflection-based decoding — it reads fixed offsets directly into typed fields. Compared to a reflection-driven approach this removes per-field reflection overhead on the busiest code path, and because every decoder is covered by the fixture tests above, the speedup does not come at the cost of correctness.
 
+`pkg/xtcpnl` contains **no `binary.Read` call outside `_test.go`**. What reflection remains is a set of `binary.Read` twins in `xtcpnl_reflection_twins_test.go`, kept deliberately as the control group that measures what the hand-written decoders buy. Every file holding one opens with a banner saying so — the reflection code is for performance comparison only and is strongly not recommended in production.
+
+The numbers are not left to assertion. `struct tcp_info` is the widest decoder in the package, and on a real capture:
+
+| decoder | ns/op | B/op | allocs/op |
+|---|---|---|---|
+| `DeserializeTCPInfo`, 248-byte kernel 6.10 layout | 28.51 | 0 | 0 |
+| the same struct via `binary.Read` | 2353 | 336 | 2 |
+| `DeserializeTCPInfo`, 280-byte kernel 7.0 layout with the Accurate ECN trailer | 33.61 | 0 | 0 |
+| the same struct via `binary.Read` | 2517 | 336 | 2 |
+
+**About 75× faster and allocation-free**, and the 32 extra bytes of the 7.0 trailer cost roughly 5 ns. `pkg/xtcpnl/xtcpnl_perf_gate_test.go` turns that into a gate: 18 rows asserting `0 allocs/op` on every manual decoder plus a minimum speedup over its twin, so the gate fails if reflection ever measures anywhere *near* a manual decoder — which would indicate a problem with the manual decoder, not a license to use reflection.
+
+The speedup half is skipped under `-race`, and the reason is worth understanding rather than working around. The race detector instruments every memory access, so it taxes a manual decoder's ~70 individual field writes far more heavily, proportionally, than it taxes `binary.Read`'s already-slow reflect work — it does *not* scale the two halves together the way host load does. The 280-byte `TCPInfo` ratio falls from 75× to 4.5× purely from turning the detector on, and across the whole table the ratios compress from 16.7×–336× down to 5.2×–44.9×. A ratio floor is therefore not measurable under `-race`, so `test-go-race` asserts only `0 allocs/op` — host-independent, and it holds exactly under the detector — while `test-go-unit` asserts both halves.
+
+Read the full `-benchmem` output with `nix build .#test-go-bench && ./result/bin/xtcp2-go-bench`, and pass `-count=1` when timing by hand: `go test` caches results, and a cached run returns byte-identical timings that look like excellent stability and mean nothing.
+
 ## Test coverage
 
 The suite is large and the bar is high:
@@ -84,6 +101,8 @@ Beyond unit tests, custom static-analysis tools under `tools/` enforce project-s
 | `iouring-audit` | The `io_uring` code path. |
 | `metrics-audit` | Prometheus metric registration. |
 | `proto-field-audit` | Protobuf field numbering / schema consistency. |
+| `proto-audit-netlink` | The netlink **layout oracle**: are `pkg/xtcpnl`'s Go structs the shape the kernel actually sends? Compares against the Linux UAPI headers by wire *bit offset* rather than by field name, which is what lets it report a field the struct does not have at all — that is how the 11 missing Accurate ECN fields were found. **Gating per protocol**, via `gatedProtocols` in `nix/checks/default.nix` — `NL_Diag_TCPInfo` today, the only one whose deltas are fully triaged. The other 25 are advisory: their deltas are printed and written to `$out/unallowlisted.json` and the check exits 0; only a non-empty `$out/unallowlisted-gated.json` fails the build. Accepted deltas in `nix/checks/proto-audit-netlink-allowlist.json`. See [netlink/coverage-status.md](netlink/coverage-status.md#phase-0). |
+| `upstream-pins` | That `nix/upstream-pins.json` still matches the pins this build actually uses. Its networked counterpart, `nix run .#check-upstream-pins`, reports whether upstream `main` has moved — that half cannot be a check, because the `nix flake check` sandbox has no network. |
 
 The aggregated linter, audit, and coverage status is collected into [quality-report.md](quality-report.md) by `nix run .#update-quality-report`.
 
@@ -102,7 +121,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full target list and [integrat
 
 ## See also
 
-- [Netlink collection](netlink-collection.md) — the deserializers these tests exercise.
+- [Netlink collection](netlink/collection.md) — the deserializers these tests exercise.
 - [Performance](performance.md) — the reflection-free hot path and pooled allocations.
 - [Integration testing](integration-testing.md) — the QEMU microVM end-to-end tests.
 - [quality-report.md](quality-report.md) — the auto-generated coverage and lint report.

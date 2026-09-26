@@ -103,7 +103,7 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			min:   TypeOfServiceSizeCst,
 			parse: DeserializeTypeOfServiceXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				if x.TypeOfService == 0 {
+				if x.InetDiagTos == 0 {
 					t.Errorf("TypeOfService unset")
 				}
 			},
@@ -113,7 +113,7 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			min:   TrafficClassSizeCst,
 			parse: DeserializeTrafficClassXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				if x.TrafficClass == 0 {
+				if x.InetDiagTclass == 0 {
 					t.Errorf("TrafficClass unset")
 				}
 			},
@@ -123,7 +123,7 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			min:   ShutdownSizeCst,
 			parse: DeserializeShutdownXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				if x.ShutdownState == 0 {
+				if x.InetDiagShutdown == 0 {
 					t.Errorf("ShutdownState unset")
 				}
 			},
@@ -146,7 +146,7 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			min:   ClassIDSizeCst,
 			parse: DeserializeClassIDXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				if x.ClassId == 0 {
+				if x.InetDiagClassId == 0 {
 					t.Errorf("ClassId unset")
 				}
 			},
@@ -156,7 +156,7 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			min:   CGroupIDSizeCst,
 			parse: DeserializeCGroupIDXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				if x.CGroup == 0 {
+				if x.InetDiagCgroupId == 0 {
 					t.Errorf("CGroup unset")
 				}
 			},

@@ -11,7 +11,11 @@
 #
 { self }:
 
-final: prev: {
+# `_prev` rather than `prev`: every attribute below is a fresh definition
+# taken from `self`, so the underlying package set is never consulted. The
+# argument still has to be named to keep the overlay's `final: prev:` shape,
+# and the leading underscore is how deadnix is told that is deliberate.
+final: _prev: {
   xtcp2 = self.packages.${final.system}.xtcp2 or null;
   xtcp2-all = self.packages.${final.system}.xtcp2-all or null;
   xtcp2-oci = self.packages.${final.system}.oci-xtcp2 or null;

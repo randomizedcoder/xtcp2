@@ -20,7 +20,6 @@
 #
 {
   pkgs,
-  lib,
   vendoredSource,
   src,
 }:
@@ -112,16 +111,27 @@ pkgs.runCommand "xtcp2-quality-report"
     # golangci-lint v2 replaced --out-format=json with --output.json.path,
     # and ALSO prints a short summary to stdout. Send the summary to a
     # separate `.summary` file so it doesn't collide with the JSON.
+    #
+    # No --timeout here on purpose. Every tier config sets its own
+    # `run.timeout` (.golangci-quick.yml 180s, .golangci.yml 5m,
+    # .golangci-comprehensive.yml 15m) and a CLI --timeout silently
+    # OVERRIDES it. That drifted: this file pinned the quick tier at 60s,
+    # which .golangci-quick.yml had already raised to 180s precisely
+    # because 60s expired before the linters produced a single finding.
+    # golangci-lint then exits 4 (exitcodes.Timeout) having printed
+    # "0 issues.", so the published report showed Tier 0 as clean when it
+    # had in fact never run to completion. One timeout per tier, in the
+    # config the tier already carries — nothing to keep in sync.
     runtool golangci-quick "$RAW/golangci-quick.summary" -- \
-      golangci-lint run --config .golangci-quick.yml --timeout 60s \
+      golangci-lint run --config .golangci-quick.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-quick.json" ./...
     runtool golangci-standard "$RAW/golangci-standard.summary" -- \
-      golangci-lint run --config .golangci.yml --timeout 5m \
+      golangci-lint run --config .golangci.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-standard.json" ./...
     runtool golangci-comprehensive "$RAW/golangci-comprehensive.summary" -- \
-      golangci-lint run --config .golangci-comprehensive.yml --timeout 15m \
+      golangci-lint run --config .golangci-comprehensive.yml \
       --max-issues-per-linter=0 --max-same-issues=0 \
       --output.json.path "$RAW/golangci-comprehensive.json" ./...
 
@@ -140,9 +150,13 @@ pkgs.runCommand "xtcp2-quality-report"
     echo "gofmt=0" >> "$RAW/exit-codes.txt"
 
     # ── gosec ──────────────────────────────────────────────────────────
-    # Mirrors nix/checks/go-sec.nix exclusions verbatim.
+    # Mirrors nix/checks/go-sec.nix exclusions verbatim. Keep the two
+    # lists identical — they drifted once (G702 was added to the gate
+    # and not here, so the report published a high-severity command
+    # injection for cmd/xtcp2's deliberate self-re-exec while
+    # `nix flake check` was green), and nothing mechanically enforces it.
     runtool gosec "$RAW/gosec.json" -- \
-      gosec -exclude=G103,G115,G204,G304 -fmt=json ./...
+      gosec -exclude=G103,G115,G204,G304,G702 -fmt=json ./...
 
     # ── nix-fmt ────────────────────────────────────────────────────────
     # Mirrors nix/checks/nix-fmt.nix
@@ -180,20 +194,36 @@ pkgs.runCommand "xtcp2-quality-report"
         ./...
 
     # ── per-flavor coverage runs ──────────────────────────────────────
-    # The default `go test ./...` above compiles WITHOUT any
-    # `dest_*` build tags, so pkg/xtcp/destinations_{kafka,nats,nsq,
-    # valkey}.go (each guarded by `//go:build dest_<name>`) are
-    # excluded from the profile. Re-run pkg/xtcp/... once per flavor
-    # with the matching tag so the destination files contribute to
-    # coverage. The merged profile then feeds the existing TSV+HTML
-    # post-processing below.
+    # The default `go test ./...` above compiles WITHOUT any `dest_*` or
+    # `enrich_*` build tags, so pkg/xtcp/destinations_{kafka,nats,nsq,
+    # valkey,s3parquet}.go and pkg/xtcp/enrich_{asn,locality}.go (each
+    # guarded by `//go:build <tag>`) are excluded from the profile.
+    # Re-run pkg/xtcp/... once per flavor with the matching tag so those
+    # files contribute to coverage. The merged profile then feeds the
+    # existing TSV+HTML post-processing below.
     #
     # Each per-flavor run is independent and writes to its own .out
     # file; we concatenate them below (skipping the duplicate
     # `mode: atomic` header) and let the existing awk dedupe by
     # max-count-per-block, mirroring what `go tool cover` does.
-    for flavor in kafka nats nsq valkey; do
-      go test -tags "dest_$flavor" \
+    #
+    # `<name>:<build tag>` pairs — the tag no longer derives from the name
+    # now that there are two tag prefixes. Declared once and reused by the
+    # merge loop below so the two cannot drift apart.
+    coverageFlavors=(
+      kafka:dest_kafka
+      nats:dest_nats
+      nsq:dest_nsq
+      valkey:dest_valkey
+      s3parquet:dest_s3parquet
+      asn:enrich_asn
+      locality:enrich_locality
+    )
+
+    for spec in "''${coverageFlavors[@]}"; do
+      flavor="''${spec%%:*}"
+      flavorTag="''${spec#*:}"
+      go test -tags "$flavorTag" \
         -coverprofile="$RAW/coverage-$flavor.out" -covermode=atomic \
         -coverpkg="$coverPkg" \
         ./pkg/xtcp/... \
@@ -208,7 +238,8 @@ pkgs.runCommand "xtcp2-quality-report"
     if [ -s "$RAW/coverage-default.out" ]; then
       head -n 1 "$RAW/coverage-default.out" > "$RAW/coverage.out"
       tail -n +2 "$RAW/coverage-default.out" >> "$RAW/coverage.out"
-      for flavor in kafka nats nsq valkey; do
+      for spec in "''${coverageFlavors[@]}"; do
+        flavor="''${spec%%:*}"
         if [ -s "$RAW/coverage-$flavor.out" ]; then
           tail -n +2 "$RAW/coverage-$flavor.out" >> "$RAW/coverage.out"
         fi
@@ -297,8 +328,22 @@ pkgs.runCommand "xtcp2-quality-report"
     # without aborting under `set -eu`. The earlier `set +e`/`set -e`
     # dance interacted badly with Nix's runCommand wrapper (the
     # WARNING echo never ran on a ratchet breach).
+    #
+    # Build the aggregator and run the binary rather than `go run`ing it.
+    # `go run` does NOT propagate the child's exit status: it prints
+    # "exit status 3" to stderr and itself exits 1 (golang/go#26139).
+    # That made the `-eq 3` branch below unreachable, so every ratchet
+    # breach took the `-ne 0` path and failed the whole derivation —
+    # which is the opposite of the intent, since emit() has already
+    # written the complete markdown by the time the ratchet is checked
+    # (tools/quality-report/main.go: emit() at the top, `return 3` at
+    # the bottom). Verified 2026-09-24 with go 1.25.12.
     qr_rc=0
-    go run ./tools/quality-report \
+    # Build into $TMPDIR, not $RAW — $RAW is copied wholesale into
+    # $out/raw below, and a ~10 MB Go binary does not belong in the
+    # report output.
+    go build -o "$TMPDIR/quality-report-bin" ./tools/quality-report
+    "$TMPDIR/quality-report-bin" \
       -raw-dir "$RAW" \
       -repo-root . \
       -known-failures ./tools/quality-report/known-failures.txt \

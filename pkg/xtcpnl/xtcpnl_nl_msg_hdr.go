@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 )
@@ -53,16 +52,4 @@ func DeserializeNlMsgHdr(data []byte, nlmsghr *NlMsgHdr) (n int, err error) {
 	nlmsghr.Pid = binary.LittleEndian.Uint32(data[12:16])
 
 	return NlMsgHdrReadCst, nil
-}
-
-func DeserializeNlMsgHdrRelection(data []byte, nlmsghr *NlMsgHdr) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, nlmsghr)
-	if err != nil {
-		return 0, err
-	}
-
-	return NlMsgHdrReadCst, err
 }

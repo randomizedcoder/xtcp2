@@ -1,0 +1,10 @@
+name: github-meta
+provider: github
+url: https://api.github.com/meta
+parser: github_meta
+source_type: provider_api
+confidence: authoritative
+defaults:
+  network_owner: github
+  service_operator: github
+enabled: true

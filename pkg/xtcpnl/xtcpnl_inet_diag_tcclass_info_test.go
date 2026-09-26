@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"io"
 	"os"
@@ -28,7 +41,7 @@ func TestDeserializeTrafficClass(t *testing.T) {
 			description: "attribute_tcclass_reflection",
 			filename:    tdAttrTcclass_6_6_44,
 			tc:          TrafficClass(2),
-			Func:        DeserializeTrafficClassReflection,
+			Func:        deserializeTrafficClassReflection,
 		},
 	}
 	for i, test := range tests {
@@ -82,7 +95,7 @@ func BenchmarkDeserializeTrafficClass(b *testing.B) {
 }
 
 func BenchmarkDeserializeTrafficClassReflection(b *testing.B) {
-	DeserializeTrafficClassBoth(b, DeserializeTrafficClassReflection)
+	DeserializeTrafficClassBoth(b, deserializeTrafficClassReflection)
 }
 
 func DeserializeTrafficClassBoth(b *testing.B, fn func(data []byte, tc *TrafficClass) (n int, err error)) {

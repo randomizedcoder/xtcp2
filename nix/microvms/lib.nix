@@ -838,6 +838,208 @@ rec {
       '';
     };
 
+  # mkNlmonCaptureRunner — host runner for the nlmon-capture flavor.
+  #
+  # Same shape as mkDiscoveryBenchRunner (boot, tail both consoles, wait for a
+  # DONE sentinel or --timeout, power off), plus the coverage extractor's
+  # base64 scrape: the guest tars the pcap + sidecars between
+  # XTCP2_NLCAP_DUMP_START/_END markers and this unpacks them into the working
+  # tree so the fixtures can be committed.
+  #
+  # This is a runner (app), not a check, and it has to be: a nix check's
+  # $TMPDIR is private, its source is a read-only store copy, and its result is
+  # binary-cached — you would get a stale pcap and no way to write the real one
+  # into pkg/xtcpnl/testdata/. It also needs /dev/kvm, which the sandbox lacks.
+  mkNlmonCaptureRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-nlmon-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gawk
+        gnugrep
+        gnused
+        gnutar
+        gzip
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=600
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots the nlmon-capture microvm, triggers a scripted"
+              echo "  sequence of real kernel network events (link up/down,"
+              echo "  addr add/del, route add/del, neigh add/del), captures"
+              echo "  them off an nlmon device, extracts the pcap + sidecars,"
+              echo "  then powers off."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>,"
+              echo "  e.g. pkg/xtcpnl/testdata/7_1_8, and must be run from the"
+              echo "  xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        # Same repo-root guard as nix/capture-netlink-fixtures.nix: the default
+        # output path is relative, so running from anywhere else would scatter
+        # a pkg/ tree into the current directory.
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "nlmon-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-nlmon-capture-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 microvm nlmon-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'NLCAP_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          if grep -q 'NLCAP_ERR' "$LOG" 2>/dev/null; then
+            echo "FATAL: guest reported NLCAP_ERR:"
+            grep -E 'NLCAP_ERR' "$LOG" || true
+            exit 2
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: NLCAP_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " trigger sequence (as executed in the guest)"
+        echo "================================================"
+        grep -E 'NLCAP_PHASE|NLCAP_RUN_FAIL|NLCAP_PACKETS' "$LOG" 2>/dev/null || true
+
+        # Extract the tar|gzip|base64 blob. systemd routes the unit's
+        # StandardOutput=journal+console, which prefixes every line with
+        # `[TIME] <identifier>[PID]: `; strip that before decoding. The regex
+        # is deliberately generic rather than hard-coding the unit name — a
+        # base64 line can never begin with `[`, so it cannot over-match.
+        STAGE=$(mktemp -d -t xtcp2-nlcap-XXXX)
+        if grep -q 'XTCP2_NLCAP_DUMP_START' "$LOG" \
+          && grep -q 'XTCP2_NLCAP_DUMP_END' "$LOG"; then
+          awk '/XTCP2_NLCAP_DUMP_START/{flag=1;next} /XTCP2_NLCAP_DUMP_END/{flag=0} flag' "$LOG" \
+            | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' \
+            | tr -d '\r\n ' \
+            | base64 -d 2>/dev/null \
+            | gzip -dc 2>/dev/null \
+            | tar x -C "$STAGE" 2>/dev/null || true
+        else
+          echo "FATAL: no XTCP2_NLCAP_DUMP block in the transcript"
+          exit 2
+        fi
+
+        if [ ! -s "$STAGE/netlink_route_events.pcap" ]; then
+          echo "FATAL: extracted blob has no netlink_route_events.pcap"
+          echo "       staged files:"
+          ls -la "$STAGE" || true
+          exit 2
+        fi
+
+        # Version the output by the GUEST kernel, not the host's — the fixture
+        # documents the kernel that produced it. The guest's `uname -a` sidecar
+        # is the only reliable source for that.
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -f "$STAGE"/* "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        ls -la "$OUT_DIR"
+        echo ""
+        echo "Full transcript kept at: $LOG"
+        echo "PASS: rtnetlink event capture complete"
+        exit 0
+      '';
+    };
+
   # mkClickPipeRateRunner — host runner for the clickhouse-pipeline-rate flavor.
   # Mirrors mkDiscoveryBenchRunner (boot, tail both consoles, wait for a DONE
   # sentinel or --timeout, power off). The in-VM xtcp2-clickpipe-rate monitor
@@ -1439,7 +1641,10 @@ rec {
   #   suffix         (string)  optional name suffix for the wrapper binary
   #   extraSentinels (list)    flavor-specific sentinel tokens surfaced in the
   #                            summary grep on top of baseSentinels + OVERALL.
-  #   timeoutSec     (int)     overall scrape timeout in seconds.
+  #   timeoutSec     (int)     absolute backstop for the scrape, in seconds.
+  #   stallSec       (int)     no-progress watchdog: fail if no new sentinel
+  #                            appears for this long. This, not timeoutSec, is
+  #                            the guard that catches a hang.
   # The self-test sentinels every lifecycle flavor emits (Checks 1-10 +
   # the runtime-control ones). Each flavor's summary grep is
   # `baseSentinels ++ its extraSentinels ++ [ "OVERALL" ]`, so a new
@@ -1477,7 +1682,28 @@ rec {
       # to baseSentinels (e.g. [ "VALKEY_CONSUME" ]). Order is irrelevant —
       # the tokens become a regex alternation.
       extraSentinels ? [ ],
-      timeoutSec ? 180,
+      # Absolute backstop, in seconds. This is deliberately NOT the primary
+      # guard — stallSec is. Keep it high enough that a slow-but-progressing
+      # run can never hit it; it exists only to bound the pathological case
+      # of a VM that dribbles a sentinel forever without finishing.
+      timeoutSec ? 1800,
+      # No-progress watchdog, in seconds. The run fails if no NEW
+      # XTCP2_SELF_TEST_*_{PASS,FAIL} sentinel appears for this long. This is
+      # what actually catches a hang, and it is what makes the runner
+      # load-insensitive: a host under heavy load stretches every check's wall
+      # clock, but it does not stop progress. Raise it per-flavor for anything
+      # with a legitimately long quiet stretch (docker pulls, ClickHouse init).
+      #
+      # Floor: this MUST exceed the longest single in-guest check's silence,
+      # or the watchdog fires mid-check and reports TIMEOUT for what is really
+      # a FAIL. The longest budget in self-test.nix is 45 iterations x 3 s =
+      # 135 s, multiplied by its waitScale (4) = 540 s. Hence 600.
+      #
+      # Measured against that floor on this host at load ~46: a full passing
+      # run took 561 s of guest time across 18 sentinels, and its largest gap
+      # between two sentinels was 187 s (OUTPUT_CONTENT). 600 s leaves ~3.2x
+      # headroom over the worst observed quiet stretch.
+      stallSec ? 600,
       # When true, after a passing OVERALL sentinel the runner also looks
       # for an XTCP2_COVERAGE_DUMP_START / _END block in the log, decodes
       # it (base64 + gzip + tar), writes the resulting Go coverage data
@@ -1515,6 +1741,13 @@ rec {
         SERIAL_PORT=${toString cfg.serialPort}
         VIRTCON_PORT=${toString cfg.virtioPort}
         TIMEOUT=${toString timeoutSec}
+        STALL=${toString stallSec}
+        # Seconds to wait for each console TCP port to accept a connection.
+        # Generous on purpose: on a loaded host qemu can take far longer than
+        # the old hard 30 s to get far enough into boot to open its consoles,
+        # and a missed console means an otherwise-healthy run scrapes an empty
+        # log and reports a bogus timeout.
+        BOOT_WAIT=180
         LOG=$(mktemp -t xtcp2-vm-XXXX.log)
 
         echo "==> launching microvm (${arch}${suffix}); serial=$SERIAL_PORT virtio-console=$VIRTCON_PORT"
@@ -1543,7 +1776,7 @@ rec {
 
         nc_serial_pid=""
         nc_virtcon_pid=""
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 "$BOOT_WAIT"); do
           if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
             nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
             nc_serial_pid=$!
@@ -1551,7 +1784,7 @@ rec {
           fi
           sleep 1
         done
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 "$BOOT_WAIT"); do
           if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
             nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
             nc_virtcon_pid=$!
@@ -1580,8 +1813,23 @@ rec {
           fi
         ' EXIT
 
-        # Wait for the overall sentinel or for timeout
+        # Wait for the overall sentinel, for a stall, or for the absolute cap.
+        #
+        # This used to be a flat wall-clock budget with no notion of progress:
+        # a run healthily emitting sentinel after sentinel was killed at
+        # exactly the same moment as one that wedged on boot. On a busy host
+        # (this one routinely sits at load ~45 on 24 cores, and the guest gets
+        # 2 vCPUs) that made the check fail for reasons unrelated to the code
+        # under test.
+        #
+        # Now the stall timer resets every time a NEW self-test sentinel lands.
+        # A slow-but-progressing run survives up to the absolute backstop,
+        # while a genuine hang still fails in ~STALL seconds instead of burning
+        # the whole budget.
         waited=0
+        stalled=0
+        seen=0
+        last_sentinel="(none)"
         rc=2
         while [ "$waited" -lt "$TIMEOUT" ]; do
           if grep -q 'XTCP2_SELF_TEST_OVERALL_PASS' "$LOG"; then
@@ -1590,6 +1838,21 @@ rec {
           if grep -q 'XTCP2_SELF_TEST_OVERALL_FAIL' "$LOG"; then
             rc=1; break
           fi
+
+          # Progress probe. grep -c prints 0 but exits 1 when nothing matches,
+          # and errexit/pipefail are on (writeShellApplication), hence || true.
+          now=$(grep -cE 'XTCP2_SELF_TEST_[A-Z0-9_]+_(PASS|FAIL)' "$LOG" || true)
+          if [ "$now" -gt "$seen" ]; then
+            seen=$now
+            stalled=0
+            last_sentinel=$(grep -oE 'XTCP2_SELF_TEST_[A-Z0-9_]+_(PASS|FAIL)' "$LOG" | tail -n 1 || true)
+          else
+            stalled=$((stalled + 2))
+            if [ "$stalled" -ge "$STALL" ]; then
+              break
+            fi
+          fi
+
           sleep 2
           waited=$((waited + 2))
         done
@@ -1604,7 +1867,20 @@ rec {
         case "$rc" in
           0) echo "PASS: all checks passed" ;;
           1) echo "FAIL: one or more checks failed (see lines above)" ;;
-          *) echo "TIMEOUT: no overall sentinel after ''${TIMEOUT}s — last 40 log lines:"; tail -n 40 "$LOG" ;;
+          *)
+            # Say WHICH kind of timeout and how far the run actually got. The
+            # difference between "this host is slow" and "this wedged in
+            # GRPC_ROUNDTRIP" is the whole diagnostic value of this line.
+            if [ "$stalled" -ge "$STALL" ]; then
+              echo "TIMEOUT: no new sentinel for ''${stalled}s (stall watchdog, limit ''${STALL}s)"
+            else
+              echo "TIMEOUT: hit the absolute cap of ''${TIMEOUT}s while still making progress" \
+                   "— raise timeoutSec for this flavor"
+            fi
+            echo "         progress: $seen sentinel(s) seen, last was $last_sentinel, elapsed ''${waited}s"
+            echo "         last 40 log lines:"
+            tail -n 40 "$LOG"
+            ;;
         esac
         ${
           if scrapeCoverage then

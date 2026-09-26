@@ -30,8 +30,10 @@ This project is a complete rewrite of the original [xtcp](https://github.com/ran
 
 Each feature has a dedicated document with its own table of contents and component breakdown.
 
-### [Netlink TCP collection](netlink-collection.md)
+### [Netlink TCP collection](netlink/collection.md)
 Reads TCP socket state from the kernel via the `inet_diag` netlink interface. A registry of 13 attribute deserializers (`info`, `cong`, `meminfo`, `skmem`, `bbr`, `dctcp`, `vegas`, `tos`, `tc`, `shut`, `classid`, `cgroup`, `sockopt`) decodes each socket's attributes into a flat record; you choose which to decode with `-deserializers`.
+
+All netlink documentation lives together in **[docs/netlink/](netlink/)** — the production read path, the coverage audit against `vishvananda/netlink`, the expansion roadmap, and its status tracker.
 
 ### [Multi-namespace visibility](network-namespaces.md)
 Discovers network namespaces under `/run/netns/` and `/run/docker/netns/`, watches them with inotify, and runs one netlink reader per namespace via `setns`. Namespaces that appear and disappear (container/pod churn) are reconciled continuously, with careful OS thread management to avoid leaks.
@@ -65,6 +67,8 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Fleet jitter & upload backoff](design-jitter-and-backoff.md) — thundering-herd avoidance: poll jitter, jittered S3 flush (size + time), and jittered proportional upload retry, for fleet-scale (5–10k machine) deployments.
 - [Namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — proposed pull-based (pre-poll) reconcile, proportional/optional background reconcile, inotify overflow self-heal, and the dir-scan vs `/proc`-scan discovery analysis (with the `discovery-bench` benchmark).
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
+- [Netlink documentation](netlink/) — the whole netlink cluster: the [production read path](netlink/collection.md), the [coverage audit](netlink/parsing-comparison.md) against `vishvananda/netlink`, the [expansion roadmap](netlink/coverage-expansion.md) (read-only constraint, target subpackage layout, generalising the `nlmon` capture harness to every protocol family, the multicast listener), and its [status tracker](netlink/coverage-status.md).
+- [Non-blocking netlink](netlink/nonblocking.md) — replacing the blocking `recvmsg` read path, and why it bounds OS-thread scaling.
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
 - [Stability & soak testing](stability-testing.md) — the soak/perf testing campaign: methods, bugs found & fixed, the OS-thread scaling model, soak results, and operator guidance (`-netlinkers` / `-maxThreads`).

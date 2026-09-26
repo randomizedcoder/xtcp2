@@ -16,7 +16,7 @@ SELECT
     inet_diag_msg_socket_source_port,
     inet_diag_msg_socket_destination_port,
     tcp_info_rtt,
-    tcp_info_rtt_var,
+    tcp_info_rttvar,
     tcp_info_min_rtt,
     tcp_info_rcv_rtt,
     tcp_info_busy_time,

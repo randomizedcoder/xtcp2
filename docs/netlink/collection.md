@@ -6,6 +6,7 @@ xtcp2 reads TCP socket state directly from the Linux kernel using the `inet_diag
 
 - [How it works](#how-it-works)
 - [The netlink layer (`pkg/xtcpnl`)](#the-netlink-layer-pkgxtcpnl)
+- [rtnetlink: dumps and events](#rtnetlink-dumps-and-events)
 - [Netlinkers](#netlinkers)
 - [Attribute deserializers](#attribute-deserializers)
 - [Buffer sizing](#buffer-sizing)
@@ -22,7 +23,65 @@ For each network namespace, xtcp2 opens a netlink socket and sends an `inet_diag
 
 - `pkg/xtcpnl/xtcpnl.go` — netlink socket lifecycle and `inet_diag` request building.
 - `pkg/xtcpnl/xtcpnl_inet_diag_*.go` — the per-attribute decoders that parse kernel structs (tcp_info, congestion, meminfo, BBR, DCTCP, Vegas, sockopt, class ID, cgroup ID, shutdown, TOS, traffic class, and others) out of raw bytes.
-- The package also includes pcap support for capturing raw netlink packets, which feeds the offline test fixtures.
+- `pkg/xtcpnl/xtcpnl_rtnetlink.go` — the *other* netlink protocol the package speaks: `NETLINK_ROUTE`. Request builders, the multipart receive loop (`NLMSG_DONE` / `NLMSG_ERROR` / `NLMSG_NOOP`, `NLM_F_DUMP_INTR` retry), and the generic `nlattr` TLV walker that every family below shares.
+- `pkg/xtcpnl/xtcpnl_ifinfomsg.go`, `xtcpnl_ifaddrmsg.go`, `xtcpnl_rtmsg.go`, `xtcpnl_ndmsg.go` — the four rtnetlink family headers (`ifinfomsg` / `ifaddrmsg` / `rtmsg` / `ndmsg`) and their attribute decoders, producing `LinkInfo` / `AddrInfo` / `RouteInfo` / `NeighInfo`.
+- `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` — the add-vs-remove dispatch layer over those four (see below).
+- `pkg/xtcpnl/xtcpnl_pcap.go` — pcap support for capturing raw netlink packets, which feeds the offline test fixtures. `ParsePcap` walks a whole multi-record file; `ParseNetlinkPcap` additionally asserts `DLT_NETLINK`, and `PcapRecord.NetlinkPayload` strips the 16-byte Linux SLL cooked header to yield the netlink family and datagram.
+
+## rtnetlink: dumps and events
+
+`NETLINK_ROUTE` gives xtcp2 two different things, and the distinction matters because only the parsing is shared.
+
+**Dumps** are solicited: `DumpRtnetlink` sends an `RTM_GETLINK` / `RTM_GETADDR` / `RTM_GETROUTE` request and reads the multipart reply, filtering on the request's `nlmsg_seq` and stopping at `NLMSG_DONE`. This is what feeds `pkg/localnet` (the local address/route table used by locality enrichment) and it runs on a timer.
+
+**Events** are unsolicited: the kernel multicasts `RTM_NEWLINK` / `RTM_DELLINK`, `RTM_NEWADDR` / `RTM_DELADDR`, `RTM_NEWROUTE` / `RTM_DELROUTE`, `RTM_NEWNEIGH` / `RTM_DELNEIGH` to whoever has joined the relevant `RTNLGRP_*` groups. A notification is never `NLMSG_DONE`-terminated and answers no request, so `DumpRtnetlink` — which sends first, filters on its own `nlmsg_seq` and stops at `DONE` — cannot drive it. That listener is tracked as **TODO-SOON.md §13**.
+
+Telling a notification apart from a request or a dump reply is `IsRtnetlinkNotification`, and it tests **`nlmsg_flags`**, not pid/seq:
+
+| `nlmsg_flags` | meaning |
+|---|---|
+| `NLM_F_REQUEST` set | a request |
+| `NLM_F_MULTI` set | part of a multipart dump reply |
+| neither | an unsolicited notification |
+
+The tempting shortcut — "a notification answers no request, so `nlmsg_pid == 0 && nlmsg_seq == 0`" — is wrong in both directions, and the committed capture proves it. When a change originates in userspace the kernel *echoes the originating port and sequence* into the notification, so the `RTM_NEWROUTE` for `ip route add 198.51.100.0/24` arrives with `pid=725, seq=1790381641`; a pid/seq filter silently drops exactly the events an operator caused. Meanwhile `ip` sends its requests on an unbound socket, so the *request* header reads `pid=0` and the same filter lets it through. Only kernel-internal changes — carrier transitions, autoconfigured routes, the neighbour state machine — actually carry zeros, which is why the mistake survives testing against link events alone.
+
+The bodies are identical in both directions (`RTM_DELLINK` has the same `ifinfomsg` + `IFLA_*` layout as `RTM_NEWLINK`), so `ParseRtnetlinkEvent` reuses the dump decoders unchanged and adds only the `EventAction` (add / del) discriminator that `nlmsg_type` carries:
+
+```go
+ev, err := xtcpnl.ParseRtnetlinkEvent(hdr.Type, body)
+if errors.Is(err, xtcpnl.ErrNotAnEvent) {
+    continue // control message, or an RTM_* family we do not decode
+}
+switch e := ev.(type) {
+case xtcpnl.LinkEvent:  // e.Action, e.Link.IsCarrierDown(), …
+case xtcpnl.AddrEvent:  // e.Action, e.Addr.Address, …
+case xtcpnl.RouteEvent: // e.Action, e.Route.Dst, …
+case xtcpnl.NeighEvent: // e.Action, e.Neigh.IsReachable(), …
+}
+```
+
+For links, `LinkInfo` separates the two ways an interface stops working — `IsAdminDown` (`IFF_UP` clear, someone ran `ip link set dev X down`) versus `IsCarrierDown` (`IFF_UP` set but `IFF_RUNNING` clear, the cable is out or the veth peer went away). `ifi_change` says which `IFF_*` bits *this* message reports as having changed, which is how you tell "this link happens to be down" from "this link just went down"; a dump reply always carries 0.
+
+Events are parsed but not yet exported — they do not fit `XtcpFlatRecord`, which is strictly one row per socket. The proto / ClickHouse / destination work is **TODO-SOON.md §14**.
+
+### Regenerating the fixtures
+
+Two harnesses, both producing real `nlmon` captures under `pkg/xtcpnl/testdata/<kernel>/`:
+
+| Command | Captures | Where it runs |
+|---|---|---|
+| `nix run .#capture-netlink-fixtures` | **dumps** — `RTM_GET*` request/reply pairs | on the host, via `sudo` |
+| `nix run .#microvm-x86_64-nlmon-capture` | **events** — a scripted link / addr / route / neigh sequence | in a hermetic microVM, no `sudo` |
+
+Use the microVM one for events. `nlmon` mirrors *every* netlink datagram in its namespace, so on a workstation the capture drowns in NetworkManager and nl80211 chatter; the guest is quiet by construction (the flavor disables `xtcp2.service`, whose own periodic dumps would otherwise swamp it). Run both from the repo root.
+
+Two things about that capture are worth knowing before you read one:
+
+- **It is deliberately mixed.** `ip` issues an `RTM_GET*` dump before most subcommands, so solicited replies sit alongside the notifications — in the committed 7.1.4 capture, 123 dump replies and 33 requests against 355 notifications. The generator test (`xtcpnl_extract_event_fixtures_test.go`) separates them with `IsRtnetlinkNotification`, in Go rather than in BPF, because BPF cannot reach past the first netlink message in a datagram.
+- **`nlmon` records every *delivery*, not every event.** One logical notification reaching three subscribed sockets appears three times. That is why the fixture tests pin exact counts as a regression check but assert *content* against the `ip_monitor_all` sidecar, which is a single socket's view: 3 `[LINK]Deleted` sidecar lines correspond to 9 `RTM_DELLINK` records.
+
+A corollary that bit us once: **the kernel does not emit to a multicast group with no subscriber.** The first version of the capture script recorded zero neighbour notifications — nothing in the guest joins `RTNLGRP_NEIGH` — so the script now runs `ip monitor all` for the duration, both to force the notifications to exist and to save its decoded output as the sidecar.
 
 ## Netlinkers
 
@@ -30,7 +89,7 @@ Within a namespace, the actual receive loop lives in a *netlinker*:
 
 - `pkg/xtcp/netlinker.go` — a goroutine that sends the dump request and loops on `recvfrom`, handing each raw packet to the deserializer.
 - `pkg/xtcp/init_netlinkers.go` — spins up `-netlinkers` readers per namespace so hosts with many flows can parse replies in parallel rather than serializing on one goroutine.
-- `pkg/xtcp/netlinker_iouring.go` — an alternative receive loop that uses `io_uring` instead of blocking `recvfrom` (see [performance](performance.md)).
+- `pkg/xtcp/netlinker_iouring.go` — an alternative receive loop that uses `io_uring` instead of blocking `recvfrom` (see [performance](../performance.md)).
 
 ## Attribute deserializers
 
@@ -181,6 +240,7 @@ Netlink dump replies can be large, so the receive buffer is tunable. The buffer 
 
 ## See also
 
-- [Polling & batching](polling-and-batching.md) — how decoded records are accumulated and flushed.
-- [Network namespaces](network-namespaces.md) — how a netlink socket is opened per namespace.
-- [Performance](performance.md) — the `io_uring` receive path and pooled buffers.
+- [Netlink parsing comparison](parsing-comparison.md) — how this package's coverage compares to `vishvananda/netlink`, and which gaps are deliberate.
+- [Polling & batching](../polling-and-batching.md) — how decoded records are accumulated and flushed.
+- [Network namespaces](../network-namespaces.md) — how a netlink socket is opened per namespace.
+- [Performance](../performance.md) — the `io_uring` receive path and pooled buffers.

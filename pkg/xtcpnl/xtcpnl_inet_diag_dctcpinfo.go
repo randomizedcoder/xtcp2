@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -84,18 +83,6 @@ func DeserializeDCTCPInfo(data []byte, d *DCTCPInfo) (n int, err error) {
 	d.ABTOT = binary.LittleEndian.Uint32(data[12:16])
 
 	return DCTCPInfoReadCst, nil
-}
-
-func DeserializeDCTCPInfoReflection(data []byte, d *DCTCPInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, d)
-	if err != nil {
-		return 0, err
-	}
-
-	return DCTCPInfoReadCst, err
 }
 
 func DeserializeDCTCPInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {

@@ -161,6 +161,18 @@ func (c *xtcpConfigService) Set(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	// Reject a config that turns on a compile-time-gated enricher this binary
+	// does not contain. Set ends in syscall.Exec of the SAME binary (see
+	// execSelfWithConfig), so a missing `enrich_<feature>` build tag cannot be
+	// resolved by restarting — accepting it would soft-restart the daemon into
+	// a config it can never honor and silently leave the columns empty. The
+	// startup path makes the same check fatal; here it is a FailedPrecondition
+	// so the running daemon keeps serving its old, working config.
+	if err := checkConfigEnrichersCompiledIn(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "enricherNotCompiledIn", "error").Inc()
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+
 	// Secret preservation: an operator does Get → edit → Set, and Get redacts
 	// the S3 credentials (see below). Empty credential fields therefore mean
 	// "unchanged", not "clear" — inherit them from the running config so a

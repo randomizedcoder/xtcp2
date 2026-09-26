@@ -186,6 +186,21 @@ const (
 	// selection; empty = auto-detect from the default routes.
 	uplinkInterfacesCst = ""
 	populateNsidCst     = false
+	enrichLocalityCst   = false
+	// localityRefreshIntervalCst throttles the full per-namespace rtnetlink
+	// re-discovery: every namespace is re-dumped at most this often on the
+	// reconcile path so interface/route changes are picked up within a minute.
+	// New namespaces are dumped on the next reconcile regardless, and failed or
+	// loopback-only namespaces retry on their own 30s-5m backoff. 0 = discover
+	// each namespace once and never refresh (static topologies only).
+	localityRefreshIntervalCst = 60 * time.Second
+	// ASN enrichment is off by default and the artifact path has no sensible
+	// default. asnRefreshIntervalCst re-stats the artifact hourly and reloads it
+	// only when its size/mtime changed, so a refreshed — or late-arriving —
+	// ipfeed-collector file is picked up without a restart. 0 = load once.
+	enrichAsnCst          = false
+	asnDbPathCst          = ""
+	asnRefreshIntervalCst = 1 * time.Hour
 
 	ipv4TtlCst      uint = 0
 	ipv6HopLimitCst uint = 0
@@ -284,6 +299,13 @@ type mainFlags struct {
 	uplinkInterfaces *string
 	populateNsid     *bool
 
+	enrichAsn          *bool
+	asnDbPath          *string
+	asnRefreshInterval *time.Duration
+
+	enrichLocality          *bool
+	localityRefreshInterval *time.Duration
+
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
 	grpcPort           *uint
@@ -321,6 +343,19 @@ func defaultDestFor(libs []string, lookup func(string) string) string {
 	default:
 		return destCst
 	}
+}
+
+// enricherBuildNote is the sentence appended to a compile-time-gated
+// enricher's flag usage so `-help` describes the artifact in front of the
+// operator. Without it a slim image advertises ASN/locality enrichment it
+// physically cannot perform, and the operator only finds out when the daemon
+// refuses to start.
+func enricherBuildNote(name string) string {
+	if xtcp.EnricherCompiledIn(name) {
+		return " COMPILED IN to this binary."
+	}
+	return " NOT COMPILED IN to this binary: setting this flag is a startup error; " +
+		"rebuild with -tags enrich_" + name + " or use an image whose tag carries the enrichment flavor."
 }
 
 // defaultDest is the `-dest` flag default, derived from the destinations
@@ -424,6 +459,11 @@ func defineEnrichmentFlags(f *mainFlags) {
 	f.uplinkCount = flag.Uint("uplinkCount", uplinkCountCst, "number of uplink slots to populate for LLDP/NIC enrichment (hosts are typically dual-homed = 2; max 2). Falls back to UPLINK_COUNT env.")
 	f.uplinkInterfaces = flag.String("uplinkInterfaces", uplinkInterfacesCst, "comma-separated explicit uplink interface names (e.g. \"eth0,eth1\") overriding default-route auto-detection for -enrichLldp/-enrichNic. Falls back to UPLINK_INTERFACES env.")
 	f.populateNsid = flag.Bool("populateNsid", populateNsidCst, "best-effort: query each namespace's NETNSA_NSID via rtnetlink into the nsid column (usually 0/unassigned for docker/containerd; netns_inode is the stable key). Falls back to POPULATE_NSID env.")
+	f.enrichAsn = flag.Bool("enrichAsn", enrichAsnCst, "best-effort: longest-prefix-match each socket's destination against the ipfeed-collector Parquet artifact (-asnDbPath) and stamp enrich_socket_dest_asn / enrich_socket_dest_network_owner. Self and local-subnet destinations (see -enrichLocality) skip the lookup. Non-fatal when the artifact is missing. Falls back to ENRICH_ASN env."+enricherBuildNote(xtcp.EnricherAsn))
+	f.asnDbPath = flag.String("asnDbPath", asnDbPathCst, "path to the ipfeed-collector Parquet artifact (prefix -> asn, network_owner) used by -enrichAsn. Falls back to ASN_DB_PATH env.")
+	f.asnRefreshInterval = flag.Duration("asnRefreshInterval", asnRefreshIntervalCst, "how often -enrichAsn re-stats -asnDbPath and reloads it when its size/mtime changed (also how often a missing artifact is retried); 0 = load once at startup, never reload. Falls back to ASN_REFRESH_INTERVAL env.")
+	f.enrichLocality = flag.Bool("enrichLocality", enrichLocalityCst, "best-effort: per namespace, dump the local addresses + routing table via rtnetlink and classify each socket's destination as self/local-subnet/remote, stamping the enrich_socket_dest_locality + interface-name columns (bound idiag_if and route egress). Non-fatal on read failure. Falls back to ENRICH_LOCALITY env."+enricherBuildNote(xtcp.EnricherLocality))
+	f.localityRefreshInterval = flag.Duration("localityRefreshInterval", localityRefreshIntervalCst, "how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.")
 }
 
 func printFlags(f *mainFlags) {
@@ -481,6 +521,15 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*uplinkCount:", *f.uplinkCount)
 	fmt.Println("*uplinkInterfaces:", *f.uplinkInterfaces)
 	fmt.Println("*populateNsid:", *f.populateNsid)
+	fmt.Println("*enrichAsn:", *f.enrichAsn)
+	fmt.Println("*asnDbPath:", *f.asnDbPath)
+	fmt.Println("*asnRefreshInterval:", *f.asnRefreshInterval)
+	fmt.Println("*enrichLocality:", *f.enrichLocality)
+	fmt.Println("*localityRefreshInterval:", *f.localityRefreshInterval)
+	// Which enrichers this artifact actually contains. Printed next to the
+	// flags because the two together are what determine whether the enrich_*
+	// columns will be populated; either one alone is misleading.
+	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
 	fmt.Println("*d:", *f.d)
 }
 
@@ -535,21 +584,26 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		Location:                     *f.location,
 		Hostname:                     *f.hostname,
 		// DaemonVersion: build provenance (-ldflags) stamped on every record.
-		DaemonVersion:         versionString(),
-		ResolveContainerId:    *f.resolveContainerId,
-		EnrichContainerEnable: *f.enrichContainer,
-		DockerSocketPath:      *f.dockerSocket,
-		EnrichLldpEnable:      *f.enrichLldp,
-		LldpdSocketPath:       *f.lldpdSocket,
-		LldpdVersionHint:      *f.lldpdVersionHint,
-		EnrichNicEnable:       *f.enrichNic,
-		UplinkCount:           uint32(*f.uplinkCount),
-		UplinkInterfaces:      splitCSV(*f.uplinkInterfaces),
-		PopulateNsid:          *f.populateNsid,
-		Ipv4Ttl:               uint32(*f.ipv4Ttl),
-		Ipv6HopLimit:          uint32(*f.ipv6HopLimit),
-		GrpcPort:              uint32(*f.grpcPort),
-		EnabledDeserializers:  des,
+		DaemonVersion:           versionString(),
+		ResolveContainerId:      *f.resolveContainerId,
+		EnrichContainerEnable:   *f.enrichContainer,
+		DockerSocketPath:        *f.dockerSocket,
+		EnrichLldpEnable:        *f.enrichLldp,
+		LldpdSocketPath:         *f.lldpdSocket,
+		LldpdVersionHint:        *f.lldpdVersionHint,
+		EnrichNicEnable:         *f.enrichNic,
+		UplinkCount:             uint32(*f.uplinkCount),
+		UplinkInterfaces:        splitCSV(*f.uplinkInterfaces),
+		PopulateNsid:            *f.populateNsid,
+		EnrichAsnEnable:         *f.enrichAsn,
+		AsnDbPath:               *f.asnDbPath,
+		AsnRefreshInterval:      durationpb.New(*f.asnRefreshInterval),
+		EnrichLocalityEnable:    *f.enrichLocality,
+		LocalityRefreshInterval: durationpb.New(*f.localityRefreshInterval),
+		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
+		Ipv6HopLimit:            uint32(*f.ipv6HopLimit),
+		GrpcPort:                uint32(*f.grpcPort),
+		EnabledDeserializers:    des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
@@ -1449,6 +1503,26 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.EnrichNicEnable = v
 		logEnv("ENRICH_NIC", fmt.Sprintf("c.EnrichNicEnable:%t", v), debugLevel)
 	}
+	if v, ok := envBool("ENRICH_ASN"); ok {
+		c.EnrichAsnEnable = v
+		logEnv("ENRICH_ASN", fmt.Sprintf("c.EnrichAsnEnable:%t", v), debugLevel)
+	}
+	if v, ok := envString("ASN_DB_PATH"); ok {
+		c.AsnDbPath = v
+		logEnv("ASN_DB_PATH", fmt.Sprintf("c.AsnDbPath:%s", v), debugLevel)
+	}
+	if d, ok := envDuration("ASN_REFRESH_INTERVAL"); ok {
+		c.AsnRefreshInterval = durationpb.New(d)
+		logEnv("ASN_REFRESH_INTERVAL", fmt.Sprintf("c.AsnRefreshInterval:%s", c.AsnRefreshInterval.String()), debugLevel)
+	}
+	if v, ok := envBool("ENRICH_LOCALITY"); ok {
+		c.EnrichLocalityEnable = v
+		logEnv("ENRICH_LOCALITY", fmt.Sprintf("c.EnrichLocalityEnable:%t", v), debugLevel)
+	}
+	if d, ok := envDuration("LOCALITY_REFRESH_INTERVAL"); ok {
+		c.LocalityRefreshInterval = durationpb.New(d)
+		logEnv("LOCALITY_REFRESH_INTERVAL", fmt.Sprintf("c.LocalityRefreshInterval:%s", c.LocalityRefreshInterval.String()), debugLevel)
+	}
 	if v, ok := envUint32("UPLINK_COUNT"); ok {
 		c.UplinkCount = v
 		logEnv("UPLINK_COUNT", fmt.Sprintf("c.UplinkCount:%d", v), debugLevel)
@@ -1530,6 +1604,12 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.UplinkCount:", c.UplinkCount)
 	fmt.Println("c.UplinkInterfaces:", c.UplinkInterfaces)
 	fmt.Println("c.PopulateNsid:", c.PopulateNsid)
+	fmt.Println("c.EnrichAsnEnable:", c.EnrichAsnEnable)
+	fmt.Println("c.AsnDbPath:", c.AsnDbPath)
+	fmt.Println("c.AsnRefreshInterval:", c.AsnRefreshInterval)
+	fmt.Println("c.EnrichLocalityEnable:", c.EnrichLocalityEnable)
+	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
+	fmt.Println("c.LocalityRefreshInterval:", c.LocalityRefreshInterval)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
 	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
 }

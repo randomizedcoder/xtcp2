@@ -1,8 +1,8 @@
 //
 // xTCP - config
 //
-// These are all the structs relating to the TCP diagnotic module in the kernel
-//
+// Runtime configuration of the xtcp2 daemon, served and mutated over gRPC
+// (ConfigService) and mirrored one-to-one by the cmd/xtcp2 CLI flags / env.
 //
 // Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
 
@@ -689,6 +689,26 @@ func (x *SetEnvelopeFlushResponse) GetConfig() *XtcpConfig {
 }
 
 // xtcp configuration
+//
+// Field-number layout (renumbered into subject blocks 2026-09; the binary form
+// is never persisted — it only crosses the gRPC hop between xtcp2 and
+// xtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and
+// protojson/prototext map by NAME — so renumbering is safe). Add new knobs in
+// the free space of the matching block; open a new block above 250 for a new
+// subject.
+//
+//	10-39    polling & netlink (dump cadence, netlinker plumbing, io_uring)
+//	40-49    namespace reconcile
+//	50-59    capture / debug
+//	60-79    output, destination-agnostic (dest, marshal, csv, envelope)
+//	80-99    kafka destination
+//	100-129  s3parquet destination
+//	130-149  identity & labels stamped on every record
+//	150-159  network knobs for xtcp2's own listeners
+//	160-169  gRPC
+//	170-179  profiling
+//	200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,
+//	         nsid 230s, asn 240-244, locality 245-249)
 type XtcpConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Netlink socket timeout in milliseconds
@@ -698,38 +718,99 @@ type XtcpConfig struct {
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
-	PollFrequency *durationpb.Duration `protobuf:"bytes,20,opt,name=poll_frequency,json=pollFrequency,proto3" json:"poll_frequency,omitempty"`
+	PollFrequency *durationpb.Duration `protobuf:"bytes,11,opt,name=poll_frequency,json=pollFrequency,proto3" json:"poll_frequency,omitempty"`
 	// Poll timeout per name space
 	// Must be less than the poll frequency
-	PollTimeout *durationpb.Duration `protobuf:"bytes,30,opt,name=poll_timeout,json=pollTimeout,proto3" json:"poll_timeout,omitempty"`
+	PollTimeout *durationpb.Duration `protobuf:"bytes,12,opt,name=poll_timeout,json=pollTimeout,proto3" json:"poll_timeout,omitempty"`
+	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
+	// both the startup delay before the first poll and each subsequent tick.
+	// 0 disables (immediate first poll, fixed interval). Default 20. See
+	// docs/design-jitter-and-backoff.md.
+	PollJitterPct uint32 `protobuf:"varint,13,opt,name=poll_jitter_pct,json=pollJitterPct,proto3" json:"poll_jitter_pct,omitempty"`
 	// Maximum number of loops, or zero (0) for forever
-	MaxLoops uint64 `protobuf:"varint,40,opt,name=max_loops,json=maxLoops,proto3" json:"max_loops,omitempty"`
+	MaxLoops uint64 `protobuf:"varint,14,opt,name=max_loops,json=maxLoops,proto3" json:"max_loops,omitempty"`
 	// Netlinker goroutines per netlink socket ( recommend 1,2,4 range )
 	// Netlinkers read the tcp-diag response messages from the netlink socket
 	// If you have a large number of
-	Netlinkers uint32 `protobuf:"varint,50,opt,name=netlinkers,proto3" json:"netlinkers,omitempty"`
+	Netlinkers uint32 `protobuf:"varint,15,opt,name=netlinkers,proto3" json:"netlinkers,omitempty"`
 	// netlinkerDoneCh channel size
 	// This channel is used between the netlinkers and the poller
 	// Check the prom counter to see if the channel is too small
 	// d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
-	NetlinkersDoneChanSize uint32 `protobuf:"varint,51,opt,name=netlinkers_done_chan_size,json=netlinkersDoneChanSize,proto3" json:"netlinkers_done_chan_size,omitempty"`
+	NetlinkersDoneChanSize uint32 `protobuf:"varint,16,opt,name=netlinkers_done_chan_size,json=netlinkersDoneChanSize,proto3" json:"netlinkers_done_chan_size,omitempty"`
 	// nlmsg_seq sequence number (start). This gets incremented.
-	NlmsgSeq uint32 `protobuf:"varint,60,opt,name=nlmsg_seq,json=nlmsgSeq,proto3" json:"nlmsg_seq,omitempty"`
+	NlmsgSeq uint32 `protobuf:"varint,17,opt,name=nlmsg_seq,json=nlmsgSeq,proto3" json:"nlmsg_seq,omitempty"`
 	// netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
 	// recommend using 0
-	PacketSize uint64 `protobuf:"varint,70,opt,name=packet_size,json=packetSize,proto3" json:"packet_size,omitempty"`
+	PacketSize uint64 `protobuf:"varint,18,opt,name=packet_size,json=packetSize,proto3" json:"packet_size,omitempty"`
 	// netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply
-	PacketSizeMply uint32 `protobuf:"varint,80,opt,name=packet_size_mply,json=packetSizeMply,proto3" json:"packet_size_mply,omitempty"`
+	PacketSizeMply uint32 `protobuf:"varint,19,opt,name=packet_size_mply,json=packetSizeMply,proto3" json:"packet_size_mply,omitempty"`
+	// modulus. Report every X socket diag messages to output
+	Modulus uint64 `protobuf:"varint,20,opt,name=modulus,proto3" json:"modulus,omitempty"`
+	// Which INET_DIAG_* extension deserializers run (keyed by short name:
+	// info, skmem, cong, tos, tc, shut, vegas, dctcp, bbr, classid, sockopt,
+	// cgroup, meminfo). Unset = daemon defaults.
+	EnabledDeserializers *EnabledDeserializers `protobuf:"bytes,21,opt,name=enabled_deserializers,json=enabledDeserializers,proto3" json:"enabled_deserializers,omitempty"`
+	// When true, route netlink reads and raw-socket destination writes
+	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
+	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
+	// flag — they continue to use their own client sockets unchanged.
+	IoUring bool `protobuf:"varint,22,opt,name=io_uring,json=ioUring,proto3" json:"io_uring,omitempty"`
+	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
+	// values reduce io_uring_enter syscalls per dump cycle on hosts with
+	// many sockets, at the cost of more pinned buffers from packet pool.
+	// Ignored unless io_uring=true. Default 64.
+	IoUringRecvBatchSize uint32 `protobuf:"varint,23,opt,name=io_uring_recv_batch_size,json=ioUringRecvBatchSize,proto3" json:"io_uring_recv_batch_size,omitempty"`
+	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
+	// userland loop overhead but increase scheduling latency for the
+	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
+	IoUringCqeBatchSize uint32 `protobuf:"varint,24,opt,name=io_uring_cqe_batch_size,json=ioUringCqeBatchSize,proto3" json:"io_uring_cqe_batch_size,omitempty"`
+	// Period of the background namespace-reconcile ticker (Method B /proc scan
+	// that converges the tracked namespace set). With reconcile_before_poll the
+	// Poller reconciles every cycle and is the real discovery mechanism, so this
+	// background pass is an occasional safety-net expected to find nothing
+	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
+	// so operators can confirm from the counters that it is redundant. It still
+	// matters when the poller is idle or disabled. 0 disables the background
+	// ticker entirely (the startup reconcile still runs once).
+	ReconcileFrequency *durationpb.Duration `protobuf:"bytes,40,opt,name=reconcile_frequency,json=reconcileFrequency,proto3" json:"reconcile_frequency,omitempty"`
+	// Run a namespace reconcile immediately before each poll cycle, so a
+	// namespace that appeared since the last cycle is entered and gets a socket
+	// within ~1 poll interval instead of waiting for the background ticker. Ties
+	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
+	// mutex-serialized with the background reconciler. Default true.
+	ReconcileBeforePoll bool `protobuf:"varint,41,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
 	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
 	// xtcp will capture this many Netlink response packets when it starts
 	// This is PER netlinker
-	WriteFiles uint32 `protobuf:"varint,90,opt,name=write_files,json=writeFiles,proto3" json:"write_files,omitempty"`
+	WriteFiles uint32 `protobuf:"varint,50,opt,name=write_files,json=writeFiles,proto3" json:"write_files,omitempty"`
 	// Write files path
-	CapturePath string `protobuf:"bytes,100,opt,name=capture_path,json=capturePath,proto3" json:"capture_path,omitempty"`
-	// modulus. Report every X socket diag messages to output
-	Modulus uint64 `protobuf:"varint,110,opt,name=modulus,proto3" json:"modulus,omitempty"`
+	CapturePath string `protobuf:"bytes,51,opt,name=capture_path,json=capturePath,proto3" json:"capture_path,omitempty"`
+	// Write marshalled data to dest_write_files number of files ( to allow debugging of the serialization )
+	// xtcp will capture this many examples of the marshalled data
+	// This is PER poller
+	DestWriteFiles uint32 `protobuf:"varint,52,opt,name=dest_write_files,json=destWriteFiles,proto3" json:"dest_write_files,omitempty"`
+	// DebugLevel
+	DebugLevel uint32 `protobuf:"varint,53,opt,name=debug_level,json=debugLevel,proto3" json:"debug_level,omitempty"`
+	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
+	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
+	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
+	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
+	// max_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the
+	// http(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES
+	// and S3 endpoints the INSERT query + FORMAT + format_schema + auth query
+	// params routinely run ~150+ chars, which the old 128 cap rejected.
+	Dest string `protobuf:"bytes,60,opt,name=dest,proto3" json:"dest,omitempty"`
 	// Marshalling of the exported data (protobufList,json,prototext)
-	MarshalTo string `protobuf:"bytes,120,opt,name=marshal_to,json=marshalTo,proto3" json:"marshal_to,omitempty"`
+	MarshalTo string `protobuf:"bytes,61,opt,name=marshal_to,json=marshalTo,proto3" json:"marshal_to,omitempty"`
+	// Comma-separated subset of XtcpFlatRecord json field names selecting
+	// which columns the csv/tsv marshallers emit (e.g.
+	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
+	// Empty = all fields. Ignored by non-tabular marshallers.
+	CsvColumns string `protobuf:"bytes,62,opt,name=csv_columns,json=csvColumns,proto3" json:"csv_columns,omitempty"`
+	// XtcpProtoFile — path of the xtcp_flat_record.proto the daemon reads at
+	// startup and POSTs to the Kafka schema registry (kafka_schema_url).
+	XtcpProtoFile string `protobuf:"bytes,63,opt,name=xtcp_proto_file,json=xtcpProtoFile,proto3" json:"xtcp_proto_file,omitempty"`
 	// Soft cap on the in-flight envelope's marshalled size, in bytes.
 	// Measured via proto.Size — i.e. the UNCOMPRESSED serialized size.
 	// franz-go applies ZSTD/LZ4/Snappy compression after handoff, so the
@@ -742,7 +823,7 @@ type XtcpConfig struct {
 	// Useful primarily as a safety net against records with huge
 	// `bytes` fields. For everyday batch sizing, prefer the row-count
 	// cap (envelope_flush_threshold_rows) below.
-	EnvelopeFlushThresholdBytes uint32 `protobuf:"varint,122,opt,name=envelope_flush_threshold_bytes,json=envelopeFlushThresholdBytes,proto3" json:"envelope_flush_threshold_bytes,omitempty"`
+	EnvelopeFlushThresholdBytes uint32 `protobuf:"varint,64,opt,name=envelope_flush_threshold_bytes,json=envelopeFlushThresholdBytes,proto3" json:"envelope_flush_threshold_bytes,omitempty"`
 	// Soft cap on the in-flight envelope's row count. When the envelope
 	// reaches this many rows, deserialize.go triggers an early mid-poll
 	// flush. Cheaper than the byte cap (no proto.Size walk on the hot
@@ -753,7 +834,15 @@ type XtcpConfig struct {
 	// (EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align
 	// with the ClickHouse kafka_max_rows_per_message setting so a
 	// produced envelope never forces the consumer to split it).
-	EnvelopeFlushThresholdRows uint32 `protobuf:"varint,123,opt,name=envelope_flush_threshold_rows,json=envelopeFlushThresholdRows,proto3" json:"envelope_flush_threshold_rows,omitempty"`
+	EnvelopeFlushThresholdRows uint32 `protobuf:"varint,65,opt,name=envelope_flush_threshold_rows,json=envelopeFlushThresholdRows,proto3" json:"envelope_flush_threshold_rows,omitempty"`
+	// Kafka or NSQ topic
+	Topic string `protobuf:"bytes,80,opt,name=topic,proto3" json:"topic,omitempty"`
+	// Kafka schema registry url
+	KafkaSchemaUrl string `protobuf:"bytes,81,opt,name=kafka_schema_url,json=kafkaSchemaUrl,proto3" json:"kafka_schema_url,omitempty"`
+	// Kafka Produce context timeout.  Use 0 for no context timeout
+	// Recommend a small timeout, like 1-2 seconds
+	// kgo seems to have a bug, because the timeout is always expired
+	KafkaProduceTimeout *durationpb.Duration `protobuf:"bytes,82,opt,name=kafka_produce_timeout,json=kafkaProduceTimeout,proto3" json:"kafka_produce_timeout,omitempty"`
 	// Kafka producer-batch compression codec. franz-go picks one codec
 	// from the supplied preference list that the broker advertises.
 	// Both Redpanda and ClickHouse (via librdkafka on its Kafka engine)
@@ -773,41 +862,91 @@ type XtcpConfig struct {
 	//
 	// Pick "lz4" if xtcp2 is CPU-bound on the producer side; pick
 	// "zstd" (the default) if Kafka throughput / disk usage matters more.
-	KafkaCompression string `protobuf:"bytes,124,opt,name=kafka_compression,json=kafkaCompression,proto3" json:"kafka_compression,omitempty"`
+	KafkaCompression string `protobuf:"bytes,83,opt,name=kafka_compression,json=kafkaCompression,proto3" json:"kafka_compression,omitempty"`
 	// S3 endpoint URL, e.g. "http://127.0.0.1:9000" (MinIO) or
 	// "https://s3.amazonaws.com" (AWS). May be empty if -dest carries
 	// it via the s3parquet:<endpoint> form.
-	S3Endpoint string `protobuf:"bytes,125,opt,name=s3_endpoint,json=s3Endpoint,proto3" json:"s3_endpoint,omitempty"`
+	S3Endpoint string `protobuf:"bytes,100,opt,name=s3_endpoint,json=s3Endpoint,proto3" json:"s3_endpoint,omitempty"`
+	// S3 region. Required by some S3 implementations even when talking
+	// to a single-region MinIO. Default "us-east-1" when blank.
+	S3Region string `protobuf:"bytes,101,opt,name=s3_region,json=s3Region,proto3" json:"s3_region,omitempty"`
 	// Required when -dest s3parquet. Bucket must already exist on the
 	// endpoint; the daemon does not auto-create.
-	S3Bucket string `protobuf:"bytes,126,opt,name=s3_bucket,json=s3Bucket,proto3" json:"s3_bucket,omitempty"`
+	S3Bucket string `protobuf:"bytes,102,opt,name=s3_bucket,json=s3Bucket,proto3" json:"s3_bucket,omitempty"`
 	// Optional key-prefix WITHIN the bucket. Joined with the Hive-style
 	// partition segments (host=…/date=…/hour=…/<file>.parquet). Empty
 	// = files land at the bucket root level.
-	S3Prefix string `protobuf:"bytes,127,opt,name=s3_prefix,json=s3Prefix,proto3" json:"s3_prefix,omitempty"`
+	S3Prefix string `protobuf:"bytes,103,opt,name=s3_prefix,json=s3Prefix,proto3" json:"s3_prefix,omitempty"`
 	// Required when -dest s3parquet. Picked up from AWS_ACCESS_KEY_ID
 	// env if blank.
-	S3AccessKey string `protobuf:"bytes,128,opt,name=s3_access_key,json=s3AccessKey,proto3" json:"s3_access_key,omitempty"`
+	S3AccessKey string `protobuf:"bytes,104,opt,name=s3_access_key,json=s3AccessKey,proto3" json:"s3_access_key,omitempty"`
 	// Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY
 	// env if blank. Never logged.
-	S3SecretKey string `protobuf:"bytes,129,opt,name=s3_secret_key,json=s3SecretKey,proto3" json:"s3_secret_key,omitempty"`
-	// Soft cap on the in-memory Parquet builder's accumulated
-	// uncompressed row bytes before the worker finalizes the file and
-	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
-	// Operators tune down for faster file rotation (more S3 PUTs,
-	// smaller per-file query latency) or up for fewer larger files
-	// (better compression ratio, more memory).
-	S3ParquetFlushThresholdBytes uint32 `protobuf:"varint,132,opt,name=s3_parquet_flush_threshold_bytes,json=s3ParquetFlushThresholdBytes,proto3" json:"s3_parquet_flush_threshold_bytes,omitempty"`
-	// S3 region. Required by some S3 implementations even when talking
-	// to a single-region MinIO. Default "us-east-1" when blank.
-	S3Region string `protobuf:"bytes,133,opt,name=s3_region,json=s3Region,proto3" json:"s3_region,omitempty"`
+	S3SecretKey string `protobuf:"bytes,105,opt,name=s3_secret_key,json=s3SecretKey,proto3" json:"s3_secret_key,omitempty"`
 	// Skip the startup S3 BucketExists probe. The probe issues a
 	// HeadBucket, which requires the s3:ListBucket permission. Set true
 	// when the upload credential is deliberately scoped to s3:PutObject
 	// only (write-only key, e.g. a baked deployment credential) so the
 	// daemon can start without list permission. Default false keeps the
 	// fail-fast probe for normal deployments.
-	S3SkipBucketProbe bool `protobuf:"varint,134,opt,name=s3_skip_bucket_probe,json=s3SkipBucketProbe,proto3" json:"s3_skip_bucket_probe,omitempty"`
+	S3SkipBucketProbe bool `protobuf:"varint,106,opt,name=s3_skip_bucket_probe,json=s3SkipBucketProbe,proto3" json:"s3_skip_bucket_probe,omitempty"`
+	// Soft cap on the in-memory Parquet builder's accumulated
+	// uncompressed row bytes before the worker finalizes the file and
+	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
+	// Operators tune down for faster file rotation (more S3 PUTs,
+	// smaller per-file query latency) or up for fewer larger files
+	// (better compression ratio, more memory).
+	S3ParquetFlushThresholdBytes uint32 `protobuf:"varint,110,opt,name=s3_parquet_flush_threshold_bytes,json=s3ParquetFlushThresholdBytes,proto3" json:"s3_parquet_flush_threshold_bytes,omitempty"`
+	// s3parquet staleness ceiling: force-flush the in-memory Parquet object
+	// after this long even if it hasn't reached the byte cap, bounding upload
+	// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
+	S3FlushInterval *durationpb.Duration `protobuf:"bytes,111,opt,name=s3_flush_interval,json=s3FlushInterval,proto3" json:"s3_flush_interval,omitempty"`
+	// Maximum jitter as a percent of s3_flush_interval, applied to the first
+	// timed flush and each interval so the fleet doesn't ceiling-flush in
+	// lockstep. 0 disables. Default 20.
+	S3FlushJitterPct uint32 `protobuf:"varint,112,opt,name=s3_flush_jitter_pct,json=s3FlushJitterPct,proto3" json:"s3_flush_jitter_pct,omitempty"`
+	// Per-object downward jitter as a percent of the s3parquet byte cap: each
+	// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
+	// size-cap upload path even under uniform load. Downward-only, so an
+	// object never exceeds the in-memory byte bound. 0 disables. Default 20.
+	S3FlushThresholdJitterPct uint32 `protobuf:"varint,113,opt,name=s3_flush_threshold_jitter_pct,json=s3FlushThresholdJitterPct,proto3" json:"s3_flush_threshold_jitter_pct,omitempty"`
+	// Maximum S3 upload attempts (original + retries) before dropping the
+	// object. Retries use full-jitter exponential backoff. Default 10.
+	S3UploadMaxAttempts uint32 `protobuf:"varint,114,opt,name=s3_upload_max_attempts,json=s3UploadMaxAttempts,proto3" json:"s3_upload_max_attempts,omitempty"`
+	// Cap on a single upload retry's backoff window (full jitter draws in
+	// [0, window], window grows exponentially up to this cap). 0 = derive as
+	// clamp(poll_frequency/10, 1s, 1h).
+	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,115,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
+	// Hostname override. When empty the daemon uses os.Hostname(); set this to
+	// stamp an explicit hostname on records — required in containers, where
+	// os.Hostname() returns the container id, not the host. Set via -hostname
+	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
+	// container id).
+	Hostname string `protobuf:"bytes,130,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Deployment grouping / facility this daemon runs in (data center, PoP,
+	// region, site, …). Generic; stamped on every record's `location` field.
+	// Set via -location flag or LOCATION env.
+	Location string `protobuf:"bytes,131,opt,name=location,proto3" json:"location,omitempty"`
+	// Label applied to the protobuf
+	Label string `protobuf:"bytes,132,opt,name=label,proto3" json:"label,omitempty"`
+	// Tag applied to the protobuf
+	Tag string `protobuf:"bytes,133,opt,name=tag,proto3" json:"tag,omitempty"`
+	// Daemon build provenance stamped on every record's `daemon_version` field
+	// (git commit / date / version). Populated by the daemon from -ldflags build
+	// vars, not a user flag; informational only (debugging which binary produced a
+	// row). See XtcpFlatRecord.daemon_version.
+	DaemonVersion string `protobuf:"bytes,134,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
+	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
+	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
+	// far if the host is unexpectedly internet-exposed — the per-listener
+	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
+	// (cf. prometheus/exporter-toolkit#396.)
+	Ipv4Ttl uint32 `protobuf:"varint,150,opt,name=ipv4_ttl,json=ipv4Ttl,proto3" json:"ipv4_ttl,omitempty"`
+	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
+	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
+	Ipv6HopLimit uint32 `protobuf:"varint,151,opt,name=ipv6_hop_limit,json=ipv6HopLimit,proto3" json:"ipv6_hop_limit,omitempty"`
+	// GRPC listening port
+	GrpcPort uint32 `protobuf:"varint,160,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	// Pyroscope continuous-profiling server URL (e.g.
 	// http://127.0.0.1:4040). When set, the daemon streams CPU,
 	// memory, goroutine, mutex, and block profiles to that endpoint.
@@ -815,164 +954,82 @@ type XtcpConfig struct {
 	// don't need it. Operators bring up a Pyroscope OSS server (or
 	// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
 	// data without restarts.
-	PyroscopeUrl string `protobuf:"bytes,136,opt,name=pyroscope_url,json=pyroscopeUrl,proto3" json:"pyroscope_url,omitempty"`
+	PyroscopeUrl string `protobuf:"bytes,170,opt,name=pyroscope_url,json=pyroscopeUrl,proto3" json:"pyroscope_url,omitempty"`
 	// Application name registered with the Pyroscope server (the
 	// "application" facet in the Pyroscope UI). Empty → "xtcp2".
 	// Set per fleet/role for multi-host environments
 	// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
-	PyroscopeAppName string `protobuf:"bytes,137,opt,name=pyroscope_app_name,json=pyroscopeAppName,proto3" json:"pyroscope_app_name,omitempty"`
+	PyroscopeAppName string `protobuf:"bytes,171,opt,name=pyroscope_app_name,json=pyroscopeAppName,proto3" json:"pyroscope_app_name,omitempty"`
 	// CPU profile sampling rate in Hz. Default 100. The Pyroscope
 	// agent uses this to call runtime.SetCPUProfileRate at startup.
-	PyroscopeSampleHz uint32 `protobuf:"varint,138,opt,name=pyroscope_sample_hz,json=pyroscopeSampleHz,proto3" json:"pyroscope_sample_hz,omitempty"`
+	PyroscopeSampleHz uint32 `protobuf:"varint,172,opt,name=pyroscope_sample_hz,json=pyroscopeSampleHz,proto3" json:"pyroscope_sample_hz,omitempty"`
 	// Profile upload interval (seconds between batched profile
 	// pushes). Default 15 s.
-	PyroscopeUploadIntervalSec uint32 `protobuf:"varint,139,opt,name=pyroscope_upload_interval_sec,json=pyroscopeUploadIntervalSec,proto3" json:"pyroscope_upload_interval_sec,omitempty"`
-	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
-	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
-	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
-	// unixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).
-	// max_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the
-	// http(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES
-	// and S3 endpoints the INSERT query + FORMAT + format_schema + auth query
-	// params routinely run ~150+ chars, which the old 128 cap rejected.
-	Dest string `protobuf:"bytes,130,opt,name=dest,proto3" json:"dest,omitempty"`
-	// Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )
-	// xtcp will capture this many examples of the marshalled data
-	// This is PER poller
-	DestWriteFiles uint32 `protobuf:"varint,135,opt,name=dest_write_files,json=destWriteFiles,proto3" json:"dest_write_files,omitempty"`
-	// Kafka or NSQ topic
-	Topic string `protobuf:"bytes,140,opt,name=topic,proto3" json:"topic,omitempty"`
-	// XtcpProtoFile
-	XtcpProtoFile string `protobuf:"bytes,143,opt,name=xtcp_proto_file,json=xtcpProtoFile,proto3" json:"xtcp_proto_file,omitempty"`
-	// Kafka schema registry url
-	KafkaSchemaUrl string `protobuf:"bytes,145,opt,name=kafka_schema_url,json=kafkaSchemaUrl,proto3" json:"kafka_schema_url,omitempty"`
-	// Kafka Produce context timeout.  Use 0 for no context timeout
-	// Recommend a small timeout, like 1-2 seconds
-	// kgo seems to have a bug, because the timeout is always expired
-	KafkaProduceTimeout *durationpb.Duration `protobuf:"bytes,150,opt,name=kafka_produce_timeout,json=kafkaProduceTimeout,proto3" json:"kafka_produce_timeout,omitempty"`
-	// DebugLevel
-	DebugLevel uint32 `protobuf:"varint,160,opt,name=debug_level,json=debugLevel,proto3" json:"debug_level,omitempty"`
-	// Label applied to the protobuf
-	Label string `protobuf:"bytes,170,opt,name=label,proto3" json:"label,omitempty"`
-	// Tag applied to the protobuf
-	Tag string `protobuf:"bytes,180,opt,name=tag,proto3" json:"tag,omitempty"`
-	// Deployment grouping / facility this daemon runs in (data center, PoP,
-	// region, site, …). Generic; stamped on every record's `location` field.
-	// Set via -location flag or LOCATION env.
-	Location string `protobuf:"bytes,181,opt,name=location,proto3" json:"location,omitempty"`
-	// Hostname override. When empty the daemon uses os.Hostname(); set this to
-	// stamp an explicit hostname on records — required in containers, where
-	// os.Hostname() returns the container id, not the host. Set via -hostname
-	// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
-	// container id).
-	Hostname string `protobuf:"bytes,182,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	// Daemon build provenance stamped on every record's `daemon_version` field
-	// (git commit / date / version). Populated by the daemon from -ldflags build
-	// vars, not a user flag; informational only (debugging which binary produced a
-	// row). See XtcpFlatRecord.daemon_version.
-	DaemonVersion string `protobuf:"bytes,186,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
-	// Resolve each socket's owning container id from its cgroup (sets the
-	// record's container_id / container_runtime). Set via -resolveContainerId
-	// flag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it
-	// and run --cgroupns=host in a container).
-	ResolveContainerId bool `protobuf:"varint,183,opt,name=resolve_container_id,json=resolveContainerId,proto3" json:"resolve_container_id,omitempty"`
-	// Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).
-	// 0 = kernel default. A low value (e.g. 3) keeps replies from travelling
-	// far if the host is unexpectedly internet-exposed — the per-listener
-	// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
-	// (cf. prometheus/exporter-toolkit#396.)
-	Ipv4Ttl uint32 `protobuf:"varint,184,opt,name=ipv4_ttl,json=ipv4Ttl,proto3" json:"ipv4_ttl,omitempty"`
-	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
-	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
-	Ipv6HopLimit uint32 `protobuf:"varint,185,opt,name=ipv6_hop_limit,json=ipv6HopLimit,proto3" json:"ipv6_hop_limit,omitempty"`
-	// GRPC listening port
-	GrpcPort             uint32                `protobuf:"varint,190,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
-	EnabledDeserializers *EnabledDeserializers `protobuf:"bytes,200,opt,name=enabled_deserializers,json=enabledDeserializers,proto3" json:"enabled_deserializers,omitempty"`
-	// When true, route netlink reads and raw-socket destination writes
-	// through an io_uring ring per Netlinker. Requires Linux 6.1+.
-	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
-	// flag — they continue to use their own client sockets unchanged.
-	IoUring bool `protobuf:"varint,210,opt,name=io_uring,json=ioUring,proto3" json:"io_uring,omitempty"`
-	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
-	// values reduce io_uring_enter syscalls per dump cycle on hosts with
-	// many sockets, at the cost of more pinned buffers from packet pool.
-	// Ignored unless io_uring=true. Default 64.
-	IoUringRecvBatchSize uint32 `protobuf:"varint,211,opt,name=io_uring_recv_batch_size,json=ioUringRecvBatchSize,proto3" json:"io_uring_recv_batch_size,omitempty"`
-	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
-	// userland loop overhead but increase scheduling latency for the
-	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
-	IoUringCqeBatchSize uint32 `protobuf:"varint,212,opt,name=io_uring_cqe_batch_size,json=ioUringCqeBatchSize,proto3" json:"io_uring_cqe_batch_size,omitempty"`
-	// Comma-separated subset of XtcpFlatRecord json field names selecting
-	// which columns the csv/tsv marshallers emit (e.g.
-	// "hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt").
-	// Empty = all fields. Ignored by non-tabular marshallers.
-	CsvColumns string `protobuf:"bytes,220,opt,name=csv_columns,json=csvColumns,proto3" json:"csv_columns,omitempty"`
-	// Maximum poll-schedule jitter as a percent of poll_frequency, applied to
-	// both the startup delay before the first poll and each subsequent tick.
-	// 0 disables (immediate first poll, fixed interval). Default 20.
-	PollJitterPct uint32 `protobuf:"varint,221,opt,name=poll_jitter_pct,json=pollJitterPct,proto3" json:"poll_jitter_pct,omitempty"`
-	// s3parquet staleness ceiling: force-flush the in-memory Parquet object
-	// after this long even if it hasn't reached the byte cap, bounding upload
-	// latency for low-volume hosts. 0 = derive as max(poll_frequency, 30m).
-	S3FlushInterval *durationpb.Duration `protobuf:"bytes,222,opt,name=s3_flush_interval,json=s3FlushInterval,proto3" json:"s3_flush_interval,omitempty"`
-	// Maximum jitter as a percent of s3_flush_interval, applied to the first
-	// timed flush and each interval so the fleet doesn't ceiling-flush in
-	// lockstep. 0 disables. Default 20.
-	S3FlushJitterPct uint32 `protobuf:"varint,223,opt,name=s3_flush_jitter_pct,json=s3FlushJitterPct,proto3" json:"s3_flush_jitter_pct,omitempty"`
-	// Per-object downward jitter as a percent of the s3parquet byte cap: each
-	// object finalizes at threshold*(1 - rand[0,pct/100]), de-syncing the
-	// size-cap upload path even under uniform load. Downward-only, so an
-	// object never exceeds the in-memory byte bound. 0 disables. Default 20.
-	S3FlushThresholdJitterPct uint32 `protobuf:"varint,224,opt,name=s3_flush_threshold_jitter_pct,json=s3FlushThresholdJitterPct,proto3" json:"s3_flush_threshold_jitter_pct,omitempty"`
-	// Maximum S3 upload attempts (original + retries) before dropping the
-	// object. Retries use full-jitter exponential backoff. Default 10.
-	S3UploadMaxAttempts uint32 `protobuf:"varint,225,opt,name=s3_upload_max_attempts,json=s3UploadMaxAttempts,proto3" json:"s3_upload_max_attempts,omitempty"`
-	// Cap on a single upload retry's backoff window (full jitter draws in
-	// [0, window], window grows exponentially up to this cap). 0 = derive as
-	// clamp(poll_frequency/10, 1s, 1h).
-	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,226,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
-	// Period of the background namespace-reconcile ticker (Method B /proc scan
-	// that converges the tracked namespace set). With reconcile_before_poll the
-	// Poller reconciles every cycle and is the real discovery mechanism, so this
-	// background pass is an occasional safety-net expected to find nothing
-	// (mapReconciler dels/stores stay 0) — the default is deliberately long (6h)
-	// so operators can confirm from the counters that it is redundant. It still
-	// matters when the poller is idle or disabled. 0 disables the background
-	// ticker entirely (the startup reconcile still runs once).
-	ReconcileFrequency *durationpb.Duration `protobuf:"bytes,227,opt,name=reconcile_frequency,json=reconcileFrequency,proto3" json:"reconcile_frequency,omitempty"`
-	// Run a namespace reconcile immediately before each poll cycle, so a
-	// namespace that appeared since the last cycle is entered and gets a socket
-	// within ~1 poll interval instead of waiting for the background ticker. Ties
-	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
-	// mutex-serialized with the background reconciler. Default true.
-	ReconcileBeforePoll bool `protobuf:"varint,228,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
+	PyroscopeUploadIntervalSec uint32 `protobuf:"varint,173,opt,name=pyroscope_upload_interval_sec,json=pyroscopeUploadIntervalSec,proto3" json:"pyroscope_upload_interval_sec,omitempty"`
+	// -- container (200-209)
+	// Resolve each socket's owning container id from its cgroup v2 id
+	// (inet_diag_cgroup_id, record field 2003) — sets the record's
+	// container_id / container_runtime. Set via -resolveContainerId flag or
+	// CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it and run
+	// --cgroupns=host in a container).
+	ResolveContainerId bool `protobuf:"varint,200,opt,name=resolve_container_id,json=resolveContainerId,proto3" json:"resolve_container_id,omitempty"`
 	// Enrich container/netns labels (container_id/name/image/runtime, netns name)
 	// by joining the socket's owning netns inode against the Docker Engine API
 	// index over docker_socket_path. Default false.
-	EnrichContainerEnable bool `protobuf:"varint,230,opt,name=enrich_container_enable,json=enrichContainerEnable,proto3" json:"enrich_container_enable,omitempty"`
+	EnrichContainerEnable bool `protobuf:"varint,201,opt,name=enrich_container_enable,json=enrichContainerEnable,proto3" json:"enrich_container_enable,omitempty"`
 	// Docker Engine API unix socket. Default "/run/docker.sock".
-	DockerSocketPath string `protobuf:"bytes,231,opt,name=docker_socket_path,json=dockerSocketPath,proto3" json:"docker_socket_path,omitempty"`
+	DockerSocketPath string `protobuf:"bytes,202,opt,name=docker_socket_path,json=dockerSocketPath,proto3" json:"docker_socket_path,omitempty"`
+	// -- lldp (210-219)
 	// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
 	// (lldpd_socket_path) once at startup. Default false.
-	EnrichLldpEnable bool `protobuf:"varint,232,opt,name=enrich_lldp_enable,json=enrichLldpEnable,proto3" json:"enrich_lldp_enable,omitempty"`
+	EnrichLldpEnable bool `protobuf:"varint,210,opt,name=enrich_lldp_enable,json=enrichLldpEnable,proto3" json:"enrich_lldp_enable,omitempty"`
 	// lldpd control socket. Default "/run/lldpd.socket".
-	LldpdSocketPath string `protobuf:"bytes,233,opt,name=lldpd_socket_path,json=lldpdSocketPath,proto3" json:"lldpd_socket_path,omitempty"`
+	LldpdSocketPath string `protobuf:"bytes,211,opt,name=lldpd_socket_path,json=lldpdSocketPath,proto3" json:"lldpd_socket_path,omitempty"`
 	// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
 	// descriptor for the wire parser. Empty = auto-detect. Default "".
-	LldpdVersionHint string `protobuf:"bytes,234,opt,name=lldpd_version_hint,json=lldpdVersionHint,proto3" json:"lldpd_version_hint,omitempty"`
+	LldpdVersionHint string `protobuf:"bytes,212,opt,name=lldpd_version_hint,json=lldpdVersionHint,proto3" json:"lldpd_version_hint,omitempty"`
+	// -- nic (220-229)
 	// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
 	// the ethtool ioctl once at startup. Default false.
-	EnrichNicEnable bool `protobuf:"varint,235,opt,name=enrich_nic_enable,json=enrichNicEnable,proto3" json:"enrich_nic_enable,omitempty"`
+	EnrichNicEnable bool `protobuf:"varint,220,opt,name=enrich_nic_enable,json=enrichNicEnable,proto3" json:"enrich_nic_enable,omitempty"`
 	// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
-	UplinkCount uint32 `protobuf:"varint,236,opt,name=uplink_count,json=uplinkCount,proto3" json:"uplink_count,omitempty"`
+	UplinkCount uint32 `protobuf:"varint,221,opt,name=uplink_count,json=uplinkCount,proto3" json:"uplink_count,omitempty"`
 	// Explicit uplink interface names, slot order. Empty = auto-detect from the
 	// default IPv4/IPv6 routes.
-	UplinkInterfaces []string `protobuf:"bytes,237,rep,name=uplink_interfaces,json=uplinkInterfaces,proto3" json:"uplink_interfaces,omitempty"`
-	// Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for
+	UplinkInterfaces []string `protobuf:"bytes,222,rep,name=uplink_interfaces,json=uplinkInterfaces,proto3" json:"uplink_interfaces,omitempty"`
+	// -- nsid (230-239)
+	// Populate nsid (record field 32) best-effort via RTM_GETNSID. Usually 0 for
 	// Docker/containerd namespaces. Default false.
-	PopulateNsid  bool `protobuf:"varint,238,opt,name=populate_nsid,json=populateNsid,proto3" json:"populate_nsid,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PopulateNsid bool `protobuf:"varint,230,opt,name=populate_nsid,json=populateNsid,proto3" json:"populate_nsid,omitempty"`
+	// -- asn (240-244)
+	// Enrich the destination IP's ASN (record field 320) and network owner
+	// (322) by longest-prefix-matching it against the ipfeed-collector Parquet
+	// artifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when
+	// enabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,
+	// and leaves both columns empty. Default false.
+	EnrichAsnEnable bool `protobuf:"varint,240,opt,name=enrich_asn_enable,json=enrichAsnEnable,proto3" json:"enrich_asn_enable,omitempty"`
+	// Path to the ipfeed-collector Parquet artifact (prefix -> {asn,
+	// network_owner}). Default "".
+	AsnDbPath string `protobuf:"bytes,241,opt,name=asn_db_path,json=asnDbPath,proto3" json:"asn_db_path,omitempty"`
+	// How often to reload asn_db_path in the background so a refreshed artifact
+	// is picked up without a restart. 0 = load once at startup, never reload.
+	AsnRefreshInterval *durationpb.Duration `protobuf:"bytes,242,opt,name=asn_refresh_interval,json=asnRefreshInterval,proto3" json:"asn_refresh_interval,omitempty"`
+	// -- locality (245-249)
+	// Classify the destination IP's locality (record field 310) — self /
+	// local-subnet / remote — from each monitored network namespace's local
+	// addresses + routing table, discovered via rtnetlink (pkg/localnet). Also
+	// yields the egress interface (311/312) and the bound-interface name (300).
+	// Runs BEFORE the ASN lookup, so self/local-subnet destinations skip it.
+	// Non-fatal: a per-namespace discovery failure just leaves that namespace's
+	// sockets unclassified (and is retried with backoff). Default false.
+	EnrichLocalityEnable bool `protobuf:"varint,245,opt,name=enrich_locality_enable,json=enrichLocalityEnable,proto3" json:"enrich_locality_enable,omitempty"`
+	// How often to re-discover local addresses/routes per namespace so runtime
+	// changes (interfaces up/down, routes added) are picked up. Newly-appeared
+	// namespaces are always snapshotted on the next reconcile regardless. 0 =
+	// discover once per namespace, never refresh. Daemon default 60s.
+	LocalityRefreshInterval *durationpb.Duration `protobuf:"bytes,246,opt,name=locality_refresh_interval,json=localityRefreshInterval,proto3" json:"locality_refresh_interval,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *XtcpConfig) Reset() {
@@ -1026,6 +1083,13 @@ func (x *XtcpConfig) GetPollTimeout() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetPollJitterPct() uint32 {
+	if x != nil {
+		return x.PollJitterPct
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetMaxLoops() uint64 {
 	if x != nil {
 		return x.MaxLoops
@@ -1068,247 +1132,9 @@ func (x *XtcpConfig) GetPacketSizeMply() uint32 {
 	return 0
 }
 
-func (x *XtcpConfig) GetWriteFiles() uint32 {
-	if x != nil {
-		return x.WriteFiles
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetCapturePath() string {
-	if x != nil {
-		return x.CapturePath
-	}
-	return ""
-}
-
 func (x *XtcpConfig) GetModulus() uint64 {
 	if x != nil {
 		return x.Modulus
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetMarshalTo() string {
-	if x != nil {
-		return x.MarshalTo
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetEnvelopeFlushThresholdBytes() uint32 {
-	if x != nil {
-		return x.EnvelopeFlushThresholdBytes
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetEnvelopeFlushThresholdRows() uint32 {
-	if x != nil {
-		return x.EnvelopeFlushThresholdRows
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetKafkaCompression() string {
-	if x != nil {
-		return x.KafkaCompression
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3Endpoint() string {
-	if x != nil {
-		return x.S3Endpoint
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3Bucket() string {
-	if x != nil {
-		return x.S3Bucket
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3Prefix() string {
-	if x != nil {
-		return x.S3Prefix
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3AccessKey() string {
-	if x != nil {
-		return x.S3AccessKey
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3SecretKey() string {
-	if x != nil {
-		return x.S3SecretKey
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3ParquetFlushThresholdBytes() uint32 {
-	if x != nil {
-		return x.S3ParquetFlushThresholdBytes
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetS3Region() string {
-	if x != nil {
-		return x.S3Region
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetS3SkipBucketProbe() bool {
-	if x != nil {
-		return x.S3SkipBucketProbe
-	}
-	return false
-}
-
-func (x *XtcpConfig) GetPyroscopeUrl() string {
-	if x != nil {
-		return x.PyroscopeUrl
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetPyroscopeAppName() string {
-	if x != nil {
-		return x.PyroscopeAppName
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetPyroscopeSampleHz() uint32 {
-	if x != nil {
-		return x.PyroscopeSampleHz
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetPyroscopeUploadIntervalSec() uint32 {
-	if x != nil {
-		return x.PyroscopeUploadIntervalSec
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetDest() string {
-	if x != nil {
-		return x.Dest
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetDestWriteFiles() uint32 {
-	if x != nil {
-		return x.DestWriteFiles
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetTopic() string {
-	if x != nil {
-		return x.Topic
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetXtcpProtoFile() string {
-	if x != nil {
-		return x.XtcpProtoFile
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetKafkaSchemaUrl() string {
-	if x != nil {
-		return x.KafkaSchemaUrl
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetKafkaProduceTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.KafkaProduceTimeout
-	}
-	return nil
-}
-
-func (x *XtcpConfig) GetDebugLevel() uint32 {
-	if x != nil {
-		return x.DebugLevel
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetLabel() string {
-	if x != nil {
-		return x.Label
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetTag() string {
-	if x != nil {
-		return x.Tag
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetLocation() string {
-	if x != nil {
-		return x.Location
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetHostname() string {
-	if x != nil {
-		return x.Hostname
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetDaemonVersion() string {
-	if x != nil {
-		return x.DaemonVersion
-	}
-	return ""
-}
-
-func (x *XtcpConfig) GetResolveContainerId() bool {
-	if x != nil {
-		return x.ResolveContainerId
-	}
-	return false
-}
-
-func (x *XtcpConfig) GetIpv4Ttl() uint32 {
-	if x != nil {
-		return x.Ipv4Ttl
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetIpv6HopLimit() uint32 {
-	if x != nil {
-		return x.Ipv6HopLimit
-	}
-	return 0
-}
-
-func (x *XtcpConfig) GetGrpcPort() uint32 {
-	if x != nil {
-		return x.GrpcPort
 	}
 	return 0
 }
@@ -1341,6 +1167,62 @@ func (x *XtcpConfig) GetIoUringCqeBatchSize() uint32 {
 	return 0
 }
 
+func (x *XtcpConfig) GetReconcileFrequency() *durationpb.Duration {
+	if x != nil {
+		return x.ReconcileFrequency
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetReconcileBeforePoll() bool {
+	if x != nil {
+		return x.ReconcileBeforePoll
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetWriteFiles() uint32 {
+	if x != nil {
+		return x.WriteFiles
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetCapturePath() string {
+	if x != nil {
+		return x.CapturePath
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetDestWriteFiles() uint32 {
+	if x != nil {
+		return x.DestWriteFiles
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetDebugLevel() uint32 {
+	if x != nil {
+		return x.DebugLevel
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetDest() string {
+	if x != nil {
+		return x.Dest
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetMarshalTo() string {
+	if x != nil {
+		return x.MarshalTo
+	}
+	return ""
+}
+
 func (x *XtcpConfig) GetCsvColumns() string {
 	if x != nil {
 		return x.CsvColumns
@@ -1348,9 +1230,107 @@ func (x *XtcpConfig) GetCsvColumns() string {
 	return ""
 }
 
-func (x *XtcpConfig) GetPollJitterPct() uint32 {
+func (x *XtcpConfig) GetXtcpProtoFile() string {
 	if x != nil {
-		return x.PollJitterPct
+		return x.XtcpProtoFile
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetEnvelopeFlushThresholdBytes() uint32 {
+	if x != nil {
+		return x.EnvelopeFlushThresholdBytes
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetEnvelopeFlushThresholdRows() uint32 {
+	if x != nil {
+		return x.EnvelopeFlushThresholdRows
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetTopic() string {
+	if x != nil {
+		return x.Topic
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetKafkaSchemaUrl() string {
+	if x != nil {
+		return x.KafkaSchemaUrl
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetKafkaProduceTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.KafkaProduceTimeout
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetKafkaCompression() string {
+	if x != nil {
+		return x.KafkaCompression
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Endpoint() string {
+	if x != nil {
+		return x.S3Endpoint
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Region() string {
+	if x != nil {
+		return x.S3Region
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Bucket() string {
+	if x != nil {
+		return x.S3Bucket
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3Prefix() string {
+	if x != nil {
+		return x.S3Prefix
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3AccessKey() string {
+	if x != nil {
+		return x.S3AccessKey
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3SecretKey() string {
+	if x != nil {
+		return x.S3SecretKey
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3SkipBucketProbe() bool {
+	if x != nil {
+		return x.S3SkipBucketProbe
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetS3ParquetFlushThresholdBytes() uint32 {
+	if x != nil {
+		return x.S3ParquetFlushThresholdBytes
 	}
 	return 0
 }
@@ -1390,16 +1370,93 @@ func (x *XtcpConfig) GetS3UploadBackoffCap() *durationpb.Duration {
 	return nil
 }
 
-func (x *XtcpConfig) GetReconcileFrequency() *durationpb.Duration {
+func (x *XtcpConfig) GetHostname() string {
 	if x != nil {
-		return x.ReconcileFrequency
+		return x.Hostname
 	}
-	return nil
+	return ""
 }
 
-func (x *XtcpConfig) GetReconcileBeforePoll() bool {
+func (x *XtcpConfig) GetLocation() string {
 	if x != nil {
-		return x.ReconcileBeforePoll
+		return x.Location
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetDaemonVersion() string {
+	if x != nil {
+		return x.DaemonVersion
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetIpv4Ttl() uint32 {
+	if x != nil {
+		return x.Ipv4Ttl
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetIpv6HopLimit() uint32 {
+	if x != nil {
+		return x.Ipv6HopLimit
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetGrpcPort() uint32 {
+	if x != nil {
+		return x.GrpcPort
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetPyroscopeUrl() string {
+	if x != nil {
+		return x.PyroscopeUrl
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetPyroscopeAppName() string {
+	if x != nil {
+		return x.PyroscopeAppName
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetPyroscopeSampleHz() uint32 {
+	if x != nil {
+		return x.PyroscopeSampleHz
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetPyroscopeUploadIntervalSec() uint32 {
+	if x != nil {
+		return x.PyroscopeUploadIntervalSec
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetResolveContainerId() bool {
+	if x != nil {
+		return x.ResolveContainerId
 	}
 	return false
 }
@@ -1465,6 +1522,41 @@ func (x *XtcpConfig) GetPopulateNsid() bool {
 		return x.PopulateNsid
 	}
 	return false
+}
+
+func (x *XtcpConfig) GetEnrichAsnEnable() bool {
+	if x != nil {
+		return x.EnrichAsnEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetAsnDbPath() string {
+	if x != nil {
+		return x.AsnDbPath
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetAsnRefreshInterval() *durationpb.Duration {
+	if x != nil {
+		return x.AsnRefreshInterval
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetEnrichLocalityEnable() bool {
+	if x != nil {
+		return x.EnrichLocalityEnable
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetLocalityRefreshInterval() *durationpb.Duration {
+	if x != nil {
+		return x.LocalityRefreshInterval
+	}
+	return nil
 }
 
 type EnabledDeserializers struct {
@@ -1555,97 +1647,102 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x1denvelope_flush_threshold_rows\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows:\xc0\x01\xbaH\xbc\x01\x1a\xb9\x01\n" +
 	"\x1bSetEnvelopeFlush.atLeastOne\x12Gset envelope_flush_threshold_bytes and/or envelope_flush_threshold_rows\x1aQthis.envelope_flush_threshold_bytes > 0 || this.envelope_flush_threshold_rows > 0\"N\n" +
 	"\x18SetEnvelopeFlushResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xf9\x1d\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x95 \n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
 	" \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xa0\x8d\x06(\x00R\x15nlTimeoutMilliseconds\x12S\n" +
-	"\x0epoll_frequency\x18\x14 \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\rpollFrequency\x12O\n" +
-	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\vpollTimeout\x12+\n" +
-	"\tmax_loops\x18( \x01(\x04B\x0e\xbaH\v\xc8\x01\x002\x06\x18\xa0\x8d\x06(\x00R\bmaxLoops\x12,\n" +
+	"\x0epoll_frequency\x18\v \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\rpollFrequency\x12O\n" +
+	"\fpoll_timeout\x18\f \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\vpollTimeout\x122\n" +
+	"\x0fpoll_jitter_pct\x18\r \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\rpollJitterPct\x12+\n" +
+	"\tmax_loops\x18\x0e \x01(\x04B\x0e\xbaH\v\xc8\x01\x002\x06\x18\xa0\x8d\x06(\x00R\bmaxLoops\x12,\n" +
 	"\n" +
-	"netlinkers\x182 \x01(\rB\f\xbaH\t\xc8\x01\x01*\x04\x18d(\x01R\n" +
+	"netlinkers\x18\x0f \x01(\rB\f\xbaH\t\xc8\x01\x01*\x04\x18d(\x01R\n" +
 	"netlinkers\x12H\n" +
-	"\x19netlinkers_done_chan_size\x183 \x01(\rB\r\xbaH\n" +
+	"\x19netlinkers_done_chan_size\x18\x10 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x01*\x05\x18\xe8\a(\x01R\x16netlinkersDoneChanSize\x12*\n" +
-	"\tnlmsg_seq\x18< \x01(\rB\r\xbaH\n" +
+	"\tnlmsg_seq\x18\x11 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x01*\x05\x18\x90N(\x00R\bnlmsgSeq\x12/\n" +
-	"\vpacket_size\x18F \x01(\x04B\x0e\xbaH\v\xc8\x01\x002\x06\x18\xc0\x84=(\x00R\n" +
+	"\vpacket_size\x18\x12 \x01(\x04B\x0e\xbaH\v\xc8\x01\x002\x06\x18\xc0\x84=(\x00R\n" +
 	"packetSize\x126\n" +
-	"\x10packet_size_mply\x18P \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x00R\x0epacketSizeMply\x12.\n" +
-	"\vwrite_files\x18Z \x01(\rB\r\xbaH\n" +
+	"\x10packet_size_mply\x18\x13 \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x00R\x0epacketSizeMply\x12(\n" +
+	"\amodulus\x18\x14 \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xc0\x84=(\x01R\amodulus\x12a\n" +
+	"\x15enabled_deserializers\x18\x15 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers\x12!\n" +
+	"\bio_uring\x18\x16 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\aioUring\x12E\n" +
+	"\x18io_uring_recv_batch_size\x18\x17 \x01(\rB\r\xbaH\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x14ioUringRecvBatchSize\x12C\n" +
+	"\x17io_uring_cqe_batch_size\x18\x18 \x01(\rB\r\xbaH\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12W\n" +
+	"\x13reconcile_frequency\x18( \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x122\n" +
+	"\x15reconcile_before_poll\x18) \x01(\bR\x13reconcileBeforePoll\x12.\n" +
+	"\vwrite_files\x182 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\n" +
 	"writeFiles\x12/\n" +
-	"\fcapture_path\x18d \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\vcapturePath\x12(\n" +
-	"\amodulus\x18n \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xc0\x84=(\x01R\amodulus\x12+\n" +
-	"\n" +
-	"marshal_to\x18x \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x03\x18(R\tmarshalTo\x12K\n" +
-	"\x1eenvelope_flush_threshold_bytes\x18z \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
-	"\x1denvelope_flush_threshold_rows\x18{ \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows\x123\n" +
-	"\x11kafka_compression\x18| \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12'\n" +
-	"\vs3_endpoint\x18} \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
-	"s3Endpoint\x12#\n" +
-	"\ts3_bucket\x18~ \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Bucket\x12#\n" +
-	"\ts3_prefix\x18\x7f \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Prefix\x12+\n" +
-	"\rs3_access_key\x18\x80\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12+\n" +
-	"\rs3_secret_key\x18\x81\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x12O\n" +
-	" s3_parquet_flush_threshold_bytes\x18\x84\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12$\n" +
-	"\ts3_region\x18\x85\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x128\n" +
-	"\x14s3_skip_bucket_probe\x18\x86\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x11s3SkipBucketProbe\x12,\n" +
-	"\rpyroscope_url\x18\x88\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\fpyroscopeUrl\x125\n" +
-	"\x12pyroscope_app_name\x18\x89\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10pyroscopeAppName\x127\n" +
-	"\x13pyroscope_sample_hz\x18\x8a\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +
-	"\x1dpyroscope_upload_interval_sec\x18\x8b\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1apyroscopeUploadIntervalSec\x12\"\n" +
-	"\x04dest\x18\x82\x01 \x01(\tB\r\xbaH\n" +
-	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x04R\x04dest\x128\n" +
-	"\x10dest_write_files\x18\x87\x01 \x01(\rB\r\xbaH\n" +
-	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\x0edestWriteFiles\x12#\n" +
-	"\x05topic\x18\x8c\x01 \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18(R\x05topic\x125\n" +
-	"\x0fxtcp_proto_file\x18\x8f\x01 \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\rxtcpProtoFile\x127\n" +
-	"\x10kafka_schema_url\x18\x91\x01 \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18<R\x0ekafkaSchemaUrl\x12`\n" +
-	"\x15kafka_produce_timeout\x18\x96\x01 \x01(\v2\x19.google.protobuf.DurationB\x10\xbaH\r\xc8\x01\x00\xaa\x01\a\"\x03\b\xd8\x042\x00R\x13kafkaProduceTimeout\x12/\n" +
-	"\vdebug_level\x18\xa0\x01 \x01(\rB\r\xbaH\n" +
+	"\fcapture_path\x183 \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\vcapturePath\x127\n" +
+	"\x10dest_write_files\x184 \x01(\rB\r\xbaH\n" +
+	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\x0edestWriteFiles\x12.\n" +
+	"\vdebug_level\x185 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x01*\x05\x18\xe8\a(\x00R\n" +
 	"debugLevel\x12!\n" +
-	"\x05label\x18\xaa\x01 \x01(\tB\n" +
+	"\x04dest\x18< \x01(\tB\r\xbaH\n" +
+	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x04R\x04dest\x12+\n" +
+	"\n" +
+	"marshal_to\x18= \x01(\tB\f\xbaH\t\xc8\x01\x01r\x04\x10\x03\x18(R\tmarshalTo\x12'\n" +
+	"\vcsv_columns\x18> \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
+	"csvColumns\x124\n" +
+	"\x0fxtcp_proto_file\x18? \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18PR\rxtcpProtoFile\x12K\n" +
+	"\x1eenvelope_flush_threshold_bytes\x18@ \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1benvelopeFlushThresholdBytes\x12I\n" +
+	"\x1denvelope_flush_threshold_rows\x18A \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows\x12\"\n" +
+	"\x05topic\x18P \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18(R\x05topic\x126\n" +
+	"\x10kafka_schema_url\x18Q \x01(\tB\f\xbaH\t\xc8\x01\x00r\x04\x10\x01\x18<R\x0ekafkaSchemaUrl\x12_\n" +
+	"\x15kafka_produce_timeout\x18R \x01(\v2\x19.google.protobuf.DurationB\x10\xbaH\r\xc8\x01\x00\xaa\x01\a\"\x03\b\xd8\x042\x00R\x13kafkaProduceTimeout\x123\n" +
+	"\x11kafka_compression\x18S \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10kafkaCompression\x12'\n" +
+	"\vs3_endpoint\x18d \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
+	"s3Endpoint\x12#\n" +
+	"\ts3_region\x18e \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Region\x12#\n" +
+	"\ts3_bucket\x18f \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Bucket\x12#\n" +
+	"\ts3_prefix\x18g \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Prefix\x12*\n" +
+	"\rs3_access_key\x18h \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12*\n" +
+	"\rs3_secret_key\x18i \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x127\n" +
+	"\x14s3_skip_bucket_probe\x18j \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x11s3SkipBucketProbe\x12N\n" +
+	" s3_parquet_flush_threshold_bytes\x18n \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12R\n" +
+	"\x11s3_flush_interval\x18o \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x0fs3FlushInterval\x129\n" +
+	"\x13s3_flush_jitter_pct\x18p \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x10s3FlushJitterPct\x12L\n" +
+	"\x1ds3_flush_threshold_jitter_pct\x18q \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x19s3FlushThresholdJitterPct\x12A\n" +
+	"\x16s3_upload_max_attempts\x18r \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Y\n" +
+	"\x15s3_upload_backoff_cap\x18s \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x12(\n" +
+	"\bhostname\x18\x82\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x12(\n" +
+	"\blocation\x18\x83\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12!\n" +
+	"\x05label\x18\x84\x01 \x01(\tB\n" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x05label\x12\x1d\n" +
-	"\x03tag\x18\xb4\x01 \x01(\tB\n" +
-	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x12(\n" +
-	"\blocation\x18\xb5\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12(\n" +
-	"\bhostname\x18\xb6\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x123\n" +
-	"\x0edaemon_version\x18\xba\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\rdaemonVersion\x129\n" +
-	"\x14resolve_container_id\x18\xb7\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x12'\n" +
-	"\bipv4_ttl\x18\xb8\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
-	"\x0eipv6_hop_limit\x18\xb9\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12,\n" +
-	"\tgrpc_port\x18\xbe\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12b\n" +
-	"\x15enabled_deserializers\x18\xc8\x01 \x01(\v2$.xtcp_config.v1.EnabledDeserializersB\x06\xbaH\x03\xc8\x01\x00R\x14enabledDeserializers\x12\"\n" +
-	"\bio_uring\x18\xd2\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\aioUring\x12F\n" +
-	"\x18io_uring_recv_batch_size\x18\xd3\x01 \x01(\rB\r\xbaH\n" +
-	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x14ioUringRecvBatchSize\x12D\n" +
-	"\x17io_uring_cqe_batch_size\x18\xd4\x01 \x01(\rB\r\xbaH\n" +
-	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12(\n" +
-	"\vcsv_columns\x18\xdc\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\n" +
-	"csvColumns\x123\n" +
-	"\x0fpoll_jitter_pct\x18\xdd\x01 \x01(\rB\n" +
-	"\xbaH\a\xc8\x01\x00*\x02\x18dR\rpollJitterPct\x12S\n" +
-	"\x11s3_flush_interval\x18\xde\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x0fs3FlushInterval\x12:\n" +
-	"\x13s3_flush_jitter_pct\x18\xdf\x01 \x01(\rB\n" +
-	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x10s3FlushJitterPct\x12M\n" +
-	"\x1ds3_flush_threshold_jitter_pct\x18\xe0\x01 \x01(\rB\n" +
-	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x19s3FlushThresholdJitterPct\x12B\n" +
-	"\x16s3_upload_max_attempts\x18\xe1\x01 \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Z\n" +
-	"\x15s3_upload_backoff_cap\x18\xe2\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x12X\n" +
-	"\x13reconcile_frequency\x18\xe3\x01 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x123\n" +
-	"\x15reconcile_before_poll\x18\xe4\x01 \x01(\bR\x13reconcileBeforePoll\x127\n" +
-	"\x17enrich_container_enable\x18\xe6\x01 \x01(\bR\x15enrichContainerEnable\x127\n" +
-	"\x12docker_socket_path\x18\xe7\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x10dockerSocketPath\x12-\n" +
-	"\x12enrich_lldp_enable\x18\xe8\x01 \x01(\bR\x10enrichLldpEnable\x125\n" +
-	"\x11lldpd_socket_path\x18\xe9\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x0flldpdSocketPath\x126\n" +
-	"\x12lldpd_version_hint\x18\xea\x01 \x01(\tB\a\xbaH\x04r\x02\x18\x10R\x10lldpdVersionHint\x12+\n" +
-	"\x11enrich_nic_enable\x18\xeb\x01 \x01(\bR\x0fenrichNicEnable\x12+\n" +
-	"\fuplink_count\x18\xec\x01 \x01(\rB\a\xbaH\x04*\x02\x18\x02R\vuplinkCount\x126\n" +
-	"\x11uplink_interfaces\x18\xed\x01 \x03(\tB\b\xbaH\x05\x92\x01\x02\x10\x02R\x10uplinkInterfaces\x12$\n" +
-	"\rpopulate_nsid\x18\xee\x01 \x01(\bR\fpopulateNsid:s\xbaHp\x1an\n" +
+	"\x03tag\x18\x85\x01 \x01(\tB\n" +
+	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x123\n" +
+	"\x0edaemon_version\x18\x86\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\rdaemonVersion\x12'\n" +
+	"\bipv4_ttl\x18\x96\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
+	"\x0eipv6_hop_limit\x18\x97\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12,\n" +
+	"\tgrpc_port\x18\xa0\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12,\n" +
+	"\rpyroscope_url\x18\xaa\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\fpyroscopeUrl\x125\n" +
+	"\x12pyroscope_app_name\x18\xab\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10pyroscopeAppName\x127\n" +
+	"\x13pyroscope_sample_hz\x18\xac\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +
+	"\x1dpyroscope_upload_interval_sec\x18\xad\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1apyroscopeUploadIntervalSec\x129\n" +
+	"\x14resolve_container_id\x18\xc8\x01 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x12resolveContainerId\x127\n" +
+	"\x17enrich_container_enable\x18\xc9\x01 \x01(\bR\x15enrichContainerEnable\x127\n" +
+	"\x12docker_socket_path\x18\xca\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x10dockerSocketPath\x12-\n" +
+	"\x12enrich_lldp_enable\x18\xd2\x01 \x01(\bR\x10enrichLldpEnable\x125\n" +
+	"\x11lldpd_socket_path\x18\xd3\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x0flldpdSocketPath\x126\n" +
+	"\x12lldpd_version_hint\x18\xd4\x01 \x01(\tB\a\xbaH\x04r\x02\x18\x10R\x10lldpdVersionHint\x12+\n" +
+	"\x11enrich_nic_enable\x18\xdc\x01 \x01(\bR\x0fenrichNicEnable\x12+\n" +
+	"\fuplink_count\x18\xdd\x01 \x01(\rB\a\xbaH\x04*\x02\x18\x02R\vuplinkCount\x126\n" +
+	"\x11uplink_interfaces\x18\xde\x01 \x03(\tB\b\xbaH\x05\x92\x01\x02\x10\x02R\x10uplinkInterfaces\x12$\n" +
+	"\rpopulate_nsid\x18\xe6\x01 \x01(\bR\fpopulateNsid\x12+\n" +
+	"\x11enrich_asn_enable\x18\xf0\x01 \x01(\bR\x0fenrichAsnEnable\x12)\n" +
+	"\vasn_db_path\x18\xf1\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\tasnDbPath\x12L\n" +
+	"\x14asn_refresh_interval\x18\xf2\x01 \x01(\v2\x19.google.protobuf.DurationR\x12asnRefreshInterval\x125\n" +
+	"\x16enrich_locality_enable\x18\xf5\x01 \x01(\bR\x14enrichLocalityEnable\x12V\n" +
+	"\x19locality_refresh_interval\x18\xf6\x01 \x01(\v2\x19.google.protobuf.DurationR\x17localityRefreshInterval:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
@@ -1709,31 +1806,33 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	14, // 10: xtcp_config.v1.SetEnvelopeFlushResponse.config:type_name -> xtcp_config.v1.XtcpConfig
 	17, // 11: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
 	17, // 12: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
-	17, // 13: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
-	15, // 14: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
-	17, // 15: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
-	17, // 16: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	17, // 17: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
-	16, // 18: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 19: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 20: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 21: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	6,  // 22: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	8,  // 23: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	10, // 24: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	12, // 25: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	1,  // 26: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 27: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 28: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	7,  // 29: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	9,  // 30: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	11, // 31: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	13, // 32: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	26, // [26:33] is the sub-list for method output_type
-	19, // [19:26] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	15, // 13: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
+	17, // 14: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
+	17, // 15: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
+	17, // 16: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	17, // 17: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	17, // 18: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
+	17, // 19: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	16, // 20: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	0,  // 21: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	2,  // 22: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	4,  // 23: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	6,  // 24: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	8,  // 25: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	10, // 26: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	12, // 27: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	1,  // 28: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	3,  // 29: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	5,  // 30: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	7,  // 31: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	9,  // 32: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	11, // 33: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	13, // 34: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	28, // [28:35] is the sub-list for method output_type
+	21, // [21:28] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

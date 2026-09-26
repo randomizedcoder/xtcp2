@@ -24,6 +24,7 @@ let
     "clickhouse_http_insert_protobuflist"
     "clickhouse_protobuflist"
     "clickhouse_protobuflist_db"
+    "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"
     "nsTest"

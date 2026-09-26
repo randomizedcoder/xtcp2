@@ -89,9 +89,14 @@ func (x *XTCP) Init(ctx context.Context) {
 
 	x.initHostname()
 	x.initContainerResolver()
-	x.initEnrichers(ctx)
 
 	wg.Wait()
+
+	// initEnrichers runs AFTER the wait, not before it. Every enricher reports
+	// its outcome through x.pC / x.pGV, which InitPromethus creates on one of
+	// the goroutines above; called earlier it can bump a counter on a nil
+	// *CounterVec. Reachable today with -enrichAsn and a missing artifact.
+	x.initEnrichers(ctx)
 
 	if x.debugLevel > 10 {
 		log.Printf("Init complete after:%0.3f", time.Since(startTime).Seconds())

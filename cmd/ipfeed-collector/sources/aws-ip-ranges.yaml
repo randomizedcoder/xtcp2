@@ -1,0 +1,10 @@
+name: aws-ip-ranges
+provider: aws
+url: https://ip-ranges.amazonaws.com/ip-ranges.json
+parser: aws_ip_ranges
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: aws
+  service_operator: aws
+enabled: true

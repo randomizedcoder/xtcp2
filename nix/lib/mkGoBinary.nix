@@ -10,6 +10,10 @@
 #                      - ldflags (whether `-s -w` are appended)
 #                      - postFixup strip(1) pass
 #                      - the derivation `pname` suffix
+#   destinations   — library destinations to compile in (see versions.nix
+#                    destinationFlavors); null = all, [] = stdlib only
+#   enrichments    — enrichment features to compile in (see versions.nix
+#                    enrichmentFlavors); null = all, [] = none
 #   commit, date,
 #   version        — injected into main.{commit,date,version} via -ldflags -X
 #   extraLdflags   — additional -ldflags entries appended after the variant's
@@ -45,6 +49,11 @@ in
   # destinations only. A list of strings like `[ "kafka" ]` → just those.
   # Stdlib destinations (null/udp/unix/unixgram) are always compiled in.
   destinations ? null,
+  # Enrichment features to compile into the binary. `null` (default) → every
+  # enricher, which is what all the pre-existing call sites want. `[]` → none.
+  # A list like `[ "asn" ]` → just those. See versions.nix enrichmentFlavors
+  # for why these two are compile-time gated when the other enrichers are not.
+  enrichments ? null,
   vendorHash ? versions.goVendorHash,
   commit ? "nix",
   date ? "1970-01-01-00:00",
@@ -86,9 +95,24 @@ let
       "-min"
     else
       "-" + lib.concatStringsSep "-" destinations;
+
+  # Same shape as the destination axis, one tag per included enricher.
+  effectiveEnrichments = if enrichments == null then versions.allEnrichmentFeatures else enrichments;
+
+  enrichmentTags = map (f: "enrich_${f}") effectiveEnrichments;
+
+  # Unlike destSuffix there is no "-min" equivalent: the empty enrichment set
+  # is the plain name, so `xtcp2-min` / `xtcp2-s3parquet` keep the names they
+  # have always had while gaining `-asn` / `-locality` / `-asn-locality`
+  # siblings. `null` is also the plain name, for the full-featured call sites.
+  enrichSuffix =
+    if enrichments == null || enrichments == [ ] then
+      ""
+    else
+      "-" + lib.concatStringsSep "-" enrichments;
 in
 buildGoModule {
-  pname = "${name}${destSuffix}${variantCfg.tagSuffix}${lib.optionalString coverage "-cover"}";
+  pname = "${name}${destSuffix}${enrichSuffix}${variantCfg.tagSuffix}${lib.optionalString coverage "-cover"}";
   inherit
     version
     src
@@ -104,7 +128,7 @@ buildGoModule {
     CGO_ENABLED = if versions.cgoEnabled then "1" else "0";
   };
 
-  tags = versions.buildTags ++ destinationTags;
+  tags = versions.buildTags ++ destinationTags ++ enrichmentTags;
 
   ldflags =
     variantCfg.extraLdflags

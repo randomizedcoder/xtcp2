@@ -3,6 +3,7 @@ package xtcp
 import (
 	"context"
 	"log"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -90,13 +91,24 @@ func (s *uplinkStamp) apply(r *xtcp_flat_record.XtcpFlatRecord) {
 
 // initEnrichers wires up the best-effort metadata enrichers gated by config.
 // Every enricher degrades to leaving its columns empty on any failure; none can
-// make the daemon fatal. Called once from Init.
+// make the daemon fatal. Called once from Init, after the Prometheus vectors
+// exist (see init.go) because every enricher reports its outcome through them.
+//
+// The one non-best-effort case is a compile-time-gated enricher (ASN,
+// locality) that the operator asked for but that is not in this binary. That
+// is a property of the artifact rather than of this host, so it is fatal
+// before anything else runs — see enrich_core.go.
 func (x *XTCP) initEnrichers(ctx context.Context) {
 	if x.config == nil {
 		return
 	}
+	if err := x.checkEnrichersCompiledIn(); err != nil {
+		x.callFatalf("initEnrichers: %v", err)
+		return
+	}
 	x.initDockerEnricher(ctx)
 	x.initUplinkEnrichers(ctx)
+	x.initGatedEnrichers(ctx)
 }
 
 // initDockerEnricher builds the netns-inode -> container index over the Docker
@@ -245,6 +257,60 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 			r.Nsid = uint32(id)
 		}
 	}
+
+	// Neither destination enricher installed (not compiled in, disabled, or —
+	// for locality — no snapshot ever published): skip the address conversion
+	// so disabled mode is a true no-op on the hot path. Both fields are
+	// interfaces, so in a build without the tags they are permanently nil and
+	// the branch predicts perfectly.
+	localityOn := x.locality != nil && x.locality.Active()
+	if x.asn == nil && !localityOn {
+		return
+	}
+
+	if addr, ok := destAddr(r.InetDiagMsgFamily, r.InetDiagMsgSocketDestination); ok {
+		// Classify the destination's locality first. remote defaults to true so
+		// that with locality disabled, or with no snapshot for this namespace,
+		// the ASN lookup runs exactly as before. A self / connected-subnet
+		// destination is tagged and skips the internet ASN feed. The same snapshot
+		// resolves the destination's egress interface (from the matched route's
+		// Oif) and the socket's own bound interface (kernel idiag_if, field 1009).
+		remote := true
+		if localityOn {
+			if res, found := x.locality.Resolve(r.NetnsInode, addr, r.InetDiagMsgSocketInterface); found {
+				r.EnrichSocketDestLocality = res.Locality
+				r.EnrichSocketDestEgressIfindex = res.EgressIfindex
+				r.EnrichSocketDestEgressIfname = res.EgressIfname
+				r.EnrichSocketInterfaceName = res.BoundIfname
+				remote = res.Remote
+			}
+		}
+
+		if remote && x.asn != nil {
+			if asn, owner, found := x.asn.LookupAsn(addr); found {
+				r.EnrichSocketDestAsn = uint64(asn)
+				r.EnrichSocketDestNetworkOwner = owner
+			}
+		}
+	}
+}
+
+// destAddr converts the kernel's 16-byte __be32[4] destination slot to a
+// netip.Addr, alloc-free. family is authoritative: the kernel stores an IPv4
+// address in the first 4 bytes of the 16-byte slot (rest zero), so it must not
+// be read as IPv6. Returns ok=false for a short/absent buffer or unknown family.
+func destAddr(family uint32, b []byte) (netip.Addr, bool) {
+	switch family {
+	case unix.AF_INET:
+		if len(b) >= 4 {
+			return netip.AddrFrom4([4]byte(b[:4])), true
+		}
+	case unix.AF_INET6:
+		if len(b) >= 16 {
+			return netip.AddrFrom16([16]byte(b[:16])).Unmap(), true
+		}
+	}
+	return netip.Addr{}, false
 }
 
 // refreshNsids rebuilds the opt-in netns-inode -> nsid snapshot for the current
@@ -267,7 +333,11 @@ func (x *XTCP) refreshNsids(nss map[uint64]nsIdentity) {
 		if nsid, ok := nsdiscover.Nsid(fd); ok {
 			m[inode] = nsid
 		}
-		unix.Close(fd) //nolint:errcheck,gosec // best-effort per-namespace handle close
+		if err := unix.Close(fd); err != nil {
+			// Best-effort: a failed close of a read-only handle is not
+			// recoverable here, but surface it for debugging.
+			log.Printf("refreshNsids: close ns handle: %v", err)
+		}
 	}
 	x.nsidByInode.Store(&m)
 	x.pC.WithLabelValues("refreshNsids", "assigned", "counter").Add(float64(len(m)))

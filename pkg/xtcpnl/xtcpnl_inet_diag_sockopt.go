@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -81,21 +80,8 @@ func DeserializeSockOpt(data []byte, c *SockOpt) (n int, err error) {
 	return SockOptReadCst, nil
 }
 
-func DeserializeSockOptReflection(data []byte, c *SockOpt) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, c)
-	if err != nil {
-		return 0, err
-	}
-	n = len(data)
-
-	return n, err
-}
-
 // DeserializeSockOptXTCP reads an INET_DIAG_SOCKOPT (22) attribute into
-// XtcpFlatRecord.SockOpt. Previously typed against the wrong target
+// XtcpFlatRecord.InetDiagSockopt. Previously typed against the wrong target
 // (*Envelope_XtcpFlatRecord), which didn't match the runtime dispatch
 // map signature in pkg/xtcp/deserializers.go — the dispatch entry had
 // to be filled with DeserializeCGroupIDXTCP as a placeholder, so the
@@ -107,7 +93,7 @@ func DeserializeSockOptXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 		return ErrSockOptSmall
 	}
 
-	x.SockOpt = uint32(binary.LittleEndian.Uint16(data[0:2]))
+	x.InetDiagSockopt = uint32(binary.LittleEndian.Uint16(data[0:2]))
 
 	return nil
 }

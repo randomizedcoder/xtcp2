@@ -1,0 +1,10 @@
+name: fastly
+provider: fastly
+url: https://api.fastly.com/public-ip-list
+parser: fastly
+source_type: provider_api
+confidence: authoritative
+defaults:
+  network_owner: fastly
+  service_operator: fastly
+enabled: true

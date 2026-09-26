@@ -1,0 +1,11 @@
+name: salesforce
+provider: salesforce
+url: https://ip-ranges.salesforce.com/ip-ranges.json
+parser: salesforce
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: salesforce
+  service_operator: salesforce
+  service: hyperforce
+enabled: true

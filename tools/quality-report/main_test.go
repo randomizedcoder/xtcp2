@@ -285,18 +285,62 @@ func TestLoadKnownFailures_missingFile(t *testing.T) {
 
 func TestStatusLabel(t *testing.T) {
 	cases := []struct {
-		s    ToolStatus
-		want string
+		description string
+		s           ToolStatus
+		want        string
 	}{
-		{s: ToolStatus{Available: false}, want: "not run"},
-		{s: ToolStatus{Available: true, ExitCode: 0, Findings: 0}, want: "clean"},
-		{s: ToolStatus{Available: true, ExitCode: 0, Findings: 5}, want: "findings"},
-		{s: ToolStatus{Available: true, ExitCode: 2, Findings: 0}, want: "exit 2"},
+		{
+			description: "positive: raw file present, exited 0, nothing found — the tool passed",
+			s:           ToolStatus{Available: true, ExitCode: 0, Findings: 0},
+			want:        "clean",
+		},
+		{
+			description: "positive: exited 0 with findings — a reporting-only tool that found things",
+			s:           ToolStatus{Available: true, ExitCode: 0, Findings: 5},
+			want:        "findings",
+		},
+		{
+			description: "positive: exit 1 with findings is the normal 'issues found' convention",
+			s:           ToolStatus{Available: true, ExitCode: 1, Findings: 5},
+			want:        "findings",
+		},
+		{
+			description: "negative: raw file missing — Available false wins over every other field",
+			s:           ToolStatus{Available: false, ExitCode: 4, Findings: 9},
+			want:        "not run",
+		},
+		{
+			description: "negative: exit 1 but no findings parsed — the JSON did not match the exit code",
+			s:           ToolStatus{Available: true, ExitCode: 1, Findings: 0},
+			want:        "exit 1",
+		},
+		{
+			description: "boundary: exit 2 is the first code treated as the tool failing, not reporting",
+			s:           ToolStatus{Available: true, ExitCode: 2, Findings: 0},
+			want:        "exit 2",
+		},
+		{
+			description: "corner: golangci-lint timeout (exit 4) prints '0 issues.' — must not read as clean",
+			s:           ToolStatus{Available: true, ExitCode: 4, Findings: 0},
+			want:        "exit 4",
+		},
+		{
+			description: "corner: partial run — findings are a floor, so the exit code must not be swallowed",
+			s:           ToolStatus{Available: true, ExitCode: 4, Findings: 3},
+			want:        "incomplete, exit 4",
+		},
+		{
+			description: "corner: killed by SIGKILL (128+9) with findings already written",
+			s:           ToolStatus{Available: true, ExitCode: 137, Findings: 12},
+			want:        "incomplete, exit 137",
+		},
 	}
 	for _, tc := range cases {
-		if got := statusLabel(tc.s); got != tc.want {
-			t.Errorf("statusLabel(%+v) = %q, want %q", tc.s, got, tc.want)
-		}
+		t.Run(tc.description, func(t *testing.T) {
+			if got := statusLabel(tc.s); got != tc.want {
+				t.Errorf("statusLabel(%+v) = %q, want %q", tc.s, got, tc.want)
+			}
+		})
 	}
 }
 

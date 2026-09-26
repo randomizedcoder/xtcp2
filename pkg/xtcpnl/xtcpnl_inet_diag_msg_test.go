@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"encoding/binary"
 	"encoding/hex"
@@ -88,7 +101,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   204403,
 
-			Func: DeserializeInetDiagMsgViaReflection,
+			Func: deserializeInetDiagMsgReflection,
 
 			debugLevel: 11,
 		},
@@ -126,7 +139,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   10698,
 
-			Func: DeserializeInetDiagMsgViaReflection,
+			Func: deserializeInetDiagMsgReflection,
 
 			debugLevel: 11,
 		},
@@ -164,7 +177,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   27461,
 
-			Func: DeserializeInetDiagMsgViaReflection,
+			Func: deserializeInetDiagMsgReflection,
 
 			debugLevel: 11,
 		},
@@ -202,7 +215,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26664450,
 
-			Func: DeserializeInetDiagMsgViaReflection,
+			Func: deserializeInetDiagMsgReflection,
 
 			debugLevel: 11,
 		},
@@ -240,7 +253,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 			UID:     1000,
 			Inode:   26683184,
 
-			Func: DeserializeInetDiagMsgViaReflection,
+			Func: deserializeInetDiagMsgReflection,
 
 			debugLevel: 11,
 		},
@@ -323,7 +336,7 @@ func TestDeserializeInetDiagMsg(t *testing.T) {
 		idm := new(InetDiagMsg)
 		s := new(InetDiagSockID)
 
-		// _, errD := DeserializeInetDiagMsgViaReflection(buf, idm, s)
+		// _, errD := deserializeInetDiagMsgReflection(buf, idm, s)
 		// _, errD := DeserializeInetDiagMsg(buf, idm, s)
 		_, errD := test.Func(buf, idm, s)
 		if errD != nil {

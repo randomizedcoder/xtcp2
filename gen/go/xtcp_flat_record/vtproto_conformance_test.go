@@ -168,7 +168,7 @@ func TestVTProtoConformance_XtcpFlatRecord_fixtures(t *testing.T) {
 	cases := map[string]*XtcpFlatRecord{
 		"empty": {},
 		"minimal": {Hostname: "h", InetDiagMsgState: 1,
-			CongestionAlgorithmEnum: XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC},
+			InetDiagCongEnum: XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC},
 		"ipv4": {InetDiagMsgFamily: 2,
 			InetDiagMsgSocketSource: []byte{10, 0, 0, 5}, InetDiagMsgSocketSourcePort: 443},
 		"ipv6": {InetDiagMsgFamily: 10,

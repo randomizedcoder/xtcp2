@@ -24,11 +24,33 @@ func socketpair(t testing.TB) (int, int) {
 	return fds[0], fds[1]
 }
 
+// newTestRing builds a Ring and pins the calling goroutine to its OS
+// thread for the rest of the test.
+//
+// The pin is not optional. Rings are created with
+// IORING_SETUP_SINGLE_ISSUER (see setupFlags), so the kernel binds each
+// ring to the task that created it; io_uring_enter(2) from any other
+// task fails with EEXIST, which Go surfaces as "file exists". Go's
+// scheduler is free to migrate an unpinned goroutine between New and
+// Submit, so an unpinned ring test is flaky by construction — rarely
+// under a plain run, often under -race, which adds preemption points.
+//
+// Pinning here rather than in each test means a new test cannot forget
+// it. Callers that build a Ring directly with New must still pin
+// themselves.
 func newTestRing(t testing.TB, recvBatch int) *Ring {
 	t.Helper()
 	if recvBatch < 1 {
 		recvBatch = 8
 	}
+
+	runtime.LockOSThread()
+	// Registered before the Close cleanup so it runs *after* it (t.Cleanup
+	// is LIFO): the ring must be torn down on its owning thread.
+	t.Cleanup(func() {
+		runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread so the SINGLE_ISSUER ring keeps one owning task; no netns mutation
+	})
+
 	r, err := New(Config{RecvBatchSize: recvBatch, CQEBatchSize: 32})
 	if err != nil {
 		// Probe failure / kernel-too-old / io_uring disabled — skip so
@@ -49,9 +71,6 @@ func allocBuf(n int) *[]byte {
 }
 
 func TestRecvSingleDatagram(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	r := newTestRing(t, 4)
 	srv, cli := socketpair(t)
 
@@ -94,9 +113,6 @@ func TestRecvSingleDatagram(t *testing.T) {
 }
 
 func TestRecvMultipleDatagrams(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	r := newTestRing(t, 16)
 	srv, cli := socketpair(t)
 
@@ -159,9 +175,6 @@ func TestRecvMultipleDatagrams(t *testing.T) {
 }
 
 func TestSendSingle(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	r := newTestRing(t, 4)
 	srv, cli := socketpair(t)
 
@@ -199,9 +212,6 @@ func TestSendSingle(t *testing.T) {
 }
 
 func TestSendBatch(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	r := newTestRing(t, 256)
 	srv, cli := socketpair(t)
 
@@ -261,9 +271,6 @@ func TestSendBatch(t *testing.T) {
 }
 
 func TestWritevUnixStream(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	// Need SOCK_STREAM for writev semantics; socketpair() above is DGRAM.
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
@@ -313,9 +320,6 @@ func TestWritevUnixStream(t *testing.T) {
 }
 
 func TestInFlightCapEnforced(t *testing.T) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: ring test pins to one thread for io_uring SQE/CQE consistency, no netns mutation
-
 	r := newTestRing(t, 4) // sqEntries clamped to 256, in-flight cap = 512
 	_, cli := socketpair(t)
 

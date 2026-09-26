@@ -1,3 +1,10 @@
+// STALE (last regenerated 2025-03): this ConfigMap embeds a pre-epoch copy of
+// the xtcp2 ClickHouse schema/DDL. Column names and field numbers have since
+// changed (record epoch 2, 2026-09: kernel-spelled payload names, enrichment
+// block, per-version _v0/_v1/_v2 tables). Do NOT apply as-is. Regenerate from
+// build/containers/clickhouse/initdb.d/sql/ and
+// build/containers/clickhouse/format_schemas/xtcp_flat_record.proto before use;
+// see build/k8s/clickhouse/readme.md ("Schema staleness").
 package bootstrap-mounted-configMap.cue
 
 apiVersion: "v1"

@@ -28,17 +28,29 @@ func TestPool_PutThenGetReuses(t *testing.T) {
 		return &b
 	})
 
-	a := p.Get()
-	*a = append((*a)[:0], 'x')
-	p.Put(a)
-
-	// After Put, the next Get should return the same backing pointer
-	// (sync.Pool is best-effort, but in a single goroutine with no GC
-	// in between it reliably hands the value straight back).
-	b := p.Get()
-	if b != a {
-		t.Fatalf("Get after Put returned a different pointer; pooling not wired")
+	// sync.Pool.Put deliberately throws the value away roughly one time
+	// in four when the race detector is on — go/src/sync/pool.go:
+	//
+	//	if race.Enabled {
+	//		if runtime_randn(4) == 0 {
+	//			// Randomly drop x on floor.
+	//			return
+	//
+	// so a single Put/Get round trip is not a reliable signal, and this
+	// test failed ~25% of `go test -race` runs when it asserted pointer
+	// identity after one Put. Any reuse at all proves the pool is wired;
+	// zero reuse across N rounds has probability 0.25^N (~9e-13 at N=20),
+	// which is far below the flake floor of everything else in the suite.
+	const tries = 20
+	for range tries {
+		a := p.Get()
+		*a = append((*a)[:0], 'x')
+		p.Put(a)
+		if p.Get() == a {
+			return // reused: pooling is wired
+		}
 	}
+	t.Fatalf("no reuse across %d Put/Get rounds; pooling not wired", tries)
 }
 
 func TestPool_GetType(t *testing.T) {

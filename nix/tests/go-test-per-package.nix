@@ -27,42 +27,94 @@
 let
   versions = import ../versions.nix { inherit pkgs; };
 
-  # name → relative test path (passed to `go test`). Keep the set
-  # focused on packages that have non-trivial test surface; tools/demo
-  # binaries that already get coverage via their existing
+  # name → { path; race; }. `path` is the relative test path passed to
+  # `go test`. Keep the set focused on packages that have non-trivial test
+  # surface; tools/demo binaries that already get coverage via their existing
   # `_test.go` files are listed too.
+  #
+  # `race` is opt-in per package and defaults off. `nix/tests/go-test-race.nix`
+  # already runs `go test -race ./...`, so every package here is covered by the
+  # race detector *somewhere*; what that whole-repo run is not, is fast or
+  # localised. pkg/io_uring is the one package where the concurrency contract
+  # (io_uring's IORING_SETUP_SINGLE_ISSUER — the submitter thread is fixed at
+  # ring creation and the kernel rejects submissions from any other) is the
+  # thing most likely to be broken by a change, so it gets its own cheap race
+  # run to reach for while iterating. The other eleven stay CGO_ENABLED=0 and
+  # fast.
   packages = {
-    "pkg-xtcp" = "./pkg/xtcp/...";
-    "pkg-xtcpnl" = "./pkg/xtcpnl/...";
-    "pkg-io-uring" = "./pkg/io_uring/...";
-    "pkg-misc" = "./pkg/misc/...";
-    "tools-quality-report" = "./tools/quality-report/...";
-    "tools-netlink-audit" = "./tools/netlink-audit/...";
-    "tools-iouring-audit" = "./tools/iouring-audit/...";
-    "tools-metrics-audit" = "./tools/metrics-audit/...";
-    "tools-proto-field-audit" = "./tools/proto-field-audit/...";
-    "cmd-xtcp2" = "./cmd/xtcp2/...";
-    "cmd-xtcp2client" = "./cmd/xtcp2client/...";
-    "cmd-xtcp2ctl" = "./cmd/xtcp2ctl/...";
+    "pkg-xtcp" = {
+      path = "./pkg/xtcp/...";
+      race = false;
+    };
+    "pkg-xtcpnl" = {
+      path = "./pkg/xtcpnl/...";
+      race = false;
+    };
+    "pkg-io-uring" = {
+      path = "./pkg/io_uring/...";
+      race = true;
+    };
+    "pkg-misc" = {
+      path = "./pkg/misc/...";
+      race = false;
+    };
+    "tools-quality-report" = {
+      path = "./tools/quality-report/...";
+      race = false;
+    };
+    "tools-netlink-audit" = {
+      path = "./tools/netlink-audit/...";
+      race = false;
+    };
+    "tools-iouring-audit" = {
+      path = "./tools/iouring-audit/...";
+      race = false;
+    };
+    "tools-metrics-audit" = {
+      path = "./tools/metrics-audit/...";
+      race = false;
+    };
+    "tools-proto-field-audit" = {
+      path = "./tools/proto-field-audit/...";
+      race = false;
+    };
+    "cmd-xtcp2" = {
+      path = "./cmd/xtcp2/...";
+      race = false;
+    };
+    "cmd-xtcp2client" = {
+      path = "./cmd/xtcp2client/...";
+      race = false;
+    };
+    "cmd-xtcp2ctl" = {
+      path = "./cmd/xtcp2ctl/...";
+      race = false;
+    };
   };
 
   mkPkgTest =
-    name: path:
+    name:
+    { path, race }:
     pkgs.runCommand "xtcp2-test-${name}"
       {
-        nativeBuildInputs = [ versions.go ];
+        # The race detector is implemented in C, so it needs cgo and a
+        # compiler — same reason go-test-race.nix carries gcc.
+        nativeBuildInputs = [
+          versions.go
+        ]
+        ++ lib.optional race pkgs.gcc;
         inherit vendoredSource;
       }
       ''
         cp -r $vendoredSource ./xtcp2 && chmod -R +w ./xtcp2
         cd ./xtcp2
         export HOME=$(mktemp -d)
-        export CGO_ENABLED=0
+        export CGO_ENABLED=${if race then "1" else "0"}
         export GOFLAGS=-mod=vendor
 
         mkdir -p $out
         set +e
-        go test -v \
+        go test -v ${lib.optionalString race "-race "}\
           -covermode=atomic \
           -coverprofile=$out/coverage.out \
           ${path} \
@@ -74,10 +126,10 @@ let
           cat $out/test.log >&2
           exit "$rc"
         fi
-        echo "test-${name} OK (path: ${path})" >&2
+        echo "test-${name} OK (path: ${path}${lib.optionalString race ", -race"})" >&2
       '';
 in
-lib.mapAttrs' (name: path: {
+lib.mapAttrs' (name: spec: {
   name = "test-${name}";
-  value = mkPkgTest name path;
+  value = mkPkgTest name spec;
 }) packages

@@ -1,10 +1,11 @@
 # nix/tests/go-test-flavors.nix
 #
 # Per-build-tag Go test runners. The default `go test ./...` compiles
-# without any `dest_*` build tags, so pkg/xtcp/destinations_{kafka,nats,
-# nsq,valkey}.go (each guarded by `//go:build dest_<name>`) are excluded
-# from coverage. This module produces one derivation per flavor + one
-# "all" target that exercises every flavor at once.
+# without any `dest_*` or `enrich_*` build tags, so
+# pkg/xtcp/destinations_{kafka,nats,nsq,valkey}.go and
+# pkg/xtcp/enrich_{asn,locality}.go (each guarded by `//go:build <tag>`)
+# are excluded from coverage. This module produces one derivation per
+# flavor + one "all" target that exercises every flavor at once.
 #
 # Output per derivation:
 #   $out/test.log         — full `go test -v` output
@@ -45,8 +46,34 @@ let
     s3parquet = {
       tags = "dest_s3parquet";
     };
+
+    # Enrichment axis. pkg/xtcp/enrich_{asn,locality}.go are guarded by
+    # `//go:build enrich_<feature>` for the same reason the destination files
+    # are — so the slim flavors don't link parquet-go / bart. Without these
+    # targets their code (and their stub counterparts' absence) is never
+    # compiled by any check.
+    #
+    # Deliberately NOT the full destination × enrichment cross product: the
+    # two axes are orthogonal in the Go code, so 4 well-chosen cells cover
+    # every compilation outcome that 28 would.
+    asn = {
+      tags = "enrich_asn";
+    };
+    locality = {
+      tags = "enrich_locality";
+    };
+    enrich = {
+      tags = "enrich_asn enrich_locality";
+    };
+    # The one combination that is not orthogonal: dest_s3parquet and
+    # enrich_asn both reach parquet-go, from the destination writer and the
+    # ASN reader respectively. Worth compiling together.
+    s3parquet-enrich = {
+      tags = "dest_s3parquet enrich_asn enrich_locality";
+    };
+
     all = {
-      tags = "dest_kafka dest_nats dest_nsq dest_valkey dest_s3parquet";
+      tags = "dest_kafka dest_nats dest_nsq dest_valkey dest_s3parquet enrich_asn enrich_locality";
     };
   };
 

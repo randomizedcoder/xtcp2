@@ -21,7 +21,7 @@
 }:
 
 let
-  xtcp2 = binaries.xtcp2;
+  inherit (binaries) xtcp2;
 
   # Run xtcp2 with -conf so it tries to validate config + check caps,
   # but doesn't actually open netlink sockets. Exit code MUST be

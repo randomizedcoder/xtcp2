@@ -68,21 +68,16 @@ func newNATSDest(_ context.Context, x *XTCP) (Destination, error) {
 	return &natsDest{x: x, client: client}, nil
 }
 
-func (d *natsDest) Send(_ context.Context, b *[]byte) (int, error) {
-	start := time.Now()
-	err := d.client.Publish(d.x.config.Topic, *b)
-	dur := time.Since(start)
-	if err != nil {
-		d.x.pH.WithLabelValues("destNATS", "Publish", "error").Observe(dur.Seconds())
-		d.x.pC.WithLabelValues("destNATS", "Publish", "error").Inc()
-		return 0, err
-	}
-	if d.x.debugLevel > 10 {
-		log.Printf("destNATS %0.6fs", dur.Seconds())
-	}
-	d.x.pH.WithLabelValues("destNATS", "Publish", "count").Observe(dur.Seconds())
-	d.x.pC.WithLabelValues("destNATS", "Publish", "count").Inc()
-	return 1, nil
+// Send hands the record to sendViaPublisher, which owns the timing, metrics
+// and debug-log boilerplate shared with the nsq and valkey sinks. The timeout
+// is 0 because nats.Conn.Publish only buffers — it takes no context and
+// returns without a round-trip, so a deadline here would bound nothing. Close
+// is where the wire round-trip happens (FlushTimeout).
+func (d *natsDest) Send(ctx context.Context, b *[]byte) (int, error) {
+	return sendViaPublisher(ctx, d.x, "destNATS", 0,
+		func(_ context.Context, topic string, body []byte) error {
+			return d.client.Publish(topic, body)
+		}, b)
 }
 
 func (d *natsDest) Close() error {

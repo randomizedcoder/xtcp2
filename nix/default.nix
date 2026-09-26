@@ -9,6 +9,7 @@
   giouring,
   microvm,
   nixpkgs,
+  xdp2,
 }:
 
 let
@@ -28,13 +29,12 @@ let
   goMods = import ./lib/goModules.nix {
     inherit
       pkgs
-      lib
       src
       giouring
       ;
     vendorHash = versions.goVendorHash;
   };
-  vendoredSource = goMods.vendoredSource;
+  inherit (goMods) vendoredSource;
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
   containers = import ./containers {
@@ -66,6 +66,7 @@ let
       ;
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
+    ipfeedCollectorPackage = binaries."ipfeed-collector";
     xtcp2CoverPackage = binaries.xtcp2-cover;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
@@ -78,6 +79,7 @@ let
       src
       vendoredSource
       binaries
+      xdp2
       ;
   };
 
@@ -86,24 +88,22 @@ let
     inherit
       pkgs
       lib
-      src
       vendoredSource
       microvms
       ;
   };
 
   # Dev shell
-  devshell = import ./devshell.nix { inherit pkgs lib; };
+  devshell = import ./devshell.nix { inherit pkgs; };
 
   # Proto plumbing
-  protos = import ./protos { inherit pkgs lib src; };
+  protos = import ./protos { inherit pkgs src; };
 
   # Pedantic code-quality aggregator: runs every static-analysis tool +
   # custom audit, never short-circuits, emits a single markdown report.
   qualityReport = import ./quality-report {
     inherit
       pkgs
-      lib
       vendoredSource
       src
       ;
@@ -122,6 +122,25 @@ let
   # repo has no committed vendor/ tree, so we fall back to module-mode
   # against the user's GOMODCACHE.
   coverageMerge = import ./coverage-merge.nix { inherit pkgs; };
+
+  # Reproducible nlmon-based capture of real rtnetlink DUMP replies for the
+  # pkg/xtcpnl testdata harness. Invoked via
+  # `nix run .#capture-netlink-fixtures` from the repo root; see the file
+  # header for the filtering/versioning rationale.
+  captureNetlinkFixtures = import ./capture-netlink-fixtures.nix { inherit pkgs; };
+
+  # Asks the upstream remotes where `main` actually is and reports how far
+  # behind each pin in nix/upstream-pins.json has fallen. A RUNNER rather than
+  # a check for the same reason captureNetlinkFixtures is one: the `nix flake
+  # check` sandbox has no network, so it cannot answer "has upstream moved?".
+  # Its hermetic counterpart, checks.upstream-pins, keeps the manifest honest.
+  checkUpstreamPins = import ./check-upstream-pins.nix { inherit pkgs; };
+
+  # The five golangci-lint tier helpers (lint-quick / lint /
+  # lint-comprehensive / lint-fix / lint-new). They live in their own file
+  # because nix/devshell.nix puts the very same derivations on the dev
+  # shell's PATH — one definition, so the shell and the flake cannot drift.
+  lintTiers = import ./lint-tiers.nix { inherit pkgs; };
 
   lintFixOne = pkgs.writeShellApplication {
     name = "xtcp2-lint-fix-one";
@@ -248,15 +267,31 @@ let
         chmod -R +w "$MERGED_RAW"
 
         echo "==> re-running quality-report with merged profile"
-        go run ./tools/quality-report \
+        # Build and run the binary rather than `go run`: `go run` reports
+        # "exit status N" and exits 1 regardless (golang/go#26139), which
+        # would collapse a coverage-ratchet breach (3) into the generic
+        # failure path and print "report may be incomplete" for a report
+        # that is in fact complete — the aggregator emits the whole
+        # markdown before it evaluates the ratchet. Same fix as
+        # nix/quality-report/default.nix.
+        QR_BIN=$(mktemp -t quality-report-bin-XXXXXX)
+        go build -o "$QR_BIN" ./tools/quality-report
+        qr_rc=0
+        "$QR_BIN" \
           -raw-dir "$MERGED_RAW" \
           -repo-root . \
           -known-failures ./tools/quality-report/known-failures.txt \
           -coverage-baseline ./docs/coverage-baseline.txt \
           -coverage-max-drop 0.5 \
           -coverage-out "$MERGED" \
-          > docs/quality-report.md \
-          || echo "WARNING: aggregator exited non-zero; report may be incomplete"
+          > docs/quality-report.md || qr_rc=$?
+        rm -f "$QR_BIN"
+        if [ "$qr_rc" -eq 3 ]; then
+          echo "WARNING: coverage ratchet breach; report is complete, but the" \
+               "merged total is below docs/coverage-baseline.txt"
+        elif [ "$qr_rc" -ne 0 ]; then
+          echo "WARNING: aggregator exited $qr_rc; report may be incomplete"
+        fi
       else
         cp "$result/quality-report.md" docs/quality-report.md
       fi
@@ -479,39 +514,26 @@ in
       "xtcp2ByFlavor"
       "xtcp2OnlyByFlavor"
     ])
+    # Every OCI image, by prefix rather than by hand. `containers` exports
+    # nothing but `oci-*` attrs, so filtering instead of enumerating stops a
+    # new flavor from having to be declared both there and here. Covers:
+    #   oci-xtcp2{,-debug,-stripped}   fat, every cmd binary
+    #   oci-xtcp2-<dest>[-<enrich>]    24 slim single-binary daemons
+    #   oci-xtcp2client / oci-xtcp2ctl slim gRPC clients
+    #   oci-ipfeed-collector           ASN artifact builder
+    #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
+    # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
+    # a convenience list for nix/devshell.nix, not a package, so drop it.
+    // (removeAttrs lintTiers [ "all" ])
     // {
-      # Build-variant OCI images (fat: every cmd binary).
-      inherit (containers)
-        oci-xtcp2
-        oci-xtcp2-debug
-        oci-xtcp2-stripped
-        ;
-      # Per-flavor OCI images (slim: single xtcp2 binary for one destination).
-      inherit (containers)
-        oci-xtcp2-min
-        oci-xtcp2-kafka
-        oci-xtcp2-nats
-        oci-xtcp2-nsq
-        oci-xtcp2-valkey
-        oci-xtcp2-s3parquet
-        ;
-      # Per-client OCI images (slim: single gRPC-client binary).
-      inherit (containers)
-        oci-xtcp2client
-        oci-xtcp2ctl
-        ;
-
-      # Phase B: TCP-stress container for the multi-container test
-      # harness. Run with TCP_MODE=server|client|both, TCP_COUNT,
-      # TCP_SLEEP, TCP_PADS, TCP_CONNECT, TCP_BIND env vars.
-      inherit (containers) oci-xtcp2-tcp-stress;
-
       regen-protos = protos.regenerate;
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-interface-naming = microvms.vmsInterfaceNaming.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
       microvm-x86_64-clickhouse-http = microvms.vmsClickHttp.x86_64;
       microvm-x86_64-clickhouse-pipeline-rate = microvms.vmsClickPipeRate.x86_64;
@@ -529,6 +551,7 @@ in
       microvm-x86_64-s3parquet-stress = microvms.vmsS3ParquetStress.x86_64;
       microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
+      microvm-x86_64-nlmon-capture = microvms.vmsNlmonCapture.x86_64;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -537,6 +560,19 @@ in
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
       xtcp-flat-record-desc = xtcpFlatRecordDescPackage;
+
+      # The netlink layout oracle's binary, re-exported at the pin this repo
+      # actually audits with. `checks.proto-audit-netlink` runs it in a fixed
+      # shape; this is for reading individual answers out of it by hand, which
+      # is how the TCPInfo6_10_3 registry pin was diagnosed:
+      #
+      #   PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- \
+      #     extract --source xtcp2 --proto NL_Diag_TCPInfo --json
+      #
+      # Free at eval time and already in the check's closure, so exposing it
+      # costs nothing beyond this comment. Both env vars override the stale
+      # defaults baked into xdp2's wrapper — see nix/upstream-pins.json.
+      proto-audit = xdp2.packages.${pkgs.stdenv.hostPlatform.system}.proto-audit;
 
       # Test runners exposed as packages so they can be built via
       # `nix build .#test-go-unit`, etc.
@@ -555,6 +591,7 @@ in
       test-microvm-lifecycle-x86_64-unixgram-sink = microvms.lifecycleUnixgramSink.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nats = microvms.lifecycleNats.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-nsq = microvms.lifecycleNsq.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-interface-naming = microvms.lifecycleInterfaceNaming.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
 
@@ -590,6 +627,16 @@ in
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";
+    };
+    capture-netlink-fixtures = {
+      type = "app";
+      program = "${captureNetlinkFixtures}/bin/xtcp2-capture-netlink-fixtures";
+    };
+    # Warns when an upstream pin's `main` has moved. Needs network, so it is an
+    # app and not a check — see nix/upstream-pins.json for the split.
+    check-upstream-pins = {
+      type = "app";
+      program = "${checkUpstreamPins}/bin/xtcp2-check-upstream-pins";
     };
     # Run the whole microVM integration suite sequentially. Lifecycle sweep
     # by default; `-- --soak [--duration 1h]` adds the duration runners.
@@ -769,6 +816,21 @@ in
       program = "${microvms.discoveryBench.x86_64.runner}/bin/xtcp2-discovery-bench-x86_64";
     };
 
+    # rtnetlink EVENT capture: boots a quiet root microvm (no xtcp2 daemon),
+    # triggers link up/down + addr add/del + route add/del + neigh add/del on a
+    # veth pair, records them off an nlmon device, and writes the pcap plus the
+    # `ip -d` sidecars into pkg/xtcpnl/testdata/<guest kernel>/. Run from the
+    # repo root. Pass `--timeout <sec>` to bound the wait or `--out <dir>` to
+    # override the destination. Not in `nix flake check` — it needs /dev/kvm and
+    # it writes to the working tree, neither of which a check can do.
+    #
+    # Complements `nix run .#capture-netlink-fixtures`, which captures DUMPS on
+    # the host; this one captures EVENTS in a controlled guest.
+    microvm-x86_64-nlmon-capture = {
+      type = "app";
+      program = "${microvms.nlmonCapture.x86_64.runner}/bin/xtcp2-nlmon-capture-x86_64";
+    };
+
     quality-report = {
       type = "app";
       program = "${qualityReport}/bin/quality-report";
@@ -785,7 +847,19 @@ in
       type = "app";
       program = "${lintFixOne}/bin/xtcp2-lint-fix-one";
     };
-  };
+  }
+  # The five tiers as apps too, so `nix run .#lint-quick` works without
+  # entering the dev shell. Each derivation's single binary is named for the
+  # attr, so the program path is derivable rather than spelled out.
+  // (
+    let
+      tiers = removeAttrs lintTiers [ "all" ];
+    in
+    lib.mapAttrs (name: drv: {
+      type = "app";
+      program = "${drv}/bin/${name}";
+    }) tiers
+  );
 
   inherit tests;
 }

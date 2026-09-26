@@ -80,6 +80,16 @@ func CongestionAlgorithmName(e xtcp_flat_record.XtcpFlatRecord_CongestionAlgorit
 	return strings.TrimPrefix(e.String(), "CONGESTION_ALGORITHM_")
 }
 
+// LocalityName returns the short destination-locality name (e.g. "SELF",
+// "LOCAL_SUBNET", "REMOTE") by trimming the generated enum's LOCALITY_ prefix.
+// UNSPECIFIED renders as "".
+func LocalityName(l xtcp_flat_record.XtcpFlatRecord_Locality) string {
+	if l == xtcp_flat_record.XtcpFlatRecord_LOCALITY_UNSPECIFIED {
+		return ""
+	}
+	return strings.TrimPrefix(l.String(), "LOCALITY_")
+}
+
 // TimestampRFC3339 formats a record's timestamp_ns (int64 Unix nanoseconds) as
 // RFC3339 with nanosecond precision in UTC. Zero → "".
 func TimestampRFC3339(ns int64) string {

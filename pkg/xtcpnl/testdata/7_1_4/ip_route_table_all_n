@@ -1,0 +1,29 @@
+unicast default via 10.0.2.2 dev ens4 table main proto dhcp scope global src 10.0.2.15 metric 1024 
+unicast 10.0.2.0/24 dev ens4 table main proto kernel scope link src 10.0.2.15 metric 1024 
+unicast 10.0.2.2 dev ens4 table main proto dhcp scope link src 10.0.2.15 metric 1024 
+unicast 10.0.2.3 dev ens4 table main proto dhcp scope link src 10.0.2.15 metric 1024 
+unicast 192.0.2.0/24 dev nlcap0 table main proto kernel scope link src 192.0.2.1 
+local 10.0.2.15 dev ens4 table local proto kernel scope host src 10.0.2.15 
+broadcast 10.0.2.255 dev ens4 table local proto kernel scope link src 10.0.2.15 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 192.0.2.1 dev nlcap0 table local proto kernel scope host src 192.0.2.1 
+broadcast 192.0.2.255 dev nlcap0 table local proto kernel scope link src 192.0.2.1 
+unicast 2001:db8::/64 dev nlcap0 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev ens4 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev nlcap1 table main proto kernel scope global metric 256 pref medium
+unicast fe80::/64 dev nlcap0 table main proto kernel scope global metric 256 pref medium
+unicast fec0::/64 dev ens4 table main proto ra scope global metric 1024 expires 86358sec pref medium
+unicast default nhid 2575168802 via fe80::2 dev ens4 table main proto ra scope global metric 1024 expires 1758sec pref medium
+	nh_info id 2575168802 via fe80::2 dev ens4 scope link proto ra 
+local ::1 dev lo table local proto kernel scope global metric 0 pref medium
+local 2001:db8::1 dev nlcap0 table local proto kernel scope global metric 0 pref medium
+local fe80::ff:fe00:1001 dev ens4 table local proto kernel scope global metric 0 pref medium
+local fe80::8cf:64ff:fe73:294b dev nlcap0 table local proto kernel scope global metric 0 pref medium
+local fe80::e89f:a4ff:fe51:ae3f dev nlcap1 table local proto kernel scope global metric 0 pref medium
+local fec0::ff:fe00:1001 dev ens4 table local proto kernel scope global metric 0 pref medium
+local fec0::4eb9:6d31:5501:31b6 dev ens4 table local proto kernel scope global metric 0 pref medium
+multicast ff00::/8 dev ens4 table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev nlcap1 table local proto kernel scope global metric 256 pref medium
+multicast ff00::/8 dev nlcap0 table local proto kernel scope global metric 256 pref medium

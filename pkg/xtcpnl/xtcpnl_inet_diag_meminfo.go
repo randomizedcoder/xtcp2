@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -78,18 +77,6 @@ func DeserializeMemInfo(data []byte, mi *MemInfo) (n int, err error) {
 	mi.Tmem = binary.LittleEndian.Uint32(data[12:16])
 
 	return MemInfoReadCst, nil
-}
-
-func DeserializeMemInfoReflection(data []byte, mi *MemInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, mi)
-	if err != nil {
-		return 0, err
-	}
-
-	return MemInfoReadCst, err
 }
 
 // INET_DIAG_INFO 2

@@ -1,0 +1,234 @@
+{
+  "_comment": [
+    "Accepted deltas for the proto-audit netlink layout oracle.",
+    "",
+    "The oracle (nix/checks/proto-audit-netlink.nix) compares xtcp2's Go netlink",
+    "structs against the Linux kernel UAPI headers and 14 other sources, indexed",
+    "by WIRE BIT OFFSET rather than by field name. Some reported deltas are",
+    "deliberate design choices, and some are limitations of proto-audit itself;",
+    "each one is recorded here so the check can gate without being permanently",
+    "red.",
+    "",
+    "Reviewed like docs/coverage-baseline.txt: an entry is a standing decision,",
+    "so adding one needs the same scrutiny as lowering a coverage floor. A delta",
+    "that is merely inconvenient does not belong here — only one that is correct.",
+    "",
+    "Keys are protocol names as proto-audit reports them (see `proto-audit list`).",
+    "Each entry is matched on protocol + offset_bits + field, so a field moving",
+    "to a different offset stops being allowlisted and the check goes red again.",
+    "That is intentional: the offset is the thing being asserted.",
+    "",
+    "TWO KINDS APPEAR BELOW:",
+    "",
+    "  kind=semantic   proto-audit's own name-based type heuristic",
+    "                  (src/extractors/xtcp2.rs infer_field_type) labels a field",
+    "                  Enum/Flags where its kernel extractor says Uint. An",
+    "                  annotation disagreement, not a layout one. Permanent.",
+    "",
+    "  kind=split      the kernel declares a C bitfield and xtcp2 unpacks it",
+    "                  into one Go field per member, so the two sides disagree",
+    "                  about where the boundaries fall while decoding the same",
+    "                  bytes identically. Layout-equivalent. Every split delta",
+    "                  comes in a PAIR — one entry per side — so they are",
+    "                  allowlisted in pairs; see the note below.",
+    "",
+    "A third kind, kind=upstream-registry-pin, existed until the xdp2 pin moved",
+    "to 16aa7676. It recorded 11 fields proto-audit could not see because it was",
+    "reading the wrong xtcp2 struct. All 11 are gone now — 7 became agreements",
+    "and 4 turned into split pairs. Read the note below before reintroducing the",
+    "kind: a fixed upstream bug must not leave allowlist entries behind, because",
+    "they would mask a genuine future delta at the same offsets."
+  ],
+  "_note_NL_Diag_TCPInfo": [
+    "WHICH SIDE IS WHICH. Every split entry below comes in a pair, and the two",
+    "halves are told apart by the field NAME, not by anything in the entry:",
+    "",
+    "  tcpi_*  is the KERNEL side. proto-audit's kernel extractor reads the C",
+    "          declaration in linux/include/uapi/linux/tcp.h, bitfield widths",
+    "          included, so it emits one field per bitfield member with the",
+    "          member's real width (2, 4, 24 bits ...).",
+    "",
+    "  bare    is the XTCP2 side. Its extractor walks the Go struct and takes",
+    "          each field's declared Go type at face value, so xtcp2's",
+    "          `EcnMode uint8` reads as a whole 8-bit field starting where the",
+    "          previous Go field ended. It has no way to know the decoder",
+    "          unpacks that value out of a shared __u32 by hand.",
+    "",
+    "Neither side is wrong about the bytes. xtcp2 deliberately unpacks packed",
+    "kernel bitfields into one Go field each — see the comment at",
+    "pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:256-263 — because a caller wants",
+    "`EcnMode`, not a __u32 to mask. The disagreement is about field boundaries",
+    "in the model, and it shows up as an `overlaps with:` mismatch on both",
+    "sides at once, which is why both halves need an entry.",
+    "",
+    "Two bitfields in this struct produce pairs. Byte 6/7 (snd_wscale,",
+    "rcv_wscale, delivery_rate_app_limited, fastopen_client_fail) has done so",
+    "since the oracle was first run. The __u32 at [276:280] joined them when",
+    "the xdp2 pin moved to 16aa7676; that story is worth keeping:",
+    "",
+    "Until that bump, xdp2's registry hardcoded the Go struct name —",
+    "`.xtcp2(\"TCPInfo6_10_3\")` at samples/proto_audit/src/name_mapping/table.rs.",
+    "TCPInfo6_10_3 is the 248-byte struct that ends at tcpi_total_rto_time and",
+    "predates Accurate ECN, so resolve_alias() (src/extractors/xtcp2.rs:56),",
+    "which exists precisely to follow `type TCPInfo TCPInfo7_0_3`, was never",
+    "reached: the name handed to it was already concrete. All 11 AccECN fields",
+    "therefore read as MISSING FROM XTCP2 when xtcp2 was the side that had them.",
+    "They were allowlisted as kind=upstream-registry-pin and the fix went",
+    "upstream as https://github.com/randomizedcoder/xdp2/pull/11.",
+    "",
+    "Measured across the bump, NL_Diag_TCPInfo goes",
+    "  76/54/3/8/11  ->  80/61/3/16/0   (total/agree/type_differ/mismatch/missing)",
+    "",
+    "Note what that is NOT: it is not 11 missing becoming 11 agreements. The 7",
+    "plain __u32 counters (tcpi_received_ce and the six *_e{0,1,ce}_bytes) did",
+    "become agreements and need no entry at all. The other 4 are the members of",
+    "the [276:280] bitfield, and they reappeared as 4 split PAIRS — 8 entries,",
+    "the last 8 below. Anyone repeating this exercise on another struct should",
+    "expect the same shape: fixing the registry pin converts plain fields to",
+    "agreements and converts bitfield members to split pairs.",
+    "",
+    "One upstream nit remains at this rev, tracked in nix/upstream-pins.json:",
+    "extract_size_const (src/extractors/xtcp2.rs:143) builds the pattern",
+    "`{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an",
+    "underscore, so no versioned size constant is ever matched and the size is",
+    "inferred from the Go field offsets — which is why `extract --source xtcp2`",
+    "now reports min_header_bytes 283 rather than 280. 283 is where the last",
+    "unpacked Go field ends, not the size of the wire struct. Harmless for this",
+    "oracle: it compares by bit offset, and min_header_bytes is a minimum."
+  ],
+  "NL_Diag_TCPInfo": [
+    {
+      "field": "tcpi_state",
+      "offset_bits": 0,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "proto-audit's infer_field_type() sees \"state\" in the name and labels xtcp2's field Enum; its kernel extractor says Uint. Both agree it is 8 bits at offset 0. Annotation, not layout."
+    },
+    {
+      "field": "tcpi_ca_state",
+      "offset_bits": 8,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "Same heuristic as tcpi_state: \"state\" in the name yields Enum vs the kernel's Uint. Offset and size agree."
+    },
+    {
+      "field": "tcpi_options",
+      "offset_bits": 40,
+      "size_bits": 8,
+      "kind": "semantic",
+      "reason": "infer_field_type() labels anything containing \"options\" as Flags; the kernel extractor says Uint. It IS a flags byte (TCPI_OPT_TIMESTAMPS etc., linux/include/uapi/linux/tcp.h), so the heuristic is arguably the more accurate of the two. Offset and size agree."
+    },
+    {
+      "field": "tcpi_snd_wscale",
+      "offset_bits": 48,
+      "size_bits": 4,
+      "kind": "split",
+      "reason": "KERNEL side. Byte 6 is `__u8 tcpi_snd_wscale:4, tcpi_rcv_wscale:4` (linux/include/uapi/linux/tcp.h), so the kernel extractor emits a 4-bit field here. xtcp2 unpacks the two nibbles into `SndWscale uint8` and `RcvWscale uint8`, whose declared Go widths are a byte each, so this nibble reads as overlapping xtcp2's snd_wscale. Layout-equivalent; both decode byte 6 identically."
+    },
+    {
+      "field": "snd_wscale",
+      "offset_bits": 48,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side of the same pair. `SndWscale uint8` is a whole byte to a Go-struct walk, so it is reported as 8 bits at 48 and overlaps both kernel nibbles. Same single root cause as tcpi_snd_wscale @48."
+    },
+    {
+      "field": "tcpi_rcv_wscale",
+      "offset_bits": 52,
+      "size_bits": 4,
+      "kind": "split",
+      "reason": "KERNEL side, high nibble of byte 6 (bits 4-7); see tcpi_snd_wscale @48."
+    },
+    {
+      "field": "tcpi_delivery_rate_app_limited",
+      "offset_bits": 56,
+      "size_bits": 1,
+      "kind": "split",
+      "reason": "KERNEL side. Byte 7 is `__u8 tcpi_delivery_rate_app_limited:1, tcpi_fastopen_client_fail:2`, so the kernel extractor emits a 1-bit field here. xtcp2's second unpacked byte-6/7 field, `RcvWscale uint8`, occupies the whole of byte 7 in a Go-struct walk, so this bit reads as overlapping it. Layout-equivalent."
+    },
+    {
+      "field": "rcv_wscale",
+      "offset_bits": 56,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side of the byte-7 disagreement, and the clearest illustration of why this allowlist matches on OFFSET rather than on name: `RcvWscale` is really the high nibble of byte 6, but because SndWscale ahead of it already consumed a declared byte, the Go-struct walk lands it on byte 7. The name is a byte off from what the offset says. Nothing is wrong with the decoder — it reads both nibbles out of byte 6 — only with treating declared Go widths as wire widths."
+    },
+    {
+      "field": "tcpi_fastopen_client_fail",
+      "offset_bits": 57,
+      "size_bits": 2,
+      "kind": "split",
+      "reason": "KERNEL side, bits 1-2 of byte 7; see tcpi_delivery_rate_app_limited @56."
+    },
+    {
+      "field": "delivery_rate_app_limited",
+      "offset_bits": 64,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side, and a phantom. Having spent a declared byte on each of SndWscale and RcvWscale, the Go-struct walk lands DeliveryRateAppLimited on byte 8 — which is really tcpi_rto, hence `overlaps with: tcpi_rto`. xtcp2's Rto is nonetheless reported correctly at 64, because its `bytes:4 [8:12]` annotation is honored, and the pcap corpus confirms it (validate-netlink grades NL_Diag_TCPInfo Gold across 8 kernel versions). Downstream of the same unpacking."
+    },
+    {
+      "field": "fastopen_client_fail",
+      "offset_bits": 72,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side, second phantom byte from the same cause; see delivery_rate_app_limited @64."
+    },
+    {
+      "field": "tcpi_ecn_mode",
+      "offset_bits": 2208,
+      "size_bits": 2,
+      "kind": "split",
+      "reason": "KERNEL side. The AccECN trailer ends in one `__u32` at [276:280] declared `tcpi_ecn_mode:2, tcpi_accecn_opt_seen:2, tcpi_accecn_fail_mode:4, tcpi_options2:24`, so the kernel extractor emits a 2-bit field here. xtcp2 unpacks all four into separate Go fields (pkg/xtcpnl/xtcpnl_inet_diag_tcpinfo.go:260-263), the first of which, `EcnMode uint8`, reads as a whole byte — hence `overlaps with: ecn_mode`. Same class as tcpi_snd_wscale @48; appeared when the xdp2 pin moved to 16aa7676 and proto-audit could finally see the trailer at all."
+    },
+    {
+      "field": "ecn_mode",
+      "offset_bits": 2208,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side of the pair at 2208. `EcnMode uint8` is a byte to a Go-struct walk, so it is reported as 8 bits at 2208 and overlaps three kernel bitfield members at once (tcpi_ecn_mode, tcpi_accecn_opt_seen, tcpi_accecn_fail_mode). The decoder masks bits 0-1 out of the shared __u32 and is correct."
+    },
+    {
+      "field": "tcpi_accecn_opt_seen",
+      "offset_bits": 2210,
+      "size_bits": 2,
+      "kind": "split",
+      "reason": "KERNEL side, bits 2-3 of the [276:280] __u32; see tcpi_ecn_mode @2208."
+    },
+    {
+      "field": "tcpi_accecn_fail_mode",
+      "offset_bits": 2212,
+      "size_bits": 4,
+      "kind": "split",
+      "reason": "KERNEL side, bits 4-7 of the [276:280] __u32; see tcpi_ecn_mode @2208."
+    },
+    {
+      "field": "accecn_opt_seen",
+      "offset_bits": 2216,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side. `AccecnOptSeen uint8` is xtcp2's second unpacked field, so the Go-struct walk puts it at byte 277 while the kernel puts tcpi_options2 there. Off by a byte for the same reason rcv_wscale @56 is; the decoder reads bits 2-3 of the shared __u32."
+    },
+    {
+      "field": "tcpi_options2",
+      "offset_bits": 2216,
+      "size_bits": 24,
+      "kind": "split",
+      "reason": "KERNEL side, bits 8-31 of the [276:280] __u32 — the last 24 bits of the struct; see tcpi_ecn_mode @2208."
+    },
+    {
+      "field": "accecn_fail_mode",
+      "offset_bits": 2224,
+      "size_bits": 8,
+      "kind": "split",
+      "reason": "XTCP2 side. `AccecnFailMode uint8` lands on byte 278 in a Go-struct walk; the decoder reads bits 4-7 of the shared __u32. See accecn_opt_seen @2216."
+    },
+    {
+      "field": "options2",
+      "offset_bits": 2232,
+      "size_bits": 32,
+      "kind": "split",
+      "reason": "XTCP2 side, and the one entry that runs off the end of the struct: `Options2 uint32` is four declared bytes starting at byte 279, so a Go-struct walk puts it at [279:283] — past the 280-byte wire struct. That overrun is also why `extract --source xtcp2 --proto NL_Diag_TCPInfo` reports min_header_bytes 283. The decoder reads bits 8-31 of the __u32 at [276:280] and stops at 280; the corpus confirms it. Same phantom shape as fastopen_client_fail @72."
+    }
+  ]
+}

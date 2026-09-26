@@ -16,6 +16,11 @@
   nixpkgs,
   xtcp2Package,
   xtcp2AllPackage,
+  # The standalone ipfeed-collector. Passed separately because it is no
+  # longer part of the xtcp2-all join (see nix/binaries.nix joinVariant):
+  # it is a sidecar daemon, not one of the daemon's own tools. Only the
+  # interface-naming flavor's xtcp2-asn-collector unit uses it.
+  ipfeedCollectorPackage,
   # Optional: the streamLayeredImage script for oci-xtcp2-tcp-stress.
   # Phase C ("tcp-stress" sink) loads this into the in-VM docker daemon
   # at boot and spawns N containers from it. When null, the tcp-stress
@@ -44,6 +49,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "minimal";
     };
@@ -58,6 +64,7 @@ let
         nixpkgs
         arch
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       xtcp2Package = xtcp2CoverPackage;
       sink = "coverage";
@@ -73,6 +80,7 @@ let
         nixpkgs
         arch
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       xtcp2Package = xtcp2CoverPackage;
       sink = "coverage-iouring";
@@ -89,6 +97,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "soak";
     };
@@ -104,9 +113,28 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         tcpStressImage
         ;
       sink = "tcp-stress";
+    };
+
+  # interface-naming: docker-free host-ns veth topology that proves xtcp2 stamps
+  # the correct bound + egress interface names (see mkVm.nix isInterfaceNaming).
+  mkOneInterfaceNaming =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "interface-naming";
     };
 
   mkOneClickPipe =
@@ -120,6 +148,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "clickhouse-pipeline";
     };
@@ -138,6 +167,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "clickhouse-http";
     };
@@ -157,6 +187,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "clickhouse-pipeline-rate";
     };
@@ -175,6 +206,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         tcpStressImage
         ;
       sink = "clickhouse-pipeline-stress";
@@ -193,6 +225,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "clickhouse-pipeline-parquet";
     };
@@ -208,6 +241,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "s3parquet";
     };
@@ -226,6 +260,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "valkey";
     };
@@ -245,6 +280,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = sinkName;
     };
@@ -265,6 +301,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "nats";
     };
@@ -281,6 +318,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "nsq";
     };
@@ -296,6 +334,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "s3parquet-long";
     };
@@ -314,6 +353,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         tcpStressImage
         ;
       sink = "s3parquet-stress";
@@ -333,6 +373,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         tcpStressImage
         ;
       sink = "s3parquet-lowfreq";
@@ -352,6 +393,7 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "capcheck-fail";
     };
@@ -369,8 +411,29 @@ let
         arch
         xtcp2Package
         xtcp2AllPackage
+        ipfeedCollectorPackage
         ;
       sink = "discovery-bench";
+    };
+
+  # nlmon-capture: root VM that triggers a scripted sequence of real kernel
+  # network events, captures them off an nlmon device, emits the pcap +
+  # sidecars over the serial console, then powers off. No xtcp2 daemon — a
+  # netlink-silent guest is the whole point (see mkVm.nix isNlmonCapture).
+  mkOneNlmonCapture =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "nlmon-capture";
     };
 
   vms = lib.genAttrs constants.supportedArchs mkOne;
@@ -388,6 +451,8 @@ let
   vmsTcpStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs mkOneTcpStress
   );
+
+  vmsInterfaceNaming = lib.genAttrs constants.supportedArchs mkOneInterfaceNaming;
 
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
@@ -428,6 +493,8 @@ let
 
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
+  vmsNlmonCapture = lib.genAttrs constants.supportedArchs mkOneNlmonCapture;
+
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
@@ -437,16 +504,38 @@ let
     };
   });
 
+  # interface-naming lifecycle: boots the veth-topology VM and greps the IFNAME
+  # and ASN verdicts (the flavor also runs the loopback ipfeed-collector → xtcp2
+  # -enrichAsn chain, see mkVm.nix asnDbPath). Native (no docker), but the
+  # self-test polls the jsonl for up to ~2 min per check while the locality
+  # snapshot refreshes, the artifact lands and records accrue, so keep a
+  # generous timeout.
+  lifecycleInterfaceNaming = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsInterfaceNaming.${arch};
+      suffix = "-interface-naming";
+      extraSentinels = [
+        "IFNAME"
+        "ASN"
+      ];
+      # Checks 5f/5g each poll for up to 2 min (x waitScale). That fits inside
+      # the default stall watchdog, and the old 600 s absolute cap is now below
+      # the default backstop, so both overrides are dropped — the progress
+      # watchdog is what guards this flavor.
+    };
+  });
+
   lifecycleValkey = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
       inherit arch;
       vm = vmsValkey.${arch};
       suffix = "-valkey";
       # Baseline sentinels plus the valkey consume-back verdict. Valkey boots
-      # fast (native server, no docker), but the self-test waits up to ~60 s for
-      # the subscriber to accumulate messages, so keep a generous timeout.
+      # fast (native server, no docker), and the self-test waits up to ~60 s
+      # for the subscriber to accumulate messages — comfortably inside the
+      # default stall watchdog, so no per-flavor override is needed.
       extraSentinels = [ "VALKEY_CONSUME" ];
-      timeoutSec = 240;
     };
   });
 
@@ -461,7 +550,6 @@ let
         vm = vmsAttr.${arch};
         suffix = suffixName;
         extraSentinels = [ "RAW_SOCKET" ];
-        timeoutSec = 240;
       };
     });
   lifecycleTcpSink = mkLifecycleSocketSink vmsTcpSink "-tcp-sink";
@@ -475,7 +563,6 @@ let
       vm = vmsNats.${arch};
       suffix = "-nats";
       extraSentinels = [ "NATS_CONSUME" ];
-      timeoutSec = 240;
     };
   });
 
@@ -485,7 +572,6 @@ let
       vm = vmsNsq.${arch};
       suffix = "-nsq";
       extraSentinels = [ "NSQ_CONSUME" ];
-      timeoutSec = 240;
     };
   });
 
@@ -494,15 +580,15 @@ let
       inherit arch;
       vm = vmsS3Parquet.${arch};
       suffix = "-s3parquet";
-      # The two s3parquet-specific sentinels alongside the baseline set.
-      # 240 s timeout because the worker accumulates rows for several
-      # poll cycles before triggering the 1 MiB-threshold finalize.
+      # The s3parquet-specific sentinels alongside the baseline set. The
+      # worker accumulates rows for several poll cycles before triggering the
+      # 1 MiB-threshold finalize, but it keeps emitting sentinels while it
+      # does, so the default stall watchdog covers it.
       extraSentinels = [
         "S3PARQUET_FILES"
         "S3PARQUET_ROWS"
         "S3PARQUET_EVENTDATE"
       ];
-      timeoutSec = 240;
     };
   });
 
@@ -516,7 +602,9 @@ let
       vm = vmsClickHttp.${arch};
       suffix = "-clickhouse-http";
       extraSentinels = [ "CLICKHOUSE_HTTP" ];
-      timeoutSec = 1200;
+      # docker image pulls + ClickHouse initdb are one long legitimately
+      # silent stretch — no sentinels land for minutes at a time.
+      stallSec = 900;
     };
   });
 
@@ -556,7 +644,9 @@ let
         # bit-set ⟺ ext-gated attribute present; default ext=254 yields no MEMINFO.
         "IDIAG_EXT_PROBE"
       ];
-      timeoutSec = 1200;
+      # docker image pulls + ClickHouse initdb are one long legitimately
+      # silent stretch — no sentinels land for minutes at a time.
+      stallSec = 900;
     };
   });
 
@@ -611,6 +701,17 @@ let
     runner = microvmLib.mkDiscoveryBenchRunner {
       inherit arch;
       vm = vmsDiscoveryBench.${arch};
+    };
+  });
+
+  # rtnetlink event-capture runner: boots the nlmon-capture VM, waits for
+  # NLCAP_DONE (or --timeout), scrapes the base64 pcap blob off the serial
+  # console and writes it into pkg/xtcpnl/testdata/<guest kernel>/. Must be a
+  # runner, not a check — see mkNlmonCaptureRunner's comment.
+  nlmonCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkNlmonCaptureRunner {
+      inherit arch;
+      vm = vmsNlmonCapture.${arch};
     };
   });
 
@@ -710,8 +811,10 @@ in
     vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
+    vmsNlmonCapture
     s3parquetLong
     discoveryBench
+    nlmonCapture
     clickPipeRate
     clickPipeStress
     s3ParquetStress
@@ -729,6 +832,8 @@ in
     lifecycleNsq
     lifecycleCoverage
     lifecycleCoverageIoUring
+    lifecycleInterfaceNaming
+    vmsInterfaceNaming
     soak
     tcpStress
     checks

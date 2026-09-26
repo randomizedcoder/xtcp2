@@ -61,10 +61,12 @@ func Nsid(nsFD int) (int32, bool) {
 
 	// Bound the receive so a missing/odd reply degrades to (0,false) instead of
 	// blocking the caller (this runs per-namespace on the reconcile path). If the
-	// setsockopt is unsupported we still rely on the kernel's guaranteed reply to
-	// RTM_GETNSID, so the failure is non-fatal.
+	// recv timeout cannot be set we could block on a missing reply, so degrade to
+	// (0,false) rather than take that risk.
 	tv := unix.Timeval{Sec: 1}
-	unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv) //nolint:errcheck,gosec // best-effort recv timeout
+	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+		return 0, false
+	}
 
 	req := buildGetNsidRequest(nsFD)
 	if err := unix.Sendto(fd, req, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {

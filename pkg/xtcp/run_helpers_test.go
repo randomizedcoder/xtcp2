@@ -47,7 +47,7 @@ func TestCheckDoneNonBlocking_open(t *testing.T) {
 	x := &XTCP{}
 	ctx := context.Background()
 	if x.checkDoneNonBlocking(ctx) {
-		t.Error("uncancelled ctx should report not-done")
+		t.Error("uncanceled ctx should report not-done")
 	}
 }
 

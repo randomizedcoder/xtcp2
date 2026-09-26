@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -65,19 +64,6 @@ func DeserializeClassID(data []byte, c *ClassID) (n int, err error) {
 	return n, nil
 }
 
-func DeserializeClassIDReflection(data []byte, c *ClassID) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, c)
-	if err != nil {
-		return 0, err
-	}
-	n = len(data)
-
-	return n, err
-}
-
 func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	// func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
@@ -85,7 +71,7 @@ func DeserializeClassIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (er
 		return ErrClassIDSmall
 	}
 
-	x.ClassId = binary.LittleEndian.Uint32(data[0:4])
+	x.InetDiagClassId = binary.LittleEndian.Uint32(data[0:4])
 
 	return nil
 }

@@ -33,3 +33,7 @@ result-*
 
 # Rust (uds-netlink-proxy) build output
 uds-netlink-proxy/target/
+
+# proto-audit writes its validation-tier cache into $PWD when run by hand
+# (nix run .#proto-audit -- validate-netlink ...). Not an artifact to commit.
+validation_cache.json

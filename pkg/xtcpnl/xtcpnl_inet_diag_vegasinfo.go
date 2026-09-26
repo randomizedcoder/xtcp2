@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -81,18 +80,6 @@ func DeserializeVegasInfo(data []byte, vi *VegasInfo) (n int, err error) {
 	return VegasInfoReadCst, nil
 }
 
-func DeserializeVegasInfoReflection(data []byte, vi *VegasInfo) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, vi)
-	if err != nil {
-		return 0, err
-	}
-
-	return VegasInfoReadCst, err
-}
-
 func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	// func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
@@ -101,9 +88,9 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 	}
 
 	x.VegasInfoEnabled = binary.LittleEndian.Uint32(data[0:4])
-	x.VegasInfoRttCnt = binary.LittleEndian.Uint32(data[4:8])
+	x.VegasInfoRttcnt = binary.LittleEndian.Uint32(data[4:8])
 	x.VegasInfoRtt = binary.LittleEndian.Uint32(data[8:12])
-	x.VegasInfoMinRtt = binary.LittleEndian.Uint32(data[12:16])
+	x.VegasInfoMinrtt = binary.LittleEndian.Uint32(data[12:16])
 
 	return nil
 }
@@ -111,7 +98,7 @@ func DeserializeVegasInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (
 func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.XtcpFlatRecord) {
 	// func ZeroizeVegasInfoXTCP(x *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 	x.VegasInfoEnabled = 0
-	x.VegasInfoRttCnt = 0
+	x.VegasInfoRttcnt = 0
 	x.VegasInfoRtt = 0
-	x.VegasInfoMinRtt = 0
+	x.VegasInfoMinrtt = 0
 }

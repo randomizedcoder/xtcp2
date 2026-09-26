@@ -1,0 +1,11 @@
+name: google-common-crawlers
+provider: google
+url: https://developers.google.com/crawling/ipranges/common-crawlers.json
+parser: google_crawlers
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: google
+  service_operator: google
+  service: common-crawlers
+enabled: true

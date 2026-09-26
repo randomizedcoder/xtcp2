@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -223,10 +224,11 @@ func TestClient_dialFailure(t *testing.T) {
 	_ = ln.Close()
 
 	var wg sync.WaitGroup
+	var failures atomic.Int32
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		client(&wg, "127.0.0.1", port, time.Hour, time.Second, time.Second, 2, 4)
+		client(&wg, &failures, net.Dialer{}, "127.0.0.1", port, time.Hour, time.Second, time.Second, 2, 4)
 		close(done)
 	}()
 	wg.Wait()
@@ -234,6 +236,9 @@ func TestClient_dialFailure(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("client did not return on dial failure")
+	}
+	if got := failures.Load(); got != 1 {
+		t.Errorf("dial failures = %d, want 1", got)
 	}
 }
 
@@ -257,10 +262,11 @@ func TestClient_serverCloses(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
+	var failures atomic.Int32
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		client(&wg, "127.0.0.1", port, time.Hour, time.Second, time.Second, 5, 4)
+		client(&wg, &failures, net.Dialer{}, "127.0.0.1", port, time.Hour, time.Second, time.Second, 5, 4)
 		close(done)
 	}()
 	wg.Wait()
@@ -269,11 +275,134 @@ func TestClient_serverCloses(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("client did not return after server close")
 	}
+	// The dial succeeded; only the later read failed, so this is not a
+	// "never connected" client.
+	if got := failures.Load(); got != 0 {
+		t.Errorf("dial failures = %d, want 0", got)
+	}
 }
 
-func TestRunMain_invalidFlag(t *testing.T) {
-	if rc := runMain([]string{"-not-a-flag"}, &strings.Builder{}); rc != 2 {
-		t.Errorf("rc = %d, want 2", rc)
+// TestNewDialer covers the source-address / interface binding wiring: which
+// inputs set LocalAddr, which set Control, and which are rejected. Every row
+// carries a description and the expected outcome (LocalAddr IP, Control presence,
+// or error) across positive, negative, boundary and corner cases.
+func TestNewDialer(t *testing.T) {
+	tests := []struct {
+		description string
+		srcaddr     string
+		iface       string
+		wantErr     bool
+		wantLocalIP string // "" = expect nil LocalAddr
+		wantControl bool
+	}{
+		// positive
+		{"both empty -> zero dialer (kernel default)", "", "", false, "", false},
+		{"valid IPv4 srcaddr sets LocalAddr", "10.0.0.5", "", false, "10.0.0.5", false},
+		{"valid IPv6 srcaddr sets LocalAddr", "2001:db8::5", "", false, "2001:db8::5", false},
+		{"iface sets a Control hook", "", "dum0", false, "", true},
+		// negative
+		{"invalid srcaddr -> error", "not-an-ip", "", true, "", false},
+		{"invalid srcaddr rejected even with valid iface", "999.999.0.1", "dum0", true, "", false},
+		// boundary — the unspecified address is a valid IP (binds to any)
+		{"unspecified IPv4 srcaddr is valid", "0.0.0.0", "", false, "0.0.0.0", false},
+		// corner — both set together
+		{"srcaddr + iface both applied", "10.0.0.5", "dum1", false, "10.0.0.5", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			d, err := newDialer(tc.srcaddr, tc.iface)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("newDialer(%q,%q) err = nil, want error", tc.srcaddr, tc.iface)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("newDialer(%q,%q) unexpected err: %v", tc.srcaddr, tc.iface, err)
+			}
+			if tc.wantLocalIP == "" {
+				if d.LocalAddr != nil {
+					t.Errorf("LocalAddr = %v, want nil", d.LocalAddr)
+				}
+			} else {
+				ta, ok := d.LocalAddr.(*net.TCPAddr)
+				if !ok || ta.IP.String() != tc.wantLocalIP {
+					t.Errorf("LocalAddr = %v, want IP %s", d.LocalAddr, tc.wantLocalIP)
+				}
+			}
+			if (d.Control != nil) != tc.wantControl {
+				t.Errorf("Control set = %v, want %v", d.Control != nil, tc.wantControl)
+			}
+		})
+	}
+}
+
+// TestRunMain covers the exit-code contract of the whole binary: flag /
+// dialer construction errors are rc 2, a population that never connected is
+// rc 1, and a no-op fan-out is rc 0. The -iface row opens a real socket: the
+// SO_BINDTODEVICE setsockopt in the dialer's Control hook fails with ENODEV
+// for an interface that does not exist, before any connect() is attempted,
+// so the row is deterministic regardless of what listens on startPort.
+func TestRunMain(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		wantRC      int
+		wantStderr  string // substring; "" = don't care
+	}{
+		{
+			description: "bad -srcaddr fails the process rather than silently binding nothing",
+			args:        []string{"-count", "1", "-srcaddr", "nonsense"},
+			wantRC:      2,
+			wantStderr:  "invalid -srcaddr",
+		},
+		{
+			description: "unknown flag is a usage error",
+			args:        []string{"-not-a-flag"},
+			wantRC:      2,
+			wantStderr:  "flag provided but not defined",
+		},
+		{
+			description: "-count 0 is a pure no-op fan-out and exits clean",
+			args:        []string{"-count", "0"},
+			wantRC:      0,
+		},
+		{
+			description: "-iface of a nonexistent device: SO_BINDTODEVICE ENODEV on the real socket, client never connects, rc 1",
+			args: []string{
+				"-count", "1", "-connect", "127.0.0.1", "-iface", "nonexistent0",
+				"-startsleep", "1ms", "-dialr", "2", "-pads", "4",
+			},
+			wantRC:     1,
+			wantStderr: "1 of 1 clients never connected",
+		},
+		{
+			description: "-iface with -count 2: every client fails the same way and the tally reports both",
+			args: []string{
+				"-count", "2", "-connect", "127.0.0.1", "-iface", "nonexistent0",
+				"-startsleep", "1ms", "-dialr", "1", "-pads", "4",
+			},
+			wantRC:     1,
+			wantStderr: "2 of 2 clients never connected",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var stderr strings.Builder
+			done := make(chan int, 1)
+			go func() { done <- runMain(tc.args, &stderr) }()
+			select {
+			case rc := <-done:
+				if rc != tc.wantRC {
+					t.Errorf("rc = %d, want %d (stderr %q)", rc, tc.wantRC, stderr.String())
+				}
+				if tc.wantStderr != "" && !strings.Contains(stderr.String(), tc.wantStderr) {
+					t.Errorf("stderr = %q, want substring %q", stderr.String(), tc.wantStderr)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("runMain did not return; a client connected to startPort and is looping")
+			}
+		})
 	}
 }
 

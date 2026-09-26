@@ -19,6 +19,9 @@
   protoFile ? null, # path to the .proto file to ship at /<basename>
   exposedPorts ? [ ],
   entrypoint ? "/bin/xtcp2",
+  # Optional default arguments (image config `Cmd`), appended after the
+  # entrypoint. Only emitted when non-empty, so existing callers are unchanged.
+  cmd ? [ ],
   # Optional Docker HEALTHCHECK image-config block. Durations are integer
   # nanoseconds (Docker image-config convention), e.g.
   #   { Test = [ "CMD" "/bin/xtcp2" "-healthcheck" ]; Interval = 30000000000; }
@@ -63,5 +66,6 @@ pkgs.dockerTools.streamLayeredImage {
     # works even if Go's default search paths ever change.
     Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" ];
   }
+  // lib.optionalAttrs (cmd != [ ]) { Cmd = cmd; }
   // lib.optionalAttrs (healthcheck != null) { Healthcheck = healthcheck; };
 }

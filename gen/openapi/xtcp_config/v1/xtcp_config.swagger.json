@@ -430,6 +430,11 @@
           "type": "string",
           "title": "Poll timeout per name space\nMust be less than the poll frequency"
         },
+        "pollJitterPct": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum poll-schedule jitter as a percent of poll_frequency, applied to\nboth the startup delay before the first poll and each subsequent tick.\n0 disables (immediate first poll, fixed interval). Default 20. See\ndocs/design-jitter-and-backoff.md."
+        },
         "maxLoops": {
           "type": "string",
           "format": "uint64",
@@ -460,6 +465,37 @@
           "format": "int64",
           "title": "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply"
         },
+        "modulus": {
+          "type": "string",
+          "format": "uint64",
+          "title": "modulus. Report every X socket diag messages to output"
+        },
+        "enabledDeserializers": {
+          "$ref": "#/definitions/v1EnabledDeserializers",
+          "description": "Which INET_DIAG_* extension deserializers run (keyed by short name:\ninfo, skmem, cong, tos, tc, shut, vegas, dctcp, bbr, classid, sockopt,\ncgroup, meminfo). Unset = daemon defaults."
+        },
+        "ioUring": {
+          "type": "boolean",
+          "description": "When true, route netlink reads and raw-socket destination writes\nthrough an io_uring ring per Netlinker. Requires Linux 6.1+.\nLibrary-backed destinations (kafka, nsq, nats, valkey) ignore this\nflag — they continue to use their own client sockets unchanged."
+        },
+        "ioUringRecvBatchSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Number of recvmsg SQEs kept in flight per Netlinker ring. Higher\nvalues reduce io_uring_enter syscalls per dump cycle on hosts with\nmany sockets, at the cost of more pinned buffers from packet pool.\nIgnored unless io_uring=true. Default 64."
+        },
+        "ioUringCqeBatchSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise\nuserland loop overhead but increase scheduling latency for the\nnetlinker goroutine. Ignored unless io_uring=true. Default 128."
+        },
+        "reconcileFrequency": {
+          "type": "string",
+          "description": "Period of the background namespace-reconcile ticker (Method B /proc scan\nthat converges the tracked namespace set). With reconcile_before_poll the\nPoller reconciles every cycle and is the real discovery mechanism, so this\nbackground pass is an occasional safety-net expected to find nothing\n(mapReconciler dels/stores stay 0) — the default is deliberately long (6h)\nso operators can confirm from the counters that it is redundant. It still\nmatters when the poller is idle or disabled. 0 disables the background\nticker entirely (the startup reconcile still runs once)."
+        },
+        "reconcileBeforePoll": {
+          "type": "boolean",
+          "description": "Run a namespace reconcile immediately before each poll cycle, so a\nnamespace that appeared since the last cycle is entered and gets a socket\nwithin ~1 poll interval instead of waiting for the background ticker. Ties\ndiscovery cadence to poll cadence; the /proc scan is zero-allocation and\nmutex-serialized with the background reconciler. Default true."
+        },
         "writeFiles": {
           "type": "integer",
           "format": "int64",
@@ -469,14 +505,31 @@
           "type": "string",
           "title": "Write files path"
         },
-        "modulus": {
+        "destWriteFiles": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Write marshalled data to dest_write_files number of files ( to allow debugging of the serialization )\nxtcp will capture this many examples of the marshalled data\nThis is PER poller"
+        },
+        "debugLevel": {
+          "type": "integer",
+          "format": "int64",
+          "title": "DebugLevel"
+        },
+        "dest": {
           "type": "string",
-          "format": "uint64",
-          "title": "modulus. Report every X socket diag messages to output"
+          "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the\nhttp(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES\nand S3 endpoints the INSERT query + FORMAT + format_schema + auth query\nparams routinely run ~150+ chars, which the old 128 cap rejected."
         },
         "marshalTo": {
           "type": "string",
           "title": "Marshalling of the exported data (protobufList,json,prototext)"
+        },
+        "csvColumns": {
+          "type": "string",
+          "description": "Comma-separated subset of XtcpFlatRecord json field names selecting\nwhich columns the csv/tsv marshallers emit (e.g.\n\"hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt\").\nEmpty = all fields. Ignored by non-tabular marshallers."
+        },
+        "xtcpProtoFile": {
+          "type": "string",
+          "description": "XtcpProtoFile — path of the xtcp_flat_record.proto the daemon reads at\nstartup and POSTs to the Kafka schema registry (kafka_schema_url)."
         },
         "envelopeFlushThresholdBytes": {
           "type": "integer",
@@ -488,6 +541,18 @@
           "format": "int64",
           "description": "Soft cap on the in-flight envelope's row count. When the envelope\nreaches this many rows, deserialize.go triggers an early mid-poll\nflush. Cheaper than the byte cap (no proto.Size walk on the hot\npath) and more predictable for operators reasoning about batch\nsize directly.\n\n0 = use the daemon's compile-time default\n(EnvelopeFlushThresholdRowsCst, currently 10000 — chosen to align\nwith the ClickHouse kafka_max_rows_per_message setting so a\nproduced envelope never forces the consumer to split it)."
         },
+        "topic": {
+          "type": "string",
+          "title": "Kafka or NSQ topic"
+        },
+        "kafkaSchemaUrl": {
+          "type": "string",
+          "title": "Kafka schema registry url"
+        },
+        "kafkaProduceTimeout": {
+          "type": "string",
+          "title": "Kafka Produce context timeout.  Use 0 for no context timeout\nRecommend a small timeout, like 1-2 seconds\nkgo seems to have a bug, because the timeout is always expired"
+        },
         "kafkaCompression": {
           "type": "string",
           "description": "Kafka producer-batch compression codec. franz-go picks one codec\nfrom the supplied preference list that the broker advertises.\nBoth Redpanda and ClickHouse (via librdkafka on its Kafka engine)\ndecompress all standard codecs transparently — no consumer-side\nconfig is needed regardless of which codec is chosen here.\n\nValid values:\n  \"\" or \"auto\" → preference list [zstd, lz4, snappy, none] —\n                 modern brokers (Redpanda, Kafka 2.1+) end up\n                 on zstd; older brokers fall back through the list\n  \"zstd\"       → force ZStandard (best ratio, modern default)\n  \"lz4\"        → force LZ4 (fast, low CPU)\n  \"snappy\"     → force Snappy (legacy, broad compat)\n  \"gzip\"       → force Gzip (highest CPU; legacy clients)\n  \"none\"       → no compression on the wire\n\nPick \"lz4\" if xtcp2 is CPU-bound on the producer side; pick\n\"zstd\" (the default) if Kafka throughput / disk usage matters more."
@@ -495,6 +560,10 @@
         "s3Endpoint": {
           "type": "string",
           "description": "S3 endpoint URL, e.g. \"http://127.0.0.1:9000\" (MinIO) or\n\"https://s3.amazonaws.com\" (AWS). May be empty if -dest carries\nit via the s3parquet:\u003cendpoint\u003e form."
+        },
+        "s3Region": {
+          "type": "string",
+          "description": "S3 region. Required by some S3 implementations even when talking\nto a single-region MinIO. Default \"us-east-1\" when blank."
         },
         "s3Bucket": {
           "type": "string",
@@ -512,131 +581,14 @@
           "type": "string",
           "description": "Required when -dest s3parquet. Picked up from AWS_SECRET_ACCESS_KEY\nenv if blank. Never logged."
         },
-        "s3ParquetFlushThresholdBytes": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Soft cap on the in-memory Parquet builder's accumulated\nuncompressed row bytes before the worker finalizes the file and\nuploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).\nOperators tune down for faster file rotation (more S3 PUTs,\nsmaller per-file query latency) or up for fewer larger files\n(better compression ratio, more memory)."
-        },
-        "s3Region": {
-          "type": "string",
-          "description": "S3 region. Required by some S3 implementations even when talking\nto a single-region MinIO. Default \"us-east-1\" when blank."
-        },
         "s3SkipBucketProbe": {
           "type": "boolean",
           "description": "Skip the startup S3 BucketExists probe. The probe issues a\nHeadBucket, which requires the s3:ListBucket permission. Set true\nwhen the upload credential is deliberately scoped to s3:PutObject\nonly (write-only key, e.g. a baked deployment credential) so the\ndaemon can start without list permission. Default false keeps the\nfail-fast probe for normal deployments."
         },
-        "pyroscopeUrl": {
-          "type": "string",
-          "description": "Pyroscope continuous-profiling server URL (e.g.\nhttp://127.0.0.1:4040). When set, the daemon streams CPU,\nmemory, goroutine, mutex, and block profiles to that endpoint.\nEmpty disables the agent — no overhead in production runs that\ndon't need it. Operators bring up a Pyroscope OSS server (or\nGrafana Cloud Pyroscope) and point xtcp2 at it for live profile\ndata without restarts."
-        },
-        "pyroscopeAppName": {
-          "type": "string",
-          "description": "Application name registered with the Pyroscope server (the\n\"application\" facet in the Pyroscope UI). Empty → \"xtcp2\".\nSet per fleet/role for multi-host environments\n(e.g. \"xtcp2.prod.iad\", \"xtcp2.staging.fra\")."
-        },
-        "pyroscopeSampleHz": {
+        "s3ParquetFlushThresholdBytes": {
           "type": "integer",
           "format": "int64",
-          "description": "CPU profile sampling rate in Hz. Default 100. The Pyroscope\nagent uses this to call runtime.SetCPUProfileRate at startup."
-        },
-        "pyroscopeUploadIntervalSec": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Profile upload interval (seconds between batched profile\npushes). Default 15 s."
-        },
-        "dest": {
-          "type": "string",
-          "description": "kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,\nnats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,\nunix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or\nunixgram:/path/to/sock (SOCK_DGRAM, one record per datagram).\nmax_len 512: a unix sun_path needs ~117 bytes (unixgram: + 108), but the\nhttp(s) destination carries a full URL — for ClickHouse/Loki/Splunk/ES\nand S3 endpoints the INSERT query + FORMAT + format_schema + auth query\nparams routinely run ~150+ chars, which the old 128 cap rejected."
-        },
-        "destWriteFiles": {
-          "type": "integer",
-          "format": "int64",
-          "title": "Write marhselled data to writeFiles number of files ( to allow debugging of the serialization )\nxtcp will capture this many examples of the marshalled data\nThis is PER poller"
-        },
-        "topic": {
-          "type": "string",
-          "title": "Kafka or NSQ topic"
-        },
-        "xtcpProtoFile": {
-          "type": "string",
-          "title": "XtcpProtoFile"
-        },
-        "kafkaSchemaUrl": {
-          "type": "string",
-          "title": "Kafka schema registry url"
-        },
-        "kafkaProduceTimeout": {
-          "type": "string",
-          "title": "Kafka Produce context timeout.  Use 0 for no context timeout\nRecommend a small timeout, like 1-2 seconds\nkgo seems to have a bug, because the timeout is always expired"
-        },
-        "debugLevel": {
-          "type": "integer",
-          "format": "int64",
-          "title": "DebugLevel"
-        },
-        "label": {
-          "type": "string",
-          "title": "Label applied to the protobuf"
-        },
-        "tag": {
-          "type": "string",
-          "title": "Tag applied to the protobuf"
-        },
-        "location": {
-          "type": "string",
-          "description": "Deployment grouping / facility this daemon runs in (data center, PoP,\nregion, site, …). Generic; stamped on every record's `location` field.\nSet via -location flag or LOCATION env."
-        },
-        "hostname": {
-          "type": "string",
-          "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."
-        },
-        "daemonVersion": {
-          "type": "string",
-          "description": "Daemon build provenance stamped on every record's `daemon_version` field\n(git commit / date / version). Populated by the daemon from -ldflags build\nvars, not a user flag; informational only (debugging which binary produced a\nrow). See XtcpFlatRecord.daemon_version."
-        },
-        "resolveContainerId": {
-          "type": "boolean",
-          "description": "Resolve each socket's owning container id from its cgroup (sets the\nrecord's container_id / container_runtime). Set via -resolveContainerId\nflag or CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it\nand run --cgroupns=host in a container)."
-        },
-        "ipv4Ttl": {
-          "type": "integer",
-          "format": "int64",
-          "title": "Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).\n0 = kernel default. A low value (e.g. 3) keeps replies from travelling\nfar if the host is unexpectedly internet-exposed — the per-listener\nanalogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.\n(cf. prometheus/exporter-toolkit#396.)"
-        },
-        "ipv6HopLimit": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel\ndefault. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT."
-        },
-        "grpcPort": {
-          "type": "integer",
-          "format": "int64",
-          "title": "GRPC listening port"
-        },
-        "enabledDeserializers": {
-          "$ref": "#/definitions/v1EnabledDeserializers"
-        },
-        "ioUring": {
-          "type": "boolean",
-          "description": "When true, route netlink reads and raw-socket destination writes\nthrough an io_uring ring per Netlinker. Requires Linux 6.1+.\nLibrary-backed destinations (kafka, nsq, nats, valkey) ignore this\nflag — they continue to use their own client sockets unchanged."
-        },
-        "ioUringRecvBatchSize": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Number of recvmsg SQEs kept in flight per Netlinker ring. Higher\nvalues reduce io_uring_enter syscalls per dump cycle on hosts with\nmany sockets, at the cost of more pinned buffers from packet pool.\nIgnored unless io_uring=true. Default 64."
-        },
-        "ioUringCqeBatchSize": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise\nuserland loop overhead but increase scheduling latency for the\nnetlinker goroutine. Ignored unless io_uring=true. Default 128."
-        },
-        "csvColumns": {
-          "type": "string",
-          "description": "Comma-separated subset of XtcpFlatRecord json field names selecting\nwhich columns the csv/tsv marshallers emit (e.g.\n\"hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt\").\nEmpty = all fields. Ignored by non-tabular marshallers."
-        },
-        "pollJitterPct": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Maximum poll-schedule jitter as a percent of poll_frequency, applied to\nboth the startup delay before the first poll and each subsequent tick.\n0 disables (immediate first poll, fixed interval). Default 20."
+          "description": "Soft cap on the in-memory Parquet builder's accumulated\nuncompressed row bytes before the worker finalizes the file and\nuploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).\nOperators tune down for faster file rotation (more S3 PUTs,\nsmaller per-file query latency) or up for fewer larger files\n(better compression ratio, more memory)."
         },
         "s3FlushInterval": {
           "type": "string",
@@ -661,13 +613,62 @@
           "type": "string",
           "description": "Cap on a single upload retry's backoff window (full jitter draws in\n[0, window], window grows exponentially up to this cap). 0 = derive as\nclamp(poll_frequency/10, 1s, 1h)."
         },
-        "reconcileFrequency": {
+        "hostname": {
           "type": "string",
-          "description": "Period of the background namespace-reconcile ticker (Method B /proc scan\nthat converges the tracked namespace set). With reconcile_before_poll the\nPoller reconciles every cycle and is the real discovery mechanism, so this\nbackground pass is an occasional safety-net expected to find nothing\n(mapReconciler dels/stores stay 0) — the default is deliberately long (6h)\nso operators can confirm from the counters that it is redundant. It still\nmatters when the poller is idle or disabled. 0 disables the background\nticker entirely (the startup reconcile still runs once)."
+          "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."
         },
-        "reconcileBeforePoll": {
+        "location": {
+          "type": "string",
+          "description": "Deployment grouping / facility this daemon runs in (data center, PoP,\nregion, site, …). Generic; stamped on every record's `location` field.\nSet via -location flag or LOCATION env."
+        },
+        "label": {
+          "type": "string",
+          "title": "Label applied to the protobuf"
+        },
+        "tag": {
+          "type": "string",
+          "title": "Tag applied to the protobuf"
+        },
+        "daemonVersion": {
+          "type": "string",
+          "description": "Daemon build provenance stamped on every record's `daemon_version` field\n(git commit / date / version). Populated by the daemon from -ldflags build\nvars, not a user flag; informational only (debugging which binary produced a\nrow). See XtcpFlatRecord.daemon_version."
+        },
+        "ipv4Ttl": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Outgoing IPv4 TTL for xtcp2's own TCP listeners (Prometheus + gRPC).\n0 = kernel default. A low value (e.g. 3) keeps replies from travelling\nfar if the host is unexpectedly internet-exposed — the per-listener\nanalogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.\n(cf. prometheus/exporter-toolkit#396.)"
+        },
+        "ipv6HopLimit": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel\ndefault. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT."
+        },
+        "grpcPort": {
+          "type": "integer",
+          "format": "int64",
+          "title": "GRPC listening port"
+        },
+        "pyroscopeUrl": {
+          "type": "string",
+          "description": "Pyroscope continuous-profiling server URL (e.g.\nhttp://127.0.0.1:4040). When set, the daemon streams CPU,\nmemory, goroutine, mutex, and block profiles to that endpoint.\nEmpty disables the agent — no overhead in production runs that\ndon't need it. Operators bring up a Pyroscope OSS server (or\nGrafana Cloud Pyroscope) and point xtcp2 at it for live profile\ndata without restarts."
+        },
+        "pyroscopeAppName": {
+          "type": "string",
+          "description": "Application name registered with the Pyroscope server (the\n\"application\" facet in the Pyroscope UI). Empty → \"xtcp2\".\nSet per fleet/role for multi-host environments\n(e.g. \"xtcp2.prod.iad\", \"xtcp2.staging.fra\")."
+        },
+        "pyroscopeSampleHz": {
+          "type": "integer",
+          "format": "int64",
+          "description": "CPU profile sampling rate in Hz. Default 100. The Pyroscope\nagent uses this to call runtime.SetCPUProfileRate at startup."
+        },
+        "pyroscopeUploadIntervalSec": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Profile upload interval (seconds between batched profile\npushes). Default 15 s."
+        },
+        "resolveContainerId": {
           "type": "boolean",
-          "description": "Run a namespace reconcile immediately before each poll cycle, so a\nnamespace that appeared since the last cycle is entered and gets a socket\nwithin ~1 poll interval instead of waiting for the background ticker. Ties\ndiscovery cadence to poll cadence; the /proc scan is zero-allocation and\nmutex-serialized with the background reconciler. Default true."
+          "description": "-- container (200-209)\nResolve each socket's owning container id from its cgroup v2 id\n(inet_diag_cgroup_id, record field 2003) — sets the record's\ncontainer_id / container_runtime. Set via -resolveContainerId flag or\nCONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it and run\n--cgroupns=host in a container)."
         },
         "enrichContainerEnable": {
           "type": "boolean",
@@ -679,7 +680,7 @@
         },
         "enrichLldpEnable": {
           "type": "boolean",
-          "description": "Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket\n(lldpd_socket_path) once at startup. Default false."
+          "description": "-- lldp (210-219)\nEnrich per-uplink LLDP neighbor labels by reading the lldpd control socket\n(lldpd_socket_path) once at startup. Default false."
         },
         "lldpdSocketPath": {
           "type": "string",
@@ -691,7 +692,7 @@
         },
         "enrichNicEnable": {
           "type": "boolean",
-          "description": "Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +\nthe ethtool ioctl once at startup. Default false."
+          "description": "-- nic (220-229)\nEnrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +\nthe ethtool ioctl once at startup. Default false."
         },
         "uplinkCount": {
           "type": "integer",
@@ -707,9 +708,30 @@
         },
         "populateNsid": {
           "type": "boolean",
-          "description": "Populate nsid (field 32) best-effort via RTM_GETNSID. Usually 0 for\nDocker/containerd namespaces. Default false."
+          "description": "-- nsid (230-239)\nPopulate nsid (record field 32) best-effort via RTM_GETNSID. Usually 0 for\nDocker/containerd namespaces. Default false."
+        },
+        "enrichAsnEnable": {
+          "type": "boolean",
+          "description": "-- asn (240-244)\nEnrich the destination IP's ASN (record field 320) and network owner\n(322) by longest-prefix-matching it against the ipfeed-collector Parquet\nartifact (loaded into an in-process trie by pkg/ipasn). Non-fatal: when\nenabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,\nand leaves both columns empty. Default false."
+        },
+        "asnDbPath": {
+          "type": "string",
+          "description": "Path to the ipfeed-collector Parquet artifact (prefix -\u003e {asn,\nnetwork_owner}). Default \"\"."
+        },
+        "asnRefreshInterval": {
+          "type": "string",
+          "description": "How often to reload asn_db_path in the background so a refreshed artifact\nis picked up without a restart. 0 = load once at startup, never reload."
+        },
+        "enrichLocalityEnable": {
+          "type": "boolean",
+          "description": "-- locality (245-249)\nClassify the destination IP's locality (record field 310) — self /\nlocal-subnet / remote — from each monitored network namespace's local\naddresses + routing table, discovered via rtnetlink (pkg/localnet). Also\nyields the egress interface (311/312) and the bound-interface name (300).\nRuns BEFORE the ASN lookup, so self/local-subnet destinations skip it.\nNon-fatal: a per-namespace discovery failure just leaves that namespace's\nsockets unclassified (and is retried with backoff). Default false."
+        },
+        "localityRefreshInterval": {
+          "type": "string",
+          "description": "How often to re-discover local addresses/routes per namespace so runtime\nchanges (interfaces up/down, routes added) are picked up. Newly-appeared\nnamespaces are always snapshotted on the next reconcile regardless. 0 =\ndiscover once per namespace, never refresh. Daemon default 60s."
         }
       },
+      "description": "Field-number layout (renumbered into subject blocks 2026-09; the binary form\nis never persisted — it only crosses the gRPC hop between xtcp2 and\nxtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and\nprotojson/prototext map by NAME — so renumbering is safe). Add new knobs in\nthe free space of the matching block; open a new block above 250 for a new\nsubject.\n  10-39    polling \u0026 netlink (dump cadence, netlinker plumbing, io_uring)\n  40-49    namespace reconcile\n  50-59    capture / debug\n  60-79    output, destination-agnostic (dest, marshal, csv, envelope)\n  80-99    kafka destination\n  100-129  s3parquet destination\n  130-149  identity \u0026 labels stamped on every record\n  150-159  network knobs for xtcp2's own listeners\n  160-169  gRPC\n  170-179  profiling\n  200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,\n           nsid 230s, asn 240-244, locality 245-249)",
       "title": "xtcp configuration"
     }
   }

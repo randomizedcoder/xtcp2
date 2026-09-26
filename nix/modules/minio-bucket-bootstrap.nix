@@ -26,7 +26,6 @@
 }:
 
 {
-  config,
   lib,
   pkgs,
   ...
@@ -38,49 +37,67 @@ let
     MINIO_ROOT_PASSWORD=${secretKey}
   '';
 
-  bootstrapScript = pkgs.writeShellScript "xtcp2-bucket-bootstrap" ''
-    set -eu
-    export MC_CONFIG_DIR=/var/lib/xtcp2-bucket-bootstrap/.mc
-    mkdir -p "$MC_CONFIG_DIR"
+  # writeShellApplication (not writeShellScript) so the body is shellcheck'd at
+  # build time — that check is the only shell linting in this repo. This body
+  # already ran under `set -eu`, so the only new option is pipefail, and it
+  # contains no pipelines: the conversion is behaviour-preserving here.
+  #
+  # getent is in runtimeInputs because `mc` shells out to it to locate its
+  # config dir and dies with "Unable to get mcConfigDir. exec: getent: not
+  # found" otherwise — the failure mode recorded at nix/microvms/mkVm.nix
+  # (s3ParquetRetentionScript), where it silently broke every mc call. It was
+  # previously supplied via the unit's `path`, which is now redundant.
+  bootstrapScript = pkgs.writeShellApplication {
+    name = "xtcp2-bucket-bootstrap";
+    runtimeInputs = with pkgs; [
+      minio-client # mc
+      curl
+      coreutils # seq, sleep, mkdir
+      getent # mc resolves its config dir through getent
+    ];
+    text = ''
+      export MC_CONFIG_DIR=/var/lib/xtcp2-bucket-bootstrap/.mc
+      # StateDirectory= created the parent 0700 and this runs as root, so an
+      # unguarded mkdir is reliable; it was already fatal under the previous
+      # `set -eu`.
+      mkdir -p "$MC_CONFIG_DIR"
 
-    MC=${pkgs.minio-client}/bin/mc
-    CURL=${pkgs.curl}/bin/curl
+      # MinIO returns 200 OK on /minio/health/live once the API socket is
+      # bound and the disk pool is formatted. `systemctl is-active minio`
+      # turns "active" earlier, while formatting is still in progress, so we
+      # rely on the live endpoint as the real readiness gate.
+      for _ in $(seq 1 60); do
+        if curl --silent --fail --max-time 2 \
+             "http://127.0.0.1:9000/minio/health/live" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
 
-    # MinIO returns 200 OK on /minio/health/live once the API socket is
-    # bound and the disk pool is formatted. `systemctl is-active minio`
-    # turns "active" earlier, while formatting is still in progress, so we
-    # rely on the live endpoint as the real readiness gate.
-    for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
-      if "$CURL" --silent --fail --max-time 2 \
+      if ! curl --silent --fail --max-time 2 \
            "http://127.0.0.1:9000/minio/health/live" >/dev/null 2>&1; then
-        break
+        echo "xtcp2-bucket-bootstrap: MinIO /health/live never returned 200 after 60 s" >&2
+        exit 1
       fi
-      sleep 1
-    done
 
-    if ! "$CURL" --silent --fail --max-time 2 \
-         "http://127.0.0.1:9000/minio/health/live" >/dev/null 2>&1; then
-      echo "xtcp2-bucket-bootstrap: MinIO /health/live never returned 200 after 60 s" >&2
+      # `mc alias set` does a credentialed probe against the server, so it
+      # must run after MinIO is ready.
+      if ! mc alias set local http://127.0.0.1:9000 ${accessKey} ${secretKey} \
+           >/dev/null; then
+        echo "xtcp2-bucket-bootstrap: mc alias set failed" >&2
+        exit 1
+      fi
+
+      # `mb --ignore-existing` is idempotent.
+      if mc mb --ignore-existing local/${bucket}; then
+        echo "xtcp2-bucket-bootstrap: bucket ${bucket} ready"
+        exit 0
+      fi
+
+      echo "xtcp2-bucket-bootstrap: failed to create bucket ${bucket}" >&2
       exit 1
-    fi
-
-    # `mc alias set` does a credentialed probe against the server, so it
-    # must run after MinIO is ready.
-    if ! "$MC" alias set local http://127.0.0.1:9000 ${accessKey} ${secretKey} \
-         >/dev/null; then
-      echo "xtcp2-bucket-bootstrap: mc alias set failed" >&2
-      exit 1
-    fi
-
-    # `mb --ignore-existing` is idempotent.
-    if "$MC" mb --ignore-existing local/${bucket}; then
-      echo "xtcp2-bucket-bootstrap: bucket ${bucket} ready"
-      exit 0
-    fi
-
-    echo "xtcp2-bucket-bootstrap: failed to create bucket ${bucket}" >&2
-    exit 1
-  '';
+    '';
+  };
 in
 {
   # tmpfs for MinIO data. services.minio dataDir defaults to /var/lib/minio/data;
@@ -118,20 +135,18 @@ in
     requires = [ "minio.service" ];
     wantedBy = [ "multi-user.target" ];
 
-    # `mc` shells out to `getent` to resolve the user's config directory.
-    # In nixpkgs that binary lives in its own `getent` package (not in
-    # glibc.bin which surprisingly omits it). Without this PATH addition
-    # mc exits with `Unable to get mcConfigDir. exec: "getent":
-    # executable file not found in $PATH` before doing anything useful.
-    path = [
-      pkgs.getent
-      pkgs.coreutils
-    ];
+    # No `path = [ pkgs.getent pkgs.coreutils ];` here any more: both moved
+    # into bootstrapScript's runtimeInputs, which puts them on PATH for the
+    # script itself and keeps the dependency next to the code that needs it.
+    # The getent requirement is real and easy to lose — see the comment on
+    # bootstrapScript above.
 
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${bootstrapScript}";
+      # "${pkg}/bin/<name>" and not the bare "${pkg}": writeShellApplication
+      # sets destination = "/bin/${name}", so the derivation is a directory.
+      ExecStart = "${bootstrapScript}/bin/xtcp2-bucket-bootstrap";
       StateDirectory = "xtcp2-bucket-bootstrap";
       StateDirectoryMode = "0700";
       StandardOutput = "journal+console";

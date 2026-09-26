@@ -1,6 +1,6 @@
 // Package xtcpnl owns the low-level netlink machinery: opening netlink
 // sockets, building netlink_sock_diag request payloads, sending them, and
-// deserialising the responses into XtcpFlatRecord fields.
+// deserializing the responses into XtcpFlatRecord fields.
 //
 // Entry points:
 //   - openNetlinkSocketWithTimeout — opens a netlink socket via syscalls
@@ -61,7 +61,7 @@ func Swap16(i uint16) uint16 {
 }
 
 // // Byte swap a 32 bit value if aren't big endian
-// func Swap32(i uint32) uint32 {
+// func swap32(i uint32) uint32 {
 // 	if NativeEndian() == binary.BigEndian {
 // 		return i
 // 	}

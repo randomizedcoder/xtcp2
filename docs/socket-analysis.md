@@ -33,7 +33,7 @@ Treat these as **hypotheses, not constants.** The actual band count, centroids, 
 Use **`tcp_info_min_rtt`** as the primary banding feature, not the smoothed `tcp_info_rtt` (srtt):
 
 - `min_rtt` is the *minimum* RTT the kernel has seen on the socket — it approximates the propagation/path floor and is largely free of transient queueing and load. That makes it a clean proxy for distance/path, which is exactly what bands are about.
-- `tcp_info_rtt` (srtt) is useful as a *current latency* feature and, together with `tcp_info_rtt_var`, as a **jitter** signal — but it inflates under load, so it's noisier for geography.
+- `tcp_info_rtt` (srtt) is useful as a *current latency* feature and, together with `tcp_info_rttvar`, as a **jitter** signal — but it inflates under load, so it's noisier for geography.
 
 **All RTT fields are microseconds** — divide by 1000 for milliseconds. RTT spans several orders of magnitude (0.1 ms intra-DC to 300 ms mobile), so **analyze it on a log scale**; the modes that correspond to bands are far clearer in `log10(min_rtt_ms)` than in linear space.
 
@@ -88,13 +88,13 @@ Standardize (z-score) after log-transforming the heavy-tailed features. Algorith
 | **GMM** | Soft assignments; BIC picks K; elliptical clusters | Assumes Gaussian components |
 | **HDBSCAN** | No K; arbitrary shapes; **labels outliers as noise** | Sensitive to `min_cluster_size`; needs scaled features |
 
-**HDBSCAN is the recommended default** here — it doesn't need a predetermined cluster count and its built-in noise label naturally captures the "outliers" band (item 4 above) instead of forcing every socket into a group. Use PCA or UMAP to project to 2-D for a scatter plot colored by cluster. Validate with silhouette score (or BIC for GMM), **stability across time windows** (do the same clusters reappear tomorrow?), and **external agreement** — clusters should line up with `dest_asn`, `congestion_algorithm_string`, or DC.
+**HDBSCAN is the recommended default** here — it doesn't need a predetermined cluster count and its built-in noise label naturally captures the "outliers" band (item 4 above) instead of forcing every socket into a group. Use PCA or UMAP to project to 2-D for a scatter plot colored by cluster. Validate with silhouette score (or BIC for GMM), **stability across time windows** (do the same clusters reappear tomorrow?), and **external agreement** — clusters should line up with `dest_asn`, `inet_diag_cong`, or DC.
 
 ## Other useful analyses
 
 - **Throughput bands.** `log(tcp_info_delivery_rate)` is heavy-tailed; cluster it to separate "elephant" flows from "mice." Exclude `tcp_info_delivery_rate_app_limited = 1` rows when you want *path* capacity (those flows were limited by the application, not the network).
 - **Retransmission / loss bands.** `bytes_retrans / bytes_sent` (or `total_retrans / segs_out`) splits healthy (~0) from lossy paths. Cross-tab with the RTT band — high-RTT mobile paths often also show elevated loss.
-- **Congestion-algorithm comparison.** Group by `congestion_algorithm_string` (e.g. BBR vs CUBIC) and compare RTT/throughput/loss distributions for the same destination band.
+- **Congestion-algorithm comparison.** Group by `inet_diag_cong` (e.g. BBR vs CUBIC) and compare RTT/throughput/loss distributions for the same destination band.
 - **Per-ASN / per-CDN performance.** Aggregate by `inet_diag_msg_socket_dest_asn` to rank CDN edges or transit providers by latency and loss from each DC.
 - **Diurnal patterns.** Bucket by hour-of-day (`timestamp_ns`); mobile/last-mile RTT typically rises in the evening peak. Useful for capacity planning.
 - **Anomaly / drift detection.** Monitor band centroids over time; a sudden shift is a strong signal of a routing change or incident.
@@ -117,13 +117,13 @@ WITH socket AS (
     inet_diag_msg_socket_dest_asn                     AS dest_asn,
     MIN(tcp_info_min_rtt) / 1000.0                    AS min_rtt_ms,
     MEDIAN(tcp_info_rtt)  / 1000.0                    AS srtt_ms,
-    MEDIAN(tcp_info_rtt_var) / 1000.0                 AS rtt_var_ms,
+    MEDIAN(tcp_info_rttvar) / 1000.0                 AS rtt_var_ms,
     MAX(tcp_info_delivery_rate) * 8.0 / 1e6           AS mbps,
     MAX(tcp_info_snd_cwnd)                            AS cwnd,
     -- cumulative counters: last value ≈ MAX over the socket's life
     MAX(tcp_info_bytes_sent)                          AS bytes_sent,
     MAX(tcp_info_bytes_retrans)                       AS bytes_retrans,
-    ANY_VALUE(congestion_algorithm_string)            AS congestion,
+    ANY_VALUE(inet_diag_cong)            AS congestion,
     COUNT(*)                                          AS samples
   FROM read_parquet('s3://bucket/xtcp/**/*.parquet', hive_partitioning => true)
   WHERE inet_diag_msg_state = 1                       -- ESTABLISHED only

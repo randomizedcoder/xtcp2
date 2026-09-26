@@ -139,7 +139,11 @@ func TestS3ParquetSchema_columnTypes(t *testing.T) {
 		{"inet_diag_msg_socket_source", parquet.ByteArray},
 		{"nsid", parquet.Int32},
 		{"socket_fd", parquet.Int64},
-		{"congestion_algorithm_enum", parquet.Int32},
+		{"inet_diag_cong_enum", parquet.Int32},
+		{"enrich_socket_dest_locality", parquet.Int32},
+		{"inet_diag_cgroup_id", parquet.Int64},
+		{"schema_version", parquet.Int32},
+		{"uplink1_ifname", parquet.ByteArray},
 	}
 	for _, tc := range cases {
 		tc := tc

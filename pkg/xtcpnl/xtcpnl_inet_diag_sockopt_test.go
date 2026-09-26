@@ -1,5 +1,18 @@
 package xtcpnl
 
+// WARNING: this file contains Go reflection (binary.Read / reflect).
+//
+// The reflection code here is only for performance comparison, and it is
+// strongly recommended that it is NOT used in production. It lives in a
+// _test.go file so that it never reaches the shipped library: pkg/xtcpnl
+// ships zero reflection, and every production Deserialize* reads fields at
+// fixed byte offsets instead.
+//
+// If reflection is ever measured as even close to a manual decoder, that
+// indicates a problem rather than a license to use it. See
+// xtcpnl_reflection_twins_test.go for the rationale and
+// xtcpnl_perf_gate_test.go for the gate that fails on convergence.
+
 import (
 	"io"
 	"os"
@@ -31,7 +44,7 @@ func TestDeserializeSockOpt(t *testing.T) {
 			description: "attribute_sockopt_reflection",
 			filename:    tdAttrSockopt_6_10_3,
 			s:           &t2,
-			Func:        DeserializeSockOptReflection,
+			Func:        deserializeSockOptReflection,
 		},
 		{
 			description: "attribute_sockopt_5200",
@@ -90,7 +103,7 @@ func BenchmarkDeserializeSockOpt(b *testing.B) {
 }
 
 func BenchmarkDeserializeSockOptReflection(b *testing.B) {
-	DeserializeSockOptBoth(b, DeserializeSockOptReflection)
+	DeserializeSockOptBoth(b, deserializeSockOptReflection)
 }
 
 func DeserializeSockOptBoth(b *testing.B, fn func(data []byte, tc *SockOpt) (n int, err error)) {

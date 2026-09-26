@@ -16,7 +16,7 @@ xtcp2 collects on a fixed cadence rather than continuously. On each tick it dump
 `pkg/xtcp/poller.go` runs the main loop. Driven by a ticker at `-frequency`, each cycle:
 
 1. Issues an `inet_diag` dump across all active namespaces.
-2. Deserializes each reply into an `XtcpFlatRecord` (see [netlink collection](netlink-collection.md)).
+2. Deserializes each reply into an `XtcpFlatRecord` (see [netlink collection](netlink/collection.md)).
 3. Appends records to the current Envelope.
 4. Flushes the Envelope to the destination when a threshold is hit.
 5. Reconciles the namespace watcher state (see [network namespaces](network-namespaces.md)).
@@ -55,6 +55,6 @@ Both caps are also tunable at runtime without a restart via `ConfigService.SetEn
 
 ## See also
 
-- [Netlink collection](netlink-collection.md) — where the records in each Envelope come from.
+- [Netlink collection](netlink/collection.md) — where the records in each Envelope come from.
 - [Output formats & destinations](output-and-destinations.md) — how a flushed Envelope is marshalled and sent.
 - [Performance](performance.md) — Envelope/record pooling.

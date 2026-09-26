@@ -1,8 +1,6 @@
 package xtcpnl
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
@@ -64,19 +62,6 @@ func DeserializeShutdown(data []byte, s *Shutdown) (n int, err error) {
 	return ShutdownSizeCst, nil
 }
 
-func DeserializeShutdownReflection(data []byte, s *Shutdown) (n int, err error) {
-
-	reader := bytes.NewReader(data)
-
-	err = binary.Read(reader, binary.LittleEndian, s)
-	if err != nil {
-		return 0, err
-	}
-	n = len(data)
-
-	return n, err
-}
-
 func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (err error) {
 	// func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.Envelope_XtcpFlatRecord) (err error) {
 
@@ -84,7 +69,7 @@ func DeserializeShutdownXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrShutdownSmall
 	}
 
-	x.ShutdownState = uint32(data[0])
+	x.InetDiagShutdown = uint32(data[0])
 
 	return nil
 }

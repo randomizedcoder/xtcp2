@@ -49,7 +49,7 @@ func sampleClientRecord() *xtcp_flat_record.XtcpFlatRecord {
 		InetDiagMsgFamily:       2,
 		InetDiagMsgSocketSource: []byte{10, 0, 0, 5},
 		InetDiagMsgState:        10, // LISTEN
-		CongestionAlgorithmEnum: xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
+		InetDiagCongEnum:        xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC,
 	}
 }
 

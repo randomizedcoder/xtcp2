@@ -14,6 +14,41 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+/// ---- enrichment: destination-side (310-349) ------------------------------
+/// Destination endpoint locality, classified from the socket's own network
+/// namespace's local addresses + routing table (discovered via rtnetlink,
+/// see pkg/localnet). Computed BEFORE the ASN lookup: SELF and LOCAL_SUBNET
+/// destinations never reach the ASN feed, so enrich_socket_dest_asn (320) /
+/// enrich_socket_dest_network_owner (322) stay empty for them. UNSPECIFIED
+/// when locality enrichment is disabled or the namespace has no snapshot yet.
+class XtcpFlatRecord_Locality extends $pb.ProtobufEnum {
+  static const XtcpFlatRecord_Locality LOCALITY_UNSPECIFIED =
+      XtcpFlatRecord_Locality._(
+          0, _omitEnumNames ? '' : 'LOCALITY_UNSPECIFIED');
+  static const XtcpFlatRecord_Locality LOCALITY_SELF =
+      XtcpFlatRecord_Locality._(1, _omitEnumNames ? '' : 'LOCALITY_SELF');
+  static const XtcpFlatRecord_Locality LOCALITY_LOCAL_SUBNET =
+      XtcpFlatRecord_Locality._(
+          2, _omitEnumNames ? '' : 'LOCALITY_LOCAL_SUBNET');
+  static const XtcpFlatRecord_Locality LOCALITY_REMOTE =
+      XtcpFlatRecord_Locality._(3, _omitEnumNames ? '' : 'LOCALITY_REMOTE');
+
+  static const $core.List<XtcpFlatRecord_Locality> values =
+      <XtcpFlatRecord_Locality>[
+    LOCALITY_UNSPECIFIED,
+    LOCALITY_SELF,
+    LOCALITY_LOCAL_SUBNET,
+    LOCALITY_REMOTE,
+  ];
+
+  static final $core.List<XtcpFlatRecord_Locality?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static XtcpFlatRecord_Locality? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const XtcpFlatRecord_Locality._(super.value, super.name);
+}
+
 class XtcpFlatRecord_CongestionAlgorithm extends $pb.ProtobufEnum {
   static const XtcpFlatRecord_CongestionAlgorithm
       CONGESTION_ALGORITHM_UNSPECIFIED = XtcpFlatRecord_CongestionAlgorithm._(

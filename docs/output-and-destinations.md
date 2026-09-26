@@ -1,6 +1,6 @@
 # Output formats & destinations
 
-Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the wire format; destinations control where the bytes go. Destinations that need a heavy client library are gated behind build tags, so a binary only carries the backends it was compiled with.
+Once an [Envelope](polling-and-batching.md#envelopes) is flushed, xtcp2 serializes it with a chosen **marshaller** and sends it to a chosen **destination**. Marshallers control the wire format; destinations control where the bytes go. Destinations that need a heavy client library are gated behind build tags, so a binary only carries the backends it was compiled with. The same mechanism gates the two heavyweight *enrichers* (ASN and locality) — see [Build flavors](build-flavors.md).
 
 ## Table of contents
 
@@ -102,7 +102,7 @@ sudo ./result/bin/xtcp2 -dest stdout -marshal jsonl -d 1 | jq .
 
 # CSV of just the columns you care about, into a file → open in DuckDB/R
 sudo ./result/bin/xtcp2 -dest file:/tmp/socks.csv -marshal csv -d 1 \
-  -columns hostname,inetDiagMsgSocketSource,inetDiagMsgSocketSourcePort,inetDiagMsgState,congestionAlgorithmEnum,tcpInfoRtt
+  -columns hostname,inetDiagMsgSocketSource,inetDiagMsgSocketSourcePort,inetDiagMsgState,inetDiagCongEnum,tcpInfoRtt
 duckdb -c "select inetDiagMsgState, count(*) from '/tmp/socks.csv' group by 1"
 
 # Stream NDJSON over TCP to a log shipper / nc

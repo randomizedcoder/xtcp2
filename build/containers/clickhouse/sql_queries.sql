@@ -3,7 +3,7 @@ SELECT
     nsec,
     hostname,
     tcp_info_rtt,
-    tcp_info_rtt_var,
+    tcp_info_rttvar,
     tcp_info_min_rtt,
     tcp_info_rcv_rtt,
 FROM xtcp.xtcp_records

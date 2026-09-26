@@ -4,11 +4,10 @@
 #
 {
   pkgs,
-  lib,
   src,
 }:
 
 {
-  lint = import ./buf-lint.nix { inherit pkgs lib src; };
-  regenerate = import ./buf-generate.nix { inherit pkgs lib; };
+  lint = import ./buf-lint.nix { inherit pkgs src; };
+  regenerate = import ./buf-generate.nix { inherit pkgs; };
 }

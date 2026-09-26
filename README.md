@@ -102,7 +102,7 @@ Run `xtcp2 -help` for the full flag list. Common flags:
 
 | Feature | Summary | Docs |
 |---|---|---|
-| **Netlink TCP collection** | Reads TCP socket state via `inet_diag`; 13 pluggable attribute decoders (tcp_info, congestion, meminfo, BBR, DCTCP, skmem, cgroup, …). | [netlink-collection](docs/netlink-collection.md) |
+| **Netlink TCP collection** | Reads TCP socket state via `inet_diag`; 13 pluggable attribute decoders (tcp_info, congestion, meminfo, BBR, DCTCP, skmem, cgroup, …). | [netlink-collection](docs/netlink/collection.md) |
 | **Multi-namespace visibility** | Discovers and watches `/run/netns` + `/run/docker/netns`, one reader per namespace, real-time churn reconciliation. | [network-namespaces](docs/network-namespaces.md) |
 | **Polling & batching** | Periodic dumps accumulated into protobuf Envelopes, flushed by row-count or byte-size thresholds. | [polling-and-batching](docs/polling-and-batching.md) |
 | **Output formats & destinations** | Four marshallers and nine build-tagged destinations (Kafka, NATS, NSQ, Valkey, UDP, Unix, S3/Parquet, null). | [output-and-destinations](docs/output-and-destinations.md) |

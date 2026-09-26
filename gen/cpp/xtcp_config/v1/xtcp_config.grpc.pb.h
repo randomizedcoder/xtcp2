@@ -5,8 +5,8 @@
 //
 // xTCP - config
 //
-// These are all the structs relating to the TCP diagnotic module in the kernel
-//
+// Runtime configuration of the xtcp2 daemon, served and mutated over gRPC
+// (ConfigService) and mirrored one-to-one by the cmd/xtcp2 CLI flags / env.
 //
 // Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
 //

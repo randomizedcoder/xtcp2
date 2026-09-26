@@ -20,27 +20,36 @@
   });
 
   # protobuf tooling
-  buf = pkgs.buf;
+  inherit (pkgs) buf;
   protoc = pkgs.protobuf; # also provides the protoc builtins (python/pyi/cpp)
 
   # Local buf codegen plugins (nix-pinned) — used by nix/protos/buf-generate.nix
   # so `buf generate` runs fully offline (no buf-cloud remote plugins). See
   # buf.gen.yaml. grpc-gateway ships protoc-gen-grpc-gateway + protoc-gen-openapiv2;
   # grpc ships grpc_python_plugin + grpc_cpp_plugin.
-  protoc-gen-go = pkgs.protoc-gen-go;
-  protoc-gen-go-grpc = pkgs.protoc-gen-go-grpc;
-  protoc-gen-go-vtproto = pkgs.protoc-gen-go-vtproto;
-  grpc-gateway = pkgs.grpc-gateway;
-  protoc-gen-dart = pkgs.protoc-gen-dart;
-  grpc = pkgs.grpc;
+  inherit (pkgs)
+    protoc-gen-go
+    protoc-gen-go-grpc
+    protoc-gen-go-vtproto
+    grpc-gateway
+    protoc-gen-dart
+    grpc
+    ;
 
-  # Static analysis
-  golangci-lint = pkgs.golangci-lint;
-  gosec = pkgs.gosec;
+  # Static analysis. deadnix (dead Nix bindings) and statix (Nix antipatterns)
+  # back nix/checks/{deadnix,statix}.nix — added 2026-09-23 because nothing
+  # linted the Nix tree, which is how the dead nix/containers/oci-xtcp2.nix
+  # survived unnoticed for months.
+  inherit (pkgs)
+    golangci-lint
+    gosec
+    deadnix
+    statix
+    ;
   nixfmt = pkgs.nixfmt-rfc-style or pkgs.nixfmt;
 
   # gRPC / proto inspection
-  grpcurl = pkgs.grpcurl;
+  inherit (pkgs) grpcurl;
 
   # Per-variant build configuration. mkGoBinary picks one by name.
   #
@@ -114,8 +123,46 @@
     "s3parquet"
   ];
 
+  # Enrichment flavors — the third build axis, alongside buildVariants and
+  # destinationFlavors. Each maps to a list of `enrich_<feature>` build tags.
+  #
+  # These two enrichers are opt-in at COMPILE time, unlike the container /
+  # lldp / nic / nsid enrichers which are always compiled and toggled only at
+  # runtime. The reason is weight: pkg/ipasn pulls in parquet-go and bart, and
+  # without a tag it links into every flavor including `min` — which defeats
+  # the whole point of a stdlib-only build. Before the enrichment work,
+  # parquet-go reached the daemon only via `//go:build dest_s3parquet`.
+  #
+  #   none     — neither enricher. The plain slim flavors.
+  #   asn      — IP->ASN lookup (pkg/ipasn: parquet-go + bart).
+  #   locality — network-locality classification (pkg/localnet: bart).
+  #   enrich   — both.
+  #
+  # Both still default to OFF at runtime (-enrichAsn / -enrichLocality); the
+  # tag only decides whether the code is in the binary at all. Asking for an
+  # enricher that was not compiled in is a fatal startup error, not a silent
+  # no-op — see pkg/xtcp/enrich_core.go.
+  enrichmentFlavors = {
+    none = [ ];
+    asn = [ "asn" ];
+    locality = [ "locality" ];
+    enrich = [
+      "asn"
+      "locality"
+    ];
+  };
+
+  # The full enrichment set, expanded explicitly. mkGoBinary uses this when
+  # `enrichments = null` is passed, which is the default — so every existing
+  # call site (the per-cmd attrs and the three fat images) keeps every
+  # enricher and nothing about them changes.
+  allEnrichmentFeatures = [
+    "asn"
+    "locality"
+  ];
+
   # Go vendor hash. Update by running `nix build .#xtcp2` and pasting the
   # `got:` value from the hash mismatch error. Used by every Nix check that
   # needs deps in the sandbox (see nix/lib/goModules.nix).
-  goVendorHash = "sha256-gvORPkTs1uJZhcSNWLdJzELX8FEE5QosfS6hP0N9n2E=";
+  goVendorHash = "sha256-UbE22AXaeUHZ9Y696oamvsbc7GwdeGqX3j+xOoFoo3g=";
 }

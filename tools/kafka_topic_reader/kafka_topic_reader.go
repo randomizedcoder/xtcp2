@@ -146,7 +146,7 @@ func handleRecord(i, j, records int, record *kgo.Record, xtcpRecord *xtcp_flat_r
 	// so this is reachable in practice.
 	proto.Reset(xtcpRecord)
 	if err := proto.Unmarshal(record.Value, xtcpRecord); err != nil {
-		log.Printf("Error unmarshalling protobuf message: %v", err)
+		log.Printf("Error unmarshaling protobuf message: %v", err)
 		return
 	}
 

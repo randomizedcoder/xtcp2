@@ -18,7 +18,7 @@ The hot path recycles objects through `sync.Pool` rather than allocating per soc
 
 ## Parallel netlink readers
 
-Each namespace runs `-netlinkers` reader goroutines (default 4) created by `pkg/xtcp/init_netlinkers.go`. Reads and deserialization happen in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine draining the socket. Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink-collection.md#netlinkers).
+Each namespace runs `-netlinkers` reader goroutines (default 4) created by `pkg/xtcp/init_netlinkers.go`. Reads and deserialization happen in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine draining the socket. Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink/collection.md#netlinkers).
 
 ## io_uring fast path (implemented, but not recommended)
 
@@ -108,6 +108,6 @@ Commit the updated `cmd/xtcp2/default.pgo`; the next build applies it automatica
 ## See also
 
 - [Performance optimizations](performance-optimizations.md) — the profile-driven roadmap of candidate improvements (size-cap, vtprotobuf, allocation cuts), with effort and trade-offs.
-- [Netlink collection](netlink-collection.md) — the read path these optimizations apply to.
+- [Netlink collection](netlink/collection.md) — the read path these optimizations apply to.
 - [Polling & batching](polling-and-batching.md) — Envelope/record pooling.
 - [Observability](observability.md) — profiling to find the actual bottleneck before tuning.

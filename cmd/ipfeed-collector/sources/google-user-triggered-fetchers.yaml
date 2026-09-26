@@ -1,0 +1,11 @@
+name: google-user-triggered-fetchers
+provider: google
+url: https://developers.google.com/crawling/ipranges/user-triggered-fetchers.json
+parser: google_crawlers
+source_type: provider_feed
+confidence: authoritative
+defaults:
+  network_owner: google
+  service_operator: google
+  service: user-triggered-fetchers
+enabled: true
