@@ -20,7 +20,7 @@ If you are looking for the daemon as a whole, start at the
 The last three are a chain — the audit finds the gaps, the roadmap decides the
 order, the status document records reality. Read them in that order.
 
-## The one constraint worth knowing up front
+## Two constraints worth knowing up front
 
 > **Read-only.** Decode messages, and build dump requests to solicit them.
 > Never create, delete, or set. There is no write path in scope, now or later.
@@ -28,6 +28,24 @@ order, the status document records reality. Read them in that order.
 This is what makes a twenty-family surface finite, and it is the main reason
 coverage numbers here are not comparable with `vishvananda/netlink` — that
 library exists to *configure* the stack, this one exists to *read* it.
+
+> **Test fixtures are real captures.** Positive fixtures are real `nlmon`
+> captures of real kernel bytes, committed under
+> `pkg/xtcpnl/testdata/<kernel>/`. Hand-assembled bytes are for truncation and
+> malformed-input rows only.
+
+A synthetic fixture encodes the author's belief about the layout, so the decoder
+and its test can be wrong together and still pass. Generate fixtures with:
+
+```bash
+nix run .#microvm-x86_64-nlmon-capture    # events, hermetic microVM, no sudo
+nix run .#capture-netlink-fixtures        # dumps (RTM_GET* pairs), host, needs sudo
+```
+
+Run both from the repo root. See
+[collection.md](collection.md#regenerating-the-fixtures) for the mechanics and
+[coverage-expansion.md](coverage-expansion.md#fixture-provenance-real-captures-not-hand-assembled-bytes)
+for why it is a gate rather than a preference.
 
 ## Related, outside this directory
 

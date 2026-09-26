@@ -48,6 +48,7 @@ large one. The same asymmetry holds for xfrm, ipset, and devlink.
 - [Generalising the capture harness](#generalising-the-capture-harness)
 - [Phase 1 in detail: the multicast listener](#phase-1-in-detail-the-multicast-listener)
 - [Integration testing: two layers](#integration-testing-two-layers)
+  - [Fixture provenance: real captures, not hand-assembled bytes](#fixture-provenance-real-captures-not-hand-assembled-bytes)
 - [The phased roadmap](#the-phased-roadmap)
 - [Conventions and gates](#conventions-and-gates)
 - [Risks](#risks)
@@ -376,6 +377,66 @@ Two layers with different jobs. Both are in scope.
 
 ### Layer 1 — offline fixture replay (proves parser detail)
 
+#### Fixture provenance: real captures, not hand-assembled bytes
+
+This is the rule that makes the rest of Layer 1 worth anything, so it comes
+first:
+
+> **Every new family's positive fixtures must be real `nlmon` captures of real
+> kernel bytes**, committed under `pkg/xtcpnl/testdata/<kernel>/` exactly as the
+> existing corpus is. Do not hand-assemble a byte slice to stand in for a
+> message the kernel would have sent.
+
+The reason is not purity. A synthetic fixture encodes *the author's belief about
+the layout*, so the decoder and its test agree with each other and both can be
+wrong together — the test passes and proves nothing about any kernel. A real
+capture is independent evidence. This is not hypothetical here: the
+`nlmsg_pid == 0 && nlmsg_seq == 0` notification filter looks obviously correct,
+and the committed 7.1.4 capture is what showed it silently drops exactly the
+events an operator caused (`collection.md` sets out the full argument).
+
+The corpus has exactly one synthetic fixture, and the repo already treats it as
+a defect rather than a precedent:
+`pkg/xtcpnl/testdata/attribute_pragueinfo_fake_fixme` carries `fake_fixme` in
+its own filename, and [`TODO-SOON.md`](../../TODO-SOON.md) §19 records why —
+being the only fixture that is not real captured kernel bytes "makes the
+decoder's field layout unverified against any kernel." Its two honest
+resolutions are *capture a real one* or *delete the decoder*. New families must
+not add a second such case.
+
+What synthetic bytes **are** legitimate for: the negative, boundary and corner
+rows. You cannot capture a truncated or malformed datagram, so rows like
+`corner: one byte short -> ErrNdMsgSmall`, `corner: empty input`, and
+`boundary: max uint32 counters do not overflow` are constructed in the test, and
+should be. The split is:
+
+| Row kind | Byte source |
+|---|---|
+| positive — the layout is correct, the field means what we think | **captured pcap** from the corpus |
+| boundary / corner / negative — truncation, zero-length, bad `nla_len`, overflow | constructed in the test |
+
+Practically this makes the capture harness a **hard prerequisite for each phase,
+not a follow-up.** Before a family's decoder can be tested it needs, in the
+capture guest: its kernel module loaded, a subscriber joined to its multicast
+group, and a trigger phase that causes traffic. A family missing any of the
+three captures **silently nothing** — the phase records zero packets without
+failing — which is why [generalising the capture
+harness](#generalising-the-capture-harness) is Phase 0 work and why per-family
+subscribers are called out there individually.
+
+The two harnesses, both already producing real captures:
+
+```bash
+nix run .#capture-netlink-fixtures        # dumps (RTM_GET* pairs), on the host, needs sudo
+nix run .#microvm-x86_64-nlmon-capture    # events, hermetic microVM, no sudo
+```
+
+Use the microVM one for events, and run both from the repo root. Details and the
+`ip -d` sidecar convention are in
+[collection.md](collection.md#regenerating-the-fixtures).
+
+#### The test pattern
+
 Unchanged pattern, just more of it. Committed pcap under
 `pkg/xtcpnl/testdata/<kernel>/`; table-driven rows with
 `description`/`want`/`wantErr`; `description` prefixed
@@ -468,6 +529,12 @@ them.
   `xtcpnl_ndmsg.go` template.
 - **Table-driven tests** across positive / negative / boundary / corner, with
   `description` and expected outcome on every row.
+- **Positive fixtures are real `nlmon` captures**, committed under
+  `pkg/xtcpnl/testdata/<kernel>/` — never hand-assembled bytes. Constructed
+  bytes are for truncation and malformed-input rows only. See [fixture
+  provenance](#fixture-provenance-real-captures-not-hand-assembled-bytes). A
+  phase whose family cannot yet be captured is **not ready to start**: the
+  capture path (kernel module + subscriber + trigger) lands before the decoder.
 - **`netlink-audit` passes.** Any function that indexes a byte slice named
   `b`/`buf`/`buffer`/`data`/`msg`/`raw`/`p`/`payload` must contain a `len(...)`
   call somewhere in its body (`tools/netlink-audit/main.go:94-135`). It is one
