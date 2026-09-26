@@ -64,7 +64,7 @@ Phases and scope are as defined in
 
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
-| **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | Deleting the 11 `upstream-registry-pin` allowlist entries once the xdp2 pin is bumped past the `.xtcp2("TCPInfo6_10_3")` fix; gating the other 17 protocols that currently report deltas, one per phase as each is triaged; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
+| **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), `BuildDumpNeighRequest`, `ENOBUFS` resync, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | not started | — | all of it |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | not started | — | all of it |
@@ -255,14 +255,21 @@ proto descriptor in declaration order), and `deserializeTCPInfoXTCPTail7_0`
 alongside the plain decoder, with a test asserting both, since one can be
 extended and the other forgotten.
 
-**Still outstanding from 0b:** the ClickHouse DDL for the 11 columns
-(`build/containers/clickhouse/initdb.d/sql/*`, a new
-`build/containers/clickhouse/sql/migrations/v3.sql`, and the k8s configMaps).
-That is an outward-facing schema migration with operational consequences, so it
-is flagged rather than invented.
+**Also landed since:** the ClickHouse DDL for the 11 columns, without which they
+were decoded, put on the wire, and then dropped at ingestion. Added to the `_v0`
+and `_v2` bodies of
+`build/containers/clickhouse/initdb.d/sql/xtcp_xtcp_flat_records.sql`, to the
+Kafka table, and to the two explicit-column MVs, with
+`build/containers/clickhouse/sql/migrations/accecn-columns.sql` for existing
+deployments. Named for its purpose rather than `v3.sql`: only `v2.sql` exists
+and it migrated *to record epoch 2*, so `v3.sql` would imply an epoch bump that
+is explicitly not happening — adding fields in pre-reserved free slots is not a
+`schema_version` bump (`pkg/xtcp/schema_version.go:9-12`). The
+`build/k8s/clickhouse/*.proto.configMap.yaml` files are out of scope by their
+own "STALE … Do NOT apply as-is" header. See TODO-SOON.md §21.
 
 **0c.** `nix/checks/proto-audit-netlink.nix`, fed by a new `xdp2` flake input
-pinned to `47d3a425`. It runs two different questions over the 26 registered
+pinned to `16aa7676`. It runs two different questions over the 26 registered
 `NL_*` protocols and writes both to `$out`:
 
 - `proto-audit audit` — **static**: does the Go struct agree with the kernel UAPI
@@ -295,7 +302,7 @@ A blanket flip was the obvious move and would have been wrong. It is one line �
 but `unallowlisted.json` holds **179 deltas across 18 protocols**, none of them
 triaged, so the check would be permanently red and therefore permanently
 ignored. `NL_Diag_TCPInfo` is the one protocol whose deltas are fully accounted
-for by the 22-entry allowlist, so its count is 0 and a delta appearing there is
+for by the 19-entry allowlist, so its count is 0 and a delta appearing there is
 a real finding. Each later phase earns the gate for the protocol it covers:
 triage that protocol's deltas into the allowlist with reasons, get it to 0,
 then add its name to `gatedProtocols`. A name not in the check's `protocols`
@@ -310,49 +317,70 @@ other 179 deltas still printed as advisory and did not contribute. Restoring the
 entry returned the check to green. Re-run that experiment after any change to
 the filtering jq; a gate that cannot be made to fail is not a gate.
 
+It fired again for real during the `16aa7676` pin bump, which is the better
+evidence. Deleting the 11 `upstream-registry-pin` entries without yet adding
+the 8 `split` entries that replaced them produced
+`FAIL: 8 unallowlisted delta(s) on gated protocol(s): NL_Diag_TCPInfo`, naming
+all eight by field and bit offset. The gate caught a real consequence of a real
+change, unprompted.
+
 Deltas are filtered through
 `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
 `offset_bits` + field name, so a field that moves offset stops being
 allowlisted and resurfaces — the offset is the thing being asserted.
 
-**What the oracle actually reports, which is not what the plan predicted.**
-`NL_Diag_TCPInfo`: `total=76 agree=54 type_differ=3 mismatch=8 missing=11`,
-graded `Silver` statically and **`Gold (wire-validated across 8 kernel
-versions)`** dynamically — 82,799 records over 73 pcaps. The plan expected the
-11 missing to become 11 agreements once 0b landed. They did not, and the reason
-is worth stating because it is the exact opposite of what the output looks like:
+**What the oracle reports for `NL_Diag_TCPInfo`:**
+`total=80 agree=61 type_differ=3 mismatch=16 missing=0`, graded `Silver`
+statically and **`Gold (wire-validated across 8 kernel versions)`** dynamically
+— 82,799 records over 73 pcaps.
 
-> xdp2's protocol registry hardcodes the Go struct name —
+Getting to `missing=0` took an upstream fix, and the shape of that fix is the
+useful part of this section. At the original `47d3a425` pin the numbers were
+`total=76 agree=54 type_differ=3 mismatch=8 missing=11`. The plan had expected
+those 11 to become 11 agreements once 0b landed. They did not, and the reason
+was the exact opposite of what the output looked like:
+
+> xdp2's protocol registry hardcoded the Go struct name —
 > `PN::new("NL_Diag_TCPInfo", 248).kernel("tcp_info", …).xtcp2("TCPInfo6_10_3")`
-> (`samples/proto_audit/src/name_mapping/table.rs:552-555`). So the extractor is
-> asked for `TCPInfo6_10_3`, the 248-byte pre-AccECN struct, and its
+> (`samples/proto_audit/src/name_mapping/table.rs`). So the extractor was asked
+> for `TCPInfo6_10_3`, the 248-byte pre-AccECN struct, and its
 > `resolve_alias()` step — which exists precisely to follow
-> `type TCPInfo TCPInfo7_0_3` to the newest variant — is never reached, because
-> the name it is handed is already concrete. Measured directly:
-> `proto-audit extract --source xtcp2 --proto NL_Diag_TCPInfo --json` reports
-> `field_count 61, min_header_bytes 248`, which is `TCPInfo6_10_3` exactly.
+> `type TCPInfo TCPInfo7_0_3` to the newest variant — was never reached,
+> because the name it was handed was already concrete. Measured directly at the
+> time: `proto-audit extract --source xtcp2 --proto NL_Diag_TCPInfo --json`
+> reported `field_count 61, min_header_bytes 248`, which is `TCPInfo6_10_3`
+> exactly.
 
-So the 11 are a **proto-audit bug, not an xtcp2 gap**, and the upstream fix is
-one word: `.xtcp2("TCPInfo")`. Ruled out first, because both were more likely:
-the override did take (`PROTO_AUDIT_XTCP2_SRC` resolved to a store path of this
+So the 11 were a **proto-audit bug, not an xtcp2 gap**, and the fix was one
+word: `.xtcp2("TCPInfo")`, merged as
+[randomizedcoder/xdp2#11](https://github.com/randomizedcoder/xdp2/pull/11) and
+pinned here as `16aa7676`. Both likelier explanations were ruled out first: the
+override did take (`PROTO_AUDIT_XTCP2_SRC` resolved to a store path of this
 tree) and that store path does contain the fields.
 
-The offsets proto-audit reports for those 11 **corroborate** the 0b decoder
-rather than contradicting it. Its kernel extractor places `tcpi_ecn_mode` at bit
-2208 = byte 276, `accecn_opt_seen` at 2210, `accecn_fail_mode` at 2212 and
-`options2` at 2216 — one `__u32` at `[276:280]` split 2/2/4/24 in little-endian
-bit order, which is field-for-field what
-`xtcpnl_inet_diag_tcpinfo.go:256-263` decodes. An oracle that cannot see the
-fields still confirmed where they go.
+Even while unable to see them, the oracle **corroborated** the 0b decoder. Its
+kernel extractor placed `tcpi_ecn_mode` at bit 2208 = byte 276,
+`tcpi_accecn_opt_seen` at 2210, `tcpi_accecn_fail_mode` at 2212 and
+`tcpi_options2` at 2216 — one `__u32` at `[276:280]` split 2/2/4/24 in
+little-endian bit order, field-for-field what
+`xtcpnl_inet_diag_tcpinfo.go:256-263` decodes.
 
-The allowlist therefore has **22 entries**, in three kinds, and the distinction
-matters because they are not equally permanent:
+**Bumping the pin was not just deleting those 11 entries**, which is the trap
+worth recording. Seven of them — the plain `__u32` counters `tcpi_received_ce`
+and `tcpi_{delivered,received}_e{0,1,ce}_bytes` — did become agreements and need
+no entry. The other four are members of that packed `__u32`, and they came back
+as four `split` **pairs**, eight entries, because the kernel side reports
+bitfield members at their real widths while the xtcp2 side reports the Go
+fields xtcp2 unpacks them into at their declared byte widths. Deleting without
+adding would have left eight unallowlisted deltas on a protocol that is now
+**gated** — a red check caused by the fix.
+
+The allowlist therefore has **19 entries** in two kinds:
 
 | kind | n | what it is |
 |---|---|---|
 | `semantic` | 3 | proto-audit's name-based `infer_field_type()` labels a field `Enum`/`Flags` where its own kernel extractor says `Uint` (`tcpi_state`, `tcpi_ca_state`, `tcpi_options`). Offsets and sizes agree. An annotation disagreement. |
-| `split` | 8 | One side models a C bitfield byte whole, the other models the bits. proto-audit's **kernel** extractor does not handle C bitfields, so it spends a full byte on each of `tcpi_delivery_rate_app_limited` and `tcpi_fastopen_client_fail` and lands them on bytes 8 and 9 — which are really `tcpi_rto`. Layout-equivalent; xtcp2's side is the kernel's own view. |
-| `upstream-registry-pin` | 11 | The AccECN trailer, above. **Delete these when the xdp2 pin is bumped past a fix**; they should then turn into 11 agreements. |
+| `split` | 16 | Eight pairs, from two C bitfields: byte 6/7 (`snd_wscale`/`rcv_wscale`/`delivery_rate_app_limited`/`fastopen_client_fail`) and the `__u32` at `[276:280]` (`ecn_mode`/`accecn_opt_seen`/`accecn_fail_mode`/`options2`). The kernel side reports each member at its declared bit width; the xtcp2 side reports the Go field xtcp2 unpacks it into, whose declared width is a whole byte, so the two disagree about boundaries while decoding identical bytes. `tcpi_*` names are the kernel side, bare names the xtcp2 side. Layout-equivalent, and permanent unless proto-audit's xtcp2 extractor learns to read the bit-width comments. |
 
 An earlier draft of this document recorded two entries, `scale_temp` (bit 48)
 and `flags_temp` (bit 56), on the plan's authority. Those names do not appear in
@@ -435,9 +463,12 @@ checked. Pins marked `known_stale: true` are reported but never gate, even under
 printing it is that the number should be known rather than a surprise.
 
 First run already earned its keep: xdp2's `main` had moved past our `47d3a425`
-pin to `47a82df2` while this work was in progress. Not bumped here on purpose —
-a proto-audit bump changes what the layout oracle reports, which is the kind of
-change that should land on its own rather than inside unrelated work.
+pin to `47a82df2` while this work was in progress. That drift was not chased
+straight away — a proto-audit bump changes what the layout oracle reports, so it
+belongs in its own commit rather than inside unrelated work — and chasing it
+would have bought only an ERSPAN fix anyway, since `47a82df2` still carried the
+`TCPInfo6_10_3` registry pin. The pin now sits at `16aa7676`, past the fix for
+it, and that bump did land on its own.
 
 ### The original Phase 0 scope, still outstanding
 
@@ -524,8 +555,11 @@ jq 'length' result/unallowlisted.json                                  # expect 
 jq '[.[] | select(.protocol == "NL_Diag_TCPInfo")] | length' \
   result/unallowlisted.json                                            # expect 0
 
-# the upstream-registry-pin diagnosis: 61 fields / 248 bytes means proto-audit
-# is reading TCPInfo6_10_3, so the AccECN trailer cannot be reported present
+# which xtcp2 struct proto-audit is actually reading. 72 fields is the AccECN
+# struct; 61 fields / 248 bytes would mean it is back on TCPInfo6_10_3 and the
+# trailer cannot be reported present at all. min_header_bytes reads 283, not
+# 280, because of the extract_size_const nit in nix/upstream-pins.json — it is
+# a minimum and the oracle compares by bit offset, so it does not matter.
 PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- \
   extract --source xtcp2 --proto NL_Diag_TCPInfo --json \
   | jq '.sources.xtcp2 | {field_count, min_header_bytes}'

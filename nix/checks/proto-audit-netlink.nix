@@ -42,13 +42,20 @@
 # both paths are overridden to *this* tree below, and that override is the
 # single most important line in the file. See nix/upstream-pins.json.
 #
-# KNOWN UPSTREAM LIMITATION, because it changes how to read the output: even
-# with the override, proto-audit reports the 11 Accurate ECN fields as missing
-# from NL_Diag_TCPInfo. That is a bug in xdp2's protocol registry, not a gap in
-# pkg/xtcpnl — the registry hardcodes `.xtcp2("TCPInfo6_10_3")`, a 248-byte
-# struct that predates AccECN, so the `type TCPInfo TCPInfo7_0_3` alias is
-# never followed. The 11 are allowlisted as kind=upstream-registry-pin with the
-# full diagnosis in proto-audit-netlink-allowlist.json.
+# HOW TO READ NL_Diag_TCPInfo's DELTAS: it reports 16 mismatches and 0 missing,
+# and all 16 are `split` — the kernel declares two C bitfields (byte 6/7 and the
+# __u32 at [276:280]) that xtcp2 deliberately unpacks into one Go field each, so
+# the two sides disagree about field boundaries while decoding identical bytes.
+# Each such disagreement produces a PAIR of deltas, one per side, distinguished
+# by name: `tcpi_*` is the kernel's view, a bare name is xtcp2's. All 16 are
+# allowlisted with per-entry reasons; the mechanism is written up once in
+# _note_NL_Diag_TCPInfo in proto-audit-netlink-allowlist.json.
+#
+# Until the xdp2 pin moved to 16aa7676 this block said something different: the
+# registry hardcoded `.xtcp2("TCPInfo6_10_3")`, a 248-byte struct predating
+# AccECN, so the `type TCPInfo TCPInfo7_0_3` alias was never followed and all 11
+# AccECN fields read as missing from xtcp2. Fixed upstream by
+# https://github.com/randomizedcoder/xdp2/pull/11.
 #
 {
   pkgs,
@@ -277,23 +284,21 @@ pkgs.runCommand "xtcp2-proto-audit-netlink"
     echo "fields missing NL_Diag_TCPInfo : $tcpinfo_missing"
 
     # NL_Diag_TCPInfo is called out by name because it is where the AccECN work
-    # landed, and because its number is currently 11 for a reason that has
-    # nothing to do with this repo: xdp2's registry asks the extractor for
-    # TCPInfo6_10_3 rather than for the TCPInfo alias, so the AccECN trailer is
-    # not in the struct proto-audit reads. 11 is therefore the EXPECTED value
-    # until the xdp2 pin is bumped past a fix.
+    # landed, and because this number spent a while being 11 for a reason that
+    # had nothing to do with this repo — xdp2's registry asked the extractor for
+    # TCPInfo6_10_3 rather than for the TCPInfo alias, so the AccECN trailer was
+    # not in the struct proto-audit read. Since the pin moved to 16aa7676 the
+    # expected value is 0, and anything else is a real finding: a missing field
+    # means the kernel sends something pkg/xtcpnl has no home for.
     #
-    # Print it either way, and say which way it went, so neither number can be
-    # mistaken for the other. A count above 11 is a real signal.
-    if [ "$tcpinfo_missing" = "11" ]; then
-      echo "      ^ expected: all 11 are the upstream registry pin, allowlisted"
-      echo "        as kind=upstream-registry-pin. Not an xtcp2 gap; see"
-      echo "        proto-audit-netlink-allowlist.json _note_NL_Diag_TCPInfo."
-    elif [ "$tcpinfo_missing" != "0" ]; then
-      echo "NOTE: NL_Diag_TCPInfo reports $tcpinfo_missing missing field(s)," >&2
-      echo "      which is neither 0 (upstream fixed) nor 11 (upstream registry" >&2
-      echo "      pin). Something has changed — read unallowlisted.json before" >&2
-      echo "      touching the allowlist. See TODO-SOON.md §21." >&2
+    # Printed unconditionally above, and commented on here only when non-zero,
+    # so a regression cannot hide in a wall of normal output.
+    if [ "$tcpinfo_missing" != "0" ]; then
+      echo "NOTE: NL_Diag_TCPInfo reports $tcpinfo_missing missing field(s)." >&2
+      echo "      Expected 0 since the xdp2 pin moved past the TCPInfo6_10_3" >&2
+      echo "      registry fix. A field the kernel sends and pkg/xtcpnl lacks" >&2
+      echo "      is a real gap, not an upstream artifact — read" >&2
+      echo "      unallowlisted.json before touching the allowlist." >&2
     fi
 
     if [ "$unallowlisted" != "0" ]; then

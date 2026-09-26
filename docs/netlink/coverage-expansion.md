@@ -620,15 +620,18 @@ them.
   check permanently red and so permanently ignored. Accepted deltas live in
   `nix/checks/proto-audit-netlink-allowlist.json`, keyed on protocol +
   `offset_bits` + field, so a field that moves offset stops being allowlisted
-  and resurfaces. 22 entries today, **none of them an xtcp2 layout defect**:
+  and resurfaces. 19 entries today, **none of them an xtcp2 layout defect**:
   3 are proto-audit's name-based type heuristic disagreeing with its own kernel
-  extractor, 8 are one side modelling a C bitfield byte whole where the other
-  models the bits, and 11 are proto-audit reading the wrong xtcp2 struct
-  entirely — its registry hardcodes `.xtcp2("TCPInfo6_10_3")`, so the
-  `type TCPInfo TCPInfo7_0_3` alias is never followed and the AccECN trailer
-  reads as missing. Those 11 carry `kind: "upstream-registry-pin"` and are to be
-  deleted when the xdp2 pin is bumped past a fix; the full diagnosis is in the
-  allowlist's own `_note_NL_Diag_TCPInfo` and in
+  extractor, and 16 are eight pairs of one C-bitfield disagreement — the kernel
+  side reports each bitfield member at its declared bit width, the xtcp2 side
+  reports the Go field xtcp2 unpacks it into, whose declared width is a whole
+  byte. A third kind, `upstream-registry-pin`, held 11 entries until the xdp2
+  pin moved to `16aa7676`: proto-audit's registry hardcoded
+  `.xtcp2("TCPInfo6_10_3")`, so the `type TCPInfo TCPInfo7_0_3` alias was never
+  followed and the AccECN trailer read as missing. Fixing that upstream turned 7
+  of the 11 into agreements and the other 4 into split pairs, which is why the
+  count moved 22 → 19 rather than 22 → 11. Full diagnosis in the allowlist's own
+  `_note_NL_Diag_TCPInfo` and in
   [coverage-status.md](coverage-status.md). Adding an entry is a standing
   decision; establish whether a delta is correct before recording it, rather
   than recording it to quiet the check. See [the performance

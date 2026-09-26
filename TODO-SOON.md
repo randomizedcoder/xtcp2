@@ -1335,7 +1335,7 @@ is ambiguous and errors with *"both revision and filename"*. Disambiguate with
 
 ---
 
-## 21. `tcp_info` silently truncated the Accurate ECN trailer — FIXED (decode), FIXED (ClickHouse DDL), OPEN (upstream xdp2)
+## 21. `tcp_info` silently truncated the Accurate ECN trailer — FIXED (decode), FIXED (ClickHouse DDL), FIXED (upstream xdp2)
 
 `DeserializeTCPInfo` stopped at 248 bytes — the kernel 6.10 `struct tcp_info`
 length — and discarded whatever followed. Kernel 7.0 appended an Accurate ECN
@@ -1415,69 +1415,61 @@ ingestion exactly the same way, silently. The durable fix is a check that parses
 `CREATE TABLE` column lists and asserts they agree — cheap, hermetic, and it
 would have caught this. Not built here.
 
-**Also open, upstream in xdp2, and it is why the oracle still reports these 11
-as missing.** `nix build .#checks.x86_64-linux.proto-audit-netlink` shows
-`NL_Diag_TCPInfo … missing=11` *after* the fix above. That is a proto-audit bug,
-not a regression here:
+**Also fixed, upstream in xdp2.** For a while the oracle reported
+`NL_Diag_TCPInfo … missing=11` *after* the decode fix above, which was a
+proto-audit bug rather than a regression here:
+`samples/proto_audit/src/name_mapping/table.rs` hardcoded
+`.xtcp2("TCPInfo6_10_3")`, so the extractor was asked for the 248-byte
+pre-AccECN struct and its `resolve_alias()` step — which exists precisely to
+follow `type TCPInfo TCPInfo7_0_3` to the newest variant
+(`src/extractors/xtcp2.rs:56`) — was never reached, the name it was handed
+already being concrete. Fix was one word, `.xtcp2("TCPInfo")`, merged as
+**[randomizedcoder/xdp2#11](https://github.com/randomizedcoder/xdp2/pull/11)**.
+The pin moved `47d3a425` → `16aa7676` in the same commit as the allowlist
+rewrite below.
 
-- `samples/proto_audit/src/name_mapping/table.rs:552-555` hardcodes
-  `.xtcp2("TCPInfo6_10_3")`. The extractor is therefore asked for the 248-byte
-  pre-AccECN struct, and its `resolve_alias()` step — which exists precisely to
-  follow `type TCPInfo TCPInfo7_0_3` to the newest variant
-  (`src/extractors/xtcp2.rs:56`) — is never reached, because the name it is
-  handed is already concrete. Proof:
-  `PROTO_AUDIT_XTCP2_SRC=$PWD nix run .#proto-audit -- extract --source xtcp2
-  --proto NL_Diag_TCPInfo --json` reports `field_count 61, min_header_bytes
-  248`. Fix is one word: `.xtcp2("TCPInfo")` — submitted upstream as
-  **[randomizedcoder/xdp2#11](https://github.com/randomizedcoder/xdp2/pull/11)**.
-  The `47d3a425` → `47a82df2` pin bump waits on it: `47a82df2` is real and is
-  xdp2 `main` HEAD, but it is 2 commits touching only
-  `generator/pcap/embedded.rs` and `table.rs:552-555` still reads
-  `.xtcp2("TCPInfo6_10_3")` verbatim, so bumping to it buys an ERSPAN fix and
-  clears the drift warning while changing nothing here.
-- `extract_size_const()` (`src/extractors/xtcp2.rs:143`) builds the pattern
-  `{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an
-  underscore, so no versioned size constant is ever matched and the size is
-  inferred from field offsets instead. Independent of the above, and harmless
-  today.
+One upstream nit remains, harmless and tracked in `nix/upstream-pins.json`:
+`extract_size_const()` (`src/extractors/xtcp2.rs:143`) builds the pattern
+`{struct}SizeCst`, but xtcp2 spells these `TCPInfo7_0_3_SizeCst` with an
+underscore, so no versioned size constant is ever matched and the size is
+inferred from Go field offsets. That is why `extract --source xtcp2` reports
+`min_header_bytes 283` — where the last unpacked Go field ends, not the size of
+the wire struct. The oracle compares by bit offset and treats `min_header_bytes`
+as a minimum, so it does not care.
 
-The 11 are allowlisted as `kind: "upstream-registry-pin"` in
-`nix/checks/proto-audit-netlink-allowlist.json`, which is what lets
-`NL_Diag_TCPInfo` be the first protocol the oracle actually **gates** on
-(`gatedProtocols` in `nix/checks/default.nix`) rather than merely reporting.
-They are to be **deleted** once the xdp2 pin is bumped past a fix — allowlist
-entries match on protocol + offset + field, so leaving them would mask a
-genuine future delta at those offsets. Pin drift is tracked by
-`nix/upstream-pins.json` and reported by `nix run .#check-upstream-pins`.
-
-**The bump is not just that deletion, and getting this wrong turns the gated
-check red.** Measured by building proto-audit from the PR branch and running it
-against this tree:
+**The bump was not just a deletion, and assuming it was would have turned the
+gated check red.** Measured across it:
 
 | | total | agree | type_differ | mismatch | missing |
 |---|---|---|---|---|---|
 | pinned `47d3a425` | 76 | 54 | 3 | 8 | **11** |
-| with the PR | 80 | 61 | 3 | **16** | **0** |
+| pinned `16aa7676` | 80 | 61 | 3 | **16** | **0** |
 
-The 11 do not become 11 agreements. Seven do — the plain `__u32` counters
-`tcpi_received_ce` and `tcpi_{delivered,received}_e{0,1,ce}_bytes`. The other
-four surface as *new* deltas of the existing `split` kind, because the kernel
-packs `tcpi_ecn_mode:2` / `accecn_opt_seen:2` / `accecn_fail_mode:4` /
-`options2:24` into one `__u32` at `[276:280]` while xtcp2 unpacks them into
-four Go fields (`xtcpnl_inet_diag_tcpinfo.go:260-263`), and proto-audit's
-kernel extractor does not model C bitfields. Same gap as the eight existing
-`split` entries, just newly visible now the fields are read at all.
+The 11 did not become 11 agreements. Seven did — the plain `__u32` counters
+`tcpi_received_ce` and `tcpi_{delivered,received}_e{0,1,ce}_bytes`, which need
+no allowlist entry at all. The other four are members of the packed `__u32` at
+`[276:280]`, and they reappeared as four `split` **pairs** — eight entries, one
+per side. The kernel declares
+`tcpi_ecn_mode:2 / tcpi_accecn_opt_seen:2 / tcpi_accecn_fail_mode:4 / tcpi_options2:24`
+and proto-audit's kernel extractor reports those widths faithfully; xtcp2
+unpacks them into four Go fields (`xtcpnl_inet_diag_tcpinfo.go:260-263`) whose
+*declared* widths are a byte each, and proto-audit's xtcp2 extractor takes the
+Go types at face value. Neither side is wrong about the bytes — the same
+disagreement the byte-6/7 wscale bitfield has produced since the oracle's first
+run. `tcpi_*` names are the kernel side, bare names the xtcp2 side.
 
-So the bump commit must do **both**, together: delete the 11
-`upstream-registry-pin` entries *and* add 4 `kind: "split"` entries at offsets
-2208, 2216, 2224 and 2232. Allowlist goes 22 → 15. Doing only the deletion
-leaves 4 unallowlisted deltas on a **gated** protocol, i.e. a red check.
+So the bump commit did both, together: **delete** the 11
+`upstream-registry-pin` entries and **add** 8 `kind: "split"` entries, at
+2208/2210/2212/2216 (kernel) and 2208/2216/2224/2232 (xtcp2). Allowlist went
+22 → 19, `$out/unallowlisted-gated.json` stayed `[]`, and the advisory count for
+the other 25 protocols stayed 179. Pin drift is tracked by
+`nix/upstream-pins.json` and reported by `nix run .#check-upstream-pins`.
 
-Worth noting that the oracle **corroborated** the fix even while unable to see
-it: proto-audit's *kernel* extractor places `tcpi_ecn_mode` at bit 2208 (= byte
-276), `accecn_opt_seen` at 2210, `accecn_fail_mode` at 2212 and `options2` at
-2216 — one `__u32` at `[276:280]` split 2/2/4/24 little-endian, field-for-field
-what `xtcpnl_inet_diag_tcpinfo.go:256-263` decodes. And
-`validate-netlink --proto NL_Diag_TCPInfo` still grades **Gold**, 82,799 records
-across 8 kernel versions, so the optional-tail handling did not break decode of
-the older corpus.
+Worth noting that the oracle **corroborated** the decode fix even while unable
+to see it: proto-audit's kernel extractor placed `tcpi_ecn_mode` at bit 2208
+(= byte 276), `tcpi_accecn_opt_seen` at 2210, `tcpi_accecn_fail_mode` at 2212
+and `tcpi_options2` at 2216 — one `__u32` at `[276:280]` split 2/2/4/24
+little-endian, field-for-field what `xtcpnl_inet_diag_tcpinfo.go:256-263`
+decodes. And `validate-netlink --proto NL_Diag_TCPInfo` still grades **Gold**,
+82,799 records across 8 kernel versions, so the optional-tail handling did not
+break decode of the older corpus.

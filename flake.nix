@@ -50,7 +50,7 @@
     #
     # Override to a local checkout when iterating on the oracle itself:
     #   nix build .#proto-audit-netlink --override-input xdp2 path:/home/das/Downloads/xdp2
-    xdp2.url = "github:randomizedcoder/xdp2/47d3a425bb4f3a03701848f0579630e1019d3d51";
+    xdp2.url = "github:randomizedcoder/xdp2/16aa76764c8ab18897de6af13cac37c2fa89bb37";
   };
 
   nixConfig = {
