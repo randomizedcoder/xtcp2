@@ -67,7 +67,7 @@ came back **37 green, 2 red**. Both reds are host-load flakes rather than
 regressions, and both have since been demonstrated green on this same tree:
 
 - `test-go-flavor-s3parquet-enrich` — `TestS3ParquetDest_timeFlush`, which
-  passes **10/10 in isolation** (`-count=10`, 0.7 s). See §10.
+  passes **10/10 in isolation** (`-count=10`, 0.7 s). See §22.
 - `microvm-lifecycle-x86_64` — **re-run standalone on 2026-09-25 at host load
   ~45 and it PASSED**: `EXIT=0`, 18/18 sentinels, `XTCP2_SELF_TEST_OVERALL_PASS`
   at 497 s guest wall-clock, zero `_FAIL` lines. Both previously-failing checks
@@ -772,7 +772,7 @@ the sharpest footgun in the conversion.
    bare `time.Sleep(30 * time.Millisecond)` with no condition wait, so under
    load the worker goroutine has not yet run. It passed **10/10 in isolation**
    (`-count=10`, 0.7 s) on the identical tree. Same defect class as the
-   `TestS3ParquetDest_corner_queueFull` flake already recorded in this file.
+   `TestS3ParquetDest_corner_queueFull` flake — both are tracked in **§22**.
    `CONTRIBUTING.md`'s "does not currently pass end to end" therefore stands
    and was deliberately left unchanged.
 3. Booted the `test-microvm-lifecycle-x86_64-*` flavors, because the
@@ -1473,3 +1473,43 @@ little-endian, field-for-field what `xtcpnl_inet_diag_tcpinfo.go:256-263`
 decodes. And `validate-netlink --proto NL_Diag_TCPInfo` still grades **Gold**,
 82,799 records across 8 kernel versions, so the optional-tail handling did not
 break decode of the older corpus.
+
+---
+
+## 22. The s3parquet destination tests synchronize with `time.Sleep` — OPEN
+
+Three tests assert on work done by a background goroutine after sleeping a
+fixed interval rather than polling for the expected state with a deadline.
+Under host load the goroutine has not been scheduled yet and the assertion
+fires early, so they fail inside `nix flake check --keep-going` and pass in
+isolation on the identical tree.
+
+| test | file | symptom | evidence it is a flake |
+|---|---|---|---|
+| `TestS3ParquetDest_timeFlush` | `pkg/xtcp/destinations_s3parquet_jitter_test.go:168` | "upload after timer fire = 0, want 1" | passed **10/10** with `-count=10` in 0.7 s (2026-09-24) |
+| `TestS3ParquetDest_corner_queueFull` | `pkg/xtcp/destinations_s3parquet_test.go:406` | "queueFull counter never ticked", 30 s deadline | failed the pre-bump `nix flake check`, then **passed** in the post-bump run on a tree differing only in the xdp2 pin, the allowlist and docs (2026-09-26). Also fails on a clean `main` worktree, 2 of 3 runs (2026-09-22) |
+| check 16, `NS_ANONYMOUS` | `nix/microvms/self-test.nix:1030-1062` | `XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL (inst:3→4 del:3→3)` | re-ran standalone on the same tree: `NS_ANONYMOUS_PASS (inst:3→4 del:3→4)` |
+
+The third is in shell rather than Go but is the same defect, so fix them as one
+group. It `unshare -n`s a netns, `sleep 6`, asserts the instance counter rose,
+kills the holder, `sleep 6`, then asserts the *delete* counter rose. The
+`inst:3→4` half proves discovery works; only the teardown misses the fixed 6 s
+window (~2 reconcile cycles) on a loaded host.
+
+`corner_queueFull` has a second, independent problem worth fixing at the same
+time: a design race in the test rather than in the timing. The parked worker
+takes the first send directly and never occupies the buffer, so capacity+1
+sends fit without blocking, and the test only observes a full queue if its
+sends beat the worker goroutine's start-up. Making it deadline-poll does not
+remove that — it needs the worker held off deterministically.
+
+Fix for all three: replace the sleep with a bounded poll for the expected
+counter or call count (`require.Eventually` in Go, a `for` loop with a deadline
+in the self-test), so a slow host costs wall-clock rather than a red check.
+Do **not** simply lengthen the sleeps; that trades one arbitrary constant for a
+larger one and slows the suite on a quiet host.
+
+These are pre-existing on `main` and unrelated to the netlink work — the 41-check
+tree was fully green (`all checks passed!`) on the quiet run at §21's final pin.
+Related: **§10**, which is the same class for `self-test.nix`'s eight fixed
+`timeout <N>s` calls.
