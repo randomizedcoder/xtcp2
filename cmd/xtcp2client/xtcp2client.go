@@ -14,6 +14,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"google.golang.org/grpc"
@@ -131,6 +132,10 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	columns := fs.String("columns", "", "csv/tsv only: comma-separated XtcpFlatRecord json field names; empty = all")
 	jsonFlag := fs.Bool("json", false, "deprecated alias for -format json")
 	d := fs.Uint("d", 11, "debugLevel")
+	authToken := fs.String("auth-token", "", "raw bearer token; prefer XTCP2_GRPC_AUTH_TOKEN or _FILE")
+	authTokenFile := fs.String("auth-token-file", "", "file containing the raw bearer token")
+	authHMACKey := fs.String("auth-hmac-shared-key", "", "HMAC shared key; prefer XTCP2_GRPC_HMAC_SHARED_KEY or _FILE")
+	authHMACKeyFile := fs.String("auth-hmac-shared-key-file", "", "file containing the HMAC shared key")
 	v := fs.Bool("v", false, "show version")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -141,6 +146,13 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	debugLevel = *d
+	auth, err := listenerauth.ClientAuthFromEnvAndFlags(*authToken, *authTokenFile, *authHMACKey, *authHMACKeyFile,
+		"XTCP2_GRPC_AUTH_TOKEN", "XTCP2_GRPC_AUTH_TOKEN_FILE",
+		"XTCP2_GRPC_HMAC_SHARED_KEY", "XTCP2_GRPC_HMAC_SHARED_KEY_FILE")
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2client: auth configuration: %v\n", err)
+		return 2
+	}
 
 	chosen := *format
 	if *jsonFlag {
@@ -172,16 +184,16 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		addr = *unixSocket
 	}
 	if *poll {
-		pollMode(ctx, networkName, addr, &complete, *pollFrequency, printer, debugLevel)
+		pollMode(ctx, networkName, addr, &complete, *pollFrequency, printer, debugLevel, auth)
 	} else {
-		listenMode(ctx, networkName, addr, *workers, &complete, printer)
+		listenMode(ctx, networkName, addr, *workers, &complete, printer, auth)
 	}
 	return 0
 }
 
 // func (c *xTCPFlatRecordServiceClient) PollFlatRecords(
 // ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, FlatRecordsResponse], error) {
-func pollMode(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) {
+func pollMode(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint, auth listenerauth.ClientAuth) {
 
 	if debugLevel > 10 {
 		log.Printf("pollMode starting")
@@ -194,7 +206,7 @@ func pollMode(ctx context.Context, network, addr string, complete *chan struct{}
 	// going silent. This mirrors listenMode's singleStreamingClient. Only
 	// ctx cancellation or the complete signal stops the loop.
 	for i := 0; ; i++ {
-		if !pollSession(ctx, network, addr, complete, pollFrequency, printer, debugLevel) {
+		if !pollSession(ctx, network, addr, complete, pollFrequency, printer, debugLevel, auth) {
 			return
 		}
 
@@ -218,7 +230,7 @@ func pollMode(ctx context.Context, network, addr string, complete *chan struct{}
 // session ended because the stream/connection broke (the caller should
 // reconnect), or false if ctx was canceled or the complete signal fired (the
 // caller should stop).
-func pollSession(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) (reconnect bool) {
+func pollSession(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint, auth listenerauth.ClientAuth) (reconnect bool) {
 
 	conn := newGRPCClient(network, addr)
 	defer func() {
@@ -233,6 +245,7 @@ func pollSession(ctx context.Context, network, addr string, complete *chan struc
 	// each other down the moment either notices the stream is gone.
 	sessionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	sessionCtx = listenerauth.ContextWithClientAuth(sessionCtx, auth, time.Now())
 
 	stream, err := client.PollFlatRecords(sessionCtx)
 	if err != nil {
@@ -350,7 +363,7 @@ func pollStreamRecv(
 	}
 }
 
-func listenMode(ctx context.Context, network, addr string, workers int, complete *chan struct{}, printer *recordPrinter) {
+func listenMode(ctx context.Context, network, addr string, workers int, complete *chan struct{}, printer *recordPrinter, auth listenerauth.ClientAuth) {
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
@@ -360,7 +373,7 @@ func listenMode(ctx context.Context, network, addr string, workers int, complete
 		// dialed once and passed the conn down, but stream()
 		// deferred-Close'd it on first return, so every "reconnect
 		// after sleep" iteration after the first used a dead conn.
-		go singleStreamingClient(ctx, &wg, network, addr, printer, j)
+		go singleStreamingClient(ctx, &wg, network, addr, printer, j, auth)
 	}
 
 	wg.Wait()
@@ -378,7 +391,7 @@ func listenMode(ctx context.Context, network, addr string, workers int, complete
 // restart branch without waiting 10 seconds.
 var reconnectTimeVar = reconnectTime
 
-func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, network, addr string, printer *recordPrinter, id int) {
+func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, network, addr string, printer *recordPrinter, id int, auth listenerauth.ClientAuth) {
 
 	defer wg.Done()
 
@@ -399,7 +412,7 @@ breakPoint:
 		// dead code after iteration 0.
 		conn := newGRPCClient(network, addr)
 		wg.Add(1)
-		stream(ctx, wg, conn, printer, id)
+		stream(ctx, wg, conn, printer, id, auth)
 
 		select {
 		case <-ctx.Done():
@@ -526,7 +539,7 @@ func handleRecvContinueErr(ctx context.Context, client any, err error) bool {
 	return false
 }
 
-func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, printer *recordPrinter, id int) {
+func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, printer *recordPrinter, id int, auth listenerauth.ClientAuth) {
 
 	defer wg.Done()
 	defer func() {
@@ -537,6 +550,7 @@ func stream(ctx context.Context, wg *sync.WaitGroup, conn *grpc.ClientConn, prin
 
 	req := &xtcp_flat_record.FlatRecordsRequest{}
 	client := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn)
+	ctx = listenerauth.ContextWithClientAuth(ctx, auth, time.Now())
 	stream, err := client.FlatRecords(ctx, req)
 	if err != nil {
 		// Demoted from log.Fatal: the surrounding singleStreamingClient

@@ -1,0 +1,158 @@
+package listenerauth
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+)
+
+func TestAuthenticatorRaw(t *testing.T) {
+	cases := []struct {
+		name            string
+		description     string
+		values          []string
+		expectedOutcome bool
+	}{
+		{"match", "raw token positive match", []string{"Bearer secret"}, true},
+		{"mismatch", "raw token negative mismatch", []string{"Bearer nope"}, false},
+		{"missing", "raw token negative missing", nil, false},
+		{"malformed", "raw token negative malformed", []string{"Basic secret"}, false},
+		{"duplicate", "raw token negative multiple bearer values", []string{"Bearer secret", "Bearer secret"}, false},
+	}
+	a, err := New(&xtcp_config.ListenerAuth{
+		Mode:                   xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+		RawToken:               "secret",
+		FailureJitterMin:       durationpb.New(time.Millisecond),
+		FailureJitterMax:       durationpb.New(time.Millisecond),
+		SignedTokenSkewMinutes: proto.Uint32(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := a.AuthenticateValues(context.Background(), tc.values)
+			if (err == nil) != tc.expectedOutcome {
+				t.Fatalf("%s: err=%v", tc.description, err)
+			}
+		})
+	}
+}
+
+func TestAuthenticatorHMACUTCMinute(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 34, 45, 0, time.UTC)
+	cases := []struct {
+		name            string
+		description     string
+		skew            uint32
+		tokenMinute     time.Time
+		expectedOutcome bool
+	}{
+		{"current", "HMAC positive current minute", 1, now, true},
+		{"previous", "HMAC positive previous minute inside skew", 1, now.Add(-time.Minute), true},
+		{"next", "HMAC positive next minute inside skew", 1, now.Add(time.Minute), true},
+		{"zero_current", "HMAC boundary skew 0 accepts current", 0, now, true},
+		{"zero_previous", "HMAC boundary skew 0 rejects previous", 0, now.Add(-time.Minute), false},
+		{"max_inside", "HMAC boundary skew 5 accepts five minutes", 5, now.Add(5 * time.Minute), true},
+		{"outside", "HMAC negative outside skew", 1, now.Add(2 * time.Minute), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := newWithClock(&xtcp_config.ListenerAuth{
+				Mode:                   xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE,
+				HmacSharedKey:          "shared",
+				SignedTokenSkewMinutes: proto.Uint32(tc.skew),
+				FailureJitterMin:       durationpb.New(time.Millisecond),
+				FailureJitterMax:       durationpb.New(time.Millisecond),
+			}, func() time.Time { return now })
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := SignedToken("shared", tc.tokenMinute)
+			err = a.AuthenticateValues(context.Background(), []string{"Bearer " + token})
+			if (err == nil) != tc.expectedOutcome {
+				t.Fatalf("%s: err=%v", tc.description, err)
+			}
+		})
+	}
+}
+
+func TestAuthenticatorValidationAndJitter(t *testing.T) {
+	cases := []struct {
+		name            string
+		description     string
+		cfg             *xtcp_config.ListenerAuth
+		expectedOutcome bool
+	}{
+		{"raw_empty_secret", "empty required secret for raw mode", &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN}, false},
+		{"hmac_empty_secret", "empty required secret for HMAC mode", &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE}, false},
+		{"jitter_equal", "jitter min=max boundary", &xtcp_config.ListenerAuth{
+			Mode:             xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			RawToken:         "x",
+			FailureJitterMin: durationpb.New(5 * time.Millisecond),
+			FailureJitterMax: durationpb.New(5 * time.Millisecond),
+		}, true},
+		{"jitter_zero", "explicit zero jitter remains zero", &xtcp_config.ListenerAuth{
+			Mode:             xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			RawToken:         "x",
+			FailureJitterMin: durationpb.New(0),
+			FailureJitterMax: durationpb.New(0),
+		}, true},
+		{"jitter_max_less", "jitter max<min validation behavior", &xtcp_config.ListenerAuth{
+			Mode:             xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			RawToken:         "x",
+			FailureJitterMin: durationpb.New(6 * time.Millisecond),
+			FailureJitterMax: durationpb.New(5 * time.Millisecond),
+		}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(tc.cfg)
+			if (err == nil) != tc.expectedOutcome {
+				t.Fatalf("%s: err=%v", tc.description, err)
+			}
+		})
+	}
+	for i := 0; i < 100; i++ {
+		got, err := CryptoJitterDuration(2*time.Millisecond, 5*time.Millisecond)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got < 2*time.Millisecond || got > 5*time.Millisecond {
+			t.Fatalf("crypto jitter duration always in inclusive range: got %s", got)
+		}
+	}
+}
+
+func TestWrapHTTPProtectsAllRoutes(t *testing.T) {
+	a, err := New(&xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: "secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	h := a.WrapHTTP(mux)
+	for _, path := range []string{"/metrics", "/healthz", "/readyz", "/debug/pprof/"} {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		got := httptest.NewRecorder()
+		h.ServeHTTP(got, r)
+		if got.Code != http.StatusUnauthorized {
+			t.Errorf("%s unauthenticated status=%d", path, got.Code)
+		}
+		r.Header.Set(AuthorizationHeader, "Bearer secret")
+		got = httptest.NewRecorder()
+		h.ServeHTTP(got, r)
+		if got.Code != http.StatusNoContent {
+			t.Errorf("%s authenticated status=%d", path, got.Code)
+		}
+	}
+}

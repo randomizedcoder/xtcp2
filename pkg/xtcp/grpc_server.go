@@ -11,6 +11,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 	grpchealth "google.golang.org/grpc/health"
@@ -51,7 +52,7 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer(
+	opts := []grpc.ServerOption{
 		grpc.ReadBufferSize(ReadBufferSize),
 		grpc.WriteBufferSize(WriteBufferSize),
 		// https://pkg.go.dev/google.golang.org/grpc#MaxRecvMsgSize
@@ -72,7 +73,15 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 				MinTime:             KeepaliveMinTime,
 				PermitWithoutStream: true,
 			}),
-	)
+	}
+	authn, err := listenerauth.New(x.config.GetListenerAuth())
+	if err != nil {
+		log.Fatalf("listener auth config invalid: %v", err)
+	}
+	if authn.Enabled() {
+		opts = append(opts, grpc.UnaryInterceptor(authn.UnaryServerInterceptor()), grpc.StreamInterceptor(authn.StreamServerInterceptor()))
+	}
+	grpcServer := grpc.NewServer(opts...)
 	// grpc.ForceServerCodec(gzip.Name),
 
 	// https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md#enable-server-reflection

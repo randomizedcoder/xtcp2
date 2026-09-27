@@ -35,6 +35,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -134,6 +135,10 @@ func commonFlags(fs *flag.FlagSet) {
 	fs.String("target", targetHostnameCst, "daemon hostname")
 	fs.String("port", grpcPortCst, "daemon gRPC port (must match the daemon's -grpcPort)")
 	fs.String("unixSocket", "", "daemon gRPC Unix socket path when -network unix")
+	fs.String("auth-token", "", "raw bearer token; prefer XTCP2_GRPC_AUTH_TOKEN or _FILE")
+	fs.String("auth-token-file", "", "file containing the raw bearer token")
+	fs.String("auth-hmac-shared-key", "", "HMAC shared key; prefer XTCP2_GRPC_HMAC_SHARED_KEY or _FILE")
+	fs.String("auth-hmac-shared-key-file", "", "file containing the HMAC shared key")
 }
 
 // dialFunc is the connection factory, overridable in tests (bufconn).
@@ -173,6 +178,15 @@ func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.
 		return 2
 	}
 	dialTarget := target + ":" + port
+	auth, err := listenerauth.ClientAuthFromEnvAndFlags(
+		fs.Lookup("auth-token").Value.String(), fs.Lookup("auth-token-file").Value.String(),
+		fs.Lookup("auth-hmac-shared-key").Value.String(), fs.Lookup("auth-hmac-shared-key-file").Value.String(),
+		"XTCP2_GRPC_AUTH_TOKEN", "XTCP2_GRPC_AUTH_TOKEN_FILE",
+		"XTCP2_GRPC_HMAC_SHARED_KEY", "XTCP2_GRPC_HMAC_SHARED_KEY_FILE")
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2ctl: auth configuration: %v\n", err)
+		return 2
+	}
 	displayTarget := dialTarget
 	if networkName == listener.NetworkUnix {
 		dialTarget = fs.Lookup("unixSocket").Value.String()
@@ -196,6 +210,7 @@ func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.
 
 	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
+	callCtx = listenerauth.ContextWithClientAuth(callCtx, auth, time.Now())
 	return fn(callCtx, xtcp_config.NewConfigServiceClient(conn))
 }
 

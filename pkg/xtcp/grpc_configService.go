@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -194,6 +195,9 @@ func (c *xtcpConfigService) Set(
 		if in.Config.ListenerAuth.HmacSharedKey == "" {
 			in.Config.ListenerAuth.HmacSharedKey = c.config.ListenerAuth.HmacSharedKey
 		}
+	}
+	if _, err := listenerauth.New(in.Config.ListenerAuth); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	// The soft-restart hook is only wired in the real daemon (cmd/xtcp2).

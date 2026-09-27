@@ -18,6 +18,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 )
 
@@ -303,7 +304,7 @@ func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 
 func TestListenMode_workersZeroNoOp(t *testing.T) {
 	complete := make(chan struct{}, 1)
-	listenMode(t.Context(), listener.NetworkTCP, "127.0.0.1:0", 0, &complete, nullPrinter())
+	listenMode(t.Context(), listener.NetworkTCP, "127.0.0.1:0", 0, &complete, nullPrinter(), listenerauth.ClientAuth{})
 	// wg.Wait returned immediately; complete signal sent.
 }
 
@@ -337,7 +338,7 @@ func TestListenMode_oneWorkerCancellable(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		listenMode(ctx, listener.NetworkTCP, addr, 1, &complete, nullPrinter())
+		listenMode(ctx, listener.NetworkTCP, addr, 1, &complete, nullPrinter(), listenerauth.ClientAuth{})
 		close(done)
 	}()
 	// Give the worker time to dial + open the stream.
@@ -358,7 +359,7 @@ func TestPollMode_dialAndCancel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	time.Sleep(150 * time.Millisecond) // let one tick fire
@@ -377,7 +378,7 @@ func TestPollMode_completeChannel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(t.Context(), listener.NetworkTCP, addr, &complete, time.Hour, nullPrinter(), 0)
+		pollMode(t.Context(), listener.NetworkTCP, addr, &complete, time.Hour, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -401,7 +402,7 @@ func TestPollMode_recordingServer(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		// debugLevel=11 hits more printPollFlatRecordsResponse log branches.
-		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 11)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 11, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	// Let one tick fire so stream.Send + server.Recv complete.
@@ -467,7 +468,7 @@ func TestPollMode_reconnectsOnStreamBreak(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 
@@ -508,7 +509,7 @@ func TestStream_recordingServer(t *testing.T) {
 	go func() {
 		// debugLevel=200 hits the per-record + EOF log paths.
 		debugLevel = 200
-		stream(ctx, wg, conn, nullPrinter(), 0)
+		stream(ctx, wg, conn, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	time.Sleep(200 * time.Millisecond)
@@ -539,7 +540,7 @@ func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		debugLevel = 200 // hit the restart log branch
-		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0)
+		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	// Let stream() complete + sleep at least once before cancel.
@@ -565,7 +566,7 @@ func TestSingleStreamingClient_preCancelled(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0)
+		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	select {
@@ -589,7 +590,7 @@ func TestStream_dialAndCancel(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		stream(ctx, wg, conn, nullPrinter(), 0)
+		stream(ctx, wg, conn, nullPrinter(), 0, listenerauth.ClientAuth{})
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)

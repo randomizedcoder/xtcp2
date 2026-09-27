@@ -26,9 +26,11 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -311,6 +313,12 @@ type mainFlags struct {
 
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
+	listenerAuthMode   *string
+	listenerRawToken   *string
+	listenerHMACKey    *string
+	listenerSignedSkew *uint
+	listenerJitterMin  *time.Duration
+	listenerJitterMax  *time.Duration
 	grpcPort           *uint
 	grpcListenNetwork  *string
 	grpcListenAddress  *string
@@ -425,6 +433,12 @@ func defineFlags() *mainFlags {
 	defineEnrichmentFlags(f)
 	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
+	f.listenerAuthMode = flag.String("listenerAuthMode", "", "shared listener auth mode: disabled, raw, hmac-utc-minute. Falls back to LISTENER_AUTH_MODE env.")
+	f.listenerRawToken = flag.String("listenerRawToken", "", "listener auth raw bearer token. Prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE; never logged.")
+	f.listenerHMACKey = flag.String("listenerHMACSharedKey", "", "listener auth HMAC shared key. Prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE; never logged.")
+	f.listenerSignedSkew = flag.Uint("listenerSignedSkewMinutes", uint(listenerauth.DefaultSignedTokenSkewMinutes), "HMAC UTC-minute signed token skew in minutes (0-5). Falls back to LISTENER_SIGNED_SKEW_MINUTES env.")
+	f.listenerJitterMin = flag.Duration("listenerAuthFailureJitterMin", listenerauth.DefaultFailureJitterMin, "minimum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MIN env.")
+	f.listenerJitterMax = flag.Duration("listenerAuthFailureJitterMax", listenerauth.DefaultFailureJitterMax, "maximum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MAX env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 	f.grpcListenNetwork = flag.String("grpcListenNetwork", listenNetworkCst, "gRPC listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to GRPC_LISTEN_NETWORK env.")
 	f.grpcListenAddress = flag.String("grpcListenAddress", "", "gRPC TCP address or Unix socket path. Empty derives TCP from -grpcPort. Falls back to GRPC_LISTEN_ADDRESS env.")
@@ -528,6 +542,12 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*produceTimeout:", *f.produceTimeout)
 	fmt.Println("*promListen:", *f.promListen)
 	fmt.Println("*promPath:", *f.promPath)
+	fmt.Println("*listenerAuthMode:", *f.listenerAuthMode)
+	fmt.Println("*listenerRawToken: set:", *f.listenerRawToken != "")
+	fmt.Println("*listenerHMACSharedKey: set:", *f.listenerHMACKey != "")
+	fmt.Println("*listenerSignedSkewMinutes:", *f.listenerSignedSkew)
+	fmt.Println("*listenerAuthFailureJitterMin:", *f.listenerJitterMin)
+	fmt.Println("*listenerAuthFailureJitterMax:", *f.listenerJitterMax)
 	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
 	fmt.Println("*enrichContainer:", *f.enrichContainer)
 	fmt.Println("*dockerSocket:", *f.dockerSocket)
@@ -628,6 +648,7 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		LocalityRefreshInterval: durationpb.New(*f.localityRefreshInterval),
 		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
 		Ipv6HopLimit:            uint32(*f.ipv6HopLimit),
+		ListenerAuth:            buildListenerAuth(f),
 		GrpcPort:                uint32(*f.grpcPort),
 		GrpcListener:            grpcListener,
 		PrometheusListener:      prometheusListener,
@@ -774,6 +795,7 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 		printConfig(c, "Before environmentOverrideConfig")
 	}
 	environmentOverrideConfig(c, debugLevel)
+	warnListenerAuthSecretSource(f)
 	if debugLevel > 100 {
 		printConfig(c, "After environmentOverrideConfig")
 	}
@@ -793,8 +815,8 @@ var daemonRunner = runDaemonDefault
 // promHandlerStarter is the indirection point for the prom-handler
 // goroutine launch. Default starts the real handler; tests swap it for
 // a no-op to skip the port-bind.
-var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
-	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
+var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth *xtcp_config.ListenerAuth) {
+	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit, auth)
 }
 
 func main() {
@@ -813,12 +835,19 @@ func runMain(ctx context.Context) int {
 
 	f := defineFlags()
 	flag.Parse()
+	healthAuth := buildListenerAuth(f)
+	envOverrideListenerAuth(&xtcp_config.XtcpConfig{ListenerAuth: healthAuth}, 0)
 
 	// Container HEALTHCHECK mode: probe the local /readyz and exit, without
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen)
+		authn, err := listenerauth.New(healthAuth)
+		if err != nil {
+			log.Printf("healthcheck: invalid listener auth config: %v", err)
+			return 1
+		}
+		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen, authn, listenerauth.ClientAuth{RawToken: healthAuth.GetRawToken(), HMACSharedKey: healthAuth.GetHmacSharedKey()})
 	}
 
 	c, done := prepareConfig(f)
@@ -868,7 +897,11 @@ func runMain(ctx context.Context) int {
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
 	applyPrometheusListenerAddress(c, *f.promListen)
-	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit)
+	if _, err := listenerauth.New(c.ListenerAuth); err != nil {
+		fatalf("listener auth config invalid: %v", err)
+		return 1
+	}
+	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit, c.ListenerAuth)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
@@ -1039,7 +1072,7 @@ func awaitSignalAndShutdown(
 // ListenAndServe error branch is exercisable without exiting.
 var fatalf = log.Fatalf
 
-func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
+func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth *xtcp_config.ListenerAuth) {
 	// A dedicated mux (not http.DefaultServeMux) for this listener. This is what
 	// lets pprof be registered EXPLICITLY below without the blank
 	// `_ "net/http/pprof"` side-effect import (which trips gosec G108): that
@@ -1065,7 +1098,12 @@ func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEn
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	go servePromHandler(mux, prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
+	authn, err := listenerauth.New(auth)
+	if err != nil {
+		fatalf("listener auth config invalid: %v", err)
+		return
+	}
+	go servePromHandler(authn.WrapHTTP(mux), prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 // servePromHandler runs the prom HTTP server on promListen. On
@@ -1100,7 +1138,7 @@ func servePromHandler(handler http.Handler, prometheusListener *xtcp_config.List
 // the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
 // (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
 // the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
-func runHealthcheck(ctx context.Context, promNetwork, promListen string) int {
+func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
 	network := promNetwork
 	if v, ok := os.LookupEnv("PROM_LISTEN_NETWORK"); ok && v != "" {
 		network = v
@@ -1128,6 +1166,9 @@ func runHealthcheck(ctx context.Context, promNetwork, promListen string) int {
 	if err != nil {
 		log.Printf("healthcheck: new request %s: %v", url, err)
 		return 1
+	}
+	if authn != nil {
+		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
 	}
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Do(req)
@@ -1252,6 +1293,85 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
 	envOverrideListeners(c, debugLevel)
+	envOverrideListenerAuth(c, debugLevel)
+}
+
+func buildListenerAuth(f *mainFlags) *xtcp_config.ListenerAuth {
+	return &xtcp_config.ListenerAuth{
+		Mode:                   listenerAuthModeValue(*f.listenerAuthMode),
+		RawToken:               *f.listenerRawToken,
+		HmacSharedKey:          *f.listenerHMACKey,
+		SignedTokenSkewMinutes: proto.Uint32(uint32(*f.listenerSignedSkew)),
+		FailureJitterMin:       durationpb.New(*f.listenerJitterMin),
+		FailureJitterMax:       durationpb.New(*f.listenerJitterMax),
+	}
+}
+
+func listenerAuthModeValue(s string) xtcp_config.ListenerAuthMode {
+	mode, err := listenerauth.ParseMode(s)
+	if err != nil {
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
+	}
+	return mode
+}
+
+func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	a := c.ListenerAuth
+	if a == nil {
+		a = &xtcp_config.ListenerAuth{}
+		c.ListenerAuth = a
+	}
+	if v, ok := envString("LISTENER_AUTH_MODE"); ok {
+		if mode, err := listenerauth.ParseMode(v); err == nil {
+			a.Mode = mode
+			logEnv("LISTENER_AUTH_MODE", "listener auth mode set", debugLevel)
+		}
+	}
+	if v, ok := secretEnv("LISTENER_RAW_TOKEN", "LISTENER_RAW_TOKEN_FILE"); ok {
+		a.RawToken = v
+		logEnv("LISTENER_RAW_TOKEN", "listener raw token set", debugLevel)
+	}
+	if v, ok := secretEnv("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE"); ok {
+		a.HmacSharedKey = v
+		logEnv("LISTENER_HMAC_SHARED_KEY", "listener HMAC key set", debugLevel)
+	}
+	if v, ok := envUint32("LISTENER_SIGNED_SKEW_MINUTES"); ok {
+		a.SignedTokenSkewMinutes = proto.Uint32(v)
+	}
+	if v, ok := envDuration("LISTENER_AUTH_FAILURE_JITTER_MIN"); ok {
+		a.FailureJitterMin = durationpb.New(v)
+	}
+	if v, ok := envDuration("LISTENER_AUTH_FAILURE_JITTER_MAX"); ok {
+		a.FailureJitterMax = durationpb.New(v)
+	}
+}
+
+func secretEnv(inlineKey, fileKey string) (string, bool) {
+	if path, ok := os.LookupEnv(fileKey); ok && path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", false
+		}
+		return strings.TrimSpace(string(b)), true
+	}
+	return os.LookupEnv(inlineKey)
+}
+
+func warnListenerAuthSecretSource(f *mainFlags) {
+	if *f.listenerRawToken != "" && !envSet("LISTENER_RAW_TOKEN", "LISTENER_RAW_TOKEN_FILE") {
+		log.Print("listener auth raw token came from CLI/config; prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE")
+	}
+	if *f.listenerHMACKey != "" && !envSet("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE") {
+		log.Print("listener auth HMAC key came from CLI/config; prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE")
+	}
+}
+
+func envSet(inlineKey, fileKey string) bool {
+	if v, ok := os.LookupEnv(fileKey); ok && v != "" {
+		return true
+	}
+	_, ok := os.LookupEnv(inlineKey)
+	return ok
 }
 
 // envUint64 parses an env var as base-10 int64 and yields it as uint64.
@@ -1747,6 +1867,16 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.DebugLevel:", c.DebugLevel)
 	fmt.Println("c.Ipv4Ttl:", c.Ipv4Ttl)
 	fmt.Println("c.Ipv6HopLimit:", c.Ipv6HopLimit)
+	if c.ListenerAuth == nil {
+		fmt.Println("c.ListenerAuth.Mode: disabled")
+		fmt.Println("c.ListenerAuth.RawToken: set: false")
+		fmt.Println("c.ListenerAuth.HmacSharedKey: set: false")
+	} else {
+		fmt.Println("c.ListenerAuth.Mode:", listenerauth.ModeString(c.ListenerAuth.GetMode()))
+		fmt.Println("c.ListenerAuth.RawToken: set:", c.ListenerAuth.GetRawToken() != "")
+		fmt.Println("c.ListenerAuth.HmacSharedKey: set:", c.ListenerAuth.GetHmacSharedKey() != "")
+		fmt.Println("c.ListenerAuth.SignedTokenSkewMinutes:", c.ListenerAuth.GetSignedTokenSkewMinutes())
+	}
 	fmt.Println("c.Label:", c.Label)
 	fmt.Println("c.Tag:", c.Tag)
 	fmt.Println("c.Location:", c.Location)

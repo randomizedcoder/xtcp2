@@ -440,7 +440,9 @@ const ListenerAuth$json = {
       '4': 1,
       '5': 13,
       '8': {},
-      '10': 'signedTokenSkewMinutes'
+      '9': 0,
+      '10': 'signedTokenSkewMinutes',
+      '17': true
     },
     {
       '1': 'failure_jitter_min',
@@ -462,6 +464,9 @@ const ListenerAuth$json = {
     },
   ],
   '7': {},
+  '8': [
+    {'1': '_signed_token_skew_minutes'},
+  ],
 };
 
 /// Descriptor for `ListenerAuth`. Decode as a `google.protobuf.DescriptorProto`.
@@ -469,15 +474,15 @@ final $typed_data.Uint8List listenerAuthDescriptor = $convert.base64Decode(
     'CgxMaXN0ZW5lckF1dGgSPgoEbW9kZRgBIAEoDjIgLnh0Y3BfY29uZmlnLnYxLkxpc3RlbmVyQX'
     'V0aE1vZGVCCLpIBYIBAhABUgRtb2RlEiUKCXJhd190b2tlbhgCIAEoCUIIukgFcgMYgCBSCHJh'
     'd1Rva2VuEjAKD2htYWNfc2hhcmVkX2tleRgDIAEoCUIIukgFcgMYgCBSDWhtYWNTaGFyZWRLZX'
-    'kSQgoZc2lnbmVkX3Rva2VuX3NrZXdfbWludXRlcxgEIAEoDUIHukgEKgIYBVIWc2lnbmVkVG9r'
-    'ZW5Ta2V3TWludXRlcxJRChJmYWlsdXJlX2ppdHRlcl9taW4YBSABKAsyGS5nb29nbGUucHJvdG'
-    '9idWYuRHVyYXRpb25CCLpIBaoBAjIAUhBmYWlsdXJlSml0dGVyTWluElEKEmZhaWx1cmVfaml0'
-    'dGVyX21heBgGIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkIIukgFqgECMgBSEGZhaW'
-    'x1cmVKaXR0ZXJNYXg64QG6SN0BGtoBChpMaXN0ZW5lckF1dGguZmFpbHVyZUppdHRlchJGZmFp'
-    'bHVyZV9qaXR0ZXJfbWF4IG11c3QgYmUgZ3JlYXRlciB0aGFuIG9yIGVxdWFsIHRvIGZhaWx1cm'
-    'Vfaml0dGVyX21pbhp0IWhhcyh0aGlzLmZhaWx1cmVfaml0dGVyX21pbikgfHwgIWhhcyh0aGlz'
-    'LmZhaWx1cmVfaml0dGVyX21heCkgfHwgdGhpcy5mYWlsdXJlX2ppdHRlcl9tYXggPj0gdGhpcy'
-    '5mYWlsdXJlX2ppdHRlcl9taW4=');
+    'kSRwoZc2lnbmVkX3Rva2VuX3NrZXdfbWludXRlcxgEIAEoDUIHukgEKgIYBUgAUhZzaWduZWRU'
+    'b2tlblNrZXdNaW51dGVziAEBElEKEmZhaWx1cmVfaml0dGVyX21pbhgFIAEoCzIZLmdvb2dsZS'
+    '5wcm90b2J1Zi5EdXJhdGlvbkIIukgFqgECMgBSEGZhaWx1cmVKaXR0ZXJNaW4SUQoSZmFpbHVy'
+    'ZV9qaXR0ZXJfbWF4GAYgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQgi6SAWqAQIyAF'
+    'IQZmFpbHVyZUppdHRlck1heDrhAbpI3QEa2gEKGkxpc3RlbmVyQXV0aC5mYWlsdXJlSml0dGVy'
+    'EkZmYWlsdXJlX2ppdHRlcl9tYXggbXVzdCBiZSBncmVhdGVyIHRoYW4gb3IgZXF1YWwgdG8gZm'
+    'FpbHVyZV9qaXR0ZXJfbWluGnQhaGFzKHRoaXMuZmFpbHVyZV9qaXR0ZXJfbWluKSB8fCAhaGFz'
+    'KHRoaXMuZmFpbHVyZV9qaXR0ZXJfbWF4KSB8fCB0aGlzLmZhaWx1cmVfaml0dGVyX21heCA+PS'
+    'B0aGlzLmZhaWx1cmVfaml0dGVyX21pbkIcChpfc2lnbmVkX3Rva2VuX3NrZXdfbWludXRlcw==');
 
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {

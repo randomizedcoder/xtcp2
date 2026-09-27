@@ -886,7 +886,7 @@ type ListenerAuth struct {
 	Mode                   ListenerAuthMode       `protobuf:"varint,1,opt,name=mode,proto3,enum=xtcp_config.v1.ListenerAuthMode" json:"mode,omitempty"`
 	RawToken               string                 `protobuf:"bytes,2,opt,name=raw_token,json=rawToken,proto3" json:"raw_token,omitempty"`
 	HmacSharedKey          string                 `protobuf:"bytes,3,opt,name=hmac_shared_key,json=hmacSharedKey,proto3" json:"hmac_shared_key,omitempty"`
-	SignedTokenSkewMinutes uint32                 `protobuf:"varint,4,opt,name=signed_token_skew_minutes,json=signedTokenSkewMinutes,proto3" json:"signed_token_skew_minutes,omitempty"`
+	SignedTokenSkewMinutes *uint32                `protobuf:"varint,4,opt,name=signed_token_skew_minutes,json=signedTokenSkewMinutes,proto3,oneof" json:"signed_token_skew_minutes,omitempty"`
 	FailureJitterMin       *durationpb.Duration   `protobuf:"bytes,5,opt,name=failure_jitter_min,json=failureJitterMin,proto3" json:"failure_jitter_min,omitempty"`
 	FailureJitterMax       *durationpb.Duration   `protobuf:"bytes,6,opt,name=failure_jitter_max,json=failureJitterMax,proto3" json:"failure_jitter_max,omitempty"`
 	unknownFields          protoimpl.UnknownFields
@@ -945,8 +945,8 @@ func (x *ListenerAuth) GetHmacSharedKey() string {
 }
 
 func (x *ListenerAuth) GetSignedTokenSkewMinutes() uint32 {
-	if x != nil {
-		return x.SignedTokenSkewMinutes
+	if x != nil && x.SignedTokenSkewMinutes != nil {
+		return *x.SignedTokenSkewMinutes
 	}
 	return 0
 }
@@ -1964,15 +1964,16 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x18unlink_stale_unix_socket\x18\x04 \x01(\bR\x15unlinkStaleUnixSocket\x122\n" +
 	"\x0fmax_connections\x18\x05 \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\x0emaxConnections\x12>\n" +
 	"\x16accept_rate_per_second\x18\x06 \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\x13acceptRatePerSecond\x12,\n" +
-	"\faccept_burst\x18\a \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\vacceptBurst\"\xf5\x04\n" +
+	"\faccept_burst\x18\a \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\vacceptBurst\"\x98\x05\n" +
 	"\fListenerAuth\x12>\n" +
 	"\x04mode\x18\x01 \x01(\x0e2 .xtcp_config.v1.ListenerAuthModeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04mode\x12%\n" +
 	"\traw_token\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\brawToken\x120\n" +
-	"\x0fhmac_shared_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\rhmacSharedKey\x12B\n" +
-	"\x19signed_token_skew_minutes\x18\x04 \x01(\rB\a\xbaH\x04*\x02\x18\x05R\x16signedTokenSkewMinutes\x12Q\n" +
+	"\x0fhmac_shared_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\rhmacSharedKey\x12G\n" +
+	"\x19signed_token_skew_minutes\x18\x04 \x01(\rB\a\xbaH\x04*\x02\x18\x05H\x00R\x16signedTokenSkewMinutes\x88\x01\x01\x12Q\n" +
 	"\x12failure_jitter_min\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMin\x12Q\n" +
 	"\x12failure_jitter_max\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMax:\xe1\x01\xbaH\xdd\x01\x1a\xda\x01\n" +
-	"\x1aListenerAuth.failureJitter\x12Ffailure_jitter_max must be greater than or equal to failure_jitter_min\x1at!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_min\"\x8d\"\n" +
+	"\x1aListenerAuth.failureJitter\x12Ffailure_jitter_max must be greater than or equal to failure_jitter_min\x1at!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_minB\x1c\n" +
+	"\x1a_signed_token_skew_minutes\"\x8d\"\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2189,6 +2190,7 @@ func file_xtcp_config_v1_xtcp_config_proto_init() {
 	if File_xtcp_config_v1_xtcp_config_proto != nil {
 		return
 	}
+	file_xtcp_config_v1_xtcp_config_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
