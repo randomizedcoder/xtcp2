@@ -8,7 +8,10 @@ Step 0 landed in
 [`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker) and
 Item 1 — the five exported wire primitives, plus the `pkg/nsdiscover`
 de-duplication that closes `TODO-SOON.md` §15 — in
-[`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported).**
+[`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), and Item 2 —
+the request encoder, which turns the read-only invariant from prose into
+`ErrNotAGetRequest` — in
+[`933bfb8`](#933bfb8--the-request-encoder-and-the-read-only-invariant-made-executable).**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -222,6 +225,75 @@ Recorded rather than fixed, since it is now load-bearing for a second package:
 `xtcpnl`'s deserializers hardcode `binary.LittleEndian` even though the package
 exports `NativeEndian()`. Every target this repo builds is little-endian
 (`nix/constants.nix` lists x86_64 and aarch64 only).
+
+### `933bfb8` — the request encoder, and the read-only invariant made executable
+
+On `feat/xtcpnl-export-wire-primitives`. Item 2 of the **goip** plan:
+`pkg/xtcpnl/xtcpnl_rtattr_encode.go` adds `AttrBuilder`, `BuildRequest`, and the
+two `RTEXT_FILTER_*` constants `golang.org/x/sys/unix` v0.47.0 does not export.
+
+**The point of the commit is not the encoder, it is the guard.**
+`coverage-expansion.md` had stated the read-only rule as prose — "never create,
+delete, or set". `BuildRequest` restates it as a rule about *message types* and
+returns `ErrNotAGetRequest` for anything else, which makes it testable:
+`TestBuildRequestRejectsEveryNamedWriteType` walks all 51 `RTM_NEW*`, `RTM_DEL*`
+and `RTM_SET*` constants `unix` exports and asserts each is refused. The commit
+therefore **tightens** the invariant.
+
+It has to be the message type, because the flags cannot carry it. The kernel
+overloads the same bits by message type — `NLM_F_ROOT == NLM_F_REPLACE ==
+0x100`, `NLM_F_MATCH == NLM_F_EXCL == 0x200`, `NLM_F_ATOMIC == NLM_F_CREATE ==
+0x400` (`include/uapi/linux/netlink.h:70-79`) — so `NLM_F_DUMP` (`ROOT|MATCH`,
+`0x300`) is bit-identical to `REPLACE|EXCL`. "Refuse write flags" is unwriteable.
+`TestNlmFlagsAreOverloaded` pins the aliasing so the design's premise is checked
+rather than remembered.
+
+| | |
+|---|---|
+| The allowlist is arithmetic, not a list | The kernel lays rtnetlink types out in groups of four from `RTM_BASE` — NEW, DEL, GET, SET — so a GET is always `RTM_BASE + 4k + 2`. Verified against every entry in `include/uapi/linux/rtnetlink.h`, **including the groups with missing members**: `RTM_GETNEIGHTBL` (66) has no DEL, `RTM_GETDCB` (78) has neither NEW nor DEL, `RTM_GETSTATS` (94) has no DEL — all still land on residue 2, because the kernel leaves the slot empty rather than shifting the group. A hand-written list silently rejects every family added upstream after it. |
+| Imprecise in exactly one harmless direction | It accepts unallocated GET slots — 54 has no `RTM_GETPREFIX`, since `RTM_NEWPREFIX` (52) is notification-only — which the kernel answers with an error. It can **never** accept a NEW, DEL or SET, which occupy residues 0, 1 and 3 by construction. Both facts are corner rows. |
+| `NLMSG_NOOP` is the only control type permitted | `NLMSG_ERROR`, `NLMSG_DONE` and `NLMSG_OVERRUN` are kernel-to-userspace; nothing in userspace sends one, so they are rejected rather than allowed for symmetry. Note that `FamilyHdrLen` *models* `NLMSG_ERROR` at 0 — being modeled is not being buildable. |
+| The family header must match **exactly**, both directions | Too short is obviously wrong. Too long is worse than it looks: the extra bytes land exactly where the kernel reads the first `rta_len` and `rta_type`, so a 20-byte "ifinfomsg" becomes a request with a garbage-length attribute. The `attrs` argument exists so no caller needs to append by hand. Types this package does not model (`FamilyHdrLen` returns `-1`) are passed through — there is nothing to check against, and refusing them would block every family added later. |
+| `BuildDumpRequest` returns **nil** for a rejected type | It is documented as infallible, so it has no error to return. That is not a silent failure: `DumpRtnetlink` refuses a nil request with `ErrShortRequest` before touching the socket, and the test asserts that with `fd = -1` to show no syscall happens. Both builders share one `layoutRequest`, and the test compares their output so the wrapper cannot drift from the checked path. |
+
+**The positive expectations come from iproute2, not from re-reading
+`libnetlink.c`.** `TestBuildRequest`'s first row reconstructs the whole 40-byte
+`ip link show` datagram and compares it byte-for-byte against record 1 of
+`testdata/7_1_8/netlink_route_getlink.pcap`, modulo `nlmsg_seq` and `nlmsg_pid`.
+The fixture helper asserts the record really is a request — `NLM_F_REQUEST` set
+and `nlmsg_pid == 0`, the only reliable direction signal in an nlmon capture —
+so a regenerated fixture that reordered records fails loudly instead of quietly
+comparing the encoder against kernel output.
+
+Two encoder details that only a byte-for-byte comparison notices:
+
+- **An attribute's padding is part of the message.** `rta_len` counts its own
+  4-byte header and stops at the payload; the cursor advances by the *aligned*
+  length, exactly as `addattr_l` advances `nlmsg_len` by `RTA_ALIGN(len)`. So a
+  1-byte payload has `rta_len = 5` and costs 8 bytes of buffer — a boundary row.
+- **`reserve` zeroes the payload and the padding.** The buffer is the caller's
+  and may hold a previous request or uninitialized stack; a stale byte in an
+  attribute's padding is a wire difference no decoder would notice and a parity
+  comparison would. Every `TestAttrBuilder` buffer is prefilled with `0xAA`
+  rather than zeroed, which is also what makes "a failed `Put` leaves the buffer
+  unmodified" a real assertion.
+
+`AttrBuilder` deviates from the plan's sketch: it is a **fixed, caller-provided
+buffer with a cursor**, not a growing slice. The plan's own §8.1 rows required
+it ("payload exactly fills the buffer", "one byte over → `ErrAttrNoSpace`,
+buffer unmodified", "nil buffer → `ErrAttrNoSpace`"), and it is what `addattr_l`
+does.
+
+`FamilyHdrLen` moved here as the canonical copy; `pkg/nlparity.FamilyHdrLen`
+delegates. It had been duplicated across the two packages, which is the
+duplication the exported primitives exist to prevent — and `nlparity`'s was the
+worse copy to let drift, since a wrong header length shifts every attribute and
+produces a plausible-looking parity report rather than an error.
+
+Gate evidence: four deliberate breaks were confirmed to go red at the named row
+— accepting residue 3 (8 failures, naming all four `RTM_SET*` constants),
+dropping the padding zeroing (6), dropping the unconditional `NLM_F_REQUEST`
+(9), and checking the family header only for "too short" (2).
 
 ## Phase exit criteria
 
