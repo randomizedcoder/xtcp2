@@ -447,12 +447,16 @@ overflows has *lost* events; the only recovery is to re-dump and rebuild state.
 Read the fork's handling before writing ours — it is the detail most easily got
 wrong.
 
-That is what promotes the audit's §17 finding from nice-to-have to **blocker**:
-`ParseNeigh` exists (`xtcpnl_ndmsg.go:200`) but there is no
-`BuildDumpNeighRequest` beside the other three builders
-(`xtcpnl_rtnetlink.go:74-92`), so the neighbour table cannot be re-dumped — and a
-listener that cannot re-dump cannot recover from `ENOBUFS`. It is also a
-five-line function, given `BuildDumpRequest`.
+That is what promoted the audit's §17 finding from nice-to-have to **blocker**:
+`ParseNeigh` existed (`xtcpnl_ndmsg.go:200`) but there was no
+`BuildDumpNeighRequest` beside the other three builders, so the neighbour table
+could not be re-dumped — and a listener that cannot re-dump cannot recover from
+`ENOBUFS`.
+
+**That half has since landed.** `BuildDumpNeighRequest`
+(`xtcpnl_rtnetlink_requests.go`) closes §17, so the resync *request* exists and
+this phase's remaining work is the listener itself — `Subscribe`, the group
+memberships, and the `ENOBUFS` handling that drives the re-dump.
 
 **Do not filter notifications on `nlmsg_pid`/`nlmsg_seq`.** The discriminator is
 `nlmsg_flags`: `NLM_F_REQUEST` clear **and** `NLM_F_MULTI` clear. The kernel
@@ -608,7 +612,7 @@ unblocking first, hand-declared-constant families last.
 | Phase | Scope | Why here | TODO ref |
 |---|---|---|---|
 | **0** | Export the core wire layer; create the subpackage skeleton; generalise the capture harness | Everything else depends on it; also retires the `pkg/nsdiscover` duplicate | §12, §15 |
-| **1** | **Multicast listener** + `BuildDumpNeighRequest` + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, §17 |
+| **1** | **Multicast listener** + ~~`BuildDumpNeighRequest`~~ (landed) + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, ~~§17~~ |
 | **2** | In-mission audit gaps: `IFA_CACHEINFO`/`IFA_FLAGS` first, then `IFLA_ADDRESS`/`IFLA_STATS64`, then `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`; resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
 | **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, `IFLA_LINKINFO` descent | All constants and structs already in `unix` | §12 |
 | **4** | tc **telemetry only** — the 23 top-level `TCA_*`, not the 344 config nests | Cheap once scoped correctly; needs `Tcmsg`/`TCStats`/`TCStats2` declared | — |

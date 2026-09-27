@@ -1171,7 +1171,7 @@ library packages works fine and is what local iteration should use.
 
 ---
 
-## 17. No `RTM_GETNEIGH` dump request — the neighbour table cannot be dumped — OPEN
+## 17. No `RTM_GETNEIGH` dump request — the neighbour table cannot be dumped — DONE
 
 `pkg/xtcpnl` can parse neighbour messages both ways: `ParseNeigh`
 (`xtcpnl_ndmsg.go`) decodes `ndmsg` + `NDA_DST`/`NDA_LLADDR`/`NDA_CACHEINFO`,
@@ -1197,6 +1197,21 @@ already exist, so the work is one builder plus its table-driven test rows and a
 `ENOBUFS`, and for neighbours there is currently nothing to re-dump with.
 
 Found by the audit in `docs/netlink/parsing-comparison.md`.
+
+**Done.** `BuildDumpNeighRequest(family, seq)` is in
+`pkg/xtcpnl/xtcpnl_rtnetlink_requests.go`, alongside five other builders the
+goip parity work needed. Its shape is taken from `rtnl_neighdump_req`
+(`lib/libnetlink.c`): `nlmsg_len = 28`, `NLM_F_REQUEST|NLM_F_DUMP`, `ndm_family`
+set, everything else zero.
+
+One caveat to know before relying on it: **there is still no committed
+`RTM_GETNEIGH` capture**, so its test row is structural — it asserts the bytes
+match the iproute2 struct rather than matching a recorded datagram, and it says
+so in its description. `find pkg/xtcpnl/testdata -name '*neigh*'` returns only
+the notifications pcap. Item 7 of the goip plan adds `ip neigh show` to
+`nix/capture-netlink-fixtures.nix`; the row is upgraded to a positive then. The
+builder is nevertheless usable now, which is the point — the listener's
+`ENOBUFS` resync no longer has nothing to call.
 
 ---
 
