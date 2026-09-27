@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -117,8 +118,10 @@ Commands:
   reconfigure          Apply a full config from a file or stdin (soft restart)
 
 Common flags (all commands):
+  -network string  gRPC network: tcp or unix (default "tcp")
   -target string   daemon hostname (default "localhost")
   -port string     daemon gRPC port (default "8889", must match -grpcPort)
+  -unixSocket path daemon gRPC Unix socket path when -network unix
   -d uint          debug level (default 0)
 
 Run 'xtcp2ctl <command> -h' for per-command flags.
@@ -126,19 +129,24 @@ Run 'xtcp2ctl <command> -h' for per-command flags.
 }
 
 // commonFlags registers the flags every command shares and returns accessors.
-func commonFlags(fs *flag.FlagSet) (target, port *string) {
-	target = fs.String("target", targetHostnameCst, "daemon hostname")
-	port = fs.String("port", grpcPortCst, "daemon gRPC port (must match the daemon's -grpcPort)")
-	return target, port
+func commonFlags(fs *flag.FlagSet) {
+	fs.String("network", listener.NetworkTCP, "daemon gRPC network: tcp or unix")
+	fs.String("target", targetHostnameCst, "daemon hostname")
+	fs.String("port", grpcPortCst, "daemon gRPC port (must match the daemon's -grpcPort)")
+	fs.String("unixSocket", "", "daemon gRPC Unix socket path when -network unix")
 }
 
 // dialFunc is the connection factory, overridable in tests (bufconn).
 var dialFunc = dial
 
-func dial(target string) (*grpc.ClientConn, error) {
+func dial(network, target string) (*grpc.ClientConn, error) {
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	if network == listener.NetworkUnix {
+		return grpc.NewClient("unix://"+target, opts...)
+	}
 	return grpc.NewClient(
 		target,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		opts...,
 	)
 }
 
@@ -153,10 +161,31 @@ func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.
 	}
 	target := fs.Lookup("target").Value.String()
 	port := fs.Lookup("port").Value.String()
-
-	conn, err := dialFunc(target + ":" + port)
+	networkValue := fs.Lookup("network").Value.String()
+	network, err := listener.ParseNetwork(networkValue)
 	if err != nil {
-		fmt.Fprintf(stderr, "xtcp2ctl: connect %s:%s: %v\n", target, port, err)
+		fmt.Fprintf(stderr, "xtcp2ctl: %v\n", err)
+		return 2
+	}
+	networkName, err := listener.NetworkString(network, listener.NetworkTCP)
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2ctl: %v\n", err)
+		return 2
+	}
+	dialTarget := target + ":" + port
+	displayTarget := dialTarget
+	if networkName == listener.NetworkUnix {
+		dialTarget = fs.Lookup("unixSocket").Value.String()
+		displayTarget = "unix:" + dialTarget
+		if dialTarget == "" {
+			fmt.Fprintln(stderr, "xtcp2ctl: -unixSocket is required when -network unix")
+			return 2
+		}
+	}
+
+	conn, err := dialFunc(networkName, dialTarget)
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2ctl: connect %s: %v\n", displayTarget, err)
 		return 1
 	}
 	defer func() {

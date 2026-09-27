@@ -16,7 +16,7 @@ xtcp2 exposes a gRPC server (default port `8889`) with two services: one to read
 
 ## The server
 
-`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` and registers both services plus gRPC reflection. Each service has its own implementation file:
+`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` by default and registers both services plus gRPC reflection. It can also listen on a Unix domain socket (UDS) for local-only operation. Each service has its own implementation file:
 
 - `pkg/xtcp/grpc_configService.go` — `ConfigService`.
 - `pkg/xtcp/grpc_flatRecordService.go` — `XTCPFlatRecordService`.
@@ -53,7 +53,7 @@ The intended flow is **read → edit → apply**:
 
 **Exported field groups** are controlled by the `enabledDeserializers` map — each key toggles a whole INET_DIAG attribute group (`info` = the tcp_info struct, `bbr` = the BBR fields, plus `vegas`, `cong`, `meminfo`, `skmem`, `dctcp`, `cgroup`, …). Setting a key to `false` disables that group; the full key list is what the daemon's `-deserializers` flag accepts. Individual fields *within* a group are all-or-nothing except for the CSV/TSV `csvColumns` selector.
 
-> **Security.** The gRPC server has no auth or TLS. `Get` redacts S3 credentials, but any client that can reach the port can reconfigure or restart the daemon. Bind the gRPC port to loopback / a trusted network (see the `-ipv4Ttl` clamp in [Configuration](#configuration)).
+> **Security.** This slice adds local Unix domain socket support, but token authentication is not enforced yet. `Get` redacts S3 credentials and listener auth secrets, but any client that can reach the gRPC listener can reconfigure or restart the daemon. Prefer a UDS with restrictive filesystem ownership/mode for local operators, or bind TCP to loopback / a trusted network (see the `-ipv4Ttl` clamp in [Configuration](#configuration)).
 
 ## XTCPFlatRecordService
 
@@ -117,8 +117,11 @@ xtcp2ctl reconfigure -file cfg.new.json
 ```sh
 nix build .#xtcp2client
 
-# Listen mode: stream records the daemon collects on its own schedule
+# Listen mode over TCP: stream records the daemon collects on its own schedule
 ./result/bin/xtcp2client -target 127.0.0.1 -port 8889
+
+# Listen mode over a Unix domain socket
+./result/bin/xtcp2client -network unix -unixSocket /run/xtcp2/grpc.sock
 
 # Poll mode: drive collection from the client, as JSON
 ./result/bin/xtcp2client -poll -pollFrequency 2s -json
@@ -126,8 +129,10 @@ nix build .#xtcp2client
 
 | Flag | Default | Purpose |
 |---|---|---|
+| `-network` | `tcp` | gRPC transport network: `tcp` or `unix`. |
 | `-target` | (daemon host) | Target hostname. |
 | `-port` | `8889` | Target gRPC port; must match the daemon's `-grpcPort`. |
+| `-unixSocket` | — | UDS path when `-network unix`. |
 | `-poll` | `false` | Use `PollFlatRecords` (client-driven) instead of `FlatRecords`. |
 | `-pollFrequency` | — | Poll interval in poll mode. |
 | `-workers` | `10` | Concurrent stream workers. |
@@ -166,6 +171,21 @@ grpcurl -plaintext 127.0.0.1:8889 xtcp_config.v1.ConfigService/Get \
 | Flag | Default | Purpose |
 |---|---|---|
 | `-grpcPort` | `8889` | Port the gRPC server listens on. |
+| `-grpcListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`GRPC_LISTEN_NETWORK`). |
+| `-grpcListenAddress` | — | Full listener address. For UDS, the socket path (`GRPC_LISTEN_ADDRESS`). For TCP, overrides `-grpcPort` when set. |
+| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`, decimal value). |
+| `-grpcUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`GRPC_UNLINK_STALE_UNIX_SOCKET`). |
+
+Example:
+
+```sh
+xtcp2 -grpcListenNetwork unix -grpcListenAddress /run/xtcp2/grpc.sock -grpcUnixSocketMode 432
+xtcp2ctl -network unix -unixSocket /run/xtcp2/grpc.sock get
+```
+
+`432` is decimal for `0660`; use `384` for `0600`. The socket parent directory must already exist and should be owned so only trusted local users can traverse it.
+
+The configuration protobuf also exposes `grpc_listener`, `prometheus_listener`, and `listener_auth`. `listener_auth` secret fields are redacted by `ConfigService.Get` and preserved by `ConfigService.Set` when omitted from an update, but token enforcement is planned for the next hardening slice.
 
 ## See also
 

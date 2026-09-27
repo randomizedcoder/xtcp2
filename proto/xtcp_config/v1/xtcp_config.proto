@@ -260,6 +260,91 @@ message SetEnvelopeFlushResponse {
 	XtcpConfig config                                = 1;
 };
 
+enum ListenerNetwork {
+	LISTENER_NETWORK_UNSPECIFIED = 0;
+	LISTENER_NETWORK_TCP = 1;
+	LISTENER_NETWORK_UNIX = 2;
+}
+
+enum ListenerAuthMode {
+	LISTENER_AUTH_MODE_UNSPECIFIED = 0;
+	LISTENER_AUTH_MODE_DISABLED = 1;
+	LISTENER_AUTH_MODE_RAW_TOKEN = 2;
+	LISTENER_AUTH_MODE_HMAC_UTC_MINUTE = 3;
+}
+
+message ListenerEndpoint {
+	ListenerNetwork network                          = 1 [
+		(buf.validate.field).enum = {
+			defined_only: true
+	}];
+
+	string address                                  = 2 [
+		(buf.validate.field).string = {
+			max_len: 512,
+	}];
+
+	uint32 unix_socket_mode                         = 3 [
+		(buf.validate.field).uint32 = {
+			lte: 511 // 0777
+	}];
+
+	bool unlink_stale_unix_socket                   = 4;
+
+	uint32 max_connections                          = 5 [
+		(buf.validate.field).uint32 = {
+			lte: 100000
+	}];
+
+	uint32 accept_rate_per_second                   = 6 [
+		(buf.validate.field).uint32 = {
+			lte: 100000
+	}];
+
+	uint32 accept_burst                             = 7 [
+		(buf.validate.field).uint32 = {
+			lte: 100000
+	}];
+}
+
+message ListenerAuth {
+	ListenerAuthMode mode                           = 1 [
+		(buf.validate.field).enum = {
+			defined_only: true
+	}];
+
+	string raw_token                                = 2 [
+		(buf.validate.field).string = {
+			max_len: 4096,
+	}];
+
+	string hmac_shared_key                          = 3 [
+		(buf.validate.field).string = {
+			max_len: 4096,
+	}];
+
+	uint32 signed_token_skew_minutes                = 4 [
+		(buf.validate.field).uint32 = {
+			lte: 5
+	}];
+
+	google.protobuf.Duration failure_jitter_min     = 5 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	google.protobuf.Duration failure_jitter_max     = 6 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	option (buf.validate.message).cel = {
+		id: "ListenerAuth.failureJitter",
+		message: "failure_jitter_max must be greater than or equal to failure_jitter_min",
+		expression: "!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_min"
+	};
+}
+
 // xtcp configuration
 //
 // Field-number layout (renumbered into subject blocks 2026-09; the binary form
@@ -806,6 +891,20 @@ message XtcpConfig {
 			lte: 255
 	}];
 
+	// Shared authentication policy for xtcp2's own listener surfaces. Auth is
+	// wired in a follow-up hardening slice; these fields are present now so
+	// config JSON and generated clients stabilize with the listener endpoint
+	// schema. Secrets are redacted from ConfigService.Get.
+	ListenerAuth listener_auth                       = 152 [
+		(buf.validate.field).required = false
+	];
+
+	// Prometheus / pprof / health listener endpoint. When unset, the daemon
+	// keeps the legacy TCP behavior from -promListen / PROM_LISTEN.
+	ListenerEndpoint prometheus_listener             = 153 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- gRPC (160-169) ------------------------------------------------------
 
 	// GRPC listening port
@@ -815,6 +914,12 @@ message XtcpConfig {
 			gte: 1,
 			lte: 65535
 	}];
+
+	// gRPC listener endpoint. When unset, the daemon keeps the legacy TCP
+	// behavior derived from grpc_port.
+	ListenerEndpoint grpc_listener                   = 161 [
+		(buf.validate.field).required = false
+	];
 
 	// ---- profiling (170-179) -------------------------------------------------
 

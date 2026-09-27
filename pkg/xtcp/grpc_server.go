@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
-	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 	grpchealth "google.golang.org/grpc/health"
@@ -43,10 +42,11 @@ const (
 
 func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 
-	// Clamp the IPv4 TTL / IPv6 hop limit on the gRPC listener too (0 = kernel
-	// default), so its replies can't travel far if the host is internet-exposed.
-	lc := net.ListenConfig{Control: ipsockopt.Control(x.config.Ipv4Ttl, x.config.Ipv6HopLimit)}
-	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", x.config.GrpcPort))
+	ep, err := listener.EndpointFromProto(x.config.GetGrpcListener(), listener.NetworkTCP, fmt.Sprintf(":%d", x.config.GrpcPort))
+	if err != nil {
+		log.Fatalf("failed to resolve gRPC listener: %v", err)
+	}
+	lis, err := listener.Listen(ctx, ep, x.config.Ipv4Ttl, x.config.Ipv6HopLimit)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

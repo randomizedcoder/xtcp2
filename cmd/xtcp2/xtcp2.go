@@ -25,7 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
-	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -46,10 +46,13 @@ const (
 	// client before graceful shutdown + re-exec begin.
 	reconfigureGraceDelay = 200 * time.Millisecond
 
-	promListenCst           = ":9088" // [::1]:9088
-	promPathCst             = "/metrics"
-	promMaxRequestsInFlight = 10
-	promEnableOpenMetrics   = true
+	promListenCst                = ":9088" // [::1]:9088
+	promPathCst                  = "/metrics"
+	promMaxRequestsInFlight      = 10
+	promEnableOpenMetrics        = true
+	listenNetworkCst             = ""
+	unixSocketModeCst       uint = 0o600
+	unlinkStaleSocketCst         = true
 
 	nltimeoutCst      = 1000
 	pollFrequencyCst  = 10 * time.Second
@@ -309,8 +312,15 @@ type mainFlags struct {
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
 	grpcPort           *uint
+	grpcListenNetwork  *string
+	grpcListenAddress  *string
+	grpcUnixSocketMode *uint
+	grpcUnlinkStaleUDS *bool
 	deserializers      *string
 	promListen         *string
+	promListenNetwork  *string
+	promUnixSocketMode *uint
+	promUnlinkStaleUDS *bool
 	promPath           *string
 	healthcheck        *bool
 	goMaxProcs         *uint
@@ -416,8 +426,15 @@ func defineFlags() *mainFlags {
 	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
+	f.grpcListenNetwork = flag.String("grpcListenNetwork", listenNetworkCst, "gRPC listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to GRPC_LISTEN_NETWORK env.")
+	f.grpcListenAddress = flag.String("grpcListenAddress", "", "gRPC TCP address or Unix socket path. Empty derives TCP from -grpcPort. Falls back to GRPC_LISTEN_ADDRESS env.")
+	f.grpcUnixSocketMode = flag.Uint("grpcUnixSocketMode", unixSocketModeCst, "gRPC Unix socket file mode, e.g. 0600 or 0660. Falls back to GRPC_UNIX_SOCKET_MODE env.")
+	f.grpcUnlinkStaleUDS = flag.Bool("grpcUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale gRPC Unix socket before binding. Falls back to GRPC_UNLINK_STALE_UNIX_SOCKET env.")
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Deserializers to enable. 'default'=%v ; 'all'=%v ; ''=none ; or a comma-separated subset", xtcp.GetDefaultDeserializers(), xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
+	f.promListenNetwork = flag.String("promListenNetwork", listenNetworkCst, "Prometheus listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to PROM_LISTEN_NETWORK env.")
+	f.promUnixSocketMode = flag.Uint("promUnixSocketMode", unixSocketModeCst, "Prometheus Unix socket file mode, e.g. 0600 or 0660. Falls back to PROM_UNIX_SOCKET_MODE env.")
+	f.promUnlinkStaleUDS = flag.Bool("promUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale Prometheus Unix socket before binding. Falls back to PROM_UNLINK_STALE_UNIX_SOCKET env.")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
 	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
 	// Maximum number of CPUs that can be executing simultaneously
@@ -530,10 +547,19 @@ func printFlags(f *mainFlags) {
 	// flags because the two together are what determine whether the enrich_*
 	// columns will be populated; either one alone is misleading.
 	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
+	fmt.Println("*grpcListenNetwork:", *f.grpcListenNetwork)
+	fmt.Println("*grpcListenAddress:", *f.grpcListenAddress)
+	fmt.Println("*grpcUnixSocketMode:", *f.grpcUnixSocketMode)
+	fmt.Println("*grpcUnlinkStaleUnixSocket:", *f.grpcUnlinkStaleUDS)
+	fmt.Println("*promListenNetwork:", *f.promListenNetwork)
+	fmt.Println("*promUnixSocketMode:", *f.promUnixSocketMode)
+	fmt.Println("*promUnlinkStaleUnixSocket:", *f.promUnlinkStaleUDS)
 	fmt.Println("*d:", *f.d)
 }
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
+	grpcListener := buildOptionalListenerEndpoint(*f.grpcListenNetwork, *f.grpcListenAddress, *f.grpcUnixSocketMode, *f.grpcUnlinkStaleUDS, true)
+	prometheusListener := buildOptionalListenerEndpoint(*f.promListenNetwork, *f.promListen, *f.promUnixSocketMode, *f.promUnlinkStaleUDS, false)
 	return &xtcp_config.XtcpConfig{
 		NlTimeoutMilliseconds:        *f.nltimeout,
 		PollFrequency:                durationpb.New(*f.pollFrequency),
@@ -603,12 +629,26 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
 		Ipv6HopLimit:            uint32(*f.ipv6HopLimit),
 		GrpcPort:                uint32(*f.grpcPort),
+		GrpcListener:            grpcListener,
+		PrometheusListener:      prometheusListener,
 		EnabledDeserializers:    des,
 
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
 		IoUringCqeBatchSize:  uint32(*f.ioUringCqeBatch),
 	}
+}
+
+func buildOptionalListenerEndpoint(networkValue, address string, unixSocketMode uint, unlinkStale bool, allowAddressOnly bool) *xtcp_config.ListenerEndpoint {
+	if strings.TrimSpace(networkValue) == "" && (!allowAddressOnly || strings.TrimSpace(address) == "") {
+		return nil
+	}
+	ep, err := listener.ProtoEndpoint(networkValue, address, unixSocketMode, unlinkStale)
+	if err != nil {
+		fatalf("listener config: %v", err)
+		return nil
+	}
+	return ep
 }
 
 // startProfile installs the pkg/profile hook selected by `mode` and
@@ -753,8 +793,8 @@ var daemonRunner = runDaemonDefault
 // promHandlerStarter is the indirection point for the prom-handler
 // goroutine launch. Default starts the real handler; tests swap it for
 // a no-op to skip the port-bind.
-var promHandlerStarter = func(promPath, promListen string, ipv4TTL, ipv6HopLimit uint32) {
-	go initPromHandler(promPath, promListen, ipv4TTL, ipv6HopLimit)
+var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
+	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 func main() {
@@ -778,7 +818,7 @@ func runMain(ctx context.Context) int {
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		return runHealthcheck(runCtx, *f.promListen)
+		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen)
 	}
 
 	c, done := prepareConfig(f)
@@ -827,7 +867,8 @@ func runMain(ctx context.Context) int {
 		debugLevel)()
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
-	promHandlerStarter(*f.promPath, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit)
+	applyPrometheusListenerAddress(c, *f.promListen)
+	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
@@ -998,7 +1039,7 @@ func awaitSignalAndShutdown(
 // ListenAndServe error branch is exercisable without exiting.
 var fatalf = log.Fatalf
 
-func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit uint32) {
+func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	// A dedicated mux (not http.DefaultServeMux) for this listener. This is what
 	// lets pprof be registered EXPLICITLY below without the blank
 	// `_ "net/http/pprof"` side-effect import (which trips gosec G108): that
@@ -1024,14 +1065,14 @@ func initPromHandler(promPath string, promListen string, ipv4TTL, ipv6HopLimit u
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	go servePromHandler(mux, promListen, ipv4TTL, ipv6HopLimit)
+	go servePromHandler(mux, prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 // servePromHandler runs the prom HTTP server on promListen. On
 // ListenAndServe failure it invokes fatalf (default log.Fatalf in
 // production, swapped to a capture by tests). Extracted from
 // initPromHandler so tests can drive the error path in isolation.
-func servePromHandler(handler http.Handler, promListen string, ipv4TTL, ipv6HopLimit uint32) {
+func servePromHandler(handler http.Handler, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -1039,11 +1080,12 @@ func servePromHandler(handler http.Handler, promListen string, ipv4TTL, ipv6HopL
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
-	// net.Listen (not srv.ListenAndServe) so the IPv4 TTL / IPv6 hop limit can
-	// be clamped on the listening socket before bind (inherited by accepted
-	// connections). ipsockopt.Control is nil when both are 0 → kernel default.
-	lc := net.ListenConfig{Control: ipsockopt.Control(ipv4TTL, ipv6HopLimit)}
-	ln, err := lc.Listen(context.Background(), "tcp", promListen)
+	ep, err := listener.EndpointFromProto(prometheusListener, listener.NetworkTCP, promListen)
+	if err != nil {
+		fatalf("prometheus listener config: %v", err)
+		return
+	}
+	ln, err := listener.Listen(context.Background(), ep, ipv4TTL, ipv6HopLimit)
 	if err != nil {
 		fatalf("prometheus error, listen: %v", err)
 		return
@@ -1058,10 +1100,22 @@ func servePromHandler(handler http.Handler, promListen string, ipv4TTL, ipv6HopL
 // the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
 // (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
 // the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
-func runHealthcheck(ctx context.Context, promListen string) int {
+func runHealthcheck(ctx context.Context, promNetwork, promListen string) int {
+	network := promNetwork
+	if v, ok := os.LookupEnv("PROM_LISTEN_NETWORK"); ok && v != "" {
+		network = v
+	}
 	addr := promListen
 	if v, ok := os.LookupEnv("PROM_LISTEN"); ok && v != "" {
 		addr = v
+	}
+	parsed, err := listener.ParseNetwork(network)
+	if err != nil {
+		log.Printf("healthcheck: %v", err)
+		return 1
+	}
+	if parsed == xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX {
+		return runUnixHealthcheck(ctx, addr)
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "" {
@@ -1086,6 +1140,40 @@ func runHealthcheck(ctx context.Context, promListen string) int {
 		return 0
 	}
 	log.Printf("healthcheck: %s -> %d", url, resp.StatusCode)
+	return 1
+}
+
+func runUnixHealthcheck(ctx context.Context, socketPath string) int {
+	if socketPath == "" {
+		log.Printf("healthcheck: unix socket path is empty")
+		return 1
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "http://unix/readyz", nil)
+	if err != nil {
+		log.Printf("healthcheck: new unix request: %v", err)
+		return 1
+	}
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, listener.NetworkUnix, socketPath)
+			},
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("healthcheck: GET unix:%s /readyz: %v", socketPath, err)
+		return 1
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusOK {
+		return 0
+	}
+	log.Printf("healthcheck: unix:%s /readyz -> %d", socketPath, resp.StatusCode)
 	return 1
 }
 
@@ -1163,6 +1251,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideMarshalAndDest(c, debugLevel)
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
+	envOverrideListeners(c, debugLevel)
 }
 
 // envUint64 parses an env var as base-10 int64 and yields it as uint64.
@@ -1546,6 +1635,75 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envUint32("GRPC_PORT"); ok {
 		c.GrpcPort = v
 		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
+	}
+}
+
+func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envString("GRPC_LISTEN_NETWORK"); ok {
+		ep := ensureGrpcListener(c)
+		n, err := listener.ParseNetwork(v)
+		if err == nil {
+			ep.Network = n
+			logEnv("GRPC_LISTEN_NETWORK", fmt.Sprintf("c.GrpcListener.Network:%s", n.String()), debugLevel)
+		}
+	}
+	if v, ok := envString("GRPC_LISTEN_ADDRESS"); ok {
+		ep := ensureGrpcListener(c)
+		ep.Address = v
+		logEnv("GRPC_LISTEN_ADDRESS", fmt.Sprintf("c.GrpcListener.Address:%s", v), debugLevel)
+	}
+	if v, ok := envUint32("GRPC_UNIX_SOCKET_MODE"); ok {
+		ep := ensureGrpcListener(c)
+		ep.UnixSocketMode = v
+		logEnv("GRPC_UNIX_SOCKET_MODE", fmt.Sprintf("c.GrpcListener.UnixSocketMode:%#o", v), debugLevel)
+	}
+	if v, ok := envBool("GRPC_UNLINK_STALE_UNIX_SOCKET"); ok {
+		ep := ensureGrpcListener(c)
+		ep.UnlinkStaleUnixSocket = v
+		logEnv("GRPC_UNLINK_STALE_UNIX_SOCKET", fmt.Sprintf("c.GrpcListener.UnlinkStaleUnixSocket:%t", v), debugLevel)
+	}
+
+	if v, ok := envString("PROM_LISTEN_NETWORK"); ok {
+		ep := ensurePrometheusListener(c)
+		n, err := listener.ParseNetwork(v)
+		if err == nil {
+			ep.Network = n
+			logEnv("PROM_LISTEN_NETWORK", fmt.Sprintf("c.PrometheusListener.Network:%s", n.String()), debugLevel)
+		}
+	}
+	if v, ok := envString("PROM_LISTEN"); ok && c.PrometheusListener != nil {
+		c.PrometheusListener.Address = v
+		logEnv("PROM_LISTEN", fmt.Sprintf("c.PrometheusListener.Address:%s", v), debugLevel)
+	}
+	if v, ok := envUint32("PROM_UNIX_SOCKET_MODE"); ok {
+		ep := ensurePrometheusListener(c)
+		ep.UnixSocketMode = v
+		logEnv("PROM_UNIX_SOCKET_MODE", fmt.Sprintf("c.PrometheusListener.UnixSocketMode:%#o", v), debugLevel)
+	}
+	if v, ok := envBool("PROM_UNLINK_STALE_UNIX_SOCKET"); ok {
+		ep := ensurePrometheusListener(c)
+		ep.UnlinkStaleUnixSocket = v
+		logEnv("PROM_UNLINK_STALE_UNIX_SOCKET", fmt.Sprintf("c.PrometheusListener.UnlinkStaleUnixSocket:%t", v), debugLevel)
+	}
+}
+
+func ensureGrpcListener(c *xtcp_config.XtcpConfig) *xtcp_config.ListenerEndpoint {
+	if c.GrpcListener == nil {
+		c.GrpcListener = &xtcp_config.ListenerEndpoint{UnlinkStaleUnixSocket: unlinkStaleSocketCst}
+	}
+	return c.GrpcListener
+}
+
+func ensurePrometheusListener(c *xtcp_config.XtcpConfig) *xtcp_config.ListenerEndpoint {
+	if c.PrometheusListener == nil {
+		c.PrometheusListener = &xtcp_config.ListenerEndpoint{UnlinkStaleUnixSocket: unlinkStaleSocketCst}
+	}
+	return c.PrometheusListener
+}
+
+func applyPrometheusListenerAddress(c *xtcp_config.XtcpConfig, promListen string) {
+	if c.PrometheusListener != nil && c.PrometheusListener.Address == "" {
+		c.PrometheusListener.Address = promListen
 	}
 }
 

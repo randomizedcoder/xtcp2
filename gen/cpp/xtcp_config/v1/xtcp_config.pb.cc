@@ -57,6 +57,10 @@ PROTOBUF_CONSTINIT ::google::protobuf::internal::ReflectionData
         {&::_pbi::kDescriptorMethods, &::descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto, /* tracker*/ nullptr,},
         // ::xtcp_config::v1::SetEnvelopeFlushResponse
         {&::_pbi::kDescriptorMethods, &::descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto, /* tracker*/ nullptr,},
+        // ::xtcp_config::v1::ListenerEndpoint
+        {&::_pbi::kDescriptorMethods, &::descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto, /* tracker*/ nullptr,},
+        // ::xtcp_config::v1::ListenerAuth
+        {&::_pbi::kDescriptorMethods, &::descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto, /* tracker*/ nullptr,},
         // ::xtcp_config::v1::XtcpConfig
         {&::_pbi::kDescriptorMethods, &::descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto, /* tracker*/ nullptr,},
         // ::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse
@@ -466,6 +470,195 @@ const ::_pbi::ClassData* SetEnvelopeFlushRequest_get_class_data() {
 }
 }  // namespace
 #endif  // PROTOBUF_CUSTOM_VTABLE
+class ListenerEndpoint::_Internal {
+ public:
+  using HasBits = decltype(::std::declval<ListenerEndpoint>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_._has_bits_);
+};
+
+constexpr ListenerEndpoint::ParseTableT_ ListenerEndpoint::InternalGenerateParseTable_(const ::_pbi::ClassData* class_data) {
+  return ParseTableT_{
+    {
+      PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_._has_bits_),
+      0, // no _extensions_
+      7, 56,  // max_field_number, fast_idx_mask
+      offsetof(ParseTableT_, field_lookup_table),
+      4294967168,  // skipmap
+      offsetof(ParseTableT_, field_entries),
+      7,  // num_field_entries
+      0,  // num_aux_entries
+      offsetof(ParseTableT_, field_names),  // no aux_entries
+      class_data,
+      nullptr,  // post_loop_handler
+      ::_pbi::TcParser::GenericFallback,  // fallback
+      #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+      ::_pbi::TcParser::GetTable<::xtcp_config::v1::ListenerEndpoint>(),  // to_prefetch
+      #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+    }, {{
+      {::_pbi::TcParser::MiniParse, {}},
+      // .xtcp_config.v1.ListenerNetwork network = 1 [json_name = "network", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerEndpoint, _impl_.network_), 1>(),
+       {8, 1, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.network_)}},
+      // string address = 2 [json_name = "address", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastUS1,
+       {18, 0, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.address_)}},
+      // uint32 unix_socket_mode = 3 [json_name = "unixSocketMode", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerEndpoint, _impl_.unix_socket_mode_), 2>(),
+       {24, 2, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.unix_socket_mode_)}},
+      // bool unlink_stale_unix_socket = 4 [json_name = "unlinkStaleUnixSocket"];
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListenerEndpoint, _impl_.unlink_stale_unix_socket_), 3>(),
+       {32, 3, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.unlink_stale_unix_socket_)}},
+      // uint32 max_connections = 5 [json_name = "maxConnections", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerEndpoint, _impl_.max_connections_), 4>(),
+       {40, 4, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.max_connections_)}},
+      // uint32 accept_rate_per_second = 6 [json_name = "acceptRatePerSecond", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerEndpoint, _impl_.accept_rate_per_second_), 5>(),
+       {48, 5, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.accept_rate_per_second_)}},
+      // uint32 accept_burst = 7 [json_name = "acceptBurst", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerEndpoint, _impl_.accept_burst_), 6>(),
+       {56, 6, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.accept_burst_)}},
+    }}, {{
+      65535, 65535
+    }}, {{
+      // .xtcp_config.v1.ListenerNetwork network = 1 [json_name = "network", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.network_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      // string address = 2 [json_name = "address", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.address_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 unix_socket_mode = 3 [json_name = "unixSocketMode", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.unix_socket_mode_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // bool unlink_stale_unix_socket = 4 [json_name = "unlinkStaleUnixSocket"];
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.unlink_stale_unix_socket_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      // uint32 max_connections = 5 [json_name = "maxConnections", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.max_connections_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 accept_rate_per_second = 6 [json_name = "acceptRatePerSecond", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.accept_rate_per_second_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // uint32 accept_burst = 7 [json_name = "acceptBurst", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.accept_burst_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    }},
+    // no aux_entries
+    {{
+      "\37\0\7\0\0\0\0\0"
+      "xtcp_config.v1.ListenerEndpoint"
+      "address"
+    }},
+  };
+}
+
+
+inline constexpr ListenerEndpoint::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        address_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        network_{static_cast< ::xtcp_config::v1::ListenerNetwork >(0)},
+        unix_socket_mode_{0u},
+        unlink_stale_unix_socket_{false},
+        max_connections_{0u},
+        accept_rate_per_second_{0u},
+        accept_burst_{0u} {}
+
+template <typename>
+constexpr ListenerEndpoint::ListenerEndpoint(::_pbi::ConstantInitialized,
+                       const ::_pbi::ClassData* PROTOBUF_NONNULL class_data)
+    : ::google::protobuf::Message(
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          class_data
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          ),
+      _impl_(internal_visibility(), ::_pbi::ConstantInitialized()) {
+}
+inline void* PROTOBUF_NONNULL ListenerEndpoint::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) ListenerEndpoint(arena);
+}
+constexpr auto ListenerEndpoint::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::CopyInit(sizeof(ListenerEndpoint), alignof(ListenerEndpoint));
+}
+constexpr auto ListenerEndpoint::InternalGenerateClassData_(
+    const MessageLite& prototype,
+    const ::google::protobuf::internal::TcParseTableBase* tc_table) {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &prototype,
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+          &_table_.header,
+#else
+          tc_table,
+#endif
+          nullptr,  // IsInitialized
+          &ListenerEndpoint::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<ListenerEndpoint>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &ListenerEndpoint::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<ListenerEndpoint>(), &ListenerEndpoint::ByteSizeLong,
+              &ListenerEndpoint::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_._cached_size_),
+          false,
+      },
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+      &file_reflection_data[14],
+#else   // !PROTOBUF_MESSAGE_GLOBALS
+      &::_pbi::kDescriptorMethods,
+      &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+      nullptr,  // tracker
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+  };
+}
+struct ListenerEndpointGlobalsTypeInternal : ::_pbi::MessageGlobalsBase {
+  constexpr ListenerEndpointGlobalsTypeInternal()
+      :
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+        _default(::_pbi::ConstantInitialized{},
+                 ListenerEndpoint_class_data_.base())
+#else   // !PROTOBUF_MESSAGE_GLOBALS
+        MessageGlobalsBase(ListenerEndpoint::InternalGenerateClassData_(
+            _default, &ListenerEndpoint_globals_._table.header)),
+        _default(::_pbi::ConstantInitialized{}, GetClassData()),
+        _table(::_pbi::PrivateAccess::GenerateParseTable<ListenerEndpoint>(
+            GetClassData()))
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+  {
+  }
+  ~ListenerEndpointGlobalsTypeInternal() {}
+  union {
+    alignas(::_pbi::kMaxMessageAlignment) ListenerEndpoint _default;
+  };
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+  decltype(::_pbi::PrivateAccess::GenerateParseTable<ListenerEndpoint>(
+      ::std::declval<const ::_pbi::ClassData*>())) _table;
+#endif
+};
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+static_assert(PROTOBUF_FIELD_OFFSET(ListenerEndpointGlobalsTypeInternal, _default) ==
+              ::_pbi::MessageGlobalsBase::OffsetToDefault());
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PROTOBUF_MESSAGE_GLOBALS_CONST ListenerEndpointGlobalsTypeInternal ListenerEndpoint_globals_
+        PROTOBUF_MESSAGE_GLOBALS_SECTION(.data.rel.ro);
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+namespace {
+const ::_pbi::ClassData* ListenerEndpoint_get_class_data() {
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+  return ListenerEndpoint_globals_.GetClassData();
+#else
+  return ListenerEndpoint_class_data_.base();
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+}
+}  // namespace
+#endif  // PROTOBUF_CUSTOM_VTABLE
 class GetRequest::_Internal {
  public:
 };
@@ -675,7 +868,7 @@ constexpr auto EnabledDeserializers_EnabledEntry_DoNotUse::InternalGenerateClass
           false,
       },
 #ifdef PROTOBUF_MESSAGE_GLOBALS
-      &file_reflection_data[15],
+      &file_reflection_data[17],
 #else   // !PROTOBUF_MESSAGE_GLOBALS
       &::_pbi::kDescriptorMethods,
       &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
@@ -1355,6 +1548,203 @@ const ::_pbi::ClassData* SetPollFrequencyRequest_get_class_data() {
 }
 }  // namespace
 #endif  // PROTOBUF_CUSTOM_VTABLE
+class ListenerAuth::_Internal {
+ public:
+  using HasBits = decltype(::std::declval<ListenerAuth>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_._has_bits_);
+};
+
+constexpr ListenerAuth::ParseTableT_ ListenerAuth::InternalGenerateParseTable_(const ::_pbi::ClassData* class_data) {
+  return ParseTableT_{
+    {
+      PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_._has_bits_),
+      0, // no _extensions_
+      6, 56,  // max_field_number, fast_idx_mask
+      offsetof(ParseTableT_, field_lookup_table),
+      4294967232,  // skipmap
+      offsetof(ParseTableT_, field_entries),
+      6,  // num_field_entries
+      2,  // num_aux_entries
+      offsetof(ParseTableT_, aux_entries),
+      class_data,
+      nullptr,  // post_loop_handler
+      ::_pbi::TcParser::GenericFallback,  // fallback
+      #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+      ::_pbi::TcParser::GetTable<::xtcp_config::v1::ListenerAuth>(),  // to_prefetch
+      #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+    }, {{
+      {::_pbi::TcParser::MiniParse, {}},
+      // .xtcp_config.v1.ListenerAuthMode mode = 1 [json_name = "mode", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerAuth, _impl_.mode_), 4>(),
+       {8, 4, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.mode_)}},
+      // string raw_token = 2 [json_name = "rawToken", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastUS1,
+       {18, 0, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.raw_token_)}},
+      // string hmac_shared_key = 3 [json_name = "hmacSharedKey", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastUS1,
+       {26, 1, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.hmac_shared_key_)}},
+      // uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ListenerAuth, _impl_.signed_token_skew_minutes_), 5>(),
+       {32, 5, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.signed_token_skew_minutes_)}},
+      // .google.protobuf.Duration failure_jitter_min = 5 [json_name = "failureJitterMin", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastMtS1,
+       {42, 2, 0,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.failure_jitter_min_)}},
+      // .google.protobuf.Duration failure_jitter_max = 6 [json_name = "failureJitterMax", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastMtS1,
+       {50, 3, 1,
+        PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.failure_jitter_max_)}},
+      {::_pbi::TcParser::MiniParse, {}},
+    }}, {{
+      65535, 65535
+    }}, {{
+      // .xtcp_config.v1.ListenerAuthMode mode = 1 [json_name = "mode", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.mode_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      // string raw_token = 2 [json_name = "rawToken", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.raw_token_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // string hmac_shared_key = 3 [json_name = "hmacSharedKey", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.hmac_shared_key_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.signed_token_skew_minutes_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // .google.protobuf.Duration failure_jitter_min = 5 [json_name = "failureJitterMin", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.failure_jitter_min_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .google.protobuf.Duration failure_jitter_max = 6 [json_name = "failureJitterMax", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.failure_jitter_max_), _Internal::kHasBitsOffset + 3, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+    }},
+    {{
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::google::protobuf::Duration_globals_},
+        #endif
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::google::protobuf::Duration_globals_},
+        #endif
+    }},
+    {{
+      "\33\0\11\17\0\0\0\0"
+      "xtcp_config.v1.ListenerAuth"
+      "raw_token"
+      "hmac_shared_key"
+    }},
+  };
+}
+
+
+inline constexpr ListenerAuth::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        raw_token_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        hmac_shared_key_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        failure_jitter_min_{nullptr},
+        failure_jitter_max_{nullptr},
+        mode_{static_cast< ::xtcp_config::v1::ListenerAuthMode >(0)},
+        signed_token_skew_minutes_{0u} {}
+
+template <typename>
+constexpr ListenerAuth::ListenerAuth(::_pbi::ConstantInitialized,
+                       const ::_pbi::ClassData* PROTOBUF_NONNULL class_data)
+    : ::google::protobuf::Message(
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          class_data
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          ),
+      _impl_(internal_visibility(), ::_pbi::ConstantInitialized()) {
+}
+inline void* PROTOBUF_NONNULL ListenerAuth::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) ListenerAuth(arena);
+}
+constexpr auto ListenerAuth::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::CopyInit(sizeof(ListenerAuth), alignof(ListenerAuth));
+}
+constexpr auto ListenerAuth::InternalGenerateClassData_(
+    const MessageLite& prototype,
+    const ::google::protobuf::internal::TcParseTableBase* tc_table) {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &prototype,
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+          &_table_.header,
+#else
+          tc_table,
+#endif
+          nullptr,  // IsInitialized
+          &ListenerAuth::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<ListenerAuth>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &ListenerAuth::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<ListenerAuth>(), &ListenerAuth::ByteSizeLong,
+              &ListenerAuth::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_._cached_size_),
+          false,
+      },
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+      &file_reflection_data[15],
+#else   // !PROTOBUF_MESSAGE_GLOBALS
+      &::_pbi::kDescriptorMethods,
+      &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
+      nullptr,  // tracker
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+  };
+}
+struct ListenerAuthGlobalsTypeInternal : ::_pbi::MessageGlobalsBase {
+  constexpr ListenerAuthGlobalsTypeInternal()
+      :
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+        _default(::_pbi::ConstantInitialized{},
+                 ListenerAuth_class_data_.base())
+#else   // !PROTOBUF_MESSAGE_GLOBALS
+        MessageGlobalsBase(ListenerAuth::InternalGenerateClassData_(
+            _default, &ListenerAuth_globals_._table.header)),
+        _default(::_pbi::ConstantInitialized{}, GetClassData()),
+        _table(::_pbi::PrivateAccess::GenerateParseTable<ListenerAuth>(
+            GetClassData()))
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+  {
+  }
+  ~ListenerAuthGlobalsTypeInternal() {}
+  union {
+    alignas(::_pbi::kMaxMessageAlignment) ListenerAuth _default;
+  };
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+  decltype(::_pbi::PrivateAccess::GenerateParseTable<ListenerAuth>(
+      ::std::declval<const ::_pbi::ClassData*>())) _table;
+#endif
+};
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+static_assert(PROTOBUF_FIELD_OFFSET(ListenerAuthGlobalsTypeInternal, _default) ==
+              ::_pbi::MessageGlobalsBase::OffsetToDefault());
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PROTOBUF_MESSAGE_GLOBALS_CONST ListenerAuthGlobalsTypeInternal ListenerAuth_globals_
+        PROTOBUF_MESSAGE_GLOBALS_SECTION(.data.rel.ro);
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+namespace {
+const ::_pbi::ClassData* ListenerAuth_get_class_data() {
+#ifdef PROTOBUF_MESSAGE_GLOBALS
+  return ListenerAuth_globals_.GetClassData();
+#else
+  return ListenerAuth_class_data_.base();
+#endif  // PROTOBUF_MESSAGE_GLOBALS
+}
+}  // namespace
+#endif  // PROTOBUF_CUSTOM_VTABLE
 class EnabledDeserializers::_Internal {
  public:
   using HasBits = decltype(::std::declval<EnabledDeserializers>()._impl_._has_bits_);
@@ -1452,7 +1842,7 @@ constexpr auto EnabledDeserializers::InternalGenerateClassData_(
           false,
       },
 #ifdef PROTOBUF_MESSAGE_GLOBALS
-      &file_reflection_data[16],
+      &file_reflection_data[18],
 #else   // !PROTOBUF_MESSAGE_GLOBALS
       &::_pbi::kDescriptorMethods,
       &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
@@ -1519,8 +1909,8 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       offsetof(ParseTableT_, field_lookup_table),
       4278190591,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      71,  // num_field_entries
-      9,  // num_aux_entries
+      74,  // num_field_entries
+      12,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
       nullptr,  // post_loop_handler
@@ -1636,12 +2026,12 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       61496, 35,
       33791, 44,
       16383, 49,
-      65279, 51,
-      65475, 52,
-      65535, 56,
-      58360, 56,
-      49039, 62,
-      39167, 66,
+      64764, 51,
+      65475, 55,
+      65535, 59,
+      58360, 59,
+      49039, 65,
+      39167, 69,
       65535, 65535
     }}, {{
       // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -1679,13 +2069,13 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // bool reconcile_before_poll = 41 [json_name = "reconcileBeforePoll"];
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.reconcile_before_poll_), _Internal::kHasBitsOffset + 20, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // uint32 write_files = 50 [json_name = "writeFiles", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.write_files_), _Internal::kHasBitsOffset + 49, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.write_files_), _Internal::kHasBitsOffset + 52, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // string capture_path = 51 [json_name = "capturePath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.capture_path_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // uint32 dest_write_files = 52 [json_name = "destWriteFiles", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_write_files_), _Internal::kHasBitsOffset + 50, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_write_files_), _Internal::kHasBitsOffset + 53, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.debug_level_), _Internal::kHasBitsOffset + 51, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.debug_level_), _Internal::kHasBitsOffset + 54, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // string dest = 60 [json_name = "dest", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string marshal_to = 61 [json_name = "marshalTo", (.buf.validate.field) = {
@@ -1695,9 +2085,9 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // string xtcp_proto_file = 63 [json_name = "xtcpProtoFile", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.xtcp_proto_file_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // uint32 envelope_flush_threshold_bytes = 64 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.envelope_flush_threshold_bytes_), _Internal::kHasBitsOffset + 52, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.envelope_flush_threshold_bytes_), _Internal::kHasBitsOffset + 55, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 envelope_flush_threshold_rows = 65 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.envelope_flush_threshold_rows_), _Internal::kHasBitsOffset + 53, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.envelope_flush_threshold_rows_), _Internal::kHasBitsOffset + 56, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // string topic = 80 [json_name = "topic", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.topic_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string kafka_schema_url = 81 [json_name = "kafkaSchemaUrl", (.buf.validate.field) = {
@@ -1721,15 +2111,15 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // bool s3_skip_bucket_probe = 106 [json_name = "s3SkipBucketProbe", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_skip_bucket_probe_), _Internal::kHasBitsOffset + 21, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // uint32 s3_parquet_flush_threshold_bytes = 110 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_parquet_flush_threshold_bytes_), _Internal::kHasBitsOffset + 54, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_parquet_flush_threshold_bytes_), _Internal::kHasBitsOffset + 57, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // .google.protobuf.Duration s3_flush_interval = 111 [json_name = "s3FlushInterval", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_interval_), _Internal::kHasBitsOffset + 45, 5, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // uint32 s3_flush_jitter_pct = 112 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_jitter_pct_), _Internal::kHasBitsOffset + 55, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_jitter_pct_), _Internal::kHasBitsOffset + 58, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 s3_flush_threshold_jitter_pct = 113 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_threshold_jitter_pct_), _Internal::kHasBitsOffset + 56, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_flush_threshold_jitter_pct_), _Internal::kHasBitsOffset + 59, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 s3_upload_max_attempts = 114 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_max_attempts_), _Internal::kHasBitsOffset + 57, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_max_attempts_), _Internal::kHasBitsOffset + 60, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // .google.protobuf.Duration s3_upload_backoff_cap = 115 [json_name = "s3UploadBackoffCap", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.s3_upload_backoff_cap_), _Internal::kHasBitsOffset + 46, 6, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // string hostname = 130 [json_name = "hostname", (.buf.validate.field) = {
@@ -1743,49 +2133,55 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // string daemon_version = 134 [json_name = "daemonVersion", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.daemon_version_), _Internal::kHasBitsOffset + 37, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // uint32 ipv4_ttl = 150 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.ipv4_ttl_), _Internal::kHasBitsOffset + 58, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.ipv4_ttl_), _Internal::kHasBitsOffset + 61, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 ipv6_hop_limit = 151 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.ipv6_hop_limit_), _Internal::kHasBitsOffset + 59, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.ipv6_hop_limit_), _Internal::kHasBitsOffset + 62, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // .xtcp_config.v1.ListenerAuth listener_auth = 152 [json_name = "listenerAuth", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.listener_auth_), _Internal::kHasBitsOffset + 47, 7, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .xtcp_config.v1.ListenerEndpoint prometheus_listener = 153 [json_name = "prometheusListener", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.prometheus_listener_), _Internal::kHasBitsOffset + 48, 8, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // uint32 grpc_port = 160 [json_name = "grpcPort", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.grpc_port_), _Internal::kHasBitsOffset + 60, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.grpc_port_), _Internal::kHasBitsOffset + 63, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // .xtcp_config.v1.ListenerEndpoint grpc_listener = 161 [json_name = "grpcListener", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.grpc_listener_), _Internal::kHasBitsOffset + 49, 9, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // string pyroscope_url = 170 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_url_), _Internal::kHasBitsOffset + 38, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string pyroscope_app_name = 171 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_app_name_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_sample_hz_), _Internal::kHasBitsOffset + 61, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_sample_hz_), _Internal::kHasBitsOffset + 64, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_upload_interval_sec_), _Internal::kHasBitsOffset + 62, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_upload_interval_sec_), _Internal::kHasBitsOffset + 65, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.resolve_container_id_), _Internal::kHasBitsOffset + 63, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.resolve_container_id_), _Internal::kHasBitsOffset + 66, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_container_enable_), _Internal::kHasBitsOffset + 64, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_container_enable_), _Internal::kHasBitsOffset + 67, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string docker_socket_path = 202 [json_name = "dockerSocketPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.docker_socket_path_), _Internal::kHasBitsOffset + 39, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_lldp_enable_), _Internal::kHasBitsOffset + 65, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_lldp_enable_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string lldpd_socket_path = 211 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.lldpd_socket_path_), _Internal::kHasBitsOffset + 40, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string lldpd_version_hint = 212 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.lldpd_version_hint_), _Internal::kHasBitsOffset + 41, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_nic_enable_), _Internal::kHasBitsOffset + 66, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_nic_enable_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.uplink_count_), _Internal::kHasBitsOffset + 67, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.uplink_count_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // repeated string uplink_interfaces = 222 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.uplink_interfaces_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcRepeated | ::_fl::kUtf8String | ::_fl::kRepSString)},
       // bool populate_nsid = 230 [json_name = "populateNsid"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.populate_nsid_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.populate_nsid_), _Internal::kHasBitsOffset + 71, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_asn_enable_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_asn_enable_), _Internal::kHasBitsOffset + 72, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string asn_db_path = 241 [json_name = "asnDbPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.asn_db_path_), _Internal::kHasBitsOffset + 42, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.asn_refresh_interval_), _Internal::kHasBitsOffset + 47, 7, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.asn_refresh_interval_), _Internal::kHasBitsOffset + 50, 10, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_), _Internal::kHasBitsOffset + 73, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_refresh_interval_), _Internal::kHasBitsOffset + 48, 8, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_refresh_interval_), _Internal::kHasBitsOffset + 51, 11, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1824,6 +2220,21 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
         {::_pbi::FieldAuxMessageGlobals(), &::google::protobuf::Duration_globals_},
         #endif
         #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::xtcp_config::v1::ListenerAuth>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::xtcp_config::v1::ListenerAuth_globals_},
+        #endif
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::xtcp_config::v1::ListenerEndpoint>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::xtcp_config::v1::ListenerEndpoint_globals_},
+        #endif
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::xtcp_config::v1::ListenerEndpoint>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::xtcp_config::v1::ListenerEndpoint_globals_},
+        #endif
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
         {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
         #else
         {::_pbi::FieldAuxMessageGlobals(), &::google::protobuf::Duration_globals_},
@@ -1835,7 +2246,7 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
         #endif
     }},
     {{
-      "\31\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\14\0\0\4\12\13\17\0\0\5\20\0\21\13\11\11\11\15\15\0\0\0\0\0\0\0\10\10\5\3\16\0\0\0\15\22\0\0\0\0\22\0\21\22\0\0\21\0\0\13\0\0\0"
+      "\31\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\14\0\0\4\12\13\17\0\0\5\20\0\21\13\11\11\11\15\15\0\0\0\0\0\0\0\10\10\5\3\16\0\0\0\0\0\0\15\22\0\0\0\0\22\0\21\22\0\0\21\0\0\13\0\0\0\0\0\0\0\0"
       "xtcp_config.v1.XtcpConfig"
       "capture_path"
       "dest"
@@ -1973,6 +2384,9 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         kafka_produce_timeout_{nullptr},
         s3_flush_interval_{nullptr},
         s3_upload_backoff_cap_{nullptr},
+        listener_auth_{nullptr},
+        prometheus_listener_{nullptr},
+        grpc_listener_{nullptr},
         asn_refresh_interval_{nullptr},
         locality_refresh_interval_{nullptr},
         write_files_{0u},
@@ -2039,7 +2453,7 @@ constexpr auto XtcpConfig::InternalGenerateClassData_(
           false,
       },
 #ifdef PROTOBUF_MESSAGE_GLOBALS
-      &file_reflection_data[14],
+      &file_reflection_data[16],
 #else   // !PROTOBUF_MESSAGE_GLOBALS
       &::_pbi::kDescriptorMethods,
       &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
@@ -2974,8 +3388,8 @@ const ::_pbi::ClassData* GetResponse_get_class_data() {
 #endif  // PROTOBUF_CUSTOM_VTABLE
 }  // namespace v1
 }  // namespace xtcp_config
-static constexpr const ::_pb::EnumDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
-    file_level_enum_descriptors_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = nullptr;
+static const ::_pb::EnumDescriptor* PROTOBUF_NONNULL
+    file_level_enum_descriptors_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[2];
 static constexpr const ::_pb::ServiceDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
     file_level_service_descriptors_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = nullptr;
 const ::uint32_t
@@ -3050,8 +3464,40 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::SetEnvelopeFlushResponse, _impl_.config_),
         0,
         0x081, // bitmap
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_._has_bits_),
+        10, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.network_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.address_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.unix_socket_mode_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.unlink_stale_unix_socket_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.max_connections_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.accept_rate_per_second_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerEndpoint, _impl_.accept_burst_),
+        1,
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        0x081, // bitmap
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_._has_bits_),
+        9, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.mode_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.raw_token_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.hmac_shared_key_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.signed_token_skew_minutes_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.failure_jitter_min_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::ListenerAuth, _impl_.failure_jitter_max_),
+        4,
+        0,
+        1,
+        5,
+        2,
+        3,
+        0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_._has_bits_),
-        74, // hasbit index offset
+        77, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.nl_timeout_milliseconds_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_frequency_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_timeout_),
@@ -3103,7 +3549,10 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.daemon_version_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.ipv4_ttl_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.ipv6_hop_limit_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.listener_auth_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.prometheus_listener_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.grpc_port_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.grpc_listener_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_url_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_app_name_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.pyroscope_sample_hz_),
@@ -3140,16 +3589,16 @@ const ::uint32_t
         18,
         43,
         20,
-        49,
+        52,
         23,
-        50,
-        51,
+        53,
+        54,
         0,
         1,
         2,
         3,
-        52,
-        53,
+        55,
+        56,
         24,
         25,
         44,
@@ -3161,39 +3610,42 @@ const ::uint32_t
         31,
         32,
         21,
-        54,
-        45,
-        55,
-        56,
         57,
+        45,
+        58,
+        59,
+        60,
         46,
         33,
         34,
         35,
         36,
         37,
-        58,
-        59,
-        60,
-        38,
-        4,
         61,
         62,
+        47,
+        48,
         63,
+        49,
+        38,
+        4,
         64,
-        39,
         65,
-        40,
-        41,
         66,
         67,
-        22,
+        39,
         68,
+        40,
+        41,
         69,
-        42,
-        47,
         70,
-        48,
+        22,
+        71,
+        72,
+        42,
+        50,
+        73,
+        51,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _impl_._has_bits_),
         5, // hasbit index offset
@@ -3224,9 +3676,11 @@ static const ::_pbi::MigrationSchema
         {51, sizeof(::xtcp_config::v1::SetS3UploadResponse)},
         {56, sizeof(::xtcp_config::v1::SetEnvelopeFlushRequest)},
         {63, sizeof(::xtcp_config::v1::SetEnvelopeFlushResponse)},
-        {68, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {213, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {220, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {68, sizeof(::xtcp_config::v1::ListenerEndpoint)},
+        {85, sizeof(::xtcp_config::v1::ListenerAuth)},
+        {100, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {251, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {258, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -3244,6 +3698,8 @@ static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
         &::xtcp_config::v1::SetS3UploadResponse_globals_,
         &::xtcp_config::v1::SetEnvelopeFlushRequest_globals_,
         &::xtcp_config::v1::SetEnvelopeFlushResponse_globals_,
+        &::xtcp_config::v1::ListenerEndpoint_globals_,
+        &::xtcp_config::v1::ListenerAuth_globals_,
         &::xtcp_config::v1::XtcpConfig_globals_,
         &::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse_globals_,
         &::xtcp_config::v1::EnabledDeserializers_globals_,
@@ -3298,140 +3754,179 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " 0 || this.envelope_flush_threshold_rows"
     " > 0\"N\n\030SetEnvelopeFlushResponse\0222\n\006conf"
     "ig\030\001 \001(\0132\032.xtcp_config.v1.XtcpConfigR\006co"
-    "nfig\"\225 \n\nXtcpConfig\022F\n\027nl_timeout_millis"
-    "econds\030\n \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutM"
-    "illiseconds\022S\n\016poll_frequency\030\013 \001(\0132\031.go"
-    "ogle.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001"
-    "\001R\rpollFrequency\022O\n\014poll_timeout\030\014 \001(\0132\031"
-    ".google.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*"
-    "\000\310\001\001R\013pollTimeout\0222\n\017poll_jitter_pct\030\r \001"
-    "(\rB\n\272H\007*\002\030d\310\001\000R\rpollJitterPct\022+\n\tmax_loo"
-    "ps\030\016 \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\000R\010maxLoops\022,\n\nne"
-    "tlinkers\030\017 \001(\rB\014\272H\t*\004\030d(\001\310\001\001R\nnetlinkers"
-    "\022H\n\031netlinkers_done_chan_size\030\020 \001(\rB\r\272H\n"
-    "*\005\030\350\007(\001\310\001\001R\026netlinkersDoneChanSize\022*\n\tnl"
-    "msg_seq\030\021 \001(\rB\r\272H\n*\005\030\220N(\000\310\001\001R\010nlmsgSeq\022/"
-    "\n\013packet_size\030\022 \001(\004B\016\272H\0132\006\030\300\204=(\000\310\001\000R\npac"
-    "ketSize\0226\n\020packet_size_mply\030\023 \001(\rB\014\272H\t*\004"
-    "\030d(\000\310\001\000R\016packetSizeMply\022(\n\007modulus\030\024 \001(\004"
-    "B\016\272H\0132\006\030\300\204=(\001\310\001\001R\007modulus\022a\n\025enabled_des"
-    "erializers\030\025 \001(\0132$.xtcp_config.v1.Enable"
-    "dDeserializersB\006\272H\003\310\001\000R\024enabledDeseriali"
-    "zers\022!\n\010io_uring\030\026 \001(\010B\006\272H\003\310\001\000R\007ioUring\022"
-    "E\n\030io_uring_recv_batch_size\030\027 \001(\rB\r\272H\n*\005"
-    "\030\200 (\001\310\001\000R\024ioUringRecvBatchSize\022C\n\027io_uri"
-    "ng_cqe_batch_size\030\030 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023"
-    "ioUringCqeBatchSize\022W\n\023reconcile_frequen"
-    "cy\030( \001(\0132\031.google.protobuf.DurationB\013\272H\010"
-    "\252\001\0022\000\310\001\000R\022reconcileFrequency\0222\n\025reconcil"
-    "e_before_poll\030) \001(\010R\023reconcileBeforePoll"
-    "\022.\n\013write_files\0302 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwr"
-    "iteFiles\022/\n\014capture_path\0303 \001(\tB\014\272H\tr\004\020\001\030"
-    "P\310\001\000R\013capturePath\0227\n\020dest_write_files\0304 "
-    "\001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022.\n\013de"
-    "bug_level\0305 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLev"
-    "el\022!\n\004dest\030< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004dest\022+\n"
-    "\nmarshal_to\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R\tmarshal"
-    "To\022\'\n\013csv_columns\030> \001(\tB\006\272H\003\310\001\000R\ncsvColu"
-    "mns\0224\n\017xtcp_proto_file\030\? \001(\tB\014\272H\tr\004\020\001\030P\310"
-    "\001\000R\rxtcpProtoFile\022K\n\036envelope_flush_thre"
-    "shold_bytes\030@ \001(\rB\006\272H\003\310\001\000R\033envelopeFlush"
-    "ThresholdBytes\022I\n\035envelope_flush_thresho"
-    "ld_rows\030A \001(\rB\006\272H\003\310\001\000R\032envelopeFlushThre"
-    "sholdRows\022\"\n\005topic\030P \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005"
-    "topic\0226\n\020kafka_schema_url\030Q \001(\tB\014\272H\tr\004\020\001"
-    "\030<\310\001\000R\016kafkaSchemaUrl\022_\n\025kafka_produce_t"
-    "imeout\030R \001(\0132\031.google.protobuf.DurationB"
-    "\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTimeout\0223"
-    "\n\021kafka_compression\030S \001(\tB\006\272H\003\310\001\000R\020kafka"
-    "Compression\022\'\n\013s3_endpoint\030d \001(\tB\006\272H\003\310\001\000"
-    "R\ns3Endpoint\022#\n\ts3_region\030e \001(\tB\006\272H\003\310\001\000R"
-    "\010s3Region\022#\n\ts3_bucket\030f \001(\tB\006\272H\003\310\001\000R\010s3"
-    "Bucket\022#\n\ts3_prefix\030g \001(\tB\006\272H\003\310\001\000R\010s3Pre"
-    "fix\022*\n\rs3_access_key\030h \001(\tB\006\272H\003\310\001\000R\013s3Ac"
-    "cessKey\022*\n\rs3_secret_key\030i \001(\tB\006\272H\003\310\001\000R\013"
-    "s3SecretKey\0227\n\024s3_skip_bucket_probe\030j \001("
-    "\010B\006\272H\003\310\001\000R\021s3SkipBucketProbe\022N\n s3_parqu"
-    "et_flush_threshold_bytes\030n \001(\rB\006\272H\003\310\001\000R\034"
-    "s3ParquetFlushThresholdBytes\022R\n\021s3_flush"
-    "_interval\030o \001(\0132\031.google.protobuf.Durati"
-    "onB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\0229\n\023s3_f"
-    "lush_jitter_pct\030p \001(\rB\n\272H\007*\002\030d\310\001\000R\020s3Flu"
-    "shJitterPct\022L\n\035s3_flush_threshold_jitter"
-    "_pct\030q \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThreshold"
-    "JitterPct\022A\n\026s3_upload_max_attempts\030r \001("
-    "\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttempts\022Y\n\025"
-    "s3_upload_backoff_cap\030s \001(\0132\031.google.pro"
-    "tobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3UploadBac"
-    "koffCap\022(\n\010hostname\030\202\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R"
-    "\010hostname\022(\n\010location\030\203\001 \001(\tB\013\272H\010r\003\030\375\001\310\001"
-    "\000R\010location\022!\n\005label\030\204\001 \001(\tB\n\272H\007r\002\030(\310\001\000R"
-    "\005label\022\035\n\003tag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag\0223\n"
-    "\016daemon_version\030\206\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\rdae"
-    "monVersion\022\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272H\010*\003\030\377\001\310"
-    "\001\000R\007ipv4Ttl\0222\n\016ipv6_hop_limit\030\227\001 \001(\rB\013\272H"
-    "\010*\003\030\377\001\310\001\000R\014ipv6HopLimit\022,\n\tgrpc_port\030\240\001 "
-    "\001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPort\022,\n\rpyrosco"
-    "pe_url\030\252\001 \001(\tB\006\272H\003\310\001\000R\014pyroscopeUrl\0225\n\022p"
-    "yroscope_app_name\030\253\001 \001(\tB\006\272H\003\310\001\000R\020pyrosc"
-    "opeAppName\0227\n\023pyroscope_sample_hz\030\254\001 \001(\r"
-    "B\006\272H\003\310\001\000R\021pyroscopeSampleHz\022J\n\035pyroscope"
-    "_upload_interval_sec\030\255\001 \001(\rB\006\272H\003\310\001\000R\032pyr"
-    "oscopeUploadIntervalSec\0229\n\024resolve_conta"
-    "iner_id\030\310\001 \001(\010B\006\272H\003\310\001\000R\022resolveContainer"
-    "Id\0227\n\027enrich_container_enable\030\311\001 \001(\010R\025en"
-    "richContainerEnable\0227\n\022docker_socket_pat"
-    "h\030\312\001 \001(\tB\010\272H\005r\003\030\377\001R\020dockerSocketPath\022-\n\022"
-    "enrich_lldp_enable\030\322\001 \001(\010R\020enrichLldpEna"
-    "ble\0225\n\021lldpd_socket_path\030\323\001 \001(\tB\010\272H\005r\003\030\377"
-    "\001R\017lldpdSocketPath\0226\n\022lldpd_version_hint"
-    "\030\324\001 \001(\tB\007\272H\004r\002\030\020R\020lldpdVersionHint\022+\n\021en"
-    "rich_nic_enable\030\334\001 \001(\010R\017enrichNicEnable\022"
-    "+\n\014uplink_count\030\335\001 \001(\rB\007\272H\004*\002\030\002R\013uplinkC"
-    "ount\0226\n\021uplink_interfaces\030\336\001 \003(\tB\010\272H\005\222\001\002"
-    "\020\002R\020uplinkInterfaces\022$\n\rpopulate_nsid\030\346\001"
-    " \001(\010R\014populateNsid\022+\n\021enrich_asn_enable\030"
-    "\360\001 \001(\010R\017enrichAsnEnable\022)\n\013asn_db_path\030\361"
-    "\001 \001(\tB\010\272H\005r\003\030\377\001R\tasnDbPath\022L\n\024asn_refres"
-    "h_interval\030\362\001 \001(\0132\031.google.protobuf.Dura"
-    "tionR\022asnRefreshInterval\0225\n\026enrich_local"
-    "ity_enable\030\365\001 \001(\010R\024enrichLocalityEnable\022"
-    "V\n\031locality_refresh_interval\030\366\001 \001(\0132\031.go"
-    "ogle.protobuf.DurationR\027localityRefreshI"
-    "nterval:s\272Hp\032n\n\017XtcpConfig.poll\0222Poll ti"
-    "meout must be less than poll poll_freque"
-    "ncy\032\'this.poll_frequency > this.poll_tim"
-    "eout\"\237\001\n\024EnabledDeserializers\022K\n\007enabled"
-    "\030\001 \003(\01321.xtcp_config.v1.EnabledDeseriali"
-    "zers.EnabledEntryR\007enabled\032:\n\014EnabledEnt"
-    "ry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005val"
-    "ue:\0028\0012\207\007\n\rConfigService\022]\n\003Get\022\032.xtcp_c"
-    "onfig.v1.GetRequest\032\033.xtcp_config.v1.Get"
-    "Response\"\035\202\323\344\223\002\027\032\022/ConfigService/Get:\001*\022"
-    "]\n\003Set\022\032.xtcp_config.v1.SetRequest\032\033.xtc"
-    "p_config.v1.SetResponse\"\035\202\323\344\223\002\027\032\022/Config"
-    "Service/Set:\001*\022\221\001\n\020SetPollFrequency\022\'.xt"
-    "cp_config.v1.SetPollFrequencyRequest\032(.x"
-    "tcp_config.v1.SetPollFrequencyResponse\"*"
-    "\202\323\344\223\002$\032\037/ConfigService/SetPollFrequency:"
-    "\001*\022}\n\013TriggerPoll\022\".xtcp_config.v1.Trigg"
-    "erPollRequest\032#.xtcp_config.v1.TriggerPo"
-    "llResponse\"%\202\323\344\223\002\037\032\032/ConfigService/Trigg"
-    "erPoll:\001*\022\221\001\n\020TriggerPollBurst\022\'.xtcp_co"
-    "nfig.v1.TriggerPollBurstRequest\032(.xtcp_c"
-    "onfig.v1.TriggerPollBurstResponse\"*\202\323\344\223\002"
-    "$\032\037/ConfigService/TriggerPollBurst:\001*\022}\n"
-    "\013SetS3Upload\022\".xtcp_config.v1.SetS3Uploa"
-    "dRequest\032#.xtcp_config.v1.SetS3UploadRes"
-    "ponse\"%\202\323\344\223\002\037\032\032/ConfigService/SetS3Uploa"
-    "d:\001*\022\221\001\n\020SetEnvelopeFlush\022\'.xtcp_config."
-    "v1.SetEnvelopeFlushRequest\032(.xtcp_config"
-    ".v1.SetEnvelopeFlushResponse\"*\202\323\344\223\002$\032\037/C"
-    "onfigService/SetEnvelopeFlush:\001*B\220\001\n\022com"
-    ".xtcp_config.v1B\017XtcpConfigProtoP\001Z\024./ge"
-    "n/go/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002"
-    "\rXtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetada"
-    "ta\352\002\016XtcpConfig::V1b\006proto3"
+    "nfig\"\212\003\n\020ListenerEndpoint\022C\n\007network\030\001 \001"
+    "(\0162\037.xtcp_config.v1.ListenerNetworkB\010\272H\005"
+    "\202\001\002\020\001R\007network\022\"\n\007address\030\002 \001(\tB\010\272H\005r\003\030\200"
+    "\004R\007address\0222\n\020unix_socket_mode\030\003 \001(\rB\010\272H"
+    "\005*\003\030\377\003R\016unixSocketMode\0227\n\030unlink_stale_u"
+    "nix_socket\030\004 \001(\010R\025unlinkStaleUnixSocket\022"
+    "2\n\017max_connections\030\005 \001(\rB\t\272H\006*\004\030\240\215\006R\016max"
+    "Connections\022>\n\026accept_rate_per_second\030\006 "
+    "\001(\rB\t\272H\006*\004\030\240\215\006R\023acceptRatePerSecond\022,\n\014a"
+    "ccept_burst\030\007 \001(\rB\t\272H\006*\004\030\240\215\006R\013acceptBurs"
+    "t\"\365\004\n\014ListenerAuth\022>\n\004mode\030\001 \001(\0162 .xtcp_"
+    "config.v1.ListenerAuthModeB\010\272H\005\202\001\002\020\001R\004mo"
+    "de\022%\n\traw_token\030\002 \001(\tB\010\272H\005r\003\030\200 R\010rawToke"
+    "n\0220\n\017hmac_shared_key\030\003 \001(\tB\010\272H\005r\003\030\200 R\rhm"
+    "acSharedKey\022B\n\031signed_token_skew_minutes"
+    "\030\004 \001(\rB\007\272H\004*\002\030\005R\026signedTokenSkewMinutes\022"
+    "Q\n\022failure_jitter_min\030\005 \001(\0132\031.google.pro"
+    "tobuf.DurationB\010\272H\005\252\001\0022\000R\020failureJitterM"
+    "in\022Q\n\022failure_jitter_max\030\006 \001(\0132\031.google."
+    "protobuf.DurationB\010\272H\005\252\001\0022\000R\020failureJitt"
+    "erMax:\341\001\272H\335\001\032\332\001\n\032ListenerAuth.failureJit"
+    "ter\022Ffailure_jitter_max must be greater "
+    "than or equal to failure_jitter_min\032t!ha"
+    "s(this.failure_jitter_min) || !has(this."
+    "failure_jitter_max) || this.failure_jitt"
+    "er_max >= this.failure_jitter_min\"\215\"\n\nXt"
+    "cpConfig\022F\n\027nl_timeout_milliseconds\030\n \001("
+    "\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMilliseconds"
+    "\022S\n\016poll_frequency\030\013 \001(\0132\031.google.protob"
+    "uf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\rpollFreq"
+    "uency\022O\n\014poll_timeout\030\014 \001(\0132\031.google.pro"
+    "tobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\013pollT"
+    "imeout\0222\n\017poll_jitter_pct\030\r \001(\rB\n\272H\007*\002\030d"
+    "\310\001\000R\rpollJitterPct\022+\n\tmax_loops\030\016 \001(\004B\016\272"
+    "H\0132\006\030\240\215\006(\000\310\001\000R\010maxLoops\022,\n\nnetlinkers\030\017 "
+    "\001(\rB\014\272H\t*\004\030d(\001\310\001\001R\nnetlinkers\022H\n\031netlink"
+    "ers_done_chan_size\030\020 \001(\rB\r\272H\n*\005\030\350\007(\001\310\001\001R"
+    "\026netlinkersDoneChanSize\022*\n\tnlmsg_seq\030\021 \001"
+    "(\rB\r\272H\n*\005\030\220N(\000\310\001\001R\010nlmsgSeq\022/\n\013packet_si"
+    "ze\030\022 \001(\004B\016\272H\0132\006\030\300\204=(\000\310\001\000R\npacketSize\0226\n\020"
+    "packet_size_mply\030\023 \001(\rB\014\272H\t*\004\030d(\000\310\001\000R\016pa"
+    "cketSizeMply\022(\n\007modulus\030\024 \001(\004B\016\272H\0132\006\030\300\204="
+    "(\001\310\001\001R\007modulus\022a\n\025enabled_deserializers\030"
+    "\025 \001(\0132$.xtcp_config.v1.EnabledDeserializ"
+    "ersB\006\272H\003\310\001\000R\024enabledDeserializers\022!\n\010io_"
+    "uring\030\026 \001(\010B\006\272H\003\310\001\000R\007ioUring\022E\n\030io_uring"
+    "_recv_batch_size\030\027 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\024i"
+    "oUringRecvBatchSize\022C\n\027io_uring_cqe_batc"
+    "h_size\030\030 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUringCqeB"
+    "atchSize\022W\n\023reconcile_frequency\030( \001(\0132\031."
+    "google.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022r"
+    "econcileFrequency\0222\n\025reconcile_before_po"
+    "ll\030) \001(\010R\023reconcileBeforePoll\022.\n\013write_f"
+    "iles\0302 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwriteFiles\022/\n"
+    "\014capture_path\0303 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\013captu"
+    "rePath\0227\n\020dest_write_files\0304 \001(\rB\r\272H\n*\005\030"
+    "\350\007(\000\310\001\000R\016destWriteFiles\022.\n\013debug_level\0305"
+    " \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\022!\n\004dest\030"
+    "< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004dest\022+\n\nmarshal_to"
+    "\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R\tmarshalTo\022\'\n\013csv_c"
+    "olumns\030> \001(\tB\006\272H\003\310\001\000R\ncsvColumns\0224\n\017xtcp"
+    "_proto_file\030\? \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\rxtcpPro"
+    "toFile\022K\n\036envelope_flush_threshold_bytes"
+    "\030@ \001(\rB\006\272H\003\310\001\000R\033envelopeFlushThresholdBy"
+    "tes\022I\n\035envelope_flush_threshold_rows\030A \001"
+    "(\rB\006\272H\003\310\001\000R\032envelopeFlushThresholdRows\022\""
+    "\n\005topic\030P \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005topic\0226\n\020ka"
+    "fka_schema_url\030Q \001(\tB\014\272H\tr\004\020\001\030<\310\001\000R\016kafk"
+    "aSchemaUrl\022_\n\025kafka_produce_timeout\030R \001("
+    "\0132\031.google.protobuf.DurationB\020\272H\r\252\001\007\"\003\010\330"
+    "\0042\000\310\001\000R\023kafkaProduceTimeout\0223\n\021kafka_com"
+    "pression\030S \001(\tB\006\272H\003\310\001\000R\020kafkaCompression"
+    "\022\'\n\013s3_endpoint\030d \001(\tB\006\272H\003\310\001\000R\ns3Endpoin"
+    "t\022#\n\ts3_region\030e \001(\tB\006\272H\003\310\001\000R\010s3Region\022#"
+    "\n\ts3_bucket\030f \001(\tB\006\272H\003\310\001\000R\010s3Bucket\022#\n\ts"
+    "3_prefix\030g \001(\tB\006\272H\003\310\001\000R\010s3Prefix\022*\n\rs3_a"
+    "ccess_key\030h \001(\tB\006\272H\003\310\001\000R\013s3AccessKey\022*\n\r"
+    "s3_secret_key\030i \001(\tB\006\272H\003\310\001\000R\013s3SecretKey"
+    "\0227\n\024s3_skip_bucket_probe\030j \001(\010B\006\272H\003\310\001\000R\021"
+    "s3SkipBucketProbe\022N\n s3_parquet_flush_th"
+    "reshold_bytes\030n \001(\rB\006\272H\003\310\001\000R\034s3ParquetFl"
+    "ushThresholdBytes\022R\n\021s3_flush_interval\030o"
+    " \001(\0132\031.google.protobuf.DurationB\013\272H\010\252\001\0022"
+    "\000\310\001\000R\017s3FlushInterval\0229\n\023s3_flush_jitter"
+    "_pct\030p \001(\rB\n\272H\007*\002\030d\310\001\000R\020s3FlushJitterPct"
+    "\022L\n\035s3_flush_threshold_jitter_pct\030q \001(\rB"
+    "\n\272H\007*\002\030d\310\001\000R\031s3FlushThresholdJitterPct\022A"
+    "\n\026s3_upload_max_attempts\030r \001(\rB\014\272H\t*\004\030d("
+    "\001\310\001\000R\023s3UploadMaxAttempts\022Y\n\025s3_upload_b"
+    "ackoff_cap\030s \001(\0132\031.google.protobuf.Durat"
+    "ionB\013\272H\010\252\001\0022\000\310\001\000R\022s3UploadBackoffCap\022(\n\010"
+    "hostname\030\202\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\010hostname\022("
+    "\n\010location\030\203\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\010location"
+    "\022!\n\005label\030\204\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\005label\022\035\n\003t"
+    "ag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag\0223\n\016daemon_ver"
+    "sion\030\206\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\rdaemonVersion\022"
+    "\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\007ipv4Ttl"
+    "\0222\n\016ipv6_hop_limit\030\227\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\014"
+    "ipv6HopLimit\022J\n\rlistener_auth\030\230\001 \001(\0132\034.x"
+    "tcp_config.v1.ListenerAuthB\006\272H\003\310\001\000R\014list"
+    "enerAuth\022Z\n\023prometheus_listener\030\231\001 \001(\0132 "
+    ".xtcp_config.v1.ListenerEndpointB\006\272H\003\310\001\000"
+    "R\022prometheusListener\022,\n\tgrpc_port\030\240\001 \001(\r"
+    "B\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPort\022N\n\rgrpc_liste"
+    "ner\030\241\001 \001(\0132 .xtcp_config.v1.ListenerEndp"
+    "ointB\006\272H\003\310\001\000R\014grpcListener\022,\n\rpyroscope_"
+    "url\030\252\001 \001(\tB\006\272H\003\310\001\000R\014pyroscopeUrl\0225\n\022pyro"
+    "scope_app_name\030\253\001 \001(\tB\006\272H\003\310\001\000R\020pyroscope"
+    "AppName\0227\n\023pyroscope_sample_hz\030\254\001 \001(\rB\006\272"
+    "H\003\310\001\000R\021pyroscopeSampleHz\022J\n\035pyroscope_up"
+    "load_interval_sec\030\255\001 \001(\rB\006\272H\003\310\001\000R\032pyrosc"
+    "opeUploadIntervalSec\0229\n\024resolve_containe"
+    "r_id\030\310\001 \001(\010B\006\272H\003\310\001\000R\022resolveContainerId\022"
+    "7\n\027enrich_container_enable\030\311\001 \001(\010R\025enric"
+    "hContainerEnable\0227\n\022docker_socket_path\030\312"
+    "\001 \001(\tB\010\272H\005r\003\030\377\001R\020dockerSocketPath\022-\n\022enr"
+    "ich_lldp_enable\030\322\001 \001(\010R\020enrichLldpEnable"
+    "\0225\n\021lldpd_socket_path\030\323\001 \001(\tB\010\272H\005r\003\030\377\001R\017"
+    "lldpdSocketPath\0226\n\022lldpd_version_hint\030\324\001"
+    " \001(\tB\007\272H\004r\002\030\020R\020lldpdVersionHint\022+\n\021enric"
+    "h_nic_enable\030\334\001 \001(\010R\017enrichNicEnable\022+\n\014"
+    "uplink_count\030\335\001 \001(\rB\007\272H\004*\002\030\002R\013uplinkCoun"
+    "t\0226\n\021uplink_interfaces\030\336\001 \003(\tB\010\272H\005\222\001\002\020\002R"
+    "\020uplinkInterfaces\022$\n\rpopulate_nsid\030\346\001 \001("
+    "\010R\014populateNsid\022+\n\021enrich_asn_enable\030\360\001 "
+    "\001(\010R\017enrichAsnEnable\022)\n\013asn_db_path\030\361\001 \001"
+    "(\tB\010\272H\005r\003\030\377\001R\tasnDbPath\022L\n\024asn_refresh_i"
+    "nterval\030\362\001 \001(\0132\031.google.protobuf.Duratio"
+    "nR\022asnRefreshInterval\0225\n\026enrich_locality"
+    "_enable\030\365\001 \001(\010R\024enrichLocalityEnable\022V\n\031"
+    "locality_refresh_interval\030\366\001 \001(\0132\031.googl"
+    "e.protobuf.DurationR\027localityRefreshInte"
+    "rval:s\272Hp\032n\n\017XtcpConfig.poll\0222Poll timeo"
+    "ut must be less than poll poll_frequency"
+    "\032\'this.poll_frequency > this.poll_timeou"
+    "t\"\237\001\n\024EnabledDeserializers\022K\n\007enabled\030\001 "
+    "\003(\01321.xtcp_config.v1.EnabledDeserializer"
+    "s.EnabledEntryR\007enabled\032:\n\014EnabledEntry\022"
+    "\020\n\003key\030\001 \001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:"
+    "\0028\001*h\n\017ListenerNetwork\022 \n\034LISTENER_NETWO"
+    "RK_UNSPECIFIED\020\000\022\030\n\024LISTENER_NETWORK_TCP"
+    "\020\001\022\031\n\025LISTENER_NETWORK_UNIX\020\002*\241\001\n\020Listen"
+    "erAuthMode\022\"\n\036LISTENER_AUTH_MODE_UNSPECI"
+    "FIED\020\000\022\037\n\033LISTENER_AUTH_MODE_DISABLED\020\001\022"
+    " \n\034LISTENER_AUTH_MODE_RAW_TOKEN\020\002\022&\n\"LIS"
+    "TENER_AUTH_MODE_HMAC_UTC_MINUTE\020\0032\207\007\n\rCo"
+    "nfigService\022]\n\003Get\022\032.xtcp_config.v1.GetR"
+    "equest\032\033.xtcp_config.v1.GetResponse\"\035\202\323\344"
+    "\223\002\027\032\022/ConfigService/Get:\001*\022]\n\003Set\022\032.xtcp"
+    "_config.v1.SetRequest\032\033.xtcp_config.v1.S"
+    "etResponse\"\035\202\323\344\223\002\027\032\022/ConfigService/Set:\001"
+    "*\022\221\001\n\020SetPollFrequency\022\'.xtcp_config.v1."
+    "SetPollFrequencyRequest\032(.xtcp_config.v1"
+    ".SetPollFrequencyResponse\"*\202\323\344\223\002$\032\037/Conf"
+    "igService/SetPollFrequency:\001*\022}\n\013Trigger"
+    "Poll\022\".xtcp_config.v1.TriggerPollRequest"
+    "\032#.xtcp_config.v1.TriggerPollResponse\"%\202"
+    "\323\344\223\002\037\032\032/ConfigService/TriggerPoll:\001*\022\221\001\n"
+    "\020TriggerPollBurst\022\'.xtcp_config.v1.Trigg"
+    "erPollBurstRequest\032(.xtcp_config.v1.Trig"
+    "gerPollBurstResponse\"*\202\323\344\223\002$\032\037/ConfigSer"
+    "vice/TriggerPollBurst:\001*\022}\n\013SetS3Upload\022"
+    "\".xtcp_config.v1.SetS3UploadRequest\032#.xt"
+    "cp_config.v1.SetS3UploadResponse\"%\202\323\344\223\002\037"
+    "\032\032/ConfigService/SetS3Upload:\001*\022\221\001\n\020SetE"
+    "nvelopeFlush\022\'.xtcp_config.v1.SetEnvelop"
+    "eFlushRequest\032(.xtcp_config.v1.SetEnvelo"
+    "peFlushResponse\"*\202\323\344\223\002$\032\037/ConfigService/"
+    "SetEnvelopeFlush:\001*B\220\001\n\022com.xtcp_config."
+    "v1B\017XtcpConfigProtoP\001Z\024./gen/go/xtcp_con"
+    "fig\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V"
+    "1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002\016XtcpConf"
+    "ig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[3] = {
@@ -3443,13 +3938,13 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    7267,
+    8814,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps,
     3,
-    17,
+    19,
     schemas,
     file_message_globals,
     TableStruct_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto::offsets,
@@ -3458,6 +3953,20 @@ PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_
 };
 namespace xtcp_config {
 namespace v1 {
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+ListenerNetwork_descriptor() {
+  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto);
+  return file_level_enum_descriptors_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[0];
+}
+PROTOBUF_CONSTINIT const uint32_t ListenerNetwork_internal_data_[] = {
+    196608u, 0u, };
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+ListenerAuthMode_descriptor() {
+  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto);
+  return file_level_enum_descriptors_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[1];
+}
+PROTOBUF_CONSTINIT const uint32_t ListenerAuthMode_internal_data_[] = {
+    262144u, 0u, };
 // ===================================================================
 
 GetRequest::GetRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
@@ -6163,6 +6672,758 @@ void SetEnvelopeFlushResponse::InternalSwap(SetEnvelopeFlushResponse* PROTOBUF_R
 }
 // ===================================================================
 
+ListenerEndpoint::ListenerEndpoint(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ListenerEndpoint_get_class_data()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.ListenerEndpoint)
+}
+PROTOBUF_NDEBUG_INLINE ListenerEndpoint::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    [[maybe_unused]] const ::xtcp_config::v1::ListenerEndpoint& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        address_(arena, from.address_) {}
+
+ListenerEndpoint::ListenerEndpoint(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const ListenerEndpoint& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ListenerEndpoint_get_class_data()) {
+
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  ListenerEndpoint* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::memcpy(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, network_),
+           reinterpret_cast<const char*>(&from._impl_) +
+               offsetof(Impl_, network_),
+           offsetof(Impl_, accept_burst_) -
+               offsetof(Impl_, network_) +
+               sizeof(Impl_::accept_burst_));
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.ListenerEndpoint)
+}
+PROTOBUF_NDEBUG_INLINE ListenerEndpoint::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : _cached_size_{0},
+        address_(arena) {}
+
+inline void ListenerEndpoint::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, network_),
+           0,
+           offsetof(Impl_, accept_burst_) -
+               offsetof(Impl_, network_) +
+               sizeof(Impl_::accept_burst_));
+}
+ListenerEndpoint::~ListenerEndpoint() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.ListenerEndpoint)
+  SharedDtor(*this);
+}
+inline void ListenerEndpoint::SharedDtor(MessageLite& self) {
+  ListenerEndpoint& this_ = static_cast<ListenerEndpoint&>(self);
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    this_.CheckHasBitConsistency();
+  }
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.address_.Destroy();
+  this_._impl_.~Impl_();
+}
+
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull ListenerEndpoint_class_data_ =
+        ListenerEndpoint::InternalGenerateClassData_(ListenerEndpoint_globals_._default);
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ListenerEndpoint::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ListenerEndpoint_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(ListenerEndpoint_class_data_.tc_table);
+  return ListenerEndpoint_class_data_.base();
+}
+#else
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ListenerEndpoint::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ListenerEndpoint_globals_);
+  ::google::protobuf::internal::PrefetchToLocalCache(
+      ::google::protobuf::internal::MessageGlobalsBase::ToParseTableBase(&ListenerEndpoint_globals_));
+  return ListenerEndpoint_globals_.GetClassData();
+}
+#endif  // !PROTOBUF_MESSAGE_GLOBALS
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const ListenerEndpoint::ParseTableT_
+    ListenerEndpoint::_table_ =
+        ListenerEndpoint::InternalGenerateParseTable_(ListenerEndpoint_class_data_.base());
+#endif  // !PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_NOINLINE void ListenerEndpoint::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.ListenerEndpoint)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    _impl_.address_.ClearNonDefaultToEmpty();
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007eU)) {
+    ::memset(&_impl_.network_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.accept_burst_) -
+        reinterpret_cast<char*>(&_impl_.network_)) + sizeof(_impl_.accept_burst_));
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL ListenerEndpoint::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const ListenerEndpoint& this_ = static_cast<const ListenerEndpoint&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL ListenerEndpoint::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const ListenerEndpoint& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    this_.CheckHasBitConsistency();
+  }
+  // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.ListenerEndpoint)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // .xtcp_config.v1.ListenerNetwork network = 1 [json_name = "network", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_network() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          1, this_._internal_network(), target);
+    }
+  }
+
+  // string address = 2 [json_name = "address", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (!this_._internal_address().empty()) {
+      const ::std::string& _s = this_._internal_address();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.ListenerEndpoint.address");
+      target = stream->WriteStringMaybeAliased(2, _s, target);
+    }
+  }
+
+  // uint32 unix_socket_mode = 3 [json_name = "unixSocketMode", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (this_._internal_unix_socket_mode() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          3, this_._internal_unix_socket_mode(), target);
+    }
+  }
+
+  // bool unlink_stale_unix_socket = 4 [json_name = "unlinkStaleUnixSocket"];
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (this_._internal_unlink_stale_unix_socket() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          4, this_._internal_unlink_stale_unix_socket(), target);
+    }
+  }
+
+  // uint32 max_connections = 5 [json_name = "maxConnections", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (this_._internal_max_connections() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          5, this_._internal_max_connections(), target);
+    }
+  }
+
+  // uint32 accept_rate_per_second = 6 [json_name = "acceptRatePerSecond", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_accept_rate_per_second() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          6, this_._internal_accept_rate_per_second(), target);
+    }
+  }
+
+  // uint32 accept_burst = 7 [json_name = "acceptBurst", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_accept_burst() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          7, this_._internal_accept_burst(), target);
+    }
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.ListenerEndpoint)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t ListenerEndpoint::ByteSizeLong(const MessageLite& base) {
+  const ListenerEndpoint& this_ = static_cast<const ListenerEndpoint&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t ListenerEndpoint::ByteSizeLong() const {
+  const ListenerEndpoint& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.ListenerEndpoint)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+  cached_has_bits = this_._impl_._has_bits_[0];
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+    // string address = 2 [json_name = "address", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!this_._internal_address().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_address());
+      }
+    }
+    // .xtcp_config.v1.ListenerNetwork network = 1 [json_name = "network", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (this_._internal_network() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_network());
+      }
+    }
+    // uint32 unix_socket_mode = 3 [json_name = "unixSocketMode", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (this_._internal_unix_socket_mode() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_unix_socket_mode());
+      }
+    }
+    // bool unlink_stale_unix_socket = 4 [json_name = "unlinkStaleUnixSocket"];
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (this_._internal_unlink_stale_unix_socket() != 0) {
+        total_size += 2;
+      }
+    }
+    // uint32 max_connections = 5 [json_name = "maxConnections", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (this_._internal_max_connections() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_max_connections());
+      }
+    }
+    // uint32 accept_rate_per_second = 6 [json_name = "acceptRatePerSecond", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (this_._internal_accept_rate_per_second() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_accept_rate_per_second());
+      }
+    }
+    // uint32 accept_burst = 7 [json_name = "acceptBurst", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_accept_burst() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_accept_burst());
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void ListenerEndpoint::MergeImpl(::google::protobuf::MessageLite& to_msg,
+                      const ::google::protobuf::MessageLite& from_msg) {
+   auto* const _this = static_cast<ListenerEndpoint*>(&to_msg);
+  auto& from = static_cast<const ListenerEndpoint&>(from_msg);
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    from.CheckHasBitConsistency();
+  }
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.ListenerEndpoint)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!from._internal_address().empty()) {
+        _this->_internal_set_address(from._internal_address());
+      } else {
+        if (_this->_impl_.address_.IsDefault()) {
+          _this->_internal_set_address("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (from._internal_network() != 0) {
+        _this->_impl_.network_ = from._impl_.network_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (from._internal_unix_socket_mode() != 0) {
+        _this->_impl_.unix_socket_mode_ = from._impl_.unix_socket_mode_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (from._internal_unlink_stale_unix_socket() != 0) {
+        _this->_impl_.unlink_stale_unix_socket_ = from._impl_.unlink_stale_unix_socket_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (from._internal_max_connections() != 0) {
+        _this->_impl_.max_connections_ = from._impl_.max_connections_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (from._internal_accept_rate_per_second() != 0) {
+        _this->_impl_.accept_rate_per_second_ = from._impl_.accept_rate_per_second_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_accept_burst() != 0) {
+        _this->_impl_.accept_burst_ = from._impl_.accept_burst_;
+      }
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+}
+
+void ListenerEndpoint::CopyFrom(const ListenerEndpoint& from) {
+  // @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.ListenerEndpoint)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void ListenerEndpoint::InternalSwap(ListenerEndpoint* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  auto* arena = GetArena();
+  ABSL_DCHECK_EQ(arena, other->GetArena());
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.address_, &other->_impl_.address_, arena);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.accept_burst_)
+      + sizeof(ListenerEndpoint::_impl_.accept_burst_)
+      - PROTOBUF_FIELD_OFFSET(ListenerEndpoint, _impl_.network_)>(
+          reinterpret_cast<char*>(&_impl_.network_),
+          reinterpret_cast<char*>(&other->_impl_.network_));
+}
+
+::google::protobuf::Metadata ListenerEndpoint::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+void ListenerAuth::clear_failure_jitter_min() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.failure_jitter_min_ != nullptr) _impl_.failure_jitter_min_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+}
+void ListenerAuth::clear_failure_jitter_max() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.failure_jitter_max_ != nullptr) _impl_.failure_jitter_max_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+}
+ListenerAuth::ListenerAuth(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ListenerAuth_get_class_data()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:xtcp_config.v1.ListenerAuth)
+}
+PROTOBUF_NDEBUG_INLINE ListenerAuth::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    [[maybe_unused]] const ::xtcp_config::v1::ListenerAuth& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        raw_token_(arena, from.raw_token_),
+        hmac_shared_key_(arena, from.hmac_shared_key_) {}
+
+ListenerAuth::ListenerAuth(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const ListenerAuth& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ListenerAuth_get_class_data()) {
+
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  ListenerAuth* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::uint32_t cached_has_bits = _impl_._has_bits_[0];
+  _impl_.failure_jitter_min_ = (CheckHasBit(cached_has_bits, 0x00000004U))
+                ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.failure_jitter_min_)
+                : nullptr;
+  _impl_.failure_jitter_max_ = (CheckHasBit(cached_has_bits, 0x00000008U))
+                ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.failure_jitter_max_)
+                : nullptr;
+  ::memcpy(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, mode_),
+           reinterpret_cast<const char*>(&from._impl_) +
+               offsetof(Impl_, mode_),
+           offsetof(Impl_, signed_token_skew_minutes_) -
+               offsetof(Impl_, mode_) +
+               sizeof(Impl_::signed_token_skew_minutes_));
+
+  // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.ListenerAuth)
+}
+PROTOBUF_NDEBUG_INLINE ListenerAuth::Impl_::Impl_(
+    [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
+    [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : _cached_size_{0},
+        raw_token_(arena),
+        hmac_shared_key_(arena) {}
+
+inline void ListenerAuth::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, failure_jitter_min_),
+           0,
+           offsetof(Impl_, signed_token_skew_minutes_) -
+               offsetof(Impl_, failure_jitter_min_) +
+               sizeof(Impl_::signed_token_skew_minutes_));
+}
+ListenerAuth::~ListenerAuth() {
+  // @@protoc_insertion_point(destructor:xtcp_config.v1.ListenerAuth)
+  SharedDtor(*this);
+}
+inline void ListenerAuth::SharedDtor(MessageLite& self) {
+  ListenerAuth& this_ = static_cast<ListenerAuth&>(self);
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    this_.CheckHasBitConsistency();
+  }
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.raw_token_.Destroy();
+  this_._impl_.hmac_shared_key_.Destroy();
+  delete this_._impl_.failure_jitter_min_;
+  delete this_._impl_.failure_jitter_max_;
+  this_._impl_.~Impl_();
+}
+
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull ListenerAuth_class_data_ =
+        ListenerAuth::InternalGenerateClassData_(ListenerAuth_globals_._default);
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ListenerAuth::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ListenerAuth_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(ListenerAuth_class_data_.tc_table);
+  return ListenerAuth_class_data_.base();
+}
+#else
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ListenerAuth::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ListenerAuth_globals_);
+  ::google::protobuf::internal::PrefetchToLocalCache(
+      ::google::protobuf::internal::MessageGlobalsBase::ToParseTableBase(&ListenerAuth_globals_));
+  return ListenerAuth_globals_.GetClassData();
+}
+#endif  // !PROTOBUF_MESSAGE_GLOBALS
+#ifndef PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_CONSTINIT
+PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const ListenerAuth::ParseTableT_
+    ListenerAuth::_table_ =
+        ListenerAuth::InternalGenerateParseTable_(ListenerAuth_class_data_.base());
+#endif  // !PROTOBUF_MESSAGE_GLOBALS
+PROTOBUF_NOINLINE void ListenerAuth::Clear() {
+// @@protoc_insertion_point(message_clear_start:xtcp_config.v1.ListenerAuth)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.raw_token_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.hmac_shared_key_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      ABSL_DCHECK(_impl_.failure_jitter_min_ != nullptr);
+      _impl_.failure_jitter_min_->Clear();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      ABSL_DCHECK(_impl_.failure_jitter_max_ != nullptr);
+      _impl_.failure_jitter_max_->Clear();
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000030U)) {
+    ::memset(&_impl_.mode_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.signed_token_skew_minutes_) -
+        reinterpret_cast<char*>(&_impl_.mode_)) + sizeof(_impl_.signed_token_skew_minutes_));
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL ListenerAuth::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const ListenerAuth& this_ = static_cast<const ListenerAuth&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL ListenerAuth::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const ListenerAuth& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    this_.CheckHasBitConsistency();
+  }
+  // @@protoc_insertion_point(serialize_to_array_start:xtcp_config.v1.ListenerAuth)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // .xtcp_config.v1.ListenerAuthMode mode = 1 [json_name = "mode", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (this_._internal_mode() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          1, this_._internal_mode(), target);
+    }
+  }
+
+  // string raw_token = 2 [json_name = "rawToken", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (!this_._internal_raw_token().empty()) {
+      const ::std::string& _s = this_._internal_raw_token();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.ListenerAuth.raw_token");
+      target = stream->WriteStringMaybeAliased(2, _s, target);
+    }
+  }
+
+  // string hmac_shared_key = 3 [json_name = "hmacSharedKey", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_hmac_shared_key().empty()) {
+      const ::std::string& _s = this_._internal_hmac_shared_key();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.ListenerAuth.hmac_shared_key");
+      target = stream->WriteStringMaybeAliased(3, _s, target);
+    }
+  }
+
+  // uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_signed_token_skew_minutes() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          4, this_._internal_signed_token_skew_minutes(), target);
+    }
+  }
+
+  // .google.protobuf.Duration failure_jitter_min = 5 [json_name = "failureJitterMin", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        5, *this_._impl_.failure_jitter_min_, this_._impl_.failure_jitter_min_->GetCachedSize(), target,
+        stream);
+  }
+
+  // .google.protobuf.Duration failure_jitter_max = 6 [json_name = "failureJitterMax", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        6, *this_._impl_.failure_jitter_max_, this_._impl_.failure_jitter_max_->GetCachedSize(), target,
+        stream);
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:xtcp_config.v1.ListenerAuth)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t ListenerAuth::ByteSizeLong(const MessageLite& base) {
+  const ListenerAuth& this_ = static_cast<const ListenerAuth&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t ListenerAuth::ByteSizeLong() const {
+  const ListenerAuth& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:xtcp_config.v1.ListenerAuth)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+  cached_has_bits = this_._impl_._has_bits_[0];
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+    // string raw_token = 2 [json_name = "rawToken", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!this_._internal_raw_token().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_raw_token());
+      }
+    }
+    // string hmac_shared_key = 3 [json_name = "hmacSharedKey", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_hmac_shared_key().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_hmac_shared_key());
+      }
+    }
+    // .google.protobuf.Duration failure_jitter_min = 5 [json_name = "failureJitterMin", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      total_size += 1 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.failure_jitter_min_);
+    }
+    // .google.protobuf.Duration failure_jitter_max = 6 [json_name = "failureJitterMax", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      total_size += 1 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.failure_jitter_max_);
+    }
+    // .xtcp_config.v1.ListenerAuthMode mode = 1 [json_name = "mode", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (this_._internal_mode() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_mode());
+      }
+    }
+    // uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (this_._internal_signed_token_skew_minutes() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_signed_token_skew_minutes());
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void ListenerAuth::MergeImpl(::google::protobuf::MessageLite& to_msg,
+                      const ::google::protobuf::MessageLite& from_msg) {
+   auto* const _this = static_cast<ListenerAuth*>(&to_msg);
+  auto& from = static_cast<const ListenerAuth&>(from_msg);
+  if constexpr (::_pbi::DebugHardenCheckHasBitConsistency()) {
+    from.CheckHasBitConsistency();
+  }
+  ::google::protobuf::Arena* arena = _this->GetArena();
+  // @@protoc_insertion_point(class_specific_merge_from_start:xtcp_config.v1.ListenerAuth)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      if (!from._internal_raw_token().empty()) {
+        _this->_internal_set_raw_token(from._internal_raw_token());
+      } else {
+        if (_this->_impl_.raw_token_.IsDefault()) {
+          _this->_internal_set_raw_token("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_hmac_shared_key().empty()) {
+        _this->_internal_set_hmac_shared_key(from._internal_hmac_shared_key());
+      } else {
+        if (_this->_impl_.hmac_shared_key_.IsDefault()) {
+          _this->_internal_set_hmac_shared_key("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      ABSL_DCHECK(from._impl_.failure_jitter_min_ != nullptr);
+      if (_this->_impl_.failure_jitter_min_ == nullptr) {
+        _this->_impl_.failure_jitter_min_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.failure_jitter_min_);
+      } else {
+        _this->_impl_.failure_jitter_min_->MergeFrom(*from._impl_.failure_jitter_min_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      ABSL_DCHECK(from._impl_.failure_jitter_max_ != nullptr);
+      if (_this->_impl_.failure_jitter_max_ == nullptr) {
+        _this->_impl_.failure_jitter_max_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.failure_jitter_max_);
+      } else {
+        _this->_impl_.failure_jitter_max_->MergeFrom(*from._impl_.failure_jitter_max_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (from._internal_mode() != 0) {
+        _this->_impl_.mode_ = from._impl_.mode_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (from._internal_signed_token_skew_minutes() != 0) {
+        _this->_impl_.signed_token_skew_minutes_ = from._impl_.signed_token_skew_minutes_;
+      }
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+}
+
+void ListenerAuth::CopyFrom(const ListenerAuth& from) {
+  // @@protoc_insertion_point(class_specific_copy_from_start:xtcp_config.v1.ListenerAuth)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void ListenerAuth::InternalSwap(ListenerAuth* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  auto* arena = GetArena();
+  ABSL_DCHECK_EQ(arena, other->GetArena());
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.raw_token_, &other->_impl_.raw_token_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hmac_shared_key_, &other->_impl_.hmac_shared_key_, arena);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.signed_token_skew_minutes_)
+      + sizeof(ListenerAuth::_impl_.signed_token_skew_minutes_)
+      - PROTOBUF_FIELD_OFFSET(ListenerAuth, _impl_.failure_jitter_min_)>(
+          reinterpret_cast<char*>(&_impl_.failure_jitter_min_),
+          reinterpret_cast<char*>(&other->_impl_.failure_jitter_min_));
+}
+
+::google::protobuf::Metadata ListenerAuth::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
 void XtcpConfig::clear_poll_frequency() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.poll_frequency_ != nullptr) _impl_.poll_frequency_->Clear();
@@ -6196,12 +7457,12 @@ void XtcpConfig::clear_s3_upload_backoff_cap() {
 void XtcpConfig::clear_asn_refresh_interval() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.asn_refresh_interval_ != nullptr) _impl_.asn_refresh_interval_->Clear();
-  ClearHasBit(_impl_._has_bits_[1], 0x00008000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00040000U);
 }
 void XtcpConfig::clear_locality_refresh_interval() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.locality_refresh_interval_ != nullptr) _impl_.locality_refresh_interval_->Clear();
-  ClearHasBit(_impl_._has_bits_[1], 0x00010000U);
+  ClearHasBit(_impl_._has_bits_[1], 0x00080000U);
 }
 XtcpConfig::XtcpConfig(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -6295,10 +7556,19 @@ XtcpConfig::XtcpConfig(
   _impl_.s3_upload_backoff_cap_ = (CheckHasBit(cached_has_bits, 0x00004000U))
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.s3_upload_backoff_cap_)
                 : nullptr;
-  _impl_.asn_refresh_interval_ = (CheckHasBit(cached_has_bits, 0x00008000U))
+  _impl_.listener_auth_ = (CheckHasBit(cached_has_bits, 0x00008000U))
+                ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.listener_auth_)
+                : nullptr;
+  _impl_.prometheus_listener_ = (CheckHasBit(cached_has_bits, 0x00010000U))
+                ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.prometheus_listener_)
+                : nullptr;
+  _impl_.grpc_listener_ = (CheckHasBit(cached_has_bits, 0x00020000U))
+                ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.grpc_listener_)
+                : nullptr;
+  _impl_.asn_refresh_interval_ = (CheckHasBit(cached_has_bits, 0x00040000U))
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.asn_refresh_interval_)
                 : nullptr;
-  _impl_.locality_refresh_interval_ = (CheckHasBit(cached_has_bits, 0x00010000U))
+  _impl_.locality_refresh_interval_ = (CheckHasBit(cached_has_bits, 0x00080000U))
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.locality_refresh_interval_)
                 : nullptr;
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
@@ -6404,6 +7674,9 @@ inline void XtcpConfig::SharedDtor(MessageLite& self) {
   delete this_._impl_.kafka_produce_timeout_;
   delete this_._impl_.s3_flush_interval_;
   delete this_._impl_.s3_upload_backoff_cap_;
+  delete this_._impl_.listener_auth_;
+  delete this_._impl_.prometheus_listener_;
+  delete this_._impl_.grpc_listener_;
   delete this_._impl_.asn_refresh_interval_;
   delete this_._impl_.locality_refresh_interval_;
   this_._impl_.~Impl_();
@@ -6568,29 +7841,48 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
       _impl_.s3_upload_backoff_cap_->Clear();
     }
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      ABSL_DCHECK(_impl_.listener_auth_ != nullptr);
+      _impl_.listener_auth_->Clear();
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x000f0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      ABSL_DCHECK(_impl_.prometheus_listener_ != nullptr);
+      _impl_.prometheus_listener_->Clear();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      ABSL_DCHECK(_impl_.grpc_listener_ != nullptr);
+      _impl_.grpc_listener_->Clear();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       ABSL_DCHECK(_impl_.asn_refresh_interval_ != nullptr);
       _impl_.asn_refresh_interval_->Clear();
     }
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      ABSL_DCHECK(_impl_.locality_refresh_interval_ != nullptr);
+      _impl_.locality_refresh_interval_->Clear();
+    }
   }
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-    ABSL_DCHECK(_impl_.locality_refresh_interval_ != nullptr);
-    _impl_.locality_refresh_interval_->Clear();
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00fe0000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00f00000U)) {
     ::memset(&_impl_.write_files_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.s3_flush_jitter_pct_) -
-        reinterpret_cast<char*>(&_impl_.write_files_)) + sizeof(_impl_.s3_flush_jitter_pct_));
+        reinterpret_cast<char*>(&_impl_.envelope_flush_threshold_bytes_) -
+        reinterpret_cast<char*>(&_impl_.write_files_)) + sizeof(_impl_.envelope_flush_threshold_bytes_));
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
-    ::memset(&_impl_.s3_flush_threshold_jitter_pct_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.resolve_container_id_) -
-        reinterpret_cast<char*>(&_impl_.s3_flush_threshold_jitter_pct_)) + sizeof(_impl_.resolve_container_id_));
+    ::memset(&_impl_.envelope_flush_threshold_rows_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.grpc_port_) -
+        reinterpret_cast<char*>(&_impl_.envelope_flush_threshold_rows_)) + sizeof(_impl_.grpc_port_));
   }
   cached_has_bits = _impl_._has_bits_[2];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
-    ::memset(&_impl_.enrich_container_enable_, 0, static_cast<::size_t>(
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    ::memset(&_impl_.pyroscope_sample_hz_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.populate_nsid_) -
+        reinterpret_cast<char*>(&_impl_.pyroscope_sample_hz_)) + sizeof(_impl_.populate_nsid_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    ::memset(&_impl_.enrich_asn_enable_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.enrich_locality_enable_) -
-        reinterpret_cast<char*>(&_impl_.enrich_container_enable_)) + sizeof(_impl_.enrich_locality_enable_));
+        reinterpret_cast<char*>(&_impl_.enrich_asn_enable_)) + sizeof(_impl_.enrich_locality_enable_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -6764,7 +8056,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[1];
   // uint32 write_files = 50 [json_name = "writeFiles", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
     if (this_._internal_write_files() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6785,7 +8077,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[1];
   // uint32 dest_write_files = 52 [json_name = "destWriteFiles", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
     if (this_._internal_dest_write_files() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6794,7 +8086,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
     if (this_._internal_debug_level() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6845,7 +8137,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[1];
   // uint32 envelope_flush_threshold_bytes = 64 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
     if (this_._internal_envelope_flush_threshold_bytes() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6854,7 +8146,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 envelope_flush_threshold_rows = 65 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
     if (this_._internal_envelope_flush_threshold_rows() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6975,7 +8267,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[1];
   // uint32 s3_parquet_flush_threshold_bytes = 110 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
     if (this_._internal_s3_parquet_flush_threshold_bytes() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -6991,7 +8283,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 s3_flush_jitter_pct = 112 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
     if (this_._internal_s3_flush_jitter_pct() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7000,7 +8292,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 s3_flush_threshold_jitter_pct = 113 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
     if (this_._internal_s3_flush_threshold_jitter_pct() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7009,7 +8301,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 s3_upload_max_attempts = 114 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
     if (this_._internal_s3_upload_max_attempts() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7075,7 +8367,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 ipv4_ttl = 150 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
     if (this_._internal_ipv4_ttl() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7084,7 +8376,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 ipv6_hop_limit = 151 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
     if (this_._internal_ipv6_hop_limit() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7092,13 +8384,34 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
     }
   }
 
+  // .xtcp_config.v1.ListenerAuth listener_auth = 152 [json_name = "listenerAuth", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        152, *this_._impl_.listener_auth_, this_._impl_.listener_auth_->GetCachedSize(), target,
+        stream);
+  }
+
+  // .xtcp_config.v1.ListenerEndpoint prometheus_listener = 153 [json_name = "prometheusListener", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        153, *this_._impl_.prometheus_listener_, this_._impl_.prometheus_listener_->GetCachedSize(), target,
+        stream);
+  }
+
   // uint32 grpc_port = 160 [json_name = "grpcPort", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
     if (this_._internal_grpc_port() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
           160, this_._internal_grpc_port(), target);
     }
+  }
+
+  // .xtcp_config.v1.ListenerEndpoint grpc_listener = 161 [json_name = "grpcListener", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        161, *this_._impl_.grpc_listener_, this_._impl_.grpc_listener_->GetCachedSize(), target,
+        stream);
   }
 
   // string pyroscope_url = 170 [json_name = "pyroscopeUrl", (.buf.validate.field) = {
@@ -7122,9 +8435,9 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
     }
   }
 
-  cached_has_bits = this_._impl_._has_bits_[1];
+  cached_has_bits = this_._impl_._has_bits_[2];
   // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     if (this_._internal_pyroscope_sample_hz() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7133,7 +8446,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     if (this_._internal_pyroscope_upload_interval_sec() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7142,7 +8455,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (this_._internal_resolve_container_id() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7150,9 +8463,8 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
     }
   }
 
-  cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
     if (this_._internal_enrich_container_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7173,7 +8485,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     if (this_._internal_enrich_lldp_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7204,7 +8516,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_enrich_nic_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7213,7 +8525,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_uplink_count() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7234,7 +8546,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool populate_nsid = 230 [json_name = "populateNsid"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     if (this_._internal_populate_nsid() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7243,7 +8555,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (this_._internal_enrich_asn_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7263,7 +8575,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         242, *this_._impl_.asn_refresh_interval_, this_._impl_.asn_refresh_interval_->GetCachedSize(), target,
         stream);
@@ -7271,7 +8583,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (this_._internal_enrich_locality_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -7281,7 +8593,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[1];
   // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         246, *this_._impl_.locality_refresh_interval_, this_._impl_.locality_refresh_interval_->GetCachedSize(), target,
         stream);
@@ -7638,166 +8950,183 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
       total_size += 2 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.s3_upload_backoff_cap_);
     }
-    // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
+    // .xtcp_config.v1.ListenerAuth listener_auth = 152 [json_name = "listenerAuth", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       total_size += 2 +
-                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.asn_refresh_interval_);
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.listener_auth_);
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
+    // .xtcp_config.v1.ListenerEndpoint prometheus_listener = 153 [json_name = "prometheusListener", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      total_size += 2 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.prometheus_listener_);
+    }
+    // .xtcp_config.v1.ListenerEndpoint grpc_listener = 161 [json_name = "grpcListener", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      total_size += 2 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.grpc_listener_);
+    }
+    // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      total_size += 2 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.asn_refresh_interval_);
+    }
+    // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       total_size += 2 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.locality_refresh_interval_);
     }
     // uint32 write_files = 50 [json_name = "writeFiles", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (this_._internal_write_files() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_write_files());
       }
     }
     // uint32 dest_write_files = 52 [json_name = "destWriteFiles", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (this_._internal_dest_write_files() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_dest_write_files());
       }
     }
     // uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (this_._internal_debug_level() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_debug_level());
       }
     }
     // uint32 envelope_flush_threshold_bytes = 64 [json_name = "envelopeFlushThresholdBytes", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_envelope_flush_threshold_bytes() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_envelope_flush_threshold_bytes());
       }
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     // uint32 envelope_flush_threshold_rows = 65 [json_name = "envelopeFlushThresholdRows", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_envelope_flush_threshold_rows() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_envelope_flush_threshold_rows());
       }
     }
     // uint32 s3_parquet_flush_threshold_bytes = 110 [json_name = "s3ParquetFlushThresholdBytes", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       if (this_._internal_s3_parquet_flush_threshold_bytes() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_s3_parquet_flush_threshold_bytes());
       }
     }
     // uint32 s3_flush_jitter_pct = 112 [json_name = "s3FlushJitterPct", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (this_._internal_s3_flush_jitter_pct() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_s3_flush_jitter_pct());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     // uint32 s3_flush_threshold_jitter_pct = 113 [json_name = "s3FlushThresholdJitterPct", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_s3_flush_threshold_jitter_pct() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_s3_flush_threshold_jitter_pct());
       }
     }
     // uint32 s3_upload_max_attempts = 114 [json_name = "s3UploadMaxAttempts", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
       if (this_._internal_s3_upload_max_attempts() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_s3_upload_max_attempts());
       }
     }
     // uint32 ipv4_ttl = 150 [json_name = "ipv4Ttl", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
       if (this_._internal_ipv4_ttl() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_ipv4_ttl());
       }
     }
     // uint32 ipv6_hop_limit = 151 [json_name = "ipv6HopLimit", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
       if (this_._internal_ipv6_hop_limit() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_ipv6_hop_limit());
       }
     }
     // uint32 grpc_port = 160 [json_name = "grpcPort", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (this_._internal_grpc_port() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_grpc_port());
       }
     }
+  }
+  cached_has_bits = this_._impl_._has_bits_[2];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_pyroscope_sample_hz() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_pyroscope_sample_hz());
       }
     }
     // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (this_._internal_pyroscope_upload_interval_sec() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_pyroscope_upload_interval_sec());
       }
     }
     // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_resolve_container_id() != 0) {
         total_size += 3;
       }
     }
-  }
-  cached_has_bits = this_._impl_._has_bits_[2];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (this_._internal_enrich_container_enable() != 0) {
         total_size += 3;
       }
     }
     // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_enrich_lldp_enable() != 0) {
         total_size += 3;
       }
     }
     // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_enrich_nic_enable() != 0) {
         total_size += 3;
       }
     }
     // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_uplink_count() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_uplink_count());
       }
     }
     // bool populate_nsid = 230 [json_name = "populateNsid"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_populate_nsid() != 0) {
         total_size += 3;
       }
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
     // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_enrich_asn_enable() != 0) {
         total_size += 3;
       }
     }
     // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_enrich_locality_enable() != 0) {
         total_size += 3;
       }
@@ -8190,6 +9519,32 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      ABSL_DCHECK(from._impl_.listener_auth_ != nullptr);
+      if (_this->_impl_.listener_auth_ == nullptr) {
+        _this->_impl_.listener_auth_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.listener_auth_);
+      } else {
+        _this->_impl_.listener_auth_->MergeFrom(*from._impl_.listener_auth_);
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      ABSL_DCHECK(from._impl_.prometheus_listener_ != nullptr);
+      if (_this->_impl_.prometheus_listener_ == nullptr) {
+        _this->_impl_.prometheus_listener_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.prometheus_listener_);
+      } else {
+        _this->_impl_.prometheus_listener_->MergeFrom(*from._impl_.prometheus_listener_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      ABSL_DCHECK(from._impl_.grpc_listener_ != nullptr);
+      if (_this->_impl_.grpc_listener_ == nullptr) {
+        _this->_impl_.grpc_listener_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.grpc_listener_);
+      } else {
+        _this->_impl_.grpc_listener_->MergeFrom(*from._impl_.grpc_listener_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       ABSL_DCHECK(from._impl_.asn_refresh_interval_ != nullptr);
       if (_this->_impl_.asn_refresh_interval_ == nullptr) {
         _this->_impl_.asn_refresh_interval_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.asn_refresh_interval_);
@@ -8197,9 +9552,7 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.asn_refresh_interval_->MergeFrom(*from._impl_.asn_refresh_interval_);
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       ABSL_DCHECK(from._impl_.locality_refresh_interval_ != nullptr);
       if (_this->_impl_.locality_refresh_interval_ == nullptr) {
         _this->_impl_.locality_refresh_interval_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.locality_refresh_interval_);
@@ -8207,117 +9560,119 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.locality_refresh_interval_->MergeFrom(*from._impl_.locality_refresh_interval_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (from._internal_write_files() != 0) {
         _this->_impl_.write_files_ = from._impl_.write_files_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
       if (from._internal_dest_write_files() != 0) {
         _this->_impl_.dest_write_files_ = from._impl_.dest_write_files_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (from._internal_debug_level() != 0) {
         _this->_impl_.debug_level_ = from._impl_.debug_level_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (from._internal_envelope_flush_threshold_bytes() != 0) {
         _this->_impl_.envelope_flush_threshold_bytes_ = from._impl_.envelope_flush_threshold_bytes_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-      if (from._internal_envelope_flush_threshold_rows() != 0) {
-        _this->_impl_.envelope_flush_threshold_rows_ = from._impl_.envelope_flush_threshold_rows_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
-      if (from._internal_s3_parquet_flush_threshold_bytes() != 0) {
-        _this->_impl_.s3_parquet_flush_threshold_bytes_ = from._impl_.s3_parquet_flush_threshold_bytes_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
-      if (from._internal_s3_flush_jitter_pct() != 0) {
-        _this->_impl_.s3_flush_jitter_pct_ = from._impl_.s3_flush_jitter_pct_;
       }
     }
   }
   if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (from._internal_envelope_flush_threshold_rows() != 0) {
+        _this->_impl_.envelope_flush_threshold_rows_ = from._impl_.envelope_flush_threshold_rows_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (from._internal_s3_parquet_flush_threshold_bytes() != 0) {
+        _this->_impl_.s3_parquet_flush_threshold_bytes_ = from._impl_.s3_parquet_flush_threshold_bytes_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (from._internal_s3_flush_jitter_pct() != 0) {
+        _this->_impl_.s3_flush_jitter_pct_ = from._impl_.s3_flush_jitter_pct_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (from._internal_s3_flush_threshold_jitter_pct() != 0) {
         _this->_impl_.s3_flush_threshold_jitter_pct_ = from._impl_.s3_flush_threshold_jitter_pct_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
       if (from._internal_s3_upload_max_attempts() != 0) {
         _this->_impl_.s3_upload_max_attempts_ = from._impl_.s3_upload_max_attempts_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
       if (from._internal_ipv4_ttl() != 0) {
         _this->_impl_.ipv4_ttl_ = from._impl_.ipv4_ttl_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
       if (from._internal_ipv6_hop_limit() != 0) {
         _this->_impl_.ipv6_hop_limit_ = from._impl_.ipv6_hop_limit_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x10000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (from._internal_grpc_port() != 0) {
         _this->_impl_.grpc_port_ = from._impl_.grpc_port_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+  }
+  cached_has_bits = from._impl_._has_bits_[2];
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (from._internal_pyroscope_sample_hz() != 0) {
         _this->_impl_.pyroscope_sample_hz_ = from._impl_.pyroscope_sample_hz_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (from._internal_pyroscope_upload_interval_sec() != 0) {
         _this->_impl_.pyroscope_upload_interval_sec_ = from._impl_.pyroscope_upload_interval_sec_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (from._internal_resolve_container_id() != 0) {
         _this->_impl_.resolve_container_id_ = from._impl_.resolve_container_id_;
       }
     }
-  }
-  cached_has_bits = from._impl_._has_bits_[2];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       if (from._internal_enrich_container_enable() != 0) {
         _this->_impl_.enrich_container_enable_ = from._impl_.enrich_container_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (from._internal_enrich_lldp_enable() != 0) {
         _this->_impl_.enrich_lldp_enable_ = from._impl_.enrich_lldp_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (from._internal_enrich_nic_enable() != 0) {
         _this->_impl_.enrich_nic_enable_ = from._impl_.enrich_nic_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_uplink_count() != 0) {
         _this->_impl_.uplink_count_ = from._impl_.uplink_count_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (from._internal_populate_nsid() != 0) {
         _this->_impl_.populate_nsid_ = from._impl_.populate_nsid_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (from._internal_enrich_asn_enable() != 0) {
         _this->_impl_.enrich_asn_enable_ = from._impl_.enrich_asn_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (from._internal_enrich_locality_enable() != 0) {
         _this->_impl_.enrich_locality_enable_ = from._impl_.enrich_locality_enable_;
       }

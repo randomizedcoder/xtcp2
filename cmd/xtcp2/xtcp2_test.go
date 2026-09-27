@@ -348,6 +348,59 @@ func TestEnvOverrideLabeling(t *testing.T) {
 	}
 }
 
+func TestEnvOverrideListeners(t *testing.T) {
+	c := &xtcp_config.XtcpConfig{}
+	t.Setenv("GRPC_LISTEN_NETWORK", "unix")
+	t.Setenv("GRPC_LISTEN_ADDRESS", "/run/xtcp2/grpc.sock")
+	t.Setenv("GRPC_UNIX_SOCKET_MODE", "432")
+	t.Setenv("GRPC_UNLINK_STALE_UNIX_SOCKET", "false")
+	t.Setenv("PROM_LISTEN_NETWORK", "unix")
+	t.Setenv("PROM_LISTEN", "/run/xtcp2/prom.sock")
+	t.Setenv("PROM_UNIX_SOCKET_MODE", "384")
+	t.Setenv("PROM_UNLINK_STALE_UNIX_SOCKET", "true")
+
+	envOverrideListeners(c, 0)
+
+	tests := []struct {
+		description     string
+		got             *xtcp_config.ListenerEndpoint
+		wantAddress     string
+		wantMode        uint32
+		wantUnlink      bool
+		expectedOutcome string
+	}{
+		{
+			description:     "gRPC listener env creates a unix endpoint",
+			got:             c.GrpcListener,
+			wantAddress:     "/run/xtcp2/grpc.sock",
+			wantMode:        0o660,
+			wantUnlink:      false,
+			expectedOutcome: "gRPC config carries the UDS env settings",
+		},
+		{
+			description:     "Prometheus listener env creates a unix endpoint",
+			got:             c.PrometheusListener,
+			wantAddress:     "/run/xtcp2/prom.sock",
+			wantMode:        0o600,
+			wantUnlink:      true,
+			expectedOutcome: "Prometheus config carries the UDS env settings",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			if tt.got == nil {
+				t.Fatalf("expected outcome %q: endpoint is nil", tt.expectedOutcome)
+			}
+			if tt.got.Network != xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX ||
+				tt.got.Address != tt.wantAddress ||
+				tt.got.UnixSocketMode != tt.wantMode ||
+				tt.got.UnlinkStaleUnixSocket != tt.wantUnlink {
+				t.Fatalf("expected outcome %q: got=%+v", tt.expectedOutcome, tt.got)
+			}
+		})
+	}
+}
+
 // environmentOverrideConfig wires the six helpers above together. One
 // integrated test verifies every category gets dispatched.
 func TestEnvironmentOverrideConfig(t *testing.T) {
@@ -448,7 +501,7 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer notReady.Close()
-	if rc := runHealthcheck(context.Background(), ":"+portOf(notReady.URL)); rc != 1 {
+	if rc := runHealthcheck(context.Background(), "", ":"+portOf(notReady.URL)); rc != 1 {
 		t.Errorf("not-ready: rc=%d, want 1", rc)
 	}
 
@@ -456,13 +509,40 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ready.Close()
-	if rc := runHealthcheck(context.Background(), ":"+portOf(ready.URL)); rc != 0 {
+	if rc := runHealthcheck(context.Background(), "", ":"+portOf(ready.URL)); rc != 0 {
 		t.Errorf("ready: rc=%d, want 0", rc)
 	}
 
 	// Nothing listening -> unreachable -> 1.
-	if rc := runHealthcheck(context.Background(), ":1"); rc != 1 {
+	if rc := runHealthcheck(context.Background(), "", ":1"); rc != 1 {
 		t.Errorf("unreachable: rc=%d, want 1", rc)
+	}
+}
+
+func TestRunHealthcheckUnix(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "prom.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatalf("net.Listen(unix): %v", err)
+	}
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/readyz" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}),
+		ReadHeaderTimeout: time.Second,
+	}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	if rc := runHealthcheck(context.Background(), "unix", sock); rc != 0 {
+		t.Errorf("unix ready: rc=%d, want 0", rc)
+	}
+	if rc := runHealthcheck(context.Background(), "unix", filepath.Join(t.TempDir(), "missing.sock")); rc != 1 {
+		t.Errorf("unix missing: rc=%d, want 1", rc)
 	}
 }
 
@@ -474,7 +554,7 @@ func TestServePromHandler_bindError(t *testing.T) {
 	}
 	t.Cleanup(func() { fatalf = prev })
 
-	servePromHandler(http.NewServeMux(), "invalid-host:-1", 0, 0)
+	servePromHandler(http.NewServeMux(), nil, "invalid-host:-1", 0, 0)
 	if !strings.Contains(captured, "prometheus error") {
 		t.Errorf("fatalf not invoked; got %q", captured)
 	}
@@ -491,7 +571,7 @@ func TestRunMain_version(t *testing.T) {
 
 	// Stub the prom handler starter so it doesn't bind a port.
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
@@ -511,7 +591,7 @@ func TestRunMain_conf(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	captureLog(t, func() {
@@ -530,7 +610,7 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	prevDaemon := daemonRunner
@@ -559,7 +639,7 @@ func TestInitPromHandler_smoke(t *testing.T) {
 	fatalf = func(string, ...any) {} // swallow
 	t.Cleanup(func() { fatalf = prevFatalf })
 
-	initPromHandler("/metrics", ":0", 0, 0)
+	initPromHandler("/metrics", nil, ":0", 0, 0)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -799,8 +879,24 @@ func TestPrintFlags(t *testing.T) {
 	f.label = &s
 	f.tag = &s
 	f.grpcPort = &n
+	f.enrichContainer = &b
+	f.dockerSocket = &s
+	f.enrichLldp = &b
+	f.lldpdSocket = &s
+	f.lldpdVersionHint = &s
+	f.enrichNic = &b
+	f.uplinkCount = &n
+	f.uplinkInterfaces = &s
+	f.populateNsid = &b
+	f.grpcListenNetwork = &s
+	f.grpcListenAddress = &s
+	f.grpcUnixSocketMode = &n
+	f.grpcUnlinkStaleUDS = &b
 	f.deserializers = &s
 	f.promListen = &s
+	f.promListenNetwork = &s
+	f.promUnixSocketMode = &n
+	f.promUnlinkStaleUDS = &b
 	f.promPath = &s
 	f.goMaxProcs = &n
 	f.profileMode = &s
@@ -871,9 +967,15 @@ func TestBuildConfig(t *testing.T) {
 	label := "lbl"
 	tag := "host=a"
 	gp := uint(8888)
+	grpcNetwork := "unix"
+	grpcAddress := "/tmp/xtcp2-grpc.sock"
+	promNetwork := "unix"
+	promAddress := "/tmp/xtcp2-prom.sock"
+	socketMode := uint(0o660)
+	unlinkStale := true
 	ttl := uint(3)
 	hop := uint(9)
-	pl := ":9088"
+	pl := promAddress
 	pp := "/metrics"
 	gmp := uint(8)
 	pm := ""
@@ -892,6 +994,8 @@ func TestBuildConfig(t *testing.T) {
 	subc := 90 * time.Second
 	rf := 3 * time.Minute
 	rbp := false
+	uplinkCount := uint(2)
+	uplinkInterfaces := "eth0,eth1"
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -925,15 +1029,18 @@ func TestBuildConfig(t *testing.T) {
 		dest:                      &dst, destWriteFiles: &dwf,
 		topic: &topic, xtcpProtoFile: &xp, kafkaSchemaUrl: &ksu,
 		produceTimeout: &pto, label: &label, tag: &tag, grpcPort: &gp,
+		enrichContainer: &iu, dockerSocket: &xp, enrichLldp: &iu,
+		lldpdSocket: &xp, lldpdVersionHint: &label, enrichNic: &iu,
+		uplinkCount: &uplinkCount, uplinkInterfaces: &uplinkInterfaces, populateNsid: &iu,
+		grpcListenNetwork: &grpcNetwork, grpcListenAddress: &grpcAddress,
+		grpcUnixSocketMode: &socketMode, grpcUnlinkStaleUDS: &unlinkStale,
 		ipv4Ttl: &ttl, ipv6HopLimit: &hop,
-		deserializers: &ds, promListen: &pl, promPath: &pp, goMaxProcs: &gmp,
+		deserializers: &ds, promListen: &pl, promListenNetwork: &promNetwork,
+		promUnixSocketMode: &socketMode, promUnlinkStaleUDS: &unlinkStale,
+		promPath: &pp, goMaxProcs: &gmp,
 		profileMode: &pm, v: &v, conf: &conf, d: &d,
 		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
-		enrichContainer: &iu, dockerSocket: &mar,
-		enrichLldp: &iu, lldpdSocket: &mar, lldpdVersionHint: &mar,
-		enrichNic: &iu, uplinkCount: &wf, uplinkInterfaces: &mar,
-		populateNsid: &iu,
-		enrichAsn:    &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
+		enrichAsn: &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
 		enrichLocality: &iu, localityRefreshInterval: &rf,
 	}
 	des := getDeserializers(*f.deserializers)
@@ -985,6 +1092,20 @@ func TestBuildConfig(t *testing.T) {
 	}
 	if c.EnabledDeserializers == nil || !c.EnabledDeserializers.Enabled["info"] {
 		t.Errorf("EnabledDeserializers should include info: %+v", c.EnabledDeserializers)
+	}
+	if c.GrpcListener == nil ||
+		c.GrpcListener.Network != xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX ||
+		c.GrpcListener.Address != grpcAddress ||
+		c.GrpcListener.UnixSocketMode != uint32(socketMode) ||
+		!c.GrpcListener.UnlinkStaleUnixSocket {
+		t.Errorf("GrpcListener mismatch: %+v", c.GrpcListener)
+	}
+	if c.PrometheusListener == nil ||
+		c.PrometheusListener.Network != xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX ||
+		c.PrometheusListener.Address != promAddress ||
+		c.PrometheusListener.UnixSocketMode != uint32(socketMode) ||
+		!c.PrometheusListener.UnlinkStaleUnixSocket {
+		t.Errorf("PrometheusListener mismatch: %+v", c.PrometheusListener)
 	}
 }
 
@@ -1049,6 +1170,56 @@ func TestConfigValidation_bounds(t *testing.T) {
 		{"negative s3_flush_interval<0", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(-time.Second) }, true},
 		{"positive s3_upload_backoff_cap=90s", func(c *xtcp_config.XtcpConfig) { c.S3UploadBackoffCap = durationpb.New(90 * time.Second) }, false},
 		{"negative s3_upload_backoff_cap<0", func(c *xtcp_config.XtcpConfig) { c.S3UploadBackoffCap = durationpb.New(-time.Second) }, true},
+		// listener endpoint: mode is permission bits only and network enum must be defined.
+		{"positive grpc_listener unix mode 0600", func(c *xtcp_config.XtcpConfig) {
+			c.GrpcListener = &xtcp_config.ListenerEndpoint{
+				Network:        xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX,
+				Address:        "/run/xtcp2/grpc.sock",
+				UnixSocketMode: 0o600,
+			}
+		}, false},
+		{"boundary grpc_listener unix mode 0777", func(c *xtcp_config.XtcpConfig) {
+			c.GrpcListener = &xtcp_config.ListenerEndpoint{
+				Network:        xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX,
+				Address:        "/run/xtcp2/grpc.sock",
+				UnixSocketMode: 0o777,
+			}
+		}, false},
+		{"negative grpc_listener unix mode 01000", func(c *xtcp_config.XtcpConfig) {
+			c.GrpcListener = &xtcp_config.ListenerEndpoint{
+				Network:        xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX,
+				Address:        "/run/xtcp2/grpc.sock",
+				UnixSocketMode: 0o1000,
+			}
+		}, true},
+		{"negative grpc_listener undefined network", func(c *xtcp_config.XtcpConfig) {
+			c.GrpcListener = &xtcp_config.ListenerEndpoint{
+				Network: xtcp_config.ListenerNetwork(99),
+				Address: "/run/xtcp2/grpc.sock",
+			}
+		}, true},
+		// listener auth: schema only in this slice, but validate boundaries now.
+		{"positive listener_auth disabled", func(c *xtcp_config.XtcpConfig) {
+			c.ListenerAuth = &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED}
+		}, false},
+		{"boundary listener_auth skew 5", func(c *xtcp_config.XtcpConfig) {
+			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: 5}
+		}, false},
+		{"negative listener_auth skew 6", func(c *xtcp_config.XtcpConfig) {
+			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: 6}
+		}, true},
+		{"corner listener_auth equal jitter bounds", func(c *xtcp_config.XtcpConfig) {
+			c.ListenerAuth = &xtcp_config.ListenerAuth{
+				FailureJitterMin: durationpb.New(50 * time.Millisecond),
+				FailureJitterMax: durationpb.New(50 * time.Millisecond),
+			}
+		}, false},
+		{"negative listener_auth jitter max below min", func(c *xtcp_config.XtcpConfig) {
+			c.ListenerAuth = &xtcp_config.ListenerAuth{
+				FailureJitterMin: durationpb.New(200 * time.Millisecond),
+				FailureJitterMax: durationpb.New(20 * time.Millisecond),
+			}
+		}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

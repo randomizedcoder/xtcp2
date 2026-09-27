@@ -297,6 +297,79 @@
         }
       }
     },
+    "v1ListenerAuth": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/definitions/v1ListenerAuthMode"
+        },
+        "rawToken": {
+          "type": "string"
+        },
+        "hmacSharedKey": {
+          "type": "string"
+        },
+        "signedTokenSkewMinutes": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "failureJitterMin": {
+          "type": "string"
+        },
+        "failureJitterMax": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListenerAuthMode": {
+      "type": "string",
+      "enum": [
+        "LISTENER_AUTH_MODE_UNSPECIFIED",
+        "LISTENER_AUTH_MODE_DISABLED",
+        "LISTENER_AUTH_MODE_RAW_TOKEN",
+        "LISTENER_AUTH_MODE_HMAC_UTC_MINUTE"
+      ],
+      "default": "LISTENER_AUTH_MODE_UNSPECIFIED"
+    },
+    "v1ListenerEndpoint": {
+      "type": "object",
+      "properties": {
+        "network": {
+          "$ref": "#/definitions/v1ListenerNetwork"
+        },
+        "address": {
+          "type": "string"
+        },
+        "unixSocketMode": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "unlinkStaleUnixSocket": {
+          "type": "boolean"
+        },
+        "maxConnections": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "acceptRatePerSecond": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "acceptBurst": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "v1ListenerNetwork": {
+      "type": "string",
+      "enum": [
+        "LISTENER_NETWORK_UNSPECIFIED",
+        "LISTENER_NETWORK_TCP",
+        "LISTENER_NETWORK_UNIX"
+      ],
+      "default": "LISTENER_NETWORK_UNSPECIFIED"
+    },
     "v1SetEnvelopeFlushRequest": {
       "type": "object",
       "properties": {
@@ -643,10 +716,22 @@
           "format": "int64",
           "description": "Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel\ndefault. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT."
         },
+        "listenerAuth": {
+          "$ref": "#/definitions/v1ListenerAuth",
+          "description": "Shared authentication policy for xtcp2's own listener surfaces. Auth is\nwired in a follow-up hardening slice; these fields are present now so\nconfig JSON and generated clients stabilize with the listener endpoint\nschema. Secrets are redacted from ConfigService.Get."
+        },
+        "prometheusListener": {
+          "$ref": "#/definitions/v1ListenerEndpoint",
+          "description": "Prometheus / pprof / health listener endpoint. When unset, the daemon\nkeeps the legacy TCP behavior from -promListen / PROM_LISTEN."
+        },
         "grpcPort": {
           "type": "integer",
           "format": "int64",
           "title": "GRPC listening port"
+        },
+        "grpcListener": {
+          "$ref": "#/definitions/v1ListenerEndpoint",
+          "description": "gRPC listener endpoint. When unset, the daemon keeps the legacy TCP\nbehavior derived from grpc_port."
         },
         "pyroscopeUrl": {
           "type": "string",
