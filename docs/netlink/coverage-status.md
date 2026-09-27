@@ -3,7 +3,8 @@
 ## Where we are
 
 **Phase 1 partially landed. Phase 0 re-scoped: 0a–0e landed; the original four
-Phase 0 items still outstanding.**
+Phase 0 items still outstanding. Separately, Step 0 of the goip parity work has
+landed — see [`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker).**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -110,8 +111,9 @@ something joined to the multicast group.
 
 ## What has landed
 
-Three commits on `feat/netlink-events-and-coverage-roadmap`, branched from
-`feat/enrichment-hardening-proto-v2`.
+The first three entries are from `feat/netlink-events-and-coverage-roadmap`
+(branched from `feat/enrichment-hardening-proto-v2`, merged to `main` as
+`fa5a481` via PR #128). Later entries name their own branch.
 
 ### `50f05df` — rtnetlink event parsing and the fixture generator
 
@@ -145,6 +147,43 @@ sequence on multicast copies of a change the caller itself made.
 `writeShellApplication` audit and the shared lint-tier derivations
 (`nix/lint-tiers.nix`), so `nix/devshell.nix` and the flake cannot drift. Not
 netlink work; it is on the branch because it was in the same working tree.
+
+### `164dfe3` — `pkg/nlparity`, the parity comparator's tolerant walker
+
+On `feat/nlparity-tolerant-walker`. Step 0 of the **goip** plan, which is a
+different axis from the phase table above: rather than adding decoders family
+by family, it clones `ip` and diffs the netlink traffic against the real tool,
+so a coverage gap fails a build instead of going unnoticed. Nothing in the
+phase table changes; this is new scaffolding the later phases can assert
+against.
+
+| Component | File | Notes |
+|---|---|---|
+| Tolerant walker | `pkg/nlparity/nlparity_walk.go` | `WalkDatagram` classifies nothing and terminates on nothing. `TailBytes`/`TailAllZero`/`TailFlagged` are informational, never gated — the oversend is a `char buf[128]`/`buf[256]` in someone else's source file. |
+| Unmasked attributes | `pkg/nlparity/nlparity_attrs.go` | `Attr.Type` keeps `NLA_F_NESTED`/`NLA_F_NET_BYTEORDER`, unlike `walkRTAttrs`, because a missing nest flag is itself a divergence. `FamilyHdrLen` maps message type to its fixed header. |
+| Capture census | `pkg/nlparity/nlparity_capture.go` | Reuses `xtcpnl.ParseNetlinkPcap`, and counts every exclusion (`SkippedOtherFamily`, `SkippedShortRecord`, `SkippedBadDatagram`) instead of dropping it. |
+| The golden expectation | `pkg/nlparity/nlparity_golden_test.go` | What `ip link show` actually puts on the wire, plus the reply-side assertion that `SKIP_STATS` suppresses `IFLA_STATS`/`IFLA_STATS64`. |
+
+**Why this needed its own walker, not `walkNlMsgs`.** All four of that
+function's client assumptions are wrong for parity: it filters on the seq it
+sent (a replay has none, and iproute2's `seq = time(NULL)` collides across
+sockets); a short trailing message is `ErrBadMsgLen` (that is the normal case
+for three of the four dump commands); it masks `NLA_F_NESTED`; and it stops at
+`NLMSG_DONE`. Each is spelled out in the package doc comment.
+
+**The measured fact this pins.** `ip link show` sends exactly 40 bytes —
+`RTM_GETLINK`, flags `0x0301`, `ifi_family = AF_PACKET`, one attribute
+`IFLA_EXT_MASK = RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS` (`0x09`), no
+oversend. `SKIP_STATS` is why `IFLA_STATS` and `IFLA_STATS64` are absent from
+every link reply in the corpus, which is what makes reply comparison tractable
+at all — so the request encoder cannot be deferred. There is no version skew
+to design around: `filter.vfinfo = 1` is unconditional at
+`ip/ipaddress.c:2153`, so `0x09` is what both iproute2 7.1.0 and 7.2.0 emit.
+
+Note for the next new package: `nix build .#checks.x86_64-linux.test-go-race`
+was **vacuously green** on the first run, because flakes only see git-known
+files and `pkg/nlparity/` was untracked. It never appeared in the check's
+output. `git add -N <dir>` is enough to make it visible without committing.
 
 ## Phase exit criteria
 
