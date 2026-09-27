@@ -29,8 +29,37 @@ surface the audit listed, which makes `pkg/xtcpnl` a general-purpose netlink
 
 One axis does **not** change, and it is what keeps this finite:
 
-> **Read-only.** Decode messages, and build dump requests to solicit them.
-> Never create, delete, or set. There is no write path in scope, now or later.
+> **Read-only.** `pkg/xtcpnl` emits only `RTM_GET*` message types, plus
+> `NLMSG_NOOP`. Never `RTM_NEW*`, `RTM_DEL*` or `RTM_SET*`, for any family.
+> Attributes on a `GET` or `DUMP` request *select and filter*; they do not
+> mutate. There is no write path in scope, now or later.
+
+That wording is narrower than the "never create, delete, or set" it replaces,
+and deliberately so: **it is a rule about message types, so it can be enforced
+in code.** `BuildRequest` (`xtcpnl_rtattr_encode.go`) returns
+`ErrNotAGetRequest` for anything outside the allowlist, and
+`TestBuildRequestRejectsEveryNamedWriteType` walks every `RTM_NEW*`, `RTM_DEL*`
+and `RTM_SET*` constant `golang.org/x/sys/unix` exports and asserts each one is
+refused. The invariant is a red test now, not a convention.
+
+Two consequences, because both are easy to get backwards:
+
+- **It has to be the message type, because the flags cannot express it.** The
+  kernel overloads the same bits by message type: `NLM_F_ROOT` and
+  `NLM_F_REPLACE` are both `0x100`, `NLM_F_MATCH` and `NLM_F_EXCL` are both
+  `0x200`, `NLM_F_ATOMIC` and `NLM_F_CREATE` are both `0x400`
+  (`include/uapi/linux/netlink.h:70-79`). So `NLM_F_DUMP` — `ROOT|MATCH`,
+  `0x300` — is *bit-identical* to `REPLACE|EXCL`. "Refuse write flags" is not
+  something that can be written down, and a `GET` cannot mutate whatever bits
+  are set. `TestNlmFlagsAreOverloaded` pins the aliasing.
+- **An attribute on a request is not a write.** `IFLA_EXT_MASK` chooses which
+  optional attributes the reply carries; `IFLA_IFNAME` chooses which row. That
+  is why an attribute *encoder* is compatible with a read-only library — and why
+  it is not optional: `ip link show` sends
+  `IFLA_EXT_MASK = RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS` (`0x09`), and
+  `SKIP_STATS` is why `IFLA_STATS` and `IFLA_STATS64` are absent from every
+  reply in the committed fixtures. A request built without it gets two extra
+  attributes back, both counters that change while the dump is being taken.
 
 That single constraint is the difference between this roadmap and porting
 `vishvananda/netlink`. The fork's bulk is configuration: its richest file,
@@ -183,6 +212,12 @@ thin wrappers over `WalkNlMsgs` and `WalkRTAttrs`, and the whole endianness and
 alignment layer is gone. `buildGetNsidRequest` stays local until there is a
 `BuildRequest`/`AttrBuilder` pair, because `RTM_GETNSID` is a single get and
 `BuildDumpRequest` forces `NLM_F_DUMP`; see `TODO-SOON.md` §15 for the detail.
+That pair has since landed (`xtcpnl_rtattr_encode.go`), and `BuildRequest`
+accepts `RTM_GETNSID` — it is residue 2, so the arithmetic allowlist takes it,
+and `FamilyHdrLen` returns `-1` for it so the 4-byte `rtgenmsg` passes through
+unchecked. `TestBuildRequest`'s last row builds exactly that request. Collapsing
+`buildGetNsidRequest` onto it is unblocked, and is scheduled with the rest of
+the per-family builders.
 For contrast, the fork keeps *one* wire layer (`nl/`) for all seven families.
 
 ### The decoder template
@@ -749,7 +784,9 @@ byte-identical timings that look like excellent stability and mean nothing.
 ## Out of scope
 
 - **Write support of any kind** — no create, delete, or set, for any family. This
-  is the constraint that makes the scope finite.
+  is the constraint that makes the scope finite. Since `BuildRequest` landed it
+  is enforced by a test rather than by review: `ErrNotAGetRequest` is returned
+  for every `RTM_NEW*`, `RTM_DEL*` and `RTM_SET*` type.
 - **The 344 per-qdisc `TCA_*` configuration nests**, by the read-only rule.
 - **Depending on, vendoring, or copying code from `vishvananda/netlink`.** It is
   the reference for *shape*; xtcp2 keeps its own parsers. (Apache-2.0, decodes by

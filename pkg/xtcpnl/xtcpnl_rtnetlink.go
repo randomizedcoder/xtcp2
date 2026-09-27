@@ -55,18 +55,18 @@ var (
 // (NLM_F_REQUEST|NLM_F_DUMP) followed by the caller's family header, which the
 // caller has already sized (ifinfomsg 16, ifaddrmsg 8, rtmsg 12) and populated
 // with at least its family byte. All three sizes are already 4-byte aligned.
+//
+// It is the attribute-free, infallible shorthand for BuildRequest, and shares
+// its layout code and its read-only allowlist. Because the signature has no
+// error to return, a msgType outside the allowlist yields **nil** rather than a
+// write request. That is not a silent failure: DumpRtnetlink rejects a nil
+// request with ErrShortRequest before sending anything. Callers wanting the
+// reason should use BuildRequest.
 func BuildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
-	total := NlMsgHdrSizeCst + len(familyHdr)
-	b := make([]byte, total)
-
-	binary.LittleEndian.PutUint32(b[0:4], uint32(total))                              // nlmsg_len
-	binary.LittleEndian.PutUint16(b[4:6], msgType)                                    // nlmsg_type
-	binary.LittleEndian.PutUint16(b[6:8], uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP)) // nlmsg_flags
-	binary.LittleEndian.PutUint32(b[8:12], seq)                                       // nlmsg_seq
-	// b[12:16] nlmsg_pid = 0 (kernel fills the peer pid)
-
-	copy(b[NlMsgHdrSizeCst:], familyHdr)
-	return b
+	if !IsBuildableRequestType(msgType) {
+		return nil
+	}
+	return layoutRequest(msgType, uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), seq, familyHdr, nil)
 }
 
 // BuildDumpLinkRequest builds an RTM_GETLINK dump request (ifinfomsg,

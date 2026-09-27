@@ -1122,6 +1122,15 @@ Two notes for whoever reads this next:
   reply. There is also no attribute encoder in `xtcpnl` yet, so the `NETNSA_FD`
   attribute has to be laid out by hand. Once a `BuildRequest` + `AttrBuilder`
   pair lands this becomes a three-line wrapper.
+
+  **That pair has since landed** (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`), and
+  `BuildRequest` accepts `RTM_GETNSID`: it is `RTM_BASE + 4k + 2`, so the
+  arithmetic GET allowlist takes it, and `FamilyHdrLen` returns `-1` for it, so
+  the 4-byte `rtgenmsg` passes through unchecked. `TestBuildRequest`'s last row
+  builds exactly this request. The collapse is unblocked but not done — it is
+  scheduled with the rest of the per-family request builders, so that
+  `buildGetNsidRequest` is deleted in the same commit that gives `xtcpnl` a
+  `BuildGetNsidRequest` to replace it with.
 - **The walk now checks `nlmsg_seq`,** which the hand-rolled loop did not. The
   socket is opened, used and closed inside one `Nsid` call, so this is strictly
   a tightening; `nsidSeqCst` is the value written and demanded back, and
