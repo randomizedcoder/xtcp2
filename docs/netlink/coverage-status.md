@@ -3,8 +3,12 @@
 ## Where we are
 
 **Phase 1 partially landed. Phase 0 re-scoped: 0a–0e landed; the original four
-Phase 0 items still outstanding. Separately, Step 0 of the goip parity work has
-landed — see [`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker).**
+Phase 0 items still outstanding. Separately, the goip parity work has begun:
+Step 0 landed in
+[`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker) and
+Item 1 — the five exported wire primitives, plus the `pkg/nsdiscover`
+de-duplication that closes `TODO-SOON.md` §15 — in
+[`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported).**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -184,6 +188,40 @@ Note for the next new package: `nix build .#checks.x86_64-linux.test-go-race`
 was **vacuously green** on the first run, because flakes only see git-known
 files and `pkg/nlparity/` was untracked. It never appeared in the check's
 output. `git add -N <dir>` is enough to make it visible without committing.
+
+### `b4428c7` — the five core wire primitives are exported
+
+On `feat/xtcpnl-export-wire-primitives`. Item 1 of the **goip** plan, and
+verbatim Phase 0a of `coverage-expansion.md`. `buildDumpRequest`,
+`walkNlMsgs`, `walkRTAttrs`, `walkRTAttrsNested` and `copyBytes` became
+`BuildDumpRequest`, `WalkNlMsgs`, `WalkRTAttrs`, `WalkRTAttrsNested` and
+`CopyBytes`. No behaviour change in `pkg/xtcpnl`.
+
+An export nobody consumes is a diff nobody can check, so the commit spends it
+in the same breath: **`pkg/nsdiscover/nsid.go` no longer carries a second copy
+of netlink framing** — its own `nativeEndian`, `nlmsgHdrLen`, `nlmsgAlign` and
+message and attribute walks are gone, and `parseNsidResponse` /
+`parseNsidAttrs` are wrappers over `WalkNlMsgs` and `WalkRTAttrs`. That closes
+`TODO-SOON.md` §15, which had named the unexported primitives as its only
+blocker.
+
+| | |
+|---|---|
+| Still local, deliberately | `buildGetNsidRequest`. `RTM_GETNSID` is a single get and `BuildDumpRequest` forces `NLM_F_REQUEST\|NLM_F_DUMP`; there is no attribute encoder yet either. Becomes a three-line wrapper once Item 2's `BuildRequest`/`AttrBuilder` land. |
+| Tightened | The reply walk now checks `nlmsg_seq`. The socket lives inside one `Nsid` call, so nothing can regress; `TestParseNsidResponse` gained a row for a reply carrying someone else's seq, an assertion the old loop could not make. |
+| Pinned, because the obvious refactor breaks it | First `RTM_NEWNSID` decides, assigned or not — matching the loop it replaced and the kernel's `parse_rtattr` first-wins convention. "Keep walking until something is found" turns the corner row red. |
+
+**The one new doc paragraph.** `WalkNlMsgs`' `seq` argument must be the seq the
+caller sent, and there is deliberately **no "accept any seq" sentinel**, because
+every `uint32` is a legal `nlmsg_seq` — `rtnl_open` seeds it from `time(NULL)`
+(`lib/libnetlink.c:249`), so real captures contain arbitrary values. Replay code
+reads the seq from the first header, or uses `pkg/nlparity`, whose walker does
+not filter at all. Worth knowing before someone adds a magic zero.
+
+Recorded rather than fixed, since it is now load-bearing for a second package:
+`xtcpnl`'s deserializers hardcode `binary.LittleEndian` even though the package
+exports `NativeEndian()`. Every target this repo builds is little-endian
+(`nix/constants.nix` lists x86_64 and aarch64 only).
 
 ## Phase exit criteria
 
