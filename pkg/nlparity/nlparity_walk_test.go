@@ -66,8 +66,8 @@ func checkRowProvenance(t *testing.T, description, filename string, input []byte
 }
 
 // TestWalkDatagram is the tolerant walker's table. It is the reason this package
-// does not reuse xtcpnl's walkNlMsgs: rows 4 through 7 are all datagrams that
-// walkNlMsgs rejects with ErrBadMsgLen, and three of iproute2's four dump
+// does not reuse xtcpnl's WalkNlMsgs: rows 4 through 7 are all datagrams that
+// WalkNlMsgs rejects with ErrBadMsgLen, and three of iproute2's four dump
 // commands produce them on every single run.
 //
 // go test ./pkg/nlparity/ -run TestWalkDatagram
@@ -121,7 +121,7 @@ func TestWalkDatagram(t *testing.T) {
 			input:       concat(getaddrRequest(unix.AF_INET), zeros(128)),
 			sidecar:     "lib/libnetlink.c rtnl_addrdump_req: char buf[128]",
 			wantMsgs:    1,
-			// NOT an error. xtcpnl's walkNlMsgs returns ErrBadMsgLen here, which
+			// NOT an error. xtcpnl's WalkNlMsgs returns ErrBadMsgLen here, which
 			// is the entire reason this walker exists.
 			wantFirstLen:    24,
 			wantTypes:       []uint16{uint16(unix.RTM_GETADDR)},

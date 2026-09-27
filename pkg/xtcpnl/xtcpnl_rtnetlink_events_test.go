@@ -728,7 +728,7 @@ func TestWalkRTAttrsFlagMasking(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			var got []uint16
-			if err := walkRTAttrs(tc.data, func(atype uint16, _ []byte) {
+			if err := WalkRTAttrs(tc.data, func(atype uint16, _ []byte) {
 				got = append(got, atype)
 			}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -771,7 +771,7 @@ func TestWalkRTAttrsNested(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			var got []uint16
-			err := walkRTAttrsNested(tc.val, func(atype uint16, _ []byte) {
+			err := WalkRTAttrsNested(tc.val, func(atype uint16, _ []byte) {
 				got = append(got, atype)
 			})
 			if tc.wantErr != nil {

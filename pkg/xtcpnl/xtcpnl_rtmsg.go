@@ -114,14 +114,14 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		Type:     m.Type,
 		Protocol: m.Protocol,
 	}
-	err := walkRTAttrs(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
+	err := WalkRTAttrs(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.RTA_DST):
-			ri.Dst = copyBytes(val)
+			ri.Dst = CopyBytes(val)
 		case uint16(unix.RTA_GATEWAY):
-			ri.Gateway = copyBytes(val)
+			ri.Gateway = CopyBytes(val)
 		case uint16(unix.RTA_PREFSRC):
-			ri.PrefSrc = copyBytes(val)
+			ri.PrefSrc = CopyBytes(val)
 		case uint16(unix.RTA_OIF):
 			if len(val) >= 4 {
 				ri.Oif = binary.LittleEndian.Uint32(val[0:4])

@@ -1099,19 +1099,39 @@ covered; the pipeline is a separate, larger decision.
 
 ---
 
-## 15. `pkg/nsdiscover/nsid.go` re-implements nlmsghdr/nlattr parsing — OPEN
+## 15. `pkg/nsdiscover/nsid.go` re-implements nlmsghdr/nlattr parsing — DONE
 
-`pkg/nsdiscover/nsid.go` carries its own `nativeEndian`, its own `nlmsgHdrLen`,
-and its own attribute walk — a second, independent copy of machinery
-`pkg/xtcpnl` already owns and tests exhaustively (table-driven tests against
-real-pcap fixtures, fuzz targets, and a benchmark gate).
+`pkg/nsdiscover/nsid.go` used to carry its own `nativeEndian`, its own
+`nlmsgHdrLen`, its own `nlmsgAlign`, and its own message and attribute walks — a
+second, independent copy of machinery `pkg/xtcpnl` already owns and tests
+exhaustively (table-driven tests against real-pcap fixtures, fuzz targets, and a
+benchmark gate).
 
-It should call `xtcpnl` instead. The blocker is only that `walkRTAttrs` and
-`walkNlMsgs` are unexported; exporting them (or a small typed wrapper) is the
-whole job.
+The blocker was that `walkRTAttrs` and `walkNlMsgs` were unexported. They are
+now `xtcpnl.WalkRTAttrs` and `xtcpnl.WalkNlMsgs` — along with
+`BuildDumpRequest`, `WalkRTAttrsNested` and `CopyBytes` — and
+`parseNsidResponse` / `parseNsidAttrs` call them. `nativeEndian` is now
+`xtcpnl.NativeEndian()`, so the request this package writes and the walk over
+the reply cannot disagree about byte order.
 
-Worth doing before a third copy appears: the netlink event work in §13 is
-exactly the kind of change that tempts someone into writing one.
+Two notes for whoever reads this next:
+
+- **`buildGetNsidRequest` is still local, deliberately.** `RTM_GETNSID` is a
+  single get, and `BuildDumpRequest` unconditionally sets
+  `NLM_F_REQUEST|NLM_F_DUMP` — asking the kernel to dump it would change the
+  reply. There is also no attribute encoder in `xtcpnl` yet, so the `NETNSA_FD`
+  attribute has to be laid out by hand. Once a `BuildRequest` + `AttrBuilder`
+  pair lands this becomes a three-line wrapper.
+- **The walk now checks `nlmsg_seq`,** which the hand-rolled loop did not. The
+  socket is opened, used and closed inside one `Nsid` call, so this is strictly
+  a tightening; `nsidSeqCst` is the value written and demanded back, and
+  `TestParseNsidResponse` has a row for a reply carrying someone else's seq.
+
+Remaining, and not this item's job: `xtcpnl`'s deserializers hardcode
+`binary.LittleEndian` even though the package exports `NativeEndian()`. Every
+target this repo builds is little-endian (`nix/constants.nix` lists x86_64 and
+aarch64 only), so nothing is wrong today — but the inconsistency is now
+load-bearing for a second package.
 
 ---
 

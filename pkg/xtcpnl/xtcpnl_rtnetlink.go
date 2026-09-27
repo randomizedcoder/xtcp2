@@ -51,11 +51,11 @@ var (
 	ErrShortRequest = errors.New("xtcpnl: rtnetlink request shorter than nlmsghdr")
 )
 
-// buildDumpRequest lays out a DUMP request: a 16-byte nlmsghdr
+// BuildDumpRequest lays out a DUMP request: a 16-byte nlmsghdr
 // (NLM_F_REQUEST|NLM_F_DUMP) followed by the caller's family header, which the
 // caller has already sized (ifinfomsg 16, ifaddrmsg 8, rtmsg 12) and populated
 // with at least its family byte. All three sizes are already 4-byte aligned.
-func buildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
+func BuildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
 	total := NlMsgHdrSizeCst + len(familyHdr)
 	b := make([]byte, total)
 
@@ -74,7 +74,7 @@ func buildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
 func BuildDumpLinkRequest(seq uint32) []byte {
 	hdr := make([]byte, IfInfomsgSizeCst)
 	hdr[0] = unix.AF_UNSPEC
-	return buildDumpRequest(uint16(unix.RTM_GETLINK), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETLINK), seq, hdr)
 }
 
 // BuildDumpAddrRequest builds an RTM_GETADDR dump request (ifaddrmsg) for the
@@ -83,7 +83,7 @@ func BuildDumpLinkRequest(seq uint32) []byte {
 func BuildDumpAddrRequest(family uint8, seq uint32) []byte {
 	hdr := make([]byte, IfAddrmsgSizeCst)
 	hdr[0] = family
-	return buildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
 }
 
 // BuildDumpRouteRequest builds an RTM_GETROUTE dump request (rtmsg) for the
@@ -92,7 +92,7 @@ func BuildDumpAddrRequest(family uint8, seq uint32) []byte {
 func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 	hdr := make([]byte, RtMsgSizeCst)
 	hdr[0] = family
-	return buildDumpRequest(uint16(unix.RTM_GETROUTE), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETROUTE), seq, hdr)
 }
 
 // DumpRtnetlink sends request on fd and drives the multipart reply, invoking
@@ -103,7 +103,7 @@ func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 // DONE degrades to an error instead of blocking. onMsg must copy any bytes it
 // needs to retain — the receive buffer is reused across recvs.
 //
-// Hardening (see walkNlMsgs for the per-datagram rules):
+// Hardening (see WalkNlMsgs for the per-datagram rules):
 //   - datagrams whose sender pid is not the kernel (nlmsg from another
 //     userspace process on a multicast-joined socket) are ignored;
 //   - messages whose nlmsg_seq differs from the request's are ignored, so a
@@ -145,7 +145,7 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 		if interrupted {
 			deliver = nil // draining only: nothing more is delivered after an interruption
 		}
-		done, werr := walkNlMsgs(buf[:n], seq, deliver)
+		done, werr := WalkNlMsgs(buf[:n], seq, deliver)
 		switch {
 		case errors.Is(werr, ErrDumpInterrupted):
 			interrupted = true
@@ -170,7 +170,7 @@ func fromKernel(from unix.Sockaddr) bool {
 	return !ok || sn.Pid == 0
 }
 
-// walkNlMsgs parses one received datagram: a run of 4-byte-aligned netlink
+// WalkNlMsgs parses one received datagram: a run of 4-byte-aligned netlink
 // messages. It is pure (no I/O) so it can be table- and fuzz-tested directly.
 //
 // Rules, in order, for each message:
@@ -187,7 +187,15 @@ func fromKernel(from unix.Sockaddr) bool {
 // A trailing remainder shorter than a header is ignored, mirroring the
 // kernel's NLMSG_OK walk. done=false, err=nil means the dump continues in the
 // next datagram.
-func walkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
+//
+// seq must be the sequence number the caller put on its own request. There is
+// deliberately no "accept any seq" sentinel, because every uint32 is a legal
+// nlmsg_seq — iproute2's rtnl_open seeds it from time(NULL)
+// (lib/libnetlink.c:249), so real captures contain arbitrary values. Code that
+// reads back a recorded stream and so cannot know the seq should take it from
+// the first header, or use pkg/nlparity, whose tolerant walker does not filter
+// at all.
+func WalkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
 	if len(data) < NlMsgHdrSizeCst {
 		return false, ErrShortRecv
 	}
@@ -270,7 +278,7 @@ func netlinkErr(body []byte) error {
 // golang.org/x/sys/unix.
 const NlaTypeMaskCst uint16 = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER)
 
-// walkRTAttrs iterates the RTAttr TLVs in data, calling fn for each with its
+// WalkRTAttrs iterates the RTAttr TLVs in data, calling fn for each with its
 // type and value slice (a view into data — copy what you retain). It validates
 // each attribute length and advances by the 4-byte-aligned length, tolerating a
 // short trailing remainder like the kernel's NLA_ALIGN walk.
@@ -280,7 +288,7 @@ const NlaTypeMaskCst uint16 = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORD
 // or not the kernel flagged the attribute. Without the mask a nested attribute
 // silently fails every switch case, which is a bug that presents as missing
 // data rather than as an error.
-func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
+func WalkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 	for len(data) >= RTAttrSizeCst {
 		var rta RTAttr
 		if _, err := DeserializeRTAttr(data, &rta); err != nil {
@@ -301,17 +309,17 @@ func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 	return nil
 }
 
-// walkRTAttrsNested descends into a nested attribute's payload, which is itself
+// WalkRTAttrsNested descends into a nested attribute's payload, which is itself
 // a stream of TLVs laid out exactly like a top-level one. It is a thin alias
-// for walkRTAttrs, named so call sites read as a descent and so the nesting is
+// for WalkRTAttrs, named so call sites read as a descent and so the nesting is
 // visible when reading a parser.
-func walkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
-	return walkRTAttrs(val, fn)
+func WalkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
+	return WalkRTAttrs(val, fn)
 }
 
-// copyBytes returns a fresh copy of b, or nil for an empty slice, so parsed
+// CopyBytes returns a fresh copy of b, or nil for an empty slice, so parsed
 // results never alias the reused receive buffer.
-func copyBytes(b []byte) []byte {
+func CopyBytes(b []byte) []byte {
 	if len(b) == 0 {
 		return nil
 	}

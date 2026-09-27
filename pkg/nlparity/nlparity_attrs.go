@@ -8,7 +8,7 @@ import (
 // Attr is one rtattr TLV.
 //
 // Type is deliberately UNMASKED: NLA_F_NESTED (0x8000) and NLA_F_NET_BYTEORDER
-// (0x4000) are left in place, unlike pkg/xtcpnl's walkRTAttrs which masks them
+// (0x4000) are left in place, unlike pkg/xtcpnl's WalkRTAttrs which masks them
 // via NlaTypeMaskCst so a caller's switch still matches. Here the flags are part
 // of what is being compared — a goip that builds a nest without setting
 // NLA_F_NESTED, or renders a big-endian payload as host order, is a bug, and

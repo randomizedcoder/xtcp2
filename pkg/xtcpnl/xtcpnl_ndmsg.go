@@ -187,12 +187,12 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		Flags:   m.Flags,
 		Type:    m.Type,
 	}
-	err := walkRTAttrs(body[NdMsgSizeCst:], func(atype uint16, val []byte) {
+	err := WalkRTAttrs(body[NdMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.NDA_DST):
-			ni.Dst = copyBytes(val)
+			ni.Dst = CopyBytes(val)
 		case uint16(unix.NDA_LLADDR):
-			ni.LLAddr = copyBytes(val)
+			ni.LLAddr = CopyBytes(val)
 		case uint16(unix.NDA_CACHEINFO):
 			if _, cerr := DeserializeNdaCacheInfo(val, &ni.CacheInfo); cerr == nil {
 				ni.HasCacheInfo = true
