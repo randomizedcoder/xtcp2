@@ -161,6 +161,102 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 	}
 }
 
+// errTalkStopCst is an internal sentinel: the onMsg callback TalkRtnetlink
+// hands to WalkNlMsgs returns it to stop the walk after the first reply.
+// WalkNlMsgs propagates an onMsg error immediately, which is exactly the
+// "stop here" primitive needed, and reusing the one walker is better than
+// giving the single-get path a second copy of the message loop.
+//
+// It never escapes TalkRtnetlink.
+var errTalkStopCst = errors.New("xtcpnl: internal: first reply captured")
+
+// TalkRtnetlink sends one NON-DUMP request and returns the single reply.
+//
+// # Why DumpRtnetlink cannot do this
+//
+// A single get — `ip link show dev X`, iproute2's ll_link_get — sends
+// flags=NLM_F_REQUEST with no NLM_F_DUMP, and the kernel answers with exactly
+// one message: no NLM_F_MULTI, and **no NLMSG_DONE**. DumpRtnetlink's loop
+// terminates only on DONE or NLMSG_ERROR, so pointing it at a single get makes
+// it recv until SO_RCVTIMEO and then report a timeout, which looks like a
+// kernel problem rather than a misuse. Verified against the ten captured
+// single-gets in testdata/7_1_8/netlink_route_getroute.pcap, all
+// flags=0x0001 with a lone RTM_NEWLINK reply.
+//
+// The converse misuse is just as wrong: pointing TalkRtnetlink at a dump
+// returns the first message and abandons the rest mid-stream, leaving the
+// socket holding the remainder. Use DumpRtnetlink for anything with
+// NLM_F_DUMP set.
+//
+// # What it returns
+//
+//   - the first reply that is not a control message: its type and a COPY of its
+//     body (unlike DumpRtnetlink's callback, which aliases the receive buffer),
+//     with a nil error;
+//   - (0, nil, nil) for an NLMSG_ERROR carrying errno 0 — that is an ACK, the
+//     normal answer to a request that has nothing to return — and likewise for
+//     an NLMSG_DONE, which a single get should not send but which is not an
+//     error if it does;
+//   - a wrapped syscall.Errno for an NLMSG_ERROR with a non-zero errno, so
+//     callers can errors.Is(err, unix.ENODEV);
+//   - ErrShortRequest if the request is not even an nlmsghdr, before anything
+//     is sent. BuildDumpRequest's nil for a rejected message type lands here.
+//
+// Messages whose nlmsg_seq is not the request's are skipped, and datagrams
+// whose sender is not the kernel are dropped, both by the same rules
+// DumpRtnetlink uses (see WalkNlMsgs and fromKernel). If a datagram contains
+// nothing for this request, it recvs again — so the socket must have
+// SO_RCVTIMEO set, or a request the kernel never answers blocks forever.
+//
+// sa may be nil for a connected socket; the tests drive this over an AF_UNIX
+// SOCK_SEQPACKET socketpair.
+func TalkRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink) (msgType uint16, body []byte, err error) {
+	if len(request) < NlMsgHdrSizeCst {
+		return 0, nil, ErrShortRequest
+	}
+	seq := binary.LittleEndian.Uint32(request[8:12])
+
+	var to unix.Sockaddr
+	if sa != nil {
+		to = sa
+	}
+	if serr := unix.Sendto(fd, request, 0, to); serr != nil {
+		return 0, nil, fmt.Errorf("xtcpnl: rtnetlink send: %w", serr)
+	}
+
+	buf := make([]byte, rtnetlinkRecvBufCst)
+	for {
+		n, from, rerr := unix.Recvfrom(fd, buf, 0)
+		if rerr != nil {
+			return 0, nil, fmt.Errorf("xtcpnl: rtnetlink recv: %w", rerr)
+		}
+		if !fromKernel(from) {
+			continue
+		}
+
+		var (
+			gotType uint16
+			gotBody []byte
+		)
+		done, werr := WalkNlMsgs(buf[:n], seq, func(mt uint16, mbody []byte) error {
+			gotType = mt
+			gotBody = CopyBytes(mbody)
+			return errTalkStopCst
+		})
+		switch {
+		case errors.Is(werr, errTalkStopCst):
+			return gotType, gotBody, nil
+		case werr != nil:
+			return 0, nil, werr
+		case done:
+			// NLMSG_DONE, or an NLMSG_ERROR with errno 0: an ACK.
+			return 0, nil, nil
+		}
+		// Every message in this datagram belonged to another request. Recv again
+		// rather than reporting a reply we never saw.
+	}
+}
+
 // fromKernel reports whether a datagram's sender address is the kernel. On a
 // netlink socket the kernel is always nlmsg_pid 0; a datagram from any other
 // netlink port id is a userspace peer and is dropped. A nil or non-netlink

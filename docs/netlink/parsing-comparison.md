@@ -302,10 +302,10 @@ Ranked by value to xtcp2's actual mission.
    (`addr_linux.go:354`), `RTNLGRP_IPV4_ROUTE`/`IPV6_ROUTE`
    (`route_linux.go:1824`) and `RTNLGRP_NEIGH` (`neigh_linux.go:394`). This is
    the most actionable thing this audit found.
-2. **No `RTM_GETNEIGH` dump builder** — [TODO-SOON §17](../../TODO-SOON.md). The
-   smallest real gap: `ParseNeigh` already exists, so this is one
-   `BuildDumpNeighRequest` beside the other three at
-   `xtcpnl_rtnetlink.go:74-96`.
+2. ~~**No `RTM_GETNEIGH` dump builder**~~ — [TODO-SOON §17](../../TODO-SOON.md),
+   **closed**. `BuildDumpNeighRequest` now sits with the other per-family
+   builders in `xtcpnl_rtnetlink_requests.go`, so `ParseNeigh` finally has a way
+   to ask for the current table rather than only observing changes to it.
 3. **Attribute depth where telemetry cares** — [TODO-SOON §18](../../TODO-SOON.md):
    `IFA_CACHEINFO`/`IFA_FLAGS` first (address validity affects source-address
    selection today), then `IFLA_ADDRESS`, `IFLA_STATS64`, `RTA_EXPIRES`. The
