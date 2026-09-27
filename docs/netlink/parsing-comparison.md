@@ -154,17 +154,19 @@ referenced; xtcp2 counts are attributes actually extracted into a struct field.
 
 | Prefix | Fork | xtcp2 | Deeper |
 |---|---|---|---|
-| `IFLA_*` (link) | **412** | **4** — `IFNAME`, `OPERSTATE`, `CARRIER`, `MTU` (`xtcpnl_ifinfomsg.go:151`) | Fork, by two orders of magnitude |
+| `IFLA_*` (link) | **412** | ~~**4**~~ → **14** as of `4494b42` — `IFNAME`, `OPERSTATE`, `CARRIER`, `MTU`, `ADDRESS`, `BROADCAST`, `QDISC`, `LINK`, `MASTER`, `TXQLEN`, `GROUP`, `LINKMODE`, `LINK_NETNSID`, `LINKINFO`→`INFO_KIND` (`xtcpnl_ifinfomsg.go`) | Fork, by an order of magnitude — but the gap is now mostly `IFLA_INFO_DATA` per link kind, plus `-s` statistics |
 | `TCA_*` (tc) | **344** | 0 | Fork |
 | `FRA_*` (rules) | **25** | 0 | Fork |
 | `RTA_*` (route) | **24** | **9** — `DST`, `GATEWAY`, `PREFSRC`, `OIF`, `PRIORITY`, `TABLE`, `MULTIPATH`, `VIA`, `NH_ID` (`xtcpnl_rtmsg.go:130-157`) | Fork |
 | `NDA_*` (neigh) | **17** | **3** — `DST`, `LLADDR`, `CACHEINFO` (`xtcpnl_ndmsg.go:213`) | Fork |
-| `IFA_*` (addr) | **10** | **3** — `ADDRESS`, `LOCAL`, `LABEL` (`xtcpnl_ifaddrmsg.go:98`) | Fork |
+| `IFA_*` (addr) | **10** | ~~**3**~~ → **7** as of `4494b42` — `ADDRESS`, `LOCAL`, `LABEL`, `FLAGS`, `BROADCAST`, `CACHEINFO`, `IFA_PROTO` (`xtcpnl_ifaddrmsg.go`) | Fork, by three — the closest either side comes to level |
 | `NHA_*` (nexthop) | **4** | 0 | Fork, but both shallow |
 | `INET_DIAG_*` | **24 declared**, a subset consumed | **13 wired into a live dispatch table**, one decoder file each (`pkg/xtcp/deserializers.go:57`) | **xtcp2** |
 
-The fork also descends nested attributes that xtcp2 has no equivalent of:
-`IFLA_LINKINFO` → `IFLA_INFO_KIND` → `IFLA_INFO_DATA`, switched per device kind
+The fork descends further into nested attributes than xtcp2 does. As of
+`4494b42` xtcp2 takes the first hop of the chain — `IFLA_LINKINFO` →
+`IFLA_INFO_KIND`, enough to name a device kind — and stops there; the fork goes
+on to `IFLA_INFO_DATA`, switched per device kind
 (`link_linux.go:2195`, reached from `LinkDeserialize` at `:2142`), across ~26
 kinds — veth, vxlan, bond, bridge, wireguard, geneve, gre, vrf, tun, xfrm, gtp
 and more, backed by 30 link-type structs in `link.go`.
@@ -175,14 +177,24 @@ type before dispatch; in xtcp2 that is `NlaTypeMaskCst`
 
 ### xtcp2's own shortfalls, and which consumer cares
 
-- **`IFA_CACHEINFO` / `IFA_FLAGS` absent.** xtcp2 cannot distinguish a tentative,
-  deprecated or temporary address from a usable one — which is precisely what
-  locality enrichment selects a source address from. The most defensible gap on
-  this list.
+- ~~**`IFA_CACHEINFO` / `IFA_FLAGS` absent.** xtcp2 cannot distinguish a
+  tentative, deprecated or temporary address from a usable one — which is
+  precisely what locality enrichment selects a source address from. The most
+  defensible gap on this list.~~ **Closed** by `4494b42`: both are decoded, with
+  `IFA_FLAGS` *replacing* the u8 header field the way `get_ifa_flags` does
+  (`ip/ipaddress.c:1371-1376`), and `IsPermanent`/`IsDeprecated` on `AddrInfo`.
+  Locality enrichment does not yet *read* them — wiring the source-address
+  selection to the new fields is the remaining half.
 - **`RTA_CACHEINFO`, `RTA_METRICS`, `RTA_EXPIRES` absent**, so route age and
-  per-route metrics are invisible.
-- **`IFLA_ADDRESS`, `IFLA_STATS64` absent** — no MAC address, no per-interface
-  counters.
+  per-route metrics are invisible. Still open, and `RTA_METRICS` is now known to
+  be **fixture-blocked** as well: it appears on none of the 74 captured routes
+  (`TODO-SOON.md` §18). `RTA_CACHEINFO` is on 48 of them, so that one is not.
+- ~~**`IFLA_ADDRESS`, `IFLA_STATS64` absent** — no MAC address, no per-interface
+  counters.~~ `IFLA_ADDRESS` (and `IFLA_BROADCAST`) **closed** by `4494b42`,
+  with an `ARPHRD_*` name table so the MAC can be rendered with the right
+  `link/<type>` prefix. `IFLA_STATS64` is **closed as out of scope** instead:
+  `ip` sets `RTEXT_FILTER_SKIP_STATS`, so it is absent from every captured reply
+  and returns only under `-s`.
 - **`RTA_MULTIPATH` is a presence bool only** (`HasMultipath`); the nested
   `rtnexthop` list is never walked. This one is *not* a bug, and the code says
   so: `pkg/localnet/localnet.go:246-250` deliberately reports **no** egress
@@ -306,12 +318,17 @@ Ranked by value to xtcp2's actual mission.
    **closed**. `BuildDumpNeighRequest` now sits with the other per-family
    builders in `xtcpnl_rtnetlink_requests.go`, so `ParseNeigh` finally has a way
    to ask for the current table rather than only observing changes to it.
-3. **Attribute depth where telemetry cares** — [TODO-SOON §18](../../TODO-SOON.md):
-   `IFA_CACHEINFO`/`IFA_FLAGS` first (address validity affects source-address
-   selection today), then `IFLA_ADDRESS`, `IFLA_STATS64`, `RTA_EXPIRES`. The
-   nested `rtnexthop` walk belongs here too, as a fidelity improvement rather
-   than a fix, and would give [§12](../../TODO-SOON.md) — `walkRTAttrs` nested
-   descent — its first real caller.
+3. **Attribute depth where telemetry cares** — [TODO-SOON §18](../../TODO-SOON.md),
+   now **partial**. `IFA_CACHEINFO`/`IFA_FLAGS` and `IFLA_ADDRESS` landed in
+   `4494b42`, along with nine more `IFLA_*` and an `ARPHRD_*` name table;
+   `IFLA_STATS64` was closed as out of scope (`RTEXT_FILTER_SKIP_STATS`). What
+   is left is the `RTA_*` group — `RTA_CACHEINFO`, `RTA_EXPIRES`, `rtm_flags`
+   rendering, and the nested `rtnexthop` walk as a fidelity improvement rather
+   than a fix. Two of those (`RTA_METRICS`, `RTA_MULTIPATH`) are fixture-blocked
+   rather than merely unwritten: neither appears on any of the 74 captured
+   routes. ~~[§12](../../TODO-SOON.md) — `walkRTAttrs` nested descent — its
+   first real caller~~ is already **closed**, by the `IFLA_LINKINFO` →
+   `IFLA_INFO_KIND` descent.
 4. **`INET_DIAG_PRAGUEINFO` is orphaned** — [TODO-SOON §19](../../TODO-SOON.md).
    Either wire it into the dispatch table with a real capture, or delete it and
    its synthetic fixture. A decoder no live path can reach is worse than none.
