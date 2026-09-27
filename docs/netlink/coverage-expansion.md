@@ -201,8 +201,15 @@ replaying a recorded stream has to take the seq from the first header, or use
 dump builder is the same two-line wrapper. The expensive part of a new family is
 never the request; it is the attribute decode.
 
-`WalkRTAttrsNested` has **no production caller** yet (tracked as
-`TODO-SOON.md` §12). Several phases below change that.
+~~`WalkRTAttrsNested` has **no production caller** yet (tracked as
+`TODO-SOON.md` §12). Several phases below change that.~~
+
+**That has since landed.** `ParseNewLink`'s `IFLA_LINKINFO` →
+`IFLA_INFO_KIND` descent (`xtcpnl_ifinfomsg.go`) is the first production
+caller, so §12 is closed. Descent deliberately stops at the kind:
+`IFLA_INFO_DATA` is a separate attribute space per link type and a `show` line
+needs none of it, which keeps Phase 3's `IFLA_LINKINFO` item alive for the
+sub-nest only.
 
 **`pkg/nsdiscover` folded in here, and that is done too.** `nsid.go` used to
 hand-roll a second netlink wire layer — its own `nativeEndian`, `nlmsgHdrLen`,
@@ -611,10 +618,10 @@ unblocking first, hand-declared-constant families last.
 
 | Phase | Scope | Why here | TODO ref |
 |---|---|---|---|
-| **0** | Export the core wire layer; create the subpackage skeleton; generalise the capture harness | Everything else depends on it; also retires the `pkg/nsdiscover` duplicate | §12, §15 |
+| **0** | Export the core wire layer; create the subpackage skeleton; generalise the capture harness | Everything else depends on it; also retires the `pkg/nsdiscover` duplicate | ~~§12~~, ~~§15~~ |
 | **1** | **Multicast listener** + ~~`BuildDumpNeighRequest`~~ (landed) + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, ~~§17~~ |
-| **2** | In-mission audit gaps: `IFA_CACHEINFO`/`IFA_FLAGS` first, then `IFLA_ADDRESS`/`IFLA_STATS64`, then `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`; resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
-| **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, `IFLA_LINKINFO` descent | All constants and structs already in `unix` | §12 |
+| **2** | In-mission audit gaps: ~~`IFA_CACHEINFO`/`IFA_FLAGS`~~ (landed), then ~~`IFLA_ADDRESS`~~ (landed) / `IFLA_STATS64` (**closed, out of scope** — `SKIP_STATS`), then `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`; resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
+| **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, ~~`IFLA_LINKINFO` descent~~ — `IFLA_INFO_DATA` sub-nest only, the kind landed | All constants and structs already in `unix` | ~~§12~~ |
 | **4** | tc **telemetry only** — the 23 top-level `TCA_*`, not the 344 config nests | Cheap once scoped correctly; needs `Tcmsg`/`TCStats`/`TCStats2` declared | — |
 | **5** | genetlink: `nlctrl` `GETFAMILY` resolution **first**, then ethtool, devlink, netdev, vdpa, fou, gtp | Dynamic family-ID resolution is a hard prerequisite for all of them | — |
 | **6** | Hand-declared constant families: xfrm, conntrack, ipset, proc_event, rdma | Each needs its own constant block, subscriber and kernel module | — |
@@ -628,9 +635,11 @@ unblocking first, hand-declared-constant families last.
 interfaces — the comment says so: *"A multipath list or a nexthop object has
 several / opaque egress interfaces, so report none rather than a wrong one."* The
 presence-bool is **sufficient by design, not a latent bug.** Walking the nested
-`rtnexthop` list is still worth doing in Phase 3, and it would give
-`WalkRTAttrsNested` its first real caller, but it is an enrichment improvement
-and must not be sold as a correctness fix.
+`rtnexthop` list is still worth doing in Phase 3, but it is an enrichment
+improvement and must not be sold as a correctness fix. (`WalkRTAttrsNested` no
+longer needs it for a first caller — the `IFLA_LINKINFO` descent got there
+first. And note `RTA_MULTIPATH` appears on none of the 74 captured routes, so
+the work is fixture-blocked as well as deprioritised; see `TODO-SOON.md` §18.)
 
 **`TODO-SOON.md` §14 (the export path) is the deferred interaction.** Every new
 family produces data with no protobuf representation, so nothing decoded after

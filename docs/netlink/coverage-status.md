@@ -14,7 +14,12 @@ the request encoder, which turns the read-only invariant from prose into
 [`933bfb8`](#933bfb8--the-request-encoder-and-the-read-only-invariant-made-executable),
 and Item 3 — the six per-family request builders and `TalkRtnetlink`, which
 closes `TODO-SOON.md` §17 — in
-[`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive).**
+[`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive),
+and the link and addr halves of Item 4 — the attribute decoders a `show` line
+needs, which close `TODO-SOON.md` §12 — in
+[`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs).
+That last one also moves **Phase 2 off zero**, since `IFA_CACHEINFO`,
+`IFA_FLAGS` and `IFLA_ADDRESS` are three of its named items.**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -77,8 +82,8 @@ Phases and scope are as defined in
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
-| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | not started | — | all of it |
-| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | not started | — | all of it |
+| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS64` is **closed as out of scope**, not outstanding — it is absent from every captured reply because `ip` sets `RTEXT_FILTER_SKIP_STATS`, and it returns only under `-s` | the whole `RTA_*` group (`RTA_CACHEINFO` has real fixtures on 48 of 74 captured routes; `RTA_METRICS` has none — see §18), and `INET_DIAG_PRAGUEINFO` |
+| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested` | `FRA_*`, `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
 | **6** | xfrm, conntrack, ipset, proc_event, rdma | not started | — | all of it, plus a hand-declared constant block per family |
@@ -395,6 +400,121 @@ Gate evidence: four deliberate breaks confirmed red at the named row — moving
 detached worktree — 49 packages ok, `0 issues.` — because the main working tree
 is red for an unrelated reason: `pkg/xtcp/grpc_server.go` imports the untracked
 `pkg/listenerauth`, which a flake build cannot see.
+
+### `4494b42` — the `IFLA_*` and `IFA_*` attribute decoders a `show` line needs
+
+On `feat/xtcpnl-export-wire-primitives`. Item 4 of the **goip** plan, link and
+addr halves; the route half is sequenced later and is partly fixture-blocked
+(below). `LinkInfo` goes from 4 decoded `IFLA_*` attributes to 14 and `AddrInfo`
+from 3 `IFA_*` to 7. 100 subtests — 39 positive, 13 negative, 27 boundary,
+21 corner — plus two new files, `xtcpnl_arphrd.go` and
+`xtcpnl_rtattr_firstwins.go`.
+
+| | Now decoded | Source of the positive rows |
+|---|---|---|
+| `IFLA_*` | `ADDRESS`, `BROADCAST`, `QDISC`, `LINK`, `MASTER`, `TXQLEN`, `GROUP`, `LINKMODE`, `LINK_NETNSID`, `LINKINFO`→`INFO_KIND` (on top of `IFNAME`, `MTU`, `OPERSTATE`, `CARRIER`) | all 11 messages of `netlink_route_getlink_dump.pcap` |
+| `IFA_*` | `FLAGS`, `BROADCAST`, `CACHEINFO`, `IFA_PROTO` (on top of `ADDRESS`, `LOCAL`, `LABEL`) | the 9 v4 and 15 v6 messages of `getaddr_v4_dump.pcap` / `getaddr_v6_dump.pcap` |
+
+**Four iproute2 behaviours are reproduced in the decoder rather than left to
+callers, because each one changes what a correct renderer prints.** All four
+were read out of the 7.2.0 source and then confirmed against the captured
+bytes; two of them contradict what the plan assumed.
+
+- **`parse_rtattr` is FIRST-wins, and the kernel is LAST-wins.**
+  `lib/libnetlink.c:1554` is
+  `if ((type <= max) && (!tb[type])) tb[type] = rta;`, where the kernel's own
+  `__nla_parse` overwrites. `pkg/xtcpnl` follows iproute2, since parity is
+  against `ip`. The rule lives in `xtcpnl_rtattr_firstwins.go` as a `uint64`
+  bitset rather than as "assign only if the field is still zero" guards,
+  because **0 is a legitimate value** for `IFLA_TXQLEN` (docker0,
+  br-3a5828b2963a and one veth all carry 0 in the committed dump),
+  `IFLA_LINKMODE` and `IFLA_GROUP` — a zero-value guard would silently let a
+  duplicate overwrite a real 0.
+- **`IFA_FLAGS` replaces the 8-bit header field, it does not extend it.**
+  `get_ifa_flags` is `ifa_flags_attr ? rta_getattr_u32(ifa_flags_attr) :
+  ifa->ifa_flags` (`ip/ipaddress.c:1371-1376`). The captured v6 dump carries
+  **0x300** — `MANAGETEMPADDR|NOPREFIXROUTE`, and neither bit fits in a `u8` —
+  so OR-ing would happen to agree here and diverge the moment the header and
+  the attribute disagree. A deliberate OR failed 1 row.
+- **`IFA_LOCAL` and `IFA_ADDRESS` alias each other in *both* directions**
+  (`ip/ipaddress.c:1531-1534`). This is not a corner case: **all 15** addresses
+  in the committed v6 dump carry `IFA_ADDRESS` and **none** carries
+  `IFA_LOCAL`, so without the alias every IPv6 address decodes with an empty
+  `Local`. Removing it failed 16 rows — the largest of the nine breaks, and a
+  fair measure of how load-bearing a four-line aliasing rule can be.
+- **`ll_type_n2a`'s fallback is `[%d]`, decimal and bracketed — the plan said
+  hex.** `xtcpnl_arphrd.go` transcribes `lib/ll_types.c` entry-for-entry and a
+  test row proves a hex fallback goes red. Two related facts are asserted
+  rather than assumed: `x/sys/unix@v0.47.0` names five ARPHRD types iproute2
+  does **not** (`CISCO`, `EUI64`, `MCTP`, `RAWIP`, `VSOCKMON`), so the
+  omissions are deliberate and `TestARPHRDNameMatchesIproute2Omissions` fails
+  if one is added; and neither `ARPHRD_VOID (0xffff)` nor `ARPHRD_NONE
+  (0xfffe)` is usable as an "unknown type" probe, because iproute2 *names* both
+  — the plan's `ifi_type = 0xFFFF` row would have tested nothing. `ARPHRD_RAWIP
+  (519)` is the probe that works.
+
+**Two things the plan left unspecified are now specified.**
+
+| Open question | Decision, and why |
+|---|---|
+| "`IFA_CACHEINFO` of 15 bytes — assert error-or-tolerated, don't leave it unspecified" | **Dropped**: `HasCacheInfo` stays false and the rest of the address still decodes. Failing the whole message would discard the prefix length, scope, index and address over a truncated *lifetime* — strictly worse than reporting no lifetime. Zero-padding it instead failed 3 rows. |
+| How deep to descend into `IFLA_LINKINFO` | **To `IFLA_INFO_KIND` and no further.** `IFLA_INFO_DATA` is a distinct attribute space per link kind (40 `print_opt` bodies in iproute2) and a `show` line needs none of it. The nest is walked with the same first-wins rule as the outer level. |
+
+This is the first production caller of `WalkRTAttrsNested`, which closes
+`TODO-SOON.md` §12 — the nested walker had been present and exercised only by
+its own unit test since the Phase 0 work.
+
+`IfaProto` (`IFA_PROTO = 11`) and the `IFAPROT_*` values are hand-declared with
+a kernel citation, the same treatment `RtaNhID` gets in `xtcpnl_rtmsg.go`:
+`x/sys/unix@v0.47.0`'s `IFA_*` set stops at `IFA_TARGET_NETNSID`. Seven of the
+fifteen captured v6 addresses carry it, all with `IFAPROT_KERNEL_LL`, and
+`ip_addr_n:27` is the line it renders.
+
+**`IFLA_STATS64` is closed as out of scope rather than left outstanding.** It is
+absent from every captured reply — `RTEXT_FILTER_SKIP_STATS` working, which is
+[`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive)'s
+whole point — and it returns only under `ip -s`, which the plan excludes. The
+Phase 2 row above says so, because "missing" and "deliberately not decoded" are
+different states and only one of them is work.
+
+**What the route third is blocked on, measured rather than assumed.** The plan
+asserts of Item 4's attributes that "all of these appear in the committed
+replies, so each gets a real fixture by construction". For link and addr that
+held. For route it does not: across the **74** messages of `getroute_dump.pcap`,
+`RTA_MULTIPATH` (9), `RTA_VIA` (18) and `RTA_METRICS` (8) appear on **none**.
+What is there is `RTA_DST` (72), `RTA_OIF` (74), `RTA_TABLE` (74),
+`RTA_PRIORITY` (50), `RTA_CACHEINFO` (48), `RTA_PREF` (48), `RTA_PREFSRC` (24)
+and `RTA_GATEWAY` (2). So `RTA_CACHEINFO` and `rtm_flags` can be done now, and
+the `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS` positives are blocked on the plan's
+Item 7 capture extension — recorded in `TODO-SOON.md` §18, which goes `PARTIAL`
+here, and named so nobody writes those expectations from the C source instead.
+
+One incidental finding from the sidecars, worth recording because it is the
+clearest evidence in the corpus for why parity has to normalize lifetimes:
+172.16.50.219's `IFA_CACHEINFO` lifetimes are **47877** in the pcap but
+`47871sec` in `ip_addr_n:11`. Nothing is wrong — `ip` ran about six seconds
+after the capture. Two adjacent runs of the same command are guaranteed to
+disagree on these four `u32`s.
+
+The plan's §8.7 open question "link with no MAC — assert whether the `link/`
+line is omitted or prints `link/none`" is also answered from the sidecar rather
+than left for the renderer: `ip_link_n:33` shows `nlmon0` rendering
+`link/netlink  promiscuity 0`, so `ip` prints the `link/<type>` prefix and
+nothing after it. `nlmon0` carries no `IFLA_ADDRESS` at all, which is the
+boundary row that pins it.
+
+Gate evidence: nine deliberate breaks, each confirmed red at the named rows —
+last-wins duplicates (2 failures), truncating `IFLA_ADDRESS` to 6 bytes (1), a
+hex ARPHRD fallback (4), removing the nested descent (7), naming `ARPHRD_RAWIP`
+(2), OR-ing `IFA_FLAGS` (1), dropping the `Local`↔`Address` alias (16),
+zero-padding a short cacheinfo (3), and swapping the two lifetime offsets (5).
+The tree was restored and re-verified green after each. `checks.test-go-race`
+and `checks.golangci-lint-quick` both ran in a clean detached worktree — 49
+packages ok, `0 issues.` — for the same `pkg/listenerauth` reason as above. The
+lint run also settled an open question: misspell, which runs in plain-text mode
+over whole files, does **not** flag the verbatim kernel member `ifa_prefered`
+inside the transcribed `struct ifa_cacheinfo`, so the transcription stays
+verbatim and the Go field stays `Preferred`.
 
 ## Phase exit criteria
 
@@ -754,6 +874,15 @@ upward rather than left to drift.
   resync; there was no resync path for `RTNLGRP_NEIGH` because there was no
   neighbour dump builder. The builder now exists, so what remains is the resync
   logic that calls it — a listener task, not a missing primitive.
+- **The captured route corpus has no ECMP, no `RTA_VIA` and no `RTA_METRICS`.**
+  Measured across all 74 messages of `getroute_dump.pcap`: `RTA_MULTIPATH` (9),
+  `RTA_VIA` (18) and `RTA_METRICS` (8) are absent, so the positive rows for
+  Phase 2's `RTA_METRICS` and for the route third of the **goip** plan's Item 4
+  cannot be written from the corpus as it stands. Since positive netlink rows
+  must be real captures, this is a fixture blocker, not a decode one — the plan's
+  Item 7 closes it by adding a multipath route to the capture topology. Tracked
+  as `TODO-SOON.md` §18. `RTA_CACHEINFO` (48 of 74) and `rtm_flags` are **not**
+  affected and can be done today.
 - **No subscriber ⇒ no kernel emission ⇒ nothing for `nlmon` to mirror.** Each
   new family needs its own subscriber in the capture guest (`ip xfrm monitor`,
   `conntrack -E`, `ip netconf monitor`). A family whose subscriber or kernel
