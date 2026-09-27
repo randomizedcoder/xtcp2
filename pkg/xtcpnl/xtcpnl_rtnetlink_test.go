@@ -649,7 +649,7 @@ func TestBuildDumpRequests(t *testing.T) {
 	}
 }
 
-// ---- walkRTAttrs / netlinkErr tests ------------------------------------------
+// ---- WalkRTAttrs / netlinkErr tests ------------------------------------------
 
 // TestWalkRTAttrs covers the TLV walker's positive iteration and its
 // truncation/short-length rejection.
@@ -697,7 +697,7 @@ func TestWalkRTAttrs(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			var got []uint16
-			err := walkRTAttrs(tc.data, func(atype uint16, _ []byte) {
+			err := WalkRTAttrs(tc.data, func(atype uint16, _ []byte) {
 				got = append(got, atype)
 			})
 			if tc.wantErr {

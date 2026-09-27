@@ -15,7 +15,7 @@
 //
 // # Why this has its own walker
 //
-// pkg/xtcpnl's walkNlMsgs is a *client* walker: it knows the seq it sent, it
+// pkg/xtcpnl's WalkNlMsgs is a *client* walker: it knows the seq it sent, it
 // stops at NLMSG_DONE, it masks NLA_F_NESTED off attribute types, and a short
 // trailing message is ErrBadMsgLen. Every one of those is wrong for parity:
 //

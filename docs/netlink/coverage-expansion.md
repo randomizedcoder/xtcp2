@@ -146,7 +146,10 @@ at the end. Doing it first would rewrite the hot-path dispatch table in
 Small, and it is the reason the long tail is cheap. From
 `pkg/xtcpnl/xtcpnl_rtnetlink.go`:
 
-| Unexported today | Becomes | Line |
+**Done.** All five are exported as of the Phase 0a commit; the table below is
+kept as the record of what moved.
+
+| Was | Is now | Line |
 |---|---|---|
 | `buildDumpRequest` | `BuildDumpRequest` | `:58` |
 | `walkNlMsgs` | `WalkNlMsgs` | `:190` |
@@ -156,22 +159,31 @@ Small, and it is the reason the long tail is cheap. From
 
 `NlaTypeMaskCst` (`:271`) is already exported.
 
-`buildDumpRequest` is **already family-header-agnostic** — it takes
+`WalkNlMsgs`'s doc comment gained a paragraph the unexported version did not
+need: `seq` must be the seq the caller sent, and there is deliberately no
+"accept anything" sentinel because every `uint32` is a legal `nlmsg_seq`. Code
+replaying a recorded stream has to take the seq from the first header, or use
+`pkg/nlparity`, whose walker does not filter at all.
+
+`BuildDumpRequest` is **already family-header-agnostic** — it takes
 `(msgType uint16, seq uint32, familyHdr []byte)`. That is why
 `BuildDumpLinkRequest` (`:74`), `BuildDumpAddrRequest` (`:83`) and
 `BuildDumpRouteRequest` (`:92`) are each about five lines. Every new family's
 dump builder is the same two-line wrapper. The expensive part of a new family is
 never the request; it is the attribute decode.
 
-`walkRTAttrsNested` currently has **no caller** (tracked as `TODO-SOON.md` §12).
-Several phases below change that.
+`WalkRTAttrsNested` has **no production caller** yet (tracked as
+`TODO-SOON.md` §12). Several phases below change that.
 
-**`pkg/nsdiscover` folds in here.** `pkg/nsdiscover/nsid.go` hand-rolls a second
-netlink wire layer — `buildGetNsidRequest` (`:86`), `parseNsidResponse` (`:109`),
-`parseNsidAttrs` (`:133`), `nlmsgAlign` (`:161`) — because the `xtcpnl`
-equivalents were unexported. Exporting them is exactly what lets that duplication
-go away (`TODO-SOON.md` §15). For contrast, the fork keeps *one* wire layer
-(`nl/`) for all seven families.
+**`pkg/nsdiscover` folded in here, and that is done too.** `nsid.go` used to
+hand-roll a second netlink wire layer — its own `nativeEndian`, `nlmsgHdrLen`,
+`nlmsgAlign`, and message and attribute walks — because the `xtcpnl`
+equivalents were unexported. `parseNsidResponse` and `parseNsidAttrs` are now
+thin wrappers over `WalkNlMsgs` and `WalkRTAttrs`, and the whole endianness and
+alignment layer is gone. `buildGetNsidRequest` stays local until there is a
+`BuildRequest`/`AttrBuilder` pair, because `RTM_GETNSID` is a single get and
+`BuildDumpRequest` forces `NLM_F_DUMP`; see `TODO-SOON.md` §15 for the detail.
+For contrast, the fork keeps *one* wire layer (`nl/`) for all seven families.
 
 ### The decoder template
 
