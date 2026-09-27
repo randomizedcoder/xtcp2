@@ -283,14 +283,32 @@ func TestParseNewAddr(t *testing.T) {
 			},
 		},
 		{
-			description: "positive: IPv6 /64 with only IFA_ADDRESS",
+			// IPv6 replies carry no IFA_LOCAL — all 15 in the committed v6 dump
+			// omit it — and iproute2 aliases the two attributes onto each other
+			// when either is missing (ip/ipaddress.c:1531-1534). Without that,
+			// every IPv6 address would decode with an empty Local and a
+			// renderer reading Local would print nothing at all.
+			description: "positive: IPv6 /64 with only IFA_ADDRESS aliases it into Local",
 			body: concat(
 				ifaddrmsgHdr(unix.AF_INET6, 64, 0, unix.RT_SCOPE_UNIVERSE, 2),
 				rtattr(unix.IFA_ADDRESS, mustV6(t, "2001:db8::5")),
 			),
 			want: AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
-				Address: mustV6(t, "2001:db8::5"),
+				Address: mustV6(t, "2001:db8::5"), Local: mustV6(t, "2001:db8::5"),
+			},
+		},
+		{
+			// The alias runs the other way too, which matters less in practice
+			// but is the same two lines of C.
+			description: "boundary: only IFA_LOCAL aliases it into Address",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 32, 0, unix.RT_SCOPE_HOST, 1),
+				rtattr(unix.IFA_LOCAL, v4b(127, 0, 0, 1)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_HOST, Index: 1,
+				Address: v4b(127, 0, 0, 1), Local: v4b(127, 0, 0, 1),
 			},
 		},
 		{
@@ -311,15 +329,18 @@ func TestParseNewAddr(t *testing.T) {
 			want:        AddrInfo{Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_HOST, Index: 1},
 		},
 		{
-			description: "corner: unknown attribute types are ignored",
+			// IFA_ANYCAST is a real attribute this package does not decode, so
+			// it stands in for "unknown" without pretending a decoded one is
+			// unknown. (This row used to use IFA_FLAGS, which is now decoded.)
+			description: "corner: undecoded attribute types are ignored",
 			body: concat(
 				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
-				rtattr(unix.IFA_FLAGS, []byte{0, 0, 0, 0x80}),
+				rtattr(unix.IFA_ANYCAST, v4b(192, 168, 1, 255)),
 				rtattr(unix.IFA_ADDRESS, v4b(192, 168, 1, 2)),
 			),
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
-				Address: v4b(192, 168, 1, 2),
+				Address: v4b(192, 168, 1, 2), Local: v4b(192, 168, 1, 2),
 			},
 		},
 		{
@@ -334,6 +355,161 @@ func TestParseNewAddr(t *testing.T) {
 				[]byte{0x02, 0x00, byte(unix.IFA_ADDRESS), 0x00}, // alen=2 (< RTAttrSizeCst)
 			),
 			wantErr: true,
+		},
+
+		// ---- IFA_FLAGS, IFA_CACHEINFO, IFA_BROADCAST, IFA_PROTO -----------
+		//
+		// The positives for all four are in TestParseNewAddrRealFixtures,
+		// since every one appears in the committed dumps. Constructed here:
+		// the flag combinations the capture host happens not to have, and the
+		// malformed lengths a kernel never sends.
+		{
+			// **The row the 8-bit header field cannot express.** ifa_flags in
+			// the header is a byte; IFA_F_MANAGETEMPADDR is 0x100 and
+			// IFA_F_NOPREFIXROUTE is 0x200, so a decoder reading only the
+			// header sees 0 here and renders none of it. ip_addr_n:16 is a real
+			// address printing "dynamic mngtmpaddr noprefixroute".
+			description: "positive: IFA_FLAGS carries mngtmpaddr|noprefixroute, invisible to the header byte",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET6, 64, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_ADDRESS, mustV6(t, "2001:db8::1")),
+				rtattr(unix.IFA_FLAGS, le32(unix.IFA_F_MANAGETEMPADDR|unix.IFA_F_NOPREFIXROUTE)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: mustV6(t, "2001:db8::1"), Local: mustV6(t, "2001:db8::1"),
+				Flags: unix.IFA_F_MANAGETEMPADDR | unix.IFA_F_NOPREFIXROUTE,
+			},
+		},
+		{
+			// IFA_FLAGS REPLACES the header byte, it does not extend it —
+			// get_ifa_flags is a ternary, not an OR (ip/ipaddress.c:1371-1376).
+			// So IFA_F_PERMANENT in the header is *lost* when the attribute
+			// omits it, and reproducing that is the whole point: OR-ing would
+			// make goip print "forever"-style permanence `ip` does not.
+			description: "boundary: IFA_FLAGS replaces the header byte rather than OR-ing with it",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, unix.IFA_F_PERMANENT, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_ADDRESS, v4b(10, 0, 0, 1)),
+				rtattr(unix.IFA_FLAGS, le32(unix.IFA_F_NOPREFIXROUTE)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: v4b(10, 0, 0, 1), Local: v4b(10, 0, 0, 1),
+				Flags: unix.IFA_F_NOPREFIXROUTE,
+			},
+		},
+		{
+			// With no IFA_FLAGS the header byte is all there is, and it must
+			// still reach Flags — otherwise an old kernel's replies lose every
+			// flag they do carry.
+			description: "boundary: no IFA_FLAGS leaves the header's ifa_flags byte in place",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 8, unix.IFA_F_PERMANENT, unix.RT_SCOPE_HOST, 1),
+				rtattr(unix.IFA_ADDRESS, v4b(127, 0, 0, 1)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 8, Scope: unix.RT_SCOPE_HOST, Index: 1,
+				Address: v4b(127, 0, 0, 1), Local: v4b(127, 0, 0, 1),
+				Flags: unix.IFA_F_PERMANENT,
+			},
+		},
+		{
+			description: "negative: 3-byte IFA_FLAGS is ignored, leaving the header byte",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 8, unix.IFA_F_PERMANENT, unix.RT_SCOPE_HOST, 1),
+				rtattr(unix.IFA_FLAGS, []byte{0x00, 0x02, 0x00}),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 8, Scope: unix.RT_SCOPE_HOST, Index: 1,
+				Flags: unix.IFA_F_PERMANENT,
+			},
+		},
+		{
+			description: "positive: IFA_CACHEINFO decodes all four u32 fields",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_CACHEINFO, concat(le32(3600), le32(7200), le32(11), le32(22))),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: 3600, Valid: 7200, Cstamp: 11, Tstamp: 22,
+				},
+			},
+		},
+		{
+			// The plan left "IFA_CACHEINFO of 15 bytes" explicitly
+			// unspecified. It is specified here: a short cacheinfo is dropped,
+			// HasCacheInfo stays false, and the rest of the message still
+			// decodes — the same tolerance a short IFA_FLAGS gets. Failing the
+			// whole address over an unusable lifetime would lose the address.
+			description: "boundary: 15-byte IFA_CACHEINFO is dropped, leaving HasCacheInfo false",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_ADDRESS, v4b(10, 0, 0, 9)),
+				rtattr(unix.IFA_CACHEINFO, make([]byte, IfaCacheinfoSizeCst-1)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: v4b(10, 0, 0, 9), Local: v4b(10, 0, 0, 9),
+			},
+		},
+		{
+			// A longer cacheinfo is accepted and the extra bytes ignored, which
+			// is what a forward-compatible reader must do if the struct grows.
+			description: "boundary: a 20-byte IFA_CACHEINFO decodes its first 16 bytes",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_CACHEINFO, concat(le32(1), le32(2), le32(3), le32(4), le32(5))),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				HasCacheInfo: true,
+				CacheInfo:    IfaCacheinfo{Preferred: 1, Valid: 2, Cstamp: 3, Tstamp: 4},
+			},
+		},
+		{
+			description: "positive: IFA_BROADCAST and IFA_PROTO both decode",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_ADDRESS, v4b(172, 16, 50, 219)),
+				rtattr(unix.IFA_BROADCAST, v4b(172, 16, 50, 255)),
+				rtattr(IfaProto, []byte{IfaProtoKernelLL}),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: v4b(172, 16, 50, 219), Local: v4b(172, 16, 50, 219),
+				Broadcast: v4b(172, 16, 50, 255), Proto: IfaProtoKernelLL,
+			},
+		},
+		{
+			description: "corner: duplicate IFA_FLAGS takes the first, as parse_rtattr does",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_FLAGS, le32(unix.IFA_F_TEMPORARY)),
+				rtattr(unix.IFA_FLAGS, le32(unix.IFA_F_DEPRECATED)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Flags: unix.IFA_F_TEMPORARY,
+			},
+		},
+		{
+			// ifa_prefixlen is decoded verbatim; nothing here range-checks it
+			// against the family, because the kernel is the authority on what it
+			// sent and a renderer flagging "/33" is more useful than a parser
+			// refusing the message.
+			description: "corner: ifa_prefixlen of 33 on AF_INET decodes verbatim",
+			body: concat(
+				ifaddrmsgHdr(unix.AF_INET, 33, 0, unix.RT_SCOPE_UNIVERSE, 2),
+				rtattr(unix.IFA_ADDRESS, v4b(10, 0, 0, 1)),
+			),
+			want: AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 33, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: v4b(10, 0, 0, 1), Local: v4b(10, 0, 0, 1),
+			},
 		},
 	}
 
@@ -554,6 +730,210 @@ func TestParseNewLink(t *testing.T) {
 			description: "corner: truncated ifinfomsg header -> error",
 			body:        make([]byte, IfInfomsgSizeCst-1),
 			wantErr:     true,
+		},
+
+		// ---- the attributes `ip link show` renders ------------------------
+		//
+		// The real-fixture table (TestParseNewLinkRealFixture) owns the
+		// positive assertions for these, since every one of them appears in
+		// the committed 7.1.8 dump. What is constructed here is the shapes a
+		// real kernel does not produce: wrong lengths, duplicates, malformed
+		// nests.
+		{
+			// `ip` does not assume 6 bytes. InfiniBand hardware addresses are
+			// 20, and ll_addr_n2a's generic path prints all of them — so a
+			// decoder that copied into a [6]byte, or sliced val[:6], would
+			// silently drop 14 bytes of a real address. No fixture: the capture
+			// host has no IB device.
+			description: "boundary: 20-byte IFLA_ADDRESS (InfiniBand) is retained whole",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_INFINIBAND, 6, unix.IFF_UP),
+				rtattr(unix.IFLA_ADDRESS, []byte{
+					0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
+					0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+				}),
+			),
+			want: LinkInfo{
+				Index: 6, Flags: unix.IFF_UP, Type: unix.ARPHRD_INFINIBAND,
+				Address: []byte{
+					0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
+					0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+				},
+			},
+		},
+		{
+			// A zero-length attribute is well-formed: rta_len == 4, no payload.
+			// CopyBytes maps it to nil, which is the same value an absent
+			// IFLA_ADDRESS produces — so "present but empty" and "absent" are
+			// deliberately indistinguishable, because `ip` renders both as
+			// nothing after "link/".
+			description: "boundary: zero-length IFLA_ADDRESS decodes to nil, like an absent one",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_NETLINK, 7, unix.IFF_UP),
+				rtattr(unix.IFLA_ADDRESS, nil),
+			),
+			want: LinkInfo{Index: 7, Flags: unix.IFF_UP, Type: unix.ARPHRD_NETLINK},
+		},
+		{
+			// The kernel NUL-terminates IFLA_IFNAME, but nothing in the wire
+			// format requires it, and TrimRight on a payload with no NUL must
+			// leave the name intact rather than losing its last byte.
+			description: "boundary: IFLA_IFNAME with no trailing NUL keeps the whole payload",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 8, unix.IFF_UP),
+				rtattr(unix.IFLA_IFNAME, []byte("eth9")),
+			),
+			want: LinkInfo{
+				Index: 8, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "eth9",
+			},
+		},
+		{
+			// -1 is a value the kernel really sends: "the peer is in a netns I
+			// cannot name", which `ip` prints as "link-netnsid unknown". That is
+			// a different line from printing nothing, which is why the struct
+			// carries HasLinkNetnsID instead of overloading -1 or 0.
+			description: "boundary: IFLA_LINK_NETNSID of -1 sets the flag and keeps the value",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 9, unix.IFF_UP),
+				rtattr(unix.IFLA_LINK, le32(3)),
+				rtattr(unix.IFLA_LINK_NETNSID, le32(0xffffffff)),
+			),
+			want: LinkInfo{
+				Index: 9, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				Link: 3, LinkNetnsID: -1, HasLinkNetnsID: true,
+			},
+		},
+		{
+			// The honest limit of the struct: IFLA_TXQLEN carrying 0 and no
+			// IFLA_TXQLEN at all both decode to TxQLen 0. `ip` cannot tell them
+			// apart either — it omits the "qlen" token when the value is 0 — so
+			// nothing is lost, but the row exists so the ambiguity is recorded
+			// rather than discovered.
+			description: "boundary: IFLA_TXQLEN of 0 is indistinguishable from an absent one",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 10, unix.IFF_UP),
+				rtattr(unix.IFLA_TXQLEN, le32(0)),
+			),
+			want: LinkInfo{Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+		},
+		{
+			description: "negative: 2-byte IFLA_LINK is ignored, leaving Link zero",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 11, unix.IFF_UP),
+				rtattr(unix.IFLA_LINK, []byte{0x03, 0x00}),
+			),
+			want: LinkInfo{Index: 11, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+		},
+		{
+			description: "negative: 2-byte IFLA_MASTER is ignored, leaving Master zero",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 12, unix.IFF_UP),
+				rtattr(unix.IFLA_MASTER, []byte{0x09, 0x00}),
+			),
+			want: LinkInfo{Index: 12, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+		},
+		{
+			// iproute2's parse_rtattr keeps the FIRST occurrence
+			// (lib/libnetlink.c:1554) where the kernel's own __nla_parse keeps
+			// the last. pkg/xtcpnl follows iproute2, so 1500 wins over 9000 —
+			// reverse that and goip renders an MTU `ip` never would.
+			description: "corner: duplicate IFLA_MTU takes the first, as parse_rtattr does",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 13, unix.IFF_UP),
+				rtattr(unix.IFLA_MTU, le32(1500)),
+				rtattr(unix.IFLA_MTU, le32(9000)),
+			),
+			want: LinkInfo{
+				Index: 13, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, MTU: 1500,
+			},
+		},
+		{
+			description: "corner: duplicate IFLA_IFNAME takes the first",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 14, unix.IFF_UP),
+				rtattr(unix.IFLA_IFNAME, append([]byte("first"), 0)),
+				rtattr(unix.IFLA_IFNAME, append([]byte("second"), 0)),
+			),
+			want: LinkInfo{
+				Index: 14, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "first",
+			},
+		},
+		{
+			// The nest is the first production use of WalkRTAttrsNested.
+			description: "positive: IFLA_LINKINFO nest yields IFLA_INFO_KIND",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 15, unix.IFF_UP),
+				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_KIND, append([]byte("vxlan"), 0))),
+			),
+			want: LinkInfo{
+				Index: 15, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "vxlan",
+			},
+		},
+		{
+			// The kernel ORs NLA_F_NESTED into rta_type for a real nest, and
+			// WalkRTAttrs masks it off — so the outer switch matches whether or
+			// not the flag is set. Without the mask this row decodes to Kind ""
+			// and the failure looks like missing data rather than a bug.
+			description: "corner: IFLA_LINKINFO with NLA_F_NESTED set still descends",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 16, unix.IFF_UP),
+				rtattr(uint16(unix.IFLA_LINKINFO)|uint16(unix.NLA_F_NESTED),
+					rtattr(unix.IFLA_INFO_KIND, append([]byte("bridge"), 0))),
+			),
+			want: LinkInfo{
+				Index: 16, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "bridge",
+			},
+		},
+		{
+			// A nest carrying only IFLA_INFO_DATA — which is what `ip` hands to
+			// one of its forty per-kind print_opt bodies, and which this package
+			// deliberately does not decode.
+			description: "corner: IFLA_LINKINFO with no IFLA_INFO_KIND leaves Kind empty",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 17, unix.IFF_UP),
+				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04})),
+			),
+			want: LinkInfo{Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+		},
+		{
+			// A malformed nest must not fail the whole link. linkInfoKind
+			// swallows the walk error, so the message still decodes and only the
+			// kind is lost — dropping an otherwise good link because a nest it
+			// did not need was truncated is worse for a renderer.
+			description: "corner: IFLA_LINKINFO whose inner rta_len overruns loses only Kind",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 18, unix.IFF_UP),
+				rtattr(unix.IFLA_IFNAME, append([]byte("brok0"), 0)),
+				// Inner rta_len 0x40 with only 4 payload bytes behind it.
+				rtattr(unix.IFLA_LINKINFO, []byte{0x40, 0x00, 0x01, 0x00, 0xaa, 0xaa, 0xaa, 0xaa}),
+			),
+			want: LinkInfo{
+				Index: 18, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "brok0",
+			},
+		},
+		{
+			// WalkRTAttrs tolerates a trailing remainder shorter than an rtattr
+			// header, because that is what the kernel's NLA_ALIGN walk does.
+			description: "corner: 3 trailing bytes after the last attribute are tolerated",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 19, unix.IFF_UP),
+				rtattr(unix.IFLA_IFNAME, append([]byte("tail0"), 0)),
+				[]byte{0x01, 0x02, 0x03},
+			),
+			want: LinkInfo{
+				Index: 19, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "tail0",
+			},
+		},
+		{
+			// But a full header claiming more bytes than remain is an error, not
+			// a tail: ErrRTAttrSmall. The pair of rows is the boundary between
+			// "truncated stream" and "lying length".
+			description: "negative: attribute whose rta_len exceeds the remaining bytes -> error",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 20, unix.IFF_UP),
+				[]byte{0x40, 0x00, 0x03, 0x00, 0x65, 0x74, 0x68, 0x30},
+			),
+			wantErr: true,
 		},
 	}
 

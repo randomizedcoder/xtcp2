@@ -85,6 +85,24 @@ const (
 // attribute is absent, which for OperState coincides with the real value
 // IfOperUnknown. Prefer the Flags-derived helpers (IsUp, IsAdminDown,
 // IsCarrierDown) for decisions, since ifi_flags is always present.
+//
+// The second group of fields is what `ip link show` needs to render a line at
+// all, and each is present in the committed 7.1.8 link dump:
+//
+//	Address/Broadcast  the MAC and its broadcast — "link/ether aa:.. brd ff:.."
+//	Qdisc              "qdisc noqueue"
+//	TxQLen             "qlen 1000"; `ip` omits the word entirely when 0
+//	LinkMode           "mode DEFAULT" (0) or "mode DORMANT" (1)
+//	Group              "group default" (0)
+//	Link               the peer index behind the "@if2" suffix on a veth
+//	Master             the enslaving bridge — "master br-3a5828b2963a"
+//	Kind               IFLA_LINKINFO -> IFLA_INFO_KIND: "veth", "bridge", "nlmon"
+//
+// Index 0 is not a valid interface index, so Link == 0 and Master == 0 mean the
+// attribute was absent. IFLA_LINK_NETNSID needs the explicit HasLinkNetnsID
+// because -1 is a value the kernel really sends, meaning "the peer is in a
+// netns I cannot name" — iproute2 prints "link-netnsid unknown" for it, which
+// is a different line from printing nothing.
 type LinkInfo struct {
 	Index     int32
 	Flags     uint32
@@ -94,6 +112,61 @@ type LinkInfo struct {
 	OperState uint8  // IFLA_OPERSTATE (IF_OPER_*); IfOperUnknown if absent
 	Carrier   uint8  // IFLA_CARRIER (0/1); 0 if absent
 	MTU       uint32 // IFLA_MTU; 0 if absent
+
+	Address        []byte // IFLA_ADDRESS — the hardware address; nil if absent
+	Broadcast      []byte // IFLA_BROADCAST; nil if absent
+	Qdisc          string // IFLA_QDISC
+	Kind           string // IFLA_LINKINFO -> IFLA_INFO_KIND
+	Link           int32  // IFLA_LINK — peer/lower interface index; 0 if absent
+	Master         int32  // IFLA_MASTER — enslaving interface index; 0 if absent
+	LinkNetnsID    int32  // IFLA_LINK_NETNSID; only meaningful with HasLinkNetnsID
+	HasLinkNetnsID bool   // IFLA_LINK_NETNSID present (the value may be -1)
+	TxQLen         uint32 // IFLA_TXQLEN
+	Group          uint32 // IFLA_GROUP
+	LinkMode       uint8  // IFLA_LINKMODE — IF_LINK_MODE_DEFAULT / _DORMANT
+}
+
+// HWAddr returns the hardware address as `ip` prints it — colon-separated lower
+// hex of every byte, whatever the length — or "" when IFLA_ADDRESS is absent.
+//
+// The length is not assumed to be 6. InfiniBand carries 20 bytes and a tunnel
+// carries 4, and `ip` prints all of them (ll_addr_n2a falls through to a
+// generic hex loop for any type it has no special case for). Truncating to 6
+// would silently corrupt those.
+//
+// An absent attribute is not the same as a zero address: lo really does have
+// 00:00:00:00:00:00, while nlmon0 in the committed dump has no IFLA_ADDRESS at
+// all and `ip` prints "link/netlink " with nothing after it.
+func (li LinkInfo) HWAddr() string {
+	return hwAddrString(li.Address)
+}
+
+// BroadcastAddr is HWAddr for IFLA_BROADCAST, the "brd ff:ff:ff:ff:ff:ff" half
+// of the same line.
+func (li LinkInfo) BroadcastAddr() string {
+	return hwAddrString(li.Broadcast)
+}
+
+// TypeName is the ARPHRD_* name `ip` prints after "link/".
+func (li LinkInfo) TypeName() string {
+	return ARPHRDName(li.Type)
+}
+
+// hwAddrString formats a hardware address the way iproute2's ll_addr_n2a does
+// for a type it has no special case for: "%02x" per byte, ":" between.
+func hwAddrString(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	const hexDigits = "0123456789abcdef"
+	out := make([]byte, 0, len(b)*3-1)
+	for i, c := range b {
+		if i > 0 {
+			out = append(out, ':')
+		}
+		out = append(out, hexDigits[c>>4], hexDigits[c&0x0f])
+	}
+	return string(out)
 }
 
 // IsUp reports whether the link is both administratively up and operationally
@@ -120,7 +193,20 @@ func (li LinkInfo) IsCarrierDown() bool {
 
 // ParseNewLink decodes an RTM_NEWLINK or RTM_DELLINK message body (the bytes
 // after the nlmsghdr): the ifinfomsg header followed by IFLA_* attributes.
-// IFLA_IFNAME, IFLA_OPERSTATE, IFLA_CARRIER and IFLA_MTU are extracted.
+//
+// The set decoded is what it takes to render an `ip link show` line: IFNAME,
+// OPERSTATE, CARRIER, MTU, ADDRESS, BROADCAST, QDISC, TXQLEN, LINKMODE, GROUP,
+// LINK, MASTER, LINK_NETNSID, and IFLA_INFO_KIND from inside IFLA_LINKINFO.
+// Everything else in the message — 30-odd attributes per link in the committed
+// dump, most of them the `-d` detail `ip` only prints on request — is skipped.
+//
+// IFLA_STATS and IFLA_STATS64 are deliberately not here. They are absent from
+// every reply in the committed fixtures because the request sets
+// RTEXT_FILTER_SKIP_STATS, and they return only under `ip -s`.
+//
+// Duplicated attributes take the first occurrence; see
+// xtcpnl_rtattr_firstwins.go for why that is iproute2's rule and not the
+// kernel's.
 //
 // The name is retained for the dump path; RTM_DELLINK carries the same layout,
 // so ParseRtnetlinkEvent reuses this for both senses.
@@ -136,7 +222,11 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		Change: m.Change,
 		Type:   m.Type,
 	}
+	var seen attrSeen
 	err := WalkRTAttrs(body[IfInfomsgSizeCst:], func(atype uint16, val []byte) {
+		if !seen.first(atype) {
+			return
+		}
 		switch atype {
 		case uint16(unix.IFLA_IFNAME):
 			li.Name = string(bytes.TrimRight(val, "\x00"))
@@ -152,10 +242,66 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 			if len(val) >= 4 {
 				li.MTU = binary.LittleEndian.Uint32(val[0:4])
 			}
+		case uint16(unix.IFLA_ADDRESS):
+			li.Address = CopyBytes(val)
+		case uint16(unix.IFLA_BROADCAST):
+			li.Broadcast = CopyBytes(val)
+		case uint16(unix.IFLA_QDISC):
+			li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+		case uint16(unix.IFLA_TXQLEN):
+			if len(val) >= 4 {
+				li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
+			}
+		case uint16(unix.IFLA_LINKMODE):
+			if len(val) >= 1 {
+				li.LinkMode = val[0]
+			}
+		case uint16(unix.IFLA_GROUP):
+			if len(val) >= 4 {
+				li.Group = binary.LittleEndian.Uint32(val[0:4])
+			}
+		case uint16(unix.IFLA_LINK):
+			if len(val) >= 4 {
+				li.Link = int32(binary.LittleEndian.Uint32(val[0:4]))
+			}
+		case uint16(unix.IFLA_MASTER):
+			if len(val) >= 4 {
+				li.Master = int32(binary.LittleEndian.Uint32(val[0:4]))
+			}
+		case uint16(unix.IFLA_LINK_NETNSID):
+			if len(val) >= 4 {
+				li.LinkNetnsID = int32(binary.LittleEndian.Uint32(val[0:4]))
+				li.HasLinkNetnsID = true
+			}
+		case uint16(unix.IFLA_LINKINFO):
+			li.Kind = linkInfoKind(val)
 		}
 	})
 	if err != nil {
 		return LinkInfo{}, err
 	}
 	return li, nil
+}
+
+// linkInfoKind descends IFLA_LINKINFO and returns IFLA_INFO_KIND — "veth",
+// "bridge", "nlmon" — or "" when the nest carries no kind.
+//
+// This is the first production caller of WalkRTAttrsNested, closing
+// TODO-SOON.md §12. The descent is one level and stops there: IFLA_INFO_DATA is
+// the per-kind blob `ip` hands to one of forty print_opt implementations, and
+// decoding it is explicitly out of scope.
+//
+// A walk error inside the nest is swallowed rather than failing the whole
+// message. That is the same tolerance WalkRTAttrs already applies to a short
+// trailing attribute at the top level, and the alternative — dropping an
+// otherwise good link because a nest it did not need was malformed — is worse
+// for a renderer.
+func linkInfoKind(val []byte) string {
+	var kind string
+	_ = WalkRTAttrsNested(val, func(atype uint16, inner []byte) {
+		if atype == uint16(unix.IFLA_INFO_KIND) && kind == "" {
+			kind = string(bytes.TrimRight(inner, "\x00"))
+		}
+	})
+	return kind
 }
