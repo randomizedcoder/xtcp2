@@ -11,9 +11,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ---- walkNlMsgs / DumpRtnetlink tests -----------------------------------------
+// ---- WalkNlMsgs / DumpRtnetlink tests -----------------------------------------
 //
-// These exercise the dump-stream walker without a kernel: walkNlMsgs is pure and
+// These exercise the dump-stream walker without a kernel: WalkNlMsgs is pure and
 // takes a datagram, and DumpRtnetlink is driven over an AF_UNIX SOCK_SEQPACKET
 // socketpair (each Write is one datagram, exactly like a netlink recv), with
 // sa == nil so Sendto goes to the connected peer.
@@ -160,7 +160,7 @@ func TestWalkNlMsgs(t *testing.T) {
 			if tc.description != "nil onMsg discards payload messages but still reaches DONE" {
 				onMsg = collector(&got, tc.onMsgErr)
 			}
-			done, err := walkNlMsgs(tc.data, testSeq, onMsg)
+			done, err := WalkNlMsgs(tc.data, testSeq, onMsg)
 			if done != tc.wantDone {
 				t.Errorf("done = %v, want %v", done, tc.wantDone)
 			}
@@ -200,7 +200,7 @@ func FuzzWalkNlMsgs(f *testing.F) {
 		f.Add(seed, testSeq)
 	}
 	f.Fuzz(func(t *testing.T, data []byte, seq uint32) {
-		done, err := walkNlMsgs(data, seq, func(_ uint16, body []byte) error {
+		done, err := WalkNlMsgs(data, seq, func(_ uint16, body []byte) error {
 			if len(body) > len(data) {
 				t.Fatalf("body longer than input: %d > %d", len(body), len(data))
 			}

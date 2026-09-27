@@ -51,22 +51,22 @@ var (
 	ErrShortRequest = errors.New("xtcpnl: rtnetlink request shorter than nlmsghdr")
 )
 
-// buildDumpRequest lays out a DUMP request: a 16-byte nlmsghdr
+// BuildDumpRequest lays out a DUMP request: a 16-byte nlmsghdr
 // (NLM_F_REQUEST|NLM_F_DUMP) followed by the caller's family header, which the
 // caller has already sized (ifinfomsg 16, ifaddrmsg 8, rtmsg 12) and populated
 // with at least its family byte. All three sizes are already 4-byte aligned.
-func buildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
-	total := NlMsgHdrSizeCst + len(familyHdr)
-	b := make([]byte, total)
-
-	binary.LittleEndian.PutUint32(b[0:4], uint32(total))                              // nlmsg_len
-	binary.LittleEndian.PutUint16(b[4:6], msgType)                                    // nlmsg_type
-	binary.LittleEndian.PutUint16(b[6:8], uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP)) // nlmsg_flags
-	binary.LittleEndian.PutUint32(b[8:12], seq)                                       // nlmsg_seq
-	// b[12:16] nlmsg_pid = 0 (kernel fills the peer pid)
-
-	copy(b[NlMsgHdrSizeCst:], familyHdr)
-	return b
+//
+// It is the attribute-free, infallible shorthand for BuildRequest, and shares
+// its layout code and its read-only allowlist. Because the signature has no
+// error to return, a msgType outside the allowlist yields **nil** rather than a
+// write request. That is not a silent failure: DumpRtnetlink rejects a nil
+// request with ErrShortRequest before sending anything. Callers wanting the
+// reason should use BuildRequest.
+func BuildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
+	if !IsBuildableRequestType(msgType) {
+		return nil
+	}
+	return layoutRequest(msgType, uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), seq, familyHdr, nil)
 }
 
 // BuildDumpLinkRequest builds an RTM_GETLINK dump request (ifinfomsg,
@@ -74,7 +74,7 @@ func buildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
 func BuildDumpLinkRequest(seq uint32) []byte {
 	hdr := make([]byte, IfInfomsgSizeCst)
 	hdr[0] = unix.AF_UNSPEC
-	return buildDumpRequest(uint16(unix.RTM_GETLINK), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETLINK), seq, hdr)
 }
 
 // BuildDumpAddrRequest builds an RTM_GETADDR dump request (ifaddrmsg) for the
@@ -83,7 +83,7 @@ func BuildDumpLinkRequest(seq uint32) []byte {
 func BuildDumpAddrRequest(family uint8, seq uint32) []byte {
 	hdr := make([]byte, IfAddrmsgSizeCst)
 	hdr[0] = family
-	return buildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
 }
 
 // BuildDumpRouteRequest builds an RTM_GETROUTE dump request (rtmsg) for the
@@ -92,7 +92,7 @@ func BuildDumpAddrRequest(family uint8, seq uint32) []byte {
 func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 	hdr := make([]byte, RtMsgSizeCst)
 	hdr[0] = family
-	return buildDumpRequest(uint16(unix.RTM_GETROUTE), seq, hdr)
+	return BuildDumpRequest(uint16(unix.RTM_GETROUTE), seq, hdr)
 }
 
 // DumpRtnetlink sends request on fd and drives the multipart reply, invoking
@@ -103,7 +103,7 @@ func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 // DONE degrades to an error instead of blocking. onMsg must copy any bytes it
 // needs to retain — the receive buffer is reused across recvs.
 //
-// Hardening (see walkNlMsgs for the per-datagram rules):
+// Hardening (see WalkNlMsgs for the per-datagram rules):
 //   - datagrams whose sender pid is not the kernel (nlmsg from another
 //     userspace process on a multicast-joined socket) are ignored;
 //   - messages whose nlmsg_seq differs from the request's are ignored, so a
@@ -145,7 +145,7 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 		if interrupted {
 			deliver = nil // draining only: nothing more is delivered after an interruption
 		}
-		done, werr := walkNlMsgs(buf[:n], seq, deliver)
+		done, werr := WalkNlMsgs(buf[:n], seq, deliver)
 		switch {
 		case errors.Is(werr, ErrDumpInterrupted):
 			interrupted = true
@@ -161,6 +161,102 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 	}
 }
 
+// errTalkStopCst is an internal sentinel: the onMsg callback TalkRtnetlink
+// hands to WalkNlMsgs returns it to stop the walk after the first reply.
+// WalkNlMsgs propagates an onMsg error immediately, which is exactly the
+// "stop here" primitive needed, and reusing the one walker is better than
+// giving the single-get path a second copy of the message loop.
+//
+// It never escapes TalkRtnetlink.
+var errTalkStopCst = errors.New("xtcpnl: internal: first reply captured")
+
+// TalkRtnetlink sends one NON-DUMP request and returns the single reply.
+//
+// # Why DumpRtnetlink cannot do this
+//
+// A single get — `ip link show dev X`, iproute2's ll_link_get — sends
+// flags=NLM_F_REQUEST with no NLM_F_DUMP, and the kernel answers with exactly
+// one message: no NLM_F_MULTI, and **no NLMSG_DONE**. DumpRtnetlink's loop
+// terminates only on DONE or NLMSG_ERROR, so pointing it at a single get makes
+// it recv until SO_RCVTIMEO and then report a timeout, which looks like a
+// kernel problem rather than a misuse. Verified against the ten captured
+// single-gets in testdata/7_1_8/netlink_route_getroute.pcap, all
+// flags=0x0001 with a lone RTM_NEWLINK reply.
+//
+// The converse misuse is just as wrong: pointing TalkRtnetlink at a dump
+// returns the first message and abandons the rest mid-stream, leaving the
+// socket holding the remainder. Use DumpRtnetlink for anything with
+// NLM_F_DUMP set.
+//
+// # What it returns
+//
+//   - the first reply that is not a control message: its type and a COPY of its
+//     body (unlike DumpRtnetlink's callback, which aliases the receive buffer),
+//     with a nil error;
+//   - (0, nil, nil) for an NLMSG_ERROR carrying errno 0 — that is an ACK, the
+//     normal answer to a request that has nothing to return — and likewise for
+//     an NLMSG_DONE, which a single get should not send but which is not an
+//     error if it does;
+//   - a wrapped syscall.Errno for an NLMSG_ERROR with a non-zero errno, so
+//     callers can errors.Is(err, unix.ENODEV);
+//   - ErrShortRequest if the request is not even an nlmsghdr, before anything
+//     is sent. BuildDumpRequest's nil for a rejected message type lands here.
+//
+// Messages whose nlmsg_seq is not the request's are skipped, and datagrams
+// whose sender is not the kernel are dropped, both by the same rules
+// DumpRtnetlink uses (see WalkNlMsgs and fromKernel). If a datagram contains
+// nothing for this request, it recvs again — so the socket must have
+// SO_RCVTIMEO set, or a request the kernel never answers blocks forever.
+//
+// sa may be nil for a connected socket; the tests drive this over an AF_UNIX
+// SOCK_SEQPACKET socketpair.
+func TalkRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink) (msgType uint16, body []byte, err error) {
+	if len(request) < NlMsgHdrSizeCst {
+		return 0, nil, ErrShortRequest
+	}
+	seq := binary.LittleEndian.Uint32(request[8:12])
+
+	var to unix.Sockaddr
+	if sa != nil {
+		to = sa
+	}
+	if serr := unix.Sendto(fd, request, 0, to); serr != nil {
+		return 0, nil, fmt.Errorf("xtcpnl: rtnetlink send: %w", serr)
+	}
+
+	buf := make([]byte, rtnetlinkRecvBufCst)
+	for {
+		n, from, rerr := unix.Recvfrom(fd, buf, 0)
+		if rerr != nil {
+			return 0, nil, fmt.Errorf("xtcpnl: rtnetlink recv: %w", rerr)
+		}
+		if !fromKernel(from) {
+			continue
+		}
+
+		var (
+			gotType uint16
+			gotBody []byte
+		)
+		done, werr := WalkNlMsgs(buf[:n], seq, func(mt uint16, mbody []byte) error {
+			gotType = mt
+			gotBody = CopyBytes(mbody)
+			return errTalkStopCst
+		})
+		switch {
+		case errors.Is(werr, errTalkStopCst):
+			return gotType, gotBody, nil
+		case werr != nil:
+			return 0, nil, werr
+		case done:
+			// NLMSG_DONE, or an NLMSG_ERROR with errno 0: an ACK.
+			return 0, nil, nil
+		}
+		// Every message in this datagram belonged to another request. Recv again
+		// rather than reporting a reply we never saw.
+	}
+}
+
 // fromKernel reports whether a datagram's sender address is the kernel. On a
 // netlink socket the kernel is always nlmsg_pid 0; a datagram from any other
 // netlink port id is a userspace peer and is dropped. A nil or non-netlink
@@ -170,7 +266,7 @@ func fromKernel(from unix.Sockaddr) bool {
 	return !ok || sn.Pid == 0
 }
 
-// walkNlMsgs parses one received datagram: a run of 4-byte-aligned netlink
+// WalkNlMsgs parses one received datagram: a run of 4-byte-aligned netlink
 // messages. It is pure (no I/O) so it can be table- and fuzz-tested directly.
 //
 // Rules, in order, for each message:
@@ -187,7 +283,15 @@ func fromKernel(from unix.Sockaddr) bool {
 // A trailing remainder shorter than a header is ignored, mirroring the
 // kernel's NLMSG_OK walk. done=false, err=nil means the dump continues in the
 // next datagram.
-func walkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
+//
+// seq must be the sequence number the caller put on its own request. There is
+// deliberately no "accept any seq" sentinel, because every uint32 is a legal
+// nlmsg_seq — iproute2's rtnl_open seeds it from time(NULL)
+// (lib/libnetlink.c:249), so real captures contain arbitrary values. Code that
+// reads back a recorded stream and so cannot know the seq should take it from
+// the first header, or use pkg/nlparity, whose tolerant walker does not filter
+// at all.
+func WalkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
 	if len(data) < NlMsgHdrSizeCst {
 		return false, ErrShortRecv
 	}
@@ -270,7 +374,7 @@ func netlinkErr(body []byte) error {
 // golang.org/x/sys/unix.
 const NlaTypeMaskCst uint16 = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER)
 
-// walkRTAttrs iterates the RTAttr TLVs in data, calling fn for each with its
+// WalkRTAttrs iterates the RTAttr TLVs in data, calling fn for each with its
 // type and value slice (a view into data — copy what you retain). It validates
 // each attribute length and advances by the 4-byte-aligned length, tolerating a
 // short trailing remainder like the kernel's NLA_ALIGN walk.
@@ -280,7 +384,7 @@ const NlaTypeMaskCst uint16 = ^uint16(unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORD
 // or not the kernel flagged the attribute. Without the mask a nested attribute
 // silently fails every switch case, which is a bug that presents as missing
 // data rather than as an error.
-func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
+func WalkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 	for len(data) >= RTAttrSizeCst {
 		var rta RTAttr
 		if _, err := DeserializeRTAttr(data, &rta); err != nil {
@@ -301,17 +405,17 @@ func walkRTAttrs(data []byte, fn func(atype uint16, val []byte)) error {
 	return nil
 }
 
-// walkRTAttrsNested descends into a nested attribute's payload, which is itself
+// WalkRTAttrsNested descends into a nested attribute's payload, which is itself
 // a stream of TLVs laid out exactly like a top-level one. It is a thin alias
-// for walkRTAttrs, named so call sites read as a descent and so the nesting is
+// for WalkRTAttrs, named so call sites read as a descent and so the nesting is
 // visible when reading a parser.
-func walkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
-	return walkRTAttrs(val, fn)
+func WalkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
+	return WalkRTAttrs(val, fn)
 }
 
-// copyBytes returns a fresh copy of b, or nil for an empty slice, so parsed
+// CopyBytes returns a fresh copy of b, or nil for an empty slice, so parsed
 // results never alias the reused receive buffer.
-func copyBytes(b []byte) []byte {
+func CopyBytes(b []byte) []byte {
 	if len(b) == 0 {
 		return nil
 	}

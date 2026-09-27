@@ -19,9 +19,11 @@ import (
 	"time"
 
 	protovalidate "github.com/bufbuild/protovalidate-go"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 )
 
 // envHelperReset tears down any flag-package state captured by other
@@ -501,7 +503,7 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer notReady.Close()
-	if rc := runHealthcheck(context.Background(), "", ":"+portOf(notReady.URL)); rc != 1 {
+	if rc := runHealthcheck(context.Background(), "", ":"+portOf(notReady.URL), nil, listenerauth.ClientAuth{}); rc != 1 {
 		t.Errorf("not-ready: rc=%d, want 1", rc)
 	}
 
@@ -509,12 +511,12 @@ func TestRunHealthcheck(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ready.Close()
-	if rc := runHealthcheck(context.Background(), "", ":"+portOf(ready.URL)); rc != 0 {
+	if rc := runHealthcheck(context.Background(), "", ":"+portOf(ready.URL), nil, listenerauth.ClientAuth{}); rc != 0 {
 		t.Errorf("ready: rc=%d, want 0", rc)
 	}
 
 	// Nothing listening -> unreachable -> 1.
-	if rc := runHealthcheck(context.Background(), "", ":1"); rc != 1 {
+	if rc := runHealthcheck(context.Background(), "", ":1", nil, listenerauth.ClientAuth{}); rc != 1 {
 		t.Errorf("unreachable: rc=%d, want 1", rc)
 	}
 }
@@ -538,10 +540,10 @@ func TestRunHealthcheckUnix(t *testing.T) {
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
 
-	if rc := runHealthcheck(context.Background(), "unix", sock); rc != 0 {
+	if rc := runHealthcheck(context.Background(), "unix", sock, nil, listenerauth.ClientAuth{}); rc != 0 {
 		t.Errorf("unix ready: rc=%d, want 0", rc)
 	}
-	if rc := runHealthcheck(context.Background(), "unix", filepath.Join(t.TempDir(), "missing.sock")); rc != 1 {
+	if rc := runHealthcheck(context.Background(), "unix", filepath.Join(t.TempDir(), "missing.sock"), nil, listenerauth.ClientAuth{}); rc != 1 {
 		t.Errorf("unix missing: rc=%d, want 1", rc)
 	}
 }
@@ -571,7 +573,7 @@ func TestRunMain_version(t *testing.T) {
 
 	// Stub the prom handler starter so it doesn't bind a port.
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
@@ -591,7 +593,7 @@ func TestRunMain_conf(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	captureLog(t, func() {
@@ -610,7 +612,7 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	prevDaemon := daemonRunner
@@ -639,7 +641,7 @@ func TestInitPromHandler_smoke(t *testing.T) {
 	fatalf = func(string, ...any) {} // swallow
 	t.Cleanup(func() { fatalf = prevFatalf })
 
-	initPromHandler("/metrics", nil, ":0", 0, 0)
+	initPromHandler("/metrics", nil, ":0", 0, 0, nil)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -1203,10 +1205,10 @@ func TestConfigValidation_bounds(t *testing.T) {
 			c.ListenerAuth = &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED}
 		}, false},
 		{"boundary listener_auth skew 5", func(c *xtcp_config.XtcpConfig) {
-			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: 5}
+			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: proto.Uint32(5)}
 		}, false},
 		{"negative listener_auth skew 6", func(c *xtcp_config.XtcpConfig) {
-			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: 6}
+			c.ListenerAuth = &xtcp_config.ListenerAuth{SignedTokenSkewMinutes: proto.Uint32(6)}
 		}, true},
 		{"corner listener_auth equal jitter bounds", func(c *xtcp_config.XtcpConfig) {
 			c.ListenerAuth = &xtcp_config.ListenerAuth{

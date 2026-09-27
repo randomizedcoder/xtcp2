@@ -754,8 +754,8 @@ func (m *ListenerAuth) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x2a
 	}
-	if m.SignedTokenSkewMinutes != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SignedTokenSkewMinutes))
+	if m.SignedTokenSkewMinutes != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.SignedTokenSkewMinutes))
 		i--
 		dAtA[i] = 0x20
 	}
@@ -1787,8 +1787,8 @@ func (m *ListenerAuth) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if m.SignedTokenSkewMinutes != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.SignedTokenSkewMinutes))
+	if m.SignedTokenSkewMinutes != nil {
+		n += 1 + protohelpers.SizeOfVarint(uint64(*m.SignedTokenSkewMinutes))
 	}
 	if m.FailureJitterMin != nil {
 		l = (*durationpb.Duration)(m.FailureJitterMin).SizeVT()
@@ -3611,7 +3611,7 @@ func (m *ListenerAuth) UnmarshalVT(dAtA []byte) error {
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SignedTokenSkewMinutes", wireType)
 			}
-			m.SignedTokenSkewMinutes = 0
+			var v uint32
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -3621,11 +3621,12 @@ func (m *ListenerAuth) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.SignedTokenSkewMinutes |= uint32(b&0x7F) << shift
+				v |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			m.SignedTokenSkewMinutes = &v
 		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FailureJitterMin", wireType)

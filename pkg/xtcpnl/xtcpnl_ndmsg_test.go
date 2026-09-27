@@ -281,7 +281,7 @@ func TestParseNeigh(t *testing.T) {
 			},
 		},
 		{
-			// copyBytes collapses an empty value to nil, so a present-but-empty
+			// CopyBytes collapses an empty value to nil, so a present-but-empty
 			// NDA_LLADDR is indistinguishable from an absent one. That is the
 			// intended behavior: either way there is no usable address.
 			description: "corner: zero-length NDA_LLADDR (a link with no address) yields a nil LLAddr",

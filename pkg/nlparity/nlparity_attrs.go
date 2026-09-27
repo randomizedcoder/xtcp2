@@ -8,7 +8,7 @@ import (
 // Attr is one rtattr TLV.
 //
 // Type is deliberately UNMASKED: NLA_F_NESTED (0x8000) and NLA_F_NET_BYTEORDER
-// (0x4000) are left in place, unlike pkg/xtcpnl's walkRTAttrs which masks them
+// (0x4000) are left in place, unlike pkg/xtcpnl's WalkRTAttrs which masks them
 // via NlaTypeMaskCst so a caller's switch still matches. Here the flags are part
 // of what is being compared — a goip that builds a nest without setting
 // NLA_F_NESTED, or renders a big-endian payload as host order, is a bug, and
@@ -31,30 +31,15 @@ func (a Attr) Nested() bool { return a.Type&uint16(unix.NLA_F_NESTED) != 0 }
 func (a Attr) NetByteOrder() bool { return a.Type&uint16(unix.NLA_F_NET_BYTEORDER) != 0 }
 
 // FamilyHdrLen returns the size of the fixed family header that follows the
-// nlmsghdr for a given rtnetlink message type, or -1 if this package does not
-// know the type.
+// nlmsghdr for a given rtnetlink message type, or -1 for a type neither package
+// models.
 //
-// The attributes start after that header, so getting it wrong shifts every
-// attribute. -1 rather than 0 because a zero-length family header is a real
-// thing in netlink (NLMSG_DONE has none) and must not be confused with "no
-// idea".
-func FamilyHdrLen(msgType uint16) int {
-	switch msgType {
-	case uint16(unix.RTM_GETLINK), uint16(unix.RTM_NEWLINK),
-		uint16(unix.RTM_DELLINK), uint16(unix.RTM_SETLINK):
-		return xtcpnl.IfInfomsgSizeCst // struct ifinfomsg, 16
-	case uint16(unix.RTM_GETADDR), uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
-		return xtcpnl.IfAddrmsgSizeCst // struct ifaddrmsg, 8
-	case uint16(unix.RTM_GETROUTE), uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE):
-		return xtcpnl.RtMsgSizeCst // struct rtmsg, 12
-	case uint16(unix.RTM_GETNEIGH), uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH):
-		return xtcpnl.NdMsgSizeCst // struct ndmsg, 12
-	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
-		return 0
-	default:
-		return -1
-	}
-}
+// It delegates to xtcpnl. This used to be a second copy of the same switch,
+// which is the duplication the exported wire primitives exist to prevent — and
+// the copy here would have been the worse one to let drift, since a wrong
+// header length shifts every attribute in the message and so produces a
+// plausible-looking parity report rather than an error.
+func FamilyHdrLen(msgType uint16) int { return xtcpnl.FamilyHdrLen(msgType) }
 
 // DecodeAttrs splits a message body into its fixed family header and the rtattr
 // stream that follows, returning the attributes in wire order plus any trailing

@@ -83,12 +83,12 @@ func ParseNewAddr(body []byte) (AddrInfo, error) {
 		Scope:     m.Scope,
 		Index:     m.Index,
 	}
-	err := walkRTAttrs(body[IfAddrmsgSizeCst:], func(atype uint16, val []byte) {
+	err := WalkRTAttrs(body[IfAddrmsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.IFA_ADDRESS):
-			ai.Address = copyBytes(val)
+			ai.Address = CopyBytes(val)
 		case uint16(unix.IFA_LOCAL):
-			ai.Local = copyBytes(val)
+			ai.Local = CopyBytes(val)
 		case uint16(unix.IFA_LABEL):
 			ai.Label = string(bytes.TrimRight(val, "\x00"))
 		}

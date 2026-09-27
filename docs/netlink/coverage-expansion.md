@@ -29,8 +29,37 @@ surface the audit listed, which makes `pkg/xtcpnl` a general-purpose netlink
 
 One axis does **not** change, and it is what keeps this finite:
 
-> **Read-only.** Decode messages, and build dump requests to solicit them.
-> Never create, delete, or set. There is no write path in scope, now or later.
+> **Read-only.** `pkg/xtcpnl` emits only `RTM_GET*` message types, plus
+> `NLMSG_NOOP`. Never `RTM_NEW*`, `RTM_DEL*` or `RTM_SET*`, for any family.
+> Attributes on a `GET` or `DUMP` request *select and filter*; they do not
+> mutate. There is no write path in scope, now or later.
+
+That wording is narrower than the "never create, delete, or set" it replaces,
+and deliberately so: **it is a rule about message types, so it can be enforced
+in code.** `BuildRequest` (`xtcpnl_rtattr_encode.go`) returns
+`ErrNotAGetRequest` for anything outside the allowlist, and
+`TestBuildRequestRejectsEveryNamedWriteType` walks every `RTM_NEW*`, `RTM_DEL*`
+and `RTM_SET*` constant `golang.org/x/sys/unix` exports and asserts each one is
+refused. The invariant is a red test now, not a convention.
+
+Two consequences, because both are easy to get backwards:
+
+- **It has to be the message type, because the flags cannot express it.** The
+  kernel overloads the same bits by message type: `NLM_F_ROOT` and
+  `NLM_F_REPLACE` are both `0x100`, `NLM_F_MATCH` and `NLM_F_EXCL` are both
+  `0x200`, `NLM_F_ATOMIC` and `NLM_F_CREATE` are both `0x400`
+  (`include/uapi/linux/netlink.h:70-79`). So `NLM_F_DUMP` — `ROOT|MATCH`,
+  `0x300` — is *bit-identical* to `REPLACE|EXCL`. "Refuse write flags" is not
+  something that can be written down, and a `GET` cannot mutate whatever bits
+  are set. `TestNlmFlagsAreOverloaded` pins the aliasing.
+- **An attribute on a request is not a write.** `IFLA_EXT_MASK` chooses which
+  optional attributes the reply carries; `IFLA_IFNAME` chooses which row. That
+  is why an attribute *encoder* is compatible with a read-only library — and why
+  it is not optional: `ip link show` sends
+  `IFLA_EXT_MASK = RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS` (`0x09`), and
+  `SKIP_STATS` is why `IFLA_STATS` and `IFLA_STATS64` are absent from every
+  reply in the committed fixtures. A request built without it gets two extra
+  attributes back, both counters that change while the dump is being taken.
 
 That single constraint is the difference between this roadmap and porting
 `vishvananda/netlink`. The fork's bulk is configuration: its richest file,
@@ -146,7 +175,10 @@ at the end. Doing it first would rewrite the hot-path dispatch table in
 Small, and it is the reason the long tail is cheap. From
 `pkg/xtcpnl/xtcpnl_rtnetlink.go`:
 
-| Unexported today | Becomes | Line |
+**Done.** All five are exported as of the Phase 0a commit; the table below is
+kept as the record of what moved.
+
+| Was | Is now | Line |
 |---|---|---|
 | `buildDumpRequest` | `BuildDumpRequest` | `:58` |
 | `walkNlMsgs` | `WalkNlMsgs` | `:190` |
@@ -156,22 +188,37 @@ Small, and it is the reason the long tail is cheap. From
 
 `NlaTypeMaskCst` (`:271`) is already exported.
 
-`buildDumpRequest` is **already family-header-agnostic** — it takes
+`WalkNlMsgs`'s doc comment gained a paragraph the unexported version did not
+need: `seq` must be the seq the caller sent, and there is deliberately no
+"accept anything" sentinel because every `uint32` is a legal `nlmsg_seq`. Code
+replaying a recorded stream has to take the seq from the first header, or use
+`pkg/nlparity`, whose walker does not filter at all.
+
+`BuildDumpRequest` is **already family-header-agnostic** — it takes
 `(msgType uint16, seq uint32, familyHdr []byte)`. That is why
 `BuildDumpLinkRequest` (`:74`), `BuildDumpAddrRequest` (`:83`) and
 `BuildDumpRouteRequest` (`:92`) are each about five lines. Every new family's
 dump builder is the same two-line wrapper. The expensive part of a new family is
 never the request; it is the attribute decode.
 
-`walkRTAttrsNested` currently has **no caller** (tracked as `TODO-SOON.md` §12).
-Several phases below change that.
+`WalkRTAttrsNested` has **no production caller** yet (tracked as
+`TODO-SOON.md` §12). Several phases below change that.
 
-**`pkg/nsdiscover` folds in here.** `pkg/nsdiscover/nsid.go` hand-rolls a second
-netlink wire layer — `buildGetNsidRequest` (`:86`), `parseNsidResponse` (`:109`),
-`parseNsidAttrs` (`:133`), `nlmsgAlign` (`:161`) — because the `xtcpnl`
-equivalents were unexported. Exporting them is exactly what lets that duplication
-go away (`TODO-SOON.md` §15). For contrast, the fork keeps *one* wire layer
-(`nl/`) for all seven families.
+**`pkg/nsdiscover` folded in here, and that is done too.** `nsid.go` used to
+hand-roll a second netlink wire layer — its own `nativeEndian`, `nlmsgHdrLen`,
+`nlmsgAlign`, and message and attribute walks — because the `xtcpnl`
+equivalents were unexported. `parseNsidResponse` and `parseNsidAttrs` are now
+thin wrappers over `WalkNlMsgs` and `WalkRTAttrs`, and the whole endianness and
+alignment layer is gone. `buildGetNsidRequest` stays local until there is a
+`BuildRequest`/`AttrBuilder` pair, because `RTM_GETNSID` is a single get and
+`BuildDumpRequest` forces `NLM_F_DUMP`; see `TODO-SOON.md` §15 for the detail.
+That pair has since landed (`xtcpnl_rtattr_encode.go`), and `BuildRequest`
+accepts `RTM_GETNSID` — it is residue 2, so the arithmetic allowlist takes it,
+and `FamilyHdrLen` returns `-1` for it so the 4-byte `rtgenmsg` passes through
+unchecked. `TestBuildRequest`'s last row builds exactly that request. Collapsing
+`buildGetNsidRequest` onto it is unblocked, and is scheduled with the rest of
+the per-family builders.
+For contrast, the fork keeps *one* wire layer (`nl/`) for all seven families.
 
 ### The decoder template
 
@@ -400,12 +447,16 @@ overflows has *lost* events; the only recovery is to re-dump and rebuild state.
 Read the fork's handling before writing ours — it is the detail most easily got
 wrong.
 
-That is what promotes the audit's §17 finding from nice-to-have to **blocker**:
-`ParseNeigh` exists (`xtcpnl_ndmsg.go:200`) but there is no
-`BuildDumpNeighRequest` beside the other three builders
-(`xtcpnl_rtnetlink.go:74-92`), so the neighbour table cannot be re-dumped — and a
-listener that cannot re-dump cannot recover from `ENOBUFS`. It is also a
-five-line function, given `BuildDumpRequest`.
+That is what promoted the audit's §17 finding from nice-to-have to **blocker**:
+`ParseNeigh` existed (`xtcpnl_ndmsg.go:200`) but there was no
+`BuildDumpNeighRequest` beside the other three builders, so the neighbour table
+could not be re-dumped — and a listener that cannot re-dump cannot recover from
+`ENOBUFS`.
+
+**That half has since landed.** `BuildDumpNeighRequest`
+(`xtcpnl_rtnetlink_requests.go`) closes §17, so the resync *request* exists and
+this phase's remaining work is the listener itself — `Subscribe`, the group
+memberships, and the `ENOBUFS` handling that drives the re-dump.
 
 **Do not filter notifications on `nlmsg_pid`/`nlmsg_seq`.** The discriminator is
 `nlmsg_flags`: `NLM_F_REQUEST` clear **and** `NLM_F_MULTI` clear. The kernel
@@ -561,7 +612,7 @@ unblocking first, hand-declared-constant families last.
 | Phase | Scope | Why here | TODO ref |
 |---|---|---|---|
 | **0** | Export the core wire layer; create the subpackage skeleton; generalise the capture harness | Everything else depends on it; also retires the `pkg/nsdiscover` duplicate | §12, §15 |
-| **1** | **Multicast listener** + `BuildDumpNeighRequest` + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, §17 |
+| **1** | **Multicast listener** + ~~`BuildDumpNeighRequest`~~ (landed) + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, ~~§17~~ |
 | **2** | In-mission audit gaps: `IFA_CACHEINFO`/`IFA_FLAGS` first, then `IFLA_ADDRESS`/`IFLA_STATS64`, then `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`; resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
 | **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, `IFLA_LINKINFO` descent | All constants and structs already in `unix` | §12 |
 | **4** | tc **telemetry only** — the 23 top-level `TCA_*`, not the 344 config nests | Cheap once scoped correctly; needs `Tcmsg`/`TCStats`/`TCStats2` declared | — |
@@ -737,7 +788,9 @@ byte-identical timings that look like excellent stability and mean nothing.
 ## Out of scope
 
 - **Write support of any kind** — no create, delete, or set, for any family. This
-  is the constraint that makes the scope finite.
+  is the constraint that makes the scope finite. Since `BuildRequest` landed it
+  is enforced by a test rather than by review: `ErrNotAGetRequest` is returned
+  for every `RTM_NEW*`, `RTM_DEL*` and `RTM_SET*` type.
 - **The 344 per-qdisc `TCA_*` configuration nests**, by the read-only rule.
 - **Depending on, vendoring, or copying code from `vishvananda/netlink`.** It is
   the reference for *shape*; xtcp2 keeps its own parsers. (Apache-2.0, decodes by

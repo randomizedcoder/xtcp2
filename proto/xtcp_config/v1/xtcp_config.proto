@@ -323,7 +323,7 @@ message ListenerAuth {
 			max_len: 4096,
 	}];
 
-	uint32 signed_token_skew_minutes                = 4 [
+	optional uint32 signed_token_skew_minutes       = 4 [
 		(buf.validate.field).uint32 = {
 			lte: 5
 	}];

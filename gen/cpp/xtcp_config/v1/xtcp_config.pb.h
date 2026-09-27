@@ -2389,7 +2389,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListenerAuth final : public ::googl
   void _internal_set_mode(::xtcp_config::v1::ListenerAuthMode value);
 
   public:
-  // uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+  // optional uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+  [[nodiscard]] bool has_signed_token_skew_minutes()
+      const;
   void clear_signed_token_skew_minutes() ;
   [[nodiscard]] ::uint32_t signed_token_skew_minutes() const;
   void set_signed_token_skew_minutes(::uint32_t value);
@@ -6793,7 +6795,11 @@ inline void ListenerAuth::set_allocated_hmac_shared_key(::std::string* PROTOBUF_
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.ListenerAuth.hmac_shared_key)
 }
 
-// uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+// optional uint32 signed_token_skew_minutes = 4 [json_name = "signedTokenSkewMinutes", (.buf.validate.field) = {
+inline bool ListenerAuth::has_signed_token_skew_minutes() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
+  return value;
+}
 inline void ListenerAuth::clear_signed_token_skew_minutes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.signed_token_skew_minutes_ = 0u;

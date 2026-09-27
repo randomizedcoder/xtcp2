@@ -3,8 +3,18 @@
 ## Where we are
 
 **Phase 1 partially landed. Phase 0 re-scoped: 0a–0e landed; the original four
-Phase 0 items still outstanding. Separately, Step 0 of the goip parity work has
-landed — see [`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker).**
+Phase 0 items still outstanding. Separately, the goip parity work has begun:
+Step 0 landed in
+[`164dfe3`](#164dfe3--pkgnlparity-the-parity-comparators-tolerant-walker) and
+Item 1 — the five exported wire primitives, plus the `pkg/nsdiscover`
+de-duplication that closes `TODO-SOON.md` §15 — in
+[`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), and Item 2 —
+the request encoder, which turns the read-only invariant from prose into
+`ErrNotAGetRequest` — in
+[`933bfb8`](#933bfb8--the-request-encoder-and-the-read-only-invariant-made-executable),
+and Item 3 — the six per-family request builders and `TalkRtnetlink`, which
+closes `TODO-SOON.md` §17 — in
+[`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive).**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
@@ -66,7 +76,7 @@ Phases and scope are as defined in
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalisation | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalises | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; `walkRTAttrs` / `walkNlMsgs` / `buildDumpRequest` / `copyBytes` all still unexported; package still flat; BPF filter still pins family 0; `pkg/nsdiscover/nsid.go` still hand-rolls its own wire layer |
-| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), `BuildDumpNeighRequest`, `ENOBUFS` resync, the self-test check |
+| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | not started | — | all of it |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | not started | — | all of it |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
@@ -184,6 +194,207 @@ Note for the next new package: `nix build .#checks.x86_64-linux.test-go-race`
 was **vacuously green** on the first run, because flakes only see git-known
 files and `pkg/nlparity/` was untracked. It never appeared in the check's
 output. `git add -N <dir>` is enough to make it visible without committing.
+
+### `b4428c7` — the five core wire primitives are exported
+
+On `feat/xtcpnl-export-wire-primitives`. Item 1 of the **goip** plan, and
+verbatim Phase 0a of `coverage-expansion.md`. `buildDumpRequest`,
+`walkNlMsgs`, `walkRTAttrs`, `walkRTAttrsNested` and `copyBytes` became
+`BuildDumpRequest`, `WalkNlMsgs`, `WalkRTAttrs`, `WalkRTAttrsNested` and
+`CopyBytes`. No behaviour change in `pkg/xtcpnl`.
+
+An export nobody consumes is a diff nobody can check, so the commit spends it
+in the same breath: **`pkg/nsdiscover/nsid.go` no longer carries a second copy
+of netlink framing** — its own `nativeEndian`, `nlmsgHdrLen`, `nlmsgAlign` and
+message and attribute walks are gone, and `parseNsidResponse` /
+`parseNsidAttrs` are wrappers over `WalkNlMsgs` and `WalkRTAttrs`. That closes
+`TODO-SOON.md` §15, which had named the unexported primitives as its only
+blocker.
+
+| | |
+|---|---|
+| Still local, deliberately | `buildGetNsidRequest`. `RTM_GETNSID` is a single get and `BuildDumpRequest` forces `NLM_F_REQUEST\|NLM_F_DUMP`; there is no attribute encoder yet either. Becomes a three-line wrapper once Item 2's `BuildRequest`/`AttrBuilder` land. |
+| Tightened | The reply walk now checks `nlmsg_seq`. The socket lives inside one `Nsid` call, so nothing can regress; `TestParseNsidResponse` gained a row for a reply carrying someone else's seq, an assertion the old loop could not make. |
+| Pinned, because the obvious refactor breaks it | First `RTM_NEWNSID` decides, assigned or not — matching the loop it replaced and the kernel's `parse_rtattr` first-wins convention. "Keep walking until something is found" turns the corner row red. |
+
+**The one new doc paragraph.** `WalkNlMsgs`' `seq` argument must be the seq the
+caller sent, and there is deliberately **no "accept any seq" sentinel**, because
+every `uint32` is a legal `nlmsg_seq` — `rtnl_open` seeds it from `time(NULL)`
+(`lib/libnetlink.c:249`), so real captures contain arbitrary values. Replay code
+reads the seq from the first header, or uses `pkg/nlparity`, whose walker does
+not filter at all. Worth knowing before someone adds a magic zero.
+
+Recorded rather than fixed, since it is now load-bearing for a second package:
+`xtcpnl`'s deserializers hardcode `binary.LittleEndian` even though the package
+exports `NativeEndian()`. Every target this repo builds is little-endian
+(`nix/constants.nix` lists x86_64 and aarch64 only).
+
+### `933bfb8` — the request encoder, and the read-only invariant made executable
+
+On `feat/xtcpnl-export-wire-primitives`. Item 2 of the **goip** plan:
+`pkg/xtcpnl/xtcpnl_rtattr_encode.go` adds `AttrBuilder`, `BuildRequest`, and the
+two `RTEXT_FILTER_*` constants `golang.org/x/sys/unix` v0.47.0 does not export.
+
+**The point of the commit is not the encoder, it is the guard.**
+`coverage-expansion.md` had stated the read-only rule as prose — "never create,
+delete, or set". `BuildRequest` restates it as a rule about *message types* and
+returns `ErrNotAGetRequest` for anything else, which makes it testable:
+`TestBuildRequestRejectsEveryNamedWriteType` walks all 51 `RTM_NEW*`, `RTM_DEL*`
+and `RTM_SET*` constants `unix` exports and asserts each is refused. The commit
+therefore **tightens** the invariant.
+
+It has to be the message type, because the flags cannot carry it. The kernel
+overloads the same bits by message type — `NLM_F_ROOT == NLM_F_REPLACE ==
+0x100`, `NLM_F_MATCH == NLM_F_EXCL == 0x200`, `NLM_F_ATOMIC == NLM_F_CREATE ==
+0x400` (`include/uapi/linux/netlink.h:70-79`) — so `NLM_F_DUMP` (`ROOT|MATCH`,
+`0x300`) is bit-identical to `REPLACE|EXCL`. "Refuse write flags" is unwriteable.
+`TestNlmFlagsAreOverloaded` pins the aliasing so the design's premise is checked
+rather than remembered.
+
+| | |
+|---|---|
+| The allowlist is arithmetic, not a list | The kernel lays rtnetlink types out in groups of four from `RTM_BASE` — NEW, DEL, GET, SET — so a GET is always `RTM_BASE + 4k + 2`. Verified against every entry in `include/uapi/linux/rtnetlink.h`, **including the groups with missing members**: `RTM_GETNEIGHTBL` (66) has no DEL, `RTM_GETDCB` (78) has neither NEW nor DEL, `RTM_GETSTATS` (94) has no DEL — all still land on residue 2, because the kernel leaves the slot empty rather than shifting the group. A hand-written list silently rejects every family added upstream after it. |
+| Imprecise in exactly one harmless direction | It accepts unallocated GET slots — 54 has no `RTM_GETPREFIX`, since `RTM_NEWPREFIX` (52) is notification-only — which the kernel answers with an error. It can **never** accept a NEW, DEL or SET, which occupy residues 0, 1 and 3 by construction. Both facts are corner rows. |
+| `NLMSG_NOOP` is the only control type permitted | `NLMSG_ERROR`, `NLMSG_DONE` and `NLMSG_OVERRUN` are kernel-to-userspace; nothing in userspace sends one, so they are rejected rather than allowed for symmetry. Note that `FamilyHdrLen` *models* `NLMSG_ERROR` at 0 — being modeled is not being buildable. |
+| The family header must match **exactly**, both directions | Too short is obviously wrong. Too long is worse than it looks: the extra bytes land exactly where the kernel reads the first `rta_len` and `rta_type`, so a 20-byte "ifinfomsg" becomes a request with a garbage-length attribute. The `attrs` argument exists so no caller needs to append by hand. Types this package does not model (`FamilyHdrLen` returns `-1`) are passed through — there is nothing to check against, and refusing them would block every family added later. |
+| `BuildDumpRequest` returns **nil** for a rejected type | It is documented as infallible, so it has no error to return. That is not a silent failure: `DumpRtnetlink` refuses a nil request with `ErrShortRequest` before touching the socket, and the test asserts that with `fd = -1` to show no syscall happens. Both builders share one `layoutRequest`, and the test compares their output so the wrapper cannot drift from the checked path. |
+
+**The positive expectations come from iproute2, not from re-reading
+`libnetlink.c`.** `TestBuildRequest`'s first row reconstructs the whole 40-byte
+`ip link show` datagram and compares it byte-for-byte against record 1 of
+`testdata/7_1_8/netlink_route_getlink.pcap`, modulo `nlmsg_seq` and `nlmsg_pid`.
+The fixture helper asserts the record really is a request — `NLM_F_REQUEST` set
+and `nlmsg_pid == 0`, the only reliable direction signal in an nlmon capture —
+so a regenerated fixture that reordered records fails loudly instead of quietly
+comparing the encoder against kernel output.
+
+Two encoder details that only a byte-for-byte comparison notices:
+
+- **An attribute's padding is part of the message.** `rta_len` counts its own
+  4-byte header and stops at the payload; the cursor advances by the *aligned*
+  length, exactly as `addattr_l` advances `nlmsg_len` by `RTA_ALIGN(len)`. So a
+  1-byte payload has `rta_len = 5` and costs 8 bytes of buffer — a boundary row.
+- **`reserve` zeroes the payload and the padding.** The buffer is the caller's
+  and may hold a previous request or uninitialized stack; a stale byte in an
+  attribute's padding is a wire difference no decoder would notice and a parity
+  comparison would. Every `TestAttrBuilder` buffer is prefilled with `0xAA`
+  rather than zeroed, which is also what makes "a failed `Put` leaves the buffer
+  unmodified" a real assertion.
+
+`AttrBuilder` deviates from the plan's sketch: it is a **fixed, caller-provided
+buffer with a cursor**, not a growing slice. The plan's own §8.1 rows required
+it ("payload exactly fills the buffer", "one byte over → `ErrAttrNoSpace`,
+buffer unmodified", "nil buffer → `ErrAttrNoSpace`"), and it is what `addattr_l`
+does.
+
+`FamilyHdrLen` moved here as the canonical copy; `pkg/nlparity.FamilyHdrLen`
+delegates. It had been duplicated across the two packages, which is the
+duplication the exported primitives exist to prevent — and `nlparity`'s was the
+worse copy to let drift, since a wrong header length shifts every attribute and
+produces a plausible-looking parity report rather than an error.
+
+Gate evidence: four deliberate breaks were confirmed to go red at the named row
+— accepting residue 3 (8 failures, naming all four `RTM_SET*` constants),
+dropping the padding zeroing (6), dropping the unconditional `NLM_F_REQUEST`
+(9), and checking the family header only for "too short" (2).
+
+### `1beb2b8` — the per-family request builders, and the single-get primitive
+
+On `feat/xtcpnl-export-wire-primitives`. Item 3 of the **goip** plan:
+`pkg/xtcpnl/xtcpnl_rtnetlink_requests.go` adds the six request shapes `ip`
+actually sends, and `TalkRtnetlink` joins `DumpRtnetlink` in
+`xtcpnl_rtnetlink.go`. 58 subtests — 27 positive, 10 negative, 12 boundary,
+9 corner.
+
+| Builder | iproute2 origin | Captured? |
+|---|---|---|
+| `BuildDumpLinkRequestExt` | `rtnl_linkdump_req_filter{,_fn}` | yes — three distinct captured requests |
+| `BuildGetLinkByIndexRequest` | `ll_link_get`, by index | yes — ten of them |
+| `BuildGetLinkByNameRequest` | `ll_link_get`, by name | no; Item 7 adds `ip link show dev lo` |
+| `BuildDumpAddrRequestIndex` | `ipaddr_list_flush_or_save` | the unfiltered form only |
+| `BuildDumpRouteRequestTable` | `iproute_dump_filter` | `table all` only |
+| `BuildDumpNeighRequest` | `rtnl_neighdump_req` | no; closes `TODO-SOON.md` §17 |
+
+**§17 was a listener blocker, not a neighbour-dump nicety.** A multicast socket
+that hits `ENOBUFS` has lost events and can only recover by re-dumping. The
+package could already parse `RTM_NEWNEIGH` both solicited and unsolicited but
+could never *ask* for the current table, so `RTNLGRP_NEIGH` had no resync path
+at all. The [Known blockers](#known-blockers) entry is struck through below; what
+is left is the resync logic that calls the builder.
+
+**`TalkRtnetlink` exists because `DumpRtnetlink` cannot drive a single get, and
+that claim is a test rather than a comment.** `ip link show dev X` sends
+`flags=0x0001`, and the kernel answers with one message carrying neither
+`NLM_F_MULTI` nor `NLMSG_DONE` — so `DumpRtnetlink`'s loop keeps calling
+`Recvfrom` until `SO_RCVTIMEO` fires.
+`TestDumpRtnetlinkCannotDriveASingleGet` drives both functions over the same
+socketpair fixture and asserts `DumpRtnetlink` delivers the reply and *then*
+fails with `EAGAIN`, where `TalkRtnetlink` returns immediately. The converse
+misuse is documented on both functions: `TalkRtnetlink` on a dump returns the
+first reply and abandons the rest in the socket.
+
+Three things worth recording, because a byte-for-byte comparison is the only
+thing that would have caught them:
+
+- **`extMask == 0` omitting the attribute is the point, not a shortcut.** Both
+  `rtnl_linkdump_req_filter` and `rtnl_linkdump_req_filter_fn` take their
+  attribute path only for certain families (`AF_UNSPEC|AF_BRIDGE` and
+  `AF_UNSPEC|AF_PACKET`, `lib/libnetlink.c:566,595`) and otherwise fall through
+  to `__rtnl_linkdump_req`'s bare 32-byte header. So one builder reproduces
+  `ip link show` (`AF_PACKET`, 0x09, 40 bytes), `ip -4 addr show` and
+  `ip -6 addr show` (32 bytes, no attributes). The family-to-mask *policy* stays
+  in the caller, where it belongs — it is a property of iproute2, not of the
+  wire.
+- **Attribute order is load-bearing.** `ll_link_get` emits `IFLA_EXT_MASK` and
+  only then the name attribute (`lib/ll_map.c:289-293`), and `pkg/nlparity`
+  compares requests for full byte equality, so the other order is a divergence.
+  A deliberate break that swapped them failed 3 rows.
+- **Oversend is deliberately not reproduced.** iproute2 sends `sizeof(req)` for
+  most commands, so the datagram carries a zeroed tail — 128 bytes for addr and
+  route, 256 for neigh, 0 for `ip link show`, which sends `nlmsg_len`
+  (`lib/libnetlink.c:618`). The builders emit exactly `nlmsg_len`; five test
+  rows pin the captured datagram lengths so the decision stays a recorded
+  measurement rather than a remembered one, and `pkg/nlparity` reports
+  `DatagramLen`/`TailBytes` informationally, never gated.
+
+**The derived table is the one that proves itself.**
+`TestBuildGetLinkByIndexRequestAllCaptured` does not hand-write ten rows: it
+walks `getroute.pcap`, keeps every 40-byte `RTM_GETLINK` request, reads the
+`ifi_index` and the ext-mask *out of the captured bytes*, rebuilds each one, and
+`t.Fatalf`s if the count is not exactly ten. Moving `ifi_index` from offset 4 to
+offset 8 failed all ten.
+
+**One new version skew, which qualifies the plan's "no ext-mask skew"
+finding.** iproute2 commit `de91e928` "ll_map: add `RTEXT_FILTER_NAME_ONLY` to
+`ll_link_get()` and `ll_init_map()`" (2026-05-20, **contained in no tag**) adds
+`RTEXT_FILTER_NAME_ONLY = (1 << 8)`, making the mask `0x109` on exactly two
+paths: the single-get in `ll_link_get` (`lib/ll_map.c:277`) and the up-front
+link dump in `ll_init_map` (`:398`) that `ip neigh show` issues to populate its
+index cache. Consequences:
+
+| | |
+|---|---|
+| The captured 0x09 is still right | For every *released* iproute2, and for the dump path unconditionally — `iplink_filter_req` is unchanged and still computes `RTEXT_FILTER_VF\|RTEXT_FILTER_SKIP_STATS`. The seven positive rows are not at risk. |
+| The bit is newer than the kernel | `linux/include/uapi/linux/rtnetlink.h` stops at `RTEXT_FILTER_MST` (`1 << 7`); `1 << 8` exists only in iproute2's bundled copy of the header, so this host's kernel ignores it. |
+| It makes one plan claim version-dependent | The plan's Item 5 states that `neigh show`'s up-front `RTM_GETLINK` dump is "byte-identical to `ip` by construction" because both call `ll_init_map`. True against a released `ip`; against a post-`de91e928` `ip` the masks differ by one bit. |
+| Which is why the mask is an argument | Every builder here takes `extMask` from the caller rather than baking a constant into the wire layer, and the parity allowlist gets a `version-skew` entry citing `de91e928` — exactly the kind that must carry an `ip_version`. This is also the concrete case for the `ip -V` sidecar Item 7 adds. |
+
+**`buildGetNsidRequest` is now unblocked and still deliberately local.**
+[`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) recorded it as
+staying hand-rolled because `BuildDumpRequest` forces `NLM_F_REQUEST|NLM_F_DUMP`
+and there was no attribute encoder; `BuildRequest`, `AttrBuilder` and now
+`TalkRtnetlink` between them remove every one of those reasons, so its collapse
+into a wrapper is a `pkg/nsdiscover` change waiting on nothing but its own
+commit. Left out of this one to keep the diff to the wire layer.
+
+Gate evidence: four deliberate breaks confirmed red at the named row — moving
+`ifi_index` to offset 8 (12 failures, including all ten derived rows), emitting
+`IFLA_IFNAME` before `IFLA_EXT_MASK` (3), sending `NLM_F_DUMP` on the single-get
+(1), and returning the first reply without checking `fromKernel` (1).
+`checks.test-go-race` and `checks.golangci-lint-quick` were both run in a clean
+detached worktree — 49 packages ok, `0 issues.` — because the main working tree
+is red for an unrelated reason: `pkg/xtcp/grpc_server.go` imports the untracked
+`pkg/listenerauth`, which a flake build cannot see.
 
 ## Phase exit criteria
 
@@ -536,11 +747,13 @@ upward rather than left to drift.
 
 ## Known blockers
 
-- **`BuildDumpNeighRequest` blocks the listener, not just neighbour dumps.** A
-  multicast socket that hits `ENOBUFS` has *lost* events and must re-dump to
-  resync. Without a neighbour dump builder there is no resync path for
-  `RTNLGRP_NEIGH`, so this is a Phase 1 prerequisite rather than a
-  nice-to-have.
+- ~~**`BuildDumpNeighRequest` blocks the listener, not just neighbour
+  dumps.**~~ **Cleared** by
+  [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive).
+  A multicast socket that hits `ENOBUFS` has *lost* events and must re-dump to
+  resync; there was no resync path for `RTNLGRP_NEIGH` because there was no
+  neighbour dump builder. The builder now exists, so what remains is the resync
+  logic that calls it — a listener task, not a missing primitive.
 - **No subscriber ⇒ no kernel emission ⇒ nothing for `nlmon` to mirror.** Each
   new family needs its own subscriber in the capture guest (`ip xfrm monitor`,
   `conntrack -E`, `ip netconf monitor`). A family whose subscriber or kernel

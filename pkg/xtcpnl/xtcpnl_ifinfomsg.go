@@ -136,7 +136,7 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		Change: m.Change,
 		Type:   m.Type,
 	}
-	err := walkRTAttrs(body[IfInfomsgSizeCst:], func(atype uint16, val []byte) {
+	err := WalkRTAttrs(body[IfInfomsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.IFLA_IFNAME):
 			li.Name = string(bytes.TrimRight(val, "\x00"))
