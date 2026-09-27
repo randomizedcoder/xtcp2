@@ -15,6 +15,38 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
+@$core.Deprecated('Use listenerNetworkDescriptor instead')
+const ListenerNetwork$json = {
+  '1': 'ListenerNetwork',
+  '2': [
+    {'1': 'LISTENER_NETWORK_UNSPECIFIED', '2': 0},
+    {'1': 'LISTENER_NETWORK_TCP', '2': 1},
+    {'1': 'LISTENER_NETWORK_UNIX', '2': 2},
+  ],
+};
+
+/// Descriptor for `ListenerNetwork`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List listenerNetworkDescriptor = $convert.base64Decode(
+    'Cg9MaXN0ZW5lck5ldHdvcmsSIAocTElTVEVORVJfTkVUV09SS19VTlNQRUNJRklFRBAAEhgKFE'
+    'xJU1RFTkVSX05FVFdPUktfVENQEAESGQoVTElTVEVORVJfTkVUV09SS19VTklYEAI=');
+
+@$core.Deprecated('Use listenerAuthModeDescriptor instead')
+const ListenerAuthMode$json = {
+  '1': 'ListenerAuthMode',
+  '2': [
+    {'1': 'LISTENER_AUTH_MODE_UNSPECIFIED', '2': 0},
+    {'1': 'LISTENER_AUTH_MODE_DISABLED', '2': 1},
+    {'1': 'LISTENER_AUTH_MODE_RAW_TOKEN', '2': 2},
+    {'1': 'LISTENER_AUTH_MODE_HMAC_UTC_MINUTE', '2': 3},
+  ],
+};
+
+/// Descriptor for `ListenerAuthMode`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List listenerAuthModeDescriptor = $convert.base64Decode(
+    'ChBMaXN0ZW5lckF1dGhNb2RlEiIKHkxJU1RFTkVSX0FVVEhfTU9ERV9VTlNQRUNJRklFRBAAEh'
+    '8KG0xJU1RFTkVSX0FVVEhfTU9ERV9ESVNBQkxFRBABEiAKHExJU1RFTkVSX0FVVEhfTU9ERV9S'
+    'QVdfVE9LRU4QAhImCiJMSVNURU5FUl9BVVRIX01PREVfSE1BQ19VVENfTUlOVVRFEAM=');
+
 @$core.Deprecated('Use getRequestDescriptor instead')
 const GetRequest$json = {
   '1': 'GetRequest',
@@ -313,6 +345,140 @@ final $typed_data.Uint8List setEnvelopeFlushResponseDescriptor =
         'ChhTZXRFbnZlbG9wZUZsdXNoUmVzcG9uc2USMgoGY29uZmlnGAEgASgLMhoueHRjcF9jb25maW'
         'cudjEuWHRjcENvbmZpZ1IGY29uZmln');
 
+@$core.Deprecated('Use listenerEndpointDescriptor instead')
+const ListenerEndpoint$json = {
+  '1': 'ListenerEndpoint',
+  '2': [
+    {
+      '1': 'network',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.xtcp_config.v1.ListenerNetwork',
+      '8': {},
+      '10': 'network'
+    },
+    {'1': 'address', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'address'},
+    {
+      '1': 'unix_socket_mode',
+      '3': 3,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'unixSocketMode'
+    },
+    {
+      '1': 'unlink_stale_unix_socket',
+      '3': 4,
+      '4': 1,
+      '5': 8,
+      '10': 'unlinkStaleUnixSocket'
+    },
+    {
+      '1': 'max_connections',
+      '3': 5,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'maxConnections'
+    },
+    {
+      '1': 'accept_rate_per_second',
+      '3': 6,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'acceptRatePerSecond'
+    },
+    {
+      '1': 'accept_burst',
+      '3': 7,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'acceptBurst'
+    },
+  ],
+};
+
+/// Descriptor for `ListenerEndpoint`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listenerEndpointDescriptor = $convert.base64Decode(
+    'ChBMaXN0ZW5lckVuZHBvaW50EkMKB25ldHdvcmsYASABKA4yHy54dGNwX2NvbmZpZy52MS5MaX'
+    'N0ZW5lck5ldHdvcmtCCLpIBYIBAhABUgduZXR3b3JrEiIKB2FkZHJlc3MYAiABKAlCCLpIBXID'
+    'GIAEUgdhZGRyZXNzEjIKEHVuaXhfc29ja2V0X21vZGUYAyABKA1CCLpIBSoDGP8DUg51bml4U2'
+    '9ja2V0TW9kZRI3Chh1bmxpbmtfc3RhbGVfdW5peF9zb2NrZXQYBCABKAhSFXVubGlua1N0YWxl'
+    'VW5peFNvY2tldBIyCg9tYXhfY29ubmVjdGlvbnMYBSABKA1CCbpIBioEGKCNBlIObWF4Q29ubm'
+    'VjdGlvbnMSPgoWYWNjZXB0X3JhdGVfcGVyX3NlY29uZBgGIAEoDUIJukgGKgQYoI0GUhNhY2Nl'
+    'cHRSYXRlUGVyU2Vjb25kEiwKDGFjY2VwdF9idXJzdBgHIAEoDUIJukgGKgQYoI0GUgthY2NlcH'
+    'RCdXJzdA==');
+
+@$core.Deprecated('Use listenerAuthDescriptor instead')
+const ListenerAuth$json = {
+  '1': 'ListenerAuth',
+  '2': [
+    {
+      '1': 'mode',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.xtcp_config.v1.ListenerAuthMode',
+      '8': {},
+      '10': 'mode'
+    },
+    {'1': 'raw_token', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'rawToken'},
+    {
+      '1': 'hmac_shared_key',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'hmacSharedKey'
+    },
+    {
+      '1': 'signed_token_skew_minutes',
+      '3': 4,
+      '4': 1,
+      '5': 13,
+      '8': {},
+      '10': 'signedTokenSkewMinutes'
+    },
+    {
+      '1': 'failure_jitter_min',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'failureJitterMin'
+    },
+    {
+      '1': 'failure_jitter_max',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'failureJitterMax'
+    },
+  ],
+  '7': {},
+};
+
+/// Descriptor for `ListenerAuth`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listenerAuthDescriptor = $convert.base64Decode(
+    'CgxMaXN0ZW5lckF1dGgSPgoEbW9kZRgBIAEoDjIgLnh0Y3BfY29uZmlnLnYxLkxpc3RlbmVyQX'
+    'V0aE1vZGVCCLpIBYIBAhABUgRtb2RlEiUKCXJhd190b2tlbhgCIAEoCUIIukgFcgMYgCBSCHJh'
+    'd1Rva2VuEjAKD2htYWNfc2hhcmVkX2tleRgDIAEoCUIIukgFcgMYgCBSDWhtYWNTaGFyZWRLZX'
+    'kSQgoZc2lnbmVkX3Rva2VuX3NrZXdfbWludXRlcxgEIAEoDUIHukgEKgIYBVIWc2lnbmVkVG9r'
+    'ZW5Ta2V3TWludXRlcxJRChJmYWlsdXJlX2ppdHRlcl9taW4YBSABKAsyGS5nb29nbGUucHJvdG'
+    '9idWYuRHVyYXRpb25CCLpIBaoBAjIAUhBmYWlsdXJlSml0dGVyTWluElEKEmZhaWx1cmVfaml0'
+    'dGVyX21heBgGIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkIIukgFqgECMgBSEGZhaW'
+    'x1cmVKaXR0ZXJNYXg64QG6SN0BGtoBChpMaXN0ZW5lckF1dGguZmFpbHVyZUppdHRlchJGZmFp'
+    'bHVyZV9qaXR0ZXJfbWF4IG11c3QgYmUgZ3JlYXRlciB0aGFuIG9yIGVxdWFsIHRvIGZhaWx1cm'
+    'Vfaml0dGVyX21pbhp0IWhhcyh0aGlzLmZhaWx1cmVfaml0dGVyX21pbikgfHwgIWhhcyh0aGlz'
+    'LmZhaWx1cmVfaml0dGVyX21heCkgfHwgdGhpcy5mYWlsdXJlX2ppdHRlcl9tYXggPj0gdGhpcy'
+    '5mYWlsdXJlX2ppdHRlcl9taW4=');
+
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {
   '1': 'XtcpConfig',
@@ -584,7 +750,34 @@ const XtcpConfig$json = {
       '8': {},
       '10': 'ipv6HopLimit'
     },
+    {
+      '1': 'listener_auth',
+      '3': 152,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.ListenerAuth',
+      '8': {},
+      '10': 'listenerAuth'
+    },
+    {
+      '1': 'prometheus_listener',
+      '3': 153,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.ListenerEndpoint',
+      '8': {},
+      '10': 'prometheusListener'
+    },
     {'1': 'grpc_port', '3': 160, '4': 1, '5': 13, '8': {}, '10': 'grpcPort'},
+    {
+      '1': 'grpc_listener',
+      '3': 161,
+      '4': 1,
+      '5': 11,
+      '6': '.xtcp_config.v1.ListenerEndpoint',
+      '8': {},
+      '10': 'grpcListener'
+    },
     {
       '1': 'pyroscope_url',
       '3': 170,
@@ -776,29 +969,33 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'IdCgN0YWcYhQEgASgJQgq6SAfIAQByAhgoUgN0YWcSMwoOZGFlbW9uX3ZlcnNpb24YhgEgASgJ'
     'Qgu6SAjIAQByAxj9AVINZGFlbW9uVmVyc2lvbhInCghpcHY0X3R0bBiWASABKA1CC7pICMgBAC'
     'oDGP8BUgdpcHY0VHRsEjIKDmlwdjZfaG9wX2xpbWl0GJcBIAEoDUILukgIyAEAKgMY/wFSDGlw'
-    'djZIb3BMaW1pdBIsCglncnBjX3BvcnQYoAEgASgNQg66SAvIAQEqBhj//wMoAVIIZ3JwY1Bvcn'
-    'QSLAoNcHlyb3Njb3BlX3VybBiqASABKAlCBrpIA8gBAFIMcHlyb3Njb3BlVXJsEjUKEnB5cm9z'
-    'Y29wZV9hcHBfbmFtZRirASABKAlCBrpIA8gBAFIQcHlyb3Njb3BlQXBwTmFtZRI3ChNweXJvc2'
-    'NvcGVfc2FtcGxlX2h6GKwBIAEoDUIGukgDyAEAUhFweXJvc2NvcGVTYW1wbGVIehJKCh1weXJv'
-    'c2NvcGVfdXBsb2FkX2ludGVydmFsX3NlYxitASABKA1CBrpIA8gBAFIacHlyb3Njb3BlVXBsb2'
-    'FkSW50ZXJ2YWxTZWMSOQoUcmVzb2x2ZV9jb250YWluZXJfaWQYyAEgASgIQga6SAPIAQBSEnJl'
-    'c29sdmVDb250YWluZXJJZBI3ChdlbnJpY2hfY29udGFpbmVyX2VuYWJsZRjJASABKAhSFWVucm'
-    'ljaENvbnRhaW5lckVuYWJsZRI3ChJkb2NrZXJfc29ja2V0X3BhdGgYygEgASgJQgi6SAVyAxj/'
-    'AVIQZG9ja2VyU29ja2V0UGF0aBItChJlbnJpY2hfbGxkcF9lbmFibGUY0gEgASgIUhBlbnJpY2'
-    'hMbGRwRW5hYmxlEjUKEWxsZHBkX3NvY2tldF9wYXRoGNMBIAEoCUIIukgFcgMY/wFSD2xsZHBk'
-    'U29ja2V0UGF0aBI2ChJsbGRwZF92ZXJzaW9uX2hpbnQY1AEgASgJQge6SARyAhgQUhBsbGRwZF'
-    'ZlcnNpb25IaW50EisKEWVucmljaF9uaWNfZW5hYmxlGNwBIAEoCFIPZW5yaWNoTmljRW5hYmxl'
-    'EisKDHVwbGlua19jb3VudBjdASABKA1CB7pIBCoCGAJSC3VwbGlua0NvdW50EjYKEXVwbGlua1'
-    '9pbnRlcmZhY2VzGN4BIAMoCUIIukgFkgECEAJSEHVwbGlua0ludGVyZmFjZXMSJAoNcG9wdWxh'
-    'dGVfbnNpZBjmASABKAhSDHBvcHVsYXRlTnNpZBIrChFlbnJpY2hfYXNuX2VuYWJsZRjwASABKA'
-    'hSD2VucmljaEFzbkVuYWJsZRIpCgthc25fZGJfcGF0aBjxASABKAlCCLpIBXIDGP8BUglhc25E'
-    'YlBhdGgSTAoUYXNuX3JlZnJlc2hfaW50ZXJ2YWwY8gEgASgLMhkuZ29vZ2xlLnByb3RvYnVmLk'
-    'R1cmF0aW9uUhJhc25SZWZyZXNoSW50ZXJ2YWwSNQoWZW5yaWNoX2xvY2FsaXR5X2VuYWJsZRj1'
-    'ASABKAhSFGVucmljaExvY2FsaXR5RW5hYmxlElYKGWxvY2FsaXR5X3JlZnJlc2hfaW50ZXJ2YW'
-    'wY9gEgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUhdsb2NhbGl0eVJlZnJlc2hJbnRl'
-    'cnZhbDpzukhwGm4KD1h0Y3BDb25maWcucG9sbBIyUG9sbCB0aW1lb3V0IG11c3QgYmUgbGVzcy'
-    'B0aGFuIHBvbGwgcG9sbF9mcmVxdWVuY3kaJ3RoaXMucG9sbF9mcmVxdWVuY3kgPiB0aGlzLnBv'
-    'bGxfdGltZW91dA==');
+    'djZIb3BMaW1pdBJKCg1saXN0ZW5lcl9hdXRoGJgBIAEoCzIcLnh0Y3BfY29uZmlnLnYxLkxpc3'
+    'RlbmVyQXV0aEIGukgDyAEAUgxsaXN0ZW5lckF1dGgSWgoTcHJvbWV0aGV1c19saXN0ZW5lchiZ'
+    'ASABKAsyIC54dGNwX2NvbmZpZy52MS5MaXN0ZW5lckVuZHBvaW50Qga6SAPIAQBSEnByb21ldG'
+    'hldXNMaXN0ZW5lchIsCglncnBjX3BvcnQYoAEgASgNQg66SAvIAQEqBhj//wMoAVIIZ3JwY1Bv'
+    'cnQSTgoNZ3JwY19saXN0ZW5lchihASABKAsyIC54dGNwX2NvbmZpZy52MS5MaXN0ZW5lckVuZH'
+    'BvaW50Qga6SAPIAQBSDGdycGNMaXN0ZW5lchIsCg1weXJvc2NvcGVfdXJsGKoBIAEoCUIGukgD'
+    'yAEAUgxweXJvc2NvcGVVcmwSNQoScHlyb3Njb3BlX2FwcF9uYW1lGKsBIAEoCUIGukgDyAEAUh'
+    'BweXJvc2NvcGVBcHBOYW1lEjcKE3B5cm9zY29wZV9zYW1wbGVfaHoYrAEgASgNQga6SAPIAQBS'
+    'EXB5cm9zY29wZVNhbXBsZUh6EkoKHXB5cm9zY29wZV91cGxvYWRfaW50ZXJ2YWxfc2VjGK0BIA'
+    'EoDUIGukgDyAEAUhpweXJvc2NvcGVVcGxvYWRJbnRlcnZhbFNlYxI5ChRyZXNvbHZlX2NvbnRh'
+    'aW5lcl9pZBjIASABKAhCBrpIA8gBAFIScmVzb2x2ZUNvbnRhaW5lcklkEjcKF2VucmljaF9jb2'
+    '50YWluZXJfZW5hYmxlGMkBIAEoCFIVZW5yaWNoQ29udGFpbmVyRW5hYmxlEjcKEmRvY2tlcl9z'
+    'b2NrZXRfcGF0aBjKASABKAlCCLpIBXIDGP8BUhBkb2NrZXJTb2NrZXRQYXRoEi0KEmVucmljaF'
+    '9sbGRwX2VuYWJsZRjSASABKAhSEGVucmljaExsZHBFbmFibGUSNQoRbGxkcGRfc29ja2V0X3Bh'
+    'dGgY0wEgASgJQgi6SAVyAxj/AVIPbGxkcGRTb2NrZXRQYXRoEjYKEmxsZHBkX3ZlcnNpb25faG'
+    'ludBjUASABKAlCB7pIBHICGBBSEGxsZHBkVmVyc2lvbkhpbnQSKwoRZW5yaWNoX25pY19lbmFi'
+    'bGUY3AEgASgIUg9lbnJpY2hOaWNFbmFibGUSKwoMdXBsaW5rX2NvdW50GN0BIAEoDUIHukgEKg'
+    'IYAlILdXBsaW5rQ291bnQSNgoRdXBsaW5rX2ludGVyZmFjZXMY3gEgAygJQgi6SAWSAQIQAlIQ'
+    'dXBsaW5rSW50ZXJmYWNlcxIkCg1wb3B1bGF0ZV9uc2lkGOYBIAEoCFIMcG9wdWxhdGVOc2lkEi'
+    'sKEWVucmljaF9hc25fZW5hYmxlGPABIAEoCFIPZW5yaWNoQXNuRW5hYmxlEikKC2Fzbl9kYl9w'
+    'YXRoGPEBIAEoCUIIukgFcgMY/wFSCWFzbkRiUGF0aBJMChRhc25fcmVmcmVzaF9pbnRlcnZhbB'
+    'jyASABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25SEmFzblJlZnJlc2hJbnRlcnZhbBI1'
+    'ChZlbnJpY2hfbG9jYWxpdHlfZW5hYmxlGPUBIAEoCFIUZW5yaWNoTG9jYWxpdHlFbmFibGUSVg'
+    'oZbG9jYWxpdHlfcmVmcmVzaF9pbnRlcnZhbBj2ASABKAsyGS5nb29nbGUucHJvdG9idWYuRHVy'
+    'YXRpb25SF2xvY2FsaXR5UmVmcmVzaEludGVydmFsOnO6SHAabgoPWHRjcENvbmZpZy5wb2xsEj'
+    'JQb2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNzIHRoYW4gcG9sbCBwb2xsX2ZyZXF1ZW5jeRondGhp'
+    'cy5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG9sbF90aW1lb3V0');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

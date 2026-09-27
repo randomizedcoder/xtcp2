@@ -14,12 +14,12 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 
 ## Prometheus metrics
 
-`pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
+`pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). The same HTTP server can listen on a Unix domain socket by setting `-promListenNetwork unix` and using `-promListen` as the socket path. Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
 
 ## Health & readiness
 
 For container / Kubernetes deployment the metrics HTTP server also serves two
-probe endpoints (same `-promListen` address):
+probe endpoints (same listener as `-promListen`):
 
 - **`/healthz`** — liveness. Returns `200` as soon as the HTTP server is up. Use
   it for a Docker `HEALTHCHECK` or a k8s `livenessProbe`.
@@ -33,7 +33,7 @@ reports `SERVING` on the same readiness condition (for native k8s gRPC probes).
 
 ## pprof
 
-The standard Go `net/http/pprof` endpoints are mounted on the metrics HTTP server, so `/debug/pprof/*` is available on the same `-promListen` address for live CPU, heap, goroutine, mutex, and block profiles. For one-shot file-based profiling, `-profile.mode` enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
+The standard Go `net/http/pprof` endpoints are mounted on the metrics HTTP server, so `/debug/pprof/*` is available on the same Prometheus listener for live CPU, heap, goroutine, mutex, and block profiles. For one-shot file-based profiling, `-profile.mode` enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
 
 ## Pyroscope continuous profiling
 
@@ -58,12 +58,24 @@ In practice this means running xtcp2 as root or under `sudo`. The capability beh
 | Flag | Default | Purpose |
 |---|---|---|
 | `-promListen` | `:9088` | Prometheus / pprof HTTP listen address. |
+| `-promListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`PROM_LISTEN_NETWORK`). |
+| `-promUnixSocketMode` | `0600` | UDS permission bits after bind (`PROM_UNIX_SOCKET_MODE`, decimal value). |
+| `-promUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`PROM_UNLINK_STALE_UNIX_SOCKET`). |
 | `-promPath` | `/metrics` | Prometheus metrics path. |
 | `-profile.mode` | `` | One-shot profiling mode: `cpu`, `mem`, `mutex`, `block`. |
 | `-pyroscopeUrl` | — | Pyroscope server URL (or `PYROSCOPE_URL`); empty disables. |
 | `-pyroscopeAppName` | — | App name registered with Pyroscope (or `PYROSCOPE_APP_NAME`). |
 | `-pyroscopeSampleHz` | — | CPU sampling rate in Hz. |
 | `-pyroscopeUploadSec` | — | Seconds between profile uploads. |
+
+Example local-only metrics listener:
+
+```sh
+xtcp2 -promListenNetwork unix -promListen /run/xtcp2/prometheus.sock -promUnixSocketMode 432
+curl --unix-socket /run/xtcp2/prometheus.sock http://xtcp2/metrics
+```
+
+`432` is decimal for `0660`; use `384` for `0600`. The built-in `-healthcheck` mode also understands `PROM_LISTEN_NETWORK=unix` and probes `/readyz` through the socket.
 
 ## See also
 

@@ -23,8 +23,11 @@ network blip doesn't end the stream.
 nix build .#xtcp2client
 alias xtcp2client=./result/bin/xtcp2client
 
-# Listen mode — stream records the daemon collects on its own schedule
+# Listen mode over TCP — stream records the daemon collects on its own schedule
 xtcp2client -target 127.0.0.1 -port 8889
+
+# Listen mode over a local Unix domain socket
+xtcp2client -network unix -unixSocket /run/xtcp2/grpc.sock
 
 # Poll mode — drive collection from the client, every 2s
 xtcp2client -poll -pollFrequency 2s
@@ -34,15 +37,20 @@ xtcp2client -format csv -columns hostname,inetDiagMsgSocketSource,inetDiagMsgSta
 xtcp2client -format humanize          # decoded IPs, TCP-state names, RFC3339 time
 ```
 
-The daemon's gRPC port defaults to `8889` and **must match** its `-grpcPort`.
-The gRPC server has no auth or TLS — reach it over loopback or a trusted network.
+The daemon's gRPC TCP port defaults to `8889` and **must match** its `-grpcPort`.
+For local hardening, run the daemon with `-grpcListenNetwork unix` and connect
+with `-network unix -unixSocket ...`. Token authentication is not enforced yet,
+so protect TCP listeners with loopback/trusted networks and protect UDS
+listeners with filesystem ownership and mode.
 
 ## Flags
 
 | Flag | Default | Purpose |
 |---|---|---|
+| `-network` | `tcp` | gRPC transport network: `tcp` or `unix`. |
 | `-target` | `localhost` | Daemon hostname. |
 | `-port` | `8889` | Daemon gRPC port (must match the daemon's `-grpcPort`). |
+| `-unixSocket` | — | UDS path when `-network unix`. |
 | `-poll` | `false` | Use `PollFlatRecords` (client-driven) instead of `FlatRecords`. |
 | `-pollFrequency` | `10s` | Poll interval, poll mode only. |
 | `-format` | `json` | Output: `json`, `csv`, `tsv`, `humanize`, or `null`. |

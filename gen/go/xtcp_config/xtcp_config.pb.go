@@ -34,6 +34,107 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ListenerNetwork int32
+
+const (
+	ListenerNetwork_LISTENER_NETWORK_UNSPECIFIED ListenerNetwork = 0
+	ListenerNetwork_LISTENER_NETWORK_TCP         ListenerNetwork = 1
+	ListenerNetwork_LISTENER_NETWORK_UNIX        ListenerNetwork = 2
+)
+
+// Enum value maps for ListenerNetwork.
+var (
+	ListenerNetwork_name = map[int32]string{
+		0: "LISTENER_NETWORK_UNSPECIFIED",
+		1: "LISTENER_NETWORK_TCP",
+		2: "LISTENER_NETWORK_UNIX",
+	}
+	ListenerNetwork_value = map[string]int32{
+		"LISTENER_NETWORK_UNSPECIFIED": 0,
+		"LISTENER_NETWORK_TCP":         1,
+		"LISTENER_NETWORK_UNIX":        2,
+	}
+)
+
+func (x ListenerNetwork) Enum() *ListenerNetwork {
+	p := new(ListenerNetwork)
+	*p = x
+	return p
+}
+
+func (x ListenerNetwork) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ListenerNetwork) Descriptor() protoreflect.EnumDescriptor {
+	return file_xtcp_config_v1_xtcp_config_proto_enumTypes[0].Descriptor()
+}
+
+func (ListenerNetwork) Type() protoreflect.EnumType {
+	return &file_xtcp_config_v1_xtcp_config_proto_enumTypes[0]
+}
+
+func (x ListenerNetwork) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ListenerNetwork.Descriptor instead.
+func (ListenerNetwork) EnumDescriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{0}
+}
+
+type ListenerAuthMode int32
+
+const (
+	ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED     ListenerAuthMode = 0
+	ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED        ListenerAuthMode = 1
+	ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN       ListenerAuthMode = 2
+	ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE ListenerAuthMode = 3
+)
+
+// Enum value maps for ListenerAuthMode.
+var (
+	ListenerAuthMode_name = map[int32]string{
+		0: "LISTENER_AUTH_MODE_UNSPECIFIED",
+		1: "LISTENER_AUTH_MODE_DISABLED",
+		2: "LISTENER_AUTH_MODE_RAW_TOKEN",
+		3: "LISTENER_AUTH_MODE_HMAC_UTC_MINUTE",
+	}
+	ListenerAuthMode_value = map[string]int32{
+		"LISTENER_AUTH_MODE_UNSPECIFIED":     0,
+		"LISTENER_AUTH_MODE_DISABLED":        1,
+		"LISTENER_AUTH_MODE_RAW_TOKEN":       2,
+		"LISTENER_AUTH_MODE_HMAC_UTC_MINUTE": 3,
+	}
+)
+
+func (x ListenerAuthMode) Enum() *ListenerAuthMode {
+	p := new(ListenerAuthMode)
+	*p = x
+	return p
+}
+
+func (x ListenerAuthMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ListenerAuthMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_xtcp_config_v1_xtcp_config_proto_enumTypes[1].Descriptor()
+}
+
+func (ListenerAuthMode) Type() protoreflect.EnumType {
+	return &file_xtcp_config_v1_xtcp_config_proto_enumTypes[1]
+}
+
+func (x ListenerAuthMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ListenerAuthMode.Descriptor instead.
+func (ListenerAuthMode) EnumDescriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{1}
+}
+
 type GetRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -688,6 +789,182 @@ func (x *SetEnvelopeFlushResponse) GetConfig() *XtcpConfig {
 	return nil
 }
 
+type ListenerEndpoint struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Network               ListenerNetwork        `protobuf:"varint,1,opt,name=network,proto3,enum=xtcp_config.v1.ListenerNetwork" json:"network,omitempty"`
+	Address               string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	UnixSocketMode        uint32                 `protobuf:"varint,3,opt,name=unix_socket_mode,json=unixSocketMode,proto3" json:"unix_socket_mode,omitempty"`
+	UnlinkStaleUnixSocket bool                   `protobuf:"varint,4,opt,name=unlink_stale_unix_socket,json=unlinkStaleUnixSocket,proto3" json:"unlink_stale_unix_socket,omitempty"`
+	MaxConnections        uint32                 `protobuf:"varint,5,opt,name=max_connections,json=maxConnections,proto3" json:"max_connections,omitempty"`
+	AcceptRatePerSecond   uint32                 `protobuf:"varint,6,opt,name=accept_rate_per_second,json=acceptRatePerSecond,proto3" json:"accept_rate_per_second,omitempty"`
+	AcceptBurst           uint32                 `protobuf:"varint,7,opt,name=accept_burst,json=acceptBurst,proto3" json:"accept_burst,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ListenerEndpoint) Reset() {
+	*x = ListenerEndpoint{}
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListenerEndpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListenerEndpoint) ProtoMessage() {}
+
+func (x *ListenerEndpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListenerEndpoint.ProtoReflect.Descriptor instead.
+func (*ListenerEndpoint) Descriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListenerEndpoint) GetNetwork() ListenerNetwork {
+	if x != nil {
+		return x.Network
+	}
+	return ListenerNetwork_LISTENER_NETWORK_UNSPECIFIED
+}
+
+func (x *ListenerEndpoint) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *ListenerEndpoint) GetUnixSocketMode() uint32 {
+	if x != nil {
+		return x.UnixSocketMode
+	}
+	return 0
+}
+
+func (x *ListenerEndpoint) GetUnlinkStaleUnixSocket() bool {
+	if x != nil {
+		return x.UnlinkStaleUnixSocket
+	}
+	return false
+}
+
+func (x *ListenerEndpoint) GetMaxConnections() uint32 {
+	if x != nil {
+		return x.MaxConnections
+	}
+	return 0
+}
+
+func (x *ListenerEndpoint) GetAcceptRatePerSecond() uint32 {
+	if x != nil {
+		return x.AcceptRatePerSecond
+	}
+	return 0
+}
+
+func (x *ListenerEndpoint) GetAcceptBurst() uint32 {
+	if x != nil {
+		return x.AcceptBurst
+	}
+	return 0
+}
+
+type ListenerAuth struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Mode                   ListenerAuthMode       `protobuf:"varint,1,opt,name=mode,proto3,enum=xtcp_config.v1.ListenerAuthMode" json:"mode,omitempty"`
+	RawToken               string                 `protobuf:"bytes,2,opt,name=raw_token,json=rawToken,proto3" json:"raw_token,omitempty"`
+	HmacSharedKey          string                 `protobuf:"bytes,3,opt,name=hmac_shared_key,json=hmacSharedKey,proto3" json:"hmac_shared_key,omitempty"`
+	SignedTokenSkewMinutes uint32                 `protobuf:"varint,4,opt,name=signed_token_skew_minutes,json=signedTokenSkewMinutes,proto3" json:"signed_token_skew_minutes,omitempty"`
+	FailureJitterMin       *durationpb.Duration   `protobuf:"bytes,5,opt,name=failure_jitter_min,json=failureJitterMin,proto3" json:"failure_jitter_min,omitempty"`
+	FailureJitterMax       *durationpb.Duration   `protobuf:"bytes,6,opt,name=failure_jitter_max,json=failureJitterMax,proto3" json:"failure_jitter_max,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *ListenerAuth) Reset() {
+	*x = ListenerAuth{}
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListenerAuth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListenerAuth) ProtoMessage() {}
+
+func (x *ListenerAuth) ProtoReflect() protoreflect.Message {
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListenerAuth.ProtoReflect.Descriptor instead.
+func (*ListenerAuth) Descriptor() ([]byte, []int) {
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListenerAuth) GetMode() ListenerAuthMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
+}
+
+func (x *ListenerAuth) GetRawToken() string {
+	if x != nil {
+		return x.RawToken
+	}
+	return ""
+}
+
+func (x *ListenerAuth) GetHmacSharedKey() string {
+	if x != nil {
+		return x.HmacSharedKey
+	}
+	return ""
+}
+
+func (x *ListenerAuth) GetSignedTokenSkewMinutes() uint32 {
+	if x != nil {
+		return x.SignedTokenSkewMinutes
+	}
+	return 0
+}
+
+func (x *ListenerAuth) GetFailureJitterMin() *durationpb.Duration {
+	if x != nil {
+		return x.FailureJitterMin
+	}
+	return nil
+}
+
+func (x *ListenerAuth) GetFailureJitterMax() *durationpb.Duration {
+	if x != nil {
+		return x.FailureJitterMax
+	}
+	return nil
+}
+
 // xtcp configuration
 //
 // Field-number layout (renumbered into subject blocks 2026-09; the binary form
@@ -945,8 +1222,19 @@ type XtcpConfig struct {
 	// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
 	// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
 	Ipv6HopLimit uint32 `protobuf:"varint,151,opt,name=ipv6_hop_limit,json=ipv6HopLimit,proto3" json:"ipv6_hop_limit,omitempty"`
+	// Shared authentication policy for xtcp2's own listener surfaces. Auth is
+	// wired in a follow-up hardening slice; these fields are present now so
+	// config JSON and generated clients stabilize with the listener endpoint
+	// schema. Secrets are redacted from ConfigService.Get.
+	ListenerAuth *ListenerAuth `protobuf:"bytes,152,opt,name=listener_auth,json=listenerAuth,proto3" json:"listener_auth,omitempty"`
+	// Prometheus / pprof / health listener endpoint. When unset, the daemon
+	// keeps the legacy TCP behavior from -promListen / PROM_LISTEN.
+	PrometheusListener *ListenerEndpoint `protobuf:"bytes,153,opt,name=prometheus_listener,json=prometheusListener,proto3" json:"prometheus_listener,omitempty"`
 	// GRPC listening port
 	GrpcPort uint32 `protobuf:"varint,160,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
+	// gRPC listener endpoint. When unset, the daemon keeps the legacy TCP
+	// behavior derived from grpc_port.
+	GrpcListener *ListenerEndpoint `protobuf:"bytes,161,opt,name=grpc_listener,json=grpcListener,proto3" json:"grpc_listener,omitempty"`
 	// Pyroscope continuous-profiling server URL (e.g.
 	// http://127.0.0.1:4040). When set, the daemon streams CPU,
 	// memory, goroutine, mutex, and block profiles to that endpoint.
@@ -1034,7 +1322,7 @@ type XtcpConfig struct {
 
 func (x *XtcpConfig) Reset() {
 	*x = XtcpConfig{}
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1046,7 +1334,7 @@ func (x *XtcpConfig) String() string {
 func (*XtcpConfig) ProtoMessage() {}
 
 func (x *XtcpConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[14]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1059,7 +1347,7 @@ func (x *XtcpConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XtcpConfig.ProtoReflect.Descriptor instead.
 func (*XtcpConfig) Descriptor() ([]byte, []int) {
-	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{14}
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *XtcpConfig) GetNlTimeoutMilliseconds() uint64 {
@@ -1419,11 +1707,32 @@ func (x *XtcpConfig) GetIpv6HopLimit() uint32 {
 	return 0
 }
 
+func (x *XtcpConfig) GetListenerAuth() *ListenerAuth {
+	if x != nil {
+		return x.ListenerAuth
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetPrometheusListener() *ListenerEndpoint {
+	if x != nil {
+		return x.PrometheusListener
+	}
+	return nil
+}
+
 func (x *XtcpConfig) GetGrpcPort() uint32 {
 	if x != nil {
 		return x.GrpcPort
 	}
 	return 0
+}
+
+func (x *XtcpConfig) GetGrpcListener() *ListenerEndpoint {
+	if x != nil {
+		return x.GrpcListener
+	}
+	return nil
 }
 
 func (x *XtcpConfig) GetPyroscopeUrl() string {
@@ -1568,7 +1877,7 @@ type EnabledDeserializers struct {
 
 func (x *EnabledDeserializers) Reset() {
 	*x = EnabledDeserializers{}
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1580,7 +1889,7 @@ func (x *EnabledDeserializers) String() string {
 func (*EnabledDeserializers) ProtoMessage() {}
 
 func (x *EnabledDeserializers) ProtoReflect() protoreflect.Message {
-	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[15]
+	mi := &file_xtcp_config_v1_xtcp_config_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1593,7 +1902,7 @@ func (x *EnabledDeserializers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnabledDeserializers.ProtoReflect.Descriptor instead.
 func (*EnabledDeserializers) Descriptor() ([]byte, []int) {
-	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{15}
+	return file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *EnabledDeserializers) GetEnabled() map[string]bool {
@@ -1647,7 +1956,23 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x1denvelope_flush_threshold_rows\x18\x14 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1aenvelopeFlushThresholdRows:\xc0\x01\xbaH\xbc\x01\x1a\xb9\x01\n" +
 	"\x1bSetEnvelopeFlush.atLeastOne\x12Gset envelope_flush_threshold_bytes and/or envelope_flush_threshold_rows\x1aQthis.envelope_flush_threshold_bytes > 0 || this.envelope_flush_threshold_rows > 0\"N\n" +
 	"\x18SetEnvelopeFlushResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x95 \n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\x8a\x03\n" +
+	"\x10ListenerEndpoint\x12C\n" +
+	"\anetwork\x18\x01 \x01(\x0e2\x1f.xtcp_config.v1.ListenerNetworkB\b\xbaH\x05\x82\x01\x02\x10\x01R\anetwork\x12\"\n" +
+	"\aaddress\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x04R\aaddress\x122\n" +
+	"\x10unix_socket_mode\x18\x03 \x01(\rB\b\xbaH\x05*\x03\x18\xff\x03R\x0eunixSocketMode\x127\n" +
+	"\x18unlink_stale_unix_socket\x18\x04 \x01(\bR\x15unlinkStaleUnixSocket\x122\n" +
+	"\x0fmax_connections\x18\x05 \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\x0emaxConnections\x12>\n" +
+	"\x16accept_rate_per_second\x18\x06 \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\x13acceptRatePerSecond\x12,\n" +
+	"\faccept_burst\x18\a \x01(\rB\t\xbaH\x06*\x04\x18\xa0\x8d\x06R\vacceptBurst\"\xf5\x04\n" +
+	"\fListenerAuth\x12>\n" +
+	"\x04mode\x18\x01 \x01(\x0e2 .xtcp_config.v1.ListenerAuthModeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04mode\x12%\n" +
+	"\traw_token\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\brawToken\x120\n" +
+	"\x0fhmac_shared_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\rhmacSharedKey\x12B\n" +
+	"\x19signed_token_skew_minutes\x18\x04 \x01(\rB\a\xbaH\x04*\x02\x18\x05R\x16signedTokenSkewMinutes\x12Q\n" +
+	"\x12failure_jitter_min\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMin\x12Q\n" +
+	"\x12failure_jitter_max\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMax:\xe1\x01\xbaH\xdd\x01\x1a\xda\x01\n" +
+	"\x1aListenerAuth.failureJitter\x12Ffailure_jitter_max must be greater than or equal to failure_jitter_min\x1at!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_min\"\x8d\"\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -1722,8 +2047,11 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x123\n" +
 	"\x0edaemon_version\x18\x86\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\rdaemonVersion\x12'\n" +
 	"\bipv4_ttl\x18\x96\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
-	"\x0eipv6_hop_limit\x18\x97\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12,\n" +
-	"\tgrpc_port\x18\xa0\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12,\n" +
+	"\x0eipv6_hop_limit\x18\x97\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12J\n" +
+	"\rlistener_auth\x18\x98\x01 \x01(\v2\x1c.xtcp_config.v1.ListenerAuthB\x06\xbaH\x03\xc8\x01\x00R\flistenerAuth\x12Z\n" +
+	"\x13prometheus_listener\x18\x99\x01 \x01(\v2 .xtcp_config.v1.ListenerEndpointB\x06\xbaH\x03\xc8\x01\x00R\x12prometheusListener\x12,\n" +
+	"\tgrpc_port\x18\xa0\x01 \x01(\rB\x0e\xbaH\v\xc8\x01\x01*\x06\x18\xff\xff\x03(\x01R\bgrpcPort\x12N\n" +
+	"\rgrpc_listener\x18\xa1\x01 \x01(\v2 .xtcp_config.v1.ListenerEndpointB\x06\xbaH\x03\xc8\x01\x00R\fgrpcListener\x12,\n" +
 	"\rpyroscope_url\x18\xaa\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\fpyroscopeUrl\x125\n" +
 	"\x12pyroscope_app_name\x18\xab\x01 \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\x10pyroscopeAppName\x127\n" +
 	"\x13pyroscope_sample_hz\x18\xac\x01 \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x11pyroscopeSampleHz\x12J\n" +
@@ -1748,7 +2076,16 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x03(\v21.xtcp_config.v1.EnabledDeserializers.EnabledEntryR\aenabled\x1a:\n" +
 	"\fEnabledEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x012\x87\a\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01*h\n" +
+	"\x0fListenerNetwork\x12 \n" +
+	"\x1cLISTENER_NETWORK_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14LISTENER_NETWORK_TCP\x10\x01\x12\x19\n" +
+	"\x15LISTENER_NETWORK_UNIX\x10\x02*\xa1\x01\n" +
+	"\x10ListenerAuthMode\x12\"\n" +
+	"\x1eLISTENER_AUTH_MODE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bLISTENER_AUTH_MODE_DISABLED\x10\x01\x12 \n" +
+	"\x1cLISTENER_AUTH_MODE_RAW_TOKEN\x10\x02\x12&\n" +
+	"\"LISTENER_AUTH_MODE_HMAC_UTC_MINUTE\x10\x032\x87\a\n" +
 	"\rConfigService\x12]\n" +
 	"\x03Get\x12\x1a.xtcp_config.v1.GetRequest\x1a\x1b.xtcp_config.v1.GetResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\x1a\x12/ConfigService/Get\x12]\n" +
 	"\x03Set\x12\x1a.xtcp_config.v1.SetRequest\x1a\x1b.xtcp_config.v1.SetResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\x1a\x12/ConfigService/Set\x12\x91\x01\n" +
@@ -1771,68 +2108,80 @@ func file_xtcp_config_v1_xtcp_config_proto_rawDescGZIP() []byte {
 	return file_xtcp_config_v1_xtcp_config_proto_rawDescData
 }
 
-var file_xtcp_config_v1_xtcp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_xtcp_config_v1_xtcp_config_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_xtcp_config_v1_xtcp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_xtcp_config_v1_xtcp_config_proto_goTypes = []any{
-	(*GetRequest)(nil),               // 0: xtcp_config.v1.GetRequest
-	(*GetResponse)(nil),              // 1: xtcp_config.v1.GetResponse
-	(*SetRequest)(nil),               // 2: xtcp_config.v1.SetRequest
-	(*SetResponse)(nil),              // 3: xtcp_config.v1.SetResponse
-	(*SetPollFrequencyRequest)(nil),  // 4: xtcp_config.v1.SetPollFrequencyRequest
-	(*SetPollFrequencyResponse)(nil), // 5: xtcp_config.v1.SetPollFrequencyResponse
-	(*TriggerPollRequest)(nil),       // 6: xtcp_config.v1.TriggerPollRequest
-	(*TriggerPollResponse)(nil),      // 7: xtcp_config.v1.TriggerPollResponse
-	(*TriggerPollBurstRequest)(nil),  // 8: xtcp_config.v1.TriggerPollBurstRequest
-	(*TriggerPollBurstResponse)(nil), // 9: xtcp_config.v1.TriggerPollBurstResponse
-	(*SetS3UploadRequest)(nil),       // 10: xtcp_config.v1.SetS3UploadRequest
-	(*SetS3UploadResponse)(nil),      // 11: xtcp_config.v1.SetS3UploadResponse
-	(*SetEnvelopeFlushRequest)(nil),  // 12: xtcp_config.v1.SetEnvelopeFlushRequest
-	(*SetEnvelopeFlushResponse)(nil), // 13: xtcp_config.v1.SetEnvelopeFlushResponse
-	(*XtcpConfig)(nil),               // 14: xtcp_config.v1.XtcpConfig
-	(*EnabledDeserializers)(nil),     // 15: xtcp_config.v1.EnabledDeserializers
-	nil,                              // 16: xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	(*durationpb.Duration)(nil),      // 17: google.protobuf.Duration
+	(ListenerNetwork)(0),             // 0: xtcp_config.v1.ListenerNetwork
+	(ListenerAuthMode)(0),            // 1: xtcp_config.v1.ListenerAuthMode
+	(*GetRequest)(nil),               // 2: xtcp_config.v1.GetRequest
+	(*GetResponse)(nil),              // 3: xtcp_config.v1.GetResponse
+	(*SetRequest)(nil),               // 4: xtcp_config.v1.SetRequest
+	(*SetResponse)(nil),              // 5: xtcp_config.v1.SetResponse
+	(*SetPollFrequencyRequest)(nil),  // 6: xtcp_config.v1.SetPollFrequencyRequest
+	(*SetPollFrequencyResponse)(nil), // 7: xtcp_config.v1.SetPollFrequencyResponse
+	(*TriggerPollRequest)(nil),       // 8: xtcp_config.v1.TriggerPollRequest
+	(*TriggerPollResponse)(nil),      // 9: xtcp_config.v1.TriggerPollResponse
+	(*TriggerPollBurstRequest)(nil),  // 10: xtcp_config.v1.TriggerPollBurstRequest
+	(*TriggerPollBurstResponse)(nil), // 11: xtcp_config.v1.TriggerPollBurstResponse
+	(*SetS3UploadRequest)(nil),       // 12: xtcp_config.v1.SetS3UploadRequest
+	(*SetS3UploadResponse)(nil),      // 13: xtcp_config.v1.SetS3UploadResponse
+	(*SetEnvelopeFlushRequest)(nil),  // 14: xtcp_config.v1.SetEnvelopeFlushRequest
+	(*SetEnvelopeFlushResponse)(nil), // 15: xtcp_config.v1.SetEnvelopeFlushResponse
+	(*ListenerEndpoint)(nil),         // 16: xtcp_config.v1.ListenerEndpoint
+	(*ListenerAuth)(nil),             // 17: xtcp_config.v1.ListenerAuth
+	(*XtcpConfig)(nil),               // 18: xtcp_config.v1.XtcpConfig
+	(*EnabledDeserializers)(nil),     // 19: xtcp_config.v1.EnabledDeserializers
+	nil,                              // 20: xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	(*durationpb.Duration)(nil),      // 21: google.protobuf.Duration
 }
 var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
-	14, // 0: xtcp_config.v1.GetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	14, // 1: xtcp_config.v1.SetRequest.config:type_name -> xtcp_config.v1.XtcpConfig
-	14, // 2: xtcp_config.v1.SetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	17, // 3: xtcp_config.v1.SetPollFrequencyRequest.poll_frequency:type_name -> google.protobuf.Duration
-	17, // 4: xtcp_config.v1.SetPollFrequencyRequest.poll_timeout:type_name -> google.protobuf.Duration
-	14, // 5: xtcp_config.v1.SetPollFrequencyResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	17, // 6: xtcp_config.v1.TriggerPollBurstRequest.interval:type_name -> google.protobuf.Duration
-	17, // 7: xtcp_config.v1.TriggerPollBurstResponse.interval:type_name -> google.protobuf.Duration
-	17, // 8: xtcp_config.v1.SetS3UploadRequest.s3_flush_interval:type_name -> google.protobuf.Duration
-	14, // 9: xtcp_config.v1.SetS3UploadResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	14, // 10: xtcp_config.v1.SetEnvelopeFlushResponse.config:type_name -> xtcp_config.v1.XtcpConfig
-	17, // 11: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
-	17, // 12: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
-	15, // 13: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
-	17, // 14: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
-	17, // 15: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
-	17, // 16: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
-	17, // 17: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	17, // 18: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
-	17, // 19: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
-	16, // 20: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	0,  // 21: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	2,  // 22: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	4,  // 23: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	6,  // 24: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	8,  // 25: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	10, // 26: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	12, // 27: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	1,  // 28: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	3,  // 29: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	5,  // 30: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	7,  // 31: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	9,  // 32: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	11, // 33: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	13, // 34: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	28, // [28:35] is the sub-list for method output_type
-	21, // [21:28] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	18, // 0: xtcp_config.v1.GetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	18, // 1: xtcp_config.v1.SetRequest.config:type_name -> xtcp_config.v1.XtcpConfig
+	18, // 2: xtcp_config.v1.SetResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	21, // 3: xtcp_config.v1.SetPollFrequencyRequest.poll_frequency:type_name -> google.protobuf.Duration
+	21, // 4: xtcp_config.v1.SetPollFrequencyRequest.poll_timeout:type_name -> google.protobuf.Duration
+	18, // 5: xtcp_config.v1.SetPollFrequencyResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	21, // 6: xtcp_config.v1.TriggerPollBurstRequest.interval:type_name -> google.protobuf.Duration
+	21, // 7: xtcp_config.v1.TriggerPollBurstResponse.interval:type_name -> google.protobuf.Duration
+	21, // 8: xtcp_config.v1.SetS3UploadRequest.s3_flush_interval:type_name -> google.protobuf.Duration
+	18, // 9: xtcp_config.v1.SetS3UploadResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	18, // 10: xtcp_config.v1.SetEnvelopeFlushResponse.config:type_name -> xtcp_config.v1.XtcpConfig
+	0,  // 11: xtcp_config.v1.ListenerEndpoint.network:type_name -> xtcp_config.v1.ListenerNetwork
+	1,  // 12: xtcp_config.v1.ListenerAuth.mode:type_name -> xtcp_config.v1.ListenerAuthMode
+	21, // 13: xtcp_config.v1.ListenerAuth.failure_jitter_min:type_name -> google.protobuf.Duration
+	21, // 14: xtcp_config.v1.ListenerAuth.failure_jitter_max:type_name -> google.protobuf.Duration
+	21, // 15: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
+	21, // 16: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
+	19, // 17: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
+	21, // 18: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
+	21, // 19: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
+	21, // 20: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	21, // 21: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	17, // 22: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	16, // 23: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	16, // 24: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	21, // 25: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
+	21, // 26: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	20, // 27: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	2,  // 28: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	4,  // 29: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	6,  // 30: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	8,  // 31: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	10, // 32: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	12, // 33: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	14, // 34: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	3,  // 35: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	5,  // 36: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	7,  // 37: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	9,  // 38: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	11, // 39: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	13, // 40: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	15, // 41: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	35, // [35:42] is the sub-list for method output_type
+	28, // [28:35] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }
@@ -1845,13 +2194,14 @@ func file_xtcp_config_v1_xtcp_config_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_xtcp_config_v1_xtcp_config_proto_rawDesc), len(file_xtcp_config_v1_xtcp_config_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   17,
+			NumEnums:      2,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_xtcp_config_v1_xtcp_config_proto_goTypes,
 		DependencyIndexes: file_xtcp_config_v1_xtcp_config_proto_depIdxs,
+		EnumInfos:         file_xtcp_config_v1_xtcp_config_proto_enumTypes,
 		MessageInfos:      file_xtcp_config_v1_xtcp_config_proto_msgTypes,
 	}.Build()
 	File_xtcp_config_v1_xtcp_config_proto = out.File

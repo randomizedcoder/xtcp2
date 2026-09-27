@@ -579,6 +579,7 @@ in
       test-go-unit = tests.go-unit;
       test-go-bench = tests.go-bench;
       test-go-race = tests.go-race;
+      test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;

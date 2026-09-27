@@ -13,6 +13,7 @@ import (
 	_ "unsafe"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"google.golang.org/grpc"
@@ -119,8 +120,10 @@ func main() {
 func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("xtcp2client", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	networkFlag := fs.String("network", listener.NetworkTCP, "gRPC network: tcp or unix")
 	target := fs.String("target", tagertHostnameCst, "Target hostanme")
 	port := fs.String("port", grpcPortCst, "Target gRPC port (must match the xtcp2 daemon's -grpcPort flag)")
+	unixSocket := fs.String("unixSocket", "", "Target gRPC Unix socket path when -network unix")
 	poll := fs.Bool("poll", false, "poll mode means the client will trigger polling via the PollFlatRecords service")
 	pollFrequency := fs.Duration("pollFrequency", pollFrequencyCst, "poll mode frequency")
 	workers := fs.Int("workers", 10, "workers")
@@ -149,19 +152,36 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	network, err := listener.ParseNetwork(*networkFlag)
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2client: %v\n", err)
+		return 2
+	}
+	networkName, err := listener.NetworkString(network, listener.NetworkTCP)
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2client: %v\n", err)
+		return 2
+	}
 	complete := make(chan struct{}, signalChannelSizeCst)
 	addr := *target + ":" + *port
+	if networkName == listener.NetworkUnix {
+		if *unixSocket == "" {
+			fmt.Fprintln(stderr, "xtcp2client: -unixSocket is required when -network unix")
+			return 2
+		}
+		addr = *unixSocket
+	}
 	if *poll {
-		pollMode(ctx, addr, &complete, *pollFrequency, printer, debugLevel)
+		pollMode(ctx, networkName, addr, &complete, *pollFrequency, printer, debugLevel)
 	} else {
-		listenMode(ctx, addr, *workers, &complete, printer)
+		listenMode(ctx, networkName, addr, *workers, &complete, printer)
 	}
 	return 0
 }
 
 // func (c *xTCPFlatRecordServiceClient) PollFlatRecords(
 // ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PollFlatRecordsRequest, FlatRecordsResponse], error) {
-func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) {
+func pollMode(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) {
 
 	if debugLevel > 10 {
 		log.Printf("pollMode starting")
@@ -174,7 +194,7 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 	// going silent. This mirrors listenMode's singleStreamingClient. Only
 	// ctx cancellation or the complete signal stops the loop.
 	for i := 0; ; i++ {
-		if !pollSession(ctx, addr, complete, pollFrequency, printer, debugLevel) {
+		if !pollSession(ctx, network, addr, complete, pollFrequency, printer, debugLevel) {
 			return
 		}
 
@@ -198,9 +218,9 @@ func pollMode(ctx context.Context, addr string, complete *chan struct{}, pollFre
 // session ended because the stream/connection broke (the caller should
 // reconnect), or false if ctx was canceled or the complete signal fired (the
 // caller should stop).
-func pollSession(ctx context.Context, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) (reconnect bool) {
+func pollSession(ctx context.Context, network, addr string, complete *chan struct{}, pollFrequency time.Duration, printer *recordPrinter, debugLevel uint) (reconnect bool) {
 
-	conn := newGRPCClient(addr)
+	conn := newGRPCClient(network, addr)
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
 			log.Printf("pollSession: conn close: %v", cerr)
@@ -330,7 +350,7 @@ func pollStreamRecv(
 	}
 }
 
-func listenMode(ctx context.Context, addr string, workers int, complete *chan struct{}, printer *recordPrinter) {
+func listenMode(ctx context.Context, network, addr string, workers int, complete *chan struct{}, printer *recordPrinter) {
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
@@ -340,7 +360,7 @@ func listenMode(ctx context.Context, addr string, workers int, complete *chan st
 		// dialed once and passed the conn down, but stream()
 		// deferred-Close'd it on first return, so every "reconnect
 		// after sleep" iteration after the first used a dead conn.
-		go singleStreamingClient(ctx, &wg, addr, printer, j)
+		go singleStreamingClient(ctx, &wg, network, addr, printer, j)
 	}
 
 	wg.Wait()
@@ -358,7 +378,7 @@ func listenMode(ctx context.Context, addr string, workers int, complete *chan st
 // restart branch without waiting 10 seconds.
 var reconnectTimeVar = reconnectTime
 
-func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, addr string, printer *recordPrinter, id int) {
+func singleStreamingClient(ctx context.Context, wg *sync.WaitGroup, network, addr string, printer *recordPrinter, id int) {
 
 	defer wg.Done()
 
@@ -377,7 +397,7 @@ breakPoint:
 		// hand a closed conn to every reconnect — the original code
 		// had this bug; the reconnect-with-sleep loop was effectively
 		// dead code after iteration 0.
-		conn := newGRPCClient(addr)
+		conn := newGRPCClient(network, addr)
 		wg.Add(1)
 		stream(ctx, wg, conn, printer, id)
 
@@ -405,20 +425,23 @@ breakPoint:
 	}
 }
 
-func newGRPCClient(target string) *grpc.ClientConn {
+func newGRPCClient(network, target string) *grpc.ClientConn {
 	keepalive := &keepalive.ClientParameters{
 		Time:                keepaliveTime,
 		Timeout:             keepaliveTimeout,
 		PermitWithoutStream: true,
 	}
 
-	conn, err := grpc.NewClient(
-		target,
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
 		grpc.WithKeepaliveParams(*keepalive),
 		grpc.WithDefaultServiceConfig(servicePolicyString),
-	)
+	}
+	if network == listener.NetworkUnix {
+		target = "unix://" + target
+	}
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		log.Fatal("Error connecting to gRPC server: ", err.Error())
 	}

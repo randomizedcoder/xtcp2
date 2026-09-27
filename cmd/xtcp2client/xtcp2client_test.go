@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,12 +17,13 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 )
 
 func TestNewGRPCClient(t *testing.T) {
 	// newGRPCClient builds a grpc.ClientConn without dialing (lazy connect).
-	conn := newGRPCClient("localhost:0")
+	conn := newGRPCClient(listener.NetworkTCP, "localhost:0")
 	if conn == nil {
 		t.Fatal("newGRPCClient returned nil")
 	}
@@ -264,6 +266,24 @@ func startRecordingGRPC(t *testing.T) (addr string, cleanup func()) {
 	}
 }
 
+func startRecordingUnixGRPC(t *testing.T) (socketPath string, cleanup func()) {
+	t.Helper()
+	socketPath = filepath.Join(t.TempDir(), "xtcp2client.sock")
+	lis, err := net.Listen(listener.NetworkUnix, socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := grpc.NewServer()
+	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, &recordingFRServer{})
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	return socketPath, func() {
+		srv.Stop()
+		_ = lis.Close()
+	}
+}
+
 func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -283,8 +303,30 @@ func startTestGRPC(t *testing.T) (addr string, cleanup func()) {
 
 func TestListenMode_workersZeroNoOp(t *testing.T) {
 	complete := make(chan struct{}, 1)
-	listenMode(t.Context(), "127.0.0.1:0", 0, &complete, nullPrinter())
+	listenMode(t.Context(), listener.NetworkTCP, "127.0.0.1:0", 0, &complete, nullPrinter())
 	// wg.Wait returned immediately; complete signal sent.
+}
+
+func TestNewGRPCClientUnixSocket(t *testing.T) {
+	socketPath, cleanup := startRecordingUnixGRPC(t)
+	defer cleanup()
+
+	conn := newGRPCClient(listener.NetworkUnix, socketPath)
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	stream, err := xtcp_flat_record.NewXTCPFlatRecordServiceClient(conn).FlatRecords(ctx, &xtcp_flat_record.FlatRecordsRequest{})
+	if err != nil {
+		t.Fatalf("FlatRecords over unix socket: %v", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("receive record over unix socket: %v", err)
+	}
+	if resp.GetXtcpFlatRecord().GetHostname() != "test-host" {
+		t.Fatalf("hostname=%q, want test-host", resp.GetXtcpFlatRecord().GetHostname())
+	}
 }
 
 func TestListenMode_oneWorkerCancellable(t *testing.T) {
@@ -295,7 +337,7 @@ func TestListenMode_oneWorkerCancellable(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		listenMode(ctx, addr, 1, &complete, nullPrinter())
+		listenMode(ctx, listener.NetworkTCP, addr, 1, &complete, nullPrinter())
 		close(done)
 	}()
 	// Give the worker time to dial + open the stream.
@@ -316,7 +358,7 @@ func TestPollMode_dialAndCancel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(150 * time.Millisecond) // let one tick fire
@@ -335,7 +377,7 @@ func TestPollMode_completeChannel(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(t.Context(), addr, &complete, time.Hour, nullPrinter(), 0)
+		pollMode(t.Context(), listener.NetworkTCP, addr, &complete, time.Hour, nullPrinter(), 0)
 		close(done)
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -359,7 +401,7 @@ func TestPollMode_recordingServer(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		// debugLevel=11 hits more printPollFlatRecordsResponse log branches.
-		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 11)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 11)
 		close(done)
 	}()
 	// Let one tick fire so stream.Send + server.Recv complete.
@@ -425,7 +467,7 @@ func TestPollMode_reconnectsOnStreamBreak(t *testing.T) {
 	complete := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {
-		pollMode(ctx, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
+		pollMode(ctx, listener.NetworkTCP, addr, &complete, 50*time.Millisecond, nullPrinter(), 0)
 		close(done)
 	}()
 
@@ -457,7 +499,7 @@ func TestStream_recordingServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	conn := newGRPCClient(addr)
+	conn := newGRPCClient(listener.NetworkTCP, addr)
 	defer func() { _ = conn.Close() }()
 
 	wg := new(sync.WaitGroup)
@@ -497,7 +539,7 @@ func TestSingleStreamingClient_restartLoop(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		debugLevel = 200 // hit the restart log branch
-		singleStreamingClient(ctx, wg, addr, nullPrinter(), 0)
+		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0)
 		close(done)
 	}()
 	// Let stream() complete + sleep at least once before cancel.
@@ -523,7 +565,7 @@ func TestSingleStreamingClient_preCancelled(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		singleStreamingClient(ctx, wg, addr, nullPrinter(), 0)
+		singleStreamingClient(ctx, wg, listener.NetworkTCP, addr, nullPrinter(), 0)
 		close(done)
 	}()
 	select {
@@ -540,7 +582,7 @@ func TestStream_dialAndCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	conn := newGRPCClient(addr)
+	conn := newGRPCClient(listener.NetworkTCP, addr)
 	defer func() { _ = conn.Close() }()
 
 	wg := new(sync.WaitGroup)

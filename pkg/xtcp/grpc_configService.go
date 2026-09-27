@@ -133,6 +133,10 @@ func (c *xtcpConfigService) Get(
 	}
 	redacted.S3SecretKey = ""
 	redacted.S3AccessKey = ""
+	if redacted.ListenerAuth != nil {
+		redacted.ListenerAuth.RawToken = ""
+		redacted.ListenerAuth.HmacSharedKey = ""
+	}
 
 	resp := &xtcp_config.GetResponse{
 		Config: redacted,
@@ -182,6 +186,14 @@ func (c *xtcpConfigService) Set(
 	}
 	if in.Config.S3AccessKey == "" {
 		in.Config.S3AccessKey = c.config.S3AccessKey
+	}
+	if in.Config.ListenerAuth != nil && c.config.ListenerAuth != nil {
+		if in.Config.ListenerAuth.RawToken == "" {
+			in.Config.ListenerAuth.RawToken = c.config.ListenerAuth.RawToken
+		}
+		if in.Config.ListenerAuth.HmacSharedKey == "" {
+			in.Config.ListenerAuth.HmacSharedKey = c.config.ListenerAuth.HmacSharedKey
+		}
 	}
 
 	// The soft-restart hook is only wired in the real daemon (cmd/xtcp2).

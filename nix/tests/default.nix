@@ -12,6 +12,7 @@
 {
   go-unit = import ./go-unit.nix { inherit pkgs vendoredSource; };
   go-bench = import ./go-bench.nix { inherit pkgs vendoredSource; };
+  listener-security = import ./go-listener-security.nix { inherit pkgs lib vendoredSource; };
   proto-deserialize-golden = import ./proto-deserialize-golden.nix {
     inherit pkgs vendoredSource;
   };

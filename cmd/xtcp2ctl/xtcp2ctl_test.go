@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -76,7 +78,7 @@ func startFakeServer(t *testing.T) *fakeConfigServer {
 	go func() { _ = srv.Serve(lis) }()
 
 	prevDial := dialFunc
-	dialFunc = func(string) (*grpc.ClientConn, error) {
+	dialFunc = func(_, _ string) (*grpc.ClientConn, error) {
 		return grpc.NewClient(
 			"passthrough:///bufnet",
 			grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
@@ -108,6 +110,50 @@ func TestGet(t *testing.T) {
 	}
 	if !strings.Contains(out, "live-tag") || !strings.Contains(out, "kafka:127.0.0.1:9092") {
 		t.Errorf("get output missing expected fields:\n%s", out)
+	}
+}
+
+func TestGetUnixMissingSocket(t *testing.T) {
+	startFakeServer(t)
+	rc, _, errStr := run(t, "get", "-network", "unix")
+	if rc != 2 {
+		t.Fatalf("rc=%d stderr=%s, want rc=2", rc, errStr)
+	}
+	if !strings.Contains(errStr, "-unixSocket is required") {
+		t.Fatalf("stderr=%q, want missing unixSocket error", errStr)
+	}
+}
+
+func TestDialUnixSocket(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "xtcp2ctl.sock")
+	lis, err := net.Listen(listener.NetworkUnix, socketPath)
+	if err != nil {
+		t.Fatalf("listen unix: %v", err)
+	}
+	srv := grpc.NewServer()
+	xtcp_config.RegisterConfigServiceServer(srv, &fakeConfigServer{})
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	t.Cleanup(func() {
+		srv.Stop()
+		_ = lis.Close()
+	})
+
+	conn, err := dial(listener.NetworkUnix, socketPath)
+	if err != nil {
+		t.Fatalf("dial unix: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := xtcp_config.NewConfigServiceClient(conn).Get(ctx, &xtcp_config.GetRequest{})
+	if err != nil {
+		t.Fatalf("ConfigService.Get over unix socket: %v", err)
+	}
+	if resp.GetConfig().GetTag() != "live-tag" {
+		t.Fatalf("tag=%q, want live-tag", resp.GetConfig().GetTag())
 	}
 }
 
