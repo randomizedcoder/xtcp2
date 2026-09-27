@@ -355,6 +355,10 @@ func TestParseRtnetlinkEvent(t *testing.T) {
 			},
 		},
 		{
+			// The kernel sends no IFA_LOCAL for IPv6, and ParseNewAddr now
+			// aliases IFA_ADDRESS into Local exactly as
+			// ip/ipaddress.c:1531-1534 does — so Local is populated here even
+			// though the wire carries one attribute.
 			description: "positive: RTM_DELADDR IPv6 /64 (no IFA_LOCAL, as the kernel sends for v6)",
 			msgType:     uint16(unix.RTM_DELADDR),
 			body: concat(
@@ -365,7 +369,7 @@ func TestParseRtnetlinkEvent(t *testing.T) {
 				Action: EventActionDel,
 				Addr: AddrInfo{
 					Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 10,
-					Address: mustV6(t, "2001:db8::1"),
+					Address: mustV6(t, "2001:db8::1"), Local: mustV6(t, "2001:db8::1"),
 				},
 			},
 		},

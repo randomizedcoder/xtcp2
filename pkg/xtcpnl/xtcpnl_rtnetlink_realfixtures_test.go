@@ -104,51 +104,145 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 		want        LinkInfo
 	}{
 		{
-			// ip_link_n:1  "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 ... state UNKNOWN"
-			// ip_link_n:2  "    link/loopback" -> ifi_type ARPHRD_LOOPBACK (772).
+			// ip_link_n:1  "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue
+			//               state UNKNOWN mode DEFAULT group default qlen 1000"
+			// ip_link_n:2  "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00"
+			// -> ifi_type ARPHRD_LOOPBACK (772).
+			//
+			// Every rendered token on those two lines is asserted here, which is
+			// the point: qdisc, mode, group and qlen each come from a separate
+			// attribute, and "mode DEFAULT group default" is LinkMode 0 / Group 0
+			// — values a "only set it if still zero" guard could not tell from an
+			// absent attribute.
+			//
 			// A loopback reports state UNKNOWN, i.e. IF_OPER_UNKNOWN, even though
 			// it is perfectly usable — which is exactly why IsUp() reads ifi_flags
 			// rather than IFLA_OPERSTATE.
-			description: "positive: loopback lo, index 1, IFF_UP|IFF_LOOPBACK set",
+			description: "positive: loopback lo renders every token of ip_link_n:1-2",
 			want: LinkInfo{
 				Index: 1, Flags: 0x10049, Name: "lo", Type: 772,
 				OperState: IfOperUnknown, Carrier: 1, MTU: 65536,
+				Address:   []byte{0, 0, 0, 0, 0, 0},
+				Broadcast: []byte{0, 0, 0, 0, 0, 0},
+				Qdisc:     "noqueue", TxQLen: 1000, LinkMode: 0, Group: 0,
 			},
 		},
 		{
-			// ip_link_n:3  "2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UP"
-			description: "positive: primary NIC enp1s0, index 2",
+			// ip_link_n:3  "2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+			//               qdisc mq state UP mode DEFAULT group default qlen 1000"
+			// ip_link_n:4  "    link/ether e0:4f:43:e6:28:ef brd ff:ff:ff:ff:ff:ff"
+			//
+			// A physical NIC has no IFLA_LINKINFO, so Kind is "" — the absence
+			// that makes `ip` print no third line for it.
+			description: "positive: primary NIC enp1s0 carries a real MAC and qdisc mq",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				Address:   []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "mq", TxQLen: 1000,
 			},
 		},
 		{
-			// ip_link_n:6  "3: enp35s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UP"
+			// ip_link_n:6  "3: enp35s0f0np0: ... mtu 1500 qdisc mq state UP"
+			// ip_link_n:7  "    link/ether 04:09:73:cf:d8:d0 brd ff:ff:ff:ff:ff:ff"
 			description: "positive: NIC enp35s0f0np0, index 3",
 			want: LinkInfo{
 				Index: 3, Flags: 0x11043, Name: "enp35s0f0np0", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				Address:   []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "mq", TxQLen: 1000,
+			},
+		},
+		{
+			// ip_link_n:21 "58: ve-nfb-vpn@if2: ... qdisc noqueue state UP"
+			// ip_link_n:22 "    link/ether 6e:05:d5:51:50:25 brd ff:.. link-netnsid 1"
+			// ip_link_n:23 "    veth ..."
+			//
+			// The pair `ip` needs for the "@if2" suffix: IFLA_LINK is the peer's
+			// index (2) and IFLA_LINK_NETNSID says the peer lives in another
+			// netns, so the name cannot be resolved locally and `ip` falls back to
+			// printing "@if%d". Without IFLA_LINK it would print no suffix at all;
+			// without IFLA_LINK_NETNSID it would try ll_link_get and emit a whole
+			// extra netlink transaction.
+			//
+			// Kind comes from inside IFLA_LINKINFO, so this row is also the
+			// nested-descent assertion.
+			description: "positive: veth ve-nfb-vpn carries IFLA_LINK, IFLA_LINK_NETNSID and kind veth",
+			want: LinkInfo{
+				Index: 58, Flags: 0x11043, Name: "ve-nfb-vpn", Type: 1,
+				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				Address:   []byte{0x6e, 0x05, 0xd5, 0x51, 0x50, 0x25},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "noqueue", TxQLen: 1000, Kind: "veth",
+				Link: 2, LinkNetnsID: 1, HasLinkNetnsID: true,
+			},
+		},
+		{
+			// ip_link_n:28 "60: veth179a698@if2: ... qdisc noqueue master
+			//               br-3a5828b2963a state UP mode DEFAULT group default"
+			// ip_link_n:18 names index 9 as br-3a5828b2963a, so Master 9 is the
+			// bridge `ip` resolves to that word.
+			//
+			// Note the missing "qlen": this link's IFLA_TXQLEN really is 0, and
+			// `ip` omits the token rather than printing "qlen 0".
+			description: "positive: bridge member veth179a698 carries IFLA_MASTER 9 and txqlen 0",
+			want: LinkInfo{
+				Index: 60, Flags: 0x11043, Name: "veth179a698", Type: 1,
+				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "noqueue", TxQLen: 0, Kind: "veth",
+				Link: 2, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
+			},
+		},
+		{
+			// ip_link_n:12 "7: virbr0: <NO-CARRIER,...,UP> ... state DOWN"
+			// ip_link_n:14 "    bridge forward_delay 200 ..."
+			//
+			// The other kind in the nest. Carrier 0 with IFF_UP set is the
+			// carrier-down case IsCarrierDown() exists for, and it is a bridge
+			// with no members rather than an unplugged cable.
+			description: "positive: bridge virbr0 decodes kind bridge and carrier 0",
+			want: LinkInfo{
+				Index: 7, Flags: 0x1003, Name: "virbr0", Type: 1,
+				OperState: IfOperDown, Carrier: 0, MTU: 1500,
+				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "noqueue", TxQLen: 1000, Kind: "bridge",
 			},
 		},
 		{
 			// ip_link_n:24 "59: ve-nordlayepDd-@if2" — kernel truncates the name
-			// at IFNAMSIZ, so the dump carries the truncated form, not the altname.
+			// at IFNAMSIZ, so the dump carries the truncated form, not the altname
+			// on ip_link_n:27.
 			description: "corner: long veth name truncated by the kernel, index 59",
 			want: LinkInfo{
 				Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				Address:   []byte{0x66, 0xcf, 0x08, 0xaa, 0x09, 0xd9},
+				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				Qdisc:     "noqueue", TxQLen: 1000, Kind: "veth",
+				Link: 2, LinkNetnsID: 2, HasLinkNetnsID: true,
 			},
 		},
 		{
 			// ip_link_n:32 "161: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 ... state UNKNOWN"
-			// ip_link_n:33 "    link/netlink" -> ifi_type ARPHRD_NETLINK (824).
-			// The monitor iface the capture itself created; NOARP set, no
-			// BROADCAST/MULTICAST.
-			description: "corner: the capture's own nlmon0 monitor iface, index 161",
+			// ip_link_n:33 "    link/netlink  promiscuity 0 ..." -> ARPHRD_NETLINK (824).
+			//
+			// **The boundary row: no IFLA_ADDRESS at all.** Ten of the eleven links
+			// carry a 6-byte one; a netlink monitor device has no hardware address,
+			// the kernel omits the attribute, and the sidecar shows `ip` printing
+			// "link/netlink" followed by two spaces and nothing else. So a nil
+			// Address is a real state to render, distinct from lo's all-zero one —
+			// and the pair of rows is what stops a decoder from conflating them.
+			description: "boundary: nlmon0 has no IFLA_ADDRESS and no IFLA_BROADCAST",
 			want: LinkInfo{
 				Index: 161, Flags: 0x100c1, Name: "nlmon0", Type: 824,
 				OperState: IfOperUnknown, Carrier: 1, MTU: 3776,
+				Address: nil, Broadcast: nil,
+				Qdisc: "noqueue", TxQLen: 1000, Kind: "nlmon",
 			},
 		},
 	}
@@ -202,21 +296,47 @@ func TestParseNewAddrRealFixtures(t *testing.T) {
 		want        AddrInfo
 	}{
 		{
-			// ip_addr_n:3  "inet 127.0.0.1/8 scope host lo"
+			// ip_addr_n:3-4 "inet 127.0.0.1/8 scope host lo"
+			//               "   valid_lft forever preferred_lft forever"
+			// -> both lifetimes at INFINITY_LIFE_TIME, which is what "forever"
+			// is. Flags 0x80 is IFA_F_PERMANENT, and no IFA_BROADCAST: a host
+			// address has none, so `ip` prints no "brd" token.
 			description: "positive v4: loopback 127.0.0.1/8 scope host on lo (idx 1)",
 			fixture:     v4.path,
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 8, Scope: unix.RT_SCOPE_HOST, Index: 1,
 				Address: v4b(127, 0, 0, 1), Local: v4b(127, 0, 0, 1), Label: "lo",
+				Flags: unix.IFA_F_PERMANENT, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 108, Tstamp: 108,
+				},
 			},
 		},
 		{
-			// ip_addr_n:10 "inet 172.16.50.219/24 ... scope global ... enp1s0"
-			description: "positive v4: global 172.16.50.219/24 on enp1s0 (idx 2)",
+			// ip_addr_n:10 "inet 172.16.50.219/24 brd 172.16.50.255 scope global
+			//               dynamic noprefixroute enp1s0"
+			// ip_addr_n:11 "   valid_lft 47871sec preferred_lft 47871sec"
+			//
+			// The only DHCP address in the corpus, and the only row where the
+			// sidecar and the pcap disagree: the pcap says 47877 because `ip`
+			// was run about six seconds after the capture. Nothing is wrong —
+			// it is the clearest evidence in the fixtures that lifetimes are
+			// wall-clock state, which is why a parity comparison normalizes
+			// them.
+			//
+			// Flags 0x200 is IFA_F_NOPREFIXROUTE with IFA_F_PERMANENT *clear* —
+			// that absence is what `ip` renders as "dynamic".
+			description: "positive v4: dynamic 172.16.50.219/24 on enp1s0 carries a finite lifetime and a broadcast",
 			fixture:     v4.path,
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
 				Address: v4b(172, 16, 50, 219), Local: v4b(172, 16, 50, 219), Label: "enp1s0",
+				Broadcast: v4b(172, 16, 50, 255),
+				Flags:     unix.IFA_F_NOPREFIXROUTE, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: 47877, Valid: 47877, Cstamp: 2101, Tstamp: 71860384,
+				},
 			},
 		},
 		{
@@ -226,6 +346,11 @@ func TestParseNewAddrRealFixtures(t *testing.T) {
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 29, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
 				Address: v4b(10, 10, 4, 2), Local: v4b(10, 10, 4, 2), Label: "enp35s0f0np0",
+				Flags: unix.IFA_F_PERMANENT, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 53768267, Tstamp: 53768267,
+				},
 			},
 		},
 		{
@@ -235,34 +360,126 @@ func TestParseNewAddrRealFixtures(t *testing.T) {
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 58,
 				Address: v4b(10, 98, 0, 1), Local: v4b(10, 98, 0, 1), Label: "ve-nfb-vpn",
+				Flags: unix.IFA_F_PERMANENT, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 53768600, Tstamp: 53768600,
+				},
 			},
 		},
 		{
-			// ip_addr_n:5  "inet6 ::1/128 scope host" — v6 carries IFA_ADDRESS
-			// only (Local nil) and no IFA_LABEL.
-			description: "boundary v6: loopback ::1/128 scope host on lo (idx 1), no local/label",
+			// ip_addr_n:5  "inet6 ::1/128 scope host noprefixroute"
+			//
+			// v6 carries IFA_ADDRESS only and no IFA_LABEL, so Local here is
+			// the alias ip/ipaddress.c:1531-1534 installs — nil before the
+			// aliasing, and a renderer reading Local would print nothing.
+			// Flags 0x280 is PERMANENT|NOPREFIXROUTE, the second of which is
+			// the "noprefixroute" token on the sidecar line.
+			description: "boundary v6: loopback ::1/128 has no IFA_LOCAL, so Local is aliased from IFA_ADDRESS",
 			fixture:     v6.path,
 			want: AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 128, Scope: unix.RT_SCOPE_HOST, Index: 1,
-				Address: mustV6(t, "::1"),
+				Address: mustV6(t, "::1"), Local: mustV6(t, "::1"),
+				Flags: unix.IFA_F_PERMANENT | unix.IFA_F_NOPREFIXROUTE, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 108, Tstamp: 108,
+				},
 			},
 		},
 		{
 			// ip_addr_n:25 "inet6 fd10:10:4::2/64 scope global nodad"
-			description: "positive v6: ULA fd10:10:4::2/64 scope global on enp35s0f0np0 (idx 3)",
+			// -> 0x82 is PERMANENT|NODAD; "nodad" is the operator's flag, and
+			// it is the reason the parity topology in the goip plan adds its
+			// IPv6 address with `nodad`: a tentative address would come and go
+			// between two runs.
+			description: "positive v6: ULA fd10:10:4::2/64 carries IFA_F_NODAD",
 			fixture:     v6.path,
 			want: AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
-				Address: mustV6(t, "fd10:10:4::2"),
+				Address: mustV6(t, "fd10:10:4::2"), Local: mustV6(t, "fd10:10:4::2"),
+				Flags: unix.IFA_F_PERMANENT | unix.IFA_F_NODAD, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 53768268, Tstamp: 53768268,
+				},
 			},
 		},
 		{
-			// ip_addr_n:18 "inet6 fe80::b5c8:b23e:9a98:a37c/64 scope link"
+			// ip_addr_n:18 "inet6 fe80::b5c8:b23e:9a98:a37c/64 scope link noprefixroute"
 			description: "positive v6: link-local fe80::…a37c/64 scope link on enp1s0 (idx 2)",
 			fixture:     v6.path,
 			want: AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_LINK, Index: 2,
 				Address: mustV6(t, "fe80::b5c8:b23e:9a98:a37c"),
+				Local:   mustV6(t, "fe80::b5c8:b23e:9a98:a37c"),
+				Flags:   unix.IFA_F_PERMANENT | unix.IFA_F_NOPREFIXROUTE, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 1887, Tstamp: 1887,
+				},
+			},
+		},
+		{
+			// ip_addr_n:16 "inet6 2603:…:6adf:8a2f:21ae:d6a7/64 scope global
+			//               dynamic mngtmpaddr noprefixroute"
+			//
+			// **The row the 8-bit header field cannot express.** Flags 0x300 is
+			// IFA_F_MANAGETEMPADDR (0x100) | IFA_F_NOPREFIXROUTE (0x200); both
+			// are above the byte, so a decoder reading only ifa_flags sees 0
+			// and prints neither token. This is the real capture behind the
+			// constructed 0x300 row in TestParseNewAddr.
+			description: "positive v6: SLAAC 2603:…d6a7/64 carries mngtmpaddr|noprefixroute above the header byte",
+			fixture:     v6.path,
+			want: AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: mustV6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Local:   mustV6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Flags:   unix.IFA_F_MANAGETEMPADDR | unix.IFA_F_NOPREFIXROUTE, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: 86400, Valid: 86400, Cstamp: 2107, Tstamp: 73930035,
+				},
+			},
+		},
+		{
+			// ip_addr_n:14-15 "inet6 2603:…:827f:e158:2c1c:13b4/64 scope global
+			//                  temporary deprecated dynamic"
+			//                 "   valid_lft 34941sec preferred_lft 0sec"
+			//
+			// preferred_lft 0 with a non-zero valid_lft is the deprecated state,
+			// and the kernel sets IFA_F_DEPRECATED (0x20) alongside
+			// IFA_F_TEMPORARY (0x01) — so the flag and the lifetime agree, which
+			// is what makes IsDeprecated() checkable against a real capture
+			// rather than against its own definition.
+			description: "corner v6: deprecated temporary address has preferred_lft 0 and IFA_F_DEPRECATED",
+			fixture:     v6.path,
+			want: AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
+				Address: mustV6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
+				Local:   mustV6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
+				Flags:   unix.IFA_F_TEMPORARY | unix.IFA_F_DEPRECATED, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: 0, Valid: 34946, Cstamp: 60144546, Tstamp: 73930035,
+				},
+			},
+		},
+		{
+			// ip_addr_n:27 "inet6 fe80::609:73ff:fecf:d8d0/64 scope link proto kernel_ll"
+			//
+			// The only attribute in the corpus that `ip` renders from IFA_PROTO.
+			// Seven of the fifteen v6 addresses carry it; every one is a
+			// kernel-generated link-local, hence IFAPROT_KERNEL_LL.
+			description: "positive v6: kernel link-local carries IFA_PROTO = IFAPROT_KERNEL_LL",
+			fixture:     v6.path,
+			want: AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_LINK, Index: 3,
+				Address: mustV6(t, "fe80::609:73ff:fecf:d8d0"),
+				Local:   mustV6(t, "fe80::609:73ff:fecf:d8d0"),
+				Flags:   unix.IFA_F_PERMANENT, Proto: IfaProtoKernelLL, HasCacheInfo: true,
+				CacheInfo: IfaCacheinfo{
+					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
+					Cstamp: 1382, Tstamp: 1382,
+				},
 			},
 		},
 	}
