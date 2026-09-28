@@ -481,7 +481,8 @@ func TestParseNewAddr(t *testing.T) {
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
 				Address: v4b(172, 16, 50, 219), Local: v4b(172, 16, 50, 219),
-				Broadcast: v4b(172, 16, 50, 255), Proto: IfaProtoKernelLL,
+				Broadcast: v4b(172, 16, 50, 255),
+				Proto:     IfaProtoKernelLL, HasProto: true,
 			},
 		},
 		{
@@ -757,7 +758,10 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_MTU, le32(1500)),
 				rtattr(unix.IFLA_IFNAME, append([]byte("wg0"), 0)),
 			),
-			want: LinkInfo{Index: 5, Flags: unix.IFF_UP, Name: "wg0", Type: 1, MTU: 1500},
+			want: LinkInfo{
+				Index: 5, Flags: unix.IFF_UP, Name: "wg0", Type: 1,
+				MTU: 1500, HasMTU: true,
+			},
 		},
 		{
 			description: "corner: truncated ifinfomsg header -> error",
@@ -863,7 +867,7 @@ func TestParseNewLink(t *testing.T) {
 			),
 			want: LinkInfo{
 				Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
-				MTU: 1500,
+				MTU: 1500, HasMTU: true,
 			},
 		},
 		{
@@ -916,7 +920,8 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_MTU, le32(9000)),
 			),
 			want: LinkInfo{
-				Index: 13, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, MTU: 1500,
+				Index: 13, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				MTU: 1500, HasMTU: true,
 			},
 		},
 		{

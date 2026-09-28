@@ -85,12 +85,15 @@ func DeserializeRtMsg(data []byte, m *RtMsg) (n int, err error) {
 type RouteInfo struct {
 	Family       uint8
 	DstLen       uint8
+	SrcLen       uint8  // rtm_src_len; part of a route's identity
+	Tos          uint8  // rtm_tos; part of a route's identity
 	Table        uint32 // header rtm_table, upgraded by RTA_TABLE
 	Scope        uint8
 	Type         uint8
 	Protocol     uint8
 	Flags        uint32 // header rtm_flags — RTNH_F_* / RTM_F_*; `ip` renders linkdown, offload, trap
 	Dst          []byte // RTA_DST
+	Src          []byte // RTA_SRC
 	Gateway      []byte // RTA_GATEWAY
 	PrefSrc      []byte // RTA_PREFSRC
 	Oif          uint32 // RTA_OIF
@@ -123,6 +126,8 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	ri := RouteInfo{
 		Family:   m.Family,
 		DstLen:   m.DstLen,
+		SrcLen:   m.SrcLen,
+		Tos:      m.Tos,
 		Table:    uint32(m.Table),
 		Scope:    m.Scope,
 		Type:     m.Type,
@@ -139,6 +144,8 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		switch atype {
 		case uint16(unix.RTA_DST):
 			ri.Dst = CopyBytes(val)
+		case uint16(unix.RTA_SRC):
+			ri.Src = CopyBytes(val)
 		case uint16(unix.RTA_GATEWAY):
 			ri.Gateway = CopyBytes(val)
 		case uint16(unix.RTA_PREFSRC):

@@ -121,7 +121,7 @@ var commands = withArgs([]Command{
 	{
 		Name: "link show dev", Slug: "link_show_dev",
 		NeedsDev: true,
-		Floor:    2, Implemented: false,
+		Floor:    2, Implemented: true,
 	},
 	{
 		Name: "addr show", Slug: "addr_show",
@@ -151,7 +151,7 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
-		Floor: 4, Implemented: false,
+		Floor: 4, Implemented: true,
 	},
 })
 

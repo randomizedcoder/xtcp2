@@ -37,6 +37,7 @@ const (
 	// copied, for the reason pkg/nlparity/testdata_test.go gives.
 	tdBulkGetLink  = "../../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getlink.pcap"
 	tdBulkGetRoute = "../../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getroute.pcap"
+	tdGetNeigh     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap"
 )
 
 // canonicalRequests returns every request in a capture with nlmsg_seq and
@@ -57,6 +58,24 @@ func canonicalRequests(t *testing.T, path string) [][]byte {
 		out = append(out, canonicalize(m))
 	}
 	return out
+}
+
+func TestTierANeighShowRequests(t *testing.T) {
+	reqs := canonicalRequests(t, tdGetNeigh)
+	if len(reqs) != 2 {
+		t.Fatalf("requests in neighbor capture = %d, want link dump then neighbor dump", len(reqs))
+	}
+	link, err := NeighShowLinkDump(123)
+	if err != nil {
+		t.Fatal(err)
+	}
+	neigh := NeighShowDump(unix.AF_UNSPEC, 124)
+	if !bytes.Equal(zeroSeqPid(link), reqs[0]) {
+		t.Fatalf("link-map request differs\n got %x\nwant %x", zeroSeqPid(link), reqs[0])
+	}
+	if !bytes.Equal(zeroSeqPid(neigh), reqs[1]) {
+		t.Fatalf("neighbor request differs\n got %x\nwant %x", zeroSeqPid(neigh), reqs[1])
+	}
 }
 
 // mustCapture parses a committed pcap or fails the test.

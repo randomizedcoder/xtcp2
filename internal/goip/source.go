@@ -30,6 +30,14 @@ type Source interface {
 	Dump(request []byte, msgType uint16) ([][]byte, error)
 }
 
+// TalkSource is the narrow sibling used by RTM_GETLINK single-get operations.
+// It is intentionally not folded into Source: dump-only fixtures remain valid
+// service inputs, while callers can select the stronger contract only when a
+// get operation actually requires it.
+type TalkSource interface {
+	Talk(request []byte, msgType uint16) ([]byte, error)
+}
+
 // NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket.
 type NetlinkSource struct {
 	fd int
@@ -120,6 +128,18 @@ func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 		return nil, fmt.Errorf("goip: dump: %w", err)
 	}
 	return out, nil
+}
+
+// Talk sends a non-dump request and returns its single reply body.
+func (s *NetlinkSource) Talk(request []byte, msgType uint16) ([]byte, error) {
+	typ, body, err := xtcpnl.TalkRtnetlink(s.fd, request, s.sa)
+	if err != nil {
+		return nil, fmt.Errorf("goip: talk: %w", err)
+	}
+	if typ != msgType {
+		return nil, fmt.Errorf("goip: talk: reply type %d, want %d", typ, msgType)
+	}
+	return xtcpnl.CopyBytes(body), nil
 }
 
 // ReplaySource answers from a recorded nlmon capture instead of a socket.

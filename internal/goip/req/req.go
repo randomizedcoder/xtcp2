@@ -142,6 +142,23 @@ func AddrShowDump(family uint8, seq uint32) []byte {
 	return xtcpnl.BuildDumpAddrRequest(family, seq)
 }
 
+// RouteShowDump applies iproute2's route-show table policy to the verified
+// rtnetlink builder.  RT_TABLE_UNSPEC means table all.
+func RouteShowDump(family uint8, table uint32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpRouteRequestTable(family, table, seq)
+}
+
+// NeighShowDump delegates to the verified ndmsg dump builder.
+func NeighShowDump(family uint8, seq uint32) []byte {
+	return xtcpnl.BuildDumpNeighRequest(family, seq)
+}
+
+// NeighShowLinkDump is ll_init_map's link dump before a neighbor dump. Unlike
+// link/addr show it requests VF information but does not set SKIP_STATS.
+func NeighShowLinkDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+}
+
 // LinkShowByIndex builds the single-get behind `ip link show dev X` once the
 // name has been resolved to an index, and behind `ll_link_get`'s index-cache
 // fills.

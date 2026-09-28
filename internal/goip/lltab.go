@@ -63,7 +63,7 @@ func NewLLTab() *LLTab {
 // `ip link show dev enxe04f43e628ef` works; without this, goip would reject a
 // name `ip` accepts.
 //
-// Ranged by index, not by value: LinkInfo is 176 bytes and this loop reads four
+// Ranged by index, not by value: LinkInfo is large and this loop reads four
 // of its fields, so the value form copies the whole struct — including the
 // AltNames slice header and the address byte slices — once per link for nothing.
 func (t *LLTab) Fill(links []xtcpnl.LinkInfo) {

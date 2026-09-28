@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
-	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -86,43 +86,27 @@ func addrShow(c *runCtx, args []string) error {
 		return fmt.Errorf("address show %q: %w", args[0], ErrNotImplemented)
 	}
 
-	linkReq, err := req.AddrShowLinkDump(c.family, c.nextSeq())
-	if err != nil {
-		return fmt.Errorf("goip: build addr link dump request: %w", err)
-	}
-	linkBodies, err := c.src.Dump(linkReq, uint16(unix.RTM_NEWLINK))
+	linkResources, addrResources, err := service.New(c.src, c.nextSeq).AddressSnapshot(c.family)
 	if err != nil {
 		return err
 	}
-	links := make([]xtcpnl.LinkInfo, 0, len(linkBodies))
-	for _, body := range linkBodies {
-		li, perr := xtcpnl.ParseNewLink(body)
-		if perr != nil {
-			return fmt.Errorf("goip: decode RTM_NEWLINK: %w", perr)
-		}
-		links = append(links, li)
+	links := make([]xtcpnl.LinkInfo, len(linkResources))
+	for i := range linkResources {
+		links[i] = xtcpnl.LinkInfo(linkResources[i])
 	}
 	c.lltab.Fill(links)
 
 	var addrs []xtcpnl.AddrInfo
 	if c.family != unix.AF_PACKET {
-		addrBodies, aerr := c.src.Dump(req.AddrShowDump(c.family, c.nextSeq()), uint16(unix.RTM_NEWADDR))
-		if aerr != nil {
-			return aerr
-		}
-		addrs = make([]xtcpnl.AddrInfo, 0, len(addrBodies))
-		for _, body := range addrBodies {
-			ai, perr := xtcpnl.ParseNewAddr(body)
-			if perr != nil {
-				return fmt.Errorf("goip: decode RTM_NEWADDR: %w", perr)
-			}
-			addrs = append(addrs, ai)
+		addrs = make([]xtcpnl.AddrInfo, len(addrResources))
+		for i := range addrResources {
+			addrs[i] = xtcpnl.AddrInfo(addrResources[i])
 		}
 		links = filterLinksWithAddrs(links, addrs, c.family)
 	}
 
 	// Both of these loops, and the two in filterLinksWithAddrs below, range by
-	// index rather than by value. LinkInfo is 176 bytes and AddrInfo 128, and an
+	// index rather than by value. Both resource structs are large, and an
 	// AF_UNSPEC `addr show` runs the inner loop len(links) x len(addrs) times —
 	// so the value form copies both structs on every one of those iterations to
 	// read two integer fields off each.

@@ -380,10 +380,10 @@ func TestCommandString(t *testing.T) {
 			wantFields:  []string{"route_show", "4", "no", "no", "route show", "route show"},
 		},
 		{
-			description: "boundary: the dev-taking command renders dev=yes and its Args without a device",
+			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "2", "no", "yes", "link show dev", "link show dev",
+				"link_show_dev", "2", "yes", "yes", "link show dev", "link show dev",
 			},
 		},
 		{

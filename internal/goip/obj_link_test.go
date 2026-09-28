@@ -876,13 +876,11 @@ func TestRunLinkArgs(t *testing.T) {
 			wantStdoutPrefix: "1: lo: ",
 		},
 		{
-			// **A refusal, not a silent full dump.** `dev X` turns the request
-			// from a dump into a single-get, so ignoring the argument would
-			// answer a different question than the one asked — and would do it
-			// while looking like success.
-			description: "negative: `link show dev lo` is refused rather than silently dumping everything",
-			args:        []string{"link", "show", "dev", "lo"}, wantCode: ExitUsage,
-			wantStderrSubstr: "not implemented",
+			// Replay implements a single-get as dump plus exact filtering. The
+			// live source uses RTM_GETLINK without NLM_F_DUMP.
+			description: "positive: `link show dev lo` selects exactly one link",
+			args:        []string{"link", "show", "dev", "lo"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
 		},
 		{
 			description: "negative: an unknown link verb is refused",

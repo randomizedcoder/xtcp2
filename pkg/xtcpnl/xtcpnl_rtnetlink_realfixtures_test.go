@@ -99,6 +99,25 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 		links = append(links, li)
 	}
 
+	// Every row below carries HasOperState, HasCarrier, HasMTU and
+	// HasLinkMode set, on all eleven links, and that uniformity is a finding
+	// rather than boilerplate: rtnl_fill_ifinfo puts all four inside one
+	// unconditional `if (... || ...)` chain — IFLA_OPERSTATE, IFLA_LINKMODE
+	// and IFLA_MTU at net/core/rtnetlink.c:2083,2086,2088 and IFLA_CARRIER at
+	// :2117 — so an RTM_GETLINK dump reply always carries them.
+	//
+	// The consequence is that *absence* of any of the four is unreachable
+	// from this corpus, and the constructed-bytes rows in TestParseNewLink
+	// are the only place it can be asserted at all. That is the division of
+	// labor between the two tables: real captures own the values, constructed
+	// bytes own the shapes a kernel does not produce. Deleting the
+	// constructed rows on the grounds that real captures now exist would
+	// leave the presence flags untested in the one direction that matters.
+	//
+	// IFLA_TXQLEN is in that same chain (:2082) and yet HasTxQLen has a
+	// reachable false: `ip -6 addr show`'s link dump is answered by
+	// inet6_dump_ifinfo, not rtnl_fill_ifinfo, and that one omits it. Which
+	// fill function answered is therefore part of what these flags record.
 	tests := []struct {
 		description string
 		want        LinkInfo
@@ -121,11 +140,14 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: loopback lo renders every token of ip_link_n:1-2",
 			want: LinkInfo{
 				Index: 1, Flags: 0x10049, Name: "lo", Type: 772,
-				OperState: IfOperUnknown, Carrier: 1, MTU: 65536,
+				OperState: IfOperUnknown, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 65536, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0, 0, 0, 0, 0, 0},
 				Broadcast: []byte{0, 0, 0, 0, 0, 0},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true,
-				LinkMode: 0, Group: 0, HasGroup: true,
+				Group: 0, HasGroup: true,
 			},
 		},
 		{
@@ -142,7 +164,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: primary NIC enp1s0 carries a real MAC, qdisc mq and one altname",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
-				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				OperState: IfOperUp, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
@@ -156,7 +181,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: NIC enp35s0f0np0, index 3, with its altname",
 			want: LinkInfo{
 				Index: 3, Flags: 0x11043, Name: "enp35s0f0np0", Type: 1,
-				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				OperState: IfOperUp, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
@@ -180,7 +208,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: veth ve-nfb-vpn carries IFLA_LINK, IFLA_LINK_NETNSID and kind veth",
 			want: LinkInfo{
 				Index: 58, Flags: 0x11043, Name: "ve-nfb-vpn", Type: 1,
-				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				OperState: IfOperUp, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x6e, 0x05, 0xd5, 0x51, 0x50, 0x25},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
@@ -202,7 +233,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: bridge member veth179a698 carries IFLA_MASTER 9 and txqlen 0",
 			want: LinkInfo{
 				Index: 60, Flags: 0x11043, Name: "veth179a698", Type: 1,
-				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				OperState: IfOperUp, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 0, HasTxQLen: true, HasGroup: true,
@@ -220,7 +254,14 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: bridge virbr0 decodes kind bridge and carrier 0",
 			want: LinkInfo{
 				Index: 7, Flags: 0x1003, Name: "virbr0", Type: 1,
-				OperState: IfOperDown, Carrier: 0, MTU: 1500,
+				// Carrier 0 WITH HasCarrier true is the row that earns the
+				// flag: IFLA_CARRIER is present and says zero, which is a
+				// different fact from the attribute being absent, and the
+				// two are indistinguishable without it.
+				OperState: IfOperDown, HasOperState: true,
+				Carrier: 0, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
@@ -244,7 +285,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "corner: long veth name truncated in IFNAME but intact in AltNames, index 59",
 			want: LinkInfo{
 				Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-", Type: 1,
-				OperState: IfOperUp, Carrier: 1, MTU: 1500,
+				OperState: IfOperUp, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 1500, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x66, 0xcf, 0x08, 0xaa, 0x09, 0xd9},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
@@ -266,7 +310,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "boundary: nlmon0 has no IFLA_ADDRESS and no IFLA_BROADCAST",
 			want: LinkInfo{
 				Index: 161, Flags: 0x100c1, Name: "nlmon0", Type: 824,
-				OperState: IfOperUnknown, Carrier: 1, MTU: 3776,
+				OperState: IfOperUnknown, HasOperState: true,
+				Carrier: 1, HasCarrier: true,
+				MTU: 3776, HasMTU: true,
+				LinkMode: 0, HasLinkMode: true,
 				Address: nil, Broadcast: nil,
 				Qdisc: "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				Kind: "nlmon",
@@ -502,7 +549,9 @@ func TestParseNewAddrRealFixtures(t *testing.T) {
 				Family: unix.AF_INET6, Prefixlen: 64, Scope: unix.RT_SCOPE_LINK, Index: 3,
 				Address: mustV6(t, "fe80::609:73ff:fecf:d8d0"),
 				Local:   mustV6(t, "fe80::609:73ff:fecf:d8d0"),
-				Flags:   unix.IFA_F_PERMANENT, Proto: IfaProtoKernelLL, HasCacheInfo: true,
+				Flags:   unix.IFA_F_PERMANENT,
+				Proto:   IfaProtoKernelLL, HasProto: true,
+				HasCacheInfo: true,
 				CacheInfo: IfaCacheinfo{
 					Preferred: IfaLifetimeInfinityCst, Valid: IfaLifetimeInfinityCst,
 					Cstamp: 1382, Tstamp: 1382,

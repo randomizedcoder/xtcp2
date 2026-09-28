@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
-	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"golang.org/x/sys/unix"
 )
 
 // runLink handles `ip link ...`. Only the show verbs are implemented.
@@ -43,38 +42,53 @@ func runLink(c *runCtx, args []string) error {
 // transaction inside a capture window is an L1 transaction-count divergence,
 // the harness's highest-value assertion.
 //
-// Filtering arguments (`dev X`, `up`, `group G`, `master M`) are not
-// implemented. They are not cosmetic to skip — `dev X` changes the request
-// from a dump to a single-get — so they are rejected rather than ignored,
-// because silently dumping everything in response to `link show dev lo` would
-// be a wrong answer rather than a missing feature.
+// `dev X` uses the single-get path. Other filtering arguments (`up`, `group
+// G`, `master M`) are not implemented and are rejected rather than ignored.
 func linkShow(c *runCtx, args []string) error {
+	if len(args) == 2 && matchesPrefix(args[0], "dev") {
+		svc := service.New(c.src, c.nextSeq)
+		resources, err := svc.Links()
+		if err != nil {
+			return err
+		}
+		cacheLinks := make([]xtcpnl.LinkInfo, len(resources))
+		for i := range resources {
+			cacheLinks[i] = xtcpnl.LinkInfo(resources[i])
+		}
+		c.lltab.Fill(cacheLinks)
+		index := c.lltab.NameToIndex(args[1])
+		if index == 0 {
+			return fmt.Errorf("goip: link %q not found", args[1])
+		}
+		resource, err := svc.LinkByIndex(index)
+		if err != nil {
+			return err
+		}
+		links := []xtcpnl.LinkInfo{xtcpnl.LinkInfo(resource)}
+		c.lltab.Fill(links)
+		view := render.LinkViewOf(links[0], c.lltab)
+		if c.json {
+			return json.NewEncoder(c.out).Encode([]render.LinkView{view})
+		}
+		_, err = fmt.Fprint(c.out, view.Text())
+		return err
+	}
 	if len(args) > 0 {
 		return fmt.Errorf("link show %q: %w", args[0], ErrNotImplemented)
 	}
 
-	request, err := req.LinkShowDump(c.nextSeq())
-	if err != nil {
-		return fmt.Errorf("goip: build link dump request: %w", err)
-	}
-
-	bodies, err := c.src.Dump(request, uint16(unix.RTM_NEWLINK))
+	resources, err := service.New(c.src, c.nextSeq).Links()
 	if err != nil {
 		return err
 	}
-
-	links := make([]xtcpnl.LinkInfo, 0, len(bodies))
-	for _, body := range bodies {
-		li, perr := xtcpnl.ParseNewLink(body)
-		if perr != nil {
-			return fmt.Errorf("goip: decode RTM_NEWLINK: %w", perr)
-		}
-		links = append(links, li)
+	links := make([]xtcpnl.LinkInfo, len(resources))
+	for i := range resources {
+		links[i] = xtcpnl.LinkInfo(resources[i])
 	}
 	c.lltab.Fill(links)
 
-	// Ranged by index: LinkInfo is 176 bytes and LinkView 280, so the value form
-	// of either loop copies the whole struct once per link for nothing.
+	// Ranged by index: both structs are deliberately large, so the value form
+	// of either loop would copy the whole resource once per link for nothing.
 	views := make([]render.LinkView, 0, len(links))
 	for i := range links {
 		views = append(views, render.LinkViewOf(links[i], c.lltab))
@@ -98,8 +112,4 @@ func linkShow(c *runCtx, args []string) error {
 // ErrUnknownObject.
 func runRoute(_ *runCtx, _ []string) error {
 	return fmt.Errorf("route: %w", ErrNotImplemented)
-}
-
-func runNeigh(_ *runCtx, _ []string) error {
-	return fmt.Errorf("neigh: %w", ErrNotImplemented)
 }
