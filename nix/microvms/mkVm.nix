@@ -2720,7 +2720,7 @@ in
         # netlink-dump-capture takes its captures inside throwaway namespaces,
         # so a per-netns tap would not see the daemon anyway. It is disabled
         # regardless: a quiet guest boots faster, and the isolation should be
-        # the second line of defence rather than the only one.
+        # the second line of defense rather than the only one.
         services.xtcp2 = {
           enable = !(isNlmonCapture || isNetlinkDumpCapture);
           package = xtcp2Package;

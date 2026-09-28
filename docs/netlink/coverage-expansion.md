@@ -727,9 +727,14 @@ them.
 - **Kernel-struct fidelity.** Field names mirror kernel struct member spelling,
   with a comment citing the UAPI header and the kernel version that introduced
   the field.
-- **Spelling.** British spelling is fine in prose ("neighbour", matching
-  [netlink-collection](collection.md)); `misspell` enforces US spelling
-  in Go files only.
+- **Spelling.** **New comments use US spellings**, in every language — Go, Nix,
+  shell and expect alike. `misspell` only gates Go files, so the rest is on
+  review; the one-word `.golangci.yml` exclusions (`prefered` in
+  `xtcpnl_ifaddrmsg.go`, `neighbour` in `internal/goip/dispatch*.go`) are for
+  spellings that are quoted kernel source or a command name a user types, not a
+  general dispensation. Older markdown prose here and in
+  [netlink-collection](collection.md) still carries British spellings; leave
+  them where they are and do not add more.
 - **Formatting and linting.** `nixfmt` 1.4.0 (`nix/versions.nix:49`). Fix
   shellcheck, golangci and statix findings by rewriting, never by suppressing.
   Direct `golangci-lint` invocations need `--modules-download-mode=mod`, since
