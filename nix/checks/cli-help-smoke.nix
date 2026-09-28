@@ -25,6 +25,7 @@ let
     "clickhouse_protobuflist"
     "clickhouse_protobuflist_db"
     "goip"
+    "goip-parity"
     "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"

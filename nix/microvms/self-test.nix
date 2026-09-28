@@ -445,6 +445,7 @@ pkgs.writeShellApplication {
       nsTest
       register_schema
       goip
+      goip-parity
     )
     check4=0
     failed_help=""
