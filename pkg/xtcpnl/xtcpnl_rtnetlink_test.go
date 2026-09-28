@@ -541,6 +541,9 @@ func TestParseNewRoute(t *testing.T) {
 		body        []byte
 		want        RouteInfo
 		wantErr     bool
+		// wantErrIs names the sentinel when the row is about WHICH error comes
+		// back, not merely that one does. Setting it implies wantErr.
+		wantErrIs error
 	}{
 		{
 			description: "positive: connected /24 (scope-link, no gateway) with PREFSRC and OIF",
@@ -615,22 +618,32 @@ func TestParseNewRoute(t *testing.T) {
 		},
 		{
 			// An ECMP route carries its per-path gateways/interfaces inside
-			// RTA_MULTIPATH and has no top-level RTA_GATEWAY/RTA_OIF. Only the
-			// presence is recorded; the nested nexthops are not parsed.
-			description: "positive: ECMP route flags HasMultipath (RTA_MULTIPATH present, no RTA_GATEWAY)",
+			// RTA_MULTIPATH and has no top-level RTA_GATEWAY/RTA_OIF, so the
+			// nested list is the ONLY place the next hops exist. The payload
+			// here is a real two-entry nexthop list rather than opaque filler,
+			// because the walk validates rtnh_len; the captured counterpart of
+			// this row is TestDumpSetMultipath's first positive.
+			description: "positive: ECMP route decodes both nested next hops (RTA_MULTIPATH, no RTA_GATEWAY)",
 			body: concat(
 				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
 				rtattr(unix.RTA_DST, v4b(10, 20, 0, 0)),
-				rtattr(unix.RTA_MULTIPATH, make([]byte, 16)), // two opaque rtnexthop blobs
+				rtattr(unix.RTA_MULTIPATH, buildNextHops(t,
+					nextHopSpec{hops: 0, ifindex: 2, gateway: v4b(10, 20, 0, 1)},
+					nextHopSpec{hops: 2, ifindex: 3, gateway: v4b(10, 20, 0, 2)},
+				)),
 			),
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
 				Dst: v4b(10, 20, 0, 0), HasMultipath: true,
+				Multipath: []RouteNextHop{
+					{Hops: 0, Ifindex: 2, Gateway: v4b(10, 20, 0, 1)},
+					{Hops: 2, Ifindex: 3, Gateway: v4b(10, 20, 0, 2)},
+				},
 			},
 		},
 		{
-			description: "positive: IPv4 route via an IPv6 gateway flags HasVia (RTA_VIA, no RTA_GATEWAY)",
+			description: "positive: IPv4 route via an IPv6 gateway decodes rtvia_family and rtvia_addr (RTA_VIA, no RTA_GATEWAY)",
 			body: concat(
 				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
 				rtattr(unix.RTA_DST, v4b(10, 30, 0, 0)),
@@ -641,7 +654,21 @@ func TestParseNewRoute(t *testing.T) {
 				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
 				Dst: v4b(10, 30, 0, 0), Oif: 2, HasVia: true,
+				Via: &RtVia{Family: unix.AF_INET6, Addr: mustV6(t, "fe80::1")},
 			},
+		},
+		{
+			// The failure mode the nexthop walk exists to prevent, stated as a
+			// test: a list whose declared entry length does not fit must not
+			// come back as a route with a destination and no next hop, because
+			// that is indistinguishable from a connected subnet.
+			description: "negative: RTA_MULTIPATH with an unwalkable nexthop list errors rather than decoding as a route with no next hop",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 16, 0, unix.RT_TABLE_MAIN, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_UNICAST, 0),
+				rtattr(unix.RTA_DST, v4b(10, 20, 0, 0)),
+				rtattr(unix.RTA_MULTIPATH, make([]byte, 16)), // 16 zero bytes: rtnh_len == 0
+			),
+			wantErrIs: ErrRtNextHopBadLen,
 		},
 		{
 			description: "positive: route pointing at a nexthop object carries NhID (RTA_NH_ID, no RTA_GATEWAY/RTA_OIF)",
@@ -678,6 +705,12 @@ func TestParseNewRoute(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			got, err := ParseNewRoute(tc.body)
+			if tc.wantErrIs != nil {
+				if !errors.Is(err, tc.wantErrIs) {
+					t.Fatalf("err = %v, want %v (got %+v)", err, tc.wantErrIs, got)
+				}
+				return
+			}
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got %+v", got)
@@ -804,15 +837,54 @@ func TestParseNewLink(t *testing.T) {
 			},
 		},
 		{
-			// The honest limit of the struct: IFLA_TXQLEN carrying 0 and no
-			// IFLA_TXQLEN at all both decode to TxQLen 0. `ip` cannot tell them
-			// apart either — it omits the "qlen" token when the value is 0 — so
-			// nothing is lost, but the row exists so the ambiguity is recorded
-			// rather than discovered.
-			description: "boundary: IFLA_TXQLEN of 0 is indistinguishable from an absent one",
+			// This row and the next are a pair, and they are the reason
+			// HasTxQLen exists. A present-but-zero IFLA_TXQLEN is a real case
+			// — three of the eleven links in the committed dump carry one —
+			// and it is not the same thing as an absent attribute: `ip` tests
+			// tb[IFLA_TXQLEN] for presence and then decides separately what to
+			// do with a zero value (ip/ipaddress.c:159-170). Collapsing the two
+			// would make the AF_INET6 link dump, which carries no IFLA_TXQLEN
+			// at all, indistinguishable from a link whose txqlen is 0.
+			description: "boundary: IFLA_TXQLEN of 0 is present, not absent",
 			body: concat(
 				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 10, unix.IFF_UP),
 				rtattr(unix.IFLA_TXQLEN, le32(0)),
+			),
+			want: LinkInfo{
+				Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				TxQLen: 0, HasTxQLen: true,
+			},
+		},
+		{
+			description: "boundary: no IFLA_TXQLEN at all leaves HasTxQLen false",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 10, unix.IFF_UP),
+				rtattr(unix.IFLA_MTU, le32(1500)),
+			),
+			want: LinkInfo{
+				Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				MTU: 1500,
+			},
+		},
+		{
+			// The same pair for IFLA_GROUP, whose zero value is the one that
+			// renders as "group default" — so absent-vs-zero here is the
+			// difference between printing that token and printing nothing.
+			description: "boundary: IFLA_GROUP of 0 is present, not absent",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 10, unix.IFF_UP),
+				rtattr(unix.IFLA_GROUP, le32(0)),
+			),
+			want: LinkInfo{
+				Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				Group: 0, HasGroup: true,
+			},
+		},
+		{
+			description: "negative: a 2-byte IFLA_TXQLEN is ignored and leaves HasTxQLen false",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 10, unix.IFF_UP),
+				rtattr(unix.IFLA_TXQLEN, []byte{0xe8, 0x03}),
 			),
 			want: LinkInfo{Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
 		},
@@ -909,6 +981,68 @@ func TestParseNewLink(t *testing.T) {
 			),
 			want: LinkInfo{
 				Index: 18, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "brok0",
+			},
+		},
+		{
+			// **The one nest where first-wins must NOT apply.** Every other
+			// repeated attribute in this package collapses to its first
+			// occurrence, because that is parse_rtattr's rule. IFLA_PROP_LIST is
+			// the documented exception: ipaddress.c:1318-1330 walks it with a
+			// bare RTA_NEXT loop and prints one "altname" line per entry, so a
+			// link with three alternative names must decode to three strings in
+			// wire order. Collapsing them would drop output, not deduplicate it.
+			description: "positive: IFLA_PROP_LIST yields every IFLA_ALT_IFNAME, in wire order",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 20, unix.IFF_UP),
+				rtattr(unix.IFLA_PROP_LIST, concat(
+					rtattr(unix.IFLA_ALT_IFNAME, append([]byte("alt-one"), 0)),
+					rtattr(unix.IFLA_ALT_IFNAME, append([]byte("alt-two"), 0)),
+					rtattr(unix.IFLA_ALT_IFNAME, append([]byte("alt-three"), 0)),
+				)),
+			),
+			want: LinkInfo{
+				Index: 20, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				AltNames: []string{"alt-one", "alt-two", "alt-three"},
+			},
+		},
+		{
+			// The kernel is free to put other things in this nest; an unknown
+			// sibling must be skipped rather than turned into a name.
+			description: "boundary: a non-IFLA_ALT_IFNAME entry in IFLA_PROP_LIST is ignored",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 21, unix.IFF_UP),
+				rtattr(unix.IFLA_PROP_LIST, concat(
+					rtattr(unix.IFLA_ALT_IFNAME, append([]byte("keep-me"), 0)),
+					rtattr(unix.IFLA_INFO_KIND, append([]byte("not-a-name"), 0)),
+				)),
+			),
+			want: LinkInfo{
+				Index: 21, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				AltNames: []string{"keep-me"},
+			},
+		},
+		{
+			// An empty nest, and a zero-length entry inside one. Both must leave
+			// AltNames nil rather than a slice holding "": `ip` would print an
+			// "altname" line with nothing after it, and there is no such link.
+			description: "boundary: an empty IFLA_PROP_LIST and an empty name both leave AltNames nil",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 22, unix.IFF_UP),
+				rtattr(unix.IFLA_PROP_LIST, rtattr(unix.IFLA_ALT_IFNAME, nil)),
+			),
+			want: LinkInfo{Index: 22, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+		},
+		{
+			// Same tolerance as the malformed IFLA_LINKINFO row above: a nest
+			// whose inner rta_len overruns loses the names and nothing else.
+			description: "corner: IFLA_PROP_LIST whose inner rta_len overruns loses only AltNames",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 23, unix.IFF_UP),
+				rtattr(unix.IFLA_IFNAME, append([]byte("prop0"), 0)),
+				rtattr(unix.IFLA_PROP_LIST, []byte{0x40, 0x00, 0x35, 0x00, 0xaa, 0xaa, 0xaa, 0xaa}),
+			),
+			want: LinkInfo{
+				Index: 23, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "prop0",
 			},
 		},
 		{

@@ -210,6 +210,47 @@ linters:
           # since those ARE the canonical identifiers. Lifting to consts
           # would obscure rather than clarify.
           - goconst
+      # The next three are verbatim-upstream-spelling rules. The first two are
+      # copies of rules already carried by .golangci.yml; they were never
+      # ported here, which is why this tier reported three misspellings the
+      # gating tier does not. Keep the three configs' misspell rules in step.
+      #
+      # `ifa_prefered` is how the Linux kernel spells it. The comment it appears
+      # in is a verbatim quotation of `struct ifa_cacheinfo` from
+      # include/uapi/linux/if_addr.h, and the value of those comments is that
+      # they diff against the kernel tree — so correcting the spelling would
+      # make the comment wrong about the thing it documents. Scoped to the one
+      # word in the one file rather than added to misspell's ignore list, so a
+      # genuine "prefered" anywhere else still fails.
+      - path: "pkg/xtcpnl/xtcpnl_ifaddrmsg\\.go"
+        linters:
+          - misspell
+        text: "`prefered` is a misspelling of `preferred`"
+      # `neighbour` is a command name a user types, not prose. iproute2's object
+      # table carries both `neighbor` and `neighbour` (ip/ip.c:93-94), and
+      # `matches()` is prefix matching, not fuzzy matching — "neighbour" is not
+      # a prefix of "neighbor", so dropping the second entry makes `goip
+      # neighbour show` report an unknown object where `ip` works.
+      # internal/goip/dispatch.go holds the alias itself and dispatch_test.go
+      # names the pair in the comment on the row that asserts their order.
+      - path: "internal/goip/dispatch(_test)?\\.go"
+        linters:
+          - misspell
+        text: "`neighbour` is a misspelling of `neighbor`"
+      # "DORMANT" appears three times in render.go because it is a member of
+      # three *different* kernel enums, each transcribed as its own table with
+      # its own ip/ipaddress.c citation: IF_OPER_DORMANT in operStates
+      # (:120-123), IF_LINK_MODE_DORMANT in linkModes (:170-172), and
+      # IFF_DORMANT in linkFlagNames (:94-111). Hoisting them to one constant
+      # would assert the three are the same value, which is what makes this
+      # finding wrong rather than merely inconvenient — and three constants
+      # each holding the literal would not satisfy goconst anyway. Scoped to
+      # the one word in the one file, so a genuine repeated literal elsewhere
+      # in internal/goip still fails.
+      - path: "internal/goip/render/render\\.go"
+        linters:
+          - goconst
+        text: "string `DORMANT` has 3 occurrences"
       - linters:
           - staticcheck
         text: "ST1003:"

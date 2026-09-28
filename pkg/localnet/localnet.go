@@ -205,7 +205,12 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 	}
 
 	nonLoopbackSelf := false
-	for _, ai := range addrs {
+	// Both loops below index rather than range over values. AddrInfo is 128
+	// bytes and RouteInfo is 144, so a value range copies the whole struct -
+	// including four slice headers - once per entry, for a dump that can hold
+	// hundreds of routes. Nothing here mutates the input.
+	for i := range addrs {
+		ai := &addrs[i]
 		raw := ai.Local
 		if len(raw) == 0 {
 			raw = ai.Address
@@ -218,7 +223,8 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 		}
 	}
 
-	for _, ri := range routes {
+	for i := range routes {
+		ri := &routes[i]
 		if !inClassifiedTable(ri.Table) {
 			continue
 		}
@@ -299,7 +305,7 @@ func inClassifiedTable(table uint32) bool {
 // RTA_VIA gateway, an RTA_MULTIPATH nexthop list, or an RTA_NH_ID nexthop object
 // (whose gateways live outside this message). Such a route is never a connected
 // subnet even though it carries no RTA_GATEWAY of its own.
-func gatewayReached(ri xtcpnl.RouteInfo) bool {
+func gatewayReached(ri *xtcpnl.RouteInfo) bool {
 	return len(ri.Gateway) > 0 || ri.HasVia || ri.HasMultipath || ri.NhID != 0
 }
 
@@ -307,7 +313,7 @@ func gatewayReached(ri xtcpnl.RouteInfo) bool {
 // route carries no RTA_DST (empty Dst, DstLen 0) and means the family-wide /0;
 // every other unicast route has an explicit prefix. A route with a prefix length
 // but no destination bytes is malformed and rejected.
-func routePrefix(ri xtcpnl.RouteInfo) (netip.Prefix, bool) {
+func routePrefix(ri *xtcpnl.RouteInfo) (netip.Prefix, bool) {
 	switch {
 	case len(ri.Dst) > 0:
 		return prefixFromBytes(ri.Dst, ri.DstLen)

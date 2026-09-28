@@ -78,9 +78,10 @@ func DeserializeRtMsg(data []byte, m *RtMsg) (n int, err error) {
 // scope-universe); a locally-attached address is Type==RTN_LOCAL (typically in
 // RT_TABLE_LOCAL, scope host).
 //
-// HasMultipath / HasVia / NhID only record that the route is reached via a next
-// hop expressed outside RTA_GATEWAY; the nexthop contents themselves (per-path
-// gateways and interfaces) are not parsed.
+// HasMultipath / HasVia / NhID record that the route is reached via a next hop
+// expressed outside RTA_GATEWAY. HasMultipath and HasVia are kept as the
+// presence predicates the local-subnet test reads, and are exactly
+// len(Multipath) > 0 and Via != nil; the contents are in those two fields.
 type RouteInfo struct {
 	Family       uint8
 	DstLen       uint8
@@ -88,6 +89,7 @@ type RouteInfo struct {
 	Scope        uint8
 	Type         uint8
 	Protocol     uint8
+	Flags        uint32 // header rtm_flags — RTNH_F_* / RTM_F_*; `ip` renders linkdown, offload, trap
 	Dst          []byte // RTA_DST
 	Gateway      []byte // RTA_GATEWAY
 	PrefSrc      []byte // RTA_PREFSRC
@@ -96,6 +98,18 @@ type RouteInfo struct {
 	HasMultipath bool   // RTA_MULTIPATH present (ECMP nexthop list; gateways live inside it)
 	HasVia       bool   // RTA_VIA present (gateway of a different address family)
 	NhID         uint32 // RTA_NH_ID (nexthop object id; 0 = none)
+
+	// Multipath is the decoded RTA_MULTIPATH nexthop list, nil when absent.
+	// An ECMP route's gateways exist ONLY here — see xtcpnl_rtnexthop.go for
+	// why not walking it produces a wrong answer rather than a partial one.
+	Multipath []RouteNextHop
+
+	// Via is the decoded RTA_VIA payload, nil when absent: a next hop in a
+	// different address family from the route (RFC 5549).
+	Via *RtVia
+
+	// Metrics is the decoded RTA_METRICS nested stream, nil when absent.
+	Metrics *RouteMetrics
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -113,7 +127,14 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		Scope:    m.Scope,
 		Type:     m.Type,
 		Protocol: m.Protocol,
+		Flags:    m.Flags,
 	}
+	// The nested attributes are decoded by helpers that CAN fail, but
+	// WalkRTAttrs's callback has no error return - so the first failure is
+	// parked here and returned once the walk finishes. It is returned rather
+	// than dropped because a malformed nexthop list changes the meaning of the
+	// route, not just the completeness of the struct.
+	var nestErr error
 	err := WalkRTAttrs(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.RTA_DST):
@@ -136,8 +157,33 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 			}
 		case uint16(unix.RTA_MULTIPATH):
 			ri.HasMultipath = true
+			if nestErr != nil {
+				return
+			}
+			nestErr = WalkRouteNextHops(val, func(nh RouteNextHop) {
+				ri.Multipath = append(ri.Multipath, nh)
+			})
 		case uint16(unix.RTA_VIA):
 			ri.HasVia = true
+			if nestErr != nil {
+				return
+			}
+			var v RtVia
+			if _, verr := DeserializeRtVia(val, &v); verr != nil {
+				nestErr = verr
+				return
+			}
+			ri.Via = &v
+		case uint16(unix.RTA_METRICS):
+			if nestErr != nil {
+				return
+			}
+			mx, merr := ParseRouteMetrics(val)
+			if merr != nil {
+				nestErr = merr
+				return
+			}
+			ri.Metrics = mx
 		case RtaNhID:
 			if len(val) >= 4 {
 				ri.NhID = binary.LittleEndian.Uint32(val[0:4])
@@ -146,6 +192,9 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	})
 	if err != nil {
 		return RouteInfo{}, err
+	}
+	if nestErr != nil {
+		return RouteInfo{}, nestErr
 	}
 	return ri, nil
 }

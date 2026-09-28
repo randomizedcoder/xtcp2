@@ -235,7 +235,7 @@ func TestRequestBuilders(t *testing.T) {
 		},
 		{
 			// ifa_index lives in the HEADER, at offset 4 of the ifaddrmsg. There
-			// is no attribute for it, and the kernel honours it only on a socket
+			// is no attribute for it, and the kernel honors it only on a socket
 			// with NETLINK_GET_STRICT_CHK set.
 			description: "boundary: BuildDumpAddrRequestIndex writes ifa_index into the request header",
 			got:         BuildDumpAddrRequestIndex(unix.AF_INET, 2, testSeq),
@@ -455,6 +455,43 @@ func TestRequestBuilderErrors(t *testing.T) {
 			description: "corner: a name of only a dot-prefixed word is fine",
 			build:       func() ([]byte, error) { return BuildGetLinkByNameRequest(unix.AF_UNSPEC, ".hidden", 0, 1) },
 		},
+		{
+			// dev_valid_name rejects ':' alongside '/' (net/core/dev.c:1335).
+			// It is excluded because `ip` uses "dev:label" syntax for address
+			// labels, so a colon in a device name makes an argument ambiguous.
+			description: "negative: a name containing ':' is ErrBadIfName (dev_valid_name rejects it too)",
+			build:       func() ([]byte, error) { return BuildGetLinkByNameRequest(unix.AF_UNSPEC, "eth0:1", 0, 1) },
+			wantErr:     ErrBadIfName,
+		},
+		{
+			// **The one rule the kernel cannot express.** dev_valid_name's
+			// validation loop is `while (*name)`, so it stops at the first NUL
+			// and never sees anything after it — a C string has no way to carry
+			// one. A Go string does, and the consequence is not cosmetic:
+			// PutString appends its own terminator, so "lo\x00extra" would go on
+			// the wire as `lo\0extra\0` and the kernel would read the name as
+			// "lo". The request would succeed and answer about a DIFFERENT
+			// interface than the caller named, which is strictly worse than an
+			// error. iproute2 never meets this case because its names come from
+			// argv and execve cannot pass an embedded NUL.
+			description: "corner: a name containing an embedded NUL is ErrBadIfName, not silently truncated to \"lo\"",
+			build: func() ([]byte, error) {
+				return BuildGetLinkByNameRequest(unix.AF_UNSPEC, "lo\x00extra", 0, 1)
+			},
+			wantErr: ErrBadIfName,
+		},
+		{
+			// A trailing NUL is the same hazard with a friendlier-looking
+			// input: the caller has already terminated the string, PutString
+			// would add a second terminator, and the attribute payload would be
+			// one byte longer than `ip`'s for the same interface — a byte-level
+			// request divergence that no output comparison could see.
+			description: "corner: a name the caller already NUL-terminated is ErrBadIfName",
+			build: func() ([]byte, error) {
+				return BuildGetLinkByNameRequest(unix.AF_UNSPEC, "lo\x00", 0, 1)
+			},
+			wantErr: ErrBadIfName,
+		},
 	}
 
 	for _, tc := range tests {
@@ -603,7 +640,7 @@ func TestTalkRtnetlink(t *testing.T) {
 		},
 		{
 			// Two datagrams, one consumed: the second is still on the socket. This
-			// is the documented behaviour, and it is why TalkRtnetlink must not be
+			// is the documented behavior, and it is why TalkRtnetlink must not be
 			// pointed at a dump.
 			description: "corner: a second reply datagram is left queued on the socket",
 			request:     request, replies: [][]byte{singleLink, otherLink}, wantSent: true,

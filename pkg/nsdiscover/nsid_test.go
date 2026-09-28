@@ -1,6 +1,7 @@
 package nsdiscover
 
 import (
+	"math"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -50,41 +51,168 @@ func bareMsg(msgType uint16) []byte {
 // counterpart to the reply table below: the request is the only half of this
 // exchange this package fully controls.
 //
+// The builder now delegates the layout to xtcpnl.AttrBuilder and
+// xtcpnl.BuildRequest, so these rows do double duty — they are also the
+// assertion that delegating did not move a byte. Every offset below is
+// unchanged from when this function packed all 28 bytes itself.
+//
 // go test ./pkg/nsdiscover/ -run TestBuildGetNsidRequest
 func TestBuildGetNsidRequest(t *testing.T) {
-	req := buildGetNsidRequest(7)
-
-	if len(req) != xtcpnl.NlMsgHdrSizeCst+rtgenLen+fdAttrLen {
-		t.Fatalf("request len = %d, want %d", len(req),
-			xtcpnl.NlMsgHdrSizeCst+rtgenLen+fdAttrLen)
+	// reqFor builds and fails the row rather than the table, so a row about a
+	// particular fd reports against that fd.
+	reqFor := func(t *testing.T, fd int) []byte {
+		t.Helper()
+		req, err := buildGetNsidRequest(fd)
+		if err != nil {
+			t.Fatalf("buildGetNsidRequest(%d): unexpected error: %v", fd, err)
+		}
+		return req
 	}
 
 	tests := []struct {
 		description string
-		got         uint64
-		want        uint64
+		fd          int
+		check       func(t *testing.T, req []byte)
 	}{
-		{"positive: nlmsg_len is the whole request", uint64(nativeEndian.Uint32(req[0:4])), uint64(len(req))},
-		{"positive: nlmsg_type is RTM_GETNSID", uint64(nativeEndian.Uint16(req[4:6])), rtmGetNsid},
-		{"positive: nlmsg_flags is NLM_F_REQUEST with no NLM_F_DUMP",
-			uint64(nativeEndian.Uint16(req[6:8])), uint64(uint16(unix.NLM_F_REQUEST))},
-		{"positive: nlmsg_seq is the value parseNsidResponse filters on",
-			uint64(nativeEndian.Uint32(req[8:12])), nsidSeqCst},
-		{"positive: nlmsg_pid is 0, the kernel fills the peer pid",
-			uint64(nativeEndian.Uint32(req[12:16])), 0},
-		{"positive: nla_len covers the header plus an int32",
-			uint64(nativeEndian.Uint16(req[20:22])), fdAttrLen},
-		{"positive: nla_type is NETNSA_FD", uint64(nativeEndian.Uint16(req[22:24])), netnsaFd},
-		{"positive: the NETNSA_FD payload is the fd passed in",
-			uint64(int32(nativeEndian.Uint32(req[24:28]))), 7},
+		{
+			description: "positive: nlmsg_len is the whole request",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nlmsg_len", uint64(nativeEndian.Uint32(req[0:4])), uint64(len(req)))
+			},
+		},
+		{
+			description: "positive: the request is exactly header + rtgenmsg + one attribute",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "len(req)", uint64(len(req)),
+					uint64(xtcpnl.NlMsgHdrSizeCst+rtgenLen+fdAttrLen))
+			},
+		},
+		{
+			description: "positive: nlmsg_type is RTM_GETNSID",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nlmsg_type", uint64(nativeEndian.Uint16(req[4:6])), rtmGetNsid)
+			},
+		},
+		{
+			description: "positive: nlmsg_seq is the value parseNsidResponse filters on",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nlmsg_seq", uint64(nativeEndian.Uint32(req[8:12])), nsidSeqCst)
+			},
+		},
+		{
+			description: "positive: nla_len covers the header plus an int32",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nla_len", uint64(nativeEndian.Uint16(req[20:22])), fdAttrLen)
+			},
+		},
+		{
+			description: "positive: nla_type is NETNSA_FD",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nla_type", uint64(nativeEndian.Uint16(req[22:24])), netnsaFd)
+			},
+		},
+		{
+			description: "positive: the NETNSA_FD payload is the fd passed in",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "NETNSA_FD", uint64(int32(nativeEndian.Uint32(req[24:28]))), 7)
+			},
+		},
+		{
+			// The whole reason this does not call BuildDumpRequest. NLM_F_DUMP
+			// would make the kernel answer with a multipart list instead of the
+			// one RTM_NEWNSID parseNsidResponse expects.
+			description: "negative: nlmsg_flags carries no NLM_F_DUMP, so this stays a single get",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				flags := nativeEndian.Uint16(req[6:8])
+				if flags&uint16(unix.NLM_F_DUMP) != 0 {
+					t.Errorf("nlmsg_flags = 0x%04x, has NLM_F_DUMP (0x%04x) set",
+						flags, uint16(unix.NLM_F_DUMP))
+				}
+				wantEq(t, "nlmsg_flags", uint64(flags), uint64(uint16(unix.NLM_F_REQUEST)))
+			},
+		},
+		{
+			description: "negative: nlmsg_pid is 0 - a request never carries a portid, the kernel fills the peer's",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "nlmsg_pid", uint64(nativeEndian.Uint32(req[12:16])), 0)
+			},
+		},
+		{
+			description: "negative: the rtgenmsg header is all zero, since rtgen_family is AF_UNSPEC and the rest is padding",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				for i, b := range req[16:20] {
+					if b != 0 {
+						t.Errorf("rtgenmsg byte %d = 0x%02x, want 0", i, b)
+					}
+				}
+			},
+		},
+		{
+			description: "boundary: fd 0 is a legal fd and is encoded as 0, not omitted",
+			fd:          0,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "len(req)", uint64(len(req)),
+					uint64(xtcpnl.NlMsgHdrSizeCst+rtgenLen+fdAttrLen))
+				wantEq(t, "NETNSA_FD", uint64(int32(nativeEndian.Uint32(req[24:28]))), 0)
+			},
+		},
+		{
+			description: "boundary: the largest fd an int32 holds survives the round trip",
+			fd:          math.MaxInt32,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "NETNSA_FD", uint64(int32(nativeEndian.Uint32(req[24:28]))), math.MaxInt32)
+			},
+		},
+		{
+			// Nsid rejects nsFD < 0 before it gets here, so this is about the
+			// encoding and not about the policy: the conversion goes through
+			// int32 so the kernel reads the same sign the caller passed.
+			description: "corner: a negative fd sign-extends the way the kernel reads an int32",
+			fd:          -1,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "NETNSA_FD raw", uint64(nativeEndian.Uint32(req[24:28])), 0xffffffff)
+				if got := int32(nativeEndian.Uint32(req[24:28])); got != -1 {
+					t.Errorf("NETNSA_FD as int32 = %d, want -1", got)
+				}
+			},
+		},
+		{
+			// A single attribute whose payload is 4 bytes needs no padding, so
+			// the attribute region is exactly fdAttrLen with no trailing bytes.
+			// If AttrBuilder ever padded unconditionally this row would catch it.
+			description: "corner: the attribute is 4-byte aligned already, so no padding is appended",
+			fd:          7,
+			check: func(t *testing.T, req []byte) {
+				wantEq(t, "attribute region", uint64(len(req)-(xtcpnl.NlMsgHdrSizeCst+rtgenLen)),
+					fdAttrLen)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			if tt.got != tt.want {
-				t.Errorf("got %d (0x%x), want %d (0x%x)", tt.got, tt.got, tt.want, tt.want)
-			}
+			tt.check(t, reqFor(t, tt.fd))
 		})
+	}
+}
+
+// wantEq keeps the rows above to one line each while still naming the field in
+// the failure, which a bare `tt.got != tt.want` table could not do once the
+// rows stopped all being about the same fd.
+func wantEq(t *testing.T, what string, got, want uint64) {
+	t.Helper()
+	if got != want {
+		t.Errorf("%s = %d (0x%x), want %d (0x%x)", what, got, got, want, want)
 	}
 }
 

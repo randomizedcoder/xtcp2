@@ -197,7 +197,7 @@ func (ai AddrInfo) IsDeprecated() bool {
 // ParseNewAddr decodes an RTM_NEWADDR message body (the bytes after the
 // nlmsghdr): the ifaddrmsg header followed by IFA_* attributes.
 //
-// Two iproute2 behaviours are reproduced here rather than left to callers,
+// Two iproute2 behaviors are reproduced here rather than left to callers,
 // because both change what a correct renderer prints:
 //
 //   - IFA_FLAGS replaces the 8-bit header field, it does not extend it.
