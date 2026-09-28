@@ -75,6 +75,13 @@ xtcp2 -promListenNetwork unix -promListen /run/xtcp2/prometheus.sock -promUnixSo
 curl --unix-socket /run/xtcp2/prometheus.sock http://xtcp2/metrics
 ```
 
+When listener authentication is enabled, add the bearer header:
+
+```sh
+curl --unix-socket /run/xtcp2/prometheus.sock \
+  -H 'Authorization: Bearer <token>' http://xtcp2/metrics
+```
+
 `432` is decimal for `0660`; use `384` for `0600`. The built-in `-healthcheck` mode also understands `PROM_LISTEN_NETWORK=unix` and probes `/readyz` through the socket.
 
 ## See also

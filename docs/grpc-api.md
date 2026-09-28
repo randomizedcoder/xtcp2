@@ -53,7 +53,7 @@ The intended flow is **read → edit → apply**:
 
 **Exported field groups** are controlled by the `enabledDeserializers` map — each key toggles a whole INET_DIAG attribute group (`info` = the tcp_info struct, `bbr` = the BBR fields, plus `vegas`, `cong`, `meminfo`, `skmem`, `dctcp`, `cgroup`, …). Setting a key to `false` disables that group; the full key list is what the daemon's `-deserializers` flag accepts. Individual fields *within* a group are all-or-nothing except for the CSV/TSV `csvColumns` selector.
 
-> **Security.** This slice adds local Unix domain socket support, but token authentication is not enforced yet. `Get` redacts S3 credentials and listener auth secrets, but any client that can reach the gRPC listener can reconfigure or restart the daemon. Prefer a UDS with restrictive filesystem ownership/mode for local operators, or bind TCP to loopback / a trusted network (see the `-ipv4Ttl` clamp in [Configuration](#configuration)).
+> **Security.** Listener authentication can protect the gRPC and Prometheus/health/pprof surfaces with raw bearer tokens or HMAC UTC-minute tokens. `Get` redacts S3 credentials and listener auth secrets. For local-only operation, combine authentication with a restrictive UDS mode; the `uds-security` microVM lifecycle test exercises this combination.
 
 ## XTCPFlatRecordService
 

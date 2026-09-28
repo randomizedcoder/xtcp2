@@ -62,6 +62,9 @@ xtcp2's automated testing spans four layers; this document covers layers 2-3.
 # Lifecycle self-test smoke (minimal flavor, ~1 min wall-clock)
 nix run .#microvm-x86_64-lifecycle
 
+# gRPC + Prometheus UDS with bearer authentication
+nix run .#microvm-x86_64-lifecycle-uds-security
+
 # Same self-test but with coverage instrumentation; merged into quality-report
 nix run .#microvm-x86_64-lifecycle-coverage
 nix run .#microvm-x86_64-lifecycle-coverage-iouring
@@ -179,6 +182,7 @@ Two exposure shapes:
 |---|---|---|---|---|
 | `microvm-x86_64` | `minimal` | raw boot | 1024 | xtcp2 alone (`-dest null`, 2s poll) + the self-test oneshot. Cheapest smoke. |
 | `microvm-x86_64-lifecycle` | `minimal` | runner | 1024 | Host launcher for the minimal VM; scrapes all self-test sentinels. **In `nix flake check`** (needs `/dev/kvm`). |
+| `microvm-x86_64-lifecycle-uds-security` | `uds-security` | runner | 1024 | gRPC and Prometheus on `0600` Unix sockets with raw bearer auth; validates authenticated metrics/health, `xtcp2ctl` config control, rejected unauthenticated access, and both `xtcp2client` stream modes. |
 | `microvm-x86_64-lifecycle-coverage` | `coverage` | runner | 1024 | xtcp2 built `-cover`; scrapes the coverage dump into `$XTCP2_COVERDIR`. |
 | `microvm-x86_64-lifecycle-coverage-iouring` | `coverage-iouring` | runner | 1024 | Coverage + `-ioUring` so the `netlinkerIoUring` path runs. |
 | `microvm-x86_64-lifecycle-s3parquet` | `s3parquet` | runner | 6144 | s3parquet lifecycle; adds the `S3PARQUET_FILES`/`S3PARQUET_ROWS` checks. |

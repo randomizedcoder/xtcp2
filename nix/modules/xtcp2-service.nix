@@ -83,6 +83,7 @@ in
 
       serviceConfig = {
         Type = "simple";
+        RuntimeDirectory = "xtcp2";
         # NOTE: xtcp2 does not yet implement `-config <path>`. Drive it via
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to

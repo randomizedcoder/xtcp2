@@ -331,6 +331,10 @@ let
           drv = microvms.lifecycle.x86_64.fullTest;
         }
         {
+          label = "uds-security";
+          drv = microvms.lifecycleUdsSecurity.x86_64.fullTest;
+        }
+        {
           label = "s3parquet";
           drv = microvms.lifecycleS3Parquet.x86_64.fullTest;
         }
@@ -582,6 +586,7 @@ in
       test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-uds-security = microvms.lifecycleUdsSecurity.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-clickhouse-http = microvms.lifecycleClickHttp.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-clickhouse-pipeline = microvms.lifecycleClickPipe.x86_64.fullTest;
@@ -648,6 +653,10 @@ in
     microvm-x86_64-lifecycle = {
       type = "app";
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
+    };
+    microvm-x86_64-lifecycle-uds-security = {
+      type = "app";
+      program = "${microvms.lifecycleUdsSecurity.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-uds-security";
     };
     microvm-x86_64-lifecycle-s3parquet = {
       type = "app";
