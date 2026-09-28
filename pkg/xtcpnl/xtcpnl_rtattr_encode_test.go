@@ -519,7 +519,8 @@ func TestBuildRequestRejectsEveryNamedWriteType(t *testing.T) {
 		wantErr     error
 	}
 
-	var tests []row
+	// The five is the literal control-type block appended after the loops.
+	tests := make([]row, 0, len(namedRtmGetTypes)+len(namedRtmWriteTypes)+5)
 	for _, g := range namedRtmGetTypes {
 		tests = append(tests, row{"positive: " + g.name + " is buildable", g.msgType, nil})
 	}

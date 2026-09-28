@@ -48,6 +48,11 @@ pkgs.writeShellApplication {
     --strict. Those are expected to be behind; the point of printing them is that
     the distance should be a known number rather than a surprise.
 
+    Only the manifest's `pins` key is checked here. Its `package_pins` key holds
+    nixpkgs package versions rather than branch tips, so there is no remote ref
+    to ask about and nothing this runner can add; those are verified at eval time
+    by the hermetic check instead, which for once is the stronger half.
+
     The companion hermetic check,
     `nix build .#checks.x86_64-linux.upstream-pins`, verifies the manifest still
     matches the pins actually in use. It cannot check upstream freshness, because
@@ -133,6 +138,20 @@ pkgs.writeShellApplication {
           fi
           echo
         done
+
+        # Named rather than silently skipped: a reader who added a package pin
+        # and then saw this runner report nothing about it would reasonably
+        # conclude the manifest was being ignored.
+        # `// {}` rather than `keys[]?`: the postfix `?` swallows an error from
+        # iterating the result, but `null | keys` fails before it gets there, so
+        # a manifest with no package_pins key would print a jq error.
+        pkg_pins=$(jq -r '(.package_pins // {}) | keys[]' "$manifest" | tr '\n' ' ')
+        if [ -n "$pkg_pins" ]; then
+          echo "=== package pins (not branch tips; not checked here) ==="
+          echo "  $pkg_pins"
+          echo "  Verified at eval time by .#checks.<system>.upstream-pins."
+          echo
+        fi
 
         echo "=== summary ==="
         echo "pins drifted            : $drifted"

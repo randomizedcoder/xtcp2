@@ -1,0 +1,4 @@
+192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01 PERMANENT 
+192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02 STALE 
+192.0.2.52 dev goip0 INCOMPLETE 
+2001:db8::50 dev goip0 lladdr 02:00:00:00:00:03 PERMANENT 

@@ -1,0 +1,1108 @@
+package goip
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+)
+
+// The committed capture this whole file is driven from, and its sidecar.
+//
+// The two came from the same `cap()` invocation in
+// nix/capture-netlink-fixtures.nix, which is the property that makes a
+// line-by-line expectation legitimate: the pcap holds the RTM_NEWLINK replies
+// and the sidecar holds what the pinned `ip` printed from those same replies,
+// on the same host, at the same moment.
+const (
+	linkDumpPcap    = "../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getlink_dump.pcap"
+	linkDumpSidecar = "../../pkg/xtcpnl/testdata/7_1_8/ip_link_n"
+)
+
+// guestDumpsDir is the in-guest corpus, which unlike 7_1_8 ships MATCHED plain
+// and `-d` sidecars from the same command — the ground truth the
+// reconstruction rule below is measured against by
+// TestReconstructSidecarGroundTruth.
+//
+// Two corpora live under it: the clean `nlcapc` namespace at the top level and
+// the advisory `nlcapm` mesh in mesh/. Both are used, because they exercise
+// different clauses — the clean one has a link with no address at all, the mesh
+// one has a stanza carrying two detail lines.
+const guestDumpsDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
+
+// wantLinkStanzas is how many RTM_NEWLINK replies the capture holds, and so
+// how many stanzas any rendering of it must produce.
+//
+// Named rather than inlined because three tests below assert it from three
+// different angles — text stanza count, JSON array length, and index-cache
+// size — and a capture re-take that changed the host's link count should fail
+// all three at one place.
+const wantLinkStanzas = 11
+
+// plainFromSidecar reconstructs what plain `ip link show` printed, from the
+// `ip -d link show` sidecar the capture actually shipped.
+//
+// # Why a reconstruction rather than a plain sidecar
+//
+// nix/capture-netlink-fixtures.nix captures the *pcap* with a plain `ip` but
+// writes its sidecars with `ip -d` (:120-122 vs :128-131) — they are not a
+// matched pair. Diffing goip's output against `ip_link_n` verbatim therefore
+// shows a ~90% difference made entirely of `-d` attributes goip deliberately
+// does not decode.
+//
+// The in-guest capture does ship matched pairs, and 7_1_4/dumps/ holds them —
+// but 7_1_8 does not and will not, since it was taken on a host that no longer
+// exists in that state, and it is the corpus with the device breadth these
+// tests need (11 links, a bridge, a veth pair, docker0, four altnames). So the
+// reconstruction stays for 7_1_8, and what changed is that it is no longer
+// self-certified: TestReconstructSidecarGroundTruth runs the same rule over
+// the guest corpus and demands byte equality with the plain sidecar `ip`
+// actually printed. TestPlainFromSidecar tests the clauses one at a time;
+// that test proves the whole rule against output nobody wrote.
+//
+// # The rule, and why each clause is where the `-d` boundary actually falls
+//
+//   - A stanza line (`NN: name: <FLAGS> ...`) is kept verbatim. print_linkinfo
+//     emits all of it before it ever consults show_details.
+//   - A `    link/...` line is cut at " promiscuity". That token is the first
+//     thing print_linkinfo prints inside its `if (show_details)` guard
+//     (ip/ipaddress.c:1332), so everything before it is plain output and
+//     everything from it onwards is not. IFLA_PROMISCUITY is present on all 11
+//     links in this capture, which is what makes the cut reliable here; the
+//     fallback branch keeps the line whole rather than silently dropping it.
+//   - An `    altname X` line is kept verbatim. This is the clause that is easy
+//     to get wrong: IFLA_PROP_LIST/IFLA_ALT_IFNAME is printed *outside* the
+//     show_details guard (ip/ipaddress.c:1318-1330), so altname lines are plain
+//     output even though they look like a detail. 4 of the 11 links carry one.
+//   - An `    inet ` / `    inet6 ` line and its `       valid_lft ` follower
+//     are kept verbatim. These do not occur in `ip_link_n` at all; they are
+//     here because `ip_addr_n` is the same kind of sidecar for the same
+//     reason, and print_addrinfo has no show_details branch anywhere in it
+//     (ip/ipaddress.c:1500-1707) — an address line is byte-identical between
+//     `ip addr show` and `ip -d addr show`. Sharing one reconstruction across
+//     both commands is what keeps the two end-to-end tests honest against the
+//     same rule.
+//   - Everything else is dropped. In `ip_link_n` that is exactly the link-kind
+//     detail lines — `bridge`, `bridge_slave`, `veth`, `nlmon` — which
+//     print_linkinfo emits from inside the guard via
+//     print_linktype/print_opt, and in `ip_addr_n` it is the same four.
+//
+// The returned slice has no trailing empty element, so len() is the stanza and
+// continuation line count.
+func plainFromSidecar(t *testing.T, path string) []string {
+	t.Helper()
+	lines, _ := reconstructSidecar(t, path)
+	return lines
+}
+
+// sidecarLineNumbers returns the 1-based sidecar line number of each line
+// plainFromSidecar keeps, in the same order, so an end-to-end row can cite the
+// line its expectation came from.
+//
+// It shares reconstructSidecar with plainFromSidecar rather than classifying
+// the lines again. It used to have its own copy of the switch, and the two
+// drifted the moment the address clauses were added — the numbers stayed at
+// the link rule's 26 while the lines went to 58 — so the single classification
+// is not tidiness, it is the fix.
+func sidecarLineNumbers(t *testing.T, path string) []int {
+	t.Helper()
+	_, nos := reconstructSidecar(t, path)
+	return nos
+}
+
+// reconstructSidecar is the one implementation of the rule, returning the kept
+// lines and their 1-based source line numbers together.
+func reconstructSidecar(t *testing.T, path string) ([]string, []int) {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read sidecar %s: %v", path, err)
+	}
+
+	var out []string
+	var nos []int
+	keep := func(line string, n int) {
+		out = append(out, line)
+		nos = append(nos, n)
+	}
+	for i, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(line, "    link/"):
+			if j := strings.Index(line, " promiscuity"); j >= 0 {
+				keep(line[:j], i+1)
+			} else {
+				keep(line, i+1)
+			}
+		case strings.HasPrefix(line, "    altname "),
+			strings.HasPrefix(line, "    inet "),
+			strings.HasPrefix(line, "    inet6 "),
+			strings.HasPrefix(line, "       valid_lft "):
+			keep(line, i+1)
+		case strings.HasPrefix(line, "    "):
+			// A link-kind detail line: `-d` only.
+		case line == "":
+		default:
+			// A stanza line. Matching on "not indented" rather than on a
+			// leading integer keeps this from silently dropping a stanza if a
+			// future capture holds a shape the regexp did not anticipate — it
+			// would show up as a diff rather than as a missing line.
+			keep(line, i+1)
+		}
+	}
+	return out, nos
+}
+
+// TestPlainFromSidecar tests the reconstruction itself.
+//
+// Without this table the end-to-end test below would be comparing goip against
+// a transform of my own invention: a reconstruction that dropped a line goip
+// also does not print would let a missing feature pass as parity. Each row
+// here is one clause of the rule, cited to the sidecar line it came from.
+//
+// go test ./internal/goip/ -run TestPlainFromSidecar
+func TestPlainFromSidecar(t *testing.T) {
+	tests := []struct {
+		description string
+		sidecar     string
+		in          string
+		want        []string
+	}{
+		{
+			description: "positive: a stanza line is kept verbatim, trailing space and all",
+			sidecar:     "ip_link_n:15",
+			in:          "8: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default ",
+			want:        []string{"8: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default "},
+		},
+		{
+			description: "positive: a link/ line is cut at ` promiscuity`, keeping the MAC and brd",
+			sidecar:     "ip_link_n:2",
+			in:          "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00 promiscuity 0 allmulti 0 minmtu 0",
+			want:        []string{"    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00"},
+		},
+		{
+			// **The clause that looks like a bug and is not.** altname is
+			// printed outside print_linkinfo's show_details guard, so it
+			// survives into plain output even though it is indented like a
+			// detail line.
+			description: "positive: an altname line survives, because IFLA_PROP_LIST is not an `ip -d` detail",
+			sidecar:     "ip_link_n:5",
+			in:          "    altname enxe04f43e628ef",
+			want:        []string{"    altname enxe04f43e628ef"},
+		},
+		{
+			// **The no-MAC line, and the reason the cut is on " promiscuity"
+			// rather than on "promiscuity".** The sidecar has two spaces here:
+			// one closing `"    link/%s "` and one opening the detail. Cutting
+			// on the leading-space form leaves exactly the one trailing space
+			// plain output has.
+			description: "boundary: a link/ line with no address keeps its single trailing space",
+			sidecar:     "ip_link_n:33",
+			in:          "    link/netlink  promiscuity 0 allmulti 0 minmtu 16 maxmtu 0 ",
+			want:        []string{"    link/netlink "},
+		},
+		{
+			description: "boundary: link-netnsid precedes promiscuity, so it survives the cut",
+			sidecar:     "ip_link_n:22",
+			in:          "    link/ether 6e:05:d5:51:50:25 brd ff:ff:ff:ff:ff:ff link-netnsid 1 promiscuity 0 allmulti 0",
+			want:        []string{"    link/ether 6e:05:d5:51:50:25 brd ff:ff:ff:ff:ff:ff link-netnsid 1"},
+		},
+		{
+			// The four address clauses. They never fire on ip_link_n, which
+			// holds no address lines at all; they are cited to ip_addr_n
+			// because obj_addr_test.go drives the same function over that
+			// sidecar. print_addrinfo has no show_details branch, so these
+			// lines are already plain and the rule's job is to not lose them.
+			description: "positive: an inet line is kept verbatim, label and all",
+			sidecar:     "ip_addr_n:10",
+			in:          "    inet 172.16.50.219/24 brd 172.16.50.255 scope global dynamic noprefixroute enp1s0",
+			want:        []string{"    inet 172.16.50.219/24 brd 172.16.50.255 scope global dynamic noprefixroute enp1s0"},
+		},
+		{
+			// A v6 line has no IFA_LABEL, so print_addrinfo's last field is a
+			// flag token and its trailing space is the line's last character.
+			// The four-space prefix makes this look like a detail line, which
+			// is why it needs its own clause rather than falling through.
+			description: "boundary: an inet6 line keeps the trailing space its missing label leaves",
+			sidecar:     "ip_addr_n:18",
+			in:          "    inet6 fe80::b5c8:b23e:9a98:a37c/64 scope link noprefixroute ",
+			want:        []string{"    inet6 fe80::b5c8:b23e:9a98:a37c/64 scope link noprefixroute "},
+		},
+		{
+			// Seven spaces, not four — print_addrinfo indents the lifetime
+			// continuation deeper than print_linkinfo indents its own. The
+			// clause has to precede the generic four-space drop, and this row
+			// is what fails if it is reordered.
+			description: "boundary: a valid_lft line is kept despite its seven-space indent",
+			sidecar:     "ip_addr_n:11",
+			in:          "       valid_lft 47871sec preferred_lft 47871sec",
+			want:        []string{"       valid_lft 47871sec preferred_lft 47871sec"},
+		},
+		{
+			// The `-d` reconstruction must not confuse an address family
+			// keyword with the link-kind lines below. "inet" as a bare kind
+			// line does not exist, but "nlmon" does, and a prefix rule keyed
+			// on "inet" without the trailing space would also match a
+			// hypothetical "inetfoo" detail line.
+			description: "corner: an indented `inet`-like token with no trailing space is not an address line",
+			in:          "    inetfoo 1 2 3",
+			want:        nil,
+		},
+		{
+			description: "negative: a bridge detail line is dropped",
+			sidecar:     "ip_link_n:20",
+			in:          "    bridge forward_delay 1500 hello_time 200 max_age 2000",
+			want:        nil,
+		},
+		{
+			description: "negative: a bridge_slave detail line is dropped",
+			sidecar:     "ip_link_n:31",
+			in:          "    bridge_slave state forwarding priority 32 cost 2",
+			want:        nil,
+		},
+		{
+			description: "negative: a bare `veth` kind line is dropped",
+			sidecar:     "ip_link_n:30",
+			in:          "    veth ",
+			want:        nil,
+		},
+		{
+			description: "boundary: an empty line is dropped rather than kept as an empty stanza",
+			in:          "",
+			want:        nil,
+		},
+		{
+			// A link with no IFLA_PROMISCUITY would produce this. The rule
+			// keeps the whole line instead of dropping it, so the failure mode
+			// is a visible diff rather than a silently shortened expectation.
+			description: "corner: a link/ line with no ` promiscuity` is kept whole, not dropped",
+			in:          "    link/ether 02:00:00:00:00:01 brd ff:ff:ff:ff:ff:ff",
+			want:        []string{"    link/ether 02:00:00:00:00:01 brd ff:ff:ff:ff:ff:ff"},
+		},
+		{
+			// print_linkinfo would never emit this, but the rule has to be
+			// total over its input, and "indented and unrecognized" is the
+			// `-d` case.
+			description: "corner: an indented line matching no clause is treated as a detail and dropped",
+			in:          "    something_unknown 1 2 3",
+			want:        nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			path := writeTempSidecar(t, tc.in)
+			got := plainFromSidecar(t, path)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d lines %q, want %d %q", len(got), got, len(tc.want), tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("line %d = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+// writeTempSidecar writes one line to a file so plainFromSidecar can be
+// exercised on synthetic input through exactly the code path the real sidecar
+// takes, rather than through an extracted inner helper that the real run would
+// not use.
+func writeTempSidecar(t *testing.T, line string) string {
+	t.Helper()
+	path := t.TempDir() + "/sidecar"
+	if err := os.WriteFile(path, []byte(line+"\n"), 0o600); err != nil {
+		t.Fatalf("write temp sidecar: %v", err)
+	}
+	return path
+}
+
+// TestReconstructSidecarGroundTruth measures the reconstruction rule against
+// output `ip` actually printed, rather than against my reading of its source.
+//
+// # What this test is for, and why it could not be written until now
+//
+// TestPlainFromSidecar above tests the rule one clause at a time, on lines I
+// chose, with expectations I wrote. That is a real test of each clause and no
+// test at all of the *set* of clauses: a rule missing an entire category of
+// line passes it, because the missing category has no row. The failure mode is
+// not hypothetical — it is precisely what the two `negative` rows below catch.
+//
+// The in-guest capture closed the gap, because it writes both forms of every
+// sidecar from the same command in the same namespace at the same moment
+// (nix/microvms/scripts/capture-netlink-dumps.exp). So `-d` is the rule's
+// input, plain is the answer, and nobody involved in writing this test chose
+// either. Byte equality is then the whole assertion.
+//
+// # The negative rows are the finding, not decoration
+//
+// The rule is WRONG for the `-4`/`-6` forms, and this table is how that became
+// known. `ip/ipaddress.c:1061` guards the entire `    link/...` line with
+//
+//	if (!filter.family || filter.family == AF_PACKET || show_details)
+//
+// so under a family filter that line is not a plain line with a `-d` tail — it
+// is `-d`-only in its entirety, and the rule's " promiscuity" cut keeps a line
+// that plain output does not have at all. (`ip -6 -d addr show` makes this
+// visible a second way: its `link/ether` line carries neither `brd` nor
+// `promiscuity`, because those sit behind the same family condition, so there
+// is no cut point to find even in principle.) Two rows pin that, with the first
+// divergent line named, so the limit is recorded where the rule is rather than
+// in a document beside it.
+//
+// This is also why the reconstruction is not deleted here. It stays for 7_1_8,
+// whose AF_UNSPEC `link show` / `addr show` sidecars are exactly the forms the
+// four positive rows prove it handles, and the two consumers
+// (TestLinkShowMatchesCapturedOutput, TestAddrShowMatchesCapturedOutput) drive
+// only those. Any future consumer on a family-filtered sidecar has a failing
+// row waiting for it.
+//
+// go test ./internal/goip/ -run TestReconstructSidecarGroundTruth
+func TestReconstructSidecarGroundTruth(t *testing.T) {
+	tests := []struct {
+		description string
+		// detail is the `ip -d` sidecar the rule transforms; plain is the
+		// sidecar the same command produced without `-d`, and the answer.
+		detail string
+		plain  string
+		// wantEqual is whether the reconstruction must reproduce plain byte
+		// for byte.
+		wantEqual bool
+		// wantFirstDiff{Got,Want} are asserted only when wantEqual is false:
+		// the first line where the two disagree. Naming it makes the row a
+		// statement about where the rule's limit falls, rather than the far
+		// weaker claim that something somewhere differs.
+		wantFirstDiffGot  string
+		wantFirstDiffWant string
+		// wantLineNos, when non-nil, is the exact 1-based line number of each
+		// kept line in the DETAIL file. Asserted on one row, because it is the
+		// only place the citation's frame of reference is pinned: the numbers
+		// have to index the `-d` file even though the lines equal the plain
+		// one, and nothing else in this table would notice if they came back
+		// numbered against the wrong file.
+		wantLineNos []int
+		// check is an extra pointed assertion on the reconstruction, for the
+		// rows whose value is in one specific line rather than in the whole
+		// file. It runs whether or not the equality assertion passed, so a
+		// whole-file failure does not hide which clause broke.
+		check func(t *testing.T, got []string)
+	}{
+		{
+			// The clean nlcapc namespace: lo, nlmon0, goip0. Three stanzas,
+			// three link/ lines, two link-kind detail lines to drop.
+			description: "positive: `ip -d link show` reconstructs plain `ip link show`, clean namespace",
+			detail:      guestDumpsDir + "ip_link_n",
+			plain:       guestDumpsDir + "ip_link",
+			wantEqual:   true,
+		},
+		{
+			// The address clauses against ground truth for the first time.
+			// print_addrinfo has no show_details branch, so every inet/inet6
+			// and valid_lft line must survive untouched — including the
+			// trailing space a v6 line's missing IFA_LABEL leaves.
+			description: "positive: `ip -d addr show` reconstructs plain `ip addr show`, clean namespace",
+			detail:      guestDumpsDir + "ip_addr_n",
+			plain:       guestDumpsDir + "ip_addr",
+			wantEqual:   true,
+		},
+		{
+			// The mesh corpus is not a duplicate of the clean one: br0 carries
+			// a ~2 KiB `bridge` detail line, and veth0 carries TWO detail
+			// lines under one stanza (`veth ` then `bridge_slave …`). A rule
+			// that dropped only the first detail line per stanza passes every
+			// clean-namespace row and fails here.
+			description: "positive: `ip -d link show` reconstructs plain, mesh namespace with two detail lines on one stanza",
+			detail:      guestDumpsDir + "mesh/ip_link_n",
+			plain:       guestDumpsDir + "mesh/ip_link",
+			wantEqual:   true,
+			check: func(t *testing.T, got []string) {
+				for i, line := range got {
+					for _, kind := range []string{"    bridge", "    veth", "    nlmon", "    dummy"} {
+						if strings.HasPrefix(line, kind) {
+							t.Errorf("line %d = %q kept, but %q is a link-kind detail line", i, line, kind)
+						}
+					}
+				}
+			},
+		},
+		{
+			description: "positive: `ip -d addr show` reconstructs plain, mesh namespace",
+			detail:      guestDumpsDir + "mesh/ip_addr_n",
+			plain:       guestDumpsDir + "mesh/ip_addr",
+			wantEqual:   true,
+		},
+		{
+			// **The finding.** See the doc comment: under `-4` the link/ line
+			// is `-d`-only in full, so the rule keeps a line plain output
+			// never had, and everything after it is offset by one.
+			description: "negative: the rule does NOT reconstruct `ip -4 addr show`, whose link/ line is `-d`-only (ip/ipaddress.c:1061)",
+			detail:      guestDumpsDir + "ip_addr_v4_n",
+			plain:       guestDumpsDir + "ip_addr_v4",
+			wantEqual:   false,
+			// The cut fires and produces a well-formed plain-looking line. It
+			// is still wrong, which is the point: a rule can be locally
+			// correct on every clause and globally wrong about the set.
+			wantFirstDiffGot:  "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00",
+			wantFirstDiffWant: "    inet 127.0.0.1/8 scope host lo",
+		},
+		{
+			// The `-6` form fails the same way for the same reason, and shows
+			// the second half of it: `ip -6 -d` prints `link/ether <mac>` with
+			// no brd and no promiscuity, so the line survives the cut whole
+			// via the fallback branch. There is no token to cut on, so no
+			// amount of tuning the cut fixes this family.
+			description:       "negative: the rule does NOT reconstruct `ip -6 addr show`, whose `-d` link/ line has no ` promiscuity` to cut at",
+			detail:            guestDumpsDir + "ip_addr_v6_n",
+			plain:             guestDumpsDir + "ip_addr_v6",
+			wantEqual:         false,
+			wantFirstDiffGot:  "    link/loopback 00:00:00:00:00:00",
+			wantFirstDiffWant: "    inet6 ::1/128 scope host proto kernel_lo ",
+		},
+		{
+			// A projection applied twice must equal itself applied once. This
+			// is the boundary case the four positive rows cannot see, because
+			// they never feed the rule its own output: if any clause mangled a
+			// line it was supposed to keep verbatim, the second pass would
+			// mangle it again and the two would differ.
+			description: "boundary: the rule is idempotent — reconstructing an already-plain sidecar is the identity",
+			detail:      guestDumpsDir + "ip_link",
+			plain:       guestDumpsDir + "ip_link",
+			wantEqual:   true,
+		},
+		{
+			// Idempotence on the address forms too, where it is the stronger
+			// statement: the seven-space valid_lft indent and the four-space
+			// inet6 indent both look like detail lines, so this is the row
+			// that fails if the address clauses are ever reordered after the
+			// generic four-space drop.
+			description: "boundary: idempotent on the mesh address sidecar, whose deepest indent is seven spaces",
+			detail:      guestDumpsDir + "mesh/ip_addr",
+			plain:       guestDumpsDir + "mesh/ip_addr",
+			wantEqual:   true,
+		},
+		{
+			// nlmon0 has no IFLA_ADDRESS, so `ip` prints `"    link/%s "` and
+			// stops — the plain line's last character is the space that closed
+			// the format string, and the `-d` line has that space followed by
+			// the one that opens " promiscuity". Cutting on the leading-space
+			// form is what leaves exactly one. The positive row above already
+			// covers this by byte equality; this row exists so the failure
+			// names the line instead of printing a whole-file diff.
+			description: "corner: a link with no address keeps exactly one trailing space after `link/netlink`",
+			detail:      guestDumpsDir + "ip_link_n",
+			plain:       guestDumpsDir + "ip_link",
+			wantEqual:   true,
+			check: func(t *testing.T, got []string) {
+				const want = "    link/netlink "
+				var found bool
+				for _, line := range got {
+					if strings.HasPrefix(line, "    link/netlink") {
+						found = true
+						if line != want {
+							t.Errorf("nlmon0 link line = %q, want %q", line, want)
+						}
+					}
+				}
+				if !found {
+					t.Error("no `    link/netlink` line in the reconstruction")
+				}
+			},
+		},
+		{
+			// The line numbers travel with the lines, and an end-to-end row
+			// cites them. If they were ever computed by a second walk they
+			// could drift out of order or off the end of the file — which has
+			// happened once already, and is why reconstructSidecar returns
+			// both together.
+			//
+			// The mesh link sidecar is the sharpest case for this: its 15 `-d`
+			// lines reduce to 10, and the five dropped ones (5, 8, 11, 14, 15)
+			// are spread through the file rather than bunched at the end, so a
+			// citation numbered against the 10-line plain file would be wrong
+			// from its second stanza onwards and still look plausible.
+			description: "corner: line numbers index the 15-line `-d` file, not the 10-line plain one",
+			detail:      guestDumpsDir + "mesh/ip_link_n",
+			plain:       guestDumpsDir + "mesh/ip_link",
+			wantEqual:   true,
+			wantLineNos: []int{1, 2, 3, 4, 6, 7, 9, 10, 12, 13},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, nos := reconstructSidecar(t, tc.detail)
+			want := readSidecarLines(t, tc.plain)
+
+			if len(got) != len(nos) {
+				t.Fatalf("reconstruction returned %d lines but %d line numbers", len(got), len(nos))
+			}
+			// Asserted on every row rather than only on the row that names it,
+			// because it costs nothing and the invariant is not row-specific.
+			detailLines := len(readSidecarLines(t, tc.detail))
+			for i := range nos {
+				if nos[i] < 1 || nos[i] > detailLines {
+					t.Errorf("line number %d = %d, outside 1..%d", i, nos[i], detailLines)
+				}
+				if i > 0 && nos[i] <= nos[i-1] {
+					t.Errorf("line number %d = %d, not greater than the previous %d", i, nos[i], nos[i-1])
+				}
+			}
+
+			if tc.wantLineNos != nil {
+				if len(nos) != len(tc.wantLineNos) {
+					t.Errorf("kept %d lines %v, want %d %v", len(nos), nos, len(tc.wantLineNos), tc.wantLineNos)
+				} else {
+					for i := range nos {
+						if nos[i] != tc.wantLineNos[i] {
+							t.Errorf("kept line %d came from %s:%d, want :%d (%q)",
+								i, tc.detail, nos[i], tc.wantLineNos[i], got[i])
+						}
+					}
+				}
+			}
+
+			if tc.check != nil {
+				tc.check(t, got)
+			}
+
+			gotDiff, wantDiff, differs := firstDiff(got, want)
+			switch {
+			case tc.wantEqual && differs:
+				t.Errorf("reconstruction of %s does not reproduce %s: first difference\n got: %q\nwant: %q\n(%d lines vs %d)",
+					tc.detail, tc.plain, gotDiff, wantDiff, len(got), len(want))
+			case !tc.wantEqual && !differs:
+				t.Errorf("reconstruction of %s unexpectedly reproduces %s; the row asserting the rule's limit is now stale",
+					tc.detail, tc.plain)
+			case !tc.wantEqual:
+				if gotDiff != tc.wantFirstDiffGot {
+					t.Errorf("first divergent reconstructed line = %q, want %q", gotDiff, tc.wantFirstDiffGot)
+				}
+				if wantDiff != tc.wantFirstDiffWant {
+					t.Errorf("first divergent plain line = %q, want %q", wantDiff, tc.wantFirstDiffWant)
+				}
+			}
+		})
+	}
+}
+
+// readSidecarLines splits a sidecar exactly the way reconstructSidecar does, so
+// the comparison cannot be an artifact of two different ideas about the
+// trailing newline.
+func readSidecarLines(t *testing.T, path string) []string {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read sidecar %s: %v", path, err)
+	}
+	trimmed := strings.TrimRight(string(raw), "\n")
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, "\n")
+}
+
+// firstDiff returns the first line at which two slices disagree, and whether
+// they disagree at all. A slice running out counts as a difference, reported as
+// an empty string on that side, so a truncation is located rather than just
+// counted.
+func firstDiff(got, want []string) (string, string, bool) {
+	at := func(s []string, i int) string {
+		if i < len(s) {
+			return s[i]
+		}
+		return ""
+	}
+	n := max(len(got), len(want))
+	for i := range n {
+		if at(got, i) != at(want, i) {
+			return at(got, i), at(want, i), true
+		}
+	}
+	return "", "", false
+}
+
+// TestLinkShowMatchesCapturedOutput is §8.7's headline assertion: every line
+// `ip` printed, reproduced from the same replies, with no socket and no root.
+//
+// # The table is derived from the fixture, not transcribed from it
+//
+// The rows are the reconstructed sidecar lines themselves, one subtest each,
+// named with the `ip_link_n` line they came from. That is deliberate and it is
+// the stronger form: a hand-written expectation can be quietly edited to match
+// whatever the code does today, whereas these rows cannot be edited at all
+// without editing the committed capture. It also means a new attribute landing
+// in the renderer fails at the one stanza it changed rather than in a wall of
+// diff.
+//
+// The stanza count is asserted separately from the lines, because "goip
+// rendered 10 of 11 links, each perfectly" and "goip rendered 11 links, one
+// wrongly" are different bugs and a single whole-output comparison reports
+// them identically.
+//
+// go test ./internal/goip/ -run TestLinkShowMatchesCapturedOutput
+func TestLinkShowMatchesCapturedOutput(t *testing.T) {
+	want := plainFromSidecar(t, linkDumpSidecar)
+
+	var stdout, stderr bytes.Buffer
+	t.Setenv("GOIP_REPLAY", linkDumpPcap)
+	if code := Run([]string{"link", "show"}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("Run = %d, want %d; stderr: %s", code, ExitOK, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr not empty: %q", stderr.String())
+	}
+
+	got := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+
+	t.Run("positive: the output has one stanza per captured RTM_NEWLINK reply", func(t *testing.T) {
+		stanzas := 0
+		for _, line := range got {
+			if !strings.HasPrefix(line, " ") {
+				stanzas++
+			}
+		}
+		if stanzas != wantLinkStanzas {
+			t.Errorf("rendered %d stanzas, want %d", stanzas, wantLinkStanzas)
+		}
+	})
+
+	t.Run("positive: the output has the same line count as the reconstructed sidecar", func(t *testing.T) {
+		if len(got) != len(want) {
+			t.Errorf("rendered %d lines, want %d", len(got), len(want))
+		}
+	})
+
+	// Sidecar line numbers are recovered by walking the same clauses
+	// plainFromSidecar uses, so each row can cite the line it came from — the
+	// convention xtcpnl_rtnetlink_realfixtures_test.go:26-40 set.
+	lineNos := sidecarLineNumbers(t, linkDumpSidecar)
+
+	for i, wantLine := range want {
+		cite := "unknown"
+		if i < len(lineNos) {
+			cite = fmt.Sprintf("ip_link_n:%d", lineNos[i])
+		}
+		// The class prefix is "positive" for all of these: every row is a real
+		// captured reply rendered against real captured output. The negative,
+		// boundary and corner classes for this renderer live in
+		// render/link_test.go, which can construct the shapes this host does
+		// not have.
+		t.Run(fmt.Sprintf("positive: output line %d matches %s", i+1, cite), func(t *testing.T) {
+			if i >= len(got) {
+				t.Fatalf("missing output line; want %q", wantLine)
+			}
+			if got[i] != wantLine {
+				t.Errorf("line %d mismatch\n got: %q\nwant: %q", i+1, got[i], wantLine)
+			}
+		})
+	}
+}
+
+// stubSource is a Source that returns canned bodies, for the shapes a real
+// capture cannot provide — an empty dump, and a failing one.
+type stubSource struct {
+	bodies [][]byte
+	err    error
+}
+
+func (s stubSource) Dump(_ []byte, _ uint16) ([][]byte, error) {
+	return s.bodies, s.err
+}
+
+var errStubDump = errors.New("stub dump failure")
+
+// TestLinkShowSourceOutcomes covers what linkShow does with reply sets a
+// committed capture cannot hold.
+//
+// The empty-dump row is the plan's §8.7 "zero links → empty output, exit 0",
+// and it needs a stub rather than a pcap: ReplaySource treats "no recorded
+// reply of this type" as ErrNoReplay, i.e. a missing fixture, because for a
+// replay that is what it means. A live socket answering a dump with zero links
+// is a different thing — an empty answer, not a broken one — and this is where
+// that distinction is pinned.
+//
+// go test ./internal/goip/ -run TestLinkShowSourceOutcomes
+func TestLinkShowSourceOutcomes(t *testing.T) {
+	realBodies := capturedLinkBodies(t)
+
+	tests := []struct {
+		description string
+		src         Source
+		wantOut     string
+		wantErr     error
+	}{
+		{
+			description: "positive: the captured replies render the full listing",
+			src:         stubSource{bodies: realBodies},
+			// The content is asserted line by line by the test above; here the
+			// only claim is that a non-empty dump produces non-empty output,
+			// which is what makes the empty row below meaningful.
+			wantOut: "1: lo: ",
+		},
+		{
+			description: "boundary: a dump with zero replies renders nothing and succeeds",
+			src:         stubSource{bodies: nil},
+			wantOut:     "",
+		},
+		{
+			description: "boundary: a dump with one reply renders exactly one stanza",
+			src:         stubSource{bodies: realBodies[:1]},
+			wantOut:     "1: lo: ",
+		},
+		{
+			description: "negative: a source error propagates and is not rendered as an empty listing",
+			src:         stubSource{err: errStubDump},
+			wantErr:     errStubDump,
+		},
+		{
+			// A body too short to hold an ifinfomsg. The decoder must report
+			// it rather than render a partial stanza, because a half-rendered
+			// line is indistinguishable from a real one in a parity diff.
+			description: "corner: an undecodable reply body is an error, not a partial stanza",
+			src:         stubSource{bodies: [][]byte{{0x00, 0x11}}},
+			wantErr:     nil, // any non-nil error; checked below
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var out bytes.Buffer
+			c := &runCtx{src: tc.src, lltab: NewLLTab(), out: &out, errOut: &out}
+			err := linkShow(c, nil)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if strings.HasPrefix(tc.description, "corner:") {
+				if err == nil {
+					t.Fatalf("err = nil, want a decode error; output was %q", out.String())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.wantOut == "" {
+				if out.Len() != 0 {
+					t.Errorf("output = %q, want empty", out.String())
+				}
+				return
+			}
+			if !strings.HasPrefix(out.String(), tc.wantOut) {
+				t.Errorf("output = %q, want prefix %q", out.String(), tc.wantOut)
+			}
+		})
+	}
+}
+
+// capturedLinkBodies pulls the RTM_NEWLINK reply bodies out of the committed
+// capture, so the stub rows above are driven by real replies too — only the
+// *set* is synthetic, never the bytes.
+func capturedLinkBodies(t *testing.T) [][]byte {
+	t.Helper()
+
+	src, err := OpenReplay(linkDumpPcap)
+	if err != nil {
+		t.Fatalf("open replay: %v", err)
+	}
+	bodies, err := src.Dump(nil, 16) // RTM_NEWLINK
+	if err != nil {
+		t.Fatalf("replay dump: %v", err)
+	}
+	if len(bodies) != wantLinkStanzas {
+		t.Fatalf("capture holds %d RTM_NEWLINK replies, want %d", len(bodies), wantLinkStanzas)
+	}
+	return bodies
+}
+
+// TestRunLinkArgs covers the CLI surface around the renderer: the verbs, the
+// abbreviations, and the arguments goip refuses rather than ignores.
+//
+// go test ./internal/goip/ -run TestRunLinkArgs
+func TestRunLinkArgs(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		wantCode    int
+		// wantStdoutPrefix is checked only when non-empty.
+		wantStdoutPrefix string
+		wantStderrSubstr string
+	}{
+		{
+			description: "positive: `link show` renders",
+			args:        []string{"link", "show"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// do_iplink falls through to ipaddr_list_link when argc is 0, so a
+			// bare object is a show. Getting this wrong would make `goip link`
+			// a usage error where `ip link` lists.
+			description: "positive: a bare `link` is a show, matching do_iplink's argc==0 fallthrough",
+			args:        []string{"link"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			description: "positive: `l s` abbreviates both the object and the verb",
+			args:        []string{"l", "s"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// All three verbs are in iplink.c's matches() chain, and "lst" is
+			// the one nobody remembers.
+			description: "positive: `link lst` is a show",
+			args:        []string{"link", "lst"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			description: "positive: `link list` is a show",
+			args:        []string{"link", "list"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// `link show` overrides preferred_family to AF_PACKET, so -4 must
+			// not change the listing. The request-side half of this claim is
+			// asserted byte-for-byte by req's Tier A table; here it is the
+			// user-visible consequence.
+			description: "positive: -4 does not change `link show`, because ipaddr_list_link forces AF_PACKET",
+			args:        []string{"-4", "link", "show"}, wantCode: ExitOK,
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// **A refusal, not a silent full dump.** `dev X` turns the request
+			// from a dump into a single-get, so ignoring the argument would
+			// answer a different question than the one asked — and would do it
+			// while looking like success.
+			description: "negative: `link show dev lo` is refused rather than silently dumping everything",
+			args:        []string{"link", "show", "dev", "lo"}, wantCode: ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			description: "negative: an unknown link verb is refused",
+			args:        []string{"link", "frobnicate"}, wantCode: ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			description: "negative: an unknown object is a usage error naming the object",
+			args:        []string{"zzz", "show"}, wantCode: ExitUsage,
+			wantStderrSubstr: `Object "zzz" is unknown`,
+		},
+		{
+			description: "negative: no arguments at all prints usage and fails",
+			args:        []string{}, wantCode: ExitUsage,
+			wantStderrSubstr: "Usage: goip",
+		},
+		{
+			description: "boundary: -h prints usage to stdout and succeeds",
+			args:        []string{"-h"}, wantCode: ExitOK,
+			wantStdoutPrefix: "Usage: goip",
+		},
+		{
+			description: "negative: an unknown option is refused before any object lookup",
+			args:        []string{"-z", "link", "show"}, wantCode: ExitUsage,
+			wantStderrSubstr: `Option "-z" is unknown`,
+		},
+		{
+			// Options come before the object in iproute2, so this is an object
+			// named "-4", which is not an object. Go's flag package would
+			// accept it, which is precisely why the parsing is hand-written.
+			description: "corner: an option after the object is not an option",
+			args:        []string{"link", "show", "-4"}, wantCode: ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			// `link` is reached by "l" before "l2tp" is considered, so no
+			// argument can ever name l2tp. Asserting it here rather than only
+			// in the dispatch table keeps the claim attached to a real run.
+			description: "corner: `l2tp` is unreachable, because `link` matches its prefix first",
+			args:        []string{"l2tp", "show"}, wantCode: ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Setenv("GOIP_REPLAY", linkDumpPcap)
+			var stdout, stderr bytes.Buffer
+			code := Run(tc.args, &stdout, &stderr)
+			if code != tc.wantCode {
+				t.Errorf("Run(%q) = %d, want %d; stderr: %s", tc.args, code, tc.wantCode, stderr.String())
+			}
+			if tc.wantStdoutPrefix != "" && !strings.HasPrefix(stdout.String(), tc.wantStdoutPrefix) {
+				t.Errorf("stdout = %q, want prefix %q", stdout.String(), tc.wantStdoutPrefix)
+			}
+			if tc.wantStderrSubstr != "" && !strings.Contains(stderr.String(), tc.wantStderrSubstr) {
+				t.Errorf("stderr = %q, want to contain %q", stderr.String(), tc.wantStderrSubstr)
+			}
+		})
+	}
+}
+
+// TestRunLinkShowJSON asserts the -json form over the same capture.
+//
+// # What this asserts and what it deliberately does not
+//
+// There is no `ip -j link show` sidecar in the corpus, so this cannot compare
+// against `ip`'s JSON directly. What it can assert without one is everything
+// that does not need it: that the output parses, that it holds one object per
+// captured reply, and that the values agree with the text form goip printed
+// from the same bytes. The key *names* are asserted against `ip -j`'s in
+// render/link_test.go, where they can be stated per field with a citation; a
+// captured `ip -j` sidecar is on the plan's Item 7 list and would upgrade this
+// to a real comparison.
+//
+// go test ./internal/goip/ -run TestRunLinkShowJSON
+func TestRunLinkShowJSON(t *testing.T) {
+	t.Setenv("GOIP_REPLAY", linkDumpPcap)
+
+	var textOut, stderr bytes.Buffer
+	if code := Run([]string{"link", "show"}, &textOut, &stderr); code != ExitOK {
+		t.Fatalf("text Run = %d; stderr: %s", code, stderr.String())
+	}
+
+	var jsonOut bytes.Buffer
+	stderr.Reset()
+	if code := Run([]string{"-j", "link", "show"}, &jsonOut, &stderr); code != ExitOK {
+		t.Fatalf("json Run = %d; stderr: %s", code, stderr.String())
+	}
+
+	var views []map[string]any
+	if err := json.Unmarshal(jsonOut.Bytes(), &views); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, jsonOut.String())
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T)
+	}{
+		{
+			description: "positive: the JSON array holds one object per captured reply",
+			check: func(t *testing.T) {
+				if len(views) != wantLinkStanzas {
+					t.Errorf("%d objects, want %d", len(views), wantLinkStanzas)
+				}
+			},
+		},
+		{
+			description: "positive: every ifname in the JSON appears in the text form",
+			check: func(t *testing.T) {
+				for i, v := range views {
+					name, ok := v["ifname"].(string)
+					if !ok {
+						t.Errorf("object %d has no string ifname: %v", i, v["ifname"])
+						continue
+					}
+					// The text form prints `NN: name@peer:` or `NN: name:`, so
+					// the name is always followed by one of those two bytes.
+					if !strings.Contains(textOut.String(), " "+name+":") &&
+						!strings.Contains(textOut.String(), " "+name+"@") {
+						t.Errorf("ifname %q is in the JSON but not in the text output", name)
+					}
+				}
+			},
+		},
+		{
+			description: "positive: the objects are in the same order as the text stanzas",
+			check: func(t *testing.T) {
+				rest := textOut.String()
+				for i, v := range views {
+					name, _ := v["ifname"].(string)
+					idx := strings.Index(rest, " "+name)
+					if idx < 0 {
+						t.Fatalf("object %d %q out of order or missing", i, name)
+					}
+					rest = rest[idx+len(name):]
+				}
+			},
+		},
+		{
+			// The renderer suppresses `qlen 0` in text (see RenderQlenZero) but
+			// `ip -j` emits txqlen unconditionally, so the two forms genuinely
+			// disagree here and the JSON is the one that keeps the value. This
+			// row is what stops someone "fixing" the inconsistency by dropping
+			// the field.
+			description: "boundary: a link whose text form suppresses qlen still carries txqlen in JSON",
+			check: func(t *testing.T) {
+				found := false
+				for _, v := range views {
+					if v["ifname"] == "docker0" {
+						found = true
+						if _, ok := v["txqlen"]; !ok {
+							t.Errorf("docker0 has no txqlen in JSON, though its text stanza ends at `group default `")
+						}
+					}
+				}
+				if !found {
+					t.Error("docker0 is missing from the JSON, so this row asserted nothing")
+				}
+			},
+		},
+		{
+			// 4 of the 11 links carry an altname, and it is a slice rather
+			// than a scalar. A renderer that flattened it to the first entry
+			// would still pass the text diff on this capture, because no link
+			// here has two.
+			description: "boundary: altnames are a JSON array, on exactly the links the sidecar shows one for",
+			check: func(t *testing.T) {
+				const wantWithAltnames = 4
+				n := 0
+				for _, v := range views {
+					if a, ok := v["altnames"]; ok && a != nil {
+						arr, isArr := a.([]any)
+						if !isArr {
+							t.Errorf("altnames is %T, want an array", a)
+							continue
+						}
+						if len(arr) > 0 {
+							n++
+						}
+					}
+				}
+				if n != wantWithAltnames {
+					t.Errorf("%d links carry altnames, want %d", n, wantWithAltnames)
+				}
+			},
+		},
+		{
+			description: "negative: no object carries an empty ifname",
+			check: func(t *testing.T) {
+				for i, v := range views {
+					if v["ifname"] == "" {
+						t.Errorf("object %d has an empty ifname", i)
+					}
+				}
+			},
+		},
+		{
+			// `ip -j` prints flags as an array of the same tokens the text
+			// form puts between the angle brackets, not as a number. A numeric
+			// flags field would be a silent schema divergence that no text
+			// diff could see.
+			description: "corner: flags is an array of tokens, not the raw number",
+			check: func(t *testing.T) {
+				for i, v := range views {
+					arr, ok := v["flags"].([]any)
+					if !ok {
+						t.Fatalf("object %d flags is %T, want an array", i, v["flags"])
+					}
+					for _, tok := range arr {
+						if _, isStr := tok.(string); !isStr {
+							t.Errorf("object %d has a non-string flag %v", i, tok)
+						}
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, tc.check)
+	}
+}

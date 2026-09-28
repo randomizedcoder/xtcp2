@@ -72,8 +72,41 @@ func BuildDumpRequest(msgType uint16, seq uint32, familyHdr []byte) []byte {
 // BuildDumpLinkRequest builds an RTM_GETLINK dump request (ifinfomsg,
 // AF_UNSPEC) to enumerate all links.
 func BuildDumpLinkRequest(seq uint32) []byte {
+	return BuildDumpLinkRequestFamily(unix.AF_UNSPEC, seq)
+}
+
+// BuildDumpLinkRequestFamily is BuildDumpLinkRequest with ifi_family chosen by
+// the caller, and it is 32 bytes with no attributes.
+//
+// # The family is not cosmetic: it changes which kernel function answers
+//
+// rtnetlink_rcv_msg dispatches a dump on the family byte, falling back to
+// PF_UNSPEC only when no handler is registered for the family asked for
+// (net/core/rtnetlink.c). net/ipv6/addrconf.c registers one —
+// `rtnl_register(PF_INET6, RTM_GETLINK, NULL, inet6_dump_ifinfo, 0)` — and
+// net/ipv4 does not. So:
+//
+//   - AF_UNSPEC, AF_PACKET and AF_INET are all answered by rtnl_dump_ifinfo,
+//     the full RTM_NEWLINK with forty-odd attributes.
+//   - AF_INET6 is answered by inet6_dump_ifinfo, whose inet6_fill_ifinfo emits
+//     only IFLA_IFNAME, IFLA_ADDRESS, IFLA_MTU, IFLA_LINK, IFLA_OPERSTATE and
+//     IFLA_PROTINFO — no qdisc, txqlen, group, master, altname or
+//     link-netnsid.
+//
+// Measured on the committed netlink_route_getaddr.pcap, which holds both an
+// `ip -4 addr show` and an `ip -6 addr show`: the AF_INET run's link replies
+// carry 46 distinct attribute types and 1452 bytes for lo, the AF_INET6 run's
+// carry 6 types and 724 bytes. A caller that assumes a link dump is a link
+// dump will decode the AF_INET6 reply into a LinkInfo whose every optional
+// field is zero and cannot tell that from a link that really has none — which
+// is what HasTxQLen and HasGroup exist for.
+//
+// Callers wanting the attribute-carrying 40-byte form iproute2 sends for
+// AF_UNSPEC and AF_PACKET want BuildDumpLinkRequestExt instead; see
+// internal/goip/req for which command sends which.
+func BuildDumpLinkRequestFamily(family uint8, seq uint32) []byte {
 	hdr := make([]byte, IfInfomsgSizeCst)
-	hdr[0] = unix.AF_UNSPEC
+	hdr[0] = family
 	return BuildDumpRequest(uint16(unix.RTM_GETLINK), seq, hdr)
 }
 

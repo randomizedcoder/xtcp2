@@ -454,6 +454,27 @@ let
       sink = "nlmon-capture";
     };
 
+  # netlink-dump-capture: root VM that records RTM_GET* DUMP requests and their
+  # replies into pcaps, with the `ip -d` / `ip -j` sidecars those fixtures are
+  # checked against, then emits the lot over the serial console and powers off.
+  # Unlike nlmon-capture the sequence is not baked in — the host drives it with
+  # scripts/capture-netlink-dumps.exp. See mkVm.nix isNetlinkDumpCapture.
+  mkOneNetlinkDumpCapture =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "netlink-dump-capture";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsUdsSecurity = lib.genAttrs constants.supportedArchs mkOneUdsSecurity;
@@ -514,6 +535,8 @@ let
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
 
   vmsNlmonCapture = lib.genAttrs constants.supportedArchs mkOneNlmonCapture;
+
+  vmsNetlinkDumpCapture = lib.genAttrs constants.supportedArchs mkOneNetlinkDumpCapture;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -744,6 +767,18 @@ let
     };
   });
 
+  # rtnetlink DUMP-capture runner: boots the netlink-dump-capture VM and then
+  # drives it over the serial console with scripts/capture-netlink-dumps.exp,
+  # rather than waiting on a baked-in oneshot. Same reasons as above for being
+  # a runner and not a check, plus one more: the driver needs to write the
+  # decoded fixtures into the working tree.
+  netlinkDumpCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkNetlinkDumpCaptureRunner {
+      inherit arch;
+      vm = vmsNetlinkDumpCapture.${arch};
+    };
+  });
+
   # Runtime-control rate test runner: boots the clickhouse-pipeline-rate VM,
   # waits for the in-VM monitor's XTCP2_RATE_DONE (or --timeout), and passes
   # only if the ingest rate responded to set-poll-frequency + poll-burst.
@@ -842,9 +877,11 @@ in
     vmsCapCheckFail
     vmsDiscoveryBench
     vmsNlmonCapture
+    vmsNetlinkDumpCapture
     s3parquetLong
     discoveryBench
     nlmonCapture
+    netlinkDumpCapture
     clickPipeRate
     clickPipeStress
     s3ParquetStress

@@ -124,7 +124,8 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				OperState: IfOperUnknown, Carrier: 1, MTU: 65536,
 				Address:   []byte{0, 0, 0, 0, 0, 0},
 				Broadcast: []byte{0, 0, 0, 0, 0, 0},
-				Qdisc:     "noqueue", TxQLen: 1000, LinkMode: 0, Group: 0,
+				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true,
+				LinkMode: 0, Group: 0, HasGroup: true,
 			},
 		},
 		{
@@ -132,27 +133,34 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			//               qdisc mq state UP mode DEFAULT group default qlen 1000"
 			// ip_link_n:4  "    link/ether e0:4f:43:e6:28:ef brd ff:ff:ff:ff:ff:ff"
 			//
+			// ip_link_n:5  "    altname enxe04f43e628ef"
+			//
 			// A physical NIC has no IFLA_LINKINFO, so Kind is "" — the absence
-			// that makes `ip` print no third line for it.
-			description: "positive: primary NIC enp1s0 carries a real MAC and qdisc mq",
+			// that makes `ip` print no third line for it. It does carry
+			// IFLA_PROP_LIST, which is the udev-assigned MAC-derived altname,
+			// and that one IS printed by a plain `ip link show`.
+			description: "positive: primary NIC enp1s0 carries a real MAC, qdisc mq and one altname",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
 				Address:   []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000,
+				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				AltNames: []string{"enxe04f43e628ef"},
 			},
 		},
 		{
 			// ip_link_n:6  "3: enp35s0f0np0: ... mtu 1500 qdisc mq state UP"
 			// ip_link_n:7  "    link/ether 04:09:73:cf:d8:d0 brd ff:ff:ff:ff:ff:ff"
-			description: "positive: NIC enp35s0f0np0, index 3",
+			// ip_link_n:8  "    altname enx040973cfd8d0"
+			description: "positive: NIC enp35s0f0np0, index 3, with its altname",
 			want: LinkInfo{
 				Index: 3, Flags: 0x11043, Name: "enp35s0f0np0", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
 				Address:   []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000,
+				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				AltNames: []string{"enx040973cfd8d0"},
 			},
 		},
 		{
@@ -175,7 +183,8 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
 				Address:   []byte{0x6e, 0x05, 0xd5, 0x51, 0x50, 0x25},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "noqueue", TxQLen: 1000, Kind: "veth",
+				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Kind: "veth",
 				Link: 2, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 		},
@@ -185,15 +194,19 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			// ip_link_n:18 names index 9 as br-3a5828b2963a, so Master 9 is the
 			// bridge `ip` resolves to that word.
 			//
-			// Note the missing "qlen": this link's IFLA_TXQLEN really is 0, and
-			// `ip` omits the token rather than printing "qlen 0".
+			// Note the missing "qlen": this link carries IFLA_TXQLEN with value
+			// 0 — HasTxQLen true, TxQLen 0 — and the pinned `ip` omits the token
+			// rather than printing "qlen 0". Both halves matter: presence is what
+			// distinguishes this from an AF_INET6 link dump, and the zero value is
+			// what the render.RenderQlenZero skew is about.
 			description: "positive: bridge member veth179a698 carries IFLA_MASTER 9 and txqlen 0",
 			want: LinkInfo{
 				Index: 60, Flags: 0x11043, Name: "veth179a698", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "noqueue", TxQLen: 0, Kind: "veth",
+				Qdisc:     "noqueue", TxQLen: 0, HasTxQLen: true, HasGroup: true,
+				Kind: "veth",
 				Link: 2, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
 			},
 		},
@@ -210,21 +223,34 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				OperState: IfOperDown, Carrier: 0, MTU: 1500,
 				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "noqueue", TxQLen: 1000, Kind: "bridge",
+				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Kind: "bridge",
 			},
 		},
 		{
 			// ip_link_n:24 "59: ve-nordlayepDd-@if2" — kernel truncates the name
-			// at IFNAMSIZ, so the dump carries the truncated form, not the altname
-			// on ip_link_n:27.
-			description: "corner: long veth name truncated by the kernel, index 59",
+			// at IFNAMSIZ, so IFLA_IFNAME carries the truncated form.
+			// ip_link_n:27 "    altname ve-nordlayer-vpn"
+			//
+			// **The one message where both halves of the naming story are on the
+			// wire at once.** IFLA_IFNAME is 15 usable bytes plus a NUL, so
+			// "ve-nordlayer-vpn" (16) does not fit and the kernel hands back
+			// "ve-nordlayepDd-" — a truncation with a udev-style suffix, not a
+			// simple prefix. The full name survives as an IFLA_ALT_IFNAME, which
+			// is exactly the problem alternative names were added to solve, and
+			// this row is why AltNames has to be decoded rather than dismissed as
+			// an `ip -d` detail: without it the untruncated name is unrecoverable
+			// from the message.
+			description: "corner: long veth name truncated in IFNAME but intact in AltNames, index 59",
 			want: LinkInfo{
 				Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-", Type: 1,
 				OperState: IfOperUp, Carrier: 1, MTU: 1500,
 				Address:   []byte{0x66, 0xcf, 0x08, 0xaa, 0x09, 0xd9},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "noqueue", TxQLen: 1000, Kind: "veth",
+				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Kind: "veth",
 				Link: 2, LinkNetnsID: 2, HasLinkNetnsID: true,
+				AltNames: []string{"ve-nordlayer-vpn"},
 			},
 		},
 		{
@@ -242,7 +268,8 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Index: 161, Flags: 0x100c1, Name: "nlmon0", Type: 824,
 				OperState: IfOperUnknown, Carrier: 1, MTU: 3776,
 				Address: nil, Broadcast: nil,
-				Qdisc: "noqueue", TxQLen: 1000, Kind: "nlmon",
+				Qdisc: "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Kind: "nlmon",
 			},
 		},
 	}

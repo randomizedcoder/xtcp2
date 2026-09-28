@@ -1,0 +1,505 @@
+package nlparity
+
+// go test ./pkg/nlparity/ -run TestAllowlist
+//
+// The allowlist's own tests. Two tables and a census:
+//
+//   - TestAllowlistLoad validates the loader against constructed documents.
+//     Constructed is right here and not a fixture: every row is about a
+//     MALFORMED file, and a malformed file is not something a capture produces.
+//   - TestAllowlistSuppression is the one that matters. It asserts that the
+//     values-only rule holds for every unsuppressible class at a locus that IS
+//     allowlisted, which is the exact shape of the bug the rule exists to stop.
+//   - TestAllowlistCommitted censuses the committed file, so the two owed
+//     version-skew entries cannot be silently deleted or left without an
+//     ip_version.
+
+import (
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+)
+
+// doc builds an allowlist document from entries, so a row can state the one
+// field it is about instead of a whole JSON literal.
+func doc(t *testing.T, gated []string, entries ...Entry) []byte {
+	t.Helper()
+	if entries == nil {
+		entries = []Entry{}
+	}
+	if gated == nil {
+		gated = []string{}
+	}
+	b, err := json.Marshal(map[string]any{
+		"_comment":       []string{"test document"},
+		"entries":        entries,
+		"gated_commands": gated,
+	})
+	if err != nil {
+		t.Fatalf("doc: marshal: %v", err)
+	}
+	return b
+}
+
+// okEntry is a minimal valid entry; rows mutate one field of it.
+func okEntry() Entry {
+	return Entry{
+		Command: "link show",
+		Locus:   "request:RTM_GETLINK:IFLA_EXT_MASK",
+		Kind:    KindAcceptedDivergence,
+		Reason:  "a reason, which is mandatory",
+	}
+}
+
+func TestAllowlistLoad(t *testing.T) {
+	skew := func() Entry {
+		e := okEntry()
+		e.Kind = KindVersionSkew
+		e.IPVersion = "7.1.0"
+		return e
+	}
+
+	tests := []struct {
+		description string
+		input       []byte
+		wantErr     error
+		wantEntries int
+		wantGated   []string
+	}{
+		{
+			description: "positive: a valid document loads every entry and its gated list",
+			input: doc(t, []string{"link show"}, okEntry(), func() Entry {
+				e := okEntry()
+				e.Locus = "request:RTM_GETADDR:ifa_family"
+				return e
+			}()),
+			wantEntries: 2,
+			wantGated:   []string{"link show"},
+		},
+		{
+			description: "positive: a version-skew entry with an ip_version loads",
+			input:       doc(t, nil, skew()),
+			wantEntries: 1,
+		},
+		{
+			description: "negative: an unknown kind is refused rather than becoming a fifth category",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.Kind = "probably-fine"
+				return e
+			}()),
+			wantErr: ErrAllowlistBadKind,
+		},
+		{
+			description: "negative: an entry with no reason is a refusal to explain",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.Reason = ""
+				return e
+			}()),
+			wantErr: ErrAllowlistNoReason,
+		},
+		{
+			description: "negative: a version-skew entry with no ip_version cannot expire when the pin moves",
+			input: doc(t, nil, func() Entry {
+				e := skew()
+				e.IPVersion = ""
+				return e
+			}()),
+			wantErr: ErrAllowlistNoIPVersion,
+		},
+		{
+			description: "negative: an ip_version on a non-skew kind claims to be about a release and is not",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.IPVersion = "7.1.0"
+				return e
+			}()),
+			wantErr: ErrAllowlistIPVersionUnked,
+		},
+		{
+			description: "negative: an entry with no command matches every command or none, so it is refused",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.Command = ""
+				return e
+			}()),
+			wantErr: ErrAllowlistNoCommand,
+		},
+		{
+			description: "negative: an entry with no locus would suppress a whole command",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.Locus = ""
+				return e
+			}()),
+			wantErr: ErrAllowlistNoLocus,
+		},
+		{
+			description: "negative: a document that is not JSON at all",
+			input:       []byte("{entries: [] }"),
+			wantErr:     ErrAllowlistBadJSON,
+		},
+		{
+			description: "boundary: empty entries and empty gated_commands are valid - it is the honest starting state",
+			input:       doc(t, nil),
+			wantEntries: 0,
+			wantGated:   nil,
+		},
+		{
+			description: "boundary: an entry whose reason is a single space is present, so it loads",
+			input: doc(t, nil, func() Entry {
+				e := okEntry()
+				e.Reason = " "
+				return e
+			}()),
+			wantEntries: 1,
+		},
+		{
+			description: "boundary: a gated command with no entries is the goal state, not an error",
+			input:       doc(t, []string{"link show"}),
+			wantEntries: 0,
+			wantGated:   []string{"link show"},
+		},
+		{
+			description: "corner: two entries sharing a locus are ambiguous precedence, so the load fails",
+			input:       doc(t, nil, okEntry(), okEntry()),
+			wantErr:     ErrAllowlistDuplicate,
+		},
+		{
+			description: "corner: the same locus under a DIFFERENT command is not a duplicate",
+			input: doc(t, nil, okEntry(), func() Entry {
+				e := okEntry()
+				e.Command = "addr show"
+				return e
+			}()),
+			wantEntries: 2,
+		},
+		{
+			description: "corner: the duplicate check sees past a command/locus split, so \"a\"+\"bc\" != \"ab\"+\"c\"",
+			input: doc(t, nil, Entry{Command: "a", Locus: "bc", Kind: KindSideSocket, Reason: "r"},
+				Entry{Command: "ab", Locus: "c", Kind: KindSideSocket, Reason: "r"}),
+			wantEntries: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := LoadAllowlist(tc.input)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want errors.Is(_, %v)", err, tc.wantErr)
+				}
+				if got != nil {
+					t.Fatalf("got a non-nil Allowlist alongside an error; there is no partially-valid result")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got.Entries) != tc.wantEntries {
+				t.Fatalf("len(Entries) = %d, want %d", len(got.Entries), tc.wantEntries)
+			}
+			for _, c := range tc.wantGated {
+				if !got.IsGated(c) {
+					t.Fatalf("IsGated(%q) = false, want true", c)
+				}
+			}
+			if len(tc.wantGated) == 0 && len(got.GatedCommands) != 0 {
+				t.Fatalf("GatedCommands = %v, want empty", got.GatedCommands)
+			}
+		})
+	}
+}
+
+func TestAllowlistSuppression(t *testing.T) {
+	// One entry, and every row below asks about THAT locus. A row that expects
+	// no suppression is therefore asserting the rule, not a missing entry.
+	const cmd = "link show"
+	const locus = "reply:RTM_NEWLINK:ifindex=2:IFLA_QDISC"
+	a, err := LoadAllowlist(doc(t, []string{cmd}, Entry{
+		Command: cmd,
+		Locus:   locus,
+		Kind:    KindVolatileFallback,
+		Reason:  "the qdisc name moved between the two control captures",
+	}))
+	if err != nil {
+		t.Fatalf("LoadAllowlist: %v", err)
+	}
+
+	tests := []struct {
+		description string
+		command     string
+		locus       string
+		class       DivergenceClass
+		want        bool
+	}{
+		{
+			description: "positive: a value divergence at an allowlisted locus is suppressed",
+			command:     cmd, locus: locus, class: DivergenceValue, want: true,
+		},
+		{
+			description: "positive: the same locus is suppressed for a volatile-fallback entry, so the kind does not change the values-only rule",
+			command:     cmd, locus: locus, class: DivergenceValue, want: true,
+		},
+		{
+			description: "negative: a PRESENCE divergence at the same locus is still reported - the whole rule",
+			command:     cmd, locus: locus, class: DivergencePresence, want: false,
+		},
+		{
+			description: "negative: a transaction-count divergence is never suppressible",
+			command:     cmd, locus: locus, class: DivergenceTransactionCount, want: false,
+		},
+		{
+			description: "negative: a key-set divergence is never suppressible",
+			command:     cmd, locus: locus, class: DivergenceKeySet, want: false,
+		},
+		{
+			description: "negative: a key-order divergence is never suppressible",
+			command:     cmd, locus: locus, class: DivergenceKeyOrder, want: false,
+		},
+		{
+			description: "negative: an attribute-order divergence is never suppressible",
+			command:     cmd, locus: locus, class: DivergenceAttrOrder, want: false,
+		},
+		{
+			description: "negative: a value divergence at an UNLISTED locus is reported",
+			command:     cmd, locus: "reply:RTM_NEWLINK:ifindex=3:IFLA_QDISC", class: DivergenceValue, want: false,
+		},
+		{
+			description: "boundary: the same locus under a different command does not match",
+			command:     "addr show", locus: locus, class: DivergenceValue, want: false,
+		},
+		{
+			description: "boundary: an empty command and locus match nothing, since neither can be stored",
+			command:     "", locus: "", class: DivergenceValue, want: false,
+		},
+		{
+			description: "corner: a class value outside the declared set is unsuppressible, not silently a value",
+			command:     cmd, locus: locus, class: DivergenceClass(200), want: false,
+		},
+		{
+			description: "corner: a locus that is a PREFIX of the entry's does not match, so a divergence that moves goes red",
+			command:     cmd, locus: "reply:RTM_NEWLINK:ifindex=2", class: DivergenceValue, want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := a.Suppresses(tc.command, tc.locus, tc.class); got != tc.want {
+				t.Fatalf("Suppresses(%q, %q, %s) = %v, want %v",
+					tc.command, tc.locus, tc.class, got, tc.want)
+			}
+			// The entry is a fact about the file; suppression is a decision
+			// about a finding. Asserting both on the same row is what documents
+			// that they are different questions.
+			_, found := a.Lookup(tc.command, tc.locus)
+			wantFound := tc.command == cmd && tc.locus == locus
+			if found != wantFound {
+				t.Fatalf("Lookup(%q, %q) found = %v, want %v", tc.command, tc.locus, found, wantFound)
+			}
+		})
+	}
+}
+
+func TestAllowlistCommitted(t *testing.T) {
+	a, err := EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+
+	// The owed skews, by the commit each entry's reason must cite.
+	//
+	// Keyed by command AND locus, which is what Entry.key() is keyed on. It
+	// used to be keyed by locus alone, and that stopped working the moment
+	// faceb326's two entries were repointed to the locus a comparator
+	// actually derives: they are `stdout:keyword:qlen` on two different
+	// commands now, so a locus-keyed map would have silently held one of them.
+	//
+	// None of these four loci is prose, and that is the property being
+	// checked. The request loci end in `dump` and `get` rather than in
+	// `ll_init_map` and `ll_link_get`, because a locus must be spelled the way
+	// the differ DERIVES it — see requestRole in nlparity_diff.go. The stdout
+	// loci are `stdout:keyword:qlen` rather than a description of the cause,
+	// because internal/goipparity's StdoutLoci() is a closed set and that is
+	// the member of it this skew lands on. In both cases the iproute2 call
+	// site and the mechanism live in the reason, where prose belongs, and an
+	// entry whose locus is prose is an entry that matches nothing.
+	wantSkew := []struct{ command, locus, commit string }{
+		{"neigh show", "request:RTM_GETLINK:IFLA_EXT_MASK:dump", "de91e928"},
+		{"link show dev", "request:RTM_GETLINK:IFLA_EXT_MASK:get", "de91e928"},
+		{"link show", "stdout:keyword:qlen", "faceb326"},
+		{"-6 addr show", "stdout:keyword:qlen", "faceb326"},
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T, a *Allowlist)
+	}{
+		{
+			description: "positive: the committed file loads, so every validation rule holds on it",
+			check: func(t *testing.T, a *Allowlist) {
+				if len(a.Entries) == 0 {
+					t.Fatalf("no entries; the two owed version-skew entries should be here")
+				}
+			},
+		},
+		{
+			description: "positive: both owed skews are present, at all four command/locus pairs",
+			check: func(t *testing.T, a *Allowlist) {
+				for _, w := range wantSkew {
+					e, ok := a.Lookup(w.command, w.locus)
+					if !ok {
+						t.Fatalf("no entry for command %q at locus %q", w.command, w.locus)
+					}
+					if e.Kind != KindVersionSkew {
+						t.Fatalf("%q/%q kind = %q, want %q",
+							w.command, w.locus, e.Kind, KindVersionSkew)
+					}
+					if !strings.Contains(e.Reason, w.commit) {
+						t.Fatalf("%q/%q reason does not cite %s",
+							w.command, w.locus, w.commit)
+					}
+				}
+			},
+		},
+		{
+			// MEASURED: the two ll_map loci do not hold the same pinned value.
+			// ll_link_get is already RTEXT_FILTER_VF|SKIP_STATS = 0x09 at
+			// 7.1.0, but ll_init_map calls rtnl_linkdump_req(rth, AF_UNSPEC),
+			// which forwards RTEXT_FILTER_VF alone — netlink_route_getneigh.pcap
+			// records 01000000 on the wire. So 7bd7f335 moves the dump locus
+			// 0x01 -> 0x09 and does not touch the single-get, and only the dump
+			// entry may cite it. This row is what stops the two reasons from
+			// being copies of each other.
+			description: "positive: the two ll_map loci hold different pinned values, 0x01 and 0x09",
+			check: func(t *testing.T, a *Allowlist) {
+				dump, ok := findByLocus(a, "request:RTM_GETLINK:IFLA_EXT_MASK:dump")
+				if !ok {
+					t.Fatal("no entry at the dump locus")
+				}
+				get, ok := findByLocus(a, "request:RTM_GETLINK:IFLA_EXT_MASK:get")
+				if !ok {
+					t.Fatal("no entry at the get locus")
+				}
+				if !strings.Contains(dump.Reason, "7bd7f335") {
+					t.Error("the dump entry does not cite 7bd7f335, the commit that takes its mask 0x01 -> 0x09")
+				}
+				if !strings.Contains(dump.Reason, "0x01") {
+					t.Error("the dump entry does not state its pinned value of 0x01; " +
+						"extrapolating link show's 0x09 to ll_init_map is the error this row exists to prevent")
+				}
+				// The get entry is only required to state its own pinned
+				// value. It is deliberately NOT asserted to omit 7bd7f335 or
+				// 0x01: both reasons contrast the two loci on purpose, and a
+				// grep over prose would be a test of wording rather than of
+				// fact. What is a fact is the value each locus carries.
+				if !strings.Contains(get.Reason, "0x09") {
+					t.Error("the get entry does not state its pinned value of 0x09")
+				}
+			},
+		},
+		{
+			// The count is of entries, and it used to be described as a count
+			// of loci — true when the two were spelled apart by prose, and
+			// false once both were repointed to `stdout:keyword:qlen`, the
+			// locus the stdout comparator actually derives. They are two
+			// entries because faceb326 has two halves that land on two
+			// different COMMANDS, which is what Entry.key() distinguishes;
+			// the assertion was always on the entry count and now says so.
+			description: "boundary: faceb326 has exactly two entries, which is the measured fact one would hide",
+			check: func(t *testing.T, a *Allowlist) {
+				n := 0
+				for i := range a.Entries {
+					if strings.Contains(a.Entries[i].Reason, "faceb326") {
+						n++
+					}
+				}
+				if n != 2 {
+					t.Fatalf("entries citing faceb326 = %d, want 2", n)
+				}
+			},
+		},
+		{
+			description: "boundary: every version-skew entry names the pinned release, so it expires when the pin moves",
+			check: func(t *testing.T, a *Allowlist) {
+				for i := range a.Entries {
+					if a.Entries[i].Kind == KindVersionSkew && a.Entries[i].IPVersion != "7.1.0" {
+						t.Fatalf("entry %q ip_version = %q, want the pinned 7.1.0",
+							a.Entries[i].Locus, a.Entries[i].IPVersion)
+					}
+				}
+			},
+		},
+		{
+			description: "negative: gated_commands is empty, because the comparator's tiers do not exist yet",
+			check: func(t *testing.T, a *Allowlist) {
+				if len(a.GatedCommands) != 0 {
+					t.Fatalf("GatedCommands = %v; a command may not be gated before its tier is built",
+						a.GatedCommands)
+				}
+			},
+		},
+		{
+			description: "negative: nothing in the committed file suppresses a presence divergence",
+			check: func(t *testing.T, a *Allowlist) {
+				for i := range a.Entries {
+					e := a.Entries[i]
+					if a.Suppresses(e.Command, e.Locus, DivergencePresence) {
+						t.Fatalf("entry %q suppresses a presence divergence", e.Locus)
+					}
+				}
+			},
+		},
+		{
+			description: "negative: no committed entry is a volatile-fallback, since each one would be an open bug against D_control",
+			check: func(t *testing.T, a *Allowlist) {
+				for i := range a.Entries {
+					if a.Entries[i].Kind == KindVolatileFallback {
+						t.Fatalf("entry %q is a volatile-fallback; each is a bug report, not a resting place",
+							a.Entries[i].Locus)
+					}
+				}
+			},
+		},
+		{
+			description: "corner: the file's _comment header survives loading, so a rewrite cannot drop it",
+			check: func(t *testing.T, a *Allowlist) {
+				if len(a.Comment) == 0 {
+					t.Fatalf("_comment is empty; the rationale header is part of the file")
+				}
+			},
+		},
+		{
+			description: "corner: EntriesFor groups the two de91e928 loci under their two different commands",
+			check: func(t *testing.T, a *Allowlist) {
+				for _, cmd := range []string{"neigh show", "link show dev"} {
+					if got := len(a.EntriesFor(cmd)); got != 1 {
+						t.Fatalf("EntriesFor(%q) = %d entries, want 1", cmd, got)
+					}
+				}
+				if got := len(a.EntriesFor("no such command")); got != 0 {
+					t.Fatalf("EntriesFor(unknown) = %d, want 0", got)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) { tc.check(t, a) })
+	}
+}
+
+// findByLocus searches on locus alone, which Lookup deliberately cannot do:
+// the comparator always knows its command, and a locus-only lookup would be a
+// way to accidentally suppress across commands.
+func findByLocus(a *Allowlist, locus string) (Entry, bool) {
+	for i := range a.Entries {
+		if a.Entries[i].Locus == locus {
+			return a.Entries[i], true
+		}
+	}
+	return Entry{}, false
+}

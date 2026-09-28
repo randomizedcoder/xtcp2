@@ -44,6 +44,12 @@ let
   constants = import ./constants.nix;
   cfg = constants.architectures.${arch};
 
+  # Guest-side mechanism for the netlink-dump-capture flavor: one helper the
+  # host driver invokes a subcommand at a time over the serial console. Built
+  # unconditionally (it is a cheap shell wrapper) but only put on the guest's
+  # PATH by that flavor - see environment.systemPackages below.
+  netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
   isSoak = sink == "soak";
@@ -212,9 +218,41 @@ let
   # that. A guest we control is quiet, so the events we trigger are the events
   # we capture. It also needs no sudo.
   #
-  # Both harnesses stay: the host one captures DUMPS (RTM_GET* replies), this
-  # one captures EVENTS. See docs/netlink/collection.md.
+  # This flavor captures EVENTS. Its sibling below captures DUMPS. They used
+  # to be split guest-vs-host, which is no longer true - see
+  # isNetlinkDumpCapture and docs/netlink/collection.md.
   isNlmonCapture = sink == "nlmon-capture";
+  # netlink-dump-capture = a root VM whose only job is to record RTM_GET*
+  # DUMP requests and their replies into pcaps, with the `ip -d` / `ip -j`
+  # sidecars that are those fixtures' source of truth, then base64 the lot out
+  # over the serial console and power off.
+  #
+  # Why this replaced the host script (nix/capture-netlink-fixtures.nix) as
+  # the fixture source, rather than sitting alongside it:
+  #
+  #   - The reply side used to be a property of whoever ran the script. The
+  #     committed netlink_route_getaddr.pcap carries SIX distinct portids and
+  #     24 stray multicast notifications, because a workstation has other
+  #     things running; the latter would fail the parity comparator's own
+  #     capture-hygiene rule. In here the interface set is the one the driver
+  #     built.
+  #   - Feature coverage stopped depending on the host having the feature. An
+  #     ECMP route, an RFC 5549 IPv4-via-IPv6 route and a route carrying
+  #     RTA_METRICS all exist because the driver created them, so
+  #     RTA_MULTIPATH / RTA_VIA / RTA_METRICS get REAL captured positives
+  #     instead of hand-written bytes.
+  #   - The iproute2 pin became enforced instead of coincidental. The `ip`
+  #     doing the asking is `pkgs.iproute2` from this flake's lock, so the
+  #     ip_version sidecar and nix/upstream-pins.json's iproute2 entry cannot
+  #     disagree. On the host they agreed only because the operator happened
+  #     to run the same nixpkgs.
+  #   - No sudo.
+  #
+  # Unlike nlmon-capture, the sequence is NOT baked in as a systemd oneshot:
+  # the host drives it over the console with expect, so the capture set can be
+  # changed without rebuilding the VM. See nix/microvms/netlink-capture.nix
+  # (mechanism) and scripts/capture-netlink-dumps.exp (policy).
+  isNetlinkDumpCapture = sink == "netlink-dump-capture";
   # valkey = a native in-VM Valkey (Redis-protocol) server + a pre-subscribed
   # consumer; xtcp2 PUBLISHes each record to the pub/sub channel and the
   # self-test proves records flow through end-to-end. No docker, no persistence;
@@ -2673,13 +2711,18 @@ in
 
         # The reason we're here: xtcp2 as a systemd unit.
         #
-        # Except on nlmon-capture, where the daemon is the problem: it polls
-        # RTM_GETLINK/GETADDR/GETROUTE on a timer, nlmon mirrors every one of
-        # those datagrams, and the handful of events we trigger would be lost
-        # in the dump traffic. That flavor's VM runs the capture and nothing
-        # else.
+        # Except on the two capture flavors, where the daemon is the problem:
+        # it polls RTM_GETLINK/GETADDR/GETROUTE on a timer, nlmon mirrors
+        # every one of those datagrams, and what we are trying to record would
+        # be lost in the daemon's own dump traffic. Those VMs run the capture
+        # and nothing else.
+        #
+        # netlink-dump-capture takes its captures inside throwaway namespaces,
+        # so a per-netns tap would not see the daemon anyway. It is disabled
+        # regardless: a quiet guest boots faster, and the isolation should be
+        # the second line of defense rather than the only one.
         services.xtcp2 = {
-          enable = !isNlmonCapture;
+          enable = !(isNlmonCapture || isNetlinkDumpCapture);
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
@@ -2832,10 +2875,11 @@ in
         # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
         # boot or via a systemd.path gate. Skipped on long-running flavors
         # (soak / s3parquet-long), which run heartbeat services instead, and
-        # on nlmon-capture, which has no xtcp2 to test and whose whole point
-        # is a netlink-silent guest.
+        # on both capture flavors, which have no xtcp2 to test and whose whole
+        # point is a netlink-silent guest.
         systemd.services.xtcp2-self-test =
-          lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNlmonCapture)
+          lib.mkIf
+            (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNlmonCapture && !isNetlinkDumpCapture)
             {
               description = "xtcp2 microvm self-test";
               after = [
@@ -3600,15 +3644,23 @@ in
           };
         };
 
-        # nlmon-capture flavor: the nlmon monitor device and the veth/dummy
-        # links the capture script drives are all kernel modules that a minimal
-        # microvm does not autoload. Name them so the initrd/boot pulls them in
-        # rather than relying on `modprobe` finding them at runtime.
-        boot.kernelModules = lib.mkIf isNlmonCapture [
-          "nlmon"
-          "veth"
-          "dummy"
-        ];
+        # Both capture flavors: the nlmon monitor device and the
+        # veth/dummy/bridge links the capture scripts drive are all kernel
+        # modules that a minimal microvm does not autoload. Name them so the
+        # initrd/boot pulls them in rather than relying on `modprobe` finding
+        # them at runtime.
+        #
+        # netlink-dump-capture additionally needs `bridge`, for the advisory
+        # mesh namespace - a bridge with an enslaved veth is the only way to
+        # get real IFLA_MASTER and IFLA_LINKINFO{bridge} replies.
+        boot.kernelModules = lib.mkIf (isNlmonCapture || isNetlinkDumpCapture) (
+          [
+            "nlmon"
+            "veth"
+            "dummy"
+          ]
+          ++ lib.optional isNetlinkDumpCapture "bridge"
+        );
 
         # nlmon-capture flavor: trigger a scripted sequence of real kernel
         # network events on boot, capture them off an nlmon device, emit the
@@ -3664,6 +3716,19 @@ in
               gzip
               gnutar
             ]
+          )
+          # netlink-dump-capture needs the same exfil tools, plus the helper
+          # itself: the driver's first act is `command -v xtcp2-nlcap`, and it
+          # aborts naming this entry if the helper is not here. iproute2 and
+          # tcpdump are already in the base set above, but the helper carries
+          # its own runtimeInputs anyway so it does not depend on that.
+          ++ lib.optionals isNetlinkDumpCapture (
+            (with pkgs; [
+              kmod
+              gzip
+              gnutar
+            ])
+            ++ [ netlinkCaptureHelper ]
           )
           ++ [ xtcp2AllPackage ];
       }

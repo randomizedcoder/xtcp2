@@ -1,0 +1,10 @@
+unicast 198.19.0.0/24 dev br0 table main proto kernel scope link src 198.19.0.1 linkdown 
+unicast 198.19.1.0/24 dev br0 table main proto boot scope link linkdown 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 198.19.0.1 dev br0 table local proto kernel scope host src 198.19.0.1 
+broadcast 198.19.0.255 dev br0 table local proto kernel scope link src 198.19.0.1 linkdown 
+unicast 2001:db8:ff::/64 dev br0 table main proto kernel scope global metric 256 linkdown pref medium
+local ::1 dev lo table local proto kernel scope global metric 0 pref medium
+local 2001:db8:ff::1 dev br0 table local proto kernel scope global metric 0 pref medium

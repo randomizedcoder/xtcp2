@@ -121,9 +121,36 @@ type LinkInfo struct {
 	Master         int32  // IFLA_MASTER — enslaving interface index; 0 if absent
 	LinkNetnsID    int32  // IFLA_LINK_NETNSID; only meaningful with HasLinkNetnsID
 	HasLinkNetnsID bool   // IFLA_LINK_NETNSID present (the value may be -1)
-	TxQLen         uint32 // IFLA_TXQLEN
-	Group          uint32 // IFLA_GROUP
 	LinkMode       uint8  // IFLA_LINKMODE — IF_LINK_MODE_DEFAULT / _DORMANT
+
+	// TxQLen/Group carry presence flags because zero is a legal value for
+	// both and "absent" renders differently from "zero".
+	//
+	// Three of the eleven links in the committed dump carry IFLA_TXQLEN with
+	// value 0 (docker0, br-3a5828b2963a, veth179a698) while a whole class of
+	// reply carries no IFLA_TXQLEN at all: an RTM_GETLINK dump whose
+	// ifi_family is AF_INET6 is answered by the kernel's inet6_dump_ifinfo
+	// (net/ipv6/addrconf.c) rather than rtnl_dump_ifinfo, and that function
+	// emits only IFLA_IFNAME, IFLA_ADDRESS, IFLA_MTU, IFLA_LINK,
+	// IFLA_OPERSTATE and IFLA_PROTINFO. Measured, not inferred: the 11 link
+	// replies to `ip -6 addr show` in netlink_route_getaddr.pcap carry six
+	// attribute types against the AF_INET run's forty-six.
+	//
+	// iproute2 distinguishes the two cases by testing tb[IFLA_TXQLEN] and
+	// tb[IFLA_GROUP] for presence (ip/ipaddress.c:1045,1155), so a decoder
+	// that collapses absent to zero cannot render either command correctly.
+	TxQLen    uint32 // IFLA_TXQLEN; only meaningful with HasTxQLen
+	HasTxQLen bool   // IFLA_TXQLEN present (the value may be 0)
+	Group     uint32 // IFLA_GROUP; only meaningful with HasGroup
+	HasGroup  bool   // IFLA_GROUP present (the value may be 0)
+
+	// AltNames are the IFLA_ALT_IFNAME entries inside IFLA_PROP_LIST, in wire
+	// order — `ip`'s "altname" continuation lines. nil when the link has none,
+	// which is the common case: 4 of the 11 links in the committed dump carry
+	// one. Unlike every other field here this is a slice, because a link may
+	// hold several alternative names and iproute2 prints one line per name
+	// rather than picking one.
+	AltNames []string
 }
 
 // HWAddr returns the hardware address as `ip` prints it — colon-separated lower
@@ -251,6 +278,7 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		case uint16(unix.IFLA_TXQLEN):
 			if len(val) >= 4 {
 				li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
+				li.HasTxQLen = true
 			}
 		case uint16(unix.IFLA_LINKMODE):
 			if len(val) >= 1 {
@@ -259,6 +287,7 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		case uint16(unix.IFLA_GROUP):
 			if len(val) >= 4 {
 				li.Group = binary.LittleEndian.Uint32(val[0:4])
+				li.HasGroup = true
 			}
 		case uint16(unix.IFLA_LINK):
 			if len(val) >= 4 {
@@ -275,6 +304,8 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 			}
 		case uint16(unix.IFLA_LINKINFO):
 			li.Kind = linkInfoKind(val)
+		case uint16(unix.IFLA_PROP_LIST):
+			li.AltNames = linkAltNames(val)
 		}
 	})
 	if err != nil {
@@ -298,10 +329,67 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 // for a renderer.
 func linkInfoKind(val []byte) string {
 	var kind string
-	_ = WalkRTAttrsNested(val, func(atype uint16, inner []byte) {
+	walkNestTolerant(val, func(atype uint16, inner []byte) {
 		if atype == uint16(unix.IFLA_INFO_KIND) && kind == "" {
 			kind = string(bytes.TrimRight(inner, "\x00"))
 		}
 	})
 	return kind
+}
+
+// walkNestTolerant walks a nested attribute stream and keeps whatever fn
+// collected before a malformed attribute, instead of reporting the error.
+//
+// It exists so that the tolerance is stated once, in a signature, rather than
+// as a bare `_ =` at each call site: a discarded error reads identically
+// whether it was considered or overlooked, and this package has both kinds.
+// ParseNewRoute is the contrast - it parks a nested error and returns it,
+// because a truncated RTA_MULTIPATH changes what the route MEANS. The nests
+// below are decorative by comparison: losing an altname or a device kind costs
+// a renderer one line, and dropping the whole link to report it costs more.
+func walkNestTolerant(val []byte, fn func(atype uint16, val []byte)) {
+	if err := WalkRTAttrsNested(val, fn); err != nil {
+		return
+	}
+}
+
+// linkAltNames descends IFLA_PROP_LIST and returns every IFLA_ALT_IFNAME in
+// it, in wire order — the alternative interface names `ip` prints as one
+// "altname <name>" continuation line each.
+//
+// # Why first-wins does NOT apply inside this nest
+//
+// Everywhere else in this package a repeated attribute type takes the first
+// occurrence, because that is what iproute2's parse_rtattr does
+// (lib/libnetlink.c:1554). IFLA_PROP_LIST is the exception, and the exception
+// is in iproute2 too: ipaddress.c:1318-1330 walks the nest with a bare
+// RTA_NEXT loop and prints *every* IFLA_ALT_IFNAME it finds rather than
+// building a tb[] table. A link may legitimately carry several alternative
+// names, so collapsing them to the first would drop output rather than
+// deduplicate it.
+//
+// # Why this is not an `ip -d` detail
+//
+// It looks like one, because the committed sidecar was captured with `ip -d`
+// and the altname lines sit among the detail attributes. They are not: the
+// IFLA_PROP_LIST block sits *outside* print_linkinfo's `if (show_details)`
+// guard, so a plain `ip link show` prints altnames too. Four of the eleven
+// links in the committed dump carry one — enp1s0, both enp35s0f* ports and
+// one veth — so a renderer that skips them is four lines short on this
+// fixture.
+//
+// Non-nested short reads are tolerated the same way linkInfoKind tolerates
+// them, and an entry of any type other than IFLA_ALT_IFNAME is ignored: the
+// kernel is free to add siblings to this nest.
+func linkAltNames(val []byte) []string {
+	var names []string
+	walkNestTolerant(val, func(atype uint16, inner []byte) {
+		if atype != uint16(unix.IFLA_ALT_IFNAME) {
+			return
+		}
+		if n := string(bytes.TrimRight(inner, "\x00")); n != "" {
+			names = append(names, n)
+		}
+	})
+	return names
 }

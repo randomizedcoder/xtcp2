@@ -1,0 +1,230 @@
+package goip
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
+)
+
+// runAddress handles `ip address ...`. Only the show verbs are implemented.
+//
+// iproute2's verb list for this object is longer than link's and, because
+// every entry goes through matches(), the abbreviations interact. do_ipaddr
+// tests in this order: add, change (plus the exact-match alias "chg"),
+// replace, delete, list|show|lst, flush, save, showdump, restore, help.
+//
+// So `ip a s` is **show**, because show is tested before save; `ip a sa` is
+// **save**, because "sa" is not a prefix of "show"; and `ip a r` is
+// **replace**, not restore. goip resolves the first of those the same way and
+// refuses the other two, which is the useful distinction: an argument that
+// means a write in `ip` must not mean a read in goip.
+//
+// The five write verbs are named rather than left to the default so the
+// refusal says why. The default arm covers save/showdump/restore, which are
+// read-only but out of scope.
+func runAddress(c *runCtx, args []string) error {
+	if len(args) == 0 {
+		return addrShow(c, nil)
+	}
+	verb := args[0]
+	switch {
+	case matchesPrefix(verb, "show"), matchesPrefix(verb, "lst"), matchesPrefix(verb, "list"):
+		return addrShow(c, args[1:])
+	case matchesPrefix(verb, "add"), matchesPrefix(verb, "change"),
+		matchesPrefix(verb, "replace"), matchesPrefix(verb, "delete"),
+		matchesPrefix(verb, "flush"):
+		// Named explicitly, and refused for a stronger reason than "not
+		// written yet": pkg/xtcpnl.BuildRequest rejects every msgType
+		// outside RTM_GET*, so there is no code path from here to an
+		// RTM_NEWADDR even if a future edit wired one up.
+		return fmt.Errorf("address %q: goip is read-only: %w", verb, ErrNotImplemented)
+	default:
+		return fmt.Errorf("address %q: %w", verb, ErrNotImplemented)
+	}
+}
+
+// addrShow runs the two dumps and renders them.
+//
+// # Two transactions, in this order, and the order is the assertion
+//
+// This is the first command in goip that sends more than one request, which
+// makes it the first real test of the parity harness's L1 finding — positional
+// transaction count. iproute2 sends the link dump first
+// (`ip_link_list`, ip/ipaddress.c:2306) and the address dump second
+// (`ip_addr_list`, :2314), and it needs both: the output is a loop over
+// *links*, with each link's addresses filtered out of the address list
+// (:2320-2334). A goip that dumped addresses only, or that dumped them in the
+// other order, would produce plausible output and diverge on the wire.
+//
+// The second dump is skipped entirely when the family is AF_PACKET (:2310).
+// goip has no `-0` option so that is unreachable here, and the condition is
+// written anyway rather than assumed — see the family argument threading
+// through req.AddrShowLinkDump, where AF_PACKET selects a different request
+// shape too.
+//
+// # Why the index cache is filled between the dumps and not after
+//
+// Same reason as link show: rendering `master br0` resolves an index, and an
+// unresolved index sends iproute2 off to do a live single-get. Filling from
+// the link dump's own replies means the cache is complete before any
+// rendering, so goip emits exactly the two transactions and no side traffic.
+// Here it matters more than for link show, because the address dump arrives
+// between the fill and the render and it would be easy to render as replies
+// are decoded.
+//
+// Filtering arguments (`dev X`, `scope S`, `to PREFIX`, `up`, `label L`,
+// `master M`, `primary`, `secondary`, `tentative`, `deprecated`, `dynamic`,
+// `permanent`) are rejected rather than ignored, for the reason linkShow
+// gives: `dev X` changes the request, and answering a filtered query with an
+// unfiltered dump is a wrong answer rather than a missing feature.
+func addrShow(c *runCtx, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("address show %q: %w", args[0], ErrNotImplemented)
+	}
+
+	linkReq, err := req.AddrShowLinkDump(c.family, c.nextSeq())
+	if err != nil {
+		return fmt.Errorf("goip: build addr link dump request: %w", err)
+	}
+	linkBodies, err := c.src.Dump(linkReq, uint16(unix.RTM_NEWLINK))
+	if err != nil {
+		return err
+	}
+	links := make([]xtcpnl.LinkInfo, 0, len(linkBodies))
+	for _, body := range linkBodies {
+		li, perr := xtcpnl.ParseNewLink(body)
+		if perr != nil {
+			return fmt.Errorf("goip: decode RTM_NEWLINK: %w", perr)
+		}
+		links = append(links, li)
+	}
+	c.lltab.Fill(links)
+
+	var addrs []xtcpnl.AddrInfo
+	if c.family != unix.AF_PACKET {
+		addrBodies, aerr := c.src.Dump(req.AddrShowDump(c.family, c.nextSeq()), uint16(unix.RTM_NEWADDR))
+		if aerr != nil {
+			return aerr
+		}
+		addrs = make([]xtcpnl.AddrInfo, 0, len(addrBodies))
+		for _, body := range addrBodies {
+			ai, perr := xtcpnl.ParseNewAddr(body)
+			if perr != nil {
+				return fmt.Errorf("goip: decode RTM_NEWADDR: %w", perr)
+			}
+			addrs = append(addrs, ai)
+		}
+		links = filterLinksWithAddrs(links, addrs, c.family)
+	}
+
+	// Both of these loops, and the two in filterLinksWithAddrs below, range by
+	// index rather than by value. LinkInfo is 176 bytes and AddrInfo 128, and an
+	// AF_UNSPEC `addr show` runs the inner loop len(links) x len(addrs) times —
+	// so the value form copies both structs on every one of those iterations to
+	// read two integer fields off each.
+	groups := make([]render.AddrGroupView, 0, len(links))
+	for i := range links {
+		g := render.AddrGroupView{
+			LinkView: render.LinkViewForAddr(links[i], c.lltab, c.family),
+			// Non-nil so the JSON is `"addr_info": []` rather than null for a
+			// link with no addresses. iproute2 opens the array
+			// unconditionally (open_json_array at the top of
+			// print_selected_addrinfo), so an empty array is what `ip -j`
+			// emits and null would be a key-shape divergence.
+			AddrInfo: []render.AddrView{},
+		}
+		for j := range addrs {
+			if !addrBelongsTo(&addrs[j], &links[i], c.family) {
+				continue
+			}
+			g.AddrInfo = append(g.AddrInfo, render.AddrViewOf(addrs[j]))
+		}
+		groups = append(groups, g)
+	}
+
+	if c.json {
+		return json.NewEncoder(c.out).Encode(groups)
+	}
+	for i := range groups {
+		if _, werr := fmt.Fprint(c.out, groups[i].Text()); werr != nil {
+			return werr
+		}
+	}
+	return nil
+}
+
+// addrBelongsTo is print_selected_addrinfo's per-address test
+// (ip/ipaddress.c:1712-1727), minus the `up`/`down` filters goip does not
+// implement: the ifindex must match and, when a family was requested, so must
+// the family.
+//
+// The family test is not redundant with the request's ifa_family even though
+// the kernel honors that too. `ip` applies it again on the reply, and it has
+// to: the same list is walked once per link, and an AF_UNSPEC dump legitimately
+// mixes families.
+//
+// Takes pointers because its caller is the inner loop of a len(links) x
+// len(addrs) walk and this reads three integer fields; by value it would copy
+// 304 bytes per call to do that.
+func addrBelongsTo(ai *xtcpnl.AddrInfo, li *xtcpnl.LinkInfo, family uint8) bool {
+	if int32(ai.Index) != li.Index {
+		return false
+	}
+	return family == unix.AF_UNSPEC || family == ai.Family
+}
+
+// filterLinksWithAddrs is ipaddr_filter (ip/ipaddress.c:2200-2250): drop every
+// link that has no address matching the filter, then put back the links that
+// have no addresses *at all* when no family was asked for.
+//
+// # The two-variable condition is the whole function, and it is easy to get wrong
+//
+// iproute2 tracks `ok` and `missing_net_address` separately:
+//
+//	if (missing_net_address &&
+//	    (filter.family == AF_UNSPEC || filter.family == AF_PACKET))
+//		ok = 1;
+//
+// `missing_net_address` is cleared by an address with a *matching ifindex*,
+// before the family test, so it means "this link has no addresses of any
+// family" and not "none that matched". The consequences on the committed
+// fixture, all three of them real:
+//
+//   - nlmon0 has no addresses at all, so plain `addr show` prints it (with no
+//     address lines) and `-4 addr show` and `-6 addr show` both drop it.
+//   - veth179a698 has one IPv6 address and no IPv4 one, so `-4 addr show`
+//     drops it — `missing_net_address` is 0, so the rescue does not apply.
+//   - lo has both, so it survives every filter.
+//
+// Collapsing the two flags into one produces a goip that prints eleven stanzas
+// for `-4 addr show` where `ip` prints nine, which is the kind of divergence
+// the harness's line-count assertion is for.
+func filterLinksWithAddrs(links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo, family uint8) []xtcpnl.LinkInfo {
+	out := make([]xtcpnl.LinkInfo, 0, len(links))
+	for i := range links {
+		ok := false
+		missingNetAddress := true
+		for j := range addrs {
+			if int32(addrs[j].Index) != links[i].Index {
+				continue
+			}
+			missingNetAddress = false
+			if family != unix.AF_UNSPEC && family != addrs[j].Family {
+				continue
+			}
+			ok = true
+			break
+		}
+		if missingNetAddress && (family == unix.AF_UNSPEC || family == unix.AF_PACKET) {
+			ok = true
+		}
+		if ok {
+			out = append(out, links[i])
+		}
+	}
+	return out
+}

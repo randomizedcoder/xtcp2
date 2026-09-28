@@ -119,6 +119,94 @@ func f(data []byte) []byte {
 	}
 }
 
+// go test ./tools/netlink-audit/ -run TestAuditTreeSliceForms
+//
+// The bound-free `x[:]` was a false-positive source: pkg/xtcpnl's request
+// builders each hold a fixed-size scratch array and hand `raw[:]` to an
+// AttrBuilder, which the audit flagged and no len() call could have fixed.
+// Every other slice form carries a caller-supplied bound and stays in scope,
+// so this table is what pins the line between the two.
+func TestAuditTreeSliceForms(t *testing.T) {
+	tests := []struct {
+		description  string
+		src          string
+		wantFindings int
+	}{
+		{
+			description: "positive: a whole-slice raw[:] over a fixed-size array is not a finding",
+			src: `package x
+func f() []byte {
+	var raw [16]byte
+	return raw[:]
+}`,
+			wantFindings: 0,
+		},
+		{
+			description: "positive: a whole-slice b[:] over a slice parameter is not a finding either, being an identity reslice",
+			src: `package x
+func f(b []byte) []byte { return b[:] }`,
+			wantFindings: 0,
+		},
+		{
+			description: "negative: a high bound is caller-supplied, so data[:n] is still a finding",
+			src: `package x
+func f(data []byte, n int) []byte { return data[:n] }`,
+			wantFindings: 1,
+		},
+		{
+			description: "negative: a low bound is caller-supplied too, so buf[n:] is still a finding",
+			src: `package x
+func f(buf []byte, n int) []byte { return buf[n:] }`,
+			wantFindings: 1,
+		},
+		{
+			description: "boundary: the full slice form p[:n:m] has Low absent but two bounds present, so it is a finding",
+			src: `package x
+func f(p []byte, n, m int) []byte { return p[:n:m] }`,
+			wantFindings: 1,
+		},
+		{
+			description: "boundary: a constant bound is still a bound; msg[:4] is a finding",
+			src: `package x
+func f(msg []byte) []byte { return msg[:4] }`,
+			wantFindings: 1,
+		},
+		{
+			description: "corner: an index access is unaffected by the whole-slice rule",
+			src: `package x
+func f() byte {
+	var raw [16]byte
+	return raw[0]
+}`,
+			wantFindings: 1,
+		},
+		{
+			description: "corner: a len() anywhere still silences the whole function, bounds or not",
+			src: `package x
+func f(data []byte, n int) []byte {
+	if len(data) < n { return nil }
+	return data[:n]
+}`,
+			wantFindings: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			dir := t.TempDir()
+			writeGo(t, dir, "x.go", tt.src)
+			findings, err := auditTree(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(findings) != tt.wantFindings {
+				t.Errorf("findings = %d, want %d: %+v",
+					len(findings), tt.wantFindings, findings)
+			}
+		})
+	}
+}
+
 func TestAuditTree_skipsTestFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeGo(t, dir, "fixture_test.go", `

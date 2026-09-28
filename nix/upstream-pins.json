@@ -62,5 +62,51 @@
       "known_stale": true,
       "stale_note": "Dated 2025-04-19 and 732 commits behind xtcp2 main as of 2026-09-26 \u2014 it predates essentially all of the netlink coverage work, including the 7 kernel-versioned TCPInfo variants and the AccECN trailer. Auditing it would re-report the very gap that work closed. This is EXPECTED to be stale and is not a bug to fix here: the fix is that every xtcp2-side proto-audit invocation overrides the path. The runner still reports it so the number cannot quietly grow into something worse without anyone noticing, and so that bumping it upstream is an informed choice rather than a surprise."
     }
+  },
+  "_comment_package_pins": [
+    "A SECOND KIND OF PIN, in its own key because it is not a git rev.",
+    "",
+    "Everything under `pins` is a branch tip: a repo, a branch and a 40-hex",
+    "rev, which `nix run .#check-upstream-pins` can compare against",
+    "`git ls-remote`. The entries below pin a NIXPKGS PACKAGE VERSION instead.",
+    "There is no ref to ls-remote and no rev to compare, so the networked",
+    "runner skips this key entirely and says so. The version is in the store",
+    "at eval time, which for once makes the hermetic half of the guard the",
+    "stronger one: nix/checks/upstream-pins.nix reads pkgs.iproute2.version",
+    "directly and so cannot be out of date with the build it runs in.",
+    "",
+    "WHY IT IS PINNED AT ALL. The goip netlink-parity work compares the bytes",
+    "goip puts on the wire against the bytes a specific `ip` was recorded",
+    "emitting, and request bytes are a function of the iproute2 SOURCE rather",
+    "than of the kernel. A bare `ip link show` request is 40 bytes carrying",
+    "IFLA_EXT_MASK = 0x09 because iproute2 7.1.0's iplink_filter_req() sets",
+    "RTEXT_FILTER_VF and RTEXT_FILTER_SKIP_STATS; a release that changed that",
+    "would move the expected bytes without a line of this repo changing.",
+    "Unpinned, a routine nixpkgs bump fails the parity gate for a reason that",
+    "has nothing to do with goip - the risk the goip plan records as Risk 3,",
+    "and the reason parity must not gate until this entry exists.",
+    "",
+    "Refresh `version` here when nixpkgs moves, then re-run",
+    "`sudo nix run .#capture-netlink-fixtures` and diff the new ip_* sidecars",
+    "before trusting any request-byte expectation."
+  ],
+  "package_pins": {
+    "iproute2": {
+      "attr": "pkgs.iproute2",
+      "version": "7.1.0",
+      "declared_in": "the nixpkgs flake input; not overridden anywhere in this repo",
+      "verify_via": "nix/checks/upstream-pins.nix, which compares this against pkgs.iproute2.version at eval time",
+      "role": "The netlink parity target. goip's request bytes are compared against what this `ip` was recorded emitting, and this `ip`'s rendering is the source of truth behind every ip_* sidecar under pkg/xtcpnl/testdata/<kernel>/.",
+      "consumed_by": "nix/capture-netlink-fixtures.nix (both the pcaps and the ip_* sidecars), internal/goip's request and rendering tables, pkg/nlparity",
+      "recorded_in_fixtures": "pkg/xtcpnl/testdata/<kernel>/ip_version, written by `ip -V`. That sidecar is the per-capture record and this entry is the build-time assertion; the two are expected to agree, and a capture whose ip_version disagrees with this pin was taken with a different ip than the one the checks run against.",
+      "known_agreements": [
+        "IFLA_EXT_MASK = 0x09 on a bare `ip link show`, verified on the 7.1.0 wire AND in the 7.2.0 source. filter.vfinfo is set unconditionally at ip/ipaddress.c:2153, shared by `link show` and `addr show`, and iplink_filter_req() at :2019-2026 ors in RTEXT_FILTER_VF plus RTEXT_FILTER_SKIP_STATS when !show_stats. So there is no ext-mask version skew to allowlist, which is what made the request encoder worth writing before cmd/goip existed."
+      ],
+      "known_divergences_from_7_2_0": [
+        "THREE commits move IFLA_EXT_MASK, and they hit the two ll_map loci differently - measured on the pinned wire, not read off the diffstat. ll_link_get (lib/ll_map.c:276) is already RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS = 0x09 at 7.1.0, confirmed by netlink_route_getlink_dev.pcap, so only de91e928 touches it: 0x09 -> 0x109. ll_init_map is NOT 0x09 at 7.1.0 - it calls rtnl_linkdump_req(rth, AF_UNSPEC), which forwards RTEXT_FILTER_VF alone, and netlink_route_getneigh.pcap records 01000000 on the wire. 7bd7f335 (2026-04-28) takes it 0x01 -> 0x09 and de91e928 (2026-05-20) takes it 0x09 -> 0x109. Both loci have version-skew allowlist entries in pkg/nlparity/goip-parity-allowlist.json.",
+        "faceb326 has TWO loci, not one, and that was measured rather than read off the diffstat. The small half is the `if (qlen)` guard in print_queuelen, which runs the other way round from the obvious reading: 7.1.0 SUPPRESSES `qlen 0` and a post-faceb326 release prints it, because the commit replaced `if (qlen) print_int(...)` with an unconditional print_uint(...). The large half is a SIOCGIFTXQLEN ioctl fallback for when IFLA_TXQLEN is absent from the reply - unreachable on any command answered by rtnl_dump_ifinfo, but live on `ip -6 addr show`, whose link dump is answered by inet6_dump_ifinfo and carries no IFLA_TXQLEN at all. Flipping the render-time qlen knob cannot restore an absent attribute, which is the proof that the two loci are independent and that one allowlist entry would not cover both."
+      ],
+      "on_bump": "Re-read the two known_divergences entries first: they are stated against 7.1.0, and a bump can resolve them, move them, or add to them. Then regenerate the fixtures and diff the ip_* sidecars before touching any Go expectation, because a rendering change shifts the line numbers those expectations cite."
+    }
   }
 }

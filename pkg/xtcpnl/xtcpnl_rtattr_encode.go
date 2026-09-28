@@ -156,13 +156,13 @@ func (a *AttrBuilder) reserve(atype uint16, payloadLen int) ([]byte, error) {
 }
 
 // PutU8 appends a one-byte attribute.
+//
+// It goes through PutBytes rather than indexing the reserved payload: a
+// one-element copy and a `p[0] =` do the same thing, and only one of them has
+// an index that could be wrong. Behavior is unchanged — PutBytes reserves
+// len(v) and copies, which for a single byte is exactly what this did.
 func (a *AttrBuilder) PutU8(atype uint16, v uint8) error {
-	p, err := a.reserve(atype, 1)
-	if err != nil {
-		return err
-	}
-	p[0] = v
-	return nil
+	return a.PutBytes(atype, []byte{v})
 }
 
 // PutU32 appends a four-byte host-order attribute. This is the common shape:

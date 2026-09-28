@@ -1,0 +1,20 @@
+[ {
+        "dst": "192.0.2.50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:01",
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.51",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:02",
+        "state": [ "STALE" ]
+    },{
+        "dst": "192.0.2.52",
+        "dev": "goip0",
+        "state": [ "INCOMPLETE" ]
+    },{
+        "dst": "2001:db8::50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:03",
+        "state": [ "PERMANENT" ]
+    } ]

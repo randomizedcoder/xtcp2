@@ -186,7 +186,7 @@ func BuildGetLinkByNameRequest(family uint8, name string, extMask, seq uint32) (
 // interface by writing ifa_index into the REQUEST HEADER — there is no
 // attribute for it (ip/ipaddress.c, ipaddr_list_flush_or_save).
 //
-// **The kernel honours this only on a socket with NETLINK_GET_STRICT_CHK set.**
+// **The kernel honors this only on a socket with NETLINK_GET_STRICT_CHK set.**
 // Without it the dump handler ignores everything past ifa_family and the caller
 // silently gets every address on the host; `ip` sets the option in ip.c before
 // any request. Nothing in this package sets socket options, so a caller using
@@ -248,7 +248,7 @@ func BuildDumpRouteRequestTable(family uint8, table, seq uint32) ([]byte, error)
 // TODO-SOON.md §17.
 //
 // It matters beyond `ip neigh show`: a multicast listener must re-dump to
-// resync after ENOBUFS, and for neighbours there was previously nothing to
+// resync after ENOBUFS, and for neighbors there was previously nothing to
 // re-dump with. The package could parse RTM_NEWNEIGH both solicited and
 // unsolicited but could never ask for the current table.
 //
@@ -276,9 +276,39 @@ func extMaskAttrs(extMask uint32) ([]byte, error) {
 	return ab.Bytes(), nil
 }
 
-// validIfName applies the kernel's dev_valid_name rules that matter for an
-// IFLA_IFNAME selector: non-empty, short enough to fit IFNAMSIZ with its NUL,
-// not "." or "..", and free of '/' and whitespace.
+// validIfName applies the kernel's dev_valid_name rules to an IFLA_IFNAME
+// selector, plus one rule the kernel cannot express.
+//
+// The kernel's version is:
+//
+//	bool dev_valid_name(const char *name) {
+//		if (*name == '\0')                        return false;
+//		if (strnlen(name, IFNAMSIZ) == IFNAMSIZ)  return false;
+//		if (!strcmp(name, ".") || !strcmp(name, "..")) return false;
+//		while (*name) {
+//			if (*name == '/' || *name == ':' || isspace(*name)) return false;
+//			name++;
+//		}
+//		return true;
+//	}
+//
+// Note ':' as well as '/' — it is excluded because `ip` uses "dev:label"
+// syntax for address labels, so a colon in a device name would make an
+// argument ambiguous.
+//
+// # The extra rule: an embedded NUL is rejected
+//
+// dev_valid_name's loop stops at the first NUL because it reads a C string, so
+// the kernel has no way to see anything after one. A Go string can hold one,
+// and that difference is a real hazard rather than a theoretical one: PutString
+// appends its own terminator, so "lo\x00extra" would go on the wire as
+// `lo\0extra\0` and the kernel would read the name as "lo". The request would
+// succeed and answer about a *different interface than the caller named*.
+// Failing loudly is the only safe answer; silently addressing "lo" is worse
+// than an error.
+//
+// iproute2 never meets this case, because its names come from argv and execve
+// cannot pass an embedded NUL. A Go library can be called with anything.
 //
 // net/core/dev.c dev_valid_name
 func validIfName(name string) error {
@@ -288,7 +318,10 @@ func validIfName(name string) error {
 	if name == "." || name == ".." {
 		return ErrBadIfName
 	}
-	if strings.ContainsAny(name, "/ \t\n\v\f\r") {
+	if strings.ContainsAny(name, "/: \t\n\v\f\r") {
+		return ErrBadIfName
+	}
+	if strings.IndexByte(name, 0) >= 0 {
 		return ErrBadIfName
 	}
 	return nil

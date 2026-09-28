@@ -107,6 +107,21 @@ func hasLenGuard(body *ast.BlockStmt) bool {
 	return found
 }
 
+// isWholeSlice reports whether e is the bound-free form `x[:]`.
+//
+// That expression cannot panic for any operand: on a slice it is an identity
+// reslice, on an array it yields the whole array, and neither reads a bound
+// the caller could have got wrong. So there is no len() call that would make
+// it safer, and flagging it asks for a guard that cannot exist.
+//
+// The check is deliberately narrow. `x[:n]`, `x[n:]` and the full form
+// `x[:n:m]` all carry at least one caller-supplied bound and stay in scope;
+// only Low, High and Max all being absent means `x[:]`, since Go does not
+// permit Max without High.
+func isWholeSlice(e *ast.SliceExpr) bool {
+	return e.Low == nil && e.High == nil && e.Max == nil
+}
+
 // findUnguardedAccesses appends one finding per IndexExpr / SliceExpr
 // whose operand is a known byte-slice identifier (b, buf, data, …).
 // Caller must have already confirmed fn has no len() guard.
@@ -122,7 +137,7 @@ func findUnguardedAccesses(fset *token.FileSet, fn *ast.FuncDecl, findings *[]fi
 				})
 			}
 		case *ast.SliceExpr:
-			if isByteSliceExpr(e.X) {
+			if !isWholeSlice(e) && isByteSliceExpr(e.X) {
 				*findings = append(*findings, finding{
 					pos: fset.Position(e.Pos()),
 					fn:  fn.Name.Name,

@@ -1137,21 +1137,39 @@ the reply cannot disagree about byte order.
 
 Two notes for whoever reads this next:
 
-- **`buildGetNsidRequest` is still local, deliberately.** `RTM_GETNSID` is a
-  single get, and `BuildDumpRequest` unconditionally sets
-  `NLM_F_REQUEST|NLM_F_DUMP` — asking the kernel to dump it would change the
-  reply. There is also no attribute encoder in `xtcpnl` yet, so the `NETNSA_FD`
-  attribute has to be laid out by hand. Once a `BuildRequest` + `AttrBuilder`
-  pair lands this becomes a three-line wrapper.
+- **`buildGetNsidRequest` is now the three-line wrapper this item predicted.**
+  It was local because `RTM_GETNSID` is a single get and `BuildDumpRequest`
+  unconditionally sets `NLM_F_REQUEST|NLM_F_DUMP` — asking the kernel to dump
+  it would change the reply — and because `xtcpnl` had no attribute encoder, so
+  the `NETNSA_FD` attribute had to be laid out by hand: all 28 bytes, offsets
+  included.
 
-  **That pair has since landed** (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`), and
-  `BuildRequest` accepts `RTM_GETNSID`: it is `RTM_BASE + 4k + 2`, so the
-  arithmetic GET allowlist takes it, and `FamilyHdrLen` returns `-1` for it, so
-  the 4-byte `rtgenmsg` passes through unchecked. `TestBuildRequest`'s last row
-  builds exactly this request. The collapse is unblocked but not done — it is
-  scheduled with the rest of the per-family request builders, so that
-  `buildGetNsidRequest` is deleted in the same commit that gives `xtcpnl` a
-  `BuildGetNsidRequest` to replace it with.
+  Both halves are resolved. `xtcpnl.AttrBuilder` + `xtcpnl.BuildRequest` landed
+  (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`), and `BuildRequest` accepts
+  `RTM_GETNSID`: it is `RTM_BASE + 4k + 2`, so the arithmetic GET allowlist
+  takes it, and `FamilyHdrLen` returns `-1` for it, so the 4-byte `rtgenmsg`
+  passes through unchecked. `buildGetNsidRequest` is now one `PutU32` plus one
+  `BuildRequest` call with `flags = 0`, which ORs in `NLM_F_REQUEST` and
+  nothing else — the dump bit is still absent, and a negative row asserts that
+  rather than leaving it to the reader. It returns an error now, which `Nsid`
+  folds into its existing `(0, false)` degradation.
+
+  **Not moved into `xtcpnl` as a `BuildGetNsidRequest`, and that is the
+  decision.** The earlier note scheduled the collapse alongside the per-family
+  request builders so the local function would be deleted in the same commit as
+  its replacement. That framing assumed the hand-packed version had to survive
+  until then; it did not, and a wrapper this thin is not worth a round trip
+  through another package's API. `net_namespace` is also not one of the four
+  rtnetlink families `xtcpnl` models, and there is exactly one caller. If a
+  second one appears, promote it then.
+
+  `TestBuildGetNsidRequest` grew from 8 positive rows to **14 — 7 positive, 3
+  negative, 2 boundary, 2 corner**, and every byte offset in it is unchanged
+  from the hand-packed version, which is what makes the table the evidence that
+  delegating moved nothing. The new rows cover the absent `NLM_F_DUMP`, the
+  all-zero `rtgenmsg`, `fd == 0`, `math.MaxInt32`, a negative fd sign-extending
+  the way the kernel reads an `int32`, and the fact that a 4-byte payload needs
+  no alignment padding.
 - **The walk now checks `nlmsg_seq`,** which the hand-rolled loop did not. The
   socket is opened, used and closed inside one `Nsid` call, so this is strictly
   a tightening; `nsidSeqCst` is the value written and demanded back, and

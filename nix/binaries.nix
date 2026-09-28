@@ -65,6 +65,19 @@ let
     "clickhouse_http_insert_protobuflist"
     "clickhouse_protobuflist"
     "clickhouse_protobuflist_db"
+    # goip is not a fleet binary: it is a read-only ip(8) subset that exists to
+    # exercise pkg/xtcpnl's breadth (docs/netlink/coverage-expansion.md). It is
+    # listed here anyway, because this list is what puts a name into xtcp2-all
+    # below and therefore into every microVM flavor via mkVm.nix — which is
+    # where the goip-parity harness has to run it, beside the pinned `ip`.
+    "goip"
+    # goip-parity is the comparator half of that harness, and it is a SEPARATE
+    # binary from goip on purpose — the plan's Risk 8. The comparator runs
+    # while captures are open, so it must never be able to open a netlink
+    # socket; internal/goipparity's TestParityCannotOpenASocket enforces that
+    # its closure never reaches internal/goip. Listed here for the same reason
+    # as goip: this list is what puts it in the guest.
+    "goip-parity"
     "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"

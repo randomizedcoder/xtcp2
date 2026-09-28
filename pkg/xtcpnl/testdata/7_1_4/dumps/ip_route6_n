@@ -1,0 +1,6 @@
+unicast 2001:db8::/64 dev goip0 proto kernel scope global metric 256 pref medium
+unicast 2001:db8:1::/64 via 2001:db8::2 dev goip0 proto boot scope global metric 1024 pref medium
+unicast 2001:db8:2::/64 proto boot scope global metric 1024 pref medium
+	nexthop via 2001:db8::2 dev goip0 weight 1 
+	nexthop via 2001:db8::3 dev goip0 weight 3 
+unicast fe80::/64 dev goip0 proto kernel scope global metric 256 pref medium

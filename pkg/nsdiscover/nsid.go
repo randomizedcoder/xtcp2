@@ -67,7 +67,10 @@ func Nsid(nsFD int) (int32, bool) {
 		return 0, false
 	}
 
-	req := buildGetNsidRequest(nsFD)
+	req, err := buildGetNsidRequest(nsFD)
+	if err != nil {
+		return 0, false
+	}
 	if err := unix.Sendto(fd, req, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
 		return 0, false
 	}
@@ -83,29 +86,37 @@ func Nsid(nsFD int) (int32, bool) {
 // buildGetNsidRequest lays out an RTM_GETNSID request: nlmsghdr + rtgenmsg
 // (family AF_UNSPEC) + a single NETNSA_FD attribute carrying nsFD.
 //
-// This stays local rather than calling xtcpnl.BuildDumpRequest, which
-// unconditionally sets NLM_F_REQUEST|NLM_F_DUMP. RTM_GETNSID is a single get,
-// not a dump — asking the kernel to dump it would change the reply — and
-// xtcpnl has no attribute encoder yet, so there is nothing here to reuse. The
-// reply parsing, which is where the duplication actually was, is xtcpnl's.
-func buildGetNsidRequest(nsFD int) []byte {
-	total := xtcpnl.NlMsgHdrSizeCst + rtgenLen + fdAttrLen
-	b := make([]byte, total)
-
-	// struct nlmsghdr
-	nativeEndian.PutUint32(b[0:4], uint32(total))              // nlmsg_len
-	nativeEndian.PutUint16(b[4:6], rtmGetNsid)                 // nlmsg_type
-	nativeEndian.PutUint16(b[6:8], uint16(unix.NLM_F_REQUEST)) // nlmsg_flags
-	nativeEndian.PutUint32(b[8:12], nsidSeqCst)                // nlmsg_seq
-	// b[12:16] nlmsg_pid = 0 (kernel fills the peer pid)
-
-	// struct rtgenmsg: rtgen_family = AF_UNSPEC (0); b[16:20] left zero (padded).
-
-	// struct nlattr { __u16 nla_len; __u16 nla_type; } + int32 payload, at off 20.
-	nativeEndian.PutUint16(b[20:22], fdAttrLen)
-	nativeEndian.PutUint16(b[22:24], netnsaFd)
-	nativeEndian.PutUint32(b[24:28], uint32(int32(nsFD)))
-	return b
+// # This used to be hand-packed, and no longer is
+//
+// The previous version wrote all 28 bytes here, with a comment saying xtcpnl
+// had no attribute encoder so there was nothing to reuse. That stopped being
+// true when xtcpnl.AttrBuilder and xtcpnl.BuildRequest landed, so this is now
+// the same three facts — message type, seq, one attribute — expressed once
+// each, and the offsets, the alignment and the length back-patch are all
+// xtcpnl's problem.
+//
+// What did NOT change is the flags. `xtcpnl.BuildDumpRequest` sets
+// NLM_F_REQUEST|NLM_F_DUMP unconditionally, and RTM_GETNSID is a single get:
+// asking the kernel to dump it changes the reply. So this calls BuildRequest
+// with flags 0, which ORs in NLM_F_REQUEST and nothing else. BuildRequest's
+// read-only allowlist accepts RTM_GETNSID by arithmetic (90 = RTM_BASE + 4*18
+// + 2), and FamilyHdrLen does not model rtgenmsg, so the 4-byte family header
+// passes through unchecked — correct here, since rtgen_family is AF_UNSPEC (0)
+// and the remaining three bytes are NLMSG_ALIGN padding.
+//
+// The error is structural rather than situational: the buffer is exactly the
+// size of the one attribute, so the only way to reach it is an
+// xtcpnl-side change. Nsid degrades to (0, false) on it, like every other
+// failure on this path.
+func buildGetNsidRequest(nsFD int) ([]byte, error) {
+	ab := xtcpnl.NewAttrBuilder(make([]byte, fdAttrLen))
+	// NETNSA_FD is an int32 in the kernel's policy (uapi/linux/net_namespace.h);
+	// the conversion is through int32 so a negative fd would sign-extend the
+	// way the kernel reads it, rather than through uint.
+	if err := ab.PutU32(netnsaFd, uint32(int32(nsFD))); err != nil {
+		return nil, err
+	}
+	return xtcpnl.BuildRequest(rtmGetNsid, 0, nsidSeqCst, make([]byte, rtgenLen), ab.Bytes())
 }
 
 // parseNsidResponse walks the netlink reply buffer for an RTM_NEWNSID message and
@@ -118,7 +129,7 @@ func buildGetNsidRequest(nsFD int) []byte {
 // xtcpnl's version is the one with real-pcap fixtures, fuzz targets and a
 // benchmark gate behind it.
 //
-// Behaviour is unchanged except that the seq is now checked: WalkNlMsgs skips
+// Behavior is unchanged except that the seq is now checked: WalkNlMsgs skips
 // any message whose nlmsg_seq is not the one we sent, NLMSG_ERROR becomes a
 // non-nil err (including the truncated-errno case), and NLMSG_DONE simply ends
 // the walk with nothing found. All three land on (0, false) as before.

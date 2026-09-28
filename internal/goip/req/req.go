@@ -1,0 +1,195 @@
+// Package req builds the netlink requests goip sends.
+//
+// Every function here is pure: argv-derived arguments in, bytes out, no socket
+// and no global state. That is the whole reason the package exists separately
+// from the code that sends them — Tier A of the parity harness compares these
+// bytes against the requests a real `ip` was recorded emitting, and a Tier A
+// test that had to open a netlink socket could not run under `go test` on a
+// developer's machine, let alone inside a nix build.
+//
+// # Where the iproute2 policy lives
+//
+// pkg/xtcpnl's builders deliberately take the family and the ext-mask as
+// caller arguments, because which family iproute2 decides to attach an
+// IFLA_EXT_MASK to is a property of iproute2 and not of the wire. This package
+// is that caller: it is where "an `ip link show` dump is AF_PACKET with mask
+// 0x09" is written down, once, as a constant with a source citation.
+//
+// # One skew worth knowing about before reading the numbers below
+//
+// The parity target is the pinned nixpkgs `ip`, and the reading reference is a
+// newer fork. They agree on every request byte this package produces, but not
+// on all rendering — see the RenderQlenZero note in the render package.
+package req
+
+import (
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
+)
+
+// ExtMaskShow is the IFLA_EXT_MASK every `show` dump carries:
+// RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS == 0x09.
+//
+// Both bits are unconditional for a bare `show`, and the source says so
+// without a version qualifier. `ipaddr_list_flush_or_save` sets
+// `filter.vfinfo = 1` at the top of the function (ip/ipaddress.c:2153), shared
+// by `link show` and `addr show` alike, and `iplink_filter_req`
+// (ip/ipaddress.c:2017-2026) is:
+//
+//	if (filter.vfinfo)  filt_mask |= RTEXT_FILTER_VF;
+//	if (!show_stats)    filt_mask |= RTEXT_FILTER_SKIP_STATS;
+//
+// `show_stats` is the `-s` flag, which goip does not implement, so SKIP_STATS
+// is always set. That is what keeps IFLA_STATS and IFLA_STATS64 out of every
+// reply, and it is why the decoder does not implement them.
+//
+// Verified against the wire, not just the source: record 0 of
+// pkg/xtcpnl/testdata/7_1_8/netlink_route_getlink.pcap carries
+// `0800 1d00 09000000` — rta_len 8, rta_type 29 (IFLA_EXT_MASK), value 0x09.
+const ExtMaskShow uint32 = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STATS
+
+// LinkShowDump builds the request for `ip link show`.
+//
+// # The family is AF_PACKET even under -4 and -6
+//
+// This is not the obvious behavior and it is worth one paragraph, because
+// getting it wrong is a one-byte divergence that no amount of output
+// comparison would find. `ipaddr_list_link` sets
+// `preferred_family = AF_PACKET` **unconditionally** (ip/ipaddress.c:2414-2418)
+// before dispatching, and `ip_link_list` then passes `preferred_family` — not
+// `filter.family` — to `rtnl_linkdump_req_filter_fn` (:2091). So `-4` and `-6`
+// are overwritten for this command and `ip -4 link show` puts 17 in
+// ifi_family, exactly as a bare `ip link show` does.
+//
+// That also keeps the request on the attribute-carrying path:
+// `rtnl_linkdump_req_filter_fn` only calls its filter_fn for
+// AF_UNSPEC or AF_PACKET (lib/libnetlink.c:595) and otherwise falls through to
+// a bare 32-byte `__rtnl_linkdump_req`. `ip addr show`'s link dump is the
+// command where the family does survive, and where the 32-byte form appears.
+//
+// The result is 40 bytes, and iproute2 sends exactly 40: this is the one
+// command with no oversend, because `rtnl_linkdump_req_filter_fn` ends in
+// `send(rth->fd, &req, req.nlh.nlmsg_len, 0)` (:618) rather than
+// `sizeof(req)`.
+func LinkShowDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, ExtMaskShow, seq)
+}
+
+// AddrShowLinkDump builds the FIRST of the two requests `ip addr show` sends:
+// the link dump, whose replies supply the stanza line every address is printed
+// under.
+//
+// # Why the family survives here and does not for `link show`
+//
+// `ipaddr_list_flush_or_save` sets `filter.family = preferred_family`
+// (ip/ipaddress.c:2152) and never overrides it, and `ip_link_list` passes
+// `preferred_family` straight to `rtnl_linkdump_req_filter_fn` (:2090). So
+// unlike `ip link show`, which forces AF_PACKET, `-4` and `-6` reach the wire
+// here. That single byte selects between two different request shapes and, on
+// the reply side, between two different kernel functions:
+//
+//	family     request                          answered by
+//	AF_UNSPEC  40 B, IFLA_EXT_MASK = 0x09       rtnl_dump_ifinfo   (full)
+//	AF_INET    32 B, no attributes              rtnl_dump_ifinfo   (full)
+//	AF_INET6   32 B, no attributes              inet6_dump_ifinfo  (minimal)
+//
+// The request-side split is `rtnl_linkdump_req_filter_fn`, which calls its
+// filter_fn — the only thing that appends IFLA_EXT_MASK — for AF_UNSPEC and
+// AF_PACKET only and otherwise falls through to the bare
+// `__rtnl_linkdump_req` (lib/libnetlink.c:591-618). The reply-side split is in
+// the kernel and is documented at xtcpnl.BuildDumpLinkRequestFamily.
+//
+// One consequence worth stating because it is invisible in the request: the
+// AF_INET form carries no ext mask, so RTEXT_FILTER_SKIP_STATS is clear and
+// the replies **do** carry IFLA_STATS and IFLA_STATS64 — the attributes plan
+// fact 3 observed to be absent from `ip link show`'s replies. goip renders
+// neither (no -s), so this costs nothing but it does mean an `addr show` reply
+// is materially bigger than a `link show` one.
+func AddrShowLinkDump(family uint8, seq uint32) ([]byte, error) {
+	if family == unix.AF_UNSPEC || family == unix.AF_PACKET {
+		return xtcpnl.BuildDumpLinkRequestExt(family, ExtMaskShow, seq)
+	}
+	return xtcpnl.BuildDumpLinkRequestFamily(family, seq), nil
+}
+
+// AddrShowDump builds the SECOND request `ip addr show` sends: the address
+// dump itself.
+//
+// 24 bytes — an nlmsghdr and an ifaddrmsg whose only non-zero field is
+// ifa_family — with no attributes. `rtnl_addrdump_req` takes a filter_fn and
+// `ip_addr_list` passes `ipaddr_dump_filter` (ip/ipaddress.c:2107), but that
+// function assigns `ifa->ifa_index = filter.ifindex` and nothing else
+// (:2060-2067), so for a `show` with no `dev` argument it writes the zero
+// that was already there.
+//
+// # The 128 bytes goip does not send
+//
+// `rtnl_addrdump_req`'s struct ends in `char buf[128]` and it sends
+// `sizeof(req)` rather than `nlh->nlmsg_len` (lib/libnetlink.c:313-336), so
+// the real `ip` puts a 152-byte datagram on the wire whose last 128 bytes are
+// zero. That is the tail pkg/nlparity's walker exists to tolerate. goip sends
+// 24 bytes, deliberately: the plan's decision is that oversend is recorded as
+// DatagramLen/TailBytes and reported informationally, never gated, so that
+// the allowlist never acquires an entry for something structural. Matching the
+// padding would be reproducing a bug in the parity target.
+//
+// Note that this request is only sent when the family is not AF_PACKET:
+// `ip -0 addr show` (preferred_family AF_PACKET) skips the address dump
+// entirely (ip/ipaddress.c:2310) and degenerates to `link show` without the
+// linkmode field. goip rejects `-0` rather than implementing it, so the caller
+// here never passes AF_PACKET.
+func AddrShowDump(family uint8, seq uint32) []byte {
+	return xtcpnl.BuildDumpAddrRequest(family, seq)
+}
+
+// LinkShowByIndex builds the single-get behind `ip link show dev X` once the
+// name has been resolved to an index, and behind `ll_link_get`'s index-cache
+// fills.
+//
+// This is a GET, not a DUMP: flags are NLM_F_REQUEST alone, and the kernel
+// answers with exactly one message carrying neither NLM_F_MULTI nor
+// NLMSG_DONE. Reading that reply needs xtcpnl.TalkRtnetlink; DumpRtnetlink
+// blocks until SO_RCVTIMEO on it.
+//
+// # The family here is AF_UNSPEC, not AF_PACKET, and the capture is why we know
+//
+// It would be natural to reuse LinkShowDump's AF_PACKET, and that is wrong.
+// `ll_link_get`'s request is a designated initializer that sets `ifi_index`
+// and nothing else (lib/ll_map.c:265-275), so `ifi_family` stays 0. The ten
+// single-gets recorded in netlink_route_getroute.pcap all carry 0 in that
+// byte, and Tier A's byte-for-byte comparison is what surfaced it — the
+// difference is invisible in any output and would have been a silent one-byte
+// divergence on every `ip link show dev X`.
+//
+// One aside the same function makes visible: ll_link_get calls
+// `rtnl_open(&rth, 0)` and gets its own socket per lookup. That is why ten
+// single-gets share the route dump's sequence number, and why the parity
+// comparator must never key a transaction on seq alone.
+func LinkShowByIndex(index int32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetLinkByIndexRequest(unix.AF_UNSPEC, index, ExtMaskShow, seq)
+}
+
+// LinkShowByName is LinkShowByIndex addressed by IFLA_IFNAME instead, which is
+// what `ll_link_get` sends when it has a name and no index.
+//
+// Attribute order is load-bearing and is the builder's, not this function's:
+// `ll_link_get` emits IFLA_EXT_MASK first and the name second
+// (lib/ll_map.c:289-293), and the parity comparator holds requests to full
+// byte equality, so the other order is a divergence rather than a detail.
+// AF_UNSPEC for the same reason as LinkShowByIndex — it is the same request
+// struct.
+//
+// # One iproute2 behavior deliberately not reproduced
+//
+// ll_link_get picks the attribute by validity:
+// `!check_ifname(name) ? IFLA_IFNAME : IFLA_ALT_IFNAME` (:287-289). A name
+// that is not a valid interface name is sent as an *alternative* name instead
+// of being rejected, which is how `ip link show dev enxe04f43e628ef` works for
+// a 15-character altname and how a longer altname would work too. goip rejects
+// an invalid name here rather than falling back, because the fallback needs
+// IFLA_ALT_IFNAME on the request side and there is no captured example of one
+// to check against. Recorded rather than silently diverged: a by-name
+// single-get fixture is on the plan's Item 7 list.
+func LinkShowByName(name string, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetLinkByNameRequest(unix.AF_UNSPEC, name, ExtMaskShow, seq)
+}
