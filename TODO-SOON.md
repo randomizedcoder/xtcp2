@@ -1243,13 +1243,26 @@ goip parity work needed. Its shape is taken from `rtnl_neighdump_req`
 (`lib/libnetlink.c`): `nlmsg_len = 28`, `NLM_F_REQUEST|NLM_F_DUMP`, `ndm_family`
 set, everything else zero.
 
-One caveat to know before relying on it: **there is still no committed
-`RTM_GETNEIGH` capture**, so its test row is structural — it asserts the bytes
-match the iproute2 struct rather than matching a recorded datagram, and it says
-so in its description. `find pkg/xtcpnl/testdata -name '*neigh*'` returns only
-the notifications pcap. Item 7 of the goip plan adds `ip neigh show` to
-`nix/capture-netlink-fixtures.nix`; the row is upgraded to a positive then. The
-builder is nevertheless usable now, which is the point — the listener's
+~~One caveat to know before relying on it: **there is still no committed
+`RTM_GETNEIGH` capture**, so its test row is structural.~~ **That caveat is
+cleared.** `2895600` committed `pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap`
+(and a `dumps/mesh/` counterpart), captured in the pinned microVM, and
+`TestRequestBuilders` compares `BuildDumpNeighRequest` against iproute2's own
+recorded bytes — a positive, not a structural row.
+
+Upgrading it turned up a second thing worth writing down. The same capture
+carries `ll_init_map`'s link dump, which `ip neigh show` issues first, and its
+`IFLA_EXT_MASK` is **`RTEXT_FILTER_VF` alone, `0x01`** — not the `0x09`
+(`VF|SKIP_STATS`) every other `show` dump sends. The structural row that used
+to stand in for it asserted `0x09` and was simply wrong. iproute2 commit
+`7bd7f335` ("ll_map: add `RTEXT_FILTER_SKIP_STATS` to `ll_init_map()`",
+28 Apr 2026) is what would make it `0x09`, and it is not in the pinned 7.1.0.
+So `ll_init_map`'s mask is a version-skew fault line in its own right,
+alongside `de91e928`'s `RTEXT_FILTER_NAME_ONLY` on `ll_link_get`, and a nixpkgs
+bump moves both. `internal/goip/req/req.go:159` already sends `0x01`, which is
+why `neigh show` measured clean.
+
+The builder was usable before any of this, which was the point — the listener's
 `ENOBUFS` resync no longer has nothing to call.
 
 ---
@@ -1271,14 +1284,27 @@ Three qualifications on that:
   the request sets `RTEXT_FILTER_SKIP_STATS`; they come back only under `ip -s`.
   Adding them means changing the request, which is a separate decision from
   decoding an attribute the kernel already sends.
-- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) is partly blocked on
-  fixtures.** `RTA_CACHEINFO` is on 48 of the 74 routes in the committed dump,
-  so it has a real capture — but `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA`
-  appear on **none** of them, so their positive rows need the capture extension
-  in Item 7 of the goip plan rather than constructed bytes.
-- **The `RTA_MULTIPATH` note below is superseded in one respect**: §12 now has
-  its first real caller (`IFLA_LINKINFO`), so the "land them together" coupling
-  no longer applies.
+- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) — `RTA_METRICS` is
+  done, the other two are still open.** The fixture blocker is gone: `2895600`
+  built the gated capture topology
+  (`nix/microvms/scripts/netlink-topology.exp`) with an `mtu 1400 advmss 1300`
+  route, an ECMP pair and an RFC-5549 `via inet6` route, and `e2a47aa` decoded
+  `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA` against it. `RouteMetrics`
+  carries a `Present` bitmask plus `Values`, and `render.RouteMetricsViewOf`
+  reproduces `print_rta_metrics`. `RTA_EXPIRES` and `RTA_CACHEINFO` decode
+  remain outstanding — `RTA_CACHEINFO` is on 48 of the 74 routes in the older
+  committed dump, so it has a real capture whenever it is picked up.
+- **The `RTA_MULTIPATH` note below is superseded twice over.** §12 has its
+  first real caller (`IFLA_LINKINFO`), so the "land them together" coupling no
+  longer applies — and the nested `rtnexthop` list **is** walked now, by
+  `pkg/xtcpnl/xtcpnl_rtnexthop.go`, into `RouteInfo.Multipath []RouteNextHop`.
+  `internal/goip/render/route.go` prints the result as
+  `print_rta_multipath` does, weights included, and
+  `internal/goip/obj_route_test.go` asserts it against the committed
+  `dumps/ip_route_main` sidecar. What the paragraph says about
+  `pkg/localnet/localnet.go:246-250` reporting no egress interface under
+  `HasMultipath || NhID != 0` is still true; that consumer has not been
+  changed.
 
 The original text follows.
 

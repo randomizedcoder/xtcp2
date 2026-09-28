@@ -50,6 +50,20 @@ const (
 
 	// The first of ten ll_link_get single-gets in the route capture.
 	recRouteSingleGetCst = 4
+
+	// `ip neigh show` in the gated-topology corpus
+	// (7_1_4/dumps/netlink_route_getneigh.pcap): ll_init_map's AF_UNSPEC link
+	// dump, then the neighbor dump itself. Two requests in the whole file,
+	// because that capture was taken in a microVM with nothing else on
+	// netlink.
+	recNeighLinkDumpCst = 0
+	recNeighDumpCst     = 4
+
+	// The gated-topology route captures, one command per file. Record 0 is
+	// the RTM_GETROUTE dump in all three; the RTM_GETLINK single-gets that
+	// follow are ll_index_to_name resolving the device lazily while printing.
+	recGatedRouteDumpCst  = 0
+	recGatedRoute6DumpCst = 0
 )
 
 // Measured datagram sizes, which are nlmsg_len plus iproute2's oversend. These
@@ -147,6 +161,9 @@ func TestRequestBuilders(t *testing.T) {
 	linkMsgs, linkDgrams := capturedRequests(t, tdRouteBulkGetLink_7_1_8)
 	addrMsgs, addrDgrams := capturedRequests(t, tdRouteBulkGetAddr_7_1_8)
 	routeMsgs, routeDgrams := capturedRequests(t, tdRouteBulkGetRoute_7_1_8)
+	neighMsgs, _ := capturedRequests(t, tdDumpGetNeigh_7_1_4)
+	gatedRouteMsgs, _ := capturedRequests(t, tdDumpGetRoute_7_1_4)
+	gatedRoute6Msgs, _ := capturedRequests(t, tdDumpGetRoute6_7_1_4)
 
 	const wantDumpFlags = uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP)
 	const wantGetFlags = uint16(unix.NLM_F_REQUEST)
@@ -196,36 +213,55 @@ func TestRequestBuilders(t *testing.T) {
 			want:        capturedRequest(t, routeMsgs, recRouteSingleGetCst, uint16(unix.RTM_GETLINK)),
 		},
 
-		// boundary — structural, no capture yet; each names its source
 		{
-			// lib/libnetlink.c rtnl_neighdump_req. Blocked on Item 7's
-			// `ip neigh show` capture; asserted structurally meanwhile.
-			description: "boundary: ip neigh show dump, no fixture yet (lib/libnetlink.c rtnl_neighdump_req)",
-			got:         BuildDumpNeighRequest(unix.AF_UNSPEC, testSeq),
-			want:        nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq, make([]byte, NdMsgSizeCst)),
+			// lib/libnetlink.c rtnl_neighdump_req. This row used to be a
+			// structural boundary case, because no RTM_GETNEIGH capture was
+			// committed; 7_1_4/dumps/netlink_route_getneigh.pcap is, so it is
+			// a positive against iproute2's own bytes now.
+			description: "positive: ip neigh show dump (ndmsg, AF_UNSPEC)",
+			got:         BuildDumpNeighRequest(unix.AF_UNSPEC, 0),
+			want:        capturedRequest(t, neighMsgs, recNeighDumpCst, uint16(unix.RTM_GETNEIGH)),
 		},
+		{
+			// lib/ll_map.c ll_init_map, the dump `ip neigh show` issues before
+			// its own, via rtnl_linkdump_req_filter — whose attribute path is
+			// AF_UNSPEC|AF_BRIDGE rather than the _fn variant's
+			// AF_UNSPEC|AF_PACKET. The same 40 bytes as `ip link show` but
+			// ifi_family 0, which is the whole reason it needs its own row.
+			//
+			// The mask is RTEXT_FILTER_VF ALONE, 0x01, not the 0x09 every
+			// other `show` dump carries. The structural row this replaced
+			// asserted 0x09 and was wrong: at the pinned iproute2 7.1.0,
+			// ll_init_map passes only RTEXT_FILTER_VF. Commit 7bd7f335
+			// ("ll_map: add RTEXT_FILTER_SKIP_STATS to ll_init_map()", 28 Apr
+			// 2026) is what makes it 0x09, and it is not in 7.1.0 — so this
+			// locus is a second version-skew fault line alongside de91e928's
+			// RTEXT_FILTER_NAME_ONLY, and a nixpkgs bump moves it.
+			description: "positive: ll_init_map link dump (AF_UNSPEC, EXT_MASK 0x01)",
+			got:         mustBuildReq(BuildDumpLinkRequestExt(unix.AF_UNSPEC, RTEXT_FILTER_VF, 0)),
+			want:        capturedRequest(t, neighMsgs, recNeighLinkDumpCst, uint16(unix.RTM_GETLINK)),
+		},
+
 		{
 			// ip/iproute.c:1836 (filter.tb = RT_TABLE_MAIN) + :1998 (AF_UNSPEC
 			// promoted to AF_INET when a table filter is set). Differs from the
 			// `table all` row above in family AND in carrying the attribute.
-			description: "boundary: default ip route show, no fixture yet (AF_INET + RTA_TABLE 254)",
-			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET, unix.RT_TABLE_MAIN, testSeq)),
-			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
-				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
-					rtattr(uint16(unix.RTA_TABLE), le32(unix.RT_TABLE_MAIN)))),
+			// Also formerly structural: the gated-topology capture supplies the
+			// bytes now.
+			description: "positive: default ip route show (AF_INET + RTA_TABLE 254)",
+			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET, unix.RT_TABLE_MAIN, 0)),
+			want:        capturedRequest(t, gatedRouteMsgs, recGatedRouteDumpCst, uint16(unix.RTM_GETROUTE)),
 		},
 		{
-			// lib/ll_map.c ll_init_map: AF_UNSPEC with the same 0x09 mask, via
-			// rtnl_linkdump_req_filter, whose attribute path is AF_UNSPEC|AF_BRIDGE
-			// rather than the _fn variant's AF_UNSPEC|AF_PACKET. Same 40 bytes as
-			// `ip link show` but ifi_family 0. This is the dump `ip neigh show`
-			// issues before its own, so it arrives with Item 7's neigh capture.
-			description: "boundary: ll_init_map link dump, no fixture yet (AF_UNSPEC, EXT_MASK 0x09)",
-			got:         mustBuildReq(BuildDumpLinkRequestExt(unix.AF_UNSPEC, extMask, testSeq)),
-			want: nlmsg(uint16(unix.RTM_GETLINK), wantDumpFlags, testSeq,
-				concat(ifinfomsgHdr(unix.AF_UNSPEC, 0, 0, 0),
-					rtattr(uint16(unix.IFLA_EXT_MASK), le32(extMask)))),
+			// The same request with rtm_family AF_INET6, which is the one byte
+			// `-6` changes. Asserted separately because a builder that ignored
+			// its family argument would still pass the row above.
+			description: "positive: ip -6 route show (AF_INET6 + RTA_TABLE 254)",
+			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET6, unix.RT_TABLE_MAIN, 0)),
+			want:        capturedRequest(t, gatedRoute6Msgs, recGatedRoute6DumpCst, uint16(unix.RTM_GETROUTE)),
 		},
+
+		// boundary — structural, no capture yet; each names its source
 		{
 			// The unfiltered form must be bit-identical to BuildDumpAddrRequest,
 			// so the two builders cannot disagree about the same request.

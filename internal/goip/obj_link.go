@@ -105,11 +105,3 @@ func linkShow(c *runCtx, args []string) error {
 	}
 	return nil
 }
-
-// runRoute and runNeigh are placeholders so the object table can be complete
-// and its abbreviation behavior testable before the handlers exist. They
-// report ErrNotImplemented, which the dispatch tests distinguish from
-// ErrUnknownObject.
-func runRoute(_ *runCtx, _ []string) error {
-	return fmt.Errorf("route: %w", ErrNotImplemented)
-}

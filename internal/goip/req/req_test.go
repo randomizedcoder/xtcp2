@@ -38,6 +38,14 @@ const (
 	tdBulkGetLink  = "../../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getlink.pcap"
 	tdBulkGetRoute = "../../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getroute.pcap"
 	tdGetNeigh     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap"
+
+	// The gated-topology route captures, one command each, taken in a microVM
+	// with no other netlink traffic on the host. That is what makes "exactly
+	// one RTM_GETROUTE request" an assertion the route rows can make and the
+	// bulk desktop captures above cannot.
+	tdGatedGetRoute    = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute.pcap"
+	tdGatedGetRoute6   = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute6.pcap"
+	tdGatedGetRouteAll = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute_table_all.pcap"
 )
 
 // canonicalRequests returns every request in a capture with nlmsg_seq and
@@ -778,6 +786,189 @@ func TestAddrShowDumpShape(t *testing.T) {
 				if got[i] != 0 {
 					t.Errorf("ifaddrmsg byte %d = %#x, want 0", i-16, got[i])
 				}
+			}
+		})
+	}
+}
+
+// TestTierARouteShowRequests is the route half of Tier A: the three
+// `ip route show` forms, byte-for-byte against the requests the pinned `ip`
+// was recorded emitting.
+//
+// Each of the three captures below holds exactly one RTM_GETROUTE request, and
+// the row asserts that too. These are the gated-topology captures, taken one
+// command at a time in a microVM with nothing else on the host, which is what
+// makes a count of one an assertion rather than a hope — the bulk 7_1_8
+// capture this file's link rows use was taken on a live desktop.
+//
+// go test ./internal/goip/req/ -run TestTierARouteShowRequests
+func TestTierARouteShowRequests(t *testing.T) {
+	tests := []struct {
+		description string
+		capture     string
+		family      uint8
+		table       uint32
+	}{
+		{
+			// `ip route show`. AF_INET rather than AF_UNSPEC because
+			// iproute_list_flush_or_save promotes the family whenever a table
+			// filter is set (ip/iproute.c:2000), and filter.tb defaults to
+			// RT_TABLE_MAIN.
+			description: "positive: `route show` is AF_INET with RTA_TABLE=254",
+			capture:     tdGatedGetRoute,
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_MAIN,
+		},
+		{
+			description: "positive: `-6 route show` is AF_INET6 with RTA_TABLE=254",
+			capture:     tdGatedGetRoute6,
+			family:      unix.AF_INET6,
+			table:       unix.RT_TABLE_MAIN,
+		},
+		{
+			// The one form with no attribute at all: `table all` clears
+			// filter.tb, which both drops RTA_TABLE and leaves the family
+			// unpromoted.
+			description: "positive: `route show table all` is AF_UNSPEC with no RTA_TABLE",
+			capture:     tdGatedGetRouteAll,
+			family:      unix.AF_UNSPEC,
+			table:       unix.RT_TABLE_UNSPEC,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var captured [][]byte
+			for _, r := range canonicalRequests(t, tc.capture) {
+				if binary.LittleEndian.Uint16(r[4:6]) == uint16(unix.RTM_GETROUTE) {
+					captured = append(captured, r)
+				}
+			}
+			if len(captured) != 1 {
+				t.Fatalf("RTM_GETROUTE requests in %s = %d, want exactly 1; the "+
+					"capture is polluted and the expectation no longer describes "+
+					"a single command", tc.capture, len(captured))
+			}
+			got, err := RouteShowDump(tc.family, tc.table, 42)
+			if err != nil {
+				t.Fatalf("RouteShowDump(%d, %d): %v", tc.family, tc.table, err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), captured[0]) {
+				t.Errorf("built    %x\ncaptured %x", zeroSeqPid(got), captured[0])
+			}
+		})
+	}
+}
+
+// TestRouteShowDumpShape covers the table ids that have no capture: the
+// spellings of "no filter", the edges of the byte the header field can hold,
+// and the values only RTA_TABLE can express.
+//
+// The structural invariant every row checks is that rtm_table in the HEADER
+// stays 0 no matter what the attribute says. iproute2 never writes it for a
+// dump (iproute_dump_filter only adds the attribute, ip/iproute.c:1726), and
+// filling it in would be a plausible-looking change that makes every request
+// differ from the capture by one byte.
+//
+// go test ./internal/goip/req/ -run TestRouteShowDumpShape
+func TestRouteShowDumpShape(t *testing.T) {
+	const (
+		hdrAndRtmsg = 28 // 16-byte nlmsghdr + 12-byte rtmsg
+		withTable   = 36 // ... plus one 8-byte u32 attribute
+	)
+
+	tests := []struct {
+		description string
+		family      uint8
+		table       uint32
+		wantLen     int
+		wantTable   uint32 // RTA_TABLE's value, checked only when wantLen is withTable
+	}{
+		{
+			description: "positive: RT_TABLE_MAIN carries RTA_TABLE=254",
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_MAIN,
+			wantLen:     withTable,
+			wantTable:   254,
+		},
+		{
+			// `table all` and `table 0` are different spellings that both land
+			// on filter.tb = 0, so they must build the same bytes. The "0"
+			// spelling parses as a table id; "all" does not and is caught by
+			// iproute2's fallback (ip/iproute.c:1849).
+			description: "boundary: RT_TABLE_UNSPEC omits the attribute entirely",
+			family:      unix.AF_UNSPEC,
+			table:       unix.RT_TABLE_UNSPEC,
+			wantLen:     hdrAndRtmsg,
+		},
+		{
+			// The largest id rtm_table could have held, which is exactly why
+			// it is worth a row: the attribute must carry it and the header
+			// byte must still be 0.
+			description: "boundary: table 255 is RT_TABLE_LOCAL and fits a byte, but still goes in the attribute",
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_LOCAL,
+			wantLen:     withTable,
+			wantTable:   255,
+		},
+		{
+			// One past the byte. A host with `ip route add ... table 256` has
+			// a table no rtm_table can name, which is the whole reason
+			// RTA_TABLE exists.
+			description: "corner: table 256 is unrepresentable in rtm_table and must survive in the attribute",
+			family:      unix.AF_INET,
+			table:       256,
+			wantLen:     withTable,
+			wantTable:   256,
+		},
+		{
+			// RT_TABLE_MAX. rtnl_rttable_a2n accepts it, so goip must build it
+			// rather than silently truncating to 0xFF.
+			description: "corner: table 4294967295 is RT_TABLE_MAX and round-trips whole",
+			family:      unix.AF_INET,
+			table:       0xFFFFFFFF,
+			wantLen:     withTable,
+			wantTable:   0xFFFFFFFF,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := RouteShowDump(tc.family, tc.table, 9)
+			if err != nil {
+				t.Fatalf("RouteShowDump: %v", err)
+			}
+			if len(got) != tc.wantLen {
+				t.Fatalf("len = %d, want %d: %x", len(got), tc.wantLen, got)
+			}
+			if mt := binary.LittleEndian.Uint16(got[4:6]); mt != uint16(unix.RTM_GETROUTE) {
+				t.Errorf("nlmsg_type = %d, want RTM_GETROUTE", mt)
+			}
+			if want := uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP); binary.LittleEndian.Uint16(got[6:8]) != want {
+				t.Errorf("nlmsg_flags = %#x, want %#x", binary.LittleEndian.Uint16(got[6:8]), want)
+			}
+			if got[16] != tc.family {
+				t.Errorf("rtm_family = %d, want %d", got[16], tc.family)
+			}
+			// rtm_table is byte 4 of the rtmsg, so offset 20.
+			if got[20] != 0 {
+				t.Errorf("rtm_table = %d, want 0; the header field is never written for a dump", got[20])
+			}
+			// Every other rtmsg byte is zero for an unfiltered show: a
+			// non-zero dst_len or scope would be a filter `ip` did not send.
+			for i := 17; i < 28; i++ {
+				if got[i] != 0 {
+					t.Errorf("rtmsg byte %d = %#x, want 0", i-16, got[i])
+				}
+			}
+			if tc.wantLen != withTable {
+				return
+			}
+			if at := binary.LittleEndian.Uint16(got[30:32]); at != uint16(unix.RTA_TABLE) {
+				t.Errorf("attribute type = %d, want RTA_TABLE", at)
+			}
+			if v := binary.LittleEndian.Uint32(got[32:36]); v != tc.wantTable {
+				t.Errorf("RTA_TABLE = %d, want %d", v, tc.wantTable)
 			}
 		})
 	}

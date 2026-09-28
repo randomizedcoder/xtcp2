@@ -109,19 +109,26 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
-			description: "positive: at least one command is implemented and at least one is not, so both report paths are reachable",
+			description: "positive: at least one command is implemented, so the compared branch of the report is reachable from the real table",
 			check: func(t *testing.T) {
-				var impl, notImpl int
+				// This row used to require an unimplemented command too, so
+				// that both branches of the report were exercised by the real
+				// table. Every command in the table is implemented as of
+				// `route show`, and the honest response is to move the SKIP
+				// coverage rather than keep a command unimplemented to feed a
+				// test: TestCompareOneUnimplemented and TestRenderSkip drive
+				// that branch with a synthetic Command, which is stronger
+				// anyway because it does not decay the next time a row is
+				// implemented.
+				var impl int
 				for _, c := range Commands() {
 					if c.Implemented {
 						impl++
-					} else {
-						notImpl++
 					}
 				}
-				if impl == 0 || notImpl == 0 {
-					t.Errorf("implemented = %d, unimplemented = %d; a zero on either "+
-						"side leaves a branch of the report untested", impl, notImpl)
+				if impl == 0 {
+					t.Error("no command is implemented; the whole compared branch of " +
+						"the report is untested")
 				}
 			},
 		},
@@ -366,8 +373,11 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 func TestCommandString(t *testing.T) {
 	tests := []struct {
 		description string
-		name        string
-		wantFields  []string
+		// name is looked up in the real table. cmd, when set, is used
+		// instead, for a shape the table no longer holds.
+		name       string
+		cmd        *Command
+		wantFields []string
 	}{
 		{
 			description: "positive: an implemented command with no device renders six fields",
@@ -375,9 +385,15 @@ func TestCommandString(t *testing.T) {
 			wantFields:  []string{"link_show", "2", "yes", "no", "link show", "link show"},
 		},
 		{
+			// Synthetic since `route show` was implemented: the table holds
+			// no unimplemented command any more, and the driver still has to
+			// read `no` correctly the next time one is added.
 			description: "positive: an unimplemented command renders impl=no",
-			name:        "route show",
-			wantFields:  []string{"route_show", "4", "no", "no", "route show", "route show"},
+			cmd: &Command{
+				Name: "rule show", Slug: "rule_show", Floor: 2,
+				Args: []string{"rule", "show"},
+			},
+			wantFields: []string{"rule_show", "2", "no", "no", "rule show", "rule show"},
 		},
 		{
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
@@ -397,9 +413,15 @@ func TestCommandString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			c, err := Lookup(tt.name)
-			if err != nil {
-				t.Fatalf("Lookup(%q): %v", tt.name, err)
+			var c Command
+			if tt.cmd != nil {
+				c = *tt.cmd
+			} else {
+				var err error
+				c, err = Lookup(tt.name)
+				if err != nil {
+					t.Fatalf("Lookup(%q): %v", tt.name, err)
+				}
 			}
 			got := strings.Split(c.String(), "\t")
 			if len(got) != len(tt.wantFields) {

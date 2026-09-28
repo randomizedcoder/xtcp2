@@ -88,17 +88,55 @@ const (
 	// concatenates the suffix for the text form, so keeping the suffix would
 	// make this facet disagree with itself across -json.
 	FacetIfNames StdoutFacet = "ifnames"
+	// FacetDevNames is the set of device names taken from `dev NAME` tokens.
+	//
+	// This is what route and neighbor listings use in place of FacetIfNames,
+	// which they cannot: reStanza is anchored on a `N: name` header and neither
+	// object prints one, so without this facet both commands compare little
+	// more than a line count. It is what catches "goip printed the right
+	// number of route lines with no device on any of them".
+	//
+	// It is a separate facet rather than a keyword because a device name must
+	// not be allowlistable — Facets() are DivergencePresence, keywords are
+	// DivergenceValue.
+	FacetDevNames StdoutFacet = "devnames"
 	// FacetIfIndexes is the set of `N:` stanza prefixes.
 	FacetIfIndexes StdoutFacet = "ifindexes"
 	// FacetCIDRs is the set of address/prefixlen tokens, v4 and v6.
 	FacetCIDRs StdoutFacet = "cidrs"
 	// FacetMACs is the set of six-octet hardware addresses.
 	FacetMACs StdoutFacet = "macs"
+	// FacetNextHops counts the `nexthop` words that open each continuation
+	// line of a multipath route (print_rta_multipath, ip/iproute.c:694).
+	//
+	// It is a bare-token count and not a keyword for a concrete reason: the
+	// keyword pattern consumes the token after the name, and the token after
+	// `nexthop` is `via`. Making `nexthop` a keyword therefore ate the `via`
+	// on exactly the lines where the gateway matters most, and the ECMP pair
+	// 192.0.2.10/192.0.2.11 vanished from the via facet entirely. Counting
+	// the word on its own leaves `via` and `weight` to be read normally.
+	FacetNextHops StdoutFacet = "nexthops"
+	// FacetFlags is the set of route flag tokens print_rt_flags emits
+	// (ip/iproute.c:388-417): linkdown, onlink, dead and the rest.
+	//
+	// These are bare positional tokens, not `<keyword> <value>` pairs, so a
+	// keyword facet cannot carry them. `linkdown` is the clearest case and the
+	// reason this exists: on a v4 route it is the last token on the line, so
+	// reKeyword's trailing `\s+(\S+)` never matches it, and on a v6 route it
+	// precedes `pref medium` and would be recorded with the meaningless value
+	// `pref`. A locus that matches on v6 and never on v4, carrying a value
+	// that is not the flag, is the dead-locus mistake this file's header is
+	// about. The whole point of the mesh/ topology is that every route in it
+	// is linkdown, so the token has to be compared somewhere.
+	FacetFlags StdoutFacet = "flags"
 )
 
 // Facets returns the set facets in report order.
 func Facets() []StdoutFacet {
-	return []StdoutFacet{FacetLines, FacetIfNames, FacetIfIndexes, FacetCIDRs, FacetMACs}
+	return []StdoutFacet{
+		FacetLines, FacetIfNames, FacetDevNames, FacetIfIndexes,
+		FacetCIDRs, FacetMACs, FacetNextHops, FacetFlags,
+	}
 }
 
 // FacetKeyword is the facet for one `<keyword> <value>` pair family.
@@ -120,9 +158,26 @@ func (f StdoutFacet) Locus() string { return "stdout:" + string(f) }
 // reference captures is in the control and is subtracted from the test. A
 // hand-written exclusion would also hide a goip that printed the lifetime of
 // the wrong address.
+//
+// The second line is the route set. `mtu`, `proto` and `scope` are already
+// here for link and addr and are reused rather than repeated — a duplicate
+// would put the same locus in StdoutLoci twice and emit the finding twice.
+//
+// `nexthop` is NOT here, even though it is a route keyword, because the
+// pattern consumes the token after the name and that token is `via`; see
+// FacetNextHops.
+//
+// `pref` is not in the original list for this step but is required: every
+// line of ip_route6 and every v6 line of ip_route_table_all ends in
+// `pref medium`, so leaving it out would leave RTA_PREF — which had to be
+// implemented for those goldens to match at all — uncompared.
+//
+// The route flag tokens (`linkdown` and friends) are deliberately NOT here;
+// see FacetFlags for why a bare positional token cannot be a keyword.
 var keywords = []string{
 	"mtu", "qdisc", "state", "mode", "group", "qlen", "master",
 	"scope", "brd", "link-netnsid", "proto", "valid_lft", "preferred_lft",
+	"via", "metric", "src", "table", "advmss", "weight", "pref",
 }
 
 // Keywords returns the compared keywords, sorted, so a report's line order is
@@ -211,7 +266,30 @@ var (
 	// Exactly six two-digit octets, which a compressed IPv6 address cannot
 	// be: `ip` prints v6 with up to four digits per group.
 	reMAC = regexp.MustCompile(`\b([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b`)
+	// `dev NAME`, as route, neigh and the nexthop continuation lines print
+	// it. The leading \b is what keeps a name ending in `dev` — `netdev`, and
+	// `ve-dev` is a plausible veth — from contributing its peer's name.
+	//
+	// A device literally named `dev` yields one match, not two: Go's regexp
+	// scans for non-overlapping matches, so `dev dev` is consumed whole and
+	// contributes the single element `dev`.
+	reDev = regexp.MustCompile(`\bdev\s+(\S+)`)
 )
+
+// flagTokens are the bare route flag words, spelled as render.RtFlagTokens
+// and print_rt_flags spell them.
+//
+// The \b on both sides is doing real work: `offload` must not match inside
+// `rt_offload`, and it does not, because `_` is a word character.
+var flagTokens = []string{
+	"dead", "onlink", "pervasive", "offload", "trap", "notify",
+	"linkdown", "unresolved", "rt_offload", "rt_trap", "rt_offload_failed",
+}
+
+var reFlag = regexp.MustCompile(`\b(` + strings.Join(flagTokens, "|") + `)\b`)
+
+// reNextHop matches the bare `nexthop` word; see FacetNextHops.
+var reNextHop = regexp.MustCompile(`\bnexthop\b`)
 
 // reKeyword matches `<keyword> <value>` for the compared keywords, built once
 // from the table so the two cannot drift.
@@ -294,6 +372,15 @@ func stdoutFacets(s string) (sets map[StdoutFacet]multiset) {
 		}
 		for _, m := range reMAC.FindAllString(line, -1) {
 			sets[FacetMACs].add(strings.ToLower(m))
+		}
+		for _, m := range reDev.FindAllStringSubmatch(line, -1) {
+			sets[FacetDevNames].add(m[1])
+		}
+		for _, m := range reFlag.FindAllString(line, -1) {
+			sets[FacetFlags].add(m)
+		}
+		for _, m := range reNextHop.FindAllString(line, -1) {
+			sets[FacetNextHops].add(m)
 		}
 		for _, m := range reKeyword.FindAllStringSubmatch(line, -1) {
 			sets[FacetKeyword(m[1])].add(m[2])

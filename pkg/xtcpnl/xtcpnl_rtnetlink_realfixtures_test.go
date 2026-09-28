@@ -605,7 +605,12 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_DHCP,
-				Gateway: v4b(172, 16, 50, 1), PrefSrc: v4b(172, 16, 50, 219), Oif: 2, Priority: 100,
+				Gateway: v4b(172, 16, 50, 1), PrefSrc: v4b(172, 16, 50, 219), Oif: 2,
+				Priority: 100, HasPriority: true,
+				// No HasPref: RTA_PREF is an ICMPv6 router preference, so the
+				// kernel attaches it to IPv6 routes only — 48 of the 74 routes
+				// in this dump carry it, which is exactly its IPv6 half. Hence
+				// no `pref` token on any v4 line of ip_route_table_all_n.
 			},
 		},
 		{
@@ -642,7 +647,14 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET6, DstLen: 64, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_KERNEL,
-				Dst: mustV6(t, "fd10:10:4::"), Oif: 3, Priority: 256,
+				Dst: mustV6(t, "fd10:10:4::"), Oif: 3,
+				Priority: 256, HasPriority: true,
+				// pref=0 is ICMPV6_ROUTER_PREF_MEDIUM, which renders as
+				// `pref medium` — the value a kernel-installed route gets. The
+				// flag is what makes it printable: Pref 0 alone is
+				// indistinguishable from the attribute being absent, which is
+				// the v4 case immediately above.
+				Pref: 0, HasPref: true,
 			},
 		},
 		{
@@ -653,12 +665,20 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET6, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_RA,
-				Gateway: mustV6(t, "fe80::e638:83ff:fe36:8f0d"), Oif: 2, Priority: 100,
+				Gateway: mustV6(t, "fe80::e638:83ff:fe36:8f0d"), Oif: 2,
+				Priority: 100, HasPriority: true,
+				// The one non-medium preference in the corpus, and the reason
+				// Pref is decoded as a value rather than a bool: this route was
+				// learned from a router advertisement that set
+				// ICMPV6_ROUTER_PREF_HIGH (0x1), and the sidecar prints
+				// `pref high`. Every other v6 route here is medium.
+				Pref: 1, HasPref: true,
 			},
 		},
 		{
 			// ip_route_table_all_n:40
-			// "local ::1 dev lo table local proto kernel scope global metric 0"
+			// "local ::1 dev lo table local proto kernel scope global metric 0
+			//  pref medium"
 			// Note: unlike the IPv4 loopback local route (scope HOST), the v6 ::1
 			// local route is scope GLOBAL.
 			description: "boundary v6: local host route ::1/128 (type LOCAL, table LOCAL, scope GLOBAL)",
@@ -666,6 +686,14 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 				Family: unix.AF_INET6, DstLen: 128, Table: unix.RT_TABLE_LOCAL,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_LOCAL, Protocol: unix.RTPROT_KERNEL,
 				Dst: mustV6(t, "::1"), Oif: 1,
+				// The boundary this row is named for, now that presence is
+				// tracked: RTA_PRIORITY is PRESENT and carries 0, and the
+				// sidecar prints `metric 0`. The v4 rows above omit the
+				// attribute entirely and print no metric token. Priority 0 with
+				// HasPriority false and Priority 0 with HasPriority true are
+				// therefore different renderings, which is what the flag buys.
+				Priority: 0, HasPriority: true,
+				Pref: 0, HasPref: true,
 			},
 		},
 	}

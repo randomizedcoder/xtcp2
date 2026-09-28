@@ -139,15 +139,24 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "route show", Slug: "route_show",
-		Floor: 4, Implemented: false,
+		// Four: the route dump, then one lazy RTM_GETLINK single-get for the
+		// one ifindex the listing mentions. iproute_list_flush_or_save never
+		// calls ll_init_map (ip/iproute.c:1819), so there is no up-front link
+		// dump to count — obj_route.go reproduces that laziness rather than
+		// dumping, because a dump would keep the datagram count plausible
+		// while sending an entirely different request.
+		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "route show table all", Slug: "route_show_table_all",
-		Floor: 4, Implemented: false,
+		// Six in the gated topology, because table all reaches lo as well.
+		// The floor stays 4: it is a floor, and the second device is a
+		// property of the topology rather than of the command.
+		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "-6 route show", Slug: "route_show_v6",
-		Floor: 4, Implemented: false,
+		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "neigh show", Slug: "neigh_show",

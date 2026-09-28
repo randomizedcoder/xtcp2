@@ -231,9 +231,12 @@ linters:
       # `matches()` is prefix matching, not fuzzy matching — "neighbour" is not
       # a prefix of "neighbor", so dropping the second entry makes `goip
       # neighbour show` report an unknown object where `ip` works.
-      # internal/goip/dispatch.go holds the alias itself and dispatch_test.go
-      # names the pair in the comment on the row that asserts their order.
-      - path: "internal/goip/dispatch(_test)?\\.go"
+      # internal/goip/dispatch.go holds the alias itself, dispatch_test.go
+      # names the pair in the comment on the row that asserts their order, and
+      # obj_neigh_test.go runs the alias end to end — that row's argv is the
+      # string a user types, so it cannot be respelled without testing a
+      # command that does not exist.
+      - path: "internal/goip/(dispatch(_test)?|obj_neigh_test)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
@@ -243,14 +246,31 @@ linters:
       # (:120-123), IF_LINK_MODE_DORMANT in linkModes (:170-172), and
       # IFF_DORMANT in linkFlagNames (:94-111). Hoisting them to one constant
       # would assert the three are the same value, which is what makes this
-      # finding wrong rather than merely inconvenient — and three constants
-      # each holding the literal would not satisfy goconst anyway. Scoped to
-      # the one word in the one file, so a genuine repeated literal elsewhere
-      # in internal/goip still fails.
+      # finding wrong rather than merely inconvenient.
+      #
+      # Unlike the "default" case below, three NAMED constants are not the
+      # better answer here: all three sites are rows of a table literal
+      # (`[...]string{...}` twice, a slice of structs once), so a constant in
+      # one row and bare strings in its neighbors would read worse than either
+      # alternative. (An earlier version of this comment claimed three
+      # constants "would not satisfy goconst anyway" — that is false. goconst
+      # ignores literals inside a const declaration; verified against
+      # golangci-lint with min-occurrences 3.)
+      #
+      # Scoped to the one word in the one file, so a genuine repeated literal
+      # elsewhere in internal/goip still fails.
       - path: "internal/goip/render/render\\.go"
         linters:
           - goconst
         text: "string `DORMANT` has 3 occurrences"
+      # There is deliberately NO rule here for "default", which internal/goip/
+      # render also spells three times. goconst does not see literals inside a
+      # const declaration, so two of the three became named constants —
+      # groupZeroName (render.go) and routePrefixWildcard (route.go) — which
+      # says at the call site what an exclusion here could only say in the
+      # config. The third is a row of the routeTableNames map, left as a
+      # literal so it reads like its two siblings, and one occurrence is under
+      # min-occurrences. Prefer that shape over a new exclusion.
       - linters:
           - staticcheck
         text: "ST1003:"
