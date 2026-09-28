@@ -69,6 +69,19 @@ func rtmsgHdr(family, dstLen, tos, table, protocol, scope, rtype uint8, flags ui
 	return b
 }
 
+// rtmsgHdrSrc encodes a 12-byte rtmsg family header with rtm_src_len set.
+//
+// rtmsgHdr leaves src_len at 0, which is what every dump reply in the corpus
+// carries, so it is the right default for the route tables. A source-routed
+// entry is the exception, and src_len is part of a route's identity — a
+// (dst, src) pair is a different route from (dst, *) — so it needs a header
+// builder that can say so. Same split as ifinfomsgHdr / ifinfomsgHdrChange.
+func rtmsgHdrSrc(family, dstLen, srcLen, tos, table, protocol, scope, rtype uint8, flags uint32) []byte {
+	b := rtmsgHdr(family, dstLen, tos, table, protocol, scope, rtype, flags)
+	b[2] = srcLen
+	return b
+}
+
 // ifinfomsgHdr encodes a 16-byte ifinfomsg family header.
 func ifinfomsgHdr(family uint8, itype uint16, index int32, flags uint32) []byte {
 	b := make([]byte, IfInfomsgSizeCst)
@@ -481,7 +494,8 @@ func TestParseNewAddr(t *testing.T) {
 			want: AddrInfo{
 				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 2,
 				Address: v4b(172, 16, 50, 219), Local: v4b(172, 16, 50, 219),
-				Broadcast: v4b(172, 16, 50, 255), Proto: IfaProtoKernelLL,
+				Broadcast: v4b(172, 16, 50, 255),
+				Proto:     IfaProtoKernelLL, HasProto: true,
 			},
 		},
 		{
@@ -570,7 +584,7 @@ func TestParseNewRoute(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
-				Gateway: v4b(10, 0, 0, 1), Oif: 2, Priority: 100,
+				Gateway: v4b(10, 0, 0, 1), Oif: 2, Priority: 100, HasPriority: true,
 			},
 		},
 		{
@@ -696,6 +710,75 @@ func TestParseNewRoute(t *testing.T) {
 			},
 		},
 		{
+			// RTA_IIF is the INPUT interface, and it appears only on a cloned
+			// or a multicast route — neither of which an ordinary `route show`
+			// dump contains, which is why this row is constructed rather than
+			// taken from a capture. `ip` renders it as `iif NAME`
+			// (ip/iproute.c:986), so dropping the attribute would silently
+			// shorten the line rather than produce an error.
+			description: "positive: RTA_IIF on a multicast route decodes the input interface",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_DST, v4b(224, 0, 0, 1)),
+				rtattr(unix.RTA_IIF, le32(3)),
+				rtattr(unix.RTA_OIF, le32(1)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(224, 0, 0, 1), Iif: 3, Oif: 1,
+			},
+		},
+		{
+			// Iif and Oif are separate fields because a multicast route has
+			// both and they are different interfaces. Folding them into one
+			// would make `ip`'s `iif` and `dev` tokens name the same device.
+			description: "boundary: RTA_IIF and RTA_OIF naming different interfaces are kept apart",
+			body: concat(
+				rtmsgHdr(unix.AF_INET6, 8, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_IIF, le32(7)),
+				rtattr(unix.RTA_OIF, le32(9)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET6, DstLen: 8, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Iif: 7, Oif: 9,
+			},
+		},
+		{
+			// Every ifindex attribute is a u32. A short payload is not
+			// decodable, and storing a fabricated zero would claim the kernel
+			// said "no interface" when what it sent was truncated.
+			description: "corner: short RTA_IIF (2 bytes) is ignored, leaving Iif zero",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_DST, v4b(224, 0, 0, 1)),
+				rtattr(unix.RTA_IIF, []byte{0x03, 0x00}),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(224, 0, 0, 1),
+			},
+		},
+		{
+			// attrSeen keeps the FIRST occurrence, following iproute2's
+			// parse_rtattr (lib/libnetlink.c:1554) rather than the kernel's
+			// __nla_parse, which keeps the last. The two disagree, and what
+			// this package has to agree with is what `ip` renders.
+			description: "corner: a duplicate RTA_IIF is ignored, because the first attribute wins",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_IIF, le32(3)),
+				rtattr(unix.RTA_IIF, le32(4)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Iif: 3,
+			},
+		},
+		{
 			description: "corner: truncated rtmsg header -> error",
 			body:        make([]byte, RtMsgSizeCst-1),
 			wantErr:     true,
@@ -757,7 +840,10 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_MTU, le32(1500)),
 				rtattr(unix.IFLA_IFNAME, append([]byte("wg0"), 0)),
 			),
-			want: LinkInfo{Index: 5, Flags: unix.IFF_UP, Name: "wg0", Type: 1, MTU: 1500},
+			want: LinkInfo{
+				Index: 5, Flags: unix.IFF_UP, Name: "wg0", Type: 1,
+				MTU: 1500, HasMTU: true,
+			},
 		},
 		{
 			description: "corner: truncated ifinfomsg header -> error",
@@ -863,7 +949,7 @@ func TestParseNewLink(t *testing.T) {
 			),
 			want: LinkInfo{
 				Index: 10, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
-				MTU: 1500,
+				MTU: 1500, HasMTU: true,
 			},
 		},
 		{
@@ -916,7 +1002,8 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_MTU, le32(9000)),
 			),
 			want: LinkInfo{
-				Index: 13, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, MTU: 1500,
+				Index: 13, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				MTU: 1500, HasMTU: true,
 			},
 		},
 		{

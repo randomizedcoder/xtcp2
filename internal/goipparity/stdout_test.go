@@ -1,6 +1,7 @@
 package goipparity
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -585,6 +586,359 @@ func TestStdoutDivergenceString(t *testing.T) {
 		t.Run(tt.description, func(t *testing.T) {
 			if got := tt.d.String(); got != tt.want {
 				t.Errorf("String() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The two nexthop lines of the committed ip_route_main, byte for byte
+// including the trailing space `print_rta_multipath` leaves on each. Spelled
+// out rather than sliced out of the file so that a row which swaps or drops
+// one is unambiguous about what it swapped or dropped.
+const (
+	routeNH1 = "\tnexthop via 192.0.2.10 dev goip0 weight 1 \n"
+	routeNH2 = "\tnexthop via 192.0.2.11 dev goip0 weight 3 \n"
+)
+
+// routeGolden reads one committed `ip route show` sidecar from the same dump
+// directory the netlink fixtures live in.
+//
+// Real `ip` output rather than a transcription: these facets exist to read
+// what iproute2 actually prints, trailing spaces and tab-indented nexthop
+// continuation lines included, and a hand-copied constant with that
+// whitespace normalized away would be testing the copy.
+func routeGolden(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(tdGuest + "/" + name)
+	if err != nil {
+		t.Fatalf("reading sidecar %s: %v", name, err)
+	}
+	if len(b) == 0 {
+		t.Fatalf("sidecar %s is empty, so any row using it is vacuous", name)
+	}
+	return string(b)
+}
+
+// TestStdoutRouteFacets pins the extraction half of the route work: what
+// FacetDevNames, FacetFlags and the route keywords actually pull out of the
+// committed goldens.
+//
+// Extraction is tested separately from comparison because the two fail
+// differently. A facet that extracts nothing makes CompareStdout silent, and
+// a silent comparator reads as a pass — so "the regex matched what I think it
+// matched" has to be asserted directly rather than inferred from a clean
+// diff.
+//
+// go test ./internal/goipparity/ -run TestStdoutRouteFacets
+func TestStdoutRouteFacets(t *testing.T) {
+	tests := []struct {
+		description string
+		// golden names a committed sidecar. When it is empty, in is used.
+		golden string
+		in     string
+		facet  StdoutFacet
+		// want is the whole multiset for that facet, counts included. An
+		// exact map, not a subset: an element appearing twice where it should
+		// appear once is the duplicate-line bug the multisets exist for.
+		want map[string]int
+	}{
+		{
+			description: "positive: every `dev goip0` in ip_route_main is extracted, the five route lines and the two nexthop continuations",
+			golden:      "ip_route_main",
+			facet:       FacetDevNames,
+			want:        map[string]int{"goip0": 7},
+		},
+		{
+			description: "positive: ip_route_table_all reaches lo as well as goip0, which is the second interface the lazy name resolution has to fetch",
+			golden:      "ip_route_table_all",
+			facet:       FacetDevNames,
+			want:        map[string]int{"goip0": 18, "lo": 4},
+		},
+		{
+			description: "positive: the via facet separates the two ECMP gateways and records `inet6` for the RFC-5549 route",
+			golden:      "ip_route_main",
+			facet:       FacetKeyword("via"),
+			// `via inet6 2001:db8::2` contributes `inet6`, not the address:
+			// print_rta_via prints the family word first. The address is
+			// still compared, by the netlink side, which sees RTA_VIA whole.
+			want: map[string]int{"192.0.2.10": 3, "192.0.2.11": 1, "inet6": 1},
+		},
+		{
+			description: "positive: the ECMP weights are extracted apart, so rendering both legs with weight 1 is a finding",
+			golden:      "ip_route_main",
+			facet:       FacetKeyword("weight"),
+			want:        map[string]int{"1": 1, "3": 1},
+		},
+		{
+			description: "positive: the nexthop facet counts the two continuation lines of the ECMP route",
+			golden:      "ip_route_main",
+			facet:       FacetNextHops,
+			want:        map[string]int{"nexthop": 2},
+		},
+		{
+			description: "boundary: a listing with no multipath route has an empty nexthops facet, not a missing one",
+			golden:      "mesh/ip_route_main",
+			facet:       FacetNextHops,
+			want:        map[string]int{},
+		},
+		{
+			description: "positive: RTA_METRICS reaches stdout as mtu",
+			golden:      "ip_route_main",
+			facet:       FacetKeyword("mtu"),
+			want:        map[string]int{"1400": 1},
+		},
+		{
+			description: "positive: RTA_METRICS reaches stdout as advmss",
+			golden:      "ip_route_main",
+			facet:       FacetKeyword("advmss"),
+			want:        map[string]int{"1300": 1},
+		},
+		{
+			description: "positive: RTA_PREFSRC reaches stdout as src",
+			golden:      "ip_route_main",
+			facet:       FacetKeyword("src"),
+			want:        map[string]int{"192.0.2.1": 1},
+		},
+		{
+			description: "positive: the v6 metrics are extracted, the kernel's 256 and the topology's 1024",
+			golden:      "ip_route6",
+			facet:       FacetKeyword("metric"),
+			want:        map[string]int{"256": 2, "1024": 2},
+		},
+		{
+			description: "positive: RTA_PREF ends every v6 line and is compared, which is why pref is a keyword at all",
+			golden:      "ip_route6",
+			facet:       FacetKeyword("pref"),
+			want:        map[string]int{"medium": 4},
+		},
+		{
+			description: "positive: `table local` is extracted from every table-all line that carries it",
+			golden:      "ip_route_table_all",
+			facet:       FacetKeyword("table"),
+			want:        map[string]int{"local": 10},
+		},
+		{
+			description: "positive: linkdown at end of line is extracted, which no keyword facet could do",
+			golden:      "mesh/ip_route_main",
+			facet:       FacetFlags,
+			want:        map[string]int{"linkdown": 2},
+		},
+		{
+			description: "positive: linkdown mid-line, before `pref medium`, is the same element as linkdown at end of line",
+			golden:      "mesh/ip_route6",
+			facet:       FacetFlags,
+			want:        map[string]int{"linkdown": 1},
+		},
+		{
+			description: "negative: link stanzas contribute no device names, so the facet cannot fire spuriously on `link show`",
+			in:          refLinkShow,
+			facet:       FacetDevNames,
+			want:        map[string]int{},
+		},
+		{
+			description: "negative: a route listing with no flags set has an empty flags facet rather than a missing one",
+			golden:      "ip_route_main",
+			facet:       FacetFlags,
+			want:        map[string]int{},
+		},
+		{
+			description: "boundary: empty output yields an empty facet, which is what makes the diff against a non-empty side fire",
+			in:          "",
+			facet:       FacetDevNames,
+			want:        map[string]int{},
+		},
+		{
+			description: "corner: a device literally named `dev` is extracted once, because the scan is non-overlapping",
+			in:          "192.0.2.0/24 dev dev scope link \n",
+			facet:       FacetDevNames,
+			want:        map[string]int{"dev": 1},
+		},
+		{
+			description: "corner: a device name ending in `dev` is not split, because \\bdev needs a word boundary",
+			in:          "192.0.2.0/24 dev netdev0 scope link \n",
+			facet:       FacetDevNames,
+			want:        map[string]int{"netdev0": 1},
+		},
+		{
+			description: "corner: rt_offload is one token and does not also register as offload, because _ is a word character",
+			in:          "192.0.2.0/24 dev goip0 rt_offload \n",
+			facet:       FacetFlags,
+			want:        map[string]int{"rt_offload": 1},
+		},
+		{
+			description: "corner: preferred_lft does not register as pref, because the keyword pattern requires whitespace after the name",
+			in:          refAddrShow,
+			facet:       FacetKeyword("pref"),
+			want:        map[string]int{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			in := tt.in
+			if tt.golden != "" {
+				in = routeGolden(t, tt.golden)
+			}
+			got, ok := stdoutFacets(in)[tt.facet]
+			if !ok {
+				t.Fatalf("facet %q is not extracted at all; it must be in Facets() or keywords", tt.facet)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("facet %q = %v, want %v", tt.facet, map[string]int(got), tt.want)
+			}
+			for k, n := range tt.want {
+				if got[k] != n {
+					t.Errorf("facet %q element %q counted %d, want %d; whole set %v",
+						tt.facet, k, got[k], n, map[string]int(got))
+				}
+			}
+		})
+	}
+}
+
+// TestCompareStdoutRoute is the comparison half: which loci fire when a route
+// rendering goes wrong, and with which class.
+//
+// Before FacetDevNames and FacetFlags existed, every row here that is not the
+// empty-output one reported nothing at all — reStanza is anchored on a `N:
+// name` header that route output does not have, so ifnames and ifindexes are
+// permanently empty for this object and the comparison came down to a line
+// count. That is the hole these rows close.
+//
+// go test ./internal/goipparity/ -run TestCompareStdoutRoute
+func TestCompareStdoutRoute(t *testing.T) {
+	main := routeGolden(t, "ip_route_main")
+	mesh := routeGolden(t, "mesh/ip_route_main")
+
+	// Constructed once and checked, because a strings.Replace that matched
+	// nothing would silently turn the row it feeds into "identical == clean".
+	noDev := strings.ReplaceAll(main, " dev goip0", "")
+	noLinkdown := strings.ReplaceAll(mesh, " linkdown", "")
+	swapped := strings.Replace(main, routeNH1+routeNH2, routeNH2+routeNH1, 1)
+	oneLeg := strings.Replace(main, routeNH2, "", 1)
+	for _, c := range []struct {
+		name     string
+		mutated  string
+		original string
+	}{
+		{"noDev", noDev, main},
+		{"noLinkdown", noLinkdown, mesh},
+		{"swapped", swapped, main},
+		{"oneLeg", oneLeg, main},
+	} {
+		if c.mutated == c.original {
+			t.Fatalf("%s did not change the golden, so its row would assert nothing", c.name)
+		}
+	}
+
+	tests := []struct {
+		description string
+		ref, sub    string
+		wantLoci    []string
+		wantClass   map[string]nlparity.DivergenceClass
+	}{
+		{
+			description: "positive: identical route listings produce no findings",
+			ref:         main,
+			sub:         main,
+			wantLoci:    nil,
+		},
+		{
+			description: "negative: a rendering that drops every `dev` token is caught, and the finding is unsuppressible",
+			// The Risk 1 failure mode, and the reason FacetDevNames exists:
+			// the line count, the prefixes, the gateways and the metrics all
+			// still match, so before this facet the listing compared clean.
+			ref:      main,
+			sub:      noDev,
+			wantLoci: []string{"stdout:devnames"},
+			wantClass: map[string]nlparity.DivergenceClass{
+				"stdout:devnames": nlparity.DivergencePresence,
+			},
+		},
+		{
+			description: "negative: a dropped linkdown is caught, which is the only thing distinguishing the mesh topology's output",
+			ref:         mesh,
+			sub:         noLinkdown,
+			wantLoci:    []string{"stdout:flags"},
+			wantClass: map[string]nlparity.DivergenceClass{
+				"stdout:flags": nlparity.DivergencePresence,
+			},
+		},
+		{
+			description: "negative: an empty rendering fires every facet the golden populates, and the structural ones are unsuppressible",
+			ref:         main,
+			sub:         "",
+			// No ifnames or ifindexes: route output has no stanza header, so
+			// those two facets are empty on BOTH sides and correctly stay
+			// quiet. No macs, and no flags, because this topology has neither.
+			wantLoci: []string{
+				"stdout:lines", "stdout:devnames", "stdout:cidrs", "stdout:nexthops",
+				"stdout:keyword:proto", "stdout:keyword:scope", "stdout:keyword:src",
+				"stdout:keyword:via", "stdout:keyword:mtu", "stdout:keyword:advmss",
+				"stdout:keyword:weight",
+			},
+			wantClass: map[string]nlparity.DivergenceClass{
+				"stdout:lines":    nlparity.DivergencePresence,
+				"stdout:devnames": nlparity.DivergencePresence,
+				"stdout:cidrs":    nlparity.DivergencePresence,
+			},
+		},
+		{
+			description: "boundary: dropping one leg of the ECMP pair is caught on five facets at once",
+			ref:         main,
+			sub:         oneLeg,
+			wantLoci: []string{
+				"stdout:lines", "stdout:devnames", "stdout:nexthops",
+				"stdout:keyword:via", "stdout:keyword:weight",
+			},
+		},
+		{
+			description: "boundary: reordering the two nexthop lines is NOT reported, because every facet is a multiset",
+			// Recorded rather than fixed. An ordering facet here would be
+			// byte-for-byte stdout parity by the back door, which is out of
+			// scope for exactly the reasons the file header gives — and
+			// nexthop order is already compared exactly on the netlink side,
+			// where RTA_MULTIPATH is one attribute whose bytes are diffed
+			// whole. If goip ever emitted the legs in the wrong order, the
+			// request/reply tiers would say so; stdout deliberately would not.
+			ref:      main,
+			sub:      swapped,
+			wantLoci: nil,
+		},
+		{
+			description: "corner: renaming the device fires devnames alone, since nothing else on the line moved",
+			ref:         main,
+			sub:         strings.ReplaceAll(main, "dev goip0", "dev eth0"),
+			wantLoci:    []string{"stdout:devnames"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			got := CompareStdout("route show", tt.ref, tt.sub)
+
+			gotLoci := map[string]nlparity.DivergenceClass{}
+			for _, d := range got {
+				gotLoci[d.Locus()] = d.Class
+			}
+			want := map[string]bool{}
+			for _, l := range tt.wantLoci {
+				want[l] = true
+			}
+			for l := range gotLoci {
+				if !want[l] {
+					t.Errorf("unexpected finding at %q", l)
+				}
+			}
+			for l := range want {
+				if _, ok := gotLoci[l]; !ok {
+					t.Errorf("missing finding at %q", l)
+				}
+			}
+			for l, wantClass := range tt.wantClass {
+				if gotClass, ok := gotLoci[l]; ok && gotClass != wantClass {
+					t.Errorf("finding at %q has class %s, want %s", l, gotClass, wantClass)
+				}
 			}
 		})
 	}

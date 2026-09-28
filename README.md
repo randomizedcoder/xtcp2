@@ -1,11 +1,11 @@
 # xtcp2
 
-**xtcp2** is a high-performance Linux daemon that streams kernel TCP socket state — the same rich diagnostics you get from `ss --info` — out of the kernel via the netlink `inet_diag` interface, across **every network namespace on the host**, and fans the results out to a configurable destination (Kafka, NATS, NSQ, Valkey, UDP, Unix sockets, S3/Parquet, or `/dev/null`).
+**xtcp2** is a high-performance Linux daemon that streams kernel TCP socket state — the same rich diagnostics you get from `ss --info` — out of the kernel via the netlink `inet_diag` interface, across **every network namespace on the host**, and fans the results out to a configurable destination (Kafka, NATS, NSQ, Valkey, stdout/stderr/file, TCP, HTTP(S), UDP, Unix sockets, S3/Parquet, or `/dev/null`).
 
 It is a ground-up reimplementation of [randomizedcoder/xtcp](https://github.com/randomizedcoder/xtcp), rewritten with two goals in mind:
 
 - **Performance** — zero-copy-friendly netlink parsing, `sync.Pool`-backed buffers and protobuf messages, parallel netlink readers, and an optional `io_uring` fast path (Linux 6.1+).
-- **Container / namespace visibility** — xtcp2 discovers network namespaces under `/run/netns/` and `/run/docker/netns/`, spawns a dedicated reader per namespace, and reconciles namespace churn (Kubernetes pods, containers) in real time. You see TCP metrics for every container, not just the host.
+- **Container / namespace visibility** — xtcp2 discovers namespaces by scanning `/proc/<pid>/ns/net`, uses bind-mounted namespace paths for stable names when available, spawns a dedicated reader per namespace, and reconciles namespace churn (Kubernetes pods, containers) in real time. You see TCP metrics for every container, not just the host.
 
 The typical deployment streams length-delimited protobuf batches to Kafka/Redpanda for ingestion into ClickHouse, but the destination is pluggable and selectable at build time.
 
@@ -14,7 +14,7 @@ The typical deployment streams length-delimited protobuf batches to Kafka/Redpan
 ## Architecture at a glance
 
 ```
-  /run/netns/*  /run/docker/netns/*        (namespace discovery + inotify watch)
+  /proc/<pid>/ns/net + bind-mounted names  (namespace discovery + reconcile)
         │
         ▼
   ┌─────────────────┐   one per network namespace
@@ -38,15 +38,16 @@ The typical deployment streams length-delimited protobuf batches to Kafka/Redpan
         │
         ▼
   ┌─────────────────┐   protobufList | protoJson | protoText | msgpack
-  │   marshaller     │
+  │   marshaller     │  jsonl | csv | tsv
   └─────────────────┘
         │
         ▼
-  ┌─────────────────┐   kafka | nats | nsq | valkey | udp | unix | s3parquet | null
-  │   destination    │
+  ┌─────────────────┐   stdout | stderr | file | tcp | http(s) | udp | unix
+  │   destination    │  unixgram | null | kafka | nats | nsq | valkey | s3parquet
   └─────────────────┘
 
   Side channels:  gRPC API (:8889)  •  Prometheus metrics (:9088)  •  pprof / Pyroscope
+                 TCP or UDS listeners  •  optional bearer / HMAC listener auth
 ```
 
 For the full picture see the [documentation hub](docs/README.md).
@@ -89,7 +90,7 @@ Run `xtcp2 -help` for the full flag list. Common flags:
 | `-dest` | `kafka:redpanda-0:9092` | Destination, `scheme:address` (see [destinations](docs/output-and-destinations.md)) |
 | `-topic` | `xtcp` | Kafka / NSQ topic |
 | `-frequency` | `10s` | Poll interval |
-| `-marshal` | `protobufList` | Wire format (`protobufList`, `protoJson`, `protoText`, `msgpack`) |
+| `-marshal` | `protobufList` | Wire format (`protobufList`, `protoJson`, `protoText`, `msgpack`, `jsonl`, `csv`, `tsv`) |
 | `-netlinkers` | `4` | Parallel netlink readers per namespace |
 | `-deserializers` | `all` | Which inet_diag attributes to decode |
 | `-promListen` | `:9088` | Prometheus metrics listener |
@@ -103,13 +104,14 @@ Run `xtcp2 -help` for the full flag list. Common flags:
 | Feature | Summary | Docs |
 |---|---|---|
 | **Netlink TCP collection** | Reads TCP socket state via `inet_diag`; 13 pluggable attribute decoders (tcp_info, congestion, meminfo, BBR, DCTCP, skmem, cgroup, …). | [netlink-collection](docs/netlink/collection.md) |
-| **Multi-namespace visibility** | Discovers and watches `/run/netns` + `/run/docker/netns`, one reader per namespace, real-time churn reconciliation. | [network-namespaces](docs/network-namespaces.md) |
+| **Multi-namespace visibility** | Discovers live namespaces from `/proc`, uses bind-mounted namespace names when available, and reconciles one reader set per namespace. | [network-namespaces](docs/network-namespaces.md) |
 | **Polling & batching** | Periodic dumps accumulated into protobuf Envelopes, flushed by row-count or byte-size thresholds. | [polling-and-batching](docs/polling-and-batching.md) |
-| **Output formats & destinations** | Four marshallers and nine build-tagged destinations (Kafka, NATS, NSQ, Valkey, UDP, Unix, S3/Parquet, null). | [output-and-destinations](docs/output-and-destinations.md) |
-| **gRPC API** | Runtime config get/set and live record streaming over gRPC. | [grpc-api](docs/grpc-api.md) |
-| **Observability** | Prometheus metrics, pprof, Pyroscope continuous profiling, startup capability checks. | [observability](docs/observability.md) |
+| **Output formats & destinations** | Seven marshallers; stdlib destinations are always built, while Kafka, NATS, NSQ, Valkey, and S3/Parquet are build-tagged. | [output-and-destinations](docs/output-and-destinations.md) |
+| **gRPC API & listener security** | Runtime config get/set, live record streaming, TCP or UDS listeners, and optional bearer/HMAC authentication. | [grpc-api](docs/grpc-api.md) |
+| **Metadata enrichment** | Container, LLDP/NIC, NSID/uplink, ASN, and destination-locality enrichment. ASN/locality require matching build flavors. Current ASN is representative provider ASN from feed-owner metadata; true BGP RIB/MRT origin ASN and next-hop ASN are future work. | [build-flavors](docs/build-flavors.md), [ASN enrichment](docs/ipfeed-asn-enrichment.md), [locality enrichment](docs/locality-enrichment.md) |
+| **Observability** | Prometheus metrics, pprof on the metrics listener, Pyroscope continuous profiling, startup capability checks. | [observability](docs/observability.md) |
 | **Performance** | Optional `io_uring` I/O, typed `sync.Pool` wrappers, parallel readers, thread-cap tuning. | [performance](docs/performance.md) |
-| **Testing & quality** | Real captured netlink `.pcap` fixtures across many kernel versions, reflection-free typed parsers, ~800 tests at >92% coverage. | [testing-and-quality](docs/testing-and-quality.md) |
+| **Testing & quality** | Real captured netlink `.pcap` fixtures across many kernel versions, reflection-free typed parsers, custom audits, unit tests, and microVM lifecycle checks. | [testing-and-quality](docs/testing-and-quality.md) |
 
 ---
 

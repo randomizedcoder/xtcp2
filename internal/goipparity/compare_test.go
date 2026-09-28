@@ -128,11 +128,6 @@ func TestCompareDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	routeShow, err := Lookup("route show")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	tests := []struct {
 		description string
 		// setup writes whatever the row needs into a fresh directory.
@@ -158,16 +153,6 @@ func TestCompareDir(t *testing.T) {
 			want: map[string]Status{
 				"link show": StatusPass,
 				"addr show": StatusPass,
-			},
-		},
-		{
-			description: "positive: an unimplemented command with no files is SKIP, not MISSING",
-			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, linkShow, sameAll(tdGuestLink), sameAll(linkOut))
-			},
-			want: map[string]Status{
-				"link show":  StatusPass,
-				"route show": StatusSkip,
 			},
 		},
 		{
@@ -198,18 +183,6 @@ func TestCompareDir(t *testing.T) {
 				})
 			},
 			want: map[string]Status{"link show": StatusMissing},
-		},
-		{
-			description: "negative: a goip capture for an unimplemented command is a FAIL, since the table and the driver disagree",
-			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, linkShow, sameAll(tdGuestLink), sameAll(linkOut))
-				writeTriple(t, dir, routeShow,
-					map[string]string{SideGoip: tdGuestLink}, nil)
-			},
-			want: map[string]Status{
-				"link show":  StatusPass,
-				"route show": StatusFail,
-			},
 		},
 		{
 			description: "negative: a corrupt pcap is a FAIL with the file named, not a silent skip",
@@ -353,6 +326,175 @@ func TestCompareDir(t *testing.T) {
 					r.Status != StatusMissing && r.Status != StatusPass:
 					t.Errorf("%q status = %s, expected MISSING or PASS (err=%v)",
 						name, r.Status, r.Err)
+				}
+			}
+		})
+	}
+}
+
+// TestCompareOneUnimplemented drives compareOne's unimplemented branch with a
+// synthetic command.
+//
+// These rows used to live in TestCompareDir and name `route show`, which was
+// the last unimplemented row in the table. Now that it is implemented there is
+// no real command left to write them against, and the choice was between
+// holding a command back to feed a test and testing the branch directly.
+// Directly wins twice over: the rows cannot decay the next time a command is
+// implemented, and they say what they mean — this is about the Implemented
+// flag, not about routes.
+//
+// `rule show` is the placeholder because it is a real read-only iproute2
+// command goip does not implement, so the row reads as the situation it
+// describes rather than as an invented name.
+//
+// go test ./internal/goipparity/ -run TestCompareOneUnimplemented
+func TestCompareOneUnimplemented(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	ruleShow := Command{
+		Name: "rule show", Slug: "rule_show", Floor: 2,
+		Args: []string{"rule", "show"},
+	}
+
+	tests := []struct {
+		description string
+		setup       func(t *testing.T, dir string)
+		want        Status
+		// wantErrSubstr, when set, must appear in Result.Err. A status alone
+		// would not distinguish "the driver disagrees with the table" from
+		// any other FAIL.
+		wantErrSubstr string
+	}{
+		{
+			description: "positive: an unimplemented command with no files at all is SKIP, not MISSING",
+			// The distinction this row exists for: MISSING fails the run and
+			// SKIP does not, so getting it backwards would either make every
+			// planned command red or make a vanished capture invisible.
+			setup: func(_ *testing.T, _ string) {},
+			want:  StatusSkip,
+		},
+		{
+			description: "positive: an unimplemented command is SKIP even when the two ip sides were captured",
+			// The driver is allowed to capture the reference sides for a
+			// command goip cannot run; only a goip capture is contradictory.
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, ruleShow, map[string]string{
+					SideIPA: tdGuestLink, SideIPB: tdGuestLink,
+				}, nil)
+			},
+			want: StatusSkip,
+		},
+		{
+			description: "negative: a goip capture for an unimplemented command is a FAIL naming the disagreement",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, ruleShow,
+					map[string]string{SideGoip: tdGuestLink}, nil)
+			},
+			want:          StatusFail,
+			wantErrSubstr: "the command table and the capture driver disagree",
+		},
+		{
+			description: "boundary: a goip stdout file without a goip pcap is still SKIP, because the pcap is what proves goip ran",
+			// Narrow on purpose. compareOne keys the contradiction on the
+			// capture, and a stray .out could be a leftover from an earlier
+			// run with a different table; failing on it would make the
+			// harness noisy about something that is not evidence.
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, ruleShow, nil,
+					map[string]string{SideGoip: "192.0.2.0/24 dev goip0 \n"})
+			},
+			want: StatusSkip,
+		},
+		{
+			description: "corner: a SKIP does not fail the run, which is what lets a planned command sit in the table",
+			setup:       func(_ *testing.T, _ string) {},
+			want:        StatusSkip,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.setup(t, dir)
+
+			r := compareOne(dir, ruleShow, al)
+			if r.Status != tt.want {
+				t.Errorf("status = %s, want %s (err=%v absent=%v)",
+					r.Status, tt.want, r.Err, r.Absent)
+			}
+			if tt.wantErrSubstr == "" {
+				if r.Err != nil {
+					t.Errorf("Err = %v, want none", r.Err)
+				}
+			} else if r.Err == nil || !strings.Contains(r.Err.Error(), tt.wantErrSubstr) {
+				t.Errorf("Err = %v, want it to contain %q", r.Err, tt.wantErrSubstr)
+			}
+			if wantFailed := tt.want == StatusFail; r.Failed() != wantFailed {
+				t.Errorf("Failed() = %v, want %v", r.Failed(), wantFailed)
+			}
+		})
+	}
+}
+
+// TestRenderSkip pins the SKIP sentinel, which is the guest driver's signal to
+// run nothing for a command. Fed a synthetic result for the same reason
+// TestCompareOneUnimplemented uses one; see its comment.
+//
+// go test ./internal/goipparity/ -run TestRenderSkip
+func TestRenderSkip(t *testing.T) {
+	skipped := Result{
+		Command: Command{
+			Name: "rule show", Slug: "rule_show", Floor: 2,
+			Args: []string{"rule", "show"},
+		},
+		Status: StatusSkip,
+	}
+
+	tests := []struct {
+		description string
+		results     []Result
+		wantPass    bool
+		wantLines   []string
+		wantAbsent  []string
+	}{
+		{
+			description: "positive: a skipped command renders GOIP_PARITY_SKIP with its slug and its reason",
+			results:     []Result{skipped},
+			// False, not true: a run in which nothing was compared is not a
+			// passing run, and this is the row that says a table of nothing
+			// but SKIPs cannot report green.
+			wantPass: false,
+			wantLines: []string{
+				"GOIP_PARITY_SKIP rule_show (rule show): goip does not implement it yet",
+				"GOIP_PARITY_NOTHING_COMPARED",
+			},
+			wantAbsent: []string{"GOIP_PARITY_PASS", "GOIP_PARITY_MISSING"},
+		},
+		{
+			description: "negative: a skip prints no transaction line, because there was no transaction to count",
+			results:     []Result{skipped},
+			wantPass:    false,
+			wantAbsent:  []string{"txns: ip="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			var b bytes.Buffer
+			got := Render(&b, tt.results)
+			if got != tt.wantPass {
+				t.Errorf("Render() = %v, want %v; output:\n%s", got, tt.wantPass, b.String())
+			}
+			for _, l := range tt.wantLines {
+				if !strings.Contains(b.String(), l) {
+					t.Errorf("output lacks %q\n%s", l, b.String())
+				}
+			}
+			for _, l := range tt.wantAbsent {
+				if strings.Contains(b.String(), l) {
+					t.Errorf("output unexpectedly contains %q\n%s", l, b.String())
 				}
 			}
 		})
@@ -547,9 +689,15 @@ func TestRender(t *testing.T) {
 				"GOIP_PARITY_OVERALL_PASS",
 				"GOIP_PARITY_CONTROL_CLEAN",
 				"GOIP_PARITY_HYGIENE_PASS",
-				"GOIP_PARITY_SKIP route_show",
 			},
-			wantAbsent: []string{"GOIP_PARITY_OVERALL_FAIL", "GOIP_PARITY_MISSING"},
+			// No SKIP at all now that every command in the table is
+			// implemented, and asserting its absence is what keeps that
+			// statement true: a row quietly reverted to Implemented: false
+			// would make this run report a skip nobody decided on. The
+			// sentinel's own format is pinned by TestRenderSkip.
+			wantAbsent: []string{
+				"GOIP_PARITY_OVERALL_FAIL", "GOIP_PARITY_MISSING", "GOIP_PARITY_SKIP",
+			},
 		},
 		{
 			description: "negative: an empty directory fails and says nothing was compared",

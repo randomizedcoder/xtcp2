@@ -104,14 +104,17 @@ const (
 // netns I cannot name" — iproute2 prints "link-netnsid unknown" for it, which
 // is a different line from printing nothing.
 type LinkInfo struct {
-	Index     int32
-	Flags     uint32
-	Name      string
-	Change    uint32 // ifi_change — which IFF_* bits this message reports changing
-	Type      uint16 // ifi_type — ARPHRD_* (ARPHRD_ETHER, ARPHRD_LOOPBACK, …)
-	OperState uint8  // IFLA_OPERSTATE (IF_OPER_*); IfOperUnknown if absent
-	Carrier   uint8  // IFLA_CARRIER (0/1); 0 if absent
-	MTU       uint32 // IFLA_MTU; 0 if absent
+	Index        int32
+	Flags        uint32
+	Name         string
+	Change       uint32 // ifi_change — which IFF_* bits this message reports changing
+	Type         uint16 // ifi_type — ARPHRD_* (ARPHRD_ETHER, ARPHRD_LOOPBACK, …)
+	OperState    uint8  // IFLA_OPERSTATE (IF_OPER_*); IfOperUnknown if absent
+	HasOperState bool   // IFLA_OPERSTATE present (zero is IF_OPER_UNKNOWN)
+	Carrier      uint8  // IFLA_CARRIER (0/1); 0 if absent
+	HasCarrier   bool   // IFLA_CARRIER present (zero is legitimate)
+	MTU          uint32 // IFLA_MTU; 0 if absent
+	HasMTU       bool   // IFLA_MTU present
 
 	Address        []byte // IFLA_ADDRESS — the hardware address; nil if absent
 	Broadcast      []byte // IFLA_BROADCAST; nil if absent
@@ -122,6 +125,7 @@ type LinkInfo struct {
 	LinkNetnsID    int32  // IFLA_LINK_NETNSID; only meaningful with HasLinkNetnsID
 	HasLinkNetnsID bool   // IFLA_LINK_NETNSID present (the value may be -1)
 	LinkMode       uint8  // IFLA_LINKMODE — IF_LINK_MODE_DEFAULT / _DORMANT
+	HasLinkMode    bool   // IFLA_LINKMODE present (zero is DEFAULT)
 
 	// TxQLen/Group carry presence flags because zero is a legal value for
 	// both and "absent" renders differently from "zero".
@@ -260,14 +264,17 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		case uint16(unix.IFLA_OPERSTATE):
 			if len(val) >= 1 {
 				li.OperState = val[0]
+				li.HasOperState = true
 			}
 		case uint16(unix.IFLA_CARRIER):
 			if len(val) >= 1 {
 				li.Carrier = val[0]
+				li.HasCarrier = true
 			}
 		case uint16(unix.IFLA_MTU):
 			if len(val) >= 4 {
 				li.MTU = binary.LittleEndian.Uint32(val[0:4])
+				li.HasMTU = true
 			}
 		case uint16(unix.IFLA_ADDRESS):
 			li.Address = CopyBytes(val)
@@ -283,6 +290,7 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		case uint16(unix.IFLA_LINKMODE):
 			if len(val) >= 1 {
 				li.LinkMode = val[0]
+				li.HasLinkMode = true
 			}
 		case uint16(unix.IFLA_GROUP):
 			if len(val) >= 4 {

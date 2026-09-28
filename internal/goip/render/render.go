@@ -222,13 +222,20 @@ func linkModeName(mode uint8) string {
 	return strconv.FormatUint(uint64(mode), 10)
 }
 
+// groupZeroName is the sole entry of the group table iproute2 ships
+// (etc/iproute2/group: "0 default"). It is named rather than inlined because
+// the package spells the same six letters for three unrelated things — this
+// netdev group, RT_TABLE_DEFAULT, and the wildcard route prefix
+// (routePrefixWildcard) — and only a name distinguishes them at the call site.
+const groupZeroName = "default"
+
 // groupName is rtnl_group_n2a over the table iproute2 actually ships, which
-// has exactly one entry (etc/iproute2/group: "0 default"). Anything else falls
-// through to the decimal id, which is also what `ip` does on a host with no
-// group file at all (lib/rt_names.c:748-768).
+// has exactly one entry. Anything else falls through to the decimal id, which
+// is also what `ip` does on a host with no group file at all
+// (lib/rt_names.c:748-768).
 func groupName(group uint32) string {
 	if group == 0 {
-		return "default"
+		return groupZeroName
 	}
 	return strconv.FormatUint(uint64(group), 10)
 }

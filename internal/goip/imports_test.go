@@ -22,8 +22,10 @@ const (
 var goipPackages = []string{
 	modulePath + "/cmd/goip",
 	modulePath + "/internal/goip",
+	modulePath + "/internal/goip/model",
 	modulePath + "/internal/goip/render",
 	modulePath + "/internal/goip/req",
+	modulePath + "/internal/goip/service",
 }
 
 // goipMayImport is what a goip package is allowed to import directly, beyond
@@ -150,12 +152,14 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 		// clean today but drags a whole subsystem into goip's graph, where the
 		// next person to add an io_uring call to it breaks goip remotely.
 		want := map[string]string{
-			modulePath + "/cmd/goip":             "the binary",
-			modulePath + "/internal/goip":        "dispatch, lltab, source, objects",
-			modulePath + "/internal/goip/render": "view structs and the text/json renderers",
-			modulePath + "/internal/goip/req":    "the pure request builders",
-			modulePath + "/pkg/xtcpnl":           "the subject under test",
-			modulePath + "/pkg/nlparity":         "the tolerant walker, for ReplaySource",
+			modulePath + "/cmd/goip":              "the binary",
+			modulePath + "/internal/goip":         "dispatch, lltab, source, objects",
+			modulePath + "/internal/goip/model":   "transport-neutral rtnetlink resource models and stable ordering",
+			modulePath + "/internal/goip/render":  "view structs and the text/json renderers",
+			modulePath + "/internal/goip/req":     "the pure request builders",
+			modulePath + "/internal/goip/service": "shared request, decode, filter and ordering application layer",
+			modulePath + "/pkg/xtcpnl":            "the subject under test",
+			modulePath + "/pkg/nlparity":          "the tolerant walker, for ReplaySource",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +
 				"write into the generated proto. This is where grpc and protobuf enter the closure.",
 		}

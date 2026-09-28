@@ -82,19 +82,33 @@ func DeserializeRtMsg(data []byte, m *RtMsg) (n int, err error) {
 // expressed outside RTA_GATEWAY. HasMultipath and HasVia are kept as the
 // presence predicates the local-subnet test reads, and are exactly
 // len(Multipath) > 0 and Via != nil; the contents are in those two fields.
+//
+// HasPriority is not redundant with Priority != 0. `ip` prints the metric on
+// attribute presence, not on value — `if (tb[RTA_PRIORITY] ...) print_uint(...
+// "metric %u " ...)` (ip/iproute.c:941-943) — and the committed IPv6 dump
+// contains routes that carry RTA_PRIORITY = 0 and are rendered `metric 0`,
+// while the IPv4 dump's connected routes omit the attribute and print no metric
+// token at all. Collapsing the two would emit `metric 0` on every v4 route.
 type RouteInfo struct {
 	Family       uint8
 	DstLen       uint8
+	SrcLen       uint8  // rtm_src_len; part of a route's identity
+	Tos          uint8  // rtm_tos; part of a route's identity
 	Table        uint32 // header rtm_table, upgraded by RTA_TABLE
 	Scope        uint8
 	Type         uint8
 	Protocol     uint8
 	Flags        uint32 // header rtm_flags — RTNH_F_* / RTM_F_*; `ip` renders linkdown, offload, trap
 	Dst          []byte // RTA_DST
+	Src          []byte // RTA_SRC
 	Gateway      []byte // RTA_GATEWAY
 	PrefSrc      []byte // RTA_PREFSRC
 	Oif          uint32 // RTA_OIF
+	Iif          uint32 // RTA_IIF, the input interface of a cloned or multicast route
 	Priority     uint32 // RTA_PRIORITY
+	HasPriority  bool   // RTA_PRIORITY present — see below, presence is what `ip` keys on
+	Pref         uint8  // RTA_PREF, the ICMPv6 router preference (RFC 4191)
+	HasPref      bool   // RTA_PREF present
 	HasMultipath bool   // RTA_MULTIPATH present (ECMP nexthop list; gateways live inside it)
 	HasVia       bool   // RTA_VIA present (gateway of a different address family)
 	NhID         uint32 // RTA_NH_ID (nexthop object id; 0 = none)
@@ -123,6 +137,8 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	ri := RouteInfo{
 		Family:   m.Family,
 		DstLen:   m.DstLen,
+		SrcLen:   m.SrcLen,
+		Tos:      m.Tos,
 		Table:    uint32(m.Table),
 		Scope:    m.Scope,
 		Type:     m.Type,
@@ -135,10 +151,16 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	// than dropped because a malformed nexthop list changes the meaning of the
 	// route, not just the completeness of the struct.
 	var nestErr error
+	var seen attrSeen
 	err := WalkRTAttrs(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
+		if !seen.first(atype) {
+			return
+		}
 		switch atype {
 		case uint16(unix.RTA_DST):
 			ri.Dst = CopyBytes(val)
+		case uint16(unix.RTA_SRC):
+			ri.Src = CopyBytes(val)
 		case uint16(unix.RTA_GATEWAY):
 			ri.Gateway = CopyBytes(val)
 		case uint16(unix.RTA_PREFSRC):
@@ -147,9 +169,19 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 			if len(val) >= 4 {
 				ri.Oif = binary.LittleEndian.Uint32(val[0:4])
 			}
+		case uint16(unix.RTA_IIF):
+			if len(val) >= 4 {
+				ri.Iif = binary.LittleEndian.Uint32(val[0:4])
+			}
 		case uint16(unix.RTA_PRIORITY):
 			if len(val) >= 4 {
 				ri.Priority = binary.LittleEndian.Uint32(val[0:4])
+				ri.HasPriority = true
+			}
+		case uint16(unix.RTA_PREF):
+			if len(val) >= 1 {
+				ri.Pref = val[0]
+				ri.HasPref = true
 			}
 		case uint16(unix.RTA_TABLE):
 			if len(val) >= 4 {

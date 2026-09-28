@@ -265,7 +265,9 @@ func TestParseRtnetlinkEvent(t *testing.T) {
 				Link: LinkInfo{
 					Index: 10, Flags: unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_BROADCAST,
 					Name: "nlcap0", Change: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
-					OperState: IfOperUp, Carrier: 1, MTU: 1500,
+					OperState: IfOperUp, HasOperState: true,
+					Carrier: 1, HasCarrier: true,
+					MTU: 1500, HasMTU: true,
 				},
 			},
 		},
@@ -283,7 +285,13 @@ func TestParseRtnetlinkEvent(t *testing.T) {
 				Link: LinkInfo{
 					Index: 10, Flags: unix.IFF_UP | unix.IFF_BROADCAST,
 					Name: "nlcap0", Type: unix.ARPHRD_ETHER,
-					OperState: IfOperLowerLayerDown,
+					OperState: IfOperLowerLayerDown, HasOperState: true,
+					// The reason HasCarrier exists, in one row: this
+					// notification carries IFLA_CARRIER = 0, and "carrier
+					// went away" is a different event from "the kernel said
+					// nothing about carrier". Without the flag the two decode
+					// identically, and a listener cannot tell them apart.
+					Carrier: 0, HasCarrier: true,
 				},
 			},
 		},

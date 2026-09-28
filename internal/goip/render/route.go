@@ -1,0 +1,827 @@
+package render
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
+)
+
+// This file is print_route (ip/iproute.c:768-1017) and the helpers it calls.
+// Every format string below is transcribed from a named call site and cited
+// there, in the same convention the rest of the package uses.
+//
+// # Token order is the whole contract
+//
+// print_route emits its fields in an order that is not the order the
+// attributes arrive in and not the order they are declared in `struct rtmsg`.
+// RouteView's field order below IS that print order, which is also what makes
+// the JSON come out in `ip -j route`'s key order, since encoding/json follows
+// struct declaration order. Reordering a field here changes both outputs.
+//
+// # Trailing spaces are load-bearing
+//
+// Nearly every token is `"%s "` — the space is a suffix, not a separator — so
+// every text line ends with one. The single exception is print_rt_pref
+// (ip/iproute.c:419-439), whose format is `"pref %s"` with no trailing space,
+// which is why every IPv6 line in the committed goldens ends flush at
+// `pref medium` while every IPv4 line ends in a space. Read the goldens with
+// `cat -A` before changing anything here.
+//
+// # What this renderer does not print, and why
+//
+// These are attributes print_route renders that goip's decoder does not keep,
+// so they are absent rather than wrong. None of them appears on any route in
+// the two committed topologies:
+//
+//   - RTA_CACHEINFO (`expires`, `error`) and RTA_MARK, RTA_UID, RTA_FLOW
+//     (`realms`), RTA_TTL_PROPAGATE — not decoded into xtcpnl.RouteInfo.
+//   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
+//     tunnel surfaces; RTA_ENCAP alone is a second parser.
+//   - `nh_info`, which print_route emits only under `-d`, and the RTM_F_CLONED
+//     surfaces: print_cache_flags' `cache <...>` line and print_rta_multipath's
+//     `Oifs: ` form for a cloned multicast route. goip rejects `route show
+//     cache`, so nothing it can be asked reaches a cloned route — and
+//     routeFilter below drops one if the kernel sends it anyway, which is what
+//     `ip` does too.
+//
+// # Config files are not read, per the package's standing divergence
+//
+// rtnl_rtprot_n2a, rtnl_rttable_n2a and rtnl_dsfield_n2a each consult
+// /etc/iproute2/rt_protos, rt_tables and rt_dsfield (plus a CONF_USR_DIR copy
+// and a .d directory) on top of their built-in tables. The built-in tables are
+// transcribed below; the file contents are not read. Three consequences worth
+// naming, because each is a real host where goip and `ip` differ:
+//
+//   - rt_protos ships two names that have no built-in entry, `84 ovn` and
+//     `99 openr`, so a route installed by either renders as its number here.
+//   - rt_tables' built-in hash holds only default/main/local, so a numbered
+//     table a host has named renders as its number.
+//   - rtnl_rtdsfield_tab is built in as exactly one entry, `[0] = "0"`, and
+//     everything else — the whole AF/CS/EF set — comes from the file. Since
+//     print_route emits the `tos` token only when rtm_tos is non-zero, the one
+//     built-in entry is unreachable and every tos goip prints is numeric.
+
+// icmpv6RouterPref are the RFC 4191 router preference values print_rt_pref
+// switches on. They are ICMPV6_ROUTER_PREF_* from
+// linux/include/uapi/linux/icmpv6.h:129-132, which golang.org/x/sys/unix does
+// not export.
+//
+// The numbering is not a rank: MEDIUM is 0, HIGH is 1 and LOW is 3, because
+// the field is the two-bit signed "prf" of a router advertisement with 0b10
+// reserved.
+const (
+	icmpv6RouterPrefMedium = 0x0
+	icmpv6RouterPrefHigh   = 0x1
+	icmpv6RouterPrefLow    = 0x3
+)
+
+// routeProtoNames is rtnl_rtprot_tab's static initializer
+// (lib/rt_names.c:127-151), the RTPROT_* names.
+var routeProtoNames = map[uint8]string{
+	unix.RTPROT_UNSPEC:     "unspec",
+	unix.RTPROT_REDIRECT:   "redirect",
+	unix.RTPROT_KERNEL:     "kernel",
+	unix.RTPROT_BOOT:       "boot",
+	unix.RTPROT_STATIC:     "static",
+	unix.RTPROT_GATED:      "gated",
+	unix.RTPROT_RA:         "ra",
+	unix.RTPROT_MRT:        "mrt",
+	unix.RTPROT_ZEBRA:      "zebra",
+	unix.RTPROT_BIRD:       "bird",
+	unix.RTPROT_BABEL:      "babel",
+	unix.RTPROT_DNROUTED:   "dnrouted",
+	unix.RTPROT_XORP:       "xorp",
+	unix.RTPROT_NTK:        "ntk",
+	unix.RTPROT_DHCP:       "dhcp",
+	unix.RTPROT_KEEPALIVED: "keepalived",
+	unix.RTPROT_BGP:        "bgp",
+	unix.RTPROT_ISIS:       "isis",
+	unix.RTPROT_OSPF:       "ospf",
+	unix.RTPROT_RIP:        "rip",
+	unix.RTPROT_EIGRP:      "eigrp",
+}
+
+// routeProtoName is rtnl_rtprot_n2a (lib/rt_names.c:264-278), whose fallback
+// is `%u`.
+func routeProtoName(proto uint8) string {
+	if n, ok := routeProtoNames[proto]; ok {
+		return n
+	}
+	return strconv.FormatUint(uint64(proto), 10)
+}
+
+// routeTypeNames is rtnl_rtntype_n2a's switch (ip/rtm_map.c:19-54), indexed by
+// RTN_*. It is a slice rather than a map because the RTN_* values are dense,
+// 0 through RTN_XRESOLVE.
+var routeTypeNames = [...]string{
+	unix.RTN_UNSPEC:      "none",
+	unix.RTN_UNICAST:     "unicast",
+	unix.RTN_LOCAL:       "local",
+	unix.RTN_BROADCAST:   "broadcast",
+	unix.RTN_ANYCAST:     "anycast",
+	unix.RTN_MULTICAST:   "multicast",
+	unix.RTN_BLACKHOLE:   "blackhole",
+	unix.RTN_UNREACHABLE: "unreachable",
+	unix.RTN_PROHIBIT:    "prohibit",
+	unix.RTN_THROW:       "throw",
+	unix.RTN_NAT:         "nat",
+	unix.RTN_XRESOLVE:    "xresolve",
+}
+
+// routeTypeName is rtnl_rtntype_n2a. Note that RTN_UNSPEC is "none", not
+// "unspec" — the one RTN_/RTPROT_ pair whose zero values are spelled
+// differently — and that the fallback is `%d`, signed, because the function
+// takes an int.
+func routeTypeName(typ uint8) string {
+	if int(typ) < len(routeTypeNames) {
+		return routeTypeNames[typ]
+	}
+	return strconv.FormatInt(int64(typ), 10)
+}
+
+// routeTableNames is rtnl_rttable_hash's static initializer
+// (lib/rt_names.c:510-514). Three entries, and RT_TABLE_UNSPEC is deliberately
+// not among them: the shipped rt_tables file names 0 "unspec", but the built-in
+// table does not, and print_route skips the token entirely for table 0 anyway
+// (`if (table && ...)`, ip/iproute.c:903).
+var routeTableNames = map[uint32]string{
+	unix.RT_TABLE_DEFAULT: "default",
+	unix.RT_TABLE_MAIN:    "main",
+	unix.RT_TABLE_LOCAL:   "local",
+}
+
+// routeTableName is rtnl_rttable_n2a (lib/rt_names.c:537-550), fallback `%u`.
+func routeTableName(id uint32) string {
+	if n, ok := routeTableNames[id]; ok {
+		return n
+	}
+	return strconv.FormatUint(uint64(id), 10)
+}
+
+// dsfieldName is rtnl_dsfield_n2a (lib/rt_names.c:606-620) with no config file
+// to read, so it is always the `0x%02x` fallback. See the file header.
+func dsfieldName(tos uint8) string {
+	return fmt.Sprintf("0x%02x", tos)
+}
+
+// rtFlagNames is print_rt_flags' sequence of tests (ip/iproute.c:388-417) in
+// source order, which is the token order on every route line. It is not
+// numeric order: RTNH_F_ONLINK (4) precedes RTNH_F_PERVASIVE (2), and
+// RTNH_F_LINKDOWN (16) comes after RTM_F_NOTIFY (0x100).
+//
+// Unlike print_link_flags there is no fallback for unrecognized bits: a flag
+// print_rt_flags has no test for prints nothing at all.
+var rtFlagNames = []struct {
+	bit  uint32
+	name string
+}{
+	{unix.RTNH_F_DEAD, "dead"},
+	{unix.RTNH_F_ONLINK, "onlink"},
+	{unix.RTNH_F_PERVASIVE, "pervasive"},
+	{unix.RTNH_F_OFFLOAD, "offload"},
+	{unix.RTNH_F_TRAP, "trap"},
+	{unix.RTM_F_NOTIFY, "notify"},
+	{unix.RTNH_F_LINKDOWN, "linkdown"},
+	{unix.RTNH_F_UNRESOLVED, "unresolved"},
+	{unix.RTM_F_OFFLOAD, "rt_offload"},
+	{unix.RTM_F_TRAP, "rt_trap"},
+	{unix.RTM_F_OFFLOAD_FAILED, "rt_offload_failed"},
+}
+
+// RtFlagTokens renders rtm_flags — or a nexthop's rtnh_flags, which
+// print_rt_flags is called with too — as print_rt_flags does.
+//
+// The result is never nil. print_rt_flags opens and closes its JSON array
+// unconditionally, so `"flags": [ ]` appears on every entry of the committed
+// ip_route_main_json even though not one route in that topology has a flag
+// set; a nil slice would marshal as `null` and break that.
+func RtFlagTokens(flags uint32) []string {
+	out := []string{}
+	for _, f := range rtFlagNames {
+		if flags&f.bit != 0 {
+			out = append(out, f.name)
+		}
+	}
+	return out
+}
+
+// afBitLen is lib/utils.c:669-681's af_bit_len, the `host_len` print_route
+// compares rtm_dst_len against to decide between a prefix and a bare host
+// address. A family it does not know has length 0, so every prefix of that
+// family is rendered `addr/len`.
+func afBitLen(family uint8) int {
+	switch family {
+	case unix.AF_INET6:
+		return 128
+	case unix.AF_INET:
+		return 32
+	case unix.AF_MPLS:
+		return 20
+	}
+	return 0
+}
+
+// getRealFamily is lib/utils.c:1505-1517. It exists because a multicast route
+// dumped from the multicast FIB carries RTNL_FAMILY_IPMR or RTNL_FAMILY_IP6MR
+// in rtm_family, which is not an address family and cannot format an address.
+//
+// The constants are the kernel's RTNL_FAMILY_IPMR = 128 and RTNL_FAMILY_IP6MR
+// = 129 (linux/include/uapi/linux/rtnetlink.h:157-159); x/sys/unix does not
+// export them.
+func getRealFamily(rtmType, rtmFamily uint8) uint8 {
+	const (
+		rtnlFamilyIPMR  = 128
+		rtnlFamilyIP6MR = 129
+	)
+	if rtmType != unix.RTN_MULTICAST {
+		return rtmFamily
+	}
+	switch rtmFamily {
+	case rtnlFamilyIPMR:
+		return unix.AF_INET
+	case rtnlFamilyIP6MR:
+		return unix.AF_INET6
+	}
+	return rtmFamily
+}
+
+// viaFamilyName is lib/utils.c:1079-1092's family_name, including the "???"
+// sentinel that familyName in addr.go deliberately turns into "". print_rta_via
+// has no branch for the sentinel — it prints it — so this is the one place in
+// the package that wants the literal.
+func viaFamilyName(family uint8) string {
+	if n := familyName(family); n != "" {
+		return n
+	}
+	return "???"
+}
+
+// ViaView is RTA_VIA: a next hop in a different address family from the route
+// (RFC 5549). print_rta_via (ip/iproute.c:597-619) is the only renderer in
+// print_route that opens a nested JSON object, so this is a struct rather than
+// two flat fields.
+type ViaView struct {
+	Family string `json:"family"`
+	Host   string `json:"host"`
+}
+
+// NextHopView is one RTA_MULTIPATH entry as print_rta_multipath renders it
+// (ip/iproute.c:694-766).
+type NextHopView struct {
+	Gateway string   `json:"gateway,omitempty"`
+	Via     *ViaView `json:"via,omitempty"`
+	Dev     string   `json:"dev"`
+	// Weight is nil for an AF_MPLS route, the one family whose nexthops print
+	// no weight (ip/iproute.c:754). Everywhere else it is rtnh_hops + 1, so a
+	// two-way split configured `weight 1` / `weight 3` arrives as 0 and 2 and
+	// prints as 1 and 3.
+	Weight *int     `json:"weight,omitempty"`
+	Flags  []string `json:"flags"`
+}
+
+// Text renders one nexthop, including the newline and tab that open it.
+//
+// `_SL_` is "\n", so the format is literally "\n\tnexthop " — a nexthop is not
+// a line of its own so much as a continuation of the route's line, which is
+// why print_route emits multipath LAST, immediately before the terminating
+// newline, and why the comment at ip/iproute.c:1010 warns against adding new
+// attributes below it.
+func (v NextHopView) Text() string {
+	var b strings.Builder
+	b.WriteString("\n\tnexthop ")
+	if v.Gateway != "" {
+		fmt.Fprintf(&b, "via %s ", v.Gateway)
+	}
+	if v.Via != nil {
+		fmt.Fprintf(&b, "via %s %s ", v.Via.Family, v.Via.Host)
+	}
+	fmt.Fprintf(&b, "dev %s ", v.Dev)
+	if v.Weight != nil {
+		fmt.Fprintf(&b, "weight %d ", *v.Weight)
+	}
+	for _, f := range v.Flags {
+		fmt.Fprintf(&b, "%s ", f)
+	}
+	return b.String()
+}
+
+// RouteMetricKV is one key/value pair inside the `metrics` JSON object.
+type RouteMetricKV struct {
+	Key string
+	Val any
+}
+
+// RouteMetric is one RTAX_* entry of RTA_METRICS as print_rta_metrics renders
+// it (ip/iproute.c:621-692).
+//
+// Text and JSON are kept separately because for three of the RTAX_* values they
+// disagree: RTAX_RTT, RTAX_RTTVAR and RTAX_RTO_MIN print `%gs` or `%ums` as
+// text and a bare number as JSON. JSON is a list rather than a pair because
+// RTAX_FEATURES contributes up to three keys from one entry.
+type RouteMetric struct {
+	Text string
+	JSON []RouteMetricKV
+}
+
+// RouteMetricsView is a route's whole RTA_METRICS payload.
+//
+// The JSON shape is `"metrics": [ { ... } ]` — an array holding exactly one
+// object — because print_rta_metrics opens a JSON array and then a single
+// unnamed object inside it (ip/iproute.c:627-628). It looks like a mistake and
+// it is what `ip -j route` emits, as ip_route_main_json's third entry shows.
+type RouteMetricsView []RouteMetric
+
+// MarshalJSON writes the one-object array in print order.
+//
+// encoding/json cannot do this from a map, which is the reason for the hand
+// rolled writer: a map would come out alphabetically, so `advmss` would precede
+// `mtu` and the committed golden, which has them in RTAX_* order, would not
+// match.
+func (m RouteMetricsView) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteString("[{")
+	first := true
+	for i := range m {
+		for _, kv := range m[i].JSON {
+			if !first {
+				b.WriteByte(',')
+			}
+			first = false
+			k, err := json.Marshal(kv.Key)
+			if err != nil {
+				return nil, err
+			}
+			b.Write(k)
+			b.WriteByte(':')
+			v, err := json.Marshal(kv.Val)
+			if err != nil {
+				return nil, err
+			}
+			b.Write(v)
+		}
+	}
+	b.WriteString("}]")
+	return b.Bytes(), nil
+}
+
+// Text concatenates the entries' text forms, each of which already carries its
+// own trailing space.
+func (m RouteMetricsView) Text() string {
+	var b strings.Builder
+	for i := range m {
+		b.WriteString(m[i].Text)
+	}
+	return b.String()
+}
+
+// mxNames is mx_names (ip/iproute.c:37-53), indexed by RTAX_*. Index 0
+// (RTAX_UNSPEC) and index 1 (RTAX_LOCK) are empty: the loop starts at 2, and
+// RTAX_LOCK is consumed as the lock mask rather than printed as a metric.
+var mxNames = [xtcpnl.RouteMetricMaxCst + 1]string{
+	unix.RTAX_MTU:                "mtu",
+	unix.RTAX_WINDOW:             "window",
+	unix.RTAX_RTT:                "rtt",
+	unix.RTAX_RTTVAR:             "rttvar",
+	unix.RTAX_SSTHRESH:           "ssthresh",
+	unix.RTAX_CWND:               "cwnd",
+	unix.RTAX_ADVMSS:             "advmss",
+	unix.RTAX_REORDERING:         "reordering",
+	unix.RTAX_HOPLIMIT:           "hoplimit",
+	unix.RTAX_INITCWND:           "initcwnd",
+	unix.RTAX_FEATURES:           "features",
+	unix.RTAX_RTO_MIN:            "rto_min",
+	unix.RTAX_INITRWND:           "initrwnd",
+	unix.RTAX_QUICKACK:           "quickack",
+	unix.RTAX_CC_ALGO:            "congctl",
+	unix.RTAX_FASTOPEN_NO_COOKIE: "fastopen_no_cookie",
+}
+
+// RouteMetricsViewOf is print_rta_metrics' loop.
+//
+// Four rules that are easy to lose, all transcribed rather than inferred:
+//
+//   - The loop starts at RTAX_LOCK + 1 and an entry prints when it is present
+//     OR when its lock bit is set, so a locked-but-absent metric prints as
+//     `<name> lock 0 `.
+//   - RTAX_HOPLIMIT with the value -1 is skipped. The kernel uses -1 for "use
+//     the system default", and printing 4294967295 would be worse than
+//     printing nothing.
+//   - RTAX_RTT is divided by 8 and RTAX_RTTVAR by 4 before rendering, because
+//     the kernel stores them in those units.
+//   - The seconds form is C's `%g`, which defaults to six significant digits.
+//     Go's `%g` is shortest-round-trip, so 1234567 renders 1234.567 in Go and
+//     1234.57 in C; `%.6g` is the one that matches, and Go strips the trailing
+//     zeros the same way C does.
+func RouteMetricsViewOf(m *xtcpnl.RouteMetrics) *RouteMetricsView {
+	if m == nil {
+		return nil
+	}
+	mxlock, _ := m.Get(unix.RTAX_LOCK)
+	out := RouteMetricsView{}
+	for i := uint16(unix.RTAX_LOCK + 1); i <= xtcpnl.RouteMetricMaxCst; i++ {
+		locked := mxlock&(1<<i) != 0
+		val, present := m.Get(i)
+		if !present && !locked {
+			continue
+		}
+		if i == unix.RTAX_CC_ALGO {
+			// The one non-u32 metric. Values[RTAX_CC_ALGO] is never set by the
+			// decoder, so the Get above already returned 0; C does the same
+			// thing from the other direction, skipping rta_getattr_u32 for
+			// this index.
+			val = 0
+		}
+		if i == unix.RTAX_HOPLIMIT && int32(val) == -1 {
+			continue
+		}
+
+		var text strings.Builder
+		if name := mxNames[i]; name != "" {
+			fmt.Fprintf(&text, "%s ", name)
+		} else {
+			fmt.Fprintf(&text, "metric %d ", i)
+		}
+		if locked {
+			text.WriteString("lock ")
+		}
+
+		e := RouteMetric{}
+		switch i {
+		case unix.RTAX_FEATURES:
+			ftext, fjson := rtaxFeatures(val)
+			text.WriteString(ftext)
+			e.JSON = fjson
+		case unix.RTAX_RTT, unix.RTAX_RTTVAR, unix.RTAX_RTO_MIN:
+			switch i {
+			case unix.RTAX_RTT:
+				val /= 8
+			case unix.RTAX_RTTVAR:
+				val /= 4
+			}
+			if val >= 1000 {
+				fmt.Fprintf(&text, "%.6gs ", float64(val)/1e3)
+			} else {
+				fmt.Fprintf(&text, "%dms ", val)
+			}
+			e.JSON = []RouteMetricKV{{Key: mxNames[i], Val: val}}
+		case unix.RTAX_CC_ALGO:
+			fmt.Fprintf(&text, "%s ", m.CcAlgo)
+			// The JSON key is "congestion" while the text name is "congctl".
+			// They are two different strings in the same call
+			// (ip/iproute.c:687-688), not a transcription slip.
+			e.JSON = []RouteMetricKV{{Key: "congestion", Val: m.CcAlgo}}
+		default:
+			fmt.Fprintf(&text, "%d ", val)
+			e.JSON = []RouteMetricKV{{Key: mxNames[i], Val: val}}
+		}
+		e.Text = text.String()
+		out = append(out, e)
+	}
+	return &out
+}
+
+// rtaxFeatures is print_rtax_features (ip/iproute.c:369-386).
+//
+// The residual is printed as `%#llx` of the ORIGINAL value, not of the bits
+// left after the two named ones are cleared — `of` is captured before the
+// clearing — so a value of ECN|0x100 prints `ecn 0x101 `, not `ecn 0x100 `.
+func rtaxFeatures(features uint32) (string, []RouteMetricKV) {
+	var text strings.Builder
+	var kv []RouteMetricKV
+	rest := features
+	if rest&unix.RTAX_FEATURE_ECN != 0 {
+		text.WriteString("ecn ")
+		kv = append(kv, RouteMetricKV{Key: "ecn", Val: nil})
+		rest &^= unix.RTAX_FEATURE_ECN
+	}
+	if rest&unix.RTAX_FEATURE_TCP_USEC_TS != 0 {
+		text.WriteString("tcp_usec_ts ")
+		kv = append(kv, RouteMetricKV{Key: "tcp_usec_ts", Val: nil})
+		rest &^= unix.RTAX_FEATURE_TCP_USEC_TS
+	}
+	if rest != 0 {
+		fmt.Fprintf(&text, "%#x ", features)
+		kv = append(kv, RouteMetricKV{Key: "features", Val: features})
+	}
+	return text.String(), kv
+}
+
+// RouteShowFilter is the part of iproute2's `struct filter` that changes what
+// print_route prints rather than which routes reach it.
+//
+// One field so far, and it is not cosmetic: whether the command named a table
+// decides whether every line carries a `table NAME` token. `ip route show`
+// defaults filter.tb to RT_TABLE_MAIN (ip/iproute.c:1835) and so prints no
+// table anywhere; `ip route show table all` sets it to 0 and so prints
+// `table local` on the local-table routes. The two committed goldens differ on
+// exactly that.
+type RouteShowFilter struct {
+	// Table is filter.tb. Zero means "table all" — no filter — which is the
+	// value that ENABLES the token.
+	Table uint32
+}
+
+// RouteView is one route as `ip route show` presents it.
+//
+// The field order is print_route's emission order; see the file header for why
+// that is a contract and not a style choice. The JSON tags are the key names
+// from the print_*(PRINT_ANY, "<key>", …) call sites.
+type RouteView struct {
+	// Type is the RTN_* name, printed only for a non-unicast route
+	// (ip/iproute.c:825). Every route in the main table is unicast, which is
+	// why the token appears in ip_route_table_all and not in ip_route_main.
+	Type string `json:"type,omitempty"`
+
+	// Dst is never empty: a route with no RTA_DST and rtm_dst_len 0 is
+	// "default".
+	Dst string `json:"dst"`
+
+	// From is RTA_SRC, a source-routed entry's source prefix.
+	From string `json:"from,omitempty"`
+	// FromNoAttr is the same `from %s ` token taken from rtm_src_len alone when
+	// RTA_SRC is absent, which renders `from 0/%u`. It is a separate field
+	// because that branch uses the JSON key "src" rather than "from"
+	// (ip/iproute.c:869) — two keys for one token, and reproducing it is the
+	// point of a parity renderer.
+	FromNoAttr string `json:"src,omitempty"`
+
+	// NhID is RTA_NH_ID, the id of a nexthop object the route delegates its
+	// next hop to.
+	NhID *uint32 `json:"nhid,omitempty"`
+
+	Tos string `json:"tos,omitempty"`
+
+	// Gateway is RTA_GATEWAY and Via is RTA_VIA. Both render a `via` token and
+	// both can be present at once, which is why they are separate fields.
+	Gateway string   `json:"gateway,omitempty"`
+	Via     *ViaView `json:"via,omitempty"`
+
+	Dev   string `json:"dev,omitempty"`
+	Table string `json:"table,omitempty"`
+
+	Protocol string `json:"protocol,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+	PrefSrc  string `json:"prefsrc,omitempty"`
+
+	// Metric is a pointer because `ip` keys the token on RTA_PRIORITY's
+	// PRESENCE, not its value: the IPv6 routes in the committed dump carry
+	// RTA_PRIORITY = 0 and print `metric 0`, while the IPv4 connected routes
+	// omit the attribute and print nothing. See xtcpnl.RouteInfo.HasPriority.
+	Metric *uint32 `json:"metric,omitempty"`
+
+	// Flags is never nil; see RtFlagTokens.
+	Flags []string `json:"flags"`
+
+	Metrics *RouteMetricsView `json:"metrics,omitempty"`
+
+	Iif string `json:"iif,omitempty"`
+
+	// Pref is RTA_PREF's JSON value, a string for the three named router
+	// preferences and a number for anything else.
+	Pref any `json:"pref,omitempty"`
+	// prefText is the text form, which is NOT "pref " + Pref: print_rt_pref's
+	// default case drops the keyword as well as the trailing space
+	// (ip/iproute.c:436-438).
+	prefText string
+
+	NextHops []NextHopView `json:"nexthops,omitempty"`
+}
+
+// RouteViewOf resolves a decoded route for rendering.
+//
+// tab supplies the interface names. Unlike link and addr rendering, the caller
+// is responsible for having filled it: `ip route show` issues no up-front link
+// dump, and resolves each ifindex lazily with a single-get the first time it
+// prints one (lib/ll_map.c:308-328). See obj_route.go, which reproduces that
+// traffic; an index tab cannot answer renders as `if%u`, exactly as
+// ll_index_to_name's own fallback does.
+func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView {
+	family := getRealFamily(ri.Type, ri.Family)
+	// host_len is computed from rtm_family, NOT from the real family
+	// (ip/iproute.c:794), so a multicast route out of the v4 multicast FIB
+	// compares its dst_len against 0 and always prints a prefix.
+	hostLen := afBitLen(ri.Family)
+
+	v := RouteView{
+		Dst:   routePrefix(ri.Dst, ri.DstLen, hostLen, family),
+		Flags: RtFlagTokens(ri.Flags),
+	}
+
+	if ri.Type != unix.RTN_UNICAST {
+		v.Type = routeTypeName(ri.Type)
+	}
+	switch {
+	case ri.Src != nil:
+		v.From = routePrefix(ri.Src, ri.SrcLen, hostLen, family)
+	case ri.SrcLen != 0:
+		// No RTA_SRC but a non-zero rtm_src_len. C's format here is "0/%u"
+		// with no trailing space, unlike the destination's "0/%d " — the two
+		// branches really do differ by one character (ip/iproute.c:849,869).
+		v.FromNoAttr = "0/" + strconv.FormatUint(uint64(ri.SrcLen), 10)
+	}
+	if ri.NhID != 0 {
+		nhid := ri.NhID
+		v.NhID = &nhid
+	}
+	if ri.Tos != 0 {
+		v.Tos = dsfieldName(ri.Tos)
+	}
+	if ri.Gateway != nil {
+		v.Gateway = addrString(ri.Gateway, ri.Family)
+	}
+	if ri.Via != nil {
+		viaFamily := uint8(ri.Via.Family)
+		v.Via = &ViaView{
+			Family: viaFamilyName(viaFamily),
+			Host:   addrString(ri.Via.Addr, viaFamily),
+		}
+	}
+	// RTA_OIF's presence is the gate in C. RouteInfo keeps no presence flag for
+	// it because ifindex 0 is not a device — the kernel never sends
+	// RTA_OIF = 0 — so a zero here is an absent attribute. Were it not, the
+	// token would render `dev *`, which is ll_index_to_name's own answer for
+	// index 0 and so at least not a silent wrong name.
+	if ri.Oif != 0 {
+		v.Dev = tab.IndexToName(int32(ri.Oif))
+	}
+	if ri.Table != 0 && ri.Table != unix.RT_TABLE_MAIN && f.Table == 0 {
+		v.Table = routeTableName(ri.Table)
+	}
+	// Both of these live inside `if (!(rtm_flags & RTM_F_CLONED))`
+	// (ip/iproute.c:905-919). goip never prints a cloned route — routeFilter
+	// drops it, as `ip` does — so the guard is reproduced for the case where a
+	// caller renders one directly.
+	if ri.Flags&unix.RTM_F_CLONED == 0 {
+		if ri.Protocol != unix.RTPROT_BOOT {
+			v.Protocol = routeProtoName(ri.Protocol)
+		}
+		if ri.Scope != unix.RT_SCOPE_UNIVERSE {
+			v.Scope = scopeName(ri.Scope)
+		}
+	}
+	if ri.PrefSrc != nil {
+		v.PrefSrc = addrString(ri.PrefSrc, ri.Family)
+	}
+	if ri.HasPriority {
+		metric := ri.Priority
+		v.Metric = &metric
+	}
+	v.Metrics = RouteMetricsViewOf(ri.Metrics)
+	if ri.Iif != 0 {
+		v.Iif = tab.IndexToName(int32(ri.Iif))
+	}
+	if ri.HasPref {
+		v.Pref, v.prefText = routePref(ri.Pref)
+	}
+	for i := range ri.Multipath {
+		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab))
+	}
+	return v
+}
+
+// routePrefixWildcard is the token print_route emits for a destination with no
+// RTA_DST and a zero rtm_dst_len. It is a prefix, not a name — it collides
+// with the RT_TABLE_DEFAULT and netdev-group-0 spellings only because
+// iproute2 reuses the word; see groupZeroName in render.go.
+const routePrefixWildcard = "default"
+
+// routePrefix is the shared shape of print_route's destination and source
+// renderings (ip/iproute.c:834-856 and :857-870).
+//
+// The `0/%d ` branch's embedded trailing space is C's, and it is inside the
+// string rather than appended by the format, so the text comes out with two
+// spaces and the JSON value carries one. Both are reproduced: a parity
+// renderer that tidies this up diverges.
+func routePrefix(addr []byte, prefixLen uint8, hostLen int, family uint8) string {
+	if addr != nil {
+		if int(prefixLen) != hostLen {
+			return addrString(addr, family) + "/" + strconv.FormatUint(uint64(prefixLen), 10)
+		}
+		return addrString(addr, family)
+	}
+	if prefixLen != 0 {
+		return "0/" + strconv.FormatUint(uint64(prefixLen), 10) + " "
+	}
+	return routePrefixWildcard
+}
+
+// routePref is print_rt_pref (ip/iproute.c:419-439), returning the JSON value
+// and the text form.
+//
+// The text form of a named preference has NO trailing space, which is what
+// makes every IPv6 line in the goldens end flush. The unnamed default is
+// stranger still: it prints the bare number with no `pref ` keyword at all,
+// while still using "pref" as the JSON key.
+func routePref(pref uint8) (any, string) {
+	switch pref {
+	case icmpv6RouterPrefLow:
+		return "low", "pref low"
+	case icmpv6RouterPrefMedium:
+		return "medium", "pref medium"
+	case icmpv6RouterPrefHigh:
+		return "high", "pref high"
+	}
+	return pref, strconv.FormatUint(uint64(pref), 10)
+}
+
+// nextHopView is one iteration of print_rta_multipath's loop.
+func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView {
+	v := NextHopView{
+		Dev:   tab.IndexToName(nh.Ifindex),
+		Flags: RtFlagTokens(uint32(nh.Flags)),
+	}
+	if nh.Gateway != nil {
+		// The family is the ROUTE's, not the nexthop's: print_rta_multipath
+		// passes r->rtm_family down (ip/iproute.c:735).
+		v.Gateway = addrString(nh.Gateway, family)
+	}
+	if nh.Via != nil {
+		viaFamily := uint8(nh.Via.Family)
+		v.Via = &ViaView{
+			Family: viaFamilyName(viaFamily),
+			Host:   addrString(nh.Via.Addr, viaFamily),
+		}
+	}
+	if family != unix.AF_MPLS {
+		w := int(nh.Weight())
+		v.Weight = &w
+	}
+	return v
+}
+
+// Text renders one route, newline terminated.
+//
+// The order below is print_route's, and the trailing spaces are its too; see
+// the file header. Two details worth pointing at while reading:
+//
+//   - `src` is the ONE token whose keyword and value are printed by two
+//     separate calls (`fprintf(fp, "src ")` then `"%s "`, ip/iproute.c:930-935)
+//     because the value is colored and the keyword is not. The result is
+//     identical to a single `"src %s "`, and it is written that way here.
+//   - the multipath block is last, immediately before the newline, and each of
+//     its entries opens with its own "\n\t". A route with nexthops therefore
+//     ends its own line with a trailing space and no newline of its own.
+func (v RouteView) Text() string {
+	var b strings.Builder
+
+	if v.Type != "" {
+		fmt.Fprintf(&b, "%s ", v.Type)
+	}
+	fmt.Fprintf(&b, "%s ", v.Dst)
+	if v.From != "" {
+		fmt.Fprintf(&b, "from %s ", v.From)
+	}
+	if v.FromNoAttr != "" {
+		fmt.Fprintf(&b, "from %s ", v.FromNoAttr)
+	}
+	if v.NhID != nil {
+		fmt.Fprintf(&b, "nhid %d ", *v.NhID)
+	}
+	if v.Tos != "" {
+		fmt.Fprintf(&b, "tos %s ", v.Tos)
+	}
+	if v.Gateway != "" {
+		fmt.Fprintf(&b, "via %s ", v.Gateway)
+	}
+	if v.Via != nil {
+		fmt.Fprintf(&b, "via %s %s ", v.Via.Family, v.Via.Host)
+	}
+	if v.Dev != "" {
+		fmt.Fprintf(&b, "dev %s ", v.Dev)
+	}
+	if v.Table != "" {
+		fmt.Fprintf(&b, "table %s ", v.Table)
+	}
+	if v.Protocol != "" {
+		fmt.Fprintf(&b, "proto %s ", v.Protocol)
+	}
+	if v.Scope != "" {
+		fmt.Fprintf(&b, "scope %s ", v.Scope)
+	}
+	if v.PrefSrc != "" {
+		fmt.Fprintf(&b, "src %s ", v.PrefSrc)
+	}
+	if v.Metric != nil {
+		fmt.Fprintf(&b, "metric %d ", *v.Metric)
+	}
+	for _, f := range v.Flags {
+		fmt.Fprintf(&b, "%s ", f)
+	}
+	if v.Metrics != nil {
+		b.WriteString(v.Metrics.Text())
+	}
+	if v.Iif != "" {
+		fmt.Fprintf(&b, "iif %s ", v.Iif)
+	}
+	b.WriteString(v.prefText)
+	for i := range v.NextHops {
+		b.WriteString(v.NextHops[i].Text())
+	}
+	b.WriteString("\n")
+	return b.String()
+}

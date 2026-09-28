@@ -166,6 +166,7 @@ type AddrInfo struct {
 	Flags        uint32       // header ifa_flags, REPLACED by IFA_FLAGS when present
 	Broadcast    []byte       // IFA_BROADCAST; nil if absent
 	Proto        uint8        // IFA_PROTO (IFAPROT_*); IfaProtoUnspec if absent
+	HasProto     bool         // IFA_PROTO present (zero is IFAPROT_UNSPEC)
 	CacheInfo    IfaCacheinfo // IFA_CACHEINFO; zero unless HasCacheInfo
 	HasCacheInfo bool         // IFA_CACHEINFO present and long enough to decode
 }
@@ -242,6 +243,7 @@ func ParseNewAddr(body []byte) (AddrInfo, error) {
 		case IfaProto:
 			if len(val) >= 1 {
 				ai.Proto = val[0]
+				ai.HasProto = true
 			}
 		case uint16(unix.IFA_CACHEINFO):
 			var ci IfaCacheinfo

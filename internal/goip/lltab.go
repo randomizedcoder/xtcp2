@@ -63,7 +63,7 @@ func NewLLTab() *LLTab {
 // `ip link show dev enxe04f43e628ef` works; without this, goip would reject a
 // name `ip` accepts.
 //
-// Ranged by index, not by value: LinkInfo is 176 bytes and this loop reads four
+// Ranged by index, not by value: LinkInfo is large and this loop reads four
 // of its fields, so the value form copies the whole struct — including the
 // AltNames slice header and the address byte slices — once per link for nothing.
 func (t *LLTab) Fill(links []xtcpnl.LinkInfo) {
@@ -103,6 +103,21 @@ func (t *LLTab) IndexToName(idx int32) string {
 		return e.name
 	}
 	return "if" + strconv.FormatInt(int64(idx), 10)
+}
+
+// Cached reports whether an index is already in the cache — iproute2's
+// `ll_get_by_index(idx) != NULL` (lib/ll_map.c:314).
+//
+// It exists for the one caller that has to reproduce what `ip` does on a miss
+// rather than just its fallback text: `ip route show` resolves names lazily and
+// issues a live RTM_GETLINK single-get per index it has never seen
+// (ll_index_to_name, :320). That caller needs to know whether a lookup would
+// hit before it decides whether to put a message on the wire, which
+// IndexToName cannot tell it — the `if%u` fallback and a link genuinely named
+// `if3` are the same string.
+func (t *LLTab) Cached(idx int32) bool {
+	_, ok := t.byIndex[idx]
+	return ok
 }
 
 // IndexToFlags returns the cached ifi_flags for an index, or **-1** on a miss,
