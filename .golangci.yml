@@ -237,11 +237,13 @@ linters:
       # is prefix matching, not fuzzy matching — "neighbour" is not a prefix of
       # "neighbor", so dropping the second entry makes `goip neighbour show`
       # report an unknown object where `ip` works. internal/goip/dispatch.go
-      # holds the alias itself and dispatch_test.go names the pair in the
-      # comment on the row that asserts their order. Scoped to the one word in
-      # those two files, like the `prefered` entry above, so a genuine
-      # "neighbour" in prose anywhere else still fails.
-      - path: "internal/goip/dispatch(_test)?\\.go"
+      # holds the alias itself, dispatch_test.go names the pair in the comment
+      # on the row that asserts their order, and obj_neigh_test.go runs the
+      # alias end to end — that row's argv is the string a user types, so it
+      # cannot be respelled without testing a command that does not exist.
+      # Scoped to the one word in those three files, like the `prefered` entry
+      # above, so a genuine "neighbour" in prose anywhere else still fails.
+      - path: "internal/goip/(dispatch(_test)?|obj_neigh_test)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"

@@ -57,6 +57,9 @@ func (s *Service) Links() ([]model.Link, error) {
 	for i := range v {
 		out[i] = model.Link(v[i])
 	}
+	// Safe here, unlike in Routes: an RTM_GETLINK dump is already ifindex-
+	// ordered, so SortLinks is a no-op against a kernel and only normalizes a
+	// replay source that reordered the replies.
 	model.SortLinks(out)
 	return out, nil
 }
@@ -180,7 +183,18 @@ func (s *Service) Routes(family uint8, table uint32) ([]model.Route, error) {
 	for i := range v {
 		out[i] = model.Route(v[i])
 	}
-	model.SortRoutes(out)
+	// Deliberately NOT model.SortRoutes: `ip route show` prints the kernel's
+	// dump order, and for routes the two orders differ. The committed
+	// `table all` golden (pkg/xtcpnl/testdata/7_1_4/dumps/ip_route_table_all)
+	// is grouped v4-main, v4-local, v6-main, v6-local — family first, table
+	// second — because the dump walks fib_trie and then fib6 in turn. Sorting
+	// keys on Table first, so it would interleave the two families' main
+	// tables ahead of either local table and produce output `ip` never emits.
+	//
+	// SortRoutes is for callers that need a canonical order across sources
+	// regardless of how the kernel happened to walk its tables. Rendering is
+	// the opposite requirement, so this path leaves the order alone — the same
+	// policy AddressSnapshot follows, and for the same reason.
 	return out, nil
 }
 

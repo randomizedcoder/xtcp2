@@ -121,7 +121,7 @@ Phases and scope are as defined in
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
-| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS64` is **closed as out of scope**, not outstanding — it is absent from every captured reply because `ip` sets `RTEXT_FILTER_SKIP_STATS`, and it returns only under `-s` | the whole `RTA_*` group (`RTA_CACHEINFO` has real fixtures on 48 of 74 captured routes; `RTA_METRICS` has none — see §18), and `INET_DIAG_PRAGUEINFO` |
+| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS64` is **closed as out of scope**, not outstanding — it is absent from every captured reply because `ip` sets `RTEXT_FILTER_SKIP_STATS`, and it returns only under `-s` | `RTA_EXPIRES`/`RTA_CACHEINFO` decode (`RTA_CACHEINFO` has real fixtures on 48 of 74 captured routes), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested` | `FRA_*`, `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
@@ -494,8 +494,9 @@ is red for an unrelated reason: `pkg/xtcp/grpc_server.go` imports the untracked
 ### `4494b42` — the `IFLA_*` and `IFA_*` attribute decoders a `show` line needs
 
 On `feat/xtcpnl-export-wire-primitives`. Item 4 of the **goip** plan, link and
-addr halves; the route half is sequenced later and is partly fixture-blocked
-(below). `LinkInfo` goes from 4 decoded `IFLA_*` attributes to 14 and `AddrInfo`
+addr halves; the route half was sequenced later and was fixture-blocked at the
+time (below) — **both are now closed**, by `2895600`'s gated capture topology
+and `e2a47aa`'s decoders. `LinkInfo` goes from 4 decoded `IFLA_*` attributes to 14 and `AddrInfo`
 from 3 `IFA_*` to 7. 100 subtests — 39 positive, 13 negative, 27 boundary,
 21 corner — plus two new files, `xtcpnl_arphrd.go` and
 `xtcpnl_rtattr_firstwins.go`.
@@ -578,6 +579,14 @@ and `RTA_GATEWAY` (2). So `RTA_CACHEINFO` and `rtm_flags` can be done now, and
 the `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS` positives are blocked on the plan's
 Item 7 capture extension — recorded in `TODO-SOON.md` §18, which goes `PARTIAL`
 here, and named so nobody writes those expectations from the C source instead.
+
+> **Superseded.** `2895600` added the gated capture topology, whose
+> `dumps/netlink_route_getroute.pcap` carries an ECMP pair, an RFC-5549
+> `via inet6` route and an `mtu 1400 advmss 1300` route, and `dumps/mesh/`
+> carries `rtm_flags` with `RTNH_F_LINKDOWN`. `e2a47aa` decoded all four
+> against those captures, so the positives are real and the blocker is gone.
+> The paragraph above is kept as the measurement that justified extending the
+> capture rather than writing expectations from the C source.
 
 One incidental finding from the sidecars, worth recording because it is the
 clearest evidence in the corpus for why parity has to normalize lifetimes:
@@ -1880,6 +1889,7 @@ run: `link show dev`, the three `route show` forms and `neigh show`. That is
 the measured set, not a claim about the current command table — `Implemented`
 is a field in `internal/goipparity/commands.go` and flipping one is how a
 command joins the compared set, so the `SKIP` list moves as `cmd/goip` grows.
+It has since moved to empty — see "The run after `route show`" below.
 
 **`CONTROL_NOISY 2` rather than the plan's `CONTROL_CLEAN`, and the cause is
 worth recording.** Both noisy loci are `IFLA_STATS`/`IFLA_STATS64` *values* on
@@ -1936,14 +1946,109 @@ The hygiene row moved to `addr show` for the same reason. Its whole content is
 that `nlparity.Report.Failed` fails on hygiene *regardless* of gating; on a
 gated command, `FAIL` would have been explained by the gating instead.
 
+### The run after `route show`, and the negative test that gives it weight
+
+`nix run .#microvm-x86_64-goip-parity` on the tree that implements the three
+route forms, twice — the second run is what establishes which of these numbers
+are properties and which are samples:
+
+```
+GOIP_PARITY_PASS link_show (link show)
+GOIP_PARITY_WARN link_show_dev (link show dev)
+GOIP_PARITY_PASS addr_show (addr show)
+GOIP_PARITY_PASS addr_show_v4 (-4 addr show)
+GOIP_PARITY_PASS addr_show_v6 (-6 addr show)
+GOIP_PARITY_PASS route_show (route show)
+GOIP_PARITY_PASS route_show_table_all (route show table all)
+GOIP_PARITY_PASS route_show_v6 (-6 route show)
+GOIP_PARITY_PASS neigh_show (neigh show)
+GOIP_PARITY_HYGIENE_PASS
+GOIP_PARITY_CONTROL_NOISY 8          # 4 on the repeat; see below
+GOIP_PARITY_UNGATED_DIVERGENCES 1
+GOIP_PARITY_OVERALL_PASS
+```
+
+Every other line above was identical on both runs, including each command's
+transaction counts.
+
+**No command reports `SKIP`.** The previous run's five were `link show dev`, the
+three route forms and `neigh show`; all nine rows are now compared.
+
+The three route rows report `control: nl=0 stdout=0` and no findings at all,
+which settles the ext-mask question Step 5 of the plan left open: **no
+`version-skew` allowlist entry was added, because the run reported none.** At
+the pinned `iproute2 7.1.0`, `ll_link_get`'s `IFLA_EXT_MASK` is
+`RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS = 0x09`, which is what
+`req.LinkShowByIndex` sends. (`ll_init_map` is a *different* function and sends
+`RTEXT_FILTER_VF` alone at this version — see `TODO-SOON.md` §17. The route path
+never calls it, which is the whole point of the lazy resolution.)
+
+The transaction counts are the lazy-resolution contract, measured rather than
+assumed: `route show` 2/2, `route show table all` 3/3 — the dump plus one
+single-get per distinct ifindex, and `table all` reaches `lo` as well as
+`goip0` — and `-6 route show` 2/2. The `pids` column records the one divergence
+that is invisible on the wire: `ip=[1196 2868945986] goip=[1226]`, because
+`ll_link_get` opens a fresh socket per lookup while goip reuses its fd. The
+comparator normalizes `nlmsg_pid`, so this changes no byte it compares.
+
+**The gate was shown to fail before it was trusted to pass.** Replacing
+`resolveRouteNames`'s per-ifindex fill with an up-front link dump — the obvious
+shortcut, and the one `link show dev` currently takes — makes
+`TestRouteShowTransactionShape` fail every row with `dumps = 2, want 1` and
+`single-gets = [], want [3]`. What makes that worth writing down is the other
+half of the result: in every row where the index resolves, **stdout was
+byte-identical**. The wrong request shape produces the right listing, so only
+the transaction-shape assertion catches it, and a harness that compared output
+alone would have passed the shortcut.
+
+**`CONTROL_NOISY` is a count that moves, and two runs are what showed it.** The
+first reported 8 — six `IFLA_STATS`/`IFLA_STATS64` *values* on `-4 addr show`,
+two on `neigh show` — and an immediate repeat on the same tree reported 4, two
+and two. Nothing changed but the counters: those are the commands whose link
+dump carries no `RTEXT_FILTER_SKIP_STATS`, so the kernel appends live packet
+and byte totals that differ between the two `ip` captures by construction. The
+locus *set* is stable and the count is not, which is precisely the distinction
+`D_control` exists to make — it absorbed every one of them in both runs. Read a
+specific number here as a sample, not as a property; what would be a finding is
+a noisy locus somewhere other than `IFLA_STATS*`.
+`UNGATED_DIVERGENCES 1` is `link show dev`, whose L2 findings are exactly the
+predicted ones — `header.flags` `0x0001` vs `0x0301`, an `AF_PACKET` family
+header where `ip` sends none, and `IFLA_IFNAME` absent — i.e. goip sends a dump
+plus a by-index get where `ip` sends two by-name single-gets. It is ungated, so
+it warns; `req.LinkShowByName` and `service.LinkByName` already exist unused and
+are half the fix.
+
 ### Remaining
 
-The three `route show` forms need Item 4's
-`RTA_MULTIPATH`/`RTA_VIA`/`rtm_flags` work before goip can implement them, so
-their `SKIP` is the honest state. `addr show` is the next gating candidate. A
-command becoming *compared* and a command becoming *gated* are separate steps
-and should stay separate: flipping `Implemented` gets it into the report, and
-`gated_commands` is only for the ones a live run has measured clean.
+The three `route show` forms are **implemented and compared** as of the
+`route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`
+decode landed in `e2a47aa` ("decode the route half of `show` — multipath, via,
+metrics, flags") and the gated-topology capture corpus in `2895600` ("capture
+the netlink dump corpus inside a microVM"). Neither has a section of its own
+here, which is how the claims elsewhere in this file went stale in the first
+place. Together with `internal/goip/obj_route.go` and
+`internal/goip/render/route.go`, which turn the decoded messages into a
+listing, the three forms' rows in `internal/goipparity/commands.go` carry
+`Implemented: true`, so they are no longer `SKIP`. Every row in that table is
+implemented now, which is why the unimplemented branch of the comparator is
+exercised by `TestCompareOneUnimplemented` and `TestRenderSkip` with a
+synthetic command rather than by a real one held back.
+
+Route output also needed structural stdout facets of its own. `reStanza` is
+anchored on the `N: name` header that only link and addr print, so
+`FacetIfNames` and `FacetIfIndexes` are permanently empty for a route listing
+and the stdout half compared little more than a line count. `FacetDevNames`
+(`\bdev (\S+)`), `FacetNextHops` and `FacetFlags` close that, along with the
+route keywords `via`, `metric`, `src`, `table`, `advmss`, `weight` and `pref`.
+`FacetNextHops` is a bare-token count rather than a keyword because the keyword
+pattern consumes the token after the name, and after `nexthop` that token is
+`via` — which ate the ECMP gateways.
+
+`addr show` remains the next gating candidate; **no route command is in
+`gated_commands`**. A command becoming *compared* and a command becoming
+*gated* are separate steps and should stay separate: flipping `Implemented`
+gets it into the report, and `gated_commands` is only for the ones a live run
+has measured clean.
 
 The flavor **is** in `integration-all`, as its own "verdict runners" sweep
 rather than folded into the lifecycle list. `SERIAL_PORT` is fixed per arch, so
@@ -2314,15 +2419,17 @@ upward rather than left to drift.
   resync; there was no resync path for `RTNLGRP_NEIGH` because there was no
   neighbour dump builder. The builder now exists, so what remains is the resync
   logic that calls it — a listener task, not a missing primitive.
-- **The captured route corpus has no ECMP, no `RTA_VIA` and no `RTA_METRICS`.**
-  Measured across all 74 messages of `getroute_dump.pcap`: `RTA_MULTIPATH` (9),
-  `RTA_VIA` (18) and `RTA_METRICS` (8) are absent, so the positive rows for
-  Phase 2's `RTA_METRICS` and for the route third of the **goip** plan's Item 4
-  cannot be written from the corpus as it stands. Since positive netlink rows
-  must be real captures, this is a fixture blocker, not a decode one — the plan's
-  Item 7 closes it by adding a multipath route to the capture topology. Tracked
-  as `TODO-SOON.md` §18. `RTA_CACHEINFO` (48 of 74) and `rtm_flags` are **not**
-  affected and can be done today.
+- ~~**The captured route corpus has no ECMP, no `RTA_VIA` and no
+  `RTA_METRICS`.**~~ **Cleared** by `2895600` and `e2a47aa`. The measurement
+  held for `getroute_dump.pcap` — `RTA_MULTIPATH` (9), `RTA_VIA` (18) and
+  `RTA_METRICS` (8) are absent from all 74 of its messages — and it was a
+  fixture blocker rather than a decode one, which is why the answer was a new
+  capture. `2895600` built the gated topology
+  (`nix/microvms/scripts/netlink-topology.exp`) with an ECMP pair, an RFC-5549
+  `via inet6` route and an `mtu 1400 advmss 1300` route, plus a `dumps/mesh/`
+  flavor carrying `RTNH_F_LINKDOWN`; `e2a47aa` decoded all four against it.
+  Positive rows for Phase 2's `RTA_METRICS` and for the route third of the
+  **goip** plan's Item 4 are real captures now.
 - **No subscriber ⇒ no kernel emission ⇒ nothing for `nlmon` to mirror.** Each
   new family needs its own subscriber in the capture guest (`ip xfrm monitor`,
   `conntrack -E`, `ip netconf monitor`). A family whose subscriber or kernel

@@ -187,7 +187,11 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		Flags:   m.Flags,
 		Type:    m.Type,
 	}
+	var seen attrSeen
 	err := WalkRTAttrs(body[NdMsgSizeCst:], func(atype uint16, val []byte) {
+		if !seen.first(atype) {
+			return
+		}
 		switch atype {
 		case uint16(unix.NDA_DST):
 			ni.Dst = CopyBytes(val)
