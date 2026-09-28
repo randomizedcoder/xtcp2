@@ -313,7 +313,9 @@ let
   # flavor runs SEQUENTIALLY.
   #
   #   default        the ~12 lifecycle flavors — each self-terminates on
-  #                  its XTCP2_SELF_TEST_OVERALL sentinel (minutes each).
+  #                  its XTCP2_SELF_TEST_OVERALL sentinel (minutes each) —
+  #                  then the verdict runners, which terminate on a verdict
+  #                  of their own rather than on that sentinel.
   #   --soak         additionally run the 6 duration-bounded runners at
   #                  --duration each (soak + the stress/long flavors).
   #   --duration D   per-soak duration (default 1h); ignored without --soak.
@@ -409,9 +411,27 @@ let
           drv = microvms.s3ParquetLowfreq.x86_64.runner;
         }
       ];
+      # Neither a lifecycle flavor nor a soak: it runs to completion in minutes
+      # like the first list, but it self-terminates on a parity verdict rather
+      # than on XTCP2_SELF_TEST_OVERALL, and there is no xtcp2 daemon in the
+      # guest to emit that sentinel. Its own list, so the lifecycle sweep's
+      # description stays true of every member of it.
+      #
+      # It belongs in `integration-all` for the same reason everything else
+      # here does: SERIAL_PORT is fixed per arch, so it cannot run concurrently
+      # with any other VM, and this is the one command that runs them one at a
+      # time. Same 0/1/2 = PASS/FAIL/TIMEOUT contract, so run_job needs no
+      # special case.
+      verdictFlavors = [
+        {
+          label = "goip-parity";
+          drv = microvms.goipParity.x86_64.runner;
+        }
+      ];
       toLine = f: "${f.label}\t${lib.getExe f.drv}";
       lifecycleLines = lib.concatStringsSep "\n" (map toLine lifecycleFlavors);
       soakLines = lib.concatStringsSep "\n" (map toLine soakFlavors);
+      verdictLines = lib.concatStringsSep "\n" (map toLine verdictFlavors);
     in
     pkgs.writeShellApplication {
       name = "xtcp2-integration-all";
@@ -432,7 +452,10 @@ let
                 "" \
                 "  default          the ~12 lifecycle flavors; each self-terminates on its" \
                 "                   XTCP2_SELF_TEST_OVERALL sentinel (minutes each; the" \
-                "                   clickhouse-http one can take up to ~20m)." \
+                "                   clickhouse-http one can take up to ~20m), then the" \
+                "                   verdict runners: goip-parity, which captures an" \
+                "                   ip/goip/ip triple per command and compares them in" \
+                "                   the guest (~5m)." \
                 "  --soak           additionally run the 6 duration-bounded runners:" \
                 "                   soak, tcp-stress, clickhouse-pipeline-stress," \
                 "                   s3parquet-long, s3parquet-stress, s3parquet-lowfreq." \
@@ -450,6 +473,7 @@ let
 
         LIFECYCLE_JOBS='${lifecycleLines}'
         SOAK_JOBS='${soakLines}'
+        VERDICT_JOBS='${verdictLines}'
 
         results=""
         overall_rc=0
@@ -480,6 +504,13 @@ let
           [ -z "$label" ] && continue
           run_job "$label" "$bin"
         done < <(printf '%s\n' "$LIFECYCLE_JOBS")
+
+        echo ""
+        echo "==> integration-all: verdict runners (sequential)"
+        while IFS=$'\t' read -r label bin; do
+          [ -z "$label" ] && continue
+          run_job "$label" "$bin"
+        done < <(printf '%s\n' "$VERDICT_JOBS")
 
         if [ "$SOAK" = "1" ]; then
           echo ""
@@ -557,6 +588,12 @@ in
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
       microvm-x86_64-nlmon-capture = microvms.vmsNlmonCapture.x86_64;
       microvm-x86_64-netlink-dump-capture = microvms.vmsNetlinkDumpCapture.x86_64;
+      # Boots nothing under `nix build`: mkVm.nix returns
+      # config.microvm.declaredRunner, so this builds the guest closure and
+      # runs shellcheck over the runner's script, and that is the whole value
+      # of having it here. The VM itself only starts under
+      # `nix run .#microvm-x86_64-goip-parity`, which needs /dev/kvm.
+      microvm-x86_64-goip-parity = microvms.vmsGoipParity.x86_64;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -863,6 +900,27 @@ in
     microvm-x86_64-netlink-dump-capture = {
       type = "app";
       program = "${microvms.netlinkDumpCapture.x86_64.runner}/bin/xtcp2-netlink-dump-capture-x86_64";
+    };
+
+    # goip/ip netlink parity, Tier C: boots the same quiet root microvm on the
+    # same clean topology as the capture above (one definition, in
+    # scripts/netlink-topology.exp — D_control only means what it claims if
+    # both come off the same objects), captures an ip → goip → ip triple per
+    # command with each side's stdout beside its pcap, then runs `goip-parity
+    # compare` IN THE GUEST and reports the verdict it reached.
+    #
+    # The comparison happening in the guest is the point: the captures never
+    # have to leave for the answer to exist, so a failure to exfiltrate the
+    # evidence cannot mask a parity failure. `--out <dir>` installs the blob
+    # anyway, for inspecting a run that went red.
+    #
+    # `--keep-going` captures every command even after one comes in short;
+    # `--no-allowlist` reports suppressed divergences too. Not in `nix flake
+    # check`: /dev/kvm, and SERIAL_PORT is fixed so it cannot run concurrently
+    # with any other VM.
+    microvm-x86_64-goip-parity = {
+      type = "app";
+      program = "${microvms.goipParity.x86_64.runner}/bin/xtcp2-goip-parity-x86_64";
     };
 
     quality-report = {

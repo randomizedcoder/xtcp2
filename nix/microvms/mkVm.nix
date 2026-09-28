@@ -44,10 +44,11 @@ let
   constants = import ./constants.nix;
   cfg = constants.architectures.${arch};
 
-  # Guest-side mechanism for the netlink-dump-capture flavor: one helper the
+  # Guest-side mechanism for the two driven netlink flavors: one helper the
   # host driver invokes a subcommand at a time over the serial console. Built
   # unconditionally (it is a cheap shell wrapper) but only put on the guest's
-  # PATH by that flavor - see environment.systemPackages below.
+  # PATH by those flavors - see isNetlinkDriven in environment.systemPackages
+  # below.
   netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
 
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
@@ -253,6 +254,38 @@ let
   # changed without rebuilding the VM. See nix/microvms/netlink-capture.nix
   # (mechanism) and scripts/capture-netlink-dumps.exp (policy).
   isNetlinkDumpCapture = sink == "netlink-dump-capture";
+  # goip-parity = the same quiet root VM again, driven to capture an
+  # ip/goip/ip triple per command and then run `goip-parity compare` on the
+  # result IN THE GUEST. Tier C of the parity harness.
+  #
+  # Why a third flavor rather than another capture set in the one above: the
+  # two answer different questions and must not share a run. The dump capture
+  # produces FIXTURES, and it is allowed to fail a capture and still be worth
+  # committing what it got. This produces a VERDICT, where a missing capture
+  # has to make the command report MISSING rather than quietly shrink the set
+  # being compared. Folding them together would mean one exit status standing
+  # for both, and the two have opposite defaults.
+  #
+  # It shares everything that should be shared: the same guest helper
+  # (nix/microvms/netlink-capture.nix), the same namespace topology
+  # (scripts/netlink-topology.exp), the same expect library. What differs is
+  # policy, which lives in scripts/goip-parity.exp.
+  #
+  # `ip monitor` is deliberately NOT started here, unlike nlmon-capture: for
+  # dumps it multiplies deliveries, and a multicast notification inside a
+  # read-only capture window is a capture-hygiene FAILURE by the comparator's
+  # design - so a monitor would fail the run it was meant to observe.
+  isGoipParity = sink == "goip-parity";
+  # The three driven/quiet netlink flavors, which share a guest shape: no
+  # xtcp2 daemon, no self-test, nlmon + the link-type modules, and the exfil
+  # tools. Named once so a fourth predicate cannot be added to two of the four
+  # places that need it and not the others - which is how a flavor ends up
+  # with a chatty guest and a capture full of somebody else's traffic.
+  isNetlinkQuiet = isNlmonCapture || isNetlinkDumpCapture || isGoipParity;
+  # The two that are driven over the serial console by an expect script, as
+  # opposed to nlmon-capture's baked-in oneshot. These are the ones that need
+  # `xtcp2-nlcap` on the guest PATH.
+  isNetlinkDriven = isNetlinkDumpCapture || isGoipParity;
   # valkey = a native in-VM Valkey (Redis-protocol) server + a pre-subscribed
   # consumer; xtcp2 PUBLISHes each record to the pub/sub channel and the
   # self-test proves records flow through end-to-end. No docker, no persistence;
@@ -2711,18 +2744,19 @@ in
 
         # The reason we're here: xtcp2 as a systemd unit.
         #
-        # Except on the two capture flavors, where the daemon is the problem:
+        # Except on the netlink-quiet flavors, where the daemon is the problem:
         # it polls RTM_GETLINK/GETADDR/GETROUTE on a timer, nlmon mirrors
         # every one of those datagrams, and what we are trying to record would
         # be lost in the daemon's own dump traffic. Those VMs run the capture
         # and nothing else.
         #
-        # netlink-dump-capture takes its captures inside throwaway namespaces,
-        # so a per-netns tap would not see the daemon anyway. It is disabled
-        # regardless: a quiet guest boots faster, and the isolation should be
-        # the second line of defense rather than the only one.
+        # netlink-dump-capture and goip-parity take their captures inside
+        # throwaway namespaces, so a per-netns tap would not see the daemon
+        # anyway. It is disabled regardless: a quiet guest boots faster, and
+        # the isolation should be the second line of defense rather than the
+        # only one.
         services.xtcp2 = {
-          enable = !(isNlmonCapture || isNetlinkDumpCapture);
+          enable = !isNetlinkQuiet;
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
@@ -2875,11 +2909,10 @@ in
         # is-active xtcp2` for 30 s, robust to xtcp2 starting directly at
         # boot or via a systemd.path gate. Skipped on long-running flavors
         # (soak / s3parquet-long), which run heartbeat services instead, and
-        # on both capture flavors, which have no xtcp2 to test and whose whole
-        # point is a netlink-silent guest.
+        # on the netlink-quiet flavors, which have no xtcp2 to test and whose
+        # whole point is a netlink-silent guest.
         systemd.services.xtcp2-self-test =
-          lib.mkIf
-            (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNlmonCapture && !isNetlinkDumpCapture)
+          lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNetlinkQuiet)
             {
               description = "xtcp2 microvm self-test";
               after = [
@@ -3644,16 +3677,19 @@ in
           };
         };
 
-        # Both capture flavors: the nlmon monitor device and the
+        # All three netlink-quiet flavors: the nlmon monitor device and the
         # veth/dummy/bridge links the capture scripts drive are all kernel
         # modules that a minimal microvm does not autoload. Name them so the
         # initrd/boot pulls them in rather than relying on `modprobe` finding
         # them at runtime.
         #
-        # netlink-dump-capture additionally needs `bridge`, for the advisory
-        # mesh namespace - a bridge with an enslaved veth is the only way to
-        # get real IFLA_MASTER and IFLA_LINKINFO{bridge} replies.
-        boot.kernelModules = lib.mkIf (isNlmonCapture || isNetlinkDumpCapture) (
+        # `bridge` is netlink-dump-capture's alone, for the advisory mesh
+        # namespace - a bridge with an enslaved veth is the only way to get
+        # real IFLA_MASTER and IFLA_LINKINFO{bridge} replies. goip-parity
+        # captures only off the clean topology, which has no bridge on
+        # purpose (scripts/netlink-topology.exp), so loading one there would
+        # add a module the run never touches.
+        boot.kernelModules = lib.mkIf isNetlinkQuiet (
           [
             "nlmon"
             "veth"
@@ -3717,12 +3753,18 @@ in
               gnutar
             ]
           )
-          # netlink-dump-capture needs the same exfil tools, plus the helper
-          # itself: the driver's first act is `command -v xtcp2-nlcap`, and it
+          # The two driven flavors need the same exfil tools, plus the helper
+          # itself: each driver's first act is `command -v xtcp2-nlcap`, and it
           # aborts naming this entry if the helper is not here. iproute2 and
           # tcpdump are already in the base set above, but the helper carries
           # its own runtimeInputs anyway so it does not depend on that.
-          ++ lib.optionals isNetlinkDumpCapture (
+          #
+          # goip-parity needs the exfil tools too, even though its verdict
+          # never leaves the guest: the blob it packs is the evidence behind
+          # the verdict, and `--out` is how a failing run gets inspected.
+          # `goip` and `goip-parity` themselves arrive via xtcp2AllPackage
+          # below, which every flavor gets.
+          ++ lib.optionals isNetlinkDriven (
             (with pkgs; [
               kmod
               gzip

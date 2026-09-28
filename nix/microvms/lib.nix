@@ -1068,19 +1068,25 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # Both .exp files in one store directory, because the driver locates its
-      # library with `source [file dirname [info script]]/vm-lib.exp`. Copying
-      # them individually into the store would put them in two different
-      # directories and that source would fail.
+      # All three .exp files in one store directory, because the driver locates
+      # its library and its topology with
+      # `source [file dirname [info script]]/...`. Copying them individually
+      # into the store would put them in three different directories and those
+      # sources would fail.
+      #
+      # netlink-topology.exp is shared with the goip-parity driver so both
+      # capture off one topology definition; see its header.
       captureScripts =
         pkgs.runCommand "xtcp2-netlink-capture-scripts"
           {
             vmLib = ./scripts/vm-lib.exp;
+            topology = ./scripts/netlink-topology.exp;
             driver = ./scripts/capture-netlink-dumps.exp;
           }
           ''
             mkdir -p $out
             cp $vmLib $out/vm-lib.exp
+            cp $topology $out/netlink-topology.exp
             cp $driver $out/capture-netlink-dumps.exp
             chmod +x $out/capture-netlink-dumps.exp
           '';
@@ -1295,6 +1301,244 @@ rec {
         fi
 
         echo "PASS: rtnetlink dump capture complete"
+        exit 0
+      '';
+    };
+
+  # mkGoipParityRunner — host runner for the goip-parity flavor, Tier C of the
+  # netlink parity harness.
+  #
+  # Shaped after mkNetlinkDumpCaptureRunner rather than the five transcript
+  # scrapers, for the same reason: the guest is DRIVEN over the serial console
+  # by an expect script, so the driver owns that port and this must not `nc`
+  # it. Diagnostics come off the virtio console, which nothing else uses.
+  #
+  # ONE DIFFERENCE FROM ITS SIBLING, AND IT IS THE IMPORTANT ONE
+  #
+  # The dump-capture runner exists to write files into the working tree, so it
+  # installs its blob and treats a non-zero driver status as advice about what
+  # not to commit. This one exists to produce a VERDICT. The comparison already
+  # happened in the guest - the captures never have to leave for the answer to
+  # exist - so the blob here is evidence, and a run whose blob failed to decode
+  # still reports the verdict it measured. Getting that backwards would let an
+  # exfil problem mask a parity failure, or worse, report one that did not
+  # happen.
+  #
+  # Not a check, for mkNlmonCaptureRunner's reasons (no /dev/kvm in the nix
+  # sandbox, binary-cached results) plus the fixed SERIAL_PORT, which means it
+  # cannot run concurrently with any other VM and so belongs in the sequential
+  # integration list rather than in `nix flake check`.
+  mkGoipParityRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      # All three .exp files in one store directory, because each locates its
+      # siblings with `source [file dirname [info script]]/...`. Copying them
+      # in individually would put them in three different store paths and
+      # those sources would fail.
+      parityScripts =
+        pkgs.runCommand "xtcp2-goip-parity-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            topology = ./scripts/netlink-topology.exp;
+            driver = ./scripts/goip-parity.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $topology $out/netlink-topology.exp
+            cp $driver $out/goip-parity.exp
+            chmod +x $out/goip-parity.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-goip-parity-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnugrep
+        gnutar
+        gzip
+        netcat-gnu
+      ];
+      text = ''
+        set -u
+
+        # 1800 s. The comparison itself is milliseconds and the captures are a
+        # couple of minutes; the budget is dominated by a cold microvm boot on
+        # a loaded host, and by the base64 blob, which expect reads one line
+        # at a time.
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        # Arrays rather than strings, so the unset case passes NO argument
+        # instead of an empty one.
+        KEEP_GOING=()
+        NO_ALLOWLIST=()
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            --keep-going)   KEEP_GOING=(--keep-going); shift ;;
+            --no-allowlist) NO_ALLOWLIST=(--no-allowlist); shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <sec>] [--out <dir>] [--keep-going] [--no-allowlist]"
+              echo "  Boots the goip-parity microvm and drives it over the serial"
+              echo "  console with expect: builds the dummy-only topology in a"
+              echo "  throwaway netns, captures an ip/goip/ip triple per command"
+              echo "  off an nlmon device in that namespace, and runs"
+              echo "  \`goip-parity compare\` IN THE GUEST."
+              echo ""
+              echo "  The verdict is the comparator's. This runner surfaces the"
+              echo "  GOIP_PARITY_* sentinels and exits non-zero if the run did"
+              echo "  not reach GOIP_PARITY_OVERALL_PASS."
+              echo ""
+              echo "  --keep-going captures every command even after one misses"
+              echo "  its datagram floor, which is for diagnosing a bad capture"
+              echo "  rather than for a run you intend to trust."
+              echo ""
+              echo "  --no-allowlist reports every accepted divergence instead"
+              echo "  of suppressing it. Use it to review what the allowlist is"
+              echo "  currently hiding."
+              echo ""
+              echo "  --out saves the capture triples + the in-guest report to a"
+              echo "  directory. Optional: unlike the dump-capture runner these"
+              echo "  are evidence, not fixtures, so nothing is written by"
+              echo "  default and no repo root is required."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-goip-parity-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-goip-parity-blob-XXXX.b64)
+
+        echo "================================================"
+        echo " xtcp2 microvm goip-parity — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        # Virtio console only — the serial console belongs to the driver. Pure
+        # diagnostics: if the driver reports the guest never produced a shell,
+        # the boot messages are in here.
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$QEMU_LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # `|| rc=$?` under pipefail yields expect's own status rather than
+        # tee's. The driver's codes are meaningful: 1 = the comparator found
+        # something, 2 = no console, 3 = a step with no partial result failed.
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${parityScripts}/goip-parity.exp \
+            "$SERIAL_PORT" "$BLOB" \
+            ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
+            ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the parity driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot log: $QEMU_LOG"
+          exit 2
+        fi
+
+        # The blob is optional, so its absence is a warning rather than the
+        # fatal it is in the dump-capture runner: the verdict was decided in
+        # the guest and does not depend on the exfil path. Installed BEFORE
+        # the verdict is read, so a failing run still leaves its evidence on
+        # disk.
+        if [ -n "$OUT_DIR" ]; then
+          if [ ! -s "$BLOB" ]; then
+            echo "WARNING: the driver wrote no capture blob; --out has nothing to install"
+          else
+            STAGE=$(mktemp -d -t xtcp2-goip-parity-XXXX)
+            if awk '
+                  /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+                  /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+                  flag
+                ' "$BLOB" \
+              | tr -d '\r\n ' \
+              | base64 -d 2>/dev/null \
+              | gzip -dc 2>/dev/null \
+              | tar x -C "$STAGE" 2>/dev/null; then
+              mkdir -p "$OUT_DIR"
+              cp -rf "$STAGE"/. "$OUT_DIR"/
+              echo ""
+              echo "capture triples + in-guest report installed to $OUT_DIR"
+              find "$OUT_DIR" -type f | sort
+            else
+              echo "WARNING: the capture blob did not decode"
+              echo "         $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+            fi
+          fi
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " verdict"
+        echo "================================================"
+        # Re-printed from the transcript rather than tracked through the shell,
+        # so what is summarized here is exactly what the comparator said.
+        grep -E '^GOIP_PARITY_(OVERALL|HYGIENE|CONTROL|UNGATED|NOTHING)' "$LOG" || true
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot log:    $QEMU_LOG"
+
+        # OVERALL_PASS is required POSITIVELY, not inferred from the exit
+        # status. A driver that died before comparing exits non-zero and would
+        # be caught either way, but a driver that somehow exited 0 without
+        # comparing anything must not read as a pass - which is the same
+        # reasoning behind the comparator's own GOIP_PARITY_NOTHING_COMPARED.
+        if ! grep -q '^GOIP_PARITY_OVERALL_PASS$' "$LOG"; then
+          echo ""
+          echo "FAIL: the run did not reach GOIP_PARITY_OVERALL_PASS (driver exit $rc)"
+          if [ "$rc" -eq 0 ]; then
+            echo "      The driver exited 0 without an OVERALL_PASS, which means it"
+            echo "      never got as far as comparing. Check the transcript."
+          fi
+          exit 1
+        fi
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: OVERALL_PASS was printed but the driver exited $rc."
+          echo "      Those disagree, so neither is trusted. Check the transcript."
+          exit 1
+        fi
+
+        echo ""
+        echo "PASS: goip netlink + stdout parity holds on this kernel"
         exit 0
       '';
     };

@@ -1,0 +1,154 @@
+###############################################################################
+# netlink-topology.exp - the namespace topology both netlink drivers capture on
+#
+# Sourced by scripts/capture-netlink-dumps.exp (which records the decoder
+# corpus) and scripts/goip-parity.exp (which records the ip/goip/ip triples).
+#
+# WHY THIS IS ONE FILE AND NOT TWO COPIES
+#
+# The parity comparator subtracts D_control = diff(ip_a, ip_b) from its
+# findings, on the grounds that a difference visible across a window
+# containing the goip run is by construction not attributable to goip. That
+# reasoning holds only if the parity captures come off the SAME topology the
+# decoder fixtures came off. Two copies of `build_clean` would drift - a route
+# added here for RTA_METRICS coverage and not there - and the symptom would
+# not be an error. It would be a comparator quietly measuring one topology
+# against an allowlist written for another, with every sentinel green.
+#
+# So: one definition, two consumers, and a drift is impossible rather than
+# unlikely.
+#
+# WHAT `clean` IS FOR, AND WHY IT HAS NO BRIDGE
+#
+# One dummy device and nothing else. The device deliberately has no IFLA_LINK
+# and no IFLA_MASTER, because iproute2 issues a side `ll_link_get` single-get
+# while rendering either of them. A capture with no side traffic is what lets
+# the parity harness compare transaction counts POSITIONALLY, which is its
+# single highest-value assertion - it is what catches "goip forgot the
+# RTM_GETLINK before RTM_GETADDR". Everything gated comes from here.
+#
+# `mesh` is the opposite choice on purpose: a veth pair enslaved to a bridge
+# is the only way to get real IFLA_MASTER, IFLA_LINK and IFLA_LINKINFO
+# replies, and it necessarily carries the side transactions the clean set
+# exists to avoid. Advisory, never gated, and it documents the extra traffic
+# rather than pretending it away.
+###############################################################################
+
+namespace eval nltopo {
+
+    # refused accumulates the topology steps the guest kernel would not take,
+    # so a driver can report them together at the end rather than have them
+    # scroll past in the middle of a run.
+    variable refused {}
+
+    ###########################################################################
+    # reset - clear the refusal list. Called by a driver before it builds.
+    ###########################################################################
+    proc reset {} {
+        variable refused
+        set refused {}
+    }
+
+    ###########################################################################
+    # refused_steps - the accumulated refusals, in the order they happened.
+    ###########################################################################
+    proc refused_steps {} {
+        variable refused
+        return $refused
+    }
+
+    ###########################################################################
+    # topo <ns> <subdir> <ip-args...> - one topology step.
+    #
+    # A refusal is recorded and the run continues: `route add ... via inet6`
+    # needs RFC 5549 support, and a kernel without it should still yield every
+    # other fixture. The driver decides whether a given refusal matters.
+    #
+    # <subdir> is passed through because each capture set's transcript belongs
+    # beside its own pcaps. The guest helper used to keep one shared transcript
+    # that the driver copied into place afterwards, which silently gave the
+    # clean set the MESH set's topology - see cmd_topo in
+    # nix/microvms/netlink-capture.nix for how that went wrong.
+    ###########################################################################
+    proc topo {ns subdir args} {
+        variable refused
+        lassign [vmlib::run_out "xtcp2-nlcap topo $ns $subdir [join $args { }]"] rc out
+        if {$rc != 0} {
+            lappend refused "ip -n $ns $args"
+            vmlib::log "topology step refused: ip -n $ns $args"
+        }
+        return $rc
+    }
+
+    ###########################################################################
+    # build_clean - one dummy, addresses, routes and neighbors.
+    #
+    # Each route below exists for exactly one decoder feature that had no
+    # captured positive before this topology existed; they are not a sample of
+    # realistic routing.
+    ###########################################################################
+    proc build_clean {ns subdir dummy} {
+        topo $ns $subdir link add $dummy type dummy
+        topo $ns $subdir addr add 192.0.2.1/24 dev $dummy
+        # nodad: without it the address is IFA_F_TENTATIVE for a moment and
+        # every capture becomes a race against duplicate address detection.
+        topo $ns $subdir -6 addr add 2001:db8::1/64 nodad dev $dummy
+        # IFLA/IFA flags that the 8-bit ifa_flags header field CANNOT
+        # represent, so the only way to read them is the IFA_FLAGS attribute:
+        # IFA_F_MANAGETEMPADDR is 0x100 and IFA_F_NOPREFIXROUTE is 0x200. The
+        # host-captured fixture got this for free from a real SLAAC address on
+        # the capturing machine, which is exactly the kind of accident a
+        # controlled namespace removes - so ask for the flags explicitly
+        # instead, which is both deterministic and a stronger statement about
+        # what is being tested.
+        topo $ns $subdir -6 addr add 2001:db8::9/64 nodad mngtmpaddr noprefixroute dev $dummy
+        topo $ns $subdir link set $dummy up
+
+        topo $ns $subdir route add 198.51.100.0/24 dev $dummy
+        topo $ns $subdir route add 198.18.0.0/24 via 192.0.2.10 dev $dummy
+        # RTA_METRICS, two nested values so a decoder cannot pass by returning
+        # the first one it finds.
+        topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300
+        # RTA_MULTIPATH. The weights differ on purpose: rtnh_hops is weight-1,
+        # so equal weights would let a decoder that ignores the field look
+        # correct.
+        topo $ns $subdir route add 203.0.113.0/24 \
+            nexthop via 192.0.2.10 dev $dummy weight 1 \
+            nexthop via 192.0.2.11 dev $dummy weight 3
+        # RTA_VIA - an IPv4 destination with an IPv6 next hop (RFC 5549), the
+        # only thing that puts a struct rtvia on the wire.
+        topo $ns $subdir route add 198.18.2.0/24 via inet6 2001:db8::2 dev $dummy
+        topo $ns $subdir -6 route add 2001:db8:1::/64 via 2001:db8::2 dev $dummy
+        topo $ns $subdir -6 route add 2001:db8:2::/64 \
+            nexthop via 2001:db8::2 dev $dummy weight 1 \
+            nexthop via 2001:db8::3 dev $dummy weight 3
+
+        # Three NUD states plus one entry with no lladdr at all, which is the
+        # case that decides whether an absent NDA_LLADDR is handled or
+        # rendered as an empty MAC.
+        topo $ns $subdir neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev $dummy nud permanent
+        topo $ns $subdir neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev $dummy nud stale
+        topo $ns $subdir neigh add 192.0.2.52 dev $dummy nud incomplete
+        topo $ns $subdir -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev $dummy nud permanent
+    }
+
+    ###########################################################################
+    # build_mesh - a bridge with an enslaved veth pair.
+    #
+    # veth1 is left DOWN on purpose. `print_name_and_link` derives `M-DOWN`
+    # from ll_index_to_flags on the PEER, so a pair with one end down is the
+    # only way to get a reply set that exercises it - and a lookup miss there
+    # returns -1, whose `-1 & IFF_UP` is non-zero, which is the bug
+    # internal/goip's lltab corner row exists to prevent.
+    ###########################################################################
+    proc build_mesh {ns subdir} {
+        topo $ns $subdir link add br0 type bridge
+        topo $ns $subdir link add veth0 type veth peer name veth1
+        topo $ns $subdir link set veth0 master br0
+        topo $ns $subdir addr add 198.19.0.1/24 dev br0
+        topo $ns $subdir -6 addr add 2001:db8:ff::1/64 nodad dev br0
+        topo $ns $subdir link set br0 up
+        topo $ns $subdir link set veth0 up
+        topo $ns $subdir route add 198.19.1.0/24 dev br0
+    }
+}

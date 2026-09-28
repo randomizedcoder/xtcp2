@@ -1,10 +1,19 @@
 # nix/microvms/netlink-capture.nix
 #
-# Guest-side mechanism for the netlink-dump-capture microVM flavor.
+# Guest-side mechanism for the two driven netlink microVM flavors:
+# netlink-dump-capture, which records the decoder corpus, and goip-parity,
+# which records the ip/goip/ip triples the parity comparator reads.
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH and invoked one subcommand at a time by the host driver
-# (nix/microvms/scripts/capture-netlink-dumps.exp) over the serial console.
+# PATH and invoked one subcommand at a time by a host driver
+# (nix/microvms/scripts/capture-netlink-dumps.exp and goip-parity.exp) over
+# the serial console.
+#
+# Both flavors capture the same way, from the same namespace topology, and
+# that is deliberate rather than incidental: D_control - the diff between the
+# two `ip` sides that the comparator subtracts - only means what it claims if
+# the parity captures come off the topology the decoder fixtures came off.
+# Two capture mechanisms would be two answers to "what was on the wire".
 #
 # WHY THE SPLIT IS THIS WAY ROUND
 #
@@ -255,12 +264,61 @@ pkgs.writeShellApplication {
     # that comes in under its floor is retried once and then DISCARDED rather
     # than written, so a short capture cannot silently replace a good fixture.
     cmd_cap() {
-      local ns=$1 subdir=$2 name=$3 min=$4 command=$5
+      capture "$1" "$2" "$3" "$4" "$5" -
+    }
+
+    # capio <ns> <subdir> <name> <min-datagrams> <command> <stdout-name>
+    #
+    # `cap` plus the generator's stdout, recorded to <stdout-name> in the same
+    # directory.
+    #
+    # THE POINT IS THAT IT IS THE SAME RUN
+    #
+    # The parity comparator needs both halves of each side: the netlink the
+    # tool sent, and what it rendered from the replies. Netlink parity alone
+    # is reply-independent - a tool that sends byte-identical requests and then
+    # discards every reply is a perfect green on the wire - which is why
+    # internal/goipparity compares stdout structurally as well, and why it
+    # wants <slug>.<side>.pcap and <slug>.<side>.out to describe ONE
+    # invocation.
+    #
+    # Capturing them separately would mean running the command twice, against
+    # a kernel that had moved on in between, so a difference between the pcap
+    # and the text would be indistinguishable from a rendering bug. Recording
+    # both from one run removes that question rather than bounding it.
+    #
+    # Writing the file does not pollute the capture: an open/write/close on a
+    # tmpfs path produces no netlink traffic, so the window still contains
+    # exactly what the tool asked the kernel.
+    cmd_capio() {
+      local ns=$1 subdir=$2 name=$3 min=$4 command=$5 sout=$6
+      if [ "$sout" = "-" ]; then
+        die "capio needs a stdout name; use cap to discard stdout"
+      fi
+      capture "$ns" "$subdir" "$name" "$min" "$command" "$sout"
+    }
+
+    # capture — the shared body of cap and capio.
+    #
+    # <sout> is a file name to record the generator's stdout to, or `-` to
+    # discard it. Factored out rather than duplicated because everything that
+    # makes a capture correct lives in here: the bind wait, immediate mode, the
+    # stop sentinel, the NETLINK_ROUTE filter and the floor. A second copy of
+    # that for the parity captures would be a second place for the sentinel
+    # logic to drift, and the symptom of drift is an empty pcap that looks
+    # like a clean run.
+    capture() {
+      local ns=$1 subdir=$2 name=$3 min=$4 command=$5 sout=$6
       local dir="$OUT/$subdir"
       mkdir -p "$dir"
 
       local raw="$dir/.$name.raw.pcap"
       local new="$dir/.$name.new.pcap"
+      # Staged under a dot name and moved into place only with the pcap it
+      # belongs to. A .out left behind by a discarded attempt would pair a
+      # fresh text with a stale or absent capture, and the comparator reads
+      # the two as one observation.
+      local outnew="$dir/.$name.new.out"
       local attempt err tp n=0
 
       for attempt in 1 2; do
@@ -279,7 +337,7 @@ pkgs.writeShellApplication {
           wait "$tp" 2>/dev/null || true
           echo "NLCAP_CAP_NOBIND $name attempt=$attempt" >&2
           cat "$err" >&2 || true
-          rm -f "$err" "$raw"
+          rm -f "$err" "$raw" "$outnew"
           continue
         fi
         rm -f "$err"
@@ -288,7 +346,16 @@ pkgs.writeShellApplication {
         # on an empty table succeeds, `ip -6 route show` on a v4-only setup
         # succeeds, and a genuine failure shows up as a missed floor below,
         # which is a better signal than a shell exit code.
-        ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
+        #
+        # stderr goes to /dev/null in both branches, never into the recorded
+        # text. The comparator diffs stdout structurally - line counts and
+        # extracted name/CIDR/MAC sets - so a warning on stderr folded into
+        # the file would read as a rendered object that the other side lacks.
+        if [ "$sout" = "-" ]; then
+          ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
+        else
+          ip netns exec "$ns" sh -c "$command" >"$outnew" 2>/dev/null || true
+        fi
 
         # Close the window on evidence, not on elapsed time. The sentinel is
         # emitted after the generator has exited, so the ring being FIFO means
@@ -331,10 +398,19 @@ pkgs.writeShellApplication {
         n="$(pkt_count "$new")"
         if [ "$n" -ge "$min" ]; then
           mv -f "$new" "$dir/$name.pcap"
+          if [ "$sout" != "-" ]; then
+            # Both halves land together or neither does. `mv` after the pcap's
+            # mv, so a crash between them leaves a pcap with no text - which
+            # the comparator reports as MISSING - rather than a text with no
+            # pcap, which it would have to guess about.
+            mv -f "$outnew" "$dir/$sout"
+            echo "NLCAP_CAP_OK $subdir/$name datagrams=$n floor=$min stdout=$subdir/$sout bytes=$(wc -c <"$dir/$sout")"
+            return 0
+          fi
           echo "NLCAP_CAP_OK $subdir/$name datagrams=$n floor=$min"
           return 0
         fi
-        rm -f "$new"
+        rm -f "$new" "$outnew"
         echo "NLCAP_CAP_RETRY $name attempt=$attempt datagrams=$n floor=$min" >&2
       done
 
@@ -356,6 +432,22 @@ pkgs.writeShellApplication {
         ip netns exec "$ns" sh -c "$command" >"$dir/$name" 2>/dev/null || true
       fi
       echo "NLCAP_SIDE_OK $subdir/$name bytes=$(wc -c <"$dir/$name")"
+    }
+
+    # dir [subdir]
+    #
+    # Where captures live, so a driver can hand the path to another program
+    # without knowing it. The parity driver needs exactly this: it runs
+    # `goip-parity compare -dir <that>` in the guest, and a driver carrying its
+    # own copy of `/tmp/nlcap` is one edit away from comparing an empty
+    # directory - which, before GOIP_PARITY_NOTHING_COMPARED existed, reported
+    # every sentinel green.
+    cmd_dir() {
+      if [ $# -ge 1 ] && [ -n "$1" ]; then
+        echo "$OUT/$1"
+      else
+        echo "$OUT"
+      fi
     }
 
     # inventory
@@ -384,7 +476,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|side|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|side|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -394,7 +486,9 @@ pkgs.writeShellApplication {
       ns-del)    cmd_ns_del "$@" ;;
       topo)      cmd_topo "$@" ;;
       cap)       cmd_cap "$@" ;;
+      capio)     cmd_capio "$@" ;;
       side)      cmd_side "$@" ;;
+      dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;
       *)         die "unknown subcommand: $sub" ;;
