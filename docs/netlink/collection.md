@@ -67,14 +67,21 @@ Events are parsed but not yet exported — they do not fit `XtcpFlatRecord`, whi
 
 ### Regenerating the fixtures
 
-Two harnesses, both producing real `nlmon` captures under `pkg/xtcpnl/testdata/<kernel>/`:
+Three harnesses, all producing real `nlmon` captures under `pkg/xtcpnl/testdata/<kernel>/`. **Both of the primary ones run in a microVM**; the host script is a diagnostic fallback:
 
 | Command | Captures | Where it runs |
 |---|---|---|
-| `nix run .#capture-netlink-fixtures` | **dumps** — `RTM_GET*` request/reply pairs | on the host, via `sudo` |
+| `nix run .#microvm-x86_64-netlink-dump-capture` | **dumps** — `RTM_GET*` request/reply pairs, into `testdata/<kernel>/dumps/` (clean namespace) and `dumps/mesh/` (bridge + veth pair) | in a hermetic microVM, no `sudo` |
 | `nix run .#microvm-x86_64-nlmon-capture` | **events** — a scripted link / addr / route / neigh sequence | in a hermetic microVM, no `sudo` |
+| `nix run .#capture-netlink-fixtures` | **dumps on whatever host you are on** — a diagnostic fallback, not the path for committed fixtures | on the host, via `sudo` |
 
-Use the microVM one for events. `nlmon` mirrors *every* netlink datagram in its namespace, so on a workstation the capture drowns in NetworkManager and nl80211 chatter; the guest is quiet by construction (the flavor disables `xtcp2.service`, whose own periodic dumps would otherwise swamp it). Run both from the repo root.
+Run all of them from the repo root.
+
+`nlmon` mirrors *every* netlink datagram in its namespace, so on a workstation the capture drowns in NetworkManager and nl80211 chatter; the guest is quiet by construction (both capture flavors disable `xtcp2.service`, whose own periodic dumps would otherwise swamp it).
+
+**Why the dump capture moved into a VM**, since the host script still works and is still checked in. The guest kernel, `iproute2` and device topology are all pinned by the flake, so a regenerated fixture differs only where the *decoder* changed. The topology is scripted rather than inherited, which is what lets the clean namespace hold exactly one dummy device and therefore emit **zero** side transactions — `ip link show dev X` and `ip route show` both call `ll_init_map()` and single-get every device they have to name, and on a real host that traffic is unbounded. And the guest is driven over the serial console by an expect script (`nix/microvms/scripts/capture-netlink-dumps.exp`, built on `vm-lib.exp`) that closes each capture window on a **positive handshake** — it waits for the exit-code marker of the command it just ran, rather than sleeping a guessed number of seconds. Each capture also carries a structural floor: 2 messages for a single dump, 4 for anything preceded by `ll_init_map()`, so a window that opened too late fails the run instead of silently committing a short fixture.
+
+What the host script is still the right tool for is recorded in its own header: reproducing a decode failure on the kernel you are actually running without building a VM first, answering "does *my* kernel do that?", and capturing what a real, messy, multi-tenant host puts on the wire. The committed `7_1_8` corpus came from there and stays there — `pkg/xtcpnl/testdata_test.go` records which test citations belong to which corpus and why, because the two cover genuinely different things. The host corpus has pollution across six portids and seventeen sequence numbers, eleven devices including bonds and an InfiniBand-length address, and a veth whose peer lives in another namespace; the guest corpus has the nested route attributes (`RTA_MULTIPATH`, `RTA_VIA`, `RTA_METRICS`), the `RTM_GETNEIGH` dump the corpus previously had none of, the request bytes, and relationships between two *local* devices. Neither replaces the other.
 
 Two things about that capture are worth knowing before you read one:
 

@@ -1040,6 +1040,265 @@ rec {
       '';
     };
 
+  # mkNetlinkDumpCaptureRunner — host runner for the netlink-dump-capture
+  # flavor, and the one runner in this file that does not scrape a transcript.
+  #
+  # The other five boot a VM whose work is a baked-in systemd oneshot, tail the
+  # console into a file, and poll that file with grep for a sentinel. This one
+  # DRIVES the guest instead: scripts/capture-netlink-dumps.exp attaches to the
+  # serial console with expect, runs the capture one command at a time, and
+  # gets each command's real exit status back. That is what lets a capture that
+  # came in under its datagram floor be reported as such rather than silently
+  # written, and it is why there are no `sleep`s below.
+  #
+  # CONSEQUENCE, because it is easy to trip over: the driver OWNS the serial
+  # port. qemu's chardev is `tcp:...,server,nowait`, which serves one
+  # connection at a time, so this runner must not `nc` that port the way the
+  # others do - the two would fight over the console. Diagnostics come off the
+  # virtio console instead, which nothing else is using.
+  #
+  # A runner and not a check, for mkNlmonCaptureRunner's reasons (no /dev/kvm
+  # in the sandbox, binary-cached results, a read-only source copy) plus one of
+  # its own: the point of the run is to write files into the working tree.
+  mkNetlinkDumpCaptureRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      # Both .exp files in one store directory, because the driver locates its
+      # library with `source [file dirname [info script]]/vm-lib.exp`. Copying
+      # them individually into the store would put them in two different
+      # directories and that source would fail.
+      captureScripts =
+        pkgs.runCommand "xtcp2-netlink-capture-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            driver = ./scripts/capture-netlink-dumps.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $driver $out/capture-netlink-dumps.exp
+            chmod +x $out/capture-netlink-dumps.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-netlink-dump-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnutar
+        gzip
+        netcat-gnu
+      ];
+      text = ''
+        set -u
+
+        # 1800 s. The capture itself is a couple of minutes; the budget is
+        # dominated by a cold microvm boot on a loaded host, and by the base64
+        # blob, which expect reads one line at a time.
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        # An array rather than a string, so the unset case passes NO argument
+        # instead of an empty one. `expect $SKIP_MESH` unquoted would have done
+        # that too, and would have been a shellcheck finding to suppress.
+        SKIP_MESH=()
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            --skip-mesh) SKIP_MESH=(--skip-mesh); shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>] [--skip-mesh]"
+              echo "  Boots the netlink-dump-capture microvm and drives it over"
+              echo "  the serial console with expect: builds a clean topology in"
+              echo "  a throwaway netns, captures each RTM_GET* dump off an"
+              echo "  nlmon device in that namespace, records the ip -d / ip -j"
+              echo "  sidecars those fixtures are checked against, then extracts"
+              echo "  the lot and powers off."
+              echo ""
+              echo "  --skip-mesh omits the second, advisory capture set (bridge"
+              echo "  + veth). That set is the only source of real IFLA_MASTER /"
+              echo "  IFLA_LINKINFO replies, so skipping it is for iterating on"
+              echo "  the clean set, not for a capture you intend to commit."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/dumps,"
+              echo "  with the kernel derived from the guest's own uname"
+              echo "  sidecar. Must be run from the xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        # Same repo-root guard as the other capture paths: the default output
+        # is a relative path, so running from elsewhere would scatter a pkg/
+        # tree into the current directory.
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "netlink-dump-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-netlink-dump-capture-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-netlink-dump-blob-XXXX.b64)
+
+        echo "================================================"
+        echo " xtcp2 microvm netlink-dump-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        # Virtio console only — the serial console belongs to the driver (see
+        # the header). This is pure diagnostics: if the driver reports that the
+        # guest never produced a shell, the boot messages are in here.
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$QEMU_LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        # The driver powers the guest off itself on every exit path, so this
+        # only has to deal with the case where it did not get that far.
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        # No readiness probe on the serial port: vmlib::connect retries the
+        # open itself, precisely so nothing out here has to connect to a
+        # single-connection chardev just to find out whether it is up.
+        #
+        # `|| rc=$?` under pipefail yields expect's own status rather than
+        # tee's, which is the whole reason for reading it this way: the
+        # driver's exit codes are meaningful (1 = a capture missed its floor,
+        # 2 = no console, 3 = a step that has no partial result failed).
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${captureScripts}/capture-netlink-dumps.exp \
+            "$SERIAL_PORT" "$BLOB" ''${SKIP_MESH[@]+"''${SKIP_MESH[@]}"} 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the capture driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot log: $QEMU_LOG"
+          exit 2
+        fi
+
+        if [ ! -s "$BLOB" ]; then
+          echo "FATAL: the driver wrote no capture blob (exit $rc)"
+          echo "       Driver transcript: $LOG"
+          echo "       Guest boot log:    $QEMU_LOG"
+          exit 2
+        fi
+
+        # The sentinels still have to be cut. `xtcp2-nlcap pack` frames its
+        # output with XTCP2_NLCAP_DUMP_START/_END because its other consumer
+        # scrapes a raw console transcript and needs to find the blob in it;
+        # vmlib::run_out hands back that command's output verbatim, sentinels
+        # included, and base64 has no comment syntax. Unlike the nlmon runner
+        # there is no systemd `[TIME] unit[PID]: ` prefix to strip as well:
+        # run_out has already removed the echo, the CRs and the ANSI escapes.
+        STAGE=$(mktemp -d -t xtcp2-nlcap-dumps-XXXX)
+        if ! awk '
+              /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+              /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+              flag
+            ' "$BLOB" \
+          | tr -d '\r\n ' \
+          | base64 -d 2>/dev/null \
+          | gzip -dc 2>/dev/null \
+          | tar x -C "$STAGE" 2>/dev/null; then
+          echo "FATAL: the capture blob did not decode"
+          echo "       $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+          exit 2
+        fi
+
+        # Two required files, chosen because between them they prove both
+        # halves arrived: a pcap means the capture ran, and the ip_version
+        # sidecar is what nix/upstream-pins.json's iproute2 entry is checked
+        # against, so a fixture set without it is not attributable.
+        for required in netlink_route_getlink.pcap ip_version; do
+          if [ ! -s "$STAGE/$required" ]; then
+            echo "FATAL: extracted blob has no $required"
+            echo "       staged files:"
+            find "$STAGE" -type f | sort || true
+            exit 2
+          fi
+        done
+
+        # Version the output by the GUEST kernel, not the host's. These
+        # fixtures document the kernel that produced them, and the guest runs
+        # pkgs.linuxPackages_latest, which is routinely a different version
+        # from whatever the host booted.
+        #
+        # A `dumps/` SUBDIRECTORY, not the kernel directory itself, because the
+        # nlmon event capture writes `ip_link_n`, `ip_addr_n`, `ip_neigh_n`,
+        # `ip_route_table_all_n` and `uname` into that same directory. Those
+        # five names mean something different in each set - the event capture's
+        # describe a veth pair, this one's describe the dummy-only clean
+        # namespace - and both are cited by line number from Go tests. Writing
+        # here directly would silently repoint the event tests' citations at
+        # this topology, which is a wrong-answer failure rather than a missing
+        # file. Kept separate now that the two sets come from one guest kernel
+        # and so no longer land in different directories by accident.
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER/dumps"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -rf "$STAGE"/. "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        find "$OUT_DIR" -type f | sort
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot log:    $QEMU_LOG"
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: the driver exited $rc. Fixtures above were still"
+          echo "      installed - a capture that missed its floor is DISCARDED"
+          echo "      in the guest rather than written, so whatever is on disk"
+          echo "      for that name is unchanged. Check NLCAP_MISSED_FLOOR and"
+          echo "      NLCAP_TOPO_REFUSED in the transcript before committing."
+          exit "$rc"
+        fi
+
+        echo "PASS: rtnetlink dump capture complete"
+        exit 0
+      '';
+    };
+
   # mkClickPipeRateRunner — host runner for the clickhouse-pipeline-rate flavor.
   # Mirrors mkDiscoveryBenchRunner (boot, tail both consoles, wait for a DONE
   # sentinel or --timeout, power off). The in-VM xtcp2-clickpipe-rate monitor

@@ -1,0 +1,8 @@
+ok    [nlcapm] ip link add br0 type bridge
+ok    [nlcapm] ip link add veth0 type veth peer name veth1
+ok    [nlcapm] ip link set veth0 master br0
+ok    [nlcapm] ip addr add 198.19.0.1/24 dev br0
+ok    [nlcapm] ip -6 addr add 2001:db8:ff::1/64 nodad dev br0
+ok    [nlcapm] ip link set br0 up
+ok    [nlcapm] ip link set veth0 up
+ok    [nlcapm] ip route add 198.19.1.0/24 dev br0

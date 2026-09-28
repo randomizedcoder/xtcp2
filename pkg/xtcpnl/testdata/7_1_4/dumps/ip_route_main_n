@@ -1,0 +1,8 @@
+unicast 192.0.2.0/24 dev goip0 proto kernel scope link src 192.0.2.1 
+unicast 198.18.0.0/24 via 192.0.2.10 dev goip0 proto boot scope global 
+unicast 198.18.1.0/24 via 192.0.2.10 dev goip0 proto boot scope global mtu 1400 advmss 1300 
+unicast 198.18.2.0/24 via inet6 2001:db8::2 dev goip0 proto boot scope global 
+unicast 198.51.100.0/24 dev goip0 proto boot scope link 
+unicast 203.0.113.0/24 proto boot scope global 
+	nexthop via 192.0.2.10 dev goip0 weight 1 
+	nexthop via 192.0.2.11 dev goip0 weight 3 

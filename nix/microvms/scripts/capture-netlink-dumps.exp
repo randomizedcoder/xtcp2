@@ -1,0 +1,372 @@
+#!/usr/bin/env expect
+###############################################################################
+# capture-netlink-dumps.exp - drive a netlink DUMP capture inside a microVM
+#
+# Usage:
+#   capture-netlink-dumps.exp <serial-port> <blob-out> [--skip-mesh]
+#
+#   <serial-port>  host TCP port qemu bound the guest's serial console to
+#   <blob-out>     file to write the base64 tarball to
+#   --skip-mesh    capture only the clean set (faster; loses the advisory set)
+#
+# This file holds the POLICY half of the capture: which namespaces exist, what
+# topology goes in them, which commands are captured, what each capture's
+# floor is, and which sidecars are recorded. The MECHANISM half - create a
+# namespace, run a capture with a floor, write a sidecar, pack the result - is
+# `xtcp2-nlcap` in the guest (nix/microvms/netlink-capture.nix).
+#
+# The split is what makes the capture set editable without rebuilding a VM,
+# and it is why this is an expect script rather than another systemd oneshot
+# baked into the image.
+#
+# TWO NAMESPACES, AND THE DIFFERENCE IS THE POINT
+#
+#   clean (-> the fixture root)
+#     One dummy device and nothing else. The device deliberately has no
+#     IFLA_LINK and no IFLA_MASTER, because iproute2 issues a side
+#     `ll_link_get` single-get while rendering either of them. A capture with
+#     no side traffic is what lets the parity harness compare transaction
+#     counts POSITIONALLY, which is its single highest-value assertion.
+#     Everything gated comes from here.
+#
+#   mesh (-> mesh/)
+#     A veth pair enslaved to a bridge. This is the opposite choice on
+#     purpose: it is the only way to get real IFLA_MASTER, IFLA_LINK and
+#     IFLA_LINKINFO{bridge,veth} replies, and it necessarily carries the side
+#     transactions the clean set exists to avoid. Advisory, never gated, and
+#     it documents the extra traffic rather than pretending it away.
+#
+# WHY A GUEST AND NOT THE HOST
+#
+# The host script this replaces captured on whatever machine ran it, so the
+# reply side was a function of that machine: the committed
+# netlink_route_getaddr.pcap carries six distinct portids and 24 stray
+# multicast notifications because a workstation has other things running. In
+# here the interface set is what this script created, and the iproute2 doing
+# the asking is the pinned `pkgs.iproute2` rather than whatever the host
+# happens to have - which turns nix/upstream-pins.json's iproute2 entry from
+# an observation into an enforced pin.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+
+if {$argc < 2} {
+    puts "usage: capture-netlink-dumps.exp <serial-port> <blob-out> \[--skip-mesh\]"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+set skip_mesh 0
+foreach a [lrange $argv 2 end] {
+    switch -- $a {
+        --skip-mesh { set skip_mesh 1 }
+        default {
+            puts "unknown argument: $a"
+            exit 2
+        }
+    }
+}
+
+set NS_CLEAN "nlcapc"
+set NS_MESH  "nlcapm"
+set DUMMY    "goip0"
+
+# Accumulated problems, reported together at the end rather than scrolling
+# past in the middle of the run.
+set short_caps  {}
+set failed_topo {}
+
+###############################################################################
+# helpers over vmlib
+###############################################################################
+
+proc nlcap {args} {
+    return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
+}
+
+# topo <ns> <subdir> <ip-args...> - one topology step. A refusal is recorded
+# and the run continues: `route add ... via inet6` needs RFC 5549 support, and
+# a kernel without it should still yield every other fixture.
+#
+# <subdir> is passed for the same reason cap and side take one: each capture
+# set's transcript belongs beside its own pcaps. The guest helper used to keep
+# one shared transcript that the driver copied into place afterwards, which
+# silently gave the clean set the MESH set's topology - see cmd_topo in
+# nix/microvms/netlink-capture.nix for how that went wrong.
+proc topo {ns subdir args} {
+    global failed_topo
+    lassign [nlcap topo $ns $subdir {*}$args] rc out
+    if {$rc != 0} {
+        lappend failed_topo "ip -n $ns $args"
+        vmlib::log "topology step refused: ip -n $ns $args"
+    }
+    return $rc
+}
+
+# cap <ns> <subdir> <name> <floor> <command>
+#
+# <command> is quoted into one shell word for the guest helper, which runs it
+# with `sh -c` inside <ns>.
+proc cap {ns subdir name floor command} {
+    global short_caps
+    lassign [nlcap cap $ns $subdir $name $floor "'$command'"] rc out
+    if {$rc != 0} {
+        lappend short_caps "$subdir/$name"
+        vmlib::log "MISSED FLOOR $subdir/$name: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
+proc side {ns subdir name command} {
+    lassign [nlcap side $ns $subdir $name "'$command'"] rc out
+    if {$rc != 0} {
+        vmlib::log "sidecar failed: $subdir/$name"
+    }
+    return $rc
+}
+
+###############################################################################
+# topology
+###############################################################################
+
+# build_clean - one dummy, addresses, routes and neighbors.
+#
+# Each route below exists for exactly one decoder feature that has no captured
+# positive today; they are not a sample of realistic routing.
+proc build_clean {ns subdir dummy} {
+    topo $ns $subdir link add $dummy type dummy
+    topo $ns $subdir addr add 192.0.2.1/24 dev $dummy
+    # nodad: without it the address is IFA_F_TENTATIVE for a moment and every
+    # capture becomes a race against duplicate address detection.
+    topo $ns $subdir -6 addr add 2001:db8::1/64 nodad dev $dummy
+    # IFLA/IFA flags that the 8-bit ifa_flags header field CANNOT represent,
+    # so the only way to read them is the IFA_FLAGS attribute:
+    # IFA_F_MANAGETEMPADDR is 0x100 and IFA_F_NOPREFIXROUTE is 0x200. The
+    # host-captured fixture got this for free from a real SLAAC address on the
+    # capturing machine, which is exactly the kind of accident a controlled
+    # namespace removes - so ask for the flags explicitly instead, which is
+    # both deterministic and a stronger statement about what is being tested.
+    topo $ns $subdir -6 addr add 2001:db8::9/64 nodad mngtmpaddr noprefixroute dev $dummy
+    topo $ns $subdir link set $dummy up
+
+    topo $ns $subdir route add 198.51.100.0/24 dev $dummy
+    topo $ns $subdir route add 198.18.0.0/24 via 192.0.2.10 dev $dummy
+    # RTA_METRICS, two nested values so a decoder cannot pass by returning the
+    # first one it finds.
+    topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300
+    # RTA_MULTIPATH. The weights differ on purpose: rtnh_hops is weight-1, so
+    # equal weights would let a decoder that ignores the field look correct.
+    topo $ns $subdir route add 203.0.113.0/24 \
+        nexthop via 192.0.2.10 dev $dummy weight 1 \
+        nexthop via 192.0.2.11 dev $dummy weight 3
+    # RTA_VIA - an IPv4 destination with an IPv6 next hop (RFC 5549), the only
+    # thing that puts a struct rtvia on the wire.
+    topo $ns $subdir route add 198.18.2.0/24 via inet6 2001:db8::2 dev $dummy
+    topo $ns $subdir -6 route add 2001:db8:1::/64 via 2001:db8::2 dev $dummy
+    topo $ns $subdir -6 route add 2001:db8:2::/64 \
+        nexthop via 2001:db8::2 dev $dummy weight 1 \
+        nexthop via 2001:db8::3 dev $dummy weight 3
+
+    # Three NUD states plus one entry with no lladdr at all, which is the case
+    # that decides whether an absent NDA_LLADDR is handled or rendered as an
+    # empty MAC.
+    topo $ns $subdir neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev $dummy nud permanent
+    topo $ns $subdir neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev $dummy nud stale
+    topo $ns $subdir neigh add 192.0.2.52 dev $dummy nud incomplete
+    topo $ns $subdir -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev $dummy nud permanent
+}
+
+# build_mesh - a bridge with an enslaved veth pair.
+#
+# veth1 is left DOWN on purpose. `print_name_and_link` derives `M-DOWN` from
+# ll_index_to_flags on the PEER, so a pair with one end down is the only way
+# to get a reply set that exercises it - and a lookup miss there returns -1,
+# whose `-1 & IFF_UP` is non-zero, which is the bug internal/goip's lltab
+# corner row exists to prevent.
+proc build_mesh {ns subdir} {
+    topo $ns $subdir link add br0 type bridge
+    topo $ns $subdir link add veth0 type veth peer name veth1
+    topo $ns $subdir link set veth0 master br0
+    topo $ns $subdir addr add 198.19.0.1/24 dev br0
+    topo $ns $subdir -6 addr add 2001:db8:ff::1/64 nodad dev br0
+    topo $ns $subdir link set br0 up
+    topo $ns $subdir link set veth0 up
+    topo $ns $subdir route add 198.19.1.0/24 dev br0
+}
+
+###############################################################################
+# captures
+#
+# FLOORS are structural minima: one request plus at least one reply datagram
+# per dump the command issues. `link show` is a single dump, so 2. Everything
+# that calls ll_init_map() first is two dumps, so 4 - a floor of 2 there would
+# pass on a capture that missed the second dump entirely, which is exactly the
+# failure worth catching. They are not host-specific expectations, so they
+# stay valid on a namespace with fewer objects.
+###############################################################################
+
+proc capture_set {ns subdir dev} {
+    # A bare `link show` is AF_PACKET and carries IFLA_EXT_MASK = 0x09.
+    cap $ns $subdir netlink_route_getlink 2 "ip link show"
+
+    # Plain `addr show` is AF_UNSPEC, so its link dump DOES carry
+    # IFLA_EXT_MASK; the -4/-6 forms do not, because
+    # rtnl_linkdump_req_filter_fn skips filter_fn unless the family is
+    # AF_UNSPEC or AF_PACKET (lib/libnetlink.c:595). All three are captured
+    # because that difference is a request-byte difference goip must
+    # reproduce, and it had no fixture at all before.
+    cap $ns $subdir netlink_route_getaddr 4 "ip addr show"
+    cap $ns $subdir netlink_route_getaddr_v4 4 "ip -4 addr show"
+    cap $ns $subdir netlink_route_getaddr_v6 4 "ip -6 addr show"
+
+    # Default `route show` sends AF_INET plus RTA_TABLE=254, not the all-zero
+    # rtmsg of `table all` (ip/iproute.c:1836,1997). Both, for the same
+    # reason as above.
+    cap $ns $subdir netlink_route_getroute 4 "ip route show"
+    cap $ns $subdir netlink_route_getroute_table_all 4 "ip route show table all"
+    cap $ns $subdir netlink_route_getroute6 4 "ip -6 route show"
+
+    # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
+    # anywhere, only a notifications pcap.
+    cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
+
+    # Captured to SETTLE what a single-get does rather than to confirm it:
+    # whether iproute2 resolves the name through a full dump and filters, or
+    # issues a non-dump RTM_GETLINK, decides whether goip needs
+    # TalkRtnetlink here at all. Floor is the bare structural minimum.
+    cap $ns $subdir netlink_route_getlink_dev 2 "ip link show dev $dev"
+}
+
+# PLAIN AND -d, IN PAIRS.
+#
+# The host script captured pcaps with plain `ip` but wrote only `ip -d`
+# sidecars, so diffing a renderer's output against ip_link_n showed a large
+# difference made entirely of -d-only attributes the renderer never decodes.
+# Both forms are written, under distinct names: the `_n` suffix keeps meaning
+# `-d`, so existing line-number citations keep their meaning.
+proc sidecar_set {ns subdir dev} {
+    side $ns $subdir ip_link                "ip link show"
+    side $ns $subdir ip_link_n              "ip -d link show"
+    side $ns $subdir ip_addr                "ip addr show"
+    side $ns $subdir ip_addr_n              "ip -d addr show"
+    side $ns $subdir ip_addr_v4             "ip -4 addr show"
+    side $ns $subdir ip_addr_v4_n           "ip -d -4 addr show"
+    side $ns $subdir ip_addr_v6             "ip -6 addr show"
+    side $ns $subdir ip_addr_v6_n           "ip -d -6 addr show"
+    side $ns $subdir ip_route_main          "ip route show"
+    side $ns $subdir ip_route_main_n        "ip -d route show"
+    side $ns $subdir ip_route_table_all     "ip route show table all"
+    side $ns $subdir ip_route_table_all_n   "ip -d route show table all"
+    side $ns $subdir ip_route6              "ip -6 route show"
+    side $ns $subdir ip_route6_n            "ip -d -6 route show"
+    side $ns $subdir ip_neigh               "ip neigh show"
+    side $ns $subdir ip_neigh_n             "ip -d neigh show"
+    side $ns $subdir ip_link_dev            "ip link show dev $dev"
+
+    # JSON, which is what turns "does goip -json use ip -j's key names?" from
+    # an eyeball question into a diff. -p pretty-prints so the committed file
+    # is reviewable line by line.
+    side $ns $subdir ip_link_json           "ip -j -p link show"
+    side $ns $subdir ip_addr_json           "ip -j -p addr show"
+    side $ns $subdir ip_route_main_json     "ip -j -p route show"
+    side $ns $subdir ip_neigh_json          "ip -j -p neigh show"
+}
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+# 300 s: a cold microvm boot on a loaded host is the slow case, and the
+# runner's own timeout is the real backstop.
+vmlib::connect $port 300
+
+# Fail fast and loudly if the helper is not on PATH - every later step would
+# otherwise report rc 127 and the reason would be buried.
+if {[vmlib::run "command -v xtcp2-nlcap >/dev/null"] != 0} {
+    vmlib::log "FATAL: xtcp2-nlcap is not on the guest PATH."
+    vmlib::log "       The VM was probably built without the netlink-dump-capture"
+    vmlib::log "       flavor's environment.systemPackages entry."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+# Root-namespace sidecars: what kernel and what iproute2 produced all of this.
+# ip_version is the per-capture record that nix/upstream-pins.json's iproute2
+# entry is asserted against at eval time.
+vmlib::must "xtcp2-nlcap side - . uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
+
+vmlib::log "=== clean namespace ==="
+vmlib::must "xtcp2-nlcap ns-add $NS_CLEAN"
+build_clean $NS_CLEAN "." $DUMMY
+capture_set $NS_CLEAN "." $DUMMY
+sidecar_set $NS_CLEAN "." $DUMMY
+
+if {!$skip_mesh} {
+    vmlib::log "=== mesh namespace (advisory) ==="
+    vmlib::must "xtcp2-nlcap ns-add $NS_MESH"
+    build_mesh $NS_MESH "mesh"
+    capture_set $NS_MESH "mesh" "veth0"
+    sidecar_set $NS_MESH "mesh" "veth0"
+}
+
+# Inventory before pack, so a missing file is named here rather than inferred
+# from a short tar on the host.
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+# 600 s: the blob is a few thousand wrapped base64 lines and expect matches
+# one line at a time.
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "FATAL: pack failed (rc=$pack_rc)"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+set fh [open $blob_out w]
+puts $fh $blob
+close $fh
+vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+
+# Delete the namespaces before powering off. Not strictly needed - the guest
+# is about to cease existing - but it keeps `ns-add`'s idempotence honest if
+# this driver is ever pointed at a long-lived VM.
+vmlib::run "xtcp2-nlcap ns-del $NS_CLEAN"
+if {!$skip_mesh} {
+    vmlib::run "xtcp2-nlcap ns-del $NS_MESH"
+}
+
+vmlib::poweroff
+
+###############################################################################
+# verdict
+###############################################################################
+
+puts ""
+if {[llength $failed_topo] > 0} {
+    puts "NLCAP_TOPO_REFUSED [llength $failed_topo]"
+    foreach t $failed_topo {
+        puts "  $t"
+    }
+    puts "  Expect the fixture each step was there to produce to be missing"
+    puts "  its positive case. See the topology sidecar."
+}
+
+if {[llength $short_caps] > 0} {
+    puts "NLCAP_MISSED_FLOOR [llength $short_caps]"
+    foreach c $short_caps {
+        puts "  $c"
+    }
+    puts "  Those came in short twice and were DISCARDED rather than written,"
+    puts "  so any committed fixture of the same name is unchanged."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+
+puts "NLCAP_DRIVER_PASS"
+exit 0

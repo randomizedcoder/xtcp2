@@ -1,0 +1,49 @@
+[ {
+        "dst": "192.0.2.0/24",
+        "dev": "goip0",
+        "protocol": "kernel",
+        "scope": "link",
+        "prefsrc": "192.0.2.1",
+        "flags": [ ]
+    },{
+        "dst": "198.18.0.0/24",
+        "gateway": "192.0.2.10",
+        "dev": "goip0",
+        "flags": [ ]
+    },{
+        "dst": "198.18.1.0/24",
+        "gateway": "192.0.2.10",
+        "dev": "goip0",
+        "flags": [ ],
+        "metrics": [ {
+                "mtu": 1400,
+                "advmss": 1300
+            } ]
+    },{
+        "dst": "198.18.2.0/24",
+        "via": {
+            "family": "inet6",
+            "host": "2001:db8::2"
+        },
+        "dev": "goip0",
+        "flags": [ ]
+    },{
+        "dst": "198.51.100.0/24",
+        "dev": "goip0",
+        "scope": "link",
+        "flags": [ ]
+    },{
+        "dst": "203.0.113.0/24",
+        "flags": [ ],
+        "nexthops": [ {
+                "gateway": "192.0.2.10",
+                "dev": "goip0",
+                "weight": 1,
+                "flags": [ ]
+            },{
+                "gateway": "192.0.2.11",
+                "dev": "goip0",
+                "weight": 3,
+                "flags": [ ]
+            } ]
+    } ]

@@ -1,0 +1,2 @@
+5: veth0@veth1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue master br0 state LOWERLAYERDOWN mode DEFAULT group default qlen 1000
+    link/ether 5e:bd:c5:77:5b:4f brd ff:ff:ff:ff:ff:ff

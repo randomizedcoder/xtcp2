@@ -98,6 +98,42 @@ const (
 
 	// 7.1.8 rtnetlink captures (nlmon, NETLINK_ROUTE only).
 	//
+	// # Why there are two rtnetlink dump corpora, and what belongs in each
+	//
+	// The 7_1_4/dumps set below is captured in a pinned microVM against a
+	// scripted three-device namespace, which makes it the better corpus for
+	// almost everything. It did NOT replace this one. Moving the citations
+	// here over to it would have deleted three kinds of coverage that only a
+	// messy, shared host can provide:
+	//
+	//   * POLLUTION. netlink_route_getaddr.pcap holds 251 messages across six
+	//     distinct portids and 17 sequence numbers, because nlmon mirrors the
+	//     whole namespace and other processes were talking to NETLINK_ROUTE at
+	//     the time. pkg/nlparity's attribution logic exists to survive exactly
+	//     that, and this file is the only real input that tests it. The
+	//     namespace captures are clean by construction, so they cannot.
+	//   * BREADTH. Eleven links including bonds and bridges, real vendor MACs,
+	//     an InfiniBand-length address, truncated IFNAMEs with intact
+	//     altnames, SLAAC addresses with finite lifetimes, and a deprecated
+	//     temporary address with preferred_lft 0. A namespace built by a
+	//     script has whatever the script created and nothing else.
+	//   * CROSS-NETNS RELATIONS. The veth here has its peer in another
+	//     namespace, so it carries IFLA_LINK_NETNSID and its IFLA_LINK
+	//     indexes a device absent from the dump. The mesh pair below is
+	//     entirely local. Both cases are real and they render differently.
+	//
+	// What the 7_1_4/dumps set is for, correspondingly: the attributes this
+	// host simply does not have (RTA_MULTIPATH, RTA_VIA, RTA_METRICS,
+	// RTNH_F_LINKDOWN), the RTM_GETNEIGH dump the corpus had none of, and the
+	// request bytes — because it commits each request next to the replies it
+	// provoked, which this set cannot, having thrown the requests away during
+	// extraction.
+	//
+	// So: keep a citation here when the row is about pollution, attribution,
+	// device breadth, or a peer in another namespace. Cite 7_1_4/dumps when
+	// the row is about a nested route attribute, a neighbor, a request, or a
+	// relationship between two local devices.
+	//
 	// The three *bulk* pcaps are raw per-type nlmon captures produced by
 	// `nix run .#capture-netlink-fixtures`; they contain our RTM_GET* dump plus
 	// whatever other NETLINK_ROUTE traffic the namespace was doing. The
@@ -130,6 +166,65 @@ const (
 	tdEventsAddr_7_1_4  = tdBase + "/7_1_4/netlink_route_events_addr.pcap"
 	tdEventsRoute_7_1_4 = tdBase + "/7_1_4/netlink_route_events_route.pcap"
 	tdEventsNeigh_7_1_4 = tdBase + "/7_1_4/netlink_route_events_neigh.pcap"
+
+	// 7.1.4 rtnetlink DUMP captures, produced in the microVM by
+	// `nix run .#microvm-x86_64-netlink-dump-capture` (nix/microvms/
+	// netlink-capture.nix plus scripts/capture-netlink-dumps.exp).
+	//
+	// These live in a `dumps/` subdirectory rather than beside the 7_1_4 event
+	// fixtures because five sidecar names collide — ip_addr_n, ip_link_n,
+	// ip_neigh_n, ip_route_table_all_n and uname all exist in both sets and
+	// describe DIFFERENT topologies. Both sets are cited by line number, so
+	// merging them would silently repoint every citation.
+	//
+	// Unlike the 7_1_8 host captures, each pcap here holds exactly one
+	// transaction: the capture ran in a dedicated network namespace whose only
+	// interfaces are lo, the nlmon device and one dummy, so there is no other
+	// process and no other portid on NETLINK_ROUTE. The topology is recorded
+	// step by step in the `topology` sidecar, which is what makes an
+	// expectation here reproducible rather than a description of whatever
+	// machine happened to run the capture.
+	tdDumps_7_1_4 = tdBase + "/7_1_4/dumps"
+
+	tdDumpGetLink_7_1_4     = tdDumps_7_1_4 + "/netlink_route_getlink.pcap"
+	tdDumpGetLinkDev_7_1_4  = tdDumps_7_1_4 + "/netlink_route_getlink_dev.pcap"
+	tdDumpGetAddr_7_1_4     = tdDumps_7_1_4 + "/netlink_route_getaddr.pcap"
+	tdDumpGetAddrV4_7_1_4   = tdDumps_7_1_4 + "/netlink_route_getaddr_v4.pcap"
+	tdDumpGetAddrV6_7_1_4   = tdDumps_7_1_4 + "/netlink_route_getaddr_v6.pcap"
+	tdDumpGetRoute_7_1_4    = tdDumps_7_1_4 + "/netlink_route_getroute.pcap"
+	tdDumpGetRoute6_7_1_4   = tdDumps_7_1_4 + "/netlink_route_getroute6.pcap"
+	tdDumpGetRouteAll_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getroute_table_all.pcap"
+	tdDumpGetNeigh_7_1_4    = tdDumps_7_1_4 + "/netlink_route_getneigh.pcap"
+
+	// Sidecars for the dump set: the source of truth its expectations cite.
+	tdDumpIPLink_7_1_4   = tdDumps_7_1_4 + "/ip_link_n"
+	tdDumpIPAddr_7_1_4   = tdDumps_7_1_4 + "/ip_addr_n"
+	tdDumpIPRoute_7_1_4  = tdDumps_7_1_4 + "/ip_route_main_n"
+	tdDumpIPRoute6_7_1_4 = tdDumps_7_1_4 + "/ip_route6_n"
+	tdDumpIPNeigh_7_1_4  = tdDumps_7_1_4 + "/ip_neigh_n"
+	tdDumpTopology_7_1_4 = tdDumps_7_1_4 + "/topology"
+
+	// The mesh half of the same capture run: a bridge with a veth member whose
+	// peer is left down. It is the only source in the repo of IFLA_MASTER,
+	// IFLA_LINK between a real pair, IFLA_INFO_KIND of bridge/veth, `M-DOWN`
+	// and RTNH_F_LINKDOWN — states that exist only when devices are related to
+	// each other, which a single dummy cannot express.
+	//
+	// It is advisory, never gated: a bridge and a veth pair generate side
+	// transactions (see tdDumpMeshGetLinkDev_7_1_4 below), which is exactly why
+	// the clean set exists. Expectations that must be reproducible cite the
+	// clean set; expectations about relationships cite this one.
+	tdDumpsMesh_7_1_4 = tdDumps_7_1_4 + "/mesh"
+
+	tdDumpMeshGetLink_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getlink.pcap"
+	tdDumpMeshGetLinkDev_7_1_4 = tdDumpsMesh_7_1_4 + "/netlink_route_getlink_dev.pcap"
+	tdDumpMeshGetAddr_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getaddr.pcap"
+	tdDumpMeshGetRoute_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getroute.pcap"
+	tdDumpMeshGetNeigh_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getneigh.pcap"
+
+	tdDumpMeshIPLink_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_link_n"
+	tdDumpMeshIPAddr_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_addr_n"
+	tdDumpMeshIPNeigh_7_1_4 = tdDumpsMesh_7_1_4 + "/ip_neigh_n"
 
 	// Sidecars: the source of truth the event expectations are derived from.
 	// ip_monitor_all is the event-side counterpart to ip_link_n — `ip monitor`

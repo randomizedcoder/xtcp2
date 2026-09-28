@@ -1,0 +1,6 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN qlen 1000
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+3: br0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 state DOWN qlen 1000
+    inet6 2001:db8:ff::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever

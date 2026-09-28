@@ -556,6 +556,7 @@ in
       microvm-x86_64-s3parquet-lowfreq = microvms.vmsS3ParquetLowfreq.x86_64;
       microvm-x86_64-capcheck-fail = microvms.vmsCapCheckFail.x86_64;
       microvm-x86_64-nlmon-capture = microvms.vmsNlmonCapture.x86_64;
+      microvm-x86_64-netlink-dump-capture = microvms.vmsNetlinkDumpCapture.x86_64;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -834,11 +835,34 @@ in
     # override the destination. Not in `nix flake check` — it needs /dev/kvm and
     # it writes to the working tree, neither of which a check can do.
     #
-    # Complements `nix run .#capture-netlink-fixtures`, which captures DUMPS on
-    # the host; this one captures EVENTS in a controlled guest.
+    # Its sibling below captures DUMPS in the same controlled guest. Between
+    # them they are the fixture source; `nix run .#capture-netlink-fixtures`
+    # captures dumps on the HOST and is now only a diagnostic fallback.
     microvm-x86_64-nlmon-capture = {
       type = "app";
       program = "${microvms.nlmonCapture.x86_64.runner}/bin/xtcp2-nlmon-capture-x86_64";
+    };
+
+    # rtnetlink DUMP capture: boots the same quiet root microvm, then drives it
+    # over the serial console with expect rather than running a baked-in
+    # oneshot. Builds a dummy-only topology in a throwaway netns — chosen so
+    # iproute2 issues no side `ll_link_get`, which is what lets the parity
+    # harness compare transaction counts positionally — captures each RTM_GET*
+    # dump off an nlmon device in that namespace, records the matching `ip -d`
+    # and `ip -j` sidecars, and writes the lot into
+    # pkg/xtcpnl/testdata/<guest kernel>/dumps/ — a subdirectory, because five
+    # sidecar names collide with the event set above and mean something
+    # different in each. A second, advisory set (bridge + veth, under
+    # dumps/mesh/) carries the IFLA_MASTER / IFLA_LINKINFO replies the clean
+    # set deliberately cannot produce; `--skip-mesh` omits it.
+    #
+    # Run from the repo root. `--timeout <sec>` bounds the wait, `--out <dir>`
+    # overrides the destination. Not in `nix flake check`: /dev/kvm plus a write
+    # to the working tree. The expect library underneath it IS checked, by
+    # `nix build .#checks.x86_64-linux.vm-lib-exp`, against a local pty shell.
+    microvm-x86_64-netlink-dump-capture = {
+      type = "app";
+      program = "${microvms.netlinkDumpCapture.x86_64.runner}/bin/xtcp2-netlink-dump-capture-x86_64";
     };
 
     quality-report = {
