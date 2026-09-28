@@ -434,11 +434,38 @@ func TestAllowlistCommitted(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: gated_commands is empty, because the comparator's tiers do not exist yet",
+			// This row used to assert gated_commands was EMPTY, on the grounds
+			// that a command may not be gated before its tier is built. Tier C
+			// is built - nix run .#microvm-x86_64-goip-parity - and it reported
+			// `link show` clean with control nl=0 stdout=0, so the row now
+			// asserts the state that measurement earned rather than the state
+			// that preceded it. Emptiness was never the property worth
+			// protecting; gating without evidence was.
+			description: "positive: `link show` is gated, which is the state a measured-clean Tier C run earned it",
 			check: func(t *testing.T, a *Allowlist) {
-				if len(a.GatedCommands) != 0 {
-					t.Fatalf("GatedCommands = %v; a command may not be gated before its tier is built",
+				if !a.IsGated("link show") {
+					t.Fatalf("GatedCommands = %v, want it to include `link show`",
 						a.GatedCommands)
+				}
+			},
+		},
+		{
+			// A duplicate would be silently harmless - IsGated is a set lookup
+			// - and that is exactly why it is worth failing on: the list is
+			// read by humans deciding what to gate next, and a name appearing
+			// twice makes it look like two decisions were taken.
+			description: "negative: no gated command is blank or listed twice",
+			check: func(t *testing.T, a *Allowlist) {
+				seen := map[string]bool{}
+				for _, c := range a.GatedCommands {
+					if c == "" {
+						t.Fatalf("gated_commands contains an empty name: %v",
+							a.GatedCommands)
+					}
+					if seen[c] {
+						t.Fatalf("gated_commands names %q twice", c)
+					}
+					seen[c] = true
 				}
 			},
 		},

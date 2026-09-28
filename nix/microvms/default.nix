@@ -475,6 +475,27 @@ let
       sink = "netlink-dump-capture";
     };
 
+  # goip-parity: the same quiet root VM, driven to capture an ip/goip/ip triple
+  # per command from the shared clean topology and then run `goip-parity
+  # compare` on the result IN THE GUEST. Tier C of the parity harness; the host
+  # driver is scripts/goip-parity.exp. See mkVm.nix isGoipParity for why this is
+  # a third flavor rather than another capture set inside the one above.
+  mkOneGoipParity =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "goip-parity";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsUdsSecurity = lib.genAttrs constants.supportedArchs mkOneUdsSecurity;
@@ -537,6 +558,8 @@ let
   vmsNlmonCapture = lib.genAttrs constants.supportedArchs mkOneNlmonCapture;
 
   vmsNetlinkDumpCapture = lib.genAttrs constants.supportedArchs mkOneNetlinkDumpCapture;
+
+  vmsGoipParity = lib.genAttrs constants.supportedArchs mkOneGoipParity;
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -779,6 +802,19 @@ let
     };
   });
 
+  # goip/ip parity runner (Tier C): boots the goip-parity VM, drives it with
+  # scripts/goip-parity.exp, and reports the verdict the GUEST reached — the
+  # comparison runs in there, so the captures never have to leave for the
+  # answer to exist. A runner and not a check for the same reasons as the two
+  # above, and additionally because it is the only tier that needs real
+  # sockets.
+  goipParity = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkGoipParityRunner {
+      inherit arch;
+      vm = vmsGoipParity.${arch};
+    };
+  });
+
   # Runtime-control rate test runner: boots the clickhouse-pipeline-rate VM,
   # waits for the in-VM monitor's XTCP2_RATE_DONE (or --timeout), and passes
   # only if the ingest rate responded to set-poll-frequency + poll-burst.
@@ -878,10 +914,12 @@ in
     vmsDiscoveryBench
     vmsNlmonCapture
     vmsNetlinkDumpCapture
+    vmsGoipParity
     s3parquetLong
     discoveryBench
     nlmonCapture
     netlinkDumpCapture
+    goipParity
     clickPipeRate
     clickPipeStress
     s3ParquetStress

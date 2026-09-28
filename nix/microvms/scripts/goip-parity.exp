@@ -1,0 +1,391 @@
+#!/usr/bin/env expect
+###############################################################################
+# goip-parity.exp - drive the ip/goip/ip parity harness inside a microVM
+#
+# Usage:
+#   goip-parity.exp <serial-port> <blob-out> [--keep-going] [--no-allowlist]
+#
+#   <serial-port>   host TCP port qemu bound the guest's serial console to
+#   <blob-out>      file to write the base64 tarball of captures + report to
+#   --keep-going    capture every command even after one misses its floor
+#   --no-allowlist  pass -no-allowlist to the comparator, so every accepted
+#                   divergence is reported instead of suppressed
+#
+# This is Tier C of the plan's parity harness: real sockets, real replies, a
+# real kernel. Tiers A and B are Go tests over committed fixtures and gate on
+# every `nix flake check`; this one cannot, because it needs /dev/kvm and owns
+# a fixed serial port, so it is a runner in the sequential integration list.
+#
+# WHAT IT ACTUALLY ASSERTS, AND WHY THE TRIPLE
+#
+# For each command in the table, three captures are taken back to back:
+#
+#     ip_a  ->  goip  ->  ip_b
+#
+# D_control = diff(ip_a, ip_b) is a measurement of what changed across a
+# window that CONTAINS the goip run, so a kernel value that drifted during the
+# goip capture falls inside the control interval rather than beside it. The
+# comparator subtracts it. The order is load-bearing and is not an
+# optimization: capturing ip twice up front and goip afterwards would measure
+# an adjacent window and would quietly attribute the drift to goip.
+#
+# THE COMMAND LIST IS NOT IN THIS FILE
+#
+# It comes from `goip-parity commands`, which prints the same table the
+# comparator reads. Two copies of that list is precisely how a command stops
+# being compared: the shell captures `ip -6 route show`, the comparator looks
+# for route_show_v6, nothing matches, and a skipped command looks exactly like
+# a passing one. So the driver asks the comparator what to capture, and the
+# two cannot disagree.
+#
+# The table also carries each command's Implemented flag, and a command marked
+# unimplemented gets NO goip capture at all. That is not a shortcut - the
+# comparator treats a goip capture for an unimplemented command as a FAIL,
+# on the grounds that the table and the driver disagreeing about what goip can
+# run is a defect in one of them.
+#
+# NO `ip monitor`, DELIBERATELY
+#
+# The nlmon-capture flavor starts `ip -t monitor all` because its subject is
+# notifications. Here it would be actively harmful: for dumps it multiplies
+# deliveries, and every extra socket in the namespace is another portid the
+# comparator's attribution has to discard. A multicast notification inside a
+# read-only capture window is a capture-hygiene FAILURE by design
+# (GOIP_PARITY_HYGIENE_FAIL), so adding a monitor would fail the run it was
+# meant to observe.
+#
+# WHY THE COMPARISON HAPPENS IN THE GUEST
+#
+# The captures never have to leave for a verdict to exist, so the verdict does
+# not depend on the exfil path working. The blob is still shipped out, because
+# a failing run is only actionable with the pcaps in hand - but it is evidence,
+# not input.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/netlink-topology.exp
+
+if {$argc < 2} {
+    puts "usage: goip-parity.exp <serial-port> <blob-out> \[--keep-going\] \[--no-allowlist\]"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+set keep_going   0
+set no_allowlist 0
+foreach a [lrange $argv 2 end] {
+    switch -- $a {
+        --keep-going   { set keep_going 1 }
+        --no-allowlist { set no_allowlist 1 }
+        default {
+            puts "unknown argument: $a"
+            exit 2
+        }
+    }
+}
+
+# One namespace, the clean one. There is no mesh set here: the mesh topology
+# carries the side `ll_link_get` transactions that positional transaction
+# comparison cannot survive, so it is the decoder corpus's advisory set and
+# has no business in a gated parity run.
+set NS      "goipp"
+set DUMMY   "goip0"
+set SUBDIR  "parity"
+
+# Accumulated problems, reported together at the end.
+set short_caps  {}
+set skipped     {}
+
+###############################################################################
+# helpers over vmlib
+###############################################################################
+
+proc nlcap {args} {
+    return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
+}
+
+# capio <name> <floor> <command> <stdout-name> - one side of one triple.
+#
+# Returns 1 on success. A miss is recorded and reported at the end; the
+# comparator will separately report the command as MISSING, because it checks
+# for all six files of a triple before reading any of them.
+proc capio {name floor command sout} {
+    global short_caps NS SUBDIR
+    lassign [nlcap capio $NS $SUBDIR $name $floor "'$command'" $sout] rc out
+    if {$rc != 0} {
+        lappend short_caps "$SUBDIR/$name"
+        vmlib::log "MISSED FLOOR $SUBDIR/$name: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
+###############################################################################
+# the command table, read from the comparator
+#
+# `goip-parity commands` prints one tab-separated row per command:
+#
+#     slug  floor  implemented  needs-dev  args  name
+#
+# The name is last because it is the only field containing spaces, so a
+# four-field split captures the rest correctly. Parsed with `split ... \t`
+# rather than a regexp so a name with two consecutive spaces cannot be
+# silently reflowed.
+###############################################################################
+
+proc read_command_table {} {
+    lassign [vmlib::run_out "goip-parity commands"] rc out
+    if {$rc != 0} {
+        vmlib::log "FATAL: `goip-parity commands` exited $rc"
+        vmlib::log $out
+        puts "GOIP_PARITY_DRIVER_FAIL"
+        exit 3
+    }
+
+    set rows {}
+    foreach line [split $out "\n"] {
+        set line [string trimright $line]
+        if {$line eq ""} {
+            continue
+        }
+        set f [split $line "\t"]
+        if {[llength $f] != 6} {
+            vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
+            puts "GOIP_PARITY_DRIVER_FAIL"
+            exit 3
+        }
+        lappend rows $f
+    }
+
+    # An empty table is a failure rather than a clean no-op, for the same
+    # reason the comparator has GOIP_PARITY_NOTHING_COMPARED: a run that
+    # compared nothing is indistinguishable from a passing one in the output,
+    # and it means the binary is not the one this driver expects.
+    if {[llength $rows] == 0} {
+        vmlib::log "FATAL: `goip-parity commands` printed no rows"
+        puts "GOIP_PARITY_DRIVER_FAIL"
+        exit 3
+    }
+    return $rows
+}
+
+###############################################################################
+# capture one command's triple
+#
+# The side names and file names are the comparator's own - <slug>.<side>.pcap
+# and <slug>.<side>.out - and they are spelled here once, in one place, from
+# the slug the table handed over.
+###############################################################################
+
+proc capture_triple {row dev} {
+    global skipped
+    lassign $row slug floor impl needs_dev args name
+
+    set argv_str $args
+    if {$needs_dev eq "yes"} {
+        set argv_str "$args $dev"
+    }
+
+    # `ip` twice and `goip` once, in that order. Both get exactly the same
+    # argv, which is the property that makes the comparison mean anything -
+    # internal/goip's matchesPrefix exists so that goip parses it the way
+    # iproute2 does rather than merely accepting it.
+    set plan [list \
+        ip_a "ip $argv_str" \
+        goip "goip $argv_str" \
+        ip_b "ip $argv_str"]
+
+    if {$impl ne "yes"} {
+        # No goip capture, on purpose: the comparator FAILS a command that is
+        # marked unimplemented but has one, because that means the table and
+        # this driver disagree. Capturing only the ip sides would be worse than
+        # useless - it would leave a half-triple that reads as MISSING rather
+        # than as the deliberate SKIP it is - so the whole command is skipped.
+        lappend skipped "$slug ($name)"
+        vmlib::log "SKIP $slug: goip does not implement `$name` yet"
+        return
+    }
+
+    set ok 1
+    foreach {side cmd} $plan {
+        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out"]} {
+            set ok 0
+        }
+    }
+    if {!$ok} {
+        vmlib::log "INCOMPLETE TRIPLE $slug - the comparator will report it MISSING"
+    }
+}
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+nltopo::reset
+# 300 s: a cold microvm boot on a loaded host is the slow case, and the
+# runner's own timeout is the real backstop.
+vmlib::connect $port 300
+
+# Fail fast and loudly if any of the three are missing, and name all of them
+# in one pass rather than aborting on the first - a VM built without the
+# flavor's package list is missing the helper AND both binaries, and reporting
+# that as one problem is more useful than three runs.
+set missing {}
+foreach tool {xtcp2-nlcap goip goip-parity} {
+    if {[vmlib::run "command -v $tool >/dev/null"] != 0} {
+        lappend missing $tool
+    }
+}
+if {[llength $missing] > 0} {
+    vmlib::log "FATAL: not on the guest PATH: [join $missing { }]"
+    vmlib::log "       goip and goip-parity come from xtcp2AllPackage, which"
+    vmlib::log "       every flavor gets; xtcp2-nlcap needs the goip-parity"
+    vmlib::log "       flavor's own environment.systemPackages entry."
+    puts "GOIP_PARITY_DRIVER_FAIL"
+    exit 3
+}
+
+# Root-namespace sidecars: what kernel and what iproute2 produced all of this.
+# ip_version is what makes a divergence attributable to a version skew rather
+# than to goip, and it is what nix/upstream-pins.json's iproute2 entry is
+# checked against.
+vmlib::must "xtcp2-nlcap side - $SUBDIR uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - $SUBDIR ip_version 'ip -V'"
+# goip has no -version flag, and giving it one to satisfy a sidecar would be
+# the wrong way round. Its store path is a stronger identity than a version
+# string anyway: the hash covers the source tree it was built from, so two
+# runs with the same path compared the same binary, and two with different
+# paths did not - which is the actual question a provenance sidecar answers.
+vmlib::must "xtcp2-nlcap side - $SUBDIR goip_store_path 'readlink -f \"\$(command -v goip)\"'"
+
+vmlib::log "=== topology ==="
+vmlib::must "xtcp2-nlcap ns-add $NS"
+nltopo::build_clean $NS $SUBDIR $DUMMY
+
+set table [read_command_table]
+vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
+
+foreach row $table {
+    capture_triple $row $DUMMY
+    if {[llength $short_caps] > 0 && !$keep_going} {
+        vmlib::log "stopping after a missed floor; pass --keep-going to continue"
+        break
+    }
+}
+
+###############################################################################
+# compare, in the guest
+###############################################################################
+
+lassign [nlcap dir $SUBDIR] dir_rc capture_dir
+set capture_dir [string trim [lindex [split $capture_dir "\n"] 0]]
+if {$dir_rc != 0 || $capture_dir eq ""} {
+    vmlib::log "FATAL: could not resolve the capture directory (rc=$dir_rc)"
+    puts "GOIP_PARITY_DRIVER_FAIL"
+    exit 3
+}
+
+set flags ""
+if {$no_allowlist} {
+    set flags " -no-allowlist"
+}
+
+vmlib::log "=== comparing in $capture_dir ==="
+
+# Two round trips, not one `| tee`.
+#
+# A pipeline's `$?` is the LAST stage's status, so `compare ... | tee` would
+# have handed back tee's exit code - which is 0 whether or not the comparator
+# found anything. The driver's whole verdict is that number. `set -o pipefail`
+# would have fixed it and would have left the correctness of this run resting
+# on a shell option set over a serial console; running the comparator on its
+# own and reading the file afterwards leaves nothing to get wrong.
+#
+# Redirecting to a file rather than reading stdout directly also means the
+# report ships in the blob beside the captures it describes, which is what
+# makes a failing run actionable.
+lassign [vmlib::run_out \
+    "goip-parity compare -dir $capture_dir$flags > $capture_dir/report.txt 2>&1" \
+    300] cmp_rc _cmp_out
+lassign [vmlib::run_out "cat $capture_dir/report.txt" 300] read_rc report
+if {$read_rc != 0} {
+    vmlib::log "FATAL: the comparator wrote no readable report (rc=$read_rc)"
+    puts "GOIP_PARITY_DRIVER_FAIL"
+    exit 3
+}
+
+# Echoed verbatim to this driver's stdout, which the host runner tees to the
+# transcript. The sentinels are the interface - the runner greps them - so
+# reformatting them here would break the thing that reads them.
+puts ""
+puts $report
+puts ""
+
+###############################################################################
+# ship the evidence
+###############################################################################
+
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+# 600 s: the blob is a few thousand wrapped base64 lines and expect matches
+# one line at a time.
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "WARNING: pack failed (rc=$pack_rc); the verdict below still stands"
+} else {
+    set fh [open $blob_out w]
+    puts $fh $blob
+    close $fh
+    vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+}
+
+vmlib::run "xtcp2-nlcap ns-del $NS"
+vmlib::poweroff
+
+###############################################################################
+# verdict
+#
+# The comparator's own exit status decides it. This driver adds context - what
+# was skipped, what missed a floor, what topology the kernel refused - but it
+# does not second-guess the verdict, because then there would be two verdicts.
+###############################################################################
+
+puts ""
+set refused [nltopo::refused_steps]
+if {[llength $refused] > 0} {
+    puts "GOIP_PARITY_TOPO_REFUSED [llength $refused]"
+    foreach t $refused {
+        puts "  $t"
+    }
+    puts "  Any command whose parity depends on those objects is comparing a"
+    puts "  smaller topology than intended. Not a failure by itself."
+}
+
+if {[llength $skipped] > 0} {
+    puts "GOIP_PARITY_DRIVER_SKIPPED [llength $skipped]"
+    foreach s $skipped {
+        puts "  $s"
+    }
+}
+
+if {[llength $short_caps] > 0} {
+    puts "GOIP_PARITY_MISSED_FLOOR [llength $short_caps]"
+    foreach c $short_caps {
+        puts "  $c"
+    }
+    puts "  Those came in short twice and were DISCARDED rather than written,"
+    puts "  so the command is MISSING above rather than compared against a"
+    puts "  truncated capture."
+}
+
+if {$cmp_rc != 0} {
+    puts "GOIP_PARITY_DRIVER_FAIL"
+    exit 1
+}
+
+puts "GOIP_PARITY_DRIVER_PASS"
+exit 0

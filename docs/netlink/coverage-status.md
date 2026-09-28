@@ -48,10 +48,11 @@ and now
 [`cmd/goip-parity` itself](#cmdgoip-parity--the-comparator-and-the-two-defects-its-own-report-had)
 all exist and gate through `checks.test-go-race`, with no sockets, no root and
 no VM: **253 subtests at 91.6% coverage** in `pkg/nlparity`, plus **128 at
-94.4%** in `internal/goipparity`. What remains of Item 6 is the one piece that
-needs a live machine — the `goip-parity` microVM flavor and its `.exp` driver,
-which produces the `ip → goip → ip` control triples the comparator reads — so
-`gated_commands` is still empty. Building the comparator turned up three errors
+94.4%** in `internal/goipparity`. **Item 6 is now complete**: the
+[`goip-parity` microVM flavor and its driver](#tier-c--the-goip-parity-microvm-flavor)
+produce the `ip → goip → ip` triples the comparator reads, a live run reported
+`GOIP_PARITY_OVERALL_PASS`, and **`link show` is gated** on the strength of that
+measurement. Building the comparator turned up three errors
 in already-committed documents, the sharpest being that the pinned
 `ll_init_map` sends `IFLA_EXT_MASK = 0x01` and not the `0x09` all three of them
 recorded; building the binary on top found the derived-locus defect a second
@@ -755,13 +756,15 @@ which is why the table now has a length gate ahead of the field comparison.
 `golangci-lint` with `.golangci-quick.yml` reports `0 issues.` on both; `nixfmt
 --check` and `statix check` clean on the three edited `.nix` files.
 
-Still owed before `link show` can enter `gated_commands`: the capture driver
-that produces a triple. The two `version-skew` allowlist entries, Item 7's
-`ip -V` sidecar and the comparator itself have all since landed — see [the
-parity allowlist](#the-parity-allowlist-landed-ahead-of-its-comparator) and
+What was owed before `link show` could enter `gated_commands` — the capture
+driver that produces a triple — has since landed alongside the two
+`version-skew` allowlist entries, Item 7's `ip -V` sidecar and the comparator
+itself; see [the parity
+allowlist](#the-parity-allowlist-landed-ahead-of-its-comparator),
 [`cmd/goip-parity`](#cmdgoip-parity--the-comparator-and-the-two-defects-its-own-report-had)
-— but the plan's Risk 3 still says do not gate until there is something to
-gate, and until the flavor exists `link show` is a `GOIP_PARITY_WARN` at most.
+and [Tier C](#tier-c--the-goip-parity-microvm-flavor). `link show` is now
+gated, so a divergence there is a `GOIP_PARITY_FAIL` rather than the
+`GOIP_PARITY_WARN` it was capped at while the flavor did not exist.
 
 ### `cmd/goip addr show` — the two-dump case
 
@@ -916,8 +919,13 @@ The comment now says so.
 7 of 10, because step 4 added renderers and presence flags, not attribute
 decoders.
 
-Still owed, and the same blocker as `link show`: `addr show` must not enter
-`gated_commands` until there is a driver producing triples for it. The two
+The blocker `addr show` shared with `link show` — no driver producing triples —
+is gone, and the live run reported `GOIP_PARITY_PASS addr_show` with
+`control: nl=0 stdout=0`. It is nonetheless **still ungated**, on gate-one-at-a-time
+grounds rather than for want of evidence: `link show` went first, and the
+`-4` variant is where this run's `CONTROL_NOISY 2` came from, so the addr family
+wants one more look before all three forms are gated together. `addr show` is the
+next candidate, not an outstanding gap. The two
 `version-skew` entries it was waiting on — `de91e928` for
 `RTEXT_FILTER_NAME_ONLY`, `faceb326` for **both** loci — are now written, with
 the `ip -V` pin they needed; see [the parity
@@ -1246,9 +1254,13 @@ binary and the in-guest one has no repo to read a path out of.
 four loci — were owed against a file that did not exist, which meant "owed" had nowhere to be
 recorded except this document. They are now written, validated on load, and
 censused by a test that fails if one is deleted or loses its `ip_version` — and
-none of that needed a comparator. `gated_commands` stays **empty**, and a test
-row asserts it is empty, because a command cannot be gated before its tier is
-built.
+none of that needed a comparator. `gated_commands` stayed **empty** at this
+point, with a test row asserting emptiness, because a command cannot be gated
+before its tier is built. That row has since been **replaced rather than
+deleted**: Tier C exists, so it now asserts `link show` *is* gated, plus a
+second row refusing a blank or duplicated name. Emptiness was never the property
+worth protecting — gating without evidence was — and a row that merely went
+green once the list grew would have protected nothing.
 
 **Four entries, not two, and that is the measured part.** `de91e928` has two
 loci — the `ll_init_map` up-front dump that `neigh show` issues
@@ -1788,9 +1800,160 @@ netlink finding — the two committed netlink entries are both for commands goip
 does not implement, so they are never compared. The stdout `AllowSuppressed`
 loop, identical in shape, is covered.
 
-Still owed in Item 6: the `goip-parity` microVM flavor and its `.exp` driver —
-the `ip → goip → ip` control triple driver that produces the directories this
-comparator reads. `gated_commands` stays empty until it exists.
+## Tier C — the `goip-parity` microVM flavor
+
+The last piece of Item 6, and the only one that needs a live machine: a third
+netlink microVM flavor that captures the `ip → goip → ip` triples the comparator
+reads, then runs `goip-parity compare` **in the guest**.
+
+**The comparison happens in the guest, and that is a correctness property, not
+a convenience.** The captures never have to leave for the verdict to exist, so
+a failure to exfiltrate the evidence cannot mask a parity failure. The host
+runner's `--out` installs the blob anyway — but as evidence for inspecting a red
+run, which is why a run whose blob failed to decode still reports the verdict it
+measured. The sibling dump-capture runner is deliberately the other way round:
+it exists to write fixtures into the working tree, so there a bad blob *is* the
+failure.
+
+**Three flavors, not two capture sets in one, because the two have opposite
+defaults.** `netlink-dump-capture` produces FIXTURES and may miss one capture
+and still be worth committing what it got. `goip-parity` produces a VERDICT,
+where a missing capture must make that command report `MISSING` rather than
+quietly shrink the set being compared. Folding them together would put one exit
+status behind both.
+
+**What is shared is shared, and the sharing is load-bearing.** Both flavors use
+the same guest helper (`nix/microvms/netlink-capture.nix`), the same expect
+library, and — the important one — the same namespace topology, extracted into
+`scripts/netlink-topology.exp`. `D_control = diff(ip_a, ip_b)` only means what
+it claims if the parity captures come off the topology the decoder fixtures came
+off. Two copies of `build_clean` would drift, and the symptom would not be an
+error: it would be a comparator measuring one topology against an allowlist
+written for another, with every sentinel green. What is *not* shared is policy —
+which commands, which floors — which lives in `scripts/goip-parity.exp`.
+
+**`ip monitor` is deliberately absent**, unlike `nlmon-capture`. For dumps it
+multiplies deliveries, and a multicast notification inside a read-only capture
+window is a capture-hygiene FAILURE by the comparator's own design — so a
+monitor here would fail the run it was meant to observe.
+
+### Two defects caught before anything ran
+
+**`goip-parity compare … | tee report.txt` would have made every run pass.** A
+pipeline's `$?` is the *last* stage's status, so the driver's verdict would have
+been `tee`'s exit code — 0 whether or not the comparator found anything. This is
+precisely the class of defect the harness exists to prevent, reproduced in the
+harness's own driver. `set -o pipefail` would have fixed it and left the run's
+correctness resting on a shell option set over a serial console; instead the
+driver makes two round trips, redirecting to `report.txt` and then `cat`-ing it,
+which leaves nothing to get wrong.
+
+**`goip` has no `-version` flag**, found by running it rather than by assuming.
+Adding one to satisfy a provenance sidecar would have been the wrong way round,
+so the sidecar records `readlink -f "$(command -v goip)"` instead. The store
+path is the stronger identity anyway: the hash covers the source tree, so two
+runs with the same path compared the same binary and two with different paths
+did not, which is the question a provenance sidecar actually answers.
+
+### The measured run, including the part that is not green
+
+`nix run .#microvm-x86_64-goip-parity`, twice, same result:
+
+```
+GOIP_PARITY_PASS link_show (link show)
+  txns: ip=1 goip=1  control: nl=0 stdout=0
+GOIP_PARITY_PASS addr_show (addr show)
+  txns: ip=2 goip=2  control: nl=0 stdout=0
+GOIP_PARITY_PASS addr_show_v4 (-4 addr show)
+  txns: ip=2 goip=2  control: nl=2 stdout=0
+GOIP_PARITY_PASS addr_show_v6 (-6 addr show)
+  txns: ip=2 goip=2  control: nl=0 stdout=0
+  allow-suppressed: stdout value stdout:keyword:qlen: ip=1000 x2 goip=<absent>
+GOIP_PARITY_HYGIENE_PASS
+GOIP_PARITY_CONTROL_NOISY 2
+GOIP_PARITY_UNGATED_CLEAN
+GOIP_PARITY_OVERALL_PASS
+```
+
+Five commands `SKIP` because goip did not implement them at the time of the
+run: `link show dev`, the three `route show` forms and `neigh show`. That is
+the measured set, not a claim about the current command table — `Implemented`
+is a field in `internal/goipparity/commands.go` and flipping one is how a
+command joins the compared set, so the `SKIP` list moves as `cmd/goip` grows.
+
+**`CONTROL_NOISY 2` rather than the plan's `CONTROL_CLEAN`, and the cause is
+worth recording.** Both noisy loci are `IFLA_STATS`/`IFLA_STATS64` *values* on
+`-4 addr show`. That command's link dump carries no `IFLA_EXT_MASK` — and so no
+`RTEXT_FILTER_SKIP_STATS` — because `rtnl_linkdump_req_filter_fn` forwards
+`filter_fn` only for `AF_UNSPEC` and `AF_PACKET`
+(`lib/libnetlink.c:595`). The kernel therefore appends live packet and byte
+counters, which move between the two control captures by construction. So the
+plan's fact 3 — that `IFLA_STATS*` are absent from every reply — holds for the
+`AF_PACKET` and `AF_UNSPEC` forms and *not* for `-4`/`-6`, which is the same
+request-byte difference the dump corpus captures all three forms for.
+
+`D_control` absorbed both, which is what it is for. It is also why the gate is
+per-command: `link show` sends `AF_PACKET` with the mask, its replies carry no
+counters at all, and a noisy locus on a different command must not decide
+whether this one is trustworthy. No `volatile-fallback` allowlist entry was
+added — one would be a bug report against `D_control`, and `D_control` is
+working.
+
+**The one live divergence is already accounted for.** goip's `-6 addr show`
+omits `qlen 1000`, suppressed by the committed `faceb326` entry for that
+command: `inet6_dump_ifinfo` sends no `IFLA_TXQLEN`, 7.1.0 prints the value from
+a `SIOCGIFTXQLEN` ioctl, and goip will not issue an ioctl to match because the
+comparator's subject is netlink. The entry firing on a live run for the first
+time is the first evidence it was written against real behavior rather than
+against a reading of the diff.
+
+### `link show` enters `gated_commands`
+
+On the strength of that run and nothing else: `GOIP_PARITY_PASS link_show`,
+`control: nl=0 stdout=0`, no findings, and nothing suppressed — not even this
+command's own `stdout:keyword:qlen` entry, because the clean namespace has no
+link with `IFLA_TXQLEN = 0` for it to fire on. That last part is worth stating
+plainly: an entry that does not fire is not evidence it is unnecessary, only
+that this topology does not reach it.
+
+Gating changed how the verdict is computed, so the run was **repeated with the
+gate active** rather than assumed to still hold. It does.
+
+Two hermetic test rows had encoded "nothing is gated" as an assumption and were
+**rewritten rather than retargeted at whatever now passes**:
+
+- `boundary: an empty goip stdout warns rather than fails on an ungated
+  command` moved to `addr show`. Left on `link show` it would have gone on
+  passing while asserting nothing it claims — the status would read `FAIL`, and
+  "warns rather than fails" would be untested.
+- `negative: a goip capture that differs from both ip sides …` is now **two**
+  rows, gated and ungated, so the gate is pinned from both sides. The gated one
+  expects `StatusFail`, which makes the plan's Verification item 4 — *a parity
+  gate that cannot be made to fail is not a gate* — executable in the strongest
+  form available: not a warning, an actual build-ending failure.
+
+The hygiene row moved to `addr show` for the same reason. Its whole content is
+that `nlparity.Report.Failed` fails on hygiene *regardless* of gating; on a
+gated command, `FAIL` would have been explained by the gating instead.
+
+### Remaining
+
+The three `route show` forms need Item 4's
+`RTA_MULTIPATH`/`RTA_VIA`/`rtm_flags` work before goip can implement them, so
+their `SKIP` is the honest state. `addr show` is the next gating candidate. A
+command becoming *compared* and a command becoming *gated* are separate steps
+and should stay separate: flipping `Implemented` gets it into the report, and
+`gated_commands` is only for the ones a live run has measured clean.
+
+The flavor **is** in `integration-all`, as its own "verdict runners" sweep
+rather than folded into the lifecycle list. `SERIAL_PORT` is fixed per arch, so
+it cannot run concurrently with any other VM, and `integration-all` is the one
+command that runs them one at a time — which is the argument for including it,
+not against. It is a separate list because it self-terminates on a parity
+verdict and not on `XTCP2_SELF_TEST_OVERALL`; there is no xtcp2 daemon in that
+guest to emit that sentinel, so adding it to the lifecycle list would have made
+that list's own description false. `run_job` needs no special case: the runner
+already exits 0/1/2 = PASS/FAIL/TIMEOUT like every other member.
 
 ## Phase exit criteria
 

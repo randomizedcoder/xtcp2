@@ -238,44 +238,66 @@ func TestCompareDir(t *testing.T) {
 		{
 			description: "boundary: an empty goip stdout warns rather than fails on an ungated command, and never reads as PASS",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, linkShow, sameAll(tdGuestLink), map[string]string{
-					SideIPA: linkOut, SideGoip: "", SideIPB: linkOut,
+				writeTriple(t, dir, addrShow, sameAll(tdGuestAddr), map[string]string{
+					SideIPA: addrOut, SideGoip: "", SideIPB: addrOut,
 				})
 			},
-			// gated_commands is empty, so stdout findings do not end the run
-			// today — but a goip that rendered nothing must not be labeled
-			// PASS, which is why StatusWarn exists. The finding itself is
-			// asserted separately below, in
-			// TestCompareDirStdoutFindingsAreReported — a row that only
-			// checked the status would pass whether or not the comparison
+			// `addr show` and not `link show`, because the distinction this row
+			// is named for only exists on a command outside gated_commands, and
+			// `link show` joined that list once a live Tier C run measured it
+			// clean. Written against linkShow this row would have gone on
+			// passing while asserting nothing it claims: the status would be
+			// FAIL, and "warns rather than fails" would be untested.
+			//
+			// A goip that rendered nothing must not be labeled PASS, which is
+			// why StatusWarn exists. The finding itself is asserted separately
+			// below, in TestCompareDirStdoutFindingsAreReported — a row that
+			// only checked the status would pass whether or not the comparison
 			// happened at all.
-			want: map[string]Status{"link show": StatusWarn},
+			want: map[string]Status{"addr show": StatusWarn},
 		},
 		{
 			// The single most important row in this file. Everything else
 			// asserts that a clean run reports clean; this asserts the harness
 			// can fail at all, which is the plan's own verification item 4.
-			description: "negative: a goip capture that differs from both ip sides warns and is never PASS",
+			description: "negative: a goip capture that differs from both ip sides on a gated command FAILS and is never PASS",
 			setup: func(t *testing.T, dir string) {
 				writeTriple(t, dir, linkShow, map[string]string{
 					SideIPA: tdGuestLink, SideGoip: tdGuestAddr, SideIPB: tdGuestLink,
 				}, sameAll(linkOut))
 			},
-			want: map[string]Status{"link show": StatusWarn},
+			// FAIL, not WARN, and that is the whole point of `link show` being
+			// in gated_commands: this is the one row that proves a divergence
+			// can end a run rather than being filed as advice.
+			want: map[string]Status{"link show": StatusFail},
+		},
+		{
+			// The same divergence on an ungated command, so the two rows
+			// together pin the gate rather than only one side of it. Without
+			// this one, a gated_commands list that had quietly grown to include
+			// every command would still be green.
+			description: "negative: the same divergence on an ungated command warns instead, and is still never PASS",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, addrShow, map[string]string{
+					SideIPA: tdGuestAddr, SideGoip: tdGuestLink, SideIPB: tdGuestAddr,
+				}, sameAll(addrOut))
+			},
+			want: map[string]Status{"addr show": StatusWarn},
 		},
 		{
 			description: "negative: a goip capture full of notifications is a hygiene FAIL, which gating does not soften",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, linkShow, map[string]string{
-					SideIPA: tdGuestLink, SideGoip: tdEvents, SideIPB: tdGuestLink,
-				}, sameAll(linkOut))
+				writeTriple(t, dir, addrShow, map[string]string{
+					SideIPA: tdGuestAddr, SideGoip: tdEvents, SideIPB: tdGuestAddr,
+				}, sameAll(addrOut))
 			},
-			// FAIL rather than WARN even though link show is not gated:
-			// nlparity.Report.Failed fails on hygiene regardless of gating,
-			// because a capture the comparator could not attribute says
-			// nothing about goip either way, and reporting it as a warning
-			// would let a broken capture window pass as a soft finding.
-			want: map[string]Status{"link show": StatusFail},
+			// Deliberately an UNGATED command, which is what gives the row its
+			// content: nlparity.Report.Failed fails on hygiene regardless of
+			// gating, so FAIL here cannot be explained by gated_commands. A
+			// capture the comparator could not attribute says nothing about
+			// goip either way, and reporting it as a warning would let a broken
+			// capture window pass as a soft finding.
+			want: map[string]Status{"addr show": StatusFail},
 		},
 		{
 			description: "corner: a directory that does not exist behaves as an empty one, so every implemented command is MISSING",
@@ -571,21 +593,48 @@ func TestRender(t *testing.T) {
 			wantAbsent: []string{"GOIP_PARITY_CONTROL_CLEAN"},
 		},
 		{
-			description: "negative: a divergent goip renders GOIP_PARITY_WARN with the L1 count finding, and the ungated sentinel counts it",
+			description: "negative: a divergent goip on an ungated command renders GOIP_PARITY_WARN with the L1 count finding, and the ungated sentinel counts it",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, addrShow, map[string]string{
+					SideIPA: tdGuestAddr, SideGoip: tdGuestLink, SideIPB: tdGuestAddr,
+				}, sameAll(addrOut))
+			},
+			// `addr show`, because GOIP_PARITY_UNGATED_DIVERGENCES only counts
+			// findings on commands outside gated_commands - a gated one is
+			// counted by the OVERALL sentinel instead. `link show` is gated as
+			// of the first clean Tier C run, so this row measures nothing if it
+			// is written against it.
+			wantPass: false, // link show is missing
+			wantLines: []string{
+				"GOIP_PARITY_WARN addr_show",
+				"finding: L1 transaction-count txn-count: ip=2 goip=1",
+				"GOIP_PARITY_UNGATED_DIVERGENCES 1",
+			},
+			wantAbsent: []string{
+				"GOIP_PARITY_PASS addr_show",
+				"GOIP_PARITY_UNGATED_CLEAN",
+			},
+		},
+		{
+			// The gated counterpart, which is what makes the sentinel pair
+			// legible: the same shape of divergence, on a gated command, must
+			// reach GOIP_PARITY_FAIL and must NOT be filed under
+			// UNGATED_DIVERGENCES.
+			description: "negative: the same divergence on a gated command renders GOIP_PARITY_FAIL and is not counted as an ungated divergence",
 			setup: func(t *testing.T, dir string) {
 				writeTriple(t, dir, linkShow, map[string]string{
 					SideIPA: tdGuestLink, SideGoip: tdGuestAddr, SideIPB: tdGuestLink,
 				}, sameAll(linkOut))
 			},
-			wantPass: false, // addr show is missing
+			wantPass: false,
 			wantLines: []string{
-				"GOIP_PARITY_WARN link_show",
+				"GOIP_PARITY_FAIL link_show",
 				"finding: L1 transaction-count txn-count: ip=1 goip=2",
-				"GOIP_PARITY_UNGATED_DIVERGENCES 1",
+				"GOIP_PARITY_UNGATED_CLEAN",
 			},
 			wantAbsent: []string{
 				"GOIP_PARITY_PASS link_show",
-				"GOIP_PARITY_UNGATED_CLEAN",
+				"GOIP_PARITY_UNGATED_DIVERGENCES",
 			},
 		},
 		{
@@ -623,7 +672,14 @@ func TestRender(t *testing.T) {
 			},
 			wantPass: false,
 			wantLines: []string{
-				"GOIP_PARITY_WARN link_show",
+				// FAIL and not WARN because `link show` is gated, and that is
+				// the consequence of gating worth having written down: the
+				// qlen entry below has to keep suppressing, or this run goes
+				// red on a rendering difference that was accepted on purpose.
+				// The row stays on `link show` regardless, because the
+				// allow-suppressed assertion is the point of it and that
+				// entry exists for this command only.
+				"GOIP_PARITY_FAIL link_show",
 				"finding: stdout presence stdout:lines:",
 				"finding: stdout presence stdout:ifnames:",
 				// The one committed stdout allowlist entry for this command,
