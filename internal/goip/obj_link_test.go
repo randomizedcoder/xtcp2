@@ -2,12 +2,17 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // The committed capture this whole file is driven from, and its sidecar.
@@ -1102,5 +1107,372 @@ func TestRunLinkShowJSON(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, tc.check)
+	}
+}
+
+// ---- `link show dev NAME`: the two by-name single-gets -----------------------
+
+// linkReplay is a ReplaySource that also implements TalkSource, answering
+// by-NAME single-gets and recording each request verbatim.
+//
+// routeReplay (obj_route_test.go) is the by-index sibling and cannot be reused
+// here. `ip link show dev NAME` selects on IFLA_IFNAME and leaves ifi_index at
+// 0, so an index-keyed responder would try to answer both requests with
+// whichever link has index 0 — that is, none of them.
+//
+// Requests are kept whole rather than reduced to the name they carry, because
+// for this command the bytes are the assertion. Both requests name the same
+// interface and carry the same two attributes; what tells them apart is
+// ifi_family and the order those attributes appear in, and nothing short of
+// the request itself shows that.
+type linkReplay struct {
+	inner *ReplaySource
+
+	// dumps counts Dump calls, which for this command must stay at zero, and
+	// gets records every single-get in the order it was sent.
+	dumps int
+	gets  [][]byte
+
+	// failGet is the 1-based index of a single-get the replayed kernel refuses
+	// to answer; 0 answers all of them. It is an ordinal rather than a name
+	// because both requests name the same interface, so failing "lo" would
+	// fail both and could not distinguish the two error paths.
+	failGet int
+}
+
+func newLinkReplay(t *testing.T, path string) *linkReplay {
+	t.Helper()
+	s, err := OpenReplay(path)
+	if err != nil {
+		t.Fatalf("OpenReplay(%s): %v", path, err)
+	}
+	return &linkReplay{inner: s}
+}
+
+func (s *linkReplay) Dump(request []byte, msgType uint16) ([][]byte, error) {
+	s.dumps++
+	return s.inner.Dump(request, msgType)
+}
+
+func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
+	s.gets = append(s.gets, zeroSeqPidCopy(request))
+	if s.failGet == len(s.gets) {
+		return nil, fmt.Errorf("%w: single-get %d refused", ErrNoReplay, s.failGet)
+	}
+
+	// A `link show dev` run sends by-name gets for the selector and by-index
+	// gets for whatever the reply points at, so this answers both. Which one
+	// a request is, is decided the way the kernel decides it: IFLA_IFNAME
+	// wins if it is there, otherwise ifi_index is the selector.
+	sel := selectorOf(request)
+	for _, m := range s.inner.cap.Msgs() {
+		if m.IsRequest() || m.Hdr.Type != msgType {
+			continue
+		}
+		li, perr := xtcpnl.ParseNewLink(m.Body)
+		if perr != nil {
+			continue
+		}
+		if (sel.name != "" && li.Name == sel.name) || (sel.name == "" && li.Index == sel.index) {
+			return xtcpnl.CopyBytes(m.Body), nil
+		}
+	}
+	return nil, fmt.Errorf("%w: RTM_GETLINK %s", ErrNoReplay, sel)
+}
+
+// zeroSeqPidCopy returns the request with nlmsg_seq and nlmsg_pid cleared, so
+// a recorded request can be compared without depending on how many requests
+// happened to precede it.
+func zeroSeqPidCopy(request []byte) []byte {
+	out := xtcpnl.CopyBytes(request)
+	for i := 8; i < 16 && i < len(out); i++ {
+		out[i] = 0
+	}
+	return out
+}
+
+// getShape is the part of a single-get this test asserts.
+//
+// Deliberately not the whole request: comparing against bytes rebuilt from
+// req.LinkShowByName and req.LinkShowDev would only prove those two functions
+// equal themselves. Their byte-level correctness is pinned against captured
+// iproute2 traffic in pkg/xtcpnl; what is under test here is the wiring — that
+// `link show dev` sends one of each, in this order, plus whatever side-gets
+// the reply's own indexes require, and no dump.
+//
+// name and index are both here because exactly one of them is the selector,
+// and which one it is distinguishes the two by-name requests from the
+// by-index side-gets print_linkinfo issues for IFLA_MASTER and IFLA_LINK.
+type getShape struct {
+	flags     uint16
+	family    uint8
+	firstAttr uint16
+	name      string
+	index     int32
+}
+
+// String makes a mismatched row's failure message readable, and gives
+// linkReplay a way to say what it could not answer.
+func (g getShape) String() string {
+	if g.name != "" {
+		return fmt.Sprintf("name %q", g.name)
+	}
+	return fmt.Sprintf("index %d", g.index)
+}
+
+// selectorOf reads the fields of an RTM_GETLINK request that getShape keeps.
+//
+// A malformed request cannot happen here — every one of them came from a
+// builder in this repo moments earlier — so an unwalkable attribute list
+// yields the zero name rather than an error the caller would have to thread
+// through a table.
+func selectorOf(request []byte) getShape {
+	g := getShape{
+		flags:  binary.LittleEndian.Uint16(request[6:8]),
+		family: request[xtcpnl.NlMsgHdrSizeCst],
+		index:  int32(binary.LittleEndian.Uint32(request[xtcpnl.NlMsgHdrSizeCst+4:])),
+	}
+	attrs := request[xtcpnl.NlMsgHdrSizeCst+xtcpnl.IfInfomsgSizeCst:]
+	if len(attrs) >= 4 {
+		g.firstAttr = binary.LittleEndian.Uint16(attrs[2:4])
+	}
+	_ = xtcpnl.WalkRTAttrs(attrs, func(atype uint16, val []byte) {
+		if atype == uint16(unix.IFLA_IFNAME) {
+			g.name = strings.TrimRight(string(val), "\x00")
+		}
+	})
+	return g
+}
+
+// runLinkWith drives runLink over a source directly, bypassing Run so the test
+// can supply a TalkSource and read the counters back afterwards.
+func runLinkWith(t *testing.T, src Source, family uint8, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{
+		src:    src,
+		lltab:  NewLLTab(),
+		out:    &out,
+		errOut: io.Discard,
+		family: family,
+	}
+	err := runLink(c, args)
+	return out.String(), err
+}
+
+// TestLinkShowDevTransactionShape is the assertion stdout cannot make: that
+// `ip link show dev NAME` is two by-name single-gets and no dump, and that the
+// two are not the same request sent twice.
+//
+// iproute2 asks about the interface twice. `dev NAME` is parsed into
+// filter.ifindex by ll_name_to_index (ip/ipaddress.c:2254), which issues
+// ll_link_get(name, 0) on a throwaway socket (lib/ll_map.c:264) purely to
+// learn the index; then iplink_get re-fetches the same link, by name again, on
+// the main socket (ip/ipaddress.c:2293, ip/iplink.c:1497-1515), and that second
+// reply is the one print_linkinfo renders. The two differ in ifi_family and in
+// the order they place IFLA_IFNAME and IFLA_EXT_MASK, so pkg/nlparity's
+// full-byte request comparison rejects either one standing in for the other.
+//
+// The shape this replaced — dump, resolve the name locally, get by index —
+// printed byte-identical output and kept the transaction count at two, so
+// nothing but a request-level assertion could see it was wrong. That is what
+// the wantDumps column is for.
+//
+// go test ./internal/goip/ -run TestLinkShowDevTransactionShape
+func TestLinkShowDevTransactionShape(t *testing.T) {
+	// The two shapes, named once. Every positive row expects exactly these,
+	// in this order, differing only in the interface named.
+	llLinkGet := func(name string) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    unix.AF_UNSPEC,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			name:      name,
+		}
+	}
+	iplinkGet := func(name string) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    unix.AF_PACKET,
+			firstAttr: uint16(unix.IFLA_IFNAME),
+			name:      name,
+		}
+	}
+	// The third shape: ll_index_to_name's by-index get, which print_linkinfo
+	// issues for IFLA_MASTER and for a netnsid-less IFLA_LINK. It is the same
+	// request `route show` sends, and it names an index, not a name.
+	byIndexGet := func(index int32) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    unix.AF_UNSPEC,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			index:     index,
+		}
+	}
+
+	tests := []struct {
+		description      string
+		family           uint8
+		args             []string
+		failGet          int
+		wantDumps        int
+		wantGets         []getShape
+		wantStdoutPrefix string
+		wantErr          error
+	}{
+		{
+			description: "positive: `link show dev lo` sends two by-name single-gets and no dump",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "lo"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("lo"),
+				iplinkGet("lo"),
+			},
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// A second device, so a row cannot pass by coincidence of `lo`
+			// being index 1 and first in the capture.
+			description: "positive: the same two requests are sent for a device that is not lo",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "docker0"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("docker0"),
+				iplinkGet("docker0"),
+			},
+			wantStdoutPrefix: "8: docker0: ",
+		},
+		{
+			// 15 characters is the longest IFNAMSIZ allows, and it is the
+			// length at which a builder that forgot the NUL terminator would
+			// overflow the attribute rather than merely mis-size it.
+			//
+			// This veth also pins the cheap peer suffix. Its IFLA_LINK names
+			// index 2, but IFLA_LINK_NETNSID is present, so print_name_and_link
+			// takes the ll_idx_n2a branch — an unconditional "if%u" that
+			// consults nothing and asks nothing (lib/ll_map.c). Hence `@if2`
+			// and hence still two requests. The committed ip_link_n shows `ip`
+			// printing `@if2` from a FULL cache, which is the evidence that
+			// the branch really is index-blind rather than merely unresolved.
+			description: "boundary: a 15-character device name round-trips, and its netnsid peer stays if%u",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "ve-nordlayepDd-"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("ve-nordlayepDd-"),
+				iplinkGet("ve-nordlayepDd-"),
+			},
+			wantStdoutPrefix: "59: ve-nordlayepDd-@if2: ",
+		},
+		{
+			// IFLA_MASTER is resolved by ll_index_to_name (ip/ipaddress.c:1037),
+			// which does hit the kernel on a cache miss — and after two by-name
+			// gets the cache holds exactly one link, so it misses. Three
+			// requests, the third by index, and only then does the bridge get
+			// a name instead of `if9`.
+			//
+			// This is the row that would have caught the earlier
+			// dump-then-get-by-index shape from the other side: a dump fills
+			// the cache with all eleven links, so the master resolves for free
+			// and the third request is never sent.
+			description: "positive: a link with a master sends a third, by-index get for the bridge",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "veth179a698"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("veth179a698"),
+				iplinkGet("veth179a698"),
+				byIndexGet(9),
+			},
+			wantStdoutPrefix: "60: veth179a698@if2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-3a5828b2963a ",
+		},
+		{
+			description: "boundary: `link lst dev lo` abbreviates to the same two requests",
+			family:      unix.AF_PACKET,
+			args:        []string{"lst", "dev", "lo"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("lo"),
+				iplinkGet("lo"),
+			},
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// ipaddr_list_link assigns preferred_family = AF_PACKET at
+			// ip/ipaddress.c:2416, BEFORE parsing arguments, so `-4` never
+			// reaches the header. A goip that threaded c.family through would
+			// send AF_INET here and diverge from `ip` at L2 while printing the
+			// same stanza.
+			description: "corner: `-4 link show dev lo` still sends AF_PACKET, because -4 is overridden",
+			family:      unix.AF_INET,
+			args:        []string{"show", "dev", "lo"},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("lo"),
+				iplinkGet("lo"),
+			},
+			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// The name never resolves, so the first get fails and the second
+			// is never sent. `ip` behaves the same way: ll_name_to_index
+			// returning 0 is "Cannot find device", and iplink_get is not
+			// reached.
+			description: "negative: an unknown device fails on the first get, and the second is not sent",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "nosuchdev0"},
+			wantDumps:   0,
+			wantGets:    []getShape{llLinkGet("nosuchdev0")},
+			wantErr:     ErrNoReplay,
+		},
+		{
+			// A failure on the SECOND get must surface too, and must not be
+			// papered over with a dump-and-filter fallback — that fallback is
+			// the divergence this whole path exists to remove.
+			description: "negative: a failure on the second get is an error, not a fall back to a dump",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", "lo"},
+			failGet:     2,
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet("lo"),
+				iplinkGet("lo"),
+			},
+			wantErr: ErrNoReplay,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newLinkReplay(t, linkDumpPcap)
+			src.failGet = tc.failGet
+
+			got, err := runLinkWith(t, src, tc.family, tc.args)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tc.wantErr)
+				}
+			} else if err != nil {
+				t.Fatalf("runLink(%q): %v", tc.args, err)
+			}
+
+			if src.dumps != tc.wantDumps {
+				t.Errorf("dumps = %d, want %d", src.dumps, tc.wantDumps)
+			}
+			if len(src.gets) != len(tc.wantGets) {
+				t.Fatalf("single-gets = %d, want %d", len(src.gets), len(tc.wantGets))
+			}
+			for i := range src.gets {
+				if shape := selectorOf(src.gets[i]); shape != tc.wantGets[i] {
+					t.Errorf("single-get %d = %+v, want %+v", i+1, shape, tc.wantGets[i])
+				}
+			}
+			if tc.wantStdoutPrefix != "" && !strings.HasPrefix(got, tc.wantStdoutPrefix) {
+				t.Errorf("stdout = %q, want prefix %q", got, tc.wantStdoutPrefix)
+			}
+		})
 	}
 }

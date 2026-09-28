@@ -270,22 +270,26 @@ func routeFilter(in []model.Route, preferredFamily uint8, table uint32) []model.
 // saving it, because the retry is what a parity capture would show.
 func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route) {
 	for i := range routes {
-		resolveRouteIndex(c, svc, routes[i].Oif)
-		resolveRouteIndex(c, svc, routes[i].Iif)
+		resolveIndexName(c, svc, int32(routes[i].Oif))
+		resolveIndexName(c, svc, int32(routes[i].Iif))
 		for j := range routes[i].Multipath {
-			resolveRouteIndex(c, svc, uint32(routes[i].Multipath[j].Ifindex))
+			resolveIndexName(c, svc, routes[i].Multipath[j].Ifindex)
 		}
 	}
 }
 
-// resolveRouteIndex is ll_index_to_name's cache-miss path. Index 0 is not a
+// resolveIndexName is ll_index_to_name's cache-miss path. Index 0 is not a
 // device — ll_index_to_name answers "*" for it without asking the kernel — and
 // a cached index is answered from the cache.
-func resolveRouteIndex(c *runCtx, svc *service.Service, idx uint32) {
-	if idx == 0 || c.lltab.Cached(int32(idx)) {
+//
+// It lives in this file because `route show` is the command built around it,
+// but it is not route-specific: linkShowDev calls it for the IFLA_MASTER and
+// IFLA_LINK indexes print_linkinfo resolves the same way.
+func resolveIndexName(c *runCtx, svc *service.Service, idx int32) {
+	if idx == 0 || c.lltab.Cached(idx) {
 		return
 	}
-	link, err := svc.LinkByIndex(int32(idx))
+	link, err := svc.LinkByIndex(idx)
 	if err != nil {
 		// See the doc comment above: nothing is cached, and IndexToName's
 		// `if%u` fallback renders the token.

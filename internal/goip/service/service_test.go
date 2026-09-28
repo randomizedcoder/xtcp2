@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -39,10 +40,17 @@ type fakeTalkSource struct {
 	talks int
 	body  []byte
 	err   error
+
+	// reqs keeps every request handed to Talk. `ip link show dev NAME` sends
+	// two single-gets that differ only in ifi_family and attribute order, so
+	// which one a service method built is not visible in its return value —
+	// only in the bytes it put on the socket.
+	reqs [][]byte
 }
 
-func (f *fakeTalkSource) Talk(_ []byte, _ uint16) ([]byte, error) {
+func (f *fakeTalkSource) Talk(request []byte, _ uint16) ([]byte, error) {
 	f.talks++
+	f.reqs = append(f.reqs, request)
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -376,6 +384,201 @@ func TestLinkByName(t *testing.T) {
 			}
 			if index != tc.wantIndex {
 				t.Errorf("index = %d, want %d", index, tc.wantIndex)
+			}
+		})
+	}
+}
+
+// TestLinkShowDev covers the second of the two by-name single-gets, and the
+// one whose reply is printed.
+//
+// Its answering and fallback behavior is LinkByName's — same match rule, same
+// dump-and-filter when the source cannot Talk — so the rows here concentrate
+// on the part that is NOT shared: the request it builds. A method that simply
+// delegated to LinkByName would satisfy every other assertion in this file
+// while sending iproute2's first request twice and its second one never.
+//
+// go test ./internal/goip/service/ -run TestLinkShowDev
+func TestLinkShowDev(t *testing.T) {
+	tests := []struct {
+		description string
+		talkBody    []byte   // non-nil selects a TalkSource
+		talkErr     error    //
+		dumpBodies  [][]byte // used when talkBody is nil
+		name        string
+		wantIndex   int32
+		wantTalks   int
+		wantDumps   int
+		wantErr     bool
+	}{
+		{
+			description: "positive: a Talk-capable source answers with one single-get and no dump",
+			talkBody:    namedLinkBody(3, "eth0"),
+			name:        "eth0",
+			wantIndex:   3,
+			wantTalks:   1,
+			wantDumps:   0,
+		},
+		{
+			// print_linkinfo renders this reply, and it renders altnames, so an
+			// altname selector has to resolve here as well as in LinkByName.
+			description: "positive: an altname matches as well as the primary name",
+			talkBody:    altNamedLinkBody(4, "eth1", "enp3s0"),
+			name:        "enp3s0",
+			wantIndex:   4,
+			wantTalks:   1,
+		},
+		{
+			description: "negative: a reply naming a different link is rejected",
+			talkBody:    namedLinkBody(3, "eth0"),
+			name:        "eth9",
+			wantTalks:   1,
+			wantErr:     true,
+		},
+		{
+			description: "negative: a Talk error surfaces",
+			talkBody:    namedLinkBody(3, "eth0"),
+			talkErr:     errSource,
+			name:        "eth0",
+			wantTalks:   1,
+			wantErr:     true,
+		},
+		{
+			// A capture cannot answer a request it never recorded, so replay
+			// sources take the same fallback LinkByName takes. Divergent from
+			// `ip` on the wire, and deliberate.
+			description: "boundary: a dump-only source falls back to one dump and filters exactly",
+			dumpBodies:  [][]byte{namedLinkBody(1, "lo"), namedLinkBody(3, "eth0")},
+			name:        "eth0",
+			wantIndex:   3,
+			wantDumps:   1,
+		},
+		{
+			description: "corner: a name absent from the fallback dump is an error, not a zero link",
+			dumpBodies:  [][]byte{namedLinkBody(1, "lo")},
+			name:        "eth0",
+			wantDumps:   1,
+			wantErr:     true,
+		},
+		{
+			description: "negative: an unbuildable name never reaches the source",
+			talkBody:    namedLinkBody(3, "eth0"),
+			name:        "this-name-is-too-long",
+			wantTalks:   0,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var (
+				index int32
+				err   error
+				talks int
+				dumps int
+				reqs  [][]byte
+			)
+			if tc.talkBody != nil {
+				f := &fakeTalkSource{body: tc.talkBody, err: tc.talkErr}
+				l, e := newService(f).LinkShowDev(tc.name)
+				index, err, talks, dumps, reqs = l.Index, e, f.talks, len(f.types), f.reqs
+			} else {
+				f := &fakeSource{bodies: map[uint16][][]byte{uint16(unix.RTM_NEWLINK): tc.dumpBodies}}
+				l, e := newService(f).LinkShowDev(tc.name)
+				index, err, dumps = l.Index, e, len(f.types)
+			}
+			if talks != tc.wantTalks {
+				t.Errorf("Talk calls = %d, want %d", talks, tc.wantTalks)
+			}
+			if dumps != tc.wantDumps {
+				t.Errorf("Dump calls = %d, want %d", dumps, tc.wantDumps)
+			}
+			// Whatever else the row asserts, any request that was sent must be
+			// iplink_get's and not ll_link_get's.
+			for i := range reqs {
+				assertIplinkGetShape(t, reqs[i])
+			}
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("LinkShowDev = index %d, want error", index)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LinkShowDev: %v", err)
+			}
+			if index != tc.wantIndex {
+				t.Errorf("index = %d, want %d", index, tc.wantIndex)
+			}
+		})
+	}
+}
+
+// assertIplinkGetShape checks the two fields that distinguish iplink_get's
+// request from ll_link_get's: ifi_family AF_PACKET rather than AF_UNSPEC
+// (ip/iplink.c:1502 with preferred_family forced at ip/ipaddress.c:2416), and
+// IFLA_IFNAME ahead of IFLA_EXT_MASK rather than behind it (:1513-1514).
+func assertIplinkGetShape(t *testing.T, request []byte) {
+	t.Helper()
+	const attrsAtCst = xtcpnl.NlMsgHdrSizeCst + xtcpnl.IfInfomsgSizeCst
+	if len(request) < attrsAtCst+4 {
+		t.Fatalf("request is %d bytes, too short to carry an attribute", len(request))
+	}
+	if fam := request[xtcpnl.NlMsgHdrSizeCst]; fam != unix.AF_PACKET {
+		t.Errorf("ifi_family = %d, want AF_PACKET — this is ll_link_get's request, not iplink_get's", fam)
+	}
+	if at := binary.LittleEndian.Uint16(request[attrsAtCst+2 : attrsAtCst+4]); at != uint16(unix.IFLA_IFNAME) {
+		t.Errorf("first attribute = %d, want IFLA_IFNAME — the attributes are in ll_link_get's order", at)
+	}
+}
+
+// TestLinkByNameSendsLlLinkGetShape is assertIplinkGetShape's counterpart, and
+// exists so the pair of tests cannot both pass on one request shape.
+//
+// Without it, a LinkByName rewritten to call req.LinkShowDev would break
+// nothing here: the returned link would be identical and every row in
+// TestLinkByName would still pass. The command would then send iproute2's
+// second request twice, which stdout cannot see and the parity harness can.
+//
+// go test ./internal/goip/service/ -run TestLinkByNameSendsLlLinkGetShape
+func TestLinkByNameSendsLlLinkGetShape(t *testing.T) {
+	tests := []struct {
+		description   string
+		call          func(*Service) (model.Link, error)
+		wantFamily    uint8
+		wantFirstAttr uint16
+	}{
+		{
+			description:   "positive: LinkByName sends ll_link_get — AF_UNSPEC, ext-mask first",
+			call:          func(s *Service) (model.Link, error) { return s.LinkByName("eth0") },
+			wantFamily:    unix.AF_UNSPEC,
+			wantFirstAttr: uint16(unix.IFLA_EXT_MASK),
+		},
+		{
+			description:   "positive: LinkShowDev sends iplink_get — AF_PACKET, name first",
+			call:          func(s *Service) (model.Link, error) { return s.LinkShowDev("eth0") },
+			wantFamily:    unix.AF_PACKET,
+			wantFirstAttr: uint16(unix.IFLA_IFNAME),
+		},
+	}
+
+	const attrsAtCst = xtcpnl.NlMsgHdrSizeCst + xtcpnl.IfInfomsgSizeCst
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			f := &fakeTalkSource{body: namedLinkBody(3, "eth0")}
+			if _, err := tc.call(newService(f)); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(f.reqs) != 1 {
+				t.Fatalf("Talk calls = %d, want 1", len(f.reqs))
+			}
+			r := f.reqs[0]
+			if fam := r[xtcpnl.NlMsgHdrSizeCst]; fam != tc.wantFamily {
+				t.Errorf("ifi_family = %d, want %d", fam, tc.wantFamily)
+			}
+			if at := binary.LittleEndian.Uint16(r[attrsAtCst+2 : attrsAtCst+4]); at != tc.wantFirstAttr {
+				t.Errorf("first attribute = %d, want %d", at, tc.wantFirstAttr)
 			}
 		})
 	}

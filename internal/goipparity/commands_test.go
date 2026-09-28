@@ -399,7 +399,7 @@ func TestCommandString(t *testing.T) {
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "2", "yes", "yes", "link show dev", "link show dev",
+				"link_show_dev", "4", "yes", "yes", "link show dev", "link show dev",
 			},
 		},
 		{

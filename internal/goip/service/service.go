@@ -64,15 +64,20 @@ func (s *Service) Links() ([]model.Link, error) {
 	return out, nil
 }
 
-// LinkByName performs a kernel single-get when the source supports it. Replay
-// and legacy dump-only sources fall back to one link dump plus exact filtering.
-func (s *Service) LinkByName(name string) (model.Link, error) {
-	r, err := req.LinkShowByName(name, s.nextSeq())
-	if err != nil {
-		return model.Link{}, fmt.Errorf("goip: build link get request: %w", err)
-	}
+// linkFromGet is the body every single-get link accessor shares: send the
+// caller's request over Talk when the source can do single-gets, otherwise fall
+// back to one dump plus exact filtering, and hold both answers to the same
+// identity check.
+//
+// The three accessors below differ only in the request they build and in how
+// they recognize the link they asked for, so the talk-or-fall-back spine lives
+// here once. selector names what was asked for, and appears in both error
+// messages; the reply's own name and index are reported alongside it, because a
+// single-get that answers with the wrong link is a kernel- or replay-level
+// surprise worth seeing in full.
+func (s *Service) linkFromGet(request []byte, match func(model.Link) bool, selector string) (model.Link, error) {
 	if talk, ok := s.src.(TalkSource); ok {
-		body, err := talk.Talk(r, uint16(unix.RTM_NEWLINK))
+		body, err := talk.Talk(request, uint16(unix.RTM_NEWLINK))
 		if err != nil {
 			return model.Link{}, err
 		}
@@ -80,21 +85,61 @@ func (s *Service) LinkByName(name string) (model.Link, error) {
 		if err != nil {
 			return model.Link{}, fmt.Errorf("goip: decode RTM_NEWLINK: %w", err)
 		}
-		if li.Name == name || contains(li.AltNames, name) {
-			return model.Link(li), nil
+		if !match(model.Link(li)) {
+			return model.Link{}, fmt.Errorf("goip: link reply %q/%d does not match %s", li.Name, li.Index, selector)
 		}
-		return model.Link{}, fmt.Errorf("goip: link reply does not match %q", name)
+		return model.Link(li), nil
 	}
 	links, err := s.Links()
 	if err != nil {
 		return model.Link{}, err
 	}
 	for i := range links {
-		if links[i].Name == name || contains(links[i].AltNames, name) {
+		if match(links[i]) {
 			return links[i], nil
 		}
 	}
-	return model.Link{}, fmt.Errorf("goip: link %q not found", name)
+	return model.Link{}, fmt.Errorf("goip: link %s not found", selector)
+}
+
+// matchName is the name test both by-name accessors apply to a reply.
+//
+// Alternative names count: `ip link show dev altname` resolves through the same
+// cache, so a reply carrying the requested string in IFLA_PROP_LIST is the link
+// that was asked for even though IFLA_IFNAME says otherwise.
+func matchName(name string) func(model.Link) bool {
+	return func(l model.Link) bool { return l.Name == name || contains(l.AltNames, name) }
+}
+
+// LinkByName performs a kernel single-get when the source supports it. Replay
+// and legacy dump-only sources fall back to one link dump plus exact filtering.
+//
+// This is ll_link_get(name, 0) (lib/ll_map.c:264), reached from
+// ll_name_to_index on a cache miss (:354-372). Its reply is never printed: the
+// caller wants the ifindex, and `ip link show dev NAME` throws the rest away
+// and asks again (ip/ipaddress.c:2254, then :2293). See LinkShowDev.
+func (s *Service) LinkByName(name string) (model.Link, error) {
+	r, err := req.LinkShowByName(name, s.nextSeq())
+	if err != nil {
+		return model.Link{}, fmt.Errorf("goip: build link get request: %w", err)
+	}
+	return s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
+}
+
+// LinkShowDev performs iplink_get (ip/iplink.c:1497-1515), the second and last
+// request `ip link show dev NAME` sends and the one whose reply print_linkinfo
+// renders (ip/ipaddress.c:2293).
+//
+// It is not LinkByName with a different socket. The two requests carry the same
+// two attributes in opposite orders and different ifi_family values, and
+// pkg/nlparity compares requests for full byte equality — so sending either
+// one's bytes twice is a divergence. req.LinkShowDev has the details.
+func (s *Service) LinkShowDev(name string) (model.Link, error) {
+	r, err := req.LinkShowDev(name, s.nextSeq())
+	if err != nil {
+		return model.Link{}, fmt.Errorf("goip: build link get request: %w", err)
+	}
+	return s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
 }
 
 // LinkByIndex performs the index-addressed RTM_GETLINK used after iproute2's
@@ -104,30 +149,8 @@ func (s *Service) LinkByIndex(index int32) (model.Link, error) {
 	if err != nil {
 		return model.Link{}, fmt.Errorf("goip: build link get request: %w", err)
 	}
-	if talk, ok := s.src.(TalkSource); ok {
-		body, err := talk.Talk(r, uint16(unix.RTM_NEWLINK))
-		if err != nil {
-			return model.Link{}, err
-		}
-		li, err := xtcpnl.ParseNewLink(body)
-		if err != nil {
-			return model.Link{}, fmt.Errorf("goip: decode RTM_NEWLINK: %w", err)
-		}
-		if li.Index != index {
-			return model.Link{}, fmt.Errorf("goip: link reply index %d, want %d", li.Index, index)
-		}
-		return model.Link(li), nil
-	}
-	links, err := s.Links()
-	if err != nil {
-		return model.Link{}, err
-	}
-	for i := range links {
-		if links[i].Index == index {
-			return links[i], nil
-		}
-	}
-	return model.Link{}, fmt.Errorf("goip: link index %d not found", index)
+	match := func(l model.Link) bool { return l.Index == index }
+	return s.linkFromGet(r, match, fmt.Sprintf("index %d", index))
 }
 
 func contains(v []string, want string) bool {

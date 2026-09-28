@@ -39,6 +39,10 @@ const (
 	tdBulkGetRoute = "../../../pkg/xtcpnl/testdata/7_1_8/netlink_route_getroute.pcap"
 	tdGetNeigh     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap"
 
+	// `ip link show dev goip0`, taken in the same quiet microVM. Two requests
+	// in the whole file, which is the assertion as much as their contents are.
+	tdGatedGetLinkDev = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getlink_dev.pcap"
+
 	// The gated-topology route captures, one command each, taken in a microVM
 	// with no other netlink traffic on the host. That is what makes "exactly
 	// one RTM_GETROUTE request" an assertion the route rows can make and the
@@ -291,14 +295,14 @@ func TestTierALinkShowByIndexAllCaptured(t *testing.T) {
 	}
 }
 
-// TestLinkShowByName covers the by-name single-get, whose positive fixture
-// does not exist yet.
+// TestLinkShowByName covers the by-name single-get over names the capture
+// does not contain.
 //
-// `ip link show dev lo` is not in the corpus — the plan's Item 7 adds it — so
-// there is deliberately no positive-from-capture row here. What can be
-// asserted without inventing an expectation is the structure the captured
-// by-index form already proves (same type, same flags, same ext-mask first)
-// plus every way the name can be wrong.
+// The positive-from-capture assertion moved to
+// TestTierALinkShowDevRequests once `ip link show dev goip0` entered the
+// corpus. What is left here is the part a capture of one interface cannot
+// reach: the lengths at other name lengths, and every way a name can be
+// wrong.
 //
 // go test ./internal/goip/req/ -run TestLinkShowByName
 func TestLinkShowByName(t *testing.T) {
@@ -381,6 +385,173 @@ func TestLinkShowByName(t *testing.T) {
 			}
 			if at := binary.LittleEndian.Uint16(got[42:44]); at != uint16(unix.IFLA_IFNAME) {
 				t.Errorf("second attribute = %d, want IFLA_IFNAME", at)
+			}
+		})
+	}
+}
+
+// TestTierALinkShowDevRequests is the Tier A positive for `link show dev`:
+// both of the requests the pinned `ip` sent, reproduced by the two builders
+// goip calls, in order and byte for byte.
+//
+// It is table-driven over a pair rather than two separate assertions because
+// the ORDER is part of what is under test. Each builder producing correct
+// bytes is not enough — they have to be sent in iproute2's order, since a
+// capture compared position by position would reject the swap even though
+// both requests appear in it.
+//
+// Exactly two requests in the file is asserted first, for the reason
+// TestTierALinkShowDump gives: nlmon records the whole host, and a polluted
+// capture would make every expectation below describe something else.
+//
+// go test ./internal/goip/req/ -run TestTierALinkShowDevRequests
+func TestTierALinkShowDevRequests(t *testing.T) {
+	const devCst = "goip0"
+
+	reqs := canonicalRequests(t, tdGatedGetLinkDev)
+	if len(reqs) != 2 {
+		t.Fatalf("requests in the dev capture = %d, want ll_link_get then iplink_get", len(reqs))
+	}
+
+	tests := []struct {
+		description string
+		build       func() ([]byte, error)
+		captured    []byte
+	}{
+		{
+			// ll_name_to_index's cache miss (ip/ipaddress.c:2254 into
+			// lib/ll_map.c:264). Its reply is discarded except for the index.
+			description: "positive: the first request is ll_link_get, AF_UNSPEC with the ext-mask first",
+			build:       func() ([]byte, error) { return LinkShowByName(devCst, 41) },
+			captured:    reqs[0],
+		},
+		{
+			// iplink_get (ip/ipaddress.c:2293 into ip/iplink.c:1497). This
+			// reply is the one print_linkinfo renders.
+			description: "positive: the second request is iplink_get, AF_PACKET with the name first",
+			build:       func() ([]byte, error) { return LinkShowDev(devCst, 42) },
+			captured:    reqs[1],
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := tc.build()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), tc.captured) {
+				t.Fatalf("request differs\n got %x\nwant %x", zeroSeqPid(got), tc.captured)
+			}
+		})
+	}
+
+	// And the negative the two rows above cannot state on their own: the
+	// builders are not interchangeable, so neither captured request can be
+	// served by the other builder. Without this, a LinkShowDev that simply
+	// called LinkShowByName would fail the second row with a hex dump rather
+	// than with a reason.
+	swapped, err := LinkShowDev(devCst, 41)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bytes.Equal(zeroSeqPid(swapped), reqs[0]) {
+		t.Error("iplink_get reproduced ll_link_get's captured request; the two builders have collapsed into one")
+	}
+}
+
+// TestLinkShowDev covers the SECOND by-name single-get, iplink_get, over
+// names the capture does not contain.
+//
+// The table is deliberately the mirror of TestLinkShowByName above: the same
+// names, the same lengths, the same error rows — and the opposite attribute
+// order with a different ifi_family. Keeping them parallel is the point.
+// These two requests are the most confusable pair in the whole corpus, since
+// one command sends both about the same interface within microseconds, and
+// the way to keep them straight is to state their differences at the same
+// offsets in two tables that otherwise read alike.
+//
+// go test ./internal/goip/req/ -run TestLinkShowDev
+func TestLinkShowDev(t *testing.T) {
+	tests := []struct {
+		description string
+		name        string
+		wantLen     int
+		wantErr     error
+	}{
+		{
+			// Same 48 bytes as LinkShowByName: the two attributes are the
+			// same size, so length cannot tell the requests apart — only the
+			// family byte and the attribute order can.
+			description: "positive: a short name yields IFLA_IFNAME then ext-mask",
+			name:        "lo",
+			wantLen:     48,
+		},
+		{
+			description: "boundary: a 15-character name is the longest accepted",
+			name:        "ve-nordlayepDd-",
+			wantLen:     60,
+		},
+		{
+			description: "negative: a 16-character name is rejected",
+			name:        "ve-nordlayer-vpn",
+			wantErr:     xtcpnl.ErrBadIfName,
+		},
+		{
+			description: "negative: an empty name is rejected",
+			name:        "",
+			wantErr:     xtcpnl.ErrBadIfName,
+		},
+		{
+			description: "corner: a name containing a NUL is rejected",
+			name:        "lo\x00extra",
+			wantErr:     xtcpnl.ErrBadIfName,
+		},
+		{
+			description: "corner: a name containing a slash is rejected",
+			name:        "eth/0",
+			wantErr:     xtcpnl.ErrBadIfName,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := LinkShowDev(tc.name, 7)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tc.wantLen {
+				t.Errorf("len = %d, want %d", len(got), tc.wantLen)
+			}
+			if mt := binary.LittleEndian.Uint16(got[4:6]); mt != uint16(unix.RTM_GETLINK) {
+				t.Errorf("nlmsg_type = %d, want RTM_GETLINK", mt)
+			}
+			if f := binary.LittleEndian.Uint16(got[6:8]); f != uint16(unix.NLM_F_REQUEST) {
+				t.Errorf("nlmsg_flags = %#x, want NLM_F_REQUEST alone", f)
+			}
+			// ifi_family is preferred_family (ip/iplink.c:1502), which
+			// ipaddr_list_link forced to AF_PACKET at ip/ipaddress.c:2416
+			// before parsing any argument. ll_link_get's zero-initialized
+			// header leaves AF_UNSPEC here, so this one byte is the cheapest
+			// way to tell the two requests apart on a wire trace.
+			if fam := got[16]; fam != unix.AF_PACKET {
+				t.Errorf("ifi_family = %d, want AF_PACKET", fam)
+			}
+			// And the attribute order, reversed from ll_link_get's:
+			// IFLA_IFNAME at ip/iplink.c:1513, IFLA_EXT_MASK at :1514.
+			if at := binary.LittleEndian.Uint16(got[34:36]); at != uint16(unix.IFLA_IFNAME) {
+				t.Errorf("first attribute = %d, want IFLA_IFNAME", at)
+			}
+			second := 36 + len(tc.name) + 1
+			second += (4 - second%4) % 4 // rta_align past the name payload
+			if at := binary.LittleEndian.Uint16(got[second+2 : second+4]); at != uint16(unix.IFLA_EXT_MASK) {
+				t.Errorf("second attribute = %d, want IFLA_EXT_MASK", at)
 			}
 		})
 	}

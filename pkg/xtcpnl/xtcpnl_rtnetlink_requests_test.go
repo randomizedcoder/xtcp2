@@ -9,11 +9,16 @@ package xtcpnl
 // the committed bulk captures and compared byte-for-byte after zeroing
 // nlmsg_seq and nlmsg_pid.
 //
-// Where a form has no capture yet — neigh dump, default `route show`, the
-// by-name single get — the row is labeled boundary or corner, says which
-// iproute2 function it mirrors, and names the capture Item 7 of the goip plan
-// must add. That labeling is the point: a positive row means "iproute2 sent
-// exactly these bytes", and nothing else is allowed to claim it.
+// Where a form has no capture, the row is labeled boundary or corner and says
+// which iproute2 function it mirrors and why no recording covers it. That
+// labeling is the point: a positive row means "iproute2 sent exactly these
+// bytes", and nothing else is allowed to claim it.
+//
+// The list of uncaptured forms has shrunk as the gated-topology corpus grew —
+// the neigh dump, the default `route show` and both by-name single gets have
+// positives now — so what is left structural is genuinely uncapturable rather
+// than merely not yet captured: masks and families no `ip` invocation
+// produces, and names chosen to move a padded attribute's offset.
 
 import (
 	"bytes"
@@ -64,6 +69,17 @@ const (
 	// follow are ll_index_to_name resolving the device lazily while printing.
 	recGatedRouteDumpCst  = 0
 	recGatedRoute6DumpCst = 0
+
+	// `ip link show dev goip0` (7_1_4/dumps/netlink_route_getlink_dev.pcap):
+	// the two by-name single-gets the command sends, and nothing else. They
+	// are records 0 and 2 because each one's reply sits between them.
+	//
+	// This capture is why neither by-name builder needs a structural row for
+	// its main form. It holds the pair — same command, same interface, the
+	// same two attributes in opposite orders — which is the one thing no
+	// hand-built expectation could establish on its own.
+	recLinkDevNameGetCst  = 0 // ll_link_get, AF_UNSPEC, ext-mask first
+	recLinkDevPrintGetCst = 2 // iplink_get, AF_PACKET, name first
 )
 
 // Measured datagram sizes, which are nlmsg_len plus iproute2's oversend. These
@@ -75,6 +91,7 @@ const (
 	dgramAddrDumpCst     = 152 // 24 + char buf[128]
 	dgramRouteShowAllCst = 156 // 28 + char buf[128]
 	dgramSingleGetCst    = 40  // rtnl_talk sends nlmsg_len
+	dgramByNameGetCst    = 52  // likewise; 12 more than by-index for IFLA_IFNAME
 )
 
 // capturedRequests returns every request datagram in a bulk capture, indexed by
@@ -164,6 +181,7 @@ func TestRequestBuilders(t *testing.T) {
 	neighMsgs, _ := capturedRequests(t, tdDumpGetNeigh_7_1_4)
 	gatedRouteMsgs, _ := capturedRequests(t, tdDumpGetRoute_7_1_4)
 	gatedRoute6Msgs, _ := capturedRequests(t, tdDumpGetRoute6_7_1_4)
+	linkDevMsgs, linkDevDgrams := capturedRequests(t, tdDumpGetLinkDev_7_1_4)
 
 	const wantDumpFlags = uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP)
 	const wantGetFlags = uint16(unix.NLM_F_REQUEST)
@@ -260,6 +278,24 @@ func TestRequestBuilders(t *testing.T) {
 			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET6, unix.RT_TABLE_MAIN, 0)),
 			want:        capturedRequest(t, gatedRoute6Msgs, recGatedRoute6DumpCst, uint16(unix.RTM_GETROUTE)),
 		},
+		{
+			// The FIRST of the two requests `ip link show dev goip0` sends:
+			// ll_name_to_index's cache miss, resolving the name to an index it
+			// then throws the rest of the reply away for (ip/ipaddress.c:2254,
+			// lib/ll_map.c:264-305).
+			description: "positive: ip link show dev, first get — ll_link_get (AF_UNSPEC, ext-mask first)",
+			got:         mustBuildReq(BuildGetLinkByNameRequest(unix.AF_UNSPEC, "goip0", extMask, 0)),
+			want:        capturedRequest(t, linkDevMsgs, recLinkDevNameGetCst, uint16(unix.RTM_GETLINK)),
+		},
+		{
+			// The SECOND, and the one whose reply print_linkinfo renders. Same
+			// command, same interface, microseconds later — and different
+			// bytes, which is the whole reason BuildIplinkGetRequest exists
+			// rather than a second call to the builder above.
+			description: "positive: ip link show dev, second get — iplink_get (AF_PACKET, name first)",
+			got:         mustBuildReq(BuildIplinkGetRequest(unix.AF_PACKET, "goip0", extMask, 0)),
+			want:        capturedRequest(t, linkDevMsgs, recLinkDevPrintGetCst, uint16(unix.RTM_GETLINK)),
+		},
 
 		// boundary — structural, no capture yet; each names its source
 		{
@@ -285,6 +321,26 @@ func TestRequestBuilders(t *testing.T) {
 				concat(ifinfomsgHdr(unix.AF_UNSPEC, 0, 0, 0),
 					rtattr(uint16(unix.IFLA_IFNAME), []byte("abcdefghijklmno\x00")))),
 		},
+		{
+			// Structural: the captured `ip link show dev goip0` covers the
+			// normal mask, but no capture exists of `ip -s novf link show dev
+			// lo`, the only invocation that reaches iplink_get with a zero one.
+			// The row is here because a zero mask is exactly where the two
+			// by-name builders part company.
+			//
+			// ll_link_get's addattr32 sits behind `if (filt_mask)`
+			// (lib/ll_map.c:289), so BuildGetLinkByNameRequest omits the attribute;
+			// iplink_get calls addattr32 unconditionally (ip/iplink.c:1514), so a
+			// four-byte zero attribute goes on the wire. "No attribute" and "an
+			// attribute whose value is zero" are different bytes, and pkg/nlparity
+			// compares bytes.
+			description: "boundary: iplink_get with a zero mask still emits IFLA_EXT_MASK, unlike ll_link_get",
+			got:         mustBuildReq(BuildIplinkGetRequest(unix.AF_PACKET, "lo", 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETLINK), wantGetFlags, testSeq,
+				concat(ifinfomsgHdr(unix.AF_PACKET, 0, 0, 0),
+					rtattr(uint16(unix.IFLA_IFNAME), []byte("lo\x00")),
+					rtattr(uint16(unix.IFLA_EXT_MASK), le32(0)))),
+		},
 
 		// corner
 		{
@@ -304,6 +360,36 @@ func TestRequestBuilders(t *testing.T) {
 			want: nlmsg(uint16(unix.RTM_GETLINK), wantGetFlags, testSeq,
 				concat(ifinfomsgHdr(unix.AF_UNSPEC, 0, 0, 0),
 					rtattr(uint16(unix.IFLA_IFNAME), []byte("lo\x00")))),
+		},
+		{
+			// The positive rows above prove this ordering against the capture,
+			// for "goip0". This row restates it for "lo", whose 3-byte padded
+			// payload puts the second attribute at a different offset — so a
+			// builder that hard-coded where the mask goes would pass there and
+			// fail here. iplink_get adds IFLA_IFNAME at ip/iplink.c:1513 and
+			// IFLA_EXT_MASK at :1514; ll_link_get adds them the other way
+			// round, and the row two above says so for the same name.
+			description: "corner: iplink_get emits IFLA_IFNAME before IFLA_EXT_MASK, reversing ll_link_get",
+			got:         mustBuildReq(BuildIplinkGetRequest(unix.AF_PACKET, "lo", extMask, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETLINK), wantGetFlags, testSeq,
+				concat(ifinfomsgHdr(unix.AF_PACKET, 0, 0, 0),
+					rtattr(uint16(unix.IFLA_IFNAME), []byte("lo\x00")),
+					rtattr(uint16(unix.IFLA_EXT_MASK), le32(extMask)))),
+		},
+		{
+			// ifi_family is `preferred_family`, not a constant (ip/iplink.c:1502),
+			// so the builder must store what it is handed. `ip link show dev lo`
+			// always reaches it as AF_PACKET — ipaddr_list_link assigns that at
+			// ip/ipaddress.c:2416, before argument parsing, which is also why
+			// `ip -4 link show dev lo` sends AF_PACKET and not AF_INET. This row
+			// passes AF_INET precisely because no real invocation does: a builder
+			// that hard-coded AF_PACKET would satisfy every other row here.
+			description: "corner: iplink_get stores the family it is given, not a hard-coded AF_PACKET",
+			got:         mustBuildReq(BuildIplinkGetRequest(unix.AF_INET, "lo", extMask, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETLINK), wantGetFlags, testSeq,
+				concat(ifinfomsgHdr(unix.AF_INET, 0, 0, 0),
+					rtattr(uint16(unix.IFLA_IFNAME), []byte("lo\x00")),
+					rtattr(uint16(unix.IFLA_EXT_MASK), le32(extMask)))),
 		},
 		{
 			// rtm_table is one byte and cannot hold this; RTA_TABLE is the u32
@@ -349,6 +435,12 @@ func TestRequestBuilders(t *testing.T) {
 		{"positive: the v6 addr dump has a 128-byte zeroed tail", addrDgrams[recAddrV6AddrDumpCst], dgramAddrDumpCst},
 		{"positive: the route dump has a 128-byte zeroed tail", routeDgrams[recRouteShowAllCst], dgramRouteShowAllCst},
 		{"positive: the single get sends nlmsg_len, no tail", routeDgrams[recRouteSingleGetCst], dgramSingleGetCst},
+		// Both by-name gets go through rtnl_talk, so neither oversends — and
+		// both are the same 52 bytes, which is the point. Length is the one
+		// thing about these two requests that is identical, so a harness that
+		// compared sizes would call them the same request.
+		{"positive: the first by-name get sends nlmsg_len, no tail", linkDevDgrams[recLinkDevNameGetCst], dgramByNameGetCst},
+		{"positive: the second by-name get is the same size as the first", linkDevDgrams[recLinkDevPrintGetCst], dgramByNameGetCst},
 	}
 	for _, tc := range dgrams {
 		t.Run(tc.description, func(t *testing.T) {
@@ -424,6 +516,131 @@ func TestBuildGetLinkByIndexRequestAllCaptured(t *testing.T) {
 			}
 			if !bytes.Equal(got, tc.captured) {
 				t.Fatalf("ifindex %d: request = % x\n              want = % x", tc.ifindex, got, tc.captured)
+			}
+		})
+	}
+}
+
+// TestByNameGetsAreNotInterchangeable pins the differences between the two
+// by-name single-gets `ip link show dev NAME` sends, field by field.
+//
+// The rows above assert each builder against its own expected bytes, which is
+// necessary but does not say the interesting thing: that one builder cannot
+// stand in for the other. The tempting simplification here is real — the
+// command asks the kernel about the same interface twice in a row, with the
+// same two attributes and the same mask — and it is wrong, in three places.
+// Each gets a row, so a future collapse into one builder fails with a name for
+// what it broke rather than a wall of hex.
+//
+// ll_link_get is lib/ll_map.c:264-305; iplink_get is ip/iplink.c:1497-1515.
+//
+// go test ./pkg/xtcpnl/ -run TestByNameGetsAreNotInterchangeable
+func TestByNameGetsAreNotInterchangeable(t *testing.T) {
+	const (
+		devName = "lo"
+		extMask = RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS // 0x09 at 7.1.0
+		seq     = 7
+	)
+
+	// Field offsets into the request. The nlmsghdr is 16 bytes and the
+	// ifinfomsg 16 more, so the first attribute starts at 32; both attributes
+	// here are 8 bytes once padded (4 + 4 for the u32 mask, 4 + 3 + 1 for
+	// "lo\0"), which is what lets the swap row below compare one request's
+	// tail against the other's head.
+	const (
+		offFamilyCst   = NlMsgHdrSizeCst                    // ifi_family
+		offPadCst      = offFamilyCst + 1                   // __ifi_pad onward
+		offAttrsCst    = NlMsgHdrSizeCst + IfInfomsgSizeCst // first attribute
+		offAttrTypeCst = offAttrsCst + 2                    // its nla_type
+		attrLenCst     = 8                                  // both, once padded
+		offAttr2Cst    = offAttrsCst + attrLenCst           // second attribute
+		offAttr2EndCst = offAttr2Cst + attrLenCst           // end of request
+	)
+
+	llLinkGet := mustBuildReq(BuildGetLinkByNameRequest(unix.AF_UNSPEC, devName, extMask, seq))
+	iplinkGet := mustBuildReq(BuildIplinkGetRequest(unix.AF_PACKET, devName, extMask, seq))
+
+	tests := []struct {
+		description string
+		// field slices the region under test out of ll_link_get's request.
+		field func([]byte) []byte
+		// against slices the region compared against it out of iplink_get's
+		// request. Nil means the same region, which is what every row but the
+		// swap wants.
+		against   func([]byte) []byte
+		wantEqual bool
+	}{
+		{
+			// The headline: the command sends two requests because two requests
+			// are needed, not because it forgot it had already asked.
+			description: "negative: the whole request differs, so neither can be sent twice",
+			field:       func(r []byte) []byte { return r },
+			wantEqual:   false,
+		},
+		{
+			description: "positive: both are RTM_GETLINK with NLM_F_REQUEST and no NLM_F_DUMP",
+			field:       func(r []byte) []byte { return r[4:8] },
+			wantEqual:   true,
+		},
+		{
+			// Same attributes, same sizes — so a length check is exactly the
+			// kind of assertion that would call these two requests identical.
+			description: "boundary: nlmsg_len is the same, so length alone cannot tell them apart",
+			field:       func(r []byte) []byte { return r[0:4] },
+			wantEqual:   true,
+		},
+		{
+			// ll_link_get zero-initializes its ifinfomsg; iplink_get assigns
+			// preferred_family, which ipaddr_list_link forced to AF_PACKET at
+			// ip/ipaddress.c:2416.
+			description: "negative: ifi_family is AF_UNSPEC in one and AF_PACKET in the other",
+			field:       func(r []byte) []byte { return r[offFamilyCst : offFamilyCst+1] },
+			wantEqual:   false,
+		},
+		{
+			// Everything else in the header is zero in both: the name is the
+			// selector, so ifi_index stays 0 and no flag is set.
+			description: "positive: the rest of the ifinfomsg is zero in both — the name is the selector",
+			field:       func(r []byte) []byte { return r[offPadCst:offAttrsCst] },
+			wantEqual:   true,
+		},
+		{
+			description: "negative: the leading attribute is IFLA_EXT_MASK in one and IFLA_IFNAME in the other",
+			field:       func(r []byte) []byte { return r[offAttrTypeCst : offAttrTypeCst+2] },
+			wantEqual:   false,
+		},
+		{
+			// The swap, stated as an equality: ll_link_get's second attribute is
+			// byte-for-byte iplink_get's first. This is what "the same two
+			// attributes in the opposite order" means, and it is the row that
+			// would catch a builder that reordered the pair by dropping one
+			// attribute and duplicating the other.
+			description: "corner: ll_link_get's trailing attribute is iplink_get's leading one",
+			field:       func(r []byte) []byte { return r[offAttr2Cst:offAttr2EndCst] },
+			against:     func(r []byte) []byte { return r[offAttrsCst:offAttr2Cst] },
+			wantEqual:   true,
+		},
+		{
+			description: "corner: and ll_link_get's leading attribute is iplink_get's trailing one",
+			field:       func(r []byte) []byte { return r[offAttrsCst:offAttr2Cst] },
+			against:     func(r []byte) []byte { return r[offAttr2Cst:offAttr2EndCst] },
+			wantEqual:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			against := tc.against
+			if against == nil {
+				against = tc.field
+			}
+			got, want := tc.field(llLinkGet), against(iplinkGet)
+			if bytes.Equal(got, want) != tc.wantEqual {
+				verb := "differ from"
+				if tc.wantEqual {
+					verb = "equal"
+				}
+				t.Fatalf("ll_link_get % x should %s iplink_get % x", got, verb, want)
 			}
 		})
 	}
@@ -525,6 +742,41 @@ func TestRequestBuilderErrors(t *testing.T) {
 			description: "corner: a name the caller already NUL-terminated is ErrBadIfName",
 			build: func() ([]byte, error) {
 				return BuildGetLinkByNameRequest(unix.AF_UNSPEC, "lo\x00", 0, 1)
+			},
+			wantErr: ErrBadIfName,
+		},
+
+		// The second by-name builder validates independently. These rows exist
+		// because the two share no code — BuildIplinkGetRequest calls validIfName
+		// itself — so a rewrite that dropped the call from one of them would keep
+		// every row above green while putting an unvalidated name on the wire.
+		{
+			description: "positive: iplink_get accepts a normal name",
+			build:       func() ([]byte, error) { return BuildIplinkGetRequest(unix.AF_PACKET, "eth0", 0, 1) },
+		},
+		{
+			description: "negative: iplink_get rejects an empty name with ErrBadIfName",
+			build:       func() ([]byte, error) { return BuildIplinkGetRequest(unix.AF_PACKET, "", 0, 1) },
+			wantErr:     ErrBadIfName,
+		},
+		{
+			description: "boundary: iplink_get accepts a 15-character name",
+			build: func() ([]byte, error) {
+				return BuildIplinkGetRequest(unix.AF_PACKET, "abcdefghijklmno", 0, 1)
+			},
+			wantErr: nil,
+		},
+		{
+			description: "negative: iplink_get rejects a 16-character name with ErrBadIfName",
+			build: func() ([]byte, error) {
+				return BuildIplinkGetRequest(unix.AF_PACKET, "abcdefghijklmnop", 0, 1)
+			},
+			wantErr: ErrBadIfName,
+		},
+		{
+			description: "corner: iplink_get rejects an embedded NUL rather than asking about \"lo\"",
+			build: func() ([]byte, error) {
+				return BuildIplinkGetRequest(unix.AF_PACKET, "lo\x00extra", 0, 1)
 			},
 			wantErr: ErrBadIfName,
 		},

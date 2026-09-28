@@ -210,3 +210,25 @@ func LinkShowByIndex(index int32, seq uint32) ([]byte, error) {
 func LinkShowByName(name string, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetLinkByNameRequest(unix.AF_UNSPEC, name, ExtMaskShow, seq)
 }
+
+// LinkShowDev is the SECOND request of `ip link show dev NAME` — iplink_get,
+// the one whose reply is printed. LinkShowByName above is the first, and it
+// exists only to fill the index cache.
+//
+// # Why AF_PACKET here and AF_UNSPEC there, inside one command
+//
+// The two requests are built by different functions with different notions of
+// family. ll_link_get zero-initializes its ifinfomsg, so the first stays
+// AF_UNSPEC. iplink_get sets `.i.ifi_family = preferred_family`
+// (ip/iplink.c:1502), and ipaddr_list_link has already forced that to
+// AF_PACKET at ip/ipaddress.c:2416 — before argument parsing, which is why no
+// `-4` or `-6` can change it. One command therefore puts two different
+// families in the same header field, and a shared helper would get one of them
+// wrong.
+//
+// The mask is ExtMaskShow on both, for different reasons and with different
+// futures: only the ll_link_get half is a version-skew locus. See
+// xtcpnl.BuildIplinkGetRequest.
+func LinkShowDev(name string, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildIplinkGetRequest(unix.AF_PACKET, name, ExtMaskShow, seq)
+}

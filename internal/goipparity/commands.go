@@ -121,7 +121,17 @@ var commands = withArgs([]Command{
 	{
 		Name: "link show dev", Slug: "link_show_dev",
 		NeedsDev: true,
-		Floor:    2, Implemented: true,
+		// Four datagrams, not two: this command sends TWO single-gets, each
+		// with its own reply. ll_name_to_index resolves `dev NAME` with
+		// ll_link_get on a throwaway socket (ip/ipaddress.c:2254), and
+		// iplink_get then re-fetches the same link on the main socket, whose
+		// reply is the one print_linkinfo renders (:2293).
+		//
+		// The floor was 2, which is a floor that cannot do its job: a capture
+		// window that caught only one of the two transactions would clear it
+		// and be written as a good fixture. The capture driver's value moved
+		// with this one (nix/microvms/scripts/capture-netlink-dumps.exp:137).
+		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "addr show", Slug: "addr_show",
