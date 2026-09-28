@@ -33,7 +33,15 @@ func nlmsg(msgLen uint32, msgType, flags uint16, seq, pid uint32, body []byte) [
 
 // wellFormed builds a message whose nlmsg_len matches its own size.
 func wellFormed(msgType, flags uint16, body []byte) []byte {
-	return nlmsg(uint32(xtcpnl.NlMsgHdrSizeCst+len(body)), msgType, flags, 1, 0, body)
+	return wellFormedFrom(msgType, flags, 1, 0, body)
+}
+
+// wellFormedFrom is wellFormed with the socket identity spelled out, which the
+// segmenter's seeds need: seq and pid are the two fields attribution reads, and
+// wellFormed's pid of 0 would turn every reply built with it into a multicast
+// notification.
+func wellFormedFrom(msgType, flags uint16, seq, pid uint32, body []byte) []byte {
+	return nlmsg(uint32(xtcpnl.NlMsgHdrSizeCst+len(body)), msgType, flags, seq, pid, body)
 }
 
 // getaddrRequest builds the 24-byte RTM_GETADDR dump request iproute2 sends:

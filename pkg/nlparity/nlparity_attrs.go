@@ -60,7 +60,27 @@ func DecodeAttrs(msgType uint16, body []byte) (hdr []byte, attrs []Attr, remaind
 	}
 	hdr = body[:hdrLen]
 
-	rest := body[hdrLen:]
+	attrs, remainder = SubAttrs(body[hdrLen:])
+	return hdr, attrs, remainder
+}
+
+// SubAttrs splits a bare rtattr stream — no family header in front of it — into
+// its attributes, returning any trailing remainder too short to be one.
+//
+// This is DecodeAttrs's inner loop, exported because two of the four volatile
+// payloads a parity comparison must normalize are nested: IFLA_INET6_CACHEINFO
+// sits inside the AF_INET6 nest of IFLA_AF_SPEC, two levels down from the
+// message body, and normalization has to reach it. It is also what makes a
+// nest's attribute ORDER comparable, which a flat walk cannot see.
+//
+// Note that the kernel does NOT set NLA_F_NESTED on IFLA_AF_SPEC or on the
+// per-family nests inside it — measured on the guest corpus, the types come out
+// as 0x001a, then 0x0002 and 0x000a with no flag bit. So a caller cannot use
+// the flag to decide whether to descend; descending is a decision about the
+// attribute's type. (The flag does appear elsewhere in the same replies, e.g.
+// 0x803e, which is why Attr.Type stays unmasked.)
+func SubAttrs(b []byte) (attrs []Attr, remainder []byte) {
+	rest := b
 	for len(rest) >= xtcpnl.RTAttrSizeCst {
 		var rta xtcpnl.RTAttr
 		if _, err := xtcpnl.DeserializeRTAttr(rest, &rta); err != nil {
@@ -83,5 +103,5 @@ func DecodeAttrs(msgType uint16, body []byte) (hdr []byte, attrs []Attr, remaind
 		rest = rest[adv:]
 	}
 
-	return hdr, attrs, rest
+	return attrs, rest
 }
