@@ -1,0 +1,150 @@
+package goip
+
+import (
+	"errors"
+	"fmt"
+	"io"
+)
+
+// ErrUnknownObject is `ip`'s "Object ... is unknown" case: the argument
+// matches no object at all.
+var ErrUnknownObject = errors.New("unknown object")
+
+// ErrNotImplemented is the distinct case of an object goip recognizes but does
+// not implement. Keeping it separate from ErrUnknownObject is not politeness:
+// the parity harness drives both tools with the same argv, so it needs to tell
+// "goip has not got there yet" from "that argument is a typo", and a single
+// error would collapse them.
+var ErrNotImplemented = errors.New("object recognized but not implemented by goip")
+
+// object is one row of iproute2's cmds[] table (ip/ip.c).
+type object struct {
+	name string
+	// run is nil for a recognized-but-unimplemented object.
+	run func(*runCtx, []string) error
+}
+
+// objects is the object table in iproute2's order, which is load-bearing.
+//
+// # Why the full table is here, including the objects goip will never do
+//
+// Because matching is by unanchored prefix and first-match-wins, so an
+// object's position decides what a short abbreviation means. Deleting the
+// unimplemented rows would silently change the meaning of `r`, `n` and `l`:
+//
+//	r    -> route, because route precedes rule
+//	n    -> neigh, because neigh precedes netns, netconf and nexthop
+//	net  -> netns, because netns precedes netconf
+//	l    -> link, because link precedes l2tp
+//
+// Drop `rule` from the table and `r` still resolves to route — by luck. Drop
+// `route` and `r` becomes `rule`, which is a different command silently
+// accepted. The abbreviations are part of the interface the harness drives, so
+// the table has to be complete even where the implementations are not.
+//
+// Order transcribed from ip/ip.c's cmds[].
+var objects = []object{
+	{name: "address", run: runAddress},
+	{name: "addrlabel"},
+	{name: "maddress"},
+	{name: "route", run: runRoute},
+	{name: "rule"},
+	{name: "neighbor", run: runNeigh},
+	{name: "neighbour", run: runNeigh},
+	{name: "ntable"},
+	{name: "ntbl"},
+	{name: "link", run: runLink},
+	{name: "l2tp"},
+	{name: "fou"},
+	{name: "ila"},
+	{name: "macsec"},
+	{name: "tunnel"},
+	{name: "tunl6"},
+	{name: "tcp_metrics"},
+	{name: "tcpmetrics"},
+	{name: "token"},
+	{name: "tuntap"},
+	{name: "tap"},
+	{name: "mroute"},
+	{name: "mrule"},
+	{name: "netns"},
+	{name: "netconf"},
+	{name: "vrf"},
+	{name: "sr"},
+	{name: "nexthop"},
+	{name: "mptcp"},
+	{name: "ioam"},
+	{name: "stats"},
+	{name: "monitor"},
+	{name: "xfrm"},
+}
+
+// matchesPrefix reimplements iproute2's matches() (lib/utils.c:909-919) as a
+// predicate, and inverts its one awkward convention.
+//
+//	int matches(const char *cmd, const char *pattern) {
+//		int len = strlen(cmd);
+//		if (len > strlen(pattern))
+//			return -1;
+//		return memcmp(pattern, cmd, len);
+//	}
+//
+// Three properties fall out of that and all three are tested:
+//
+//   - **Unanchored prefix, not abbreviation-of-a-known-length.** `a`, `ad`,
+//     `addr` and `address` all match "address".
+//   - **A prefix longer than the pattern fails.** `addressx` is -1, not a
+//     match, because the length test comes first.
+//   - **Case-sensitive.** memcmp, so `ADDR` does not match.
+//
+// The inversion: `matches("", p)` returns 0 — a *match* — because memcmp of
+// zero bytes is 0. So in iproute2 an empty argument matches the first table
+// entry. That is reachable only through `ip ""`, and treating it as a match
+// would make an empty argv silently mean `ip address`. This returns false for
+// it instead, and the negative row in the table says so.
+func matchesPrefix(arg, pattern string) bool {
+	if arg == "" {
+		return false
+	}
+	if len(arg) > len(pattern) {
+		return false
+	}
+	return pattern[:len(arg)] == arg
+}
+
+// lookupObject resolves an argument to an object, first match in table order.
+func lookupObject(arg string) (object, error) {
+	for _, o := range objects {
+		if matchesPrefix(arg, o.name) {
+			if o.run == nil {
+				return o, fmt.Errorf("%q: %w", o.name, ErrNotImplemented)
+			}
+			return o, nil
+		}
+	}
+	return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
+}
+
+// runCtx is the state one goip invocation shares between dispatch and the
+// object handlers.
+type runCtx struct {
+	src    Source
+	lltab  *LLTab
+	out    io.Writer
+	errOut io.Writer
+	json   bool
+	// family is the -4 / -6 / default selection, as an AF_*. Note that
+	// `link show` overrides it to AF_PACKET regardless; see req.LinkShowDump.
+	family uint8
+	// seq is the sequence number to put on the next request. iproute2 seeds it
+	// from time(NULL) and increments per request; goip starts at 1 and
+	// increments, because the parity comparator zeroes nlmsg_seq before
+	// comparing and a wall-clock seed would only add noise to a capture.
+	seq uint32
+}
+
+// nextSeq returns the sequence number for the next request.
+func (c *runCtx) nextSeq() uint32 {
+	c.seq++
+	return c.seq
+}

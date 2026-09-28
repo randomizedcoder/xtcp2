@@ -65,6 +65,12 @@ let
     "clickhouse_http_insert_protobuflist"
     "clickhouse_protobuflist"
     "clickhouse_protobuflist_db"
+    # goip is not a fleet binary: it is a read-only ip(8) subset that exists to
+    # exercise pkg/xtcpnl's breadth (docs/netlink/coverage-expansion.md). It is
+    # listed here anyway, because this list is what puts a name into xtcp2-all
+    # below and therefore into every microVM flavor via mkVm.nix — which is
+    # where the goip-parity harness has to run it, beside the pinned `ip`.
+    "goip"
     "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"

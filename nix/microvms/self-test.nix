@@ -426,6 +426,12 @@ pkgs.writeShellApplication {
 
     # ─── Check 4: every cmd binary's -help works ──────────────────────────
     echo "--- check 4: -help smoke on every cmd binary ---"
+    # A subset of nix/binaries.nix's binaryNames, deliberately: this runs in a
+    # booted guest, so the list is what is expected on PATH via xtcp2-all.
+    # ipfeed-collector is the one name in binaryNames that is absent here, and
+    # has been since before goip; it is left absent rather than added blind,
+    # because adding a name whose -help nobody has run in a guest would turn a
+    # gap in coverage into a red self-test.
     binaries=(
       xtcp2
       xtcp2client
@@ -438,6 +444,7 @@ pkgs.writeShellApplication {
       ns
       nsTest
       register_schema
+      goip
     )
     check4=0
     failed_help=""
@@ -457,7 +464,10 @@ pkgs.writeShellApplication {
       fi
     done
     if [ "$check4" -eq 0 ]; then
-      echo "XTCP2_SELF_TEST_BINARIES_HELP_PASS  (11 binaries OK)"
+      # Derived, not written: the count was hardcoded at 11 and the plan's
+      # verification item 8 listed keeping it in sync with two Nix lists as a
+      # manual step. ''${#binaries[@]} removes the third place to forget.
+      echo "XTCP2_SELF_TEST_BINARIES_HELP_PASS  (''${#binaries[@]} binaries OK)"
     else
       echo "XTCP2_SELF_TEST_BINARIES_HELP_FAIL  (failed:$failed_help)"
       overall_ok=0
