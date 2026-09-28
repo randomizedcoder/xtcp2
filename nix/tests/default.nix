@@ -9,6 +9,9 @@
   microvms,
 }:
 
+let
+  focused = import ./focused-quality.nix { inherit pkgs lib vendoredSource; };
+in
 {
   go-unit = import ./go-unit.nix { inherit pkgs vendoredSource; };
   go-bench = import ./go-bench.nix { inherit pkgs vendoredSource; };
@@ -16,6 +19,7 @@
   proto-deserialize-golden = import ./proto-deserialize-golden.nix {
     inherit pkgs vendoredSource;
   };
+  inherit focused;
 
   # Whole-repo race-detector test (cgo-enabled).
   go-race = import ./go-test-race.nix { inherit pkgs vendoredSource; };
@@ -26,3 +30,7 @@
 }
 // (import ./go-test-flavors.nix { inherit pkgs lib vendoredSource; })
 // (import ./go-test-per-package.nix { inherit pkgs lib vendoredSource; })
+// (lib.mapAttrs' (name: value: {
+  name = "test-${name}";
+  inherit value;
+}) focused)

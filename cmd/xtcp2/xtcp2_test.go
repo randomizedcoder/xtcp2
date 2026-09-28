@@ -878,6 +878,12 @@ func TestPrintFlags(t *testing.T) {
 	f.xtcpProtoFile = &s
 	f.kafkaSchemaUrl = &s
 	f.produceTimeout = &d
+	f.listenerAuthMode = &s
+	f.listenerRawToken = &s
+	f.listenerHMACKey = &s
+	f.listenerSignedSkew = &n
+	f.listenerJitterMin = &d
+	f.listenerJitterMax = &d
 	f.label = &s
 	f.tag = &s
 	f.grpcPort = &n
@@ -975,6 +981,12 @@ func TestBuildConfig(t *testing.T) {
 	promAddress := "/tmp/xtcp2-prom.sock"
 	socketMode := uint(0o660)
 	unlinkStale := true
+	authMode := "hmac"
+	rawToken := "raw-token"
+	hmacKey := "hmac-key"
+	authSkew := uint(3)
+	authJitterMin := 10 * time.Millisecond
+	authJitterMax := 40 * time.Millisecond
 	ttl := uint(3)
 	hop := uint(9)
 	pl := promAddress
@@ -1036,6 +1048,9 @@ func TestBuildConfig(t *testing.T) {
 		uplinkCount: &uplinkCount, uplinkInterfaces: &uplinkInterfaces, populateNsid: &iu,
 		grpcListenNetwork: &grpcNetwork, grpcListenAddress: &grpcAddress,
 		grpcUnixSocketMode: &socketMode, grpcUnlinkStaleUDS: &unlinkStale,
+		listenerAuthMode: &authMode, listenerRawToken: &rawToken,
+		listenerHMACKey: &hmacKey, listenerSignedSkew: &authSkew,
+		listenerJitterMin: &authJitterMin, listenerJitterMax: &authJitterMax,
 		ipv4Ttl: &ttl, ipv6HopLimit: &hop,
 		deserializers: &ds, promListen: &pl, promListenNetwork: &promNetwork,
 		promUnixSocketMode: &socketMode, promUnlinkStaleUDS: &unlinkStale,
@@ -1108,6 +1123,15 @@ func TestBuildConfig(t *testing.T) {
 		c.PrometheusListener.UnixSocketMode != uint32(socketMode) ||
 		!c.PrometheusListener.UnlinkStaleUnixSocket {
 		t.Errorf("PrometheusListener mismatch: %+v", c.PrometheusListener)
+	}
+	if c.ListenerAuth == nil ||
+		c.ListenerAuth.Mode != xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE ||
+		c.ListenerAuth.RawToken != rawToken ||
+		c.ListenerAuth.HmacSharedKey != hmacKey ||
+		c.ListenerAuth.GetSignedTokenSkewMinutes() != uint32(authSkew) ||
+		c.ListenerAuth.GetFailureJitterMin().AsDuration() != authJitterMin ||
+		c.ListenerAuth.GetFailureJitterMax().AsDuration() != authJitterMax {
+		t.Errorf("ListenerAuth mismatch: %+v", c.ListenerAuth)
 	}
 }
 

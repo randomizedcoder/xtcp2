@@ -165,6 +165,35 @@ let
     '';
   };
 
+  focusedQuality = pkgs.writeShellApplication {
+    name = "xtcp2-focused-quality";
+    runtimeInputs = [
+      pkgs.nix
+      versions.go
+    ];
+    text = ''
+      set -eu
+
+      if [ ! -f flake.nix ]; then
+        echo "focused-quality: must be run from the xtcp2 repo root" >&2
+        exit 2
+      fi
+
+      # Use path:. for local focused iteration so WIP files that are not yet
+      # tracked by git still enter the Nix source. Override for CI/release
+      # parity with: XTCP2_FLAKE_REF=. nix run .#focused-quality
+      FLAKE_REF=''${XTCP2_FLAKE_REF:-path:.}
+
+      echo "==> building cacheable focused test derivations"
+      nix build --accept-flake-config \
+        "$FLAKE_REF#test-focused-asn-locality" \
+        "$FLAKE_REF#test-focused-goip" \
+        "$FLAKE_REF#test-focused-xtcp-enrich"
+
+      echo "==> focused quality checks passed"
+    '';
+  };
+
   # User-facing wrapper that refreshes docs/quality-report.md from the
   # current source tree. Invoked via `nix run .#update-quality-report`.
   #
@@ -623,6 +652,9 @@ in
       test-go-race = tests.go-race;
       test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
+      test-focused-asn-locality = tests.focused.focused-asn-locality;
+      test-focused-goip = tests.focused.focused-goip;
+      test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-uds-security = microvms.lifecycleUdsSecurity.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
@@ -641,6 +673,7 @@ in
 
       # Pedantic code-quality report — aggregates every tool's findings.
       quality-report = qualityReport;
+      focused-quality = focusedQuality;
     }
     # Per-flavor + per-package test targets. The two imports above each
     # return an attrset whose keys already start with `test-` so they
@@ -938,6 +971,10 @@ in
     lint-fix-one = {
       type = "app";
       program = "${lintFixOne}/bin/xtcp2-lint-fix-one";
+    };
+    focused-quality = {
+      type = "app";
+      program = "${focusedQuality}/bin/xtcp2-focused-quality";
     };
   }
   # The five tiers as apps too, so `nix run .#lint-quick` works without
