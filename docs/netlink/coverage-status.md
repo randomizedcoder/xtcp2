@@ -379,10 +379,26 @@ actually sends, and `TalkRtnetlink` joins `DumpRtnetlink` in
 |---|---|---|
 | `BuildDumpLinkRequestExt` | `rtnl_linkdump_req_filter{,_fn}` | yes — three distinct captured requests |
 | `BuildGetLinkByIndexRequest` | `ll_link_get`, by index | yes — ten of them |
-| `BuildGetLinkByNameRequest` | `ll_link_get`, by name | no; Item 7 adds `ip link show dev lo` |
+| `BuildGetLinkByNameRequest` | `ll_link_get`, by name | ~~no; Item 7 adds `ip link show dev lo`~~ **yes** — `dumps/netlink_route_getlink_dev.pcap` txn 0 |
+| `BuildIplinkGetRequest` | `iplink_get` | yes — the same capture's txn 1 |
 | `BuildDumpAddrRequestIndex` | `ipaddr_list_flush_or_save` | the unfiltered form only |
 | `BuildDumpRouteRequestTable` | `iproute_dump_filter` | `table all` only |
 | `BuildDumpNeighRequest` | `rtnl_neighdump_req` | no; closes `TODO-SOON.md` §17 |
+
+**Two by-name builders, not one, and the capture is what proves it.** `ip link
+show dev NAME` sends two non-dump `RTM_GETLINK`s about the same interface:
+`ll_name_to_index` → `ll_link_get(name, 0)` for the index
+(`ip/ipaddress.c:2254`), then `iplink_get` for the reply that is actually
+printed (`:2293`, `ip/iplink.c:1497-1515`). They put `IFLA_EXT_MASK` and
+`IFLA_IFNAME` in *opposite* orders and set `ifi_family` to `AF_UNSPEC` and
+`AF_PACKET` respectively, so neither builder can serve the other request —
+which is why there are two, and why `TestByNameGetsAreNotInterchangeable`
+asserts their differences field by field rather than trusting the pair of
+positives above to stay distinct.
+
+Only the `ll_link_get` half is a version-skew locus: `de91e928` added
+`RTEXT_FILTER_NAME_ONLY` to `ll_link_get` and `ll_init_map` and **not** to
+`iplink_get`.
 
 **§17 was a listener blocker, not a neighbour-dump nicety.** A multicast socket
 that hits `ENOBUFS` has lost events and can only recover by re-dumping. The
@@ -982,7 +998,9 @@ Three things changed with the move, and the third is why it was worth doing:
   can only catch a window that opened too **late**. The expect driver waits for
   the exit-code marker of the command it ran, so the window closes on evidence
   rather than on a timer. The floors are kept anyway, as a second line: 2
-  datagrams for a single dump, 4 for anything preceded by `ll_init_map()`.
+  datagrams for a single dump, 4 for anything preceded by `ll_init_map()` —
+  and 4, likewise, for `link show dev`, whose two single-gets were mistaken
+  for one when its floor was first set. See "The run after `link show dev`".
 
 Two things the guest gained that a host cannot give. A **clean** namespace
 (`nlcapc`: one dummy, zero side transactions, gated) and a **mesh** one
@@ -1598,11 +1616,11 @@ rather than an artifact of hand-built bytes.
 
 The attribute-order row is the clearest case. It needed two requests carrying
 the same attributes in opposite orders, which reads like something to construct
-— but `netlink_route_getlink_dev.pcap` already holds the pair: txn 0
-(`ll_link_get`, `AF_UNSPEC`) emits `IFLA_EXT_MASK` then `IFLA_IFNAME`, and txn 1
-(`ip link show dev goip0`, `AF_PACKET`) emits `IFLA_IFNAME` then
-`IFLA_EXT_MASK`. Swapping the transactions compares one real ordering against
-another. That same row is where the multi-pid measurement started, since it is
+— but `netlink_route_getlink_dev.pcap` already holds the pair, and holds it
+inside **one** command: `ip link show dev goip0` sends both. Txn 0 is
+`ll_link_get`, `AF_UNSPEC`, `IFLA_EXT_MASK` then `IFLA_IFNAME`; txn 1 is
+`iplink_get`, `AF_PACKET`, `IFLA_IFNAME` then `IFLA_EXT_MASK`. Swapping the
+transactions compares one real ordering against another. That same row is where the multi-pid measurement started, since it is
 the capture that answers on two port ids.
 
 #### `netlink-audit` is green again, by fixing the audit rather than the count
@@ -1993,7 +2011,7 @@ comparator normalizes `nlmsg_pid`, so this changes no byte it compares.
 
 **The gate was shown to fail before it was trusted to pass.** Replacing
 `resolveRouteNames`'s per-ifindex fill with an up-front link dump — the obvious
-shortcut, and the one `link show dev` currently takes — makes
+shortcut, and the one `link show dev` took until the run below — makes
 `TestRouteShowTransactionShape` fail every row with `dumps = 2, want 1` and
 `single-gets = [], want [3]`. What makes that worth writing down is the other
 half of the result: in every row where the index resolves, **stdout was
@@ -2017,6 +2035,77 @@ header where `ip` sends none, and `IFLA_IFNAME` absent — i.e. goip sends a dum
 plus a by-index get where `ip` sends two by-name single-gets. It is ungated, so
 it warns; `req.LinkShowByName` and `service.LinkByName` already exist unused and
 are half the fix.
+
+> **Superseded.** That divergence is fixed; the paragraph is kept because the
+> prediction and the measurement agreeing is the evidence that the L2
+> comparison is reading what it claims to. See the next section.
+
+### The run after `link show dev`: `UNGATED_CLEAN`
+
+The fix was the one the paragraph above named, plus a third request nobody had
+predicted. `obj_link.go`'s `dev` branch now sends exactly what `ip` sends:
+
+1. `req.LinkShowByName` → `ll_link_get(name, 0)`, `AF_UNSPEC`, `IFLA_EXT_MASK`
+   then `IFLA_IFNAME`. Its reply is discarded except for the cache entry
+   (`ip/ipaddress.c:2254`).
+2. `req.LinkShowDev` → `iplink_get`, `AF_PACKET`, `IFLA_IFNAME` then
+   `IFLA_EXT_MASK`. **This** reply is what `print_linkinfo` renders (`:2293`).
+3. Then the by-index side-gets `print_linkinfo` itself issues, through the same
+   `resolveIndexName` the route object uses: `IFLA_MASTER` unconditionally
+   (`ip/ipaddress.c:1037`), and `IFLA_LINK` only when `IFLA_LINK_NETNSID` is
+   **absent** — with a netnsid, `print_name_and_link` calls `ll_idx_n2a`, which
+   is an unconditional `if%u` that consults no cache and sends nothing
+   (`lib/utils.c:1310-1320`).
+
+The gated topology's `goip0` is a dummy with neither a master nor a peer, so
+step 3 sends nothing there and the harness measures two transactions. It is
+covered by unit test instead: `TestLinkShowDevTransactionShape`'s
+`veth179a698` row asserts three single-gets, the third by index, and is the row
+that would have caught the old dump-first shape from the other side — a dump
+fills the cache with every link, so the master resolves for free and the third
+request is never sent.
+
+```
+GOIP_PARITY_PASS link_show / link_show_dev / addr_show / addr_show_v4 / addr_show_v6
+GOIP_PARITY_PASS route_show / route_show_table_all / route_show_v6 / neigh_show
+GOIP_PARITY_HYGIENE_PASS
+GOIP_PARITY_CONTROL_NOISY 4
+GOIP_PARITY_UNGATED_CLEAN
+GOIP_PARITY_OVERALL_PASS
+```
+
+`link show dev` reports `txns: ip=2 goip=2  control: nl=0 stdout=0` and **no
+findings at all** — not suppressed ones, none. The `pids` column keeps the one
+divergence that is invisible on the wire, the same one `route show` has:
+`ip=[821 4033818215] goip=[851]`, because `ll_link_get` opens a throwaway
+socket while goip reuses its fd. No allowlist entry was added.
+
+Run twice, per the `CONTROL_NOISY` lesson above, and this time every line was
+identical: nine `PASS`, `CONTROL_NOISY 4`, `UNGATED_CLEAN`, and the same
+transaction count on every command. `link show dev` was `2/2` with `nl=0
+stdout=0` both times. The commands whose noise makes up the 4 moved between
+runs — `-4 addr show` in both, `neigh show` in the second — which is the same
+`IFLA_STATS*` sampling and not a new locus.
+
+**And shown to fail before it was trusted to pass, the same way.** Collapsing
+`req.LinkShowDev` back into `req.LinkShowByName` — one line, and the exact
+mistake the two builders exist to prevent — fails
+`TestLinkShowDevTransactionShape` on seven of its eight rows,
+`TestTierALinkShowDevRequests` on its second, and `req.TestLinkShowDev` on both
+positives. `TestRunLinkArgs` and `TestLinkShowMatchesCapturedOutput` stay
+**green**: stdout is byte-identical, because the wrong request gets the right
+reply. Only a request-level assertion sees it, which is the same result the
+route work got from the same experiment.
+
+**A floor that could not do its job, found by fixing the thing it guarded.**
+`link show dev`'s capture floor was 2 datagrams in both
+`internal/goipparity/commands.go` and
+`nix/microvms/scripts/capture-netlink-dumps.exp`, set while it was still an
+open question whether the command sent one transaction or several. It sends
+two, so the true minimum is 4 — and at 2 a capture window that caught only the
+first transaction would have cleared the floor and been written as a good
+fixture. Both are now 4, as is the host-side
+`nix/capture-netlink-fixtures.nix` floor for `netlink_route_getlink_dev_lo`.
 
 ### Remaining
 

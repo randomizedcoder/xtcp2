@@ -130,11 +130,18 @@ proc capture_set {ns subdir dev} {
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
 
-    # Captured to SETTLE what a single-get does rather than to confirm it:
-    # whether iproute2 resolves the name through a full dump and filters, or
-    # issues a non-dump RTM_GETLINK, decides whether goip needs
-    # TalkRtnetlink here at all. Floor is the bare structural minimum.
-    cap $ns $subdir netlink_route_getlink_dev 2 "ip link show dev $dev"
+    # Originally captured to SETTLE what a single-get does rather than to
+    # confirm it: whether iproute2 resolves the name through a full dump and
+    # filters, or issues a non-dump RTM_GETLINK, decided whether goip needed
+    # TalkRtnetlink here at all. It does, and the answer turned out to be two
+    # non-dump RTM_GETLINKs, not one — ll_link_get for the index
+    # (ip/ipaddress.c:2254) and then iplink_get for the reply that gets
+    # printed (:2293).
+    #
+    # Hence floor 4 and not the 2 this line carried while the question was
+    # open: two transactions, each a request and a reply. At 2 a capture
+    # window that caught only the first would be written as a good fixture.
+    cap $ns $subdir netlink_route_getlink_dev 4 "ip link show dev $dev"
 }
 
 # PLAIN AND -d, IN PAIRS.

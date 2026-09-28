@@ -19,6 +19,7 @@ package xtcpnl
 //	BuildDumpLinkRequestExt      lib/libnetlink.c rtnl_linkdump_req_filter{,_fn}
 //	BuildGetLinkByIndexRequest   lib/ll_map.c     ll_link_get
 //	BuildGetLinkByNameRequest    lib/ll_map.c     ll_link_get
+//	BuildIplinkGetRequest        ip/iplink.c      iplink_get
 //	BuildDumpAddrRequestIndex    ip/ipaddress.c   ipaddr_list_flush_or_save
 //	BuildDumpRouteRequestTable   ip/iproute.c     iproute_dump_filter
 //	BuildDumpNeighRequest        lib/libnetlink.c rtnl_neighdump_req
@@ -177,6 +178,63 @@ func BuildGetLinkByNameRequest(family uint8, name string, extMask, seq uint32) (
 		}
 	}
 	if err := ab.PutString(uint16(unix.IFLA_IFNAME), name); err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETLINK), 0, seq, hdr, ab.Bytes())
+}
+
+// BuildIplinkGetRequest is iplink_get (ip/iplink.c:1497-1515), the SECOND and
+// last request `ip link show dev NAME` sends — the one whose reply is printed.
+//
+// It is not BuildGetLinkByNameRequest with different arguments. Three things
+// differ, and pkg/nlparity compares requests for full byte equality, so the
+// first two are divergences rather than details:
+//
+//   - THE ATTRIBUTE ORDER IS REVERSED. iplink_get adds IFLA_IFNAME first and
+//     IFLA_EXT_MASK second; ll_link_get adds the mask first
+//     (lib/ll_map.c:289-293). The same two attributes, opposite order, inside
+//     one command — which is why `ip link show dev lo` cannot be served by
+//     sending one request's bytes twice.
+//   - ifi_family is preferred_family, not AF_UNSPEC, and for this command that
+//     is AF_PACKET: ipaddr_list_link assigns it at ip/ipaddress.c:2416 before
+//     any argument is parsed. That is also why `ip -4 link show dev lo` still
+//     sends AF_PACKET — the -4 is overridden, not honored.
+//   - It goes on the MAIN rtnl socket, where ll_link_get opens a throwaway one
+//     (rtnl_open, lib/ll_map.c:281). nlmon cannot observe socket identity, so
+//     this difference is invisible on the wire; it is recorded so it is not
+//     rediscovered as a bug.
+//
+// # Unlike ll_link_get, this path carries no version skew
+//
+// Commit de91e928 added RTEXT_FILTER_NAME_ONLY to ll_link_get and ll_init_map
+// and NOT to iplink_get, so this request's mask is 0x09 at the pinned 7.1.0
+// and at the reading fork alike. filt_mask arrives as RTEXT_FILTER_VF —
+// filter.vfinfo is set unconditionally at ip/ipaddress.c:2153 and cleared only
+// by `novf` — and iplink_get ors in RTEXT_FILTER_SKIP_STATS when !show_stats.
+// So of the two requests this command sends, only the first one moves when
+// iproute2 does.
+//
+// # The mask attribute is unconditional here
+//
+// BuildGetLinkByNameRequest omits IFLA_EXT_MASK for a zero mask because
+// ll_link_get's addattr32 is reached only with a mask that is never zero.
+// iplink_get calls addattr32 unconditionally (:1514), so a caller passing 0
+// gets a four-byte zero attribute rather than no attribute — which is what
+// `ip -s novf link show dev lo` puts on the wire.
+func BuildIplinkGetRequest(family uint8, name string, extMask, seq uint32) ([]byte, error) {
+	if err := validIfName(name); err != nil {
+		return nil, err
+	}
+
+	hdr := make([]byte, IfInfomsgSizeCst)
+	hdr[0] = family // ifi_family; ifi_index stays 0 — the name is the selector
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if err := ab.PutString(uint16(unix.IFLA_IFNAME), name); err != nil {
+		return nil, err
+	}
+	if err := ab.PutU32(uint16(unix.IFLA_EXT_MASK), extMask); err != nil {
 		return nil, err
 	}
 	return BuildRequest(uint16(unix.RTM_GETLINK), 0, seq, hdr, ab.Bytes())
