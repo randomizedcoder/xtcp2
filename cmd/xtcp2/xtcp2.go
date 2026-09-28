@@ -1783,7 +1783,7 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		logEnv("GRPC_UNLINK_STALE_UNIX_SOCKET", fmt.Sprintf("c.GrpcListener.UnlinkStaleUnixSocket:%t", v), debugLevel)
 	}
 
-	if v, ok := envString("PROM_LISTEN_NETWORK"); ok {
+	if v, ok := envString("PROM_LISTEN_NETWORK"); ok && strings.TrimSpace(v) != "" {
 		ep := ensurePrometheusListener(c)
 		n, err := listener.ParseNetwork(v)
 		if err == nil {
@@ -1899,6 +1899,16 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
 	fmt.Println("c.LocalityRefreshInterval:", c.LocalityRefreshInterval)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
+	if c.GrpcListener == nil {
+		fmt.Println("c.GrpcListener: unset")
+	} else {
+		fmt.Printf("c.GrpcListener: network=%s address=%s mode=%#o unlinkStale=%t\n", c.GrpcListener.GetNetwork(), c.GrpcListener.GetAddress(), c.GrpcListener.GetUnixSocketMode(), c.GrpcListener.GetUnlinkStaleUnixSocket())
+	}
+	if c.PrometheusListener == nil {
+		fmt.Println("c.PrometheusListener: unset")
+	} else {
+		fmt.Printf("c.PrometheusListener: network=%s address=%s mode=%#o unlinkStale=%t\n", c.PrometheusListener.GetNetwork(), c.PrometheusListener.GetAddress(), c.PrometheusListener.GetUnixSocketMode(), c.PrometheusListener.GetUnlinkStaleUnixSocket())
+	}
 	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
 }
 

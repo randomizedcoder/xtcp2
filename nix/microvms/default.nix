@@ -54,6 +54,24 @@ let
       sink = "minimal";
     };
 
+  # UDS security lifecycle flavor: both operator listeners are private Unix
+  # sockets and the guest self-test drives them with the shipped clients.
+  mkOneUdsSecurity =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "uds-security";
+    };
+
   mkOneCoverage =
     arch:
     import ./mkVm.nix {
@@ -438,6 +456,8 @@ let
 
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
+  vmsUdsSecurity = lib.genAttrs constants.supportedArchs mkOneUdsSecurity;
+
   vmsCoverage = lib.optionalAttrs (xtcp2CoverPackage != null) (
     lib.genAttrs constants.supportedArchs mkOneCoverage
   );
@@ -501,6 +521,15 @@ let
       vm = vms.${arch};
       # No flavor-specific tokens; baseSentinels already surfaces every
       # check the minimal self-test emits (Check 4+ breadcrumbs included).
+    };
+  });
+
+  lifecycleUdsSecurity = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsUdsSecurity.${arch};
+      suffix = "-uds-security";
+      extraSentinels = [ "UDS_SECURITY" ];
     };
   });
 
@@ -789,6 +818,7 @@ in
 {
   inherit
     vms
+    vmsUdsSecurity
     vmsCoverage
     vmsCoverageIoUring
     vmsSoak
@@ -820,6 +850,7 @@ in
     s3ParquetStress
     s3ParquetLowfreq
     lifecycle
+    lifecycleUdsSecurity
     lifecycleClickHttp
     lifecycleClickPipe
     lifecycleS3Parquet

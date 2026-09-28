@@ -997,7 +997,28 @@ from a single generated source would stop this drifting a third time.
 
 ---
 
-## 12. `walkRTAttrs` has no nested-attribute callers yet — OPEN
+## 12. `walkRTAttrs` has no nested-attribute callers yet — DONE
+
+**Done.** `linkInfoKind` (`pkg/xtcpnl/xtcpnl_ifinfomsg.go`) is the first
+production caller of `WalkRTAttrsNested`: it descends `IFLA_LINKINFO` and
+returns `IFLA_INFO_KIND`, which is how `LinkInfo.Kind` ends up holding `veth`,
+`bridge` or `nlmon` for the committed 7.1.8 link dump. It is the exact first
+caller predicted below.
+
+Two decisions the descent had to make, both covered by rows in
+`TestParseNewLink`:
+
+- **The descent is one level and stops.** `IFLA_INFO_DATA` is the per-kind blob
+  `ip` hands to one of forty `print_opt` bodies; decoding it is out of scope.
+- **A malformed nest loses only the kind, not the link.** The walk error is
+  swallowed, matching the tolerance `WalkRTAttrs` already applies to a short
+  trailing attribute — dropping an otherwise good link because a nest it did
+  not need was truncated is worse for a renderer.
+
+The original text follows, since the masking note in its last paragraph is
+still the reason the descent matches a nested-flagged attribute at all.
+
+---
 
 `walkRTAttrsNested` (`pkg/xtcpnl/xtcpnl_rtnetlink.go`) exists and is tested, but
 nothing in the tree descends into a nested attribute yet, because none of the
@@ -1215,7 +1236,33 @@ builder is nevertheless usable now, which is the point — the listener's
 
 ---
 
-## 18. rtnetlink attribute coverage is thinner than its consumers need — OPEN
+## 18. rtnetlink attribute coverage is thinner than its consumers need — PARTIAL
+
+**Items 1 and 2 have landed; item 3 is still open.** `IFA_FLAGS`,
+`IFA_CACHEINFO`, `IFA_BROADCAST` and `IFA_PROTO` are decoded, as are
+`IFLA_ADDRESS`, `IFLA_BROADCAST`, `IFLA_QDISC`, `IFLA_TXQLEN`,
+`IFLA_LINKMODE`, `IFLA_GROUP`, `IFLA_LINK`, `IFLA_MASTER`,
+`IFLA_LINK_NETNSID` and `IFLA_INFO_KIND`, so the `IFLA_*` count went 4 → 14 and
+the `IFA_*` count 3 → 7. `AddrInfo` also gained `IsPermanent` and
+`IsDeprecated`, which is what item 1 was actually asking for.
+
+Three qualifications on that:
+
+- **`IFLA_STATS64` is now deliberately out of scope, not pending.** It and
+  `IFLA_STATS` are absent from every reply in the committed fixtures because
+  the request sets `RTEXT_FILTER_SKIP_STATS`; they come back only under `ip -s`.
+  Adding them means changing the request, which is a separate decision from
+  decoding an attribute the kernel already sends.
+- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) is partly blocked on
+  fixtures.** `RTA_CACHEINFO` is on 48 of the 74 routes in the committed dump,
+  so it has a real capture — but `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA`
+  appear on **none** of them, so their positive rows need the capture extension
+  in Item 7 of the goip plan rather than constructed bytes.
+- **The `RTA_MULTIPATH` note below is superseded in one respect**: §12 now has
+  its first real caller (`IFLA_LINKINFO`), so the "land them together" coupling
+  no longer applies.
+
+The original text follows.
 
 The four rtnetlink families extract 19 attributes between them — `IFLA_*` 4,
 `RTA_*` 9, `IFA_*` 3, `NDA_*` 3. Some of what is missing is genuinely unused,

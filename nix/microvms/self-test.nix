@@ -11,6 +11,9 @@
 #   XTCP2_SELF_TEST_NETLINK_{PASS,FAIL}        netlink readout produces jsonl
 #   XTCP2_SELF_TEST_BINARIES_HELP_{PASS,FAIL}  every cmd binary -help works
 #   XTCP2_SELF_TEST_GRPC_ROUNDTRIP_{PASS,FAIL} xtcp2 ↔ xtcp2client gRPC works
+#   XTCP2_SELF_TEST_UDS_SECURITY_{PASS,FAIL}   authenticated gRPC/HTTP UDS
+#                                              access, config control, and
+#                                              both stream modes
 #   XTCP2_SELF_TEST_NS_INSPECT_{PASS,FAIL}     ns inspector reads netns state
 #   XTCP2_SELF_TEST_NSTEST_{PASS,FAIL}         nsTest binary runs
 #   XTCP2_SELF_TEST_NS_LIFECYCLE_{PASS,FAIL}   a netns holding a live process is
@@ -181,6 +184,12 @@
   # wouldn't exist — hence the gate.
   runFileOutputCheck ? false,
   fileOutputPath ? "/var/log/xtcp2.jsonl",
+  # When true, exercise both listener surfaces over private Unix sockets with
+  # raw bearer authentication, including negative unauthenticated requests.
+  runUdsSecurityCheck ? false,
+  udsGrpcSocket ? "/run/xtcp2/grpc.sock",
+  udsPromSocket ? "/run/xtcp2/prometheus.sock",
+  udsAuthToken ? "",
   # When true (socket-sink flavors), the RAW_SOCKET check validates the records
   # xtcp2 streamed over the raw socket destination (tcp/udp/unix/unixgram) to
   # the in-VM ncat receiver (written to socketSinkFile), and the per-scheme
@@ -298,6 +307,8 @@ pkgs.writeShellApplication {
     # (SC2034) at writeShellApplication build time.
     scaled() { echo "$(($1 * WAIT_SCALE))"; }
 
+    uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
+
     echo "================================================"
     echo " xtcp2 microvm self-test"
     echo " kernel: $(uname -r)"
@@ -318,8 +329,14 @@ pkgs.writeShellApplication {
       local name="$1"
       local label_a="$2"
       local label_b="''${3:-}"
-      curl --silent --fail --max-time 2 \
-           "http://127.0.0.1:${toString promPort}/metrics" \
+      metric_curl_args=()
+      metric_url="http://127.0.0.1:${toString promPort}/metrics"
+      if [ "$uds_security_mode" -eq 1 ]; then
+        metric_curl_args=(--unix-socket "${udsPromSocket}" -H "Authorization: Bearer ${udsAuthToken}")
+        metric_url="http://xtcp2/metrics"
+      fi
+      curl --silent --fail --max-time 2 "''${metric_curl_args[@]}" \
+           "$metric_url" \
         | awk -v n="$name" -v sa="$label_a" -v sb="$label_b" '
             $1 ~ n {
               if (sa != "" && index($0, sa) == 0) next
@@ -350,16 +367,21 @@ pkgs.writeShellApplication {
     # ─── Check 2: Prometheus /metrics endpoint reachable ──────────────────
     echo "--- check 2: GET http://127.0.0.1:${toString promPort}/metrics ---"
     check2=1
-    for i in $(seq 1 "$(scaled 30)"); do
-      if curl --silent --fail --max-time 2 \
-           "http://127.0.0.1:${toString promPort}/metrics" \
-           | grep -q '^xtcp_'; then
-        echo "XTCP2_SELF_TEST_METRICS_PASS  (after ''${i}s)"
-        check2=0
-        break
-      fi
-      sleep 1
-    done
+    if [ "$uds_security_mode" -eq 1 ]; then
+      echo "XTCP2_SELF_TEST_METRICS_PASS  (covered by authenticated UDS check)"
+      check2=0
+    else
+      for i in $(seq 1 "$(scaled 30)"); do
+        if curl --silent --fail --max-time 2 \
+             "http://127.0.0.1:${toString promPort}/metrics" \
+             | grep -q '^xtcp_'; then
+          echo "XTCP2_SELF_TEST_METRICS_PASS  (after ''${i}s)"
+          check2=0
+          break
+        fi
+        sleep 1
+      done
+    fi
     if [ "$check2" -ne 0 ]; then
       echo "XTCP2_SELF_TEST_METRICS_FAIL  (no xtcp2_* metric exposed in $(scaled 30)s)"
       overall_ok=0
@@ -444,7 +466,10 @@ pkgs.writeShellApplication {
     # ─── Check 5: xtcp2 ↔ xtcp2client gRPC roundtrip ──────────────────────
     echo "--- check 5: xtcp2client connects to xtcp2 gRPC (port ${toString grpcPort}) ---"
     check5=1
-    if command -v xtcp2client >/dev/null 2>&1; then
+    if [ "$uds_security_mode" -eq 1 ]; then
+      echo "XTCP2_SELF_TEST_GRPC_ROUNDTRIP_PASS  (covered by authenticated UDS check)"
+      check5=0
+    elif command -v xtcp2client >/dev/null 2>&1; then
       # Run xtcp2client briefly. Exit code 0 or 124 (timeout) both acceptable
       # for "it connected"; anything else is a wire/handshake failure.
       # xtcp2client takes -target (host) + -port (numeric), not -addr.
@@ -478,7 +503,10 @@ pkgs.writeShellApplication {
     # -pollFrequency also pokes on-demand polls. Coverage-safe (no re-exec).
     echo "--- check 5b: xtcp2client -poll streams records (port ${toString grpcPort}) ---"
     check5b=1
-    if command -v xtcp2client >/dev/null 2>&1; then
+    if [ "$uds_security_mode" -eq 1 ]; then
+      echo "XTCP2_SELF_TEST_POLL_STREAM_PASS  (covered by authenticated UDS check)"
+      check5b=0
+    elif command -v xtcp2client >/dev/null 2>&1; then
       before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
       timeout 12s xtcp2client -poll -pollFrequency 2s -format json \
         -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2poll.log 2>&1
@@ -511,10 +539,14 @@ pkgs.writeShellApplication {
     # daemon is polling by now (Check 1 confirmed active), so /readyz is 200.
     echo "--- check 5c: health endpoints (/healthz, /readyz) + -healthcheck ---"
     check5c=1
-    hz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
-      "http://127.0.0.1:${toString promPort}/healthz" 2>/dev/null || echo 000)
-    rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
-      "http://127.0.0.1:${toString promPort}/readyz" 2>/dev/null || echo 000)
+    if [ "$uds_security_mode" -eq 1 ]; then
+      echo "XTCP2_SELF_TEST_HEALTH_PASS  (covered by authenticated UDS check)"
+      check5c=0
+    else
+      hz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+        "http://127.0.0.1:${toString promPort}/healthz" 2>/dev/null || echo 000)
+      rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+        "http://127.0.0.1:${toString promPort}/readyz" 2>/dev/null || echo 000)
     # -healthcheck probes /readyz itself and exits 0 (ready) / 1 (not); it does
     # NOT start the daemon. Uses -promListen to find the port.
     hc_rc=1
@@ -529,6 +561,7 @@ pkgs.writeShellApplication {
     else
       echo "XTCP2_SELF_TEST_HEALTH_FAIL  (healthz=$hz readyz=$rz healthcheck_rc=$hc_rc)"
       head -n 5 /tmp/xtcp2-healthcheck.log 2>/dev/null || true
+    fi
     fi
     if [ "$check5c" -ne 0 ]; then overall_ok=0; fi
 
@@ -580,7 +613,10 @@ pkgs.writeShellApplication {
     # Check 5 only asserts "some output" (includes the client's own logs).
     echo "--- check 5e: xtcp2client listen mode streams records ---"
     check5e=1
-    if command -v xtcp2client >/dev/null 2>&1; then
+    if [ "$uds_security_mode" -eq 1 ]; then
+      echo "XTCP2_SELF_TEST_LISTEN_STREAM_PASS  (covered by authenticated UDS check)"
+      check5e=0
+    elif command -v xtcp2client >/dev/null 2>&1; then
       before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
       timeout 12s xtcp2client -format json \
         -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2listen.log 2>&1
@@ -601,6 +637,119 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_LISTEN_STREAM_FAIL  (xtcp2client not on PATH)"
     fi
     if [ "$check5e" -ne 0 ]; then overall_ok=0; fi
+
+    ${lib.optionalString runUdsSecurityCheck ''
+      # ─── Check 5u: authenticated gRPC + HTTP UDS integration ───────────
+      # Exercise the shipped clients and curl in the guest so socket binding,
+      # permissions, auth metadata/header handling, ConfigService control, and
+      # both stream RPCs are covered without a TCP fallback.
+      echo "--- check 5u: authenticated gRPC/HTTP Unix sockets ---"
+      check5u=1
+      uds_sockets=0
+      grpc_mode=0
+      prom_mode=0
+      if [ -S "${udsGrpcSocket}" ] && [ -S "${udsPromSocket}" ]; then
+        grpc_mode=$(stat -c '%a' "${udsGrpcSocket}" 2>/dev/null || echo 0)
+        prom_mode=$(stat -c '%a' "${udsPromSocket}" 2>/dev/null || echo 0)
+        if [ "$grpc_mode" = "600" ] && [ "$prom_mode" = "600" ]; then
+          uds_sockets=1
+        fi
+      fi
+
+      prom_unauth=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --max-time 3 --unix-socket "${udsPromSocket}" \
+        "http://xtcp2/metrics" 2>/dev/null || echo 000)
+      prom_body=$(mktemp)
+      prom_auth_rc=1
+      if curl --silent --fail --max-time 3 --unix-socket "${udsPromSocket}" \
+        -H "Authorization: Bearer ${udsAuthToken}" \
+        "http://xtcp2/metrics" >"$prom_body" 2>/dev/null; then
+        prom_auth_rc=0
+      fi
+      prom_metrics=0
+      if grep -q '^xtcp_' "$prom_body" 2>/dev/null; then
+        prom_metrics=1
+      fi
+      rm -f "$prom_body"
+
+      health_code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --max-time 3 --unix-socket "${udsPromSocket}" \
+        -H "Authorization: Bearer ${udsAuthToken}" \
+        "http://xtcp2/healthz" 2>/dev/null || echo 000)
+      ready_code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --max-time 3 --unix-socket "${udsPromSocket}" \
+        -H "Authorization: Bearer ${udsAuthToken}" \
+        "http://xtcp2/readyz" 2>/dev/null || echo 000)
+
+      ctl_base=(-network unix -unixSocket "${udsGrpcSocket}")
+      ctl_bad=0
+      if xtcp2ctl get "''${ctl_base[@]}" >/tmp/uds-ctl-bad.log 2>&1; then
+        ctl_bad=1
+      fi
+      xtcp2ctl get "''${ctl_base[@]}" -auth-token "${udsAuthToken}" \
+        >/tmp/uds-ctl-get.log 2>/tmp/uds-ctl-get.err
+      ctl_get_rc=$?
+      ctl_set_rc=1
+      if [ "$ctl_get_rc" -eq 0 ]; then
+        xtcp2ctl set-poll-frequency -frequency 7s -timeout 1s \
+          "''${ctl_base[@]}" -auth-token "${udsAuthToken}" \
+          >/tmp/uds-ctl-set.log 2>&1
+        ctl_set_rc=$?
+      fi
+      ctl_changed=0
+      if [ "$ctl_set_rc" -eq 0 ] && xtcp2ctl get "''${ctl_base[@]}" \
+        -auth-token "${udsAuthToken}" 2>/dev/null | grep -q '"7s"'; then
+        ctl_changed=1
+      fi
+      xtcp2ctl trigger-poll "''${ctl_base[@]}" -auth-token "${udsAuthToken}" \
+        >/tmp/uds-ctl-trigger.log 2>&1
+      trigger_rc=$?
+
+      before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      timeout 12s xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
+        -auth-token "${udsAuthToken}" -poll -pollFrequency 2s -format json \
+        >/tmp/uds-poll.log 2>&1
+      poll_rc=$?
+      after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
+      poll_records=$(grep -c '^{' /tmp/uds-poll.log 2>/dev/null || true)
+      poll_records=''${poll_records:-0}
+
+      before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
+      timeout 12s xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
+        -auth-token "${udsAuthToken}" -format json \
+        >/tmp/uds-listen.log 2>&1
+      listen_rc=$?
+      after_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
+      listen_records=$(grep -c '^{' /tmp/uds-listen.log 2>/dev/null || true)
+      listen_records=''${listen_records:-0}
+
+      if [ "$uds_sockets" -eq 1 ] && [ "$prom_unauth" = "401" ] \
+        && [ "$prom_auth_rc" -eq 0 ] && [ "$prom_metrics" -eq 1 ] \
+        && [ "$health_code" = "200" ] && [ "$ready_code" = "200" ] \
+        && [ "$ctl_bad" -eq 0 ] && [ "$ctl_get_rc" -eq 0 ] \
+        && [ "$ctl_changed" -eq 1 ] && [ "$trigger_rc" -eq 0 ] \
+        && { [ "$poll_rc" -eq 0 ] || [ "$poll_rc" -eq 124 ]; } \
+        && [ "$poll_records" -ge 1 ] 2>/dev/null \
+        && [ "$after_pfr" -gt "$before_pfr" ] 2>/dev/null \
+        && { [ "$listen_rc" -eq 0 ] || [ "$listen_rc" -eq 124 ]; } \
+        && [ "$listen_records" -ge 1 ] 2>/dev/null \
+        && [ "$after_fr" -gt "$before_fr" ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_UDS_SECURITY_PASS  (modes=''${grpc_mode}/''${prom_mode}, metrics=''${prom_unauth}->200, poll_records=$poll_records, listen_records=$listen_records)"
+        check5u=0
+      else
+        echo "XTCP2_SELF_TEST_UDS_SECURITY_FAIL  (sockets=$uds_sockets modes=''${grpc_mode}/''${prom_mode} unauth=$prom_unauth metrics_rc=$prom_auth_rc health=$health_code ready=$ready_code ctl_bad=$ctl_bad get=$ctl_get_rc set=$ctl_set_rc changed=$ctl_changed trigger=$trigger_rc poll=$poll_records listen=$listen_records)"
+        echo "--- xtcp2 ExecStart ---"
+        systemctl show -p ExecStart xtcp2 2>/dev/null || true
+        echo "--- /run/xtcp2 ---"
+        ls -la /run/xtcp2 2>/dev/null || true
+        echo "--- listening unix sockets ---"
+        ss -lx 2>/dev/null || true
+        echo "--- xtcp2 journal ---"
+        journalctl -u xtcp2 -n 30 --no-pager 2>/dev/null || true
+        head -n 8 /tmp/uds-ctl-bad.log /tmp/uds-ctl-get.err /tmp/uds-ctl-set.log /tmp/uds-poll.log /tmp/uds-listen.log 2>/dev/null || true
+      fi
+      if [ "$check5u" -ne 0 ]; then overall_ok=0; fi
+    ''}
 
     # ─── Check 5f: interface-naming enrichment content ────────────────────
     # (interface-naming flavor only.) The in-VM generator holds ESTABLISHED
@@ -1658,7 +1807,11 @@ pkgs.writeShellApplication {
     #                    systemd restart), `get` reflects the new tag, and freshly
     #                    streamed records carry it. Skipped under coverage (a
     #                    re-exec drops pre-exec -cover counters).
-    CTL=(-target 127.0.0.1 -port ${toString grpcPort})
+    if [ "$uds_security_mode" -eq 1 ]; then
+      CTL=(-network unix -unixSocket "${udsGrpcSocket}" -auth-token "${udsAuthToken}")
+    else
+      CTL=(-target 127.0.0.1 -port ${toString grpcPort})
+    fi
 
     echo "--- check 17: xtcp2ctl set-poll-frequency (hot change, no restart) ---"
     check17=1

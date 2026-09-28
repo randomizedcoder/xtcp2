@@ -126,6 +126,13 @@ let
   # can validate the daemon's serialized output content (OUTPUT_CONTENT check).
   isMinimal = sink == "minimal";
   isTcpStress = sink == "tcp-stress";
+  # uds-security exercises both operator-facing listener transports through
+  # the real packaged clients, with bearer auth enabled on both sockets.
+  isUdsSecurity = sink == "uds-security";
+  udsRuntimeDir = "/run/xtcp2";
+  udsGrpcSocket = "${udsRuntimeDir}/grpc.sock";
+  udsPromSocket = "${udsRuntimeDir}/prometheus.sock";
+  udsAuthToken = "xtcp2-uds-integration-test-token";
   # interface-naming = a docker-free host-ns flavor that proves xtcp2 names
   # interfaces correctly end-to-end. It builds two veth pairs (a peer netns holds
   # the far ends), runs the tcp_client/tcp_server generators bound to specific
@@ -299,6 +306,8 @@ let
     # minimal flavor only: validate the daemon's jsonl file-dest output.
     runFileOutputCheck = isMinimal;
     inherit fileOutputPath;
+    runUdsSecurityCheck = isUdsSecurity;
+    inherit udsGrpcSocket udsPromSocket udsAuthToken;
     # interface-naming flavor only: assert the bound + egress interface names.
     runInterfaceNamingCheck = isInterfaceNaming;
     ifnameBound = ifnBoundIf;
@@ -2027,6 +2036,35 @@ let
     "1s"
   ];
 
+  # UDS security flavor: private sockets plus a deterministic fixture token.
+  # This token is test data, not a deployment secret.
+  xtcp2UdsSecurityArgs = xtcp2FileArgs ++ [
+    "-grpcListenNetwork"
+    "unix"
+    "-grpcListenAddress"
+    udsGrpcSocket
+    "-grpcUnixSocketMode"
+    "384"
+    "-grpcUnlinkStaleUnixSocket"
+    "true"
+    "-promListenNetwork"
+    "unix"
+    "-promListen"
+    udsPromSocket
+    "-promUnixSocketMode"
+    "384"
+    "-promUnlinkStaleUnixSocket"
+    "true"
+    "-listenerAuthMode"
+    "raw"
+    "-listenerRawToken"
+    udsAuthToken
+    "-listenerAuthFailureJitterMin"
+    "0s"
+    "-listenerAuthFailureJitterMax"
+    "0s"
+  ];
+
   # Phase E: xtcp2 produces directly into the in-VM redpanda. external
   # advertise addr is localhost:19092 so we dial that. -topic matches
   # the clickhouse kafka-engine table's kafka_topic_list. -xtcpProtoFile
@@ -2576,6 +2614,16 @@ in
           (lib.mkIf isCoverage {
             environment.GOCOVERDIR = coverDir;
           })
+          (lib.mkIf isUdsSecurity {
+            environment = {
+              PROM_LISTEN_NETWORK = "unix";
+              PROM_LISTEN = udsPromSocket;
+              LISTENER_AUTH_MODE = "raw";
+              LISTENER_RAW_TOKEN = udsAuthToken;
+              LISTENER_AUTH_FAILURE_JITTER_MIN = "0s";
+              LISTENER_AUTH_FAILURE_JITTER_MAX = "0s";
+            };
+          })
           # Order xtcp2 after lldpd + docker so the enricher sockets exist by the
           # time xtcp2 reads LLDP/container metadata at startup. Both reads are
           # best-effort, so this is about making the positive checks meaningful,
@@ -2716,6 +2764,8 @@ in
               # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
               # can validate the daemon's serialized output.
               xtcp2FileArgs
+            else if isUdsSecurity then
+              xtcp2UdsSecurityArgs
             else if isSocketSink then
               # socket-sink: stream jsonl over the raw tcp/udp/unix/unixgram
               # dest to the ncat sink.
