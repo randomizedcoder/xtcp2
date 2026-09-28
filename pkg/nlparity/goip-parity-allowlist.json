@@ -50,9 +50,30 @@
     "                      different. Needs the argument in `reason`.",
     "",
     "gated_commands mirrors nix/checks/default.nix's gate-one-at-a-time",
-    "discipline. A command joins only once its entries have reasons, so an empty",
-    "list here is the honest state while the comparator's own tiers are being",
-    "built - not a placeholder to be filled in optimistically."
+    "discipline. A command joins only once its entries have reasons AND a live",
+    "Tier C run has been observed clean for it - not optimistically, and not on",
+    "the strength of the hermetic tiers, which compare recorded bytes and so",
+    "cannot tell you what today's kernel does.",
+    "",
+    "`link show` is the first member, and what it rests on is one measurement:",
+    "`nix run .#microvm-x86_64-goip-parity` reported GOIP_PARITY_PASS link_show",
+    "with `control: nl=0 stdout=0` - one transaction each side, no divergence at",
+    "any level, and nothing suppressed, not even this file's own",
+    "stdout:keyword:qlen entry, because the clean namespace has no link with",
+    "IFLA_TXQLEN = 0 for it to fire on. That last part matters: an entry that",
+    "does not fire is not evidence that it is unnecessary, only that this",
+    "topology does not reach it.",
+    "",
+    "The same run reported GOIP_PARITY_CONTROL_NOISY 2, and that is not a",
+    "contradiction. Both noisy loci are IFLA_STATS/IFLA_STATS64 values on `-4",
+    "addr show`, whose link dump carries no IFLA_EXT_MASK - and therefore no",
+    "RTEXT_FILTER_SKIP_STATS - because rtnl_linkdump_req_filter_fn forwards",
+    "filter_fn only for AF_UNSPEC and AF_PACKET. So the kernel appends live",
+    "packet and byte counters, which move between the two control captures by",
+    "construction. D_control absorbed them, which is what it is for. It is also",
+    "why the gate is per-command: `link show` sends AF_PACKET with the mask, its",
+    "replies carry no counters at all, and a noisy locus on another command must",
+    "not decide whether this one is trustworthy."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -103,5 +124,7 @@
       "reason": "faceb326's large half, and the reason its skew needs two entries rather than one. The commit also removed a SIOCGIFTXQLEN ioctl fallback in print_queuelen for when IFLA_TXQLEN is absent entirely. That path is unreachable on anything rtnl_dump_ifinfo answers - hence \"unnecessary\" upstream - but it is live on `ip -6 addr show`, whose link dump is answered by inet6_dump_ifinfo and carries no IFLA_TXQLEN at all. So 7.1.0 prints `qlen 1000` for lo there, from an ioctl, and goip prints nothing. Flipping RenderQlenZero cannot restore it: the knob chooses whether to print a zero, and there is no attribute here to print. goip will not issue an ioctl to match, because the comparator's subject is netlink and an ioctl is outside it. Two entries rather than one still, but now because the two commands differ rather than because the loci do: Entry.key() is command plus locus, so `stdout:keyword:qlen` on `link show` and on `-6 addr show` are distinct keys with distinct reasons, and neither widens to the other. It had been `stdout:addr6:qlen:IFLA_TXQLEN-absent`, which no comparator emits. This is the one place suppression covers an absence rather than a value; internal/goipparity/stdout.go's header argues why a rendered keyword is not a decoded attribute."
     }
   ],
-  "gated_commands": []
+  "gated_commands": [
+    "link show"
+  ]
 }
