@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -780,6 +781,71 @@ func TestRunAddrArgs(t *testing.T) {
 			if tc.wantErrHas != "" && !strings.Contains(errOut.String(), tc.wantErrHas) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErrHas)
 			}
+		})
+	}
+}
+
+// TestAddrShowJSONMatchesCapturedSidecars compares `goip -json addr show`
+// against the `ip -j -p addr show` sidecar captured from the same guest
+// namespace at the same moment as the pcap it replays.
+//
+// # This is the comparison that found the flags divergence
+//
+// dumps/ip_addr_json has been committed since the in-guest capture was
+// written (capture-netlink-dumps.exp:207) and nothing read it. The first run
+// of this test failed on two v6 addresses: the sidecar has
+//
+//	"nodad": true, "mngtmpaddr": true, "noprefixroute": true
+//
+// where goip had `"flags": ["nodad","mngtmpaddr","noprefixroute"]`. The array
+// was deliberate and documented as such in render/addr.go — see the
+// AddrView.Flags comment for why the justification did not survive contact
+// with the golden. print_ifa_flags emits print_bool(PRINT_JSON, name, NULL,
+// true) per flag (ip/ipaddress.c:1434-1435).
+//
+// Everything else matched on the first run, which is what makes the one
+// failure a finding rather than a sign the comparison is too strict.
+//
+// go test ./internal/goip/ -run TestAddrShowJSONMatchesCapturedSidecars
+func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+	}{
+		{
+			// Five links, and the topology that has a link with no address
+			// at all — the case where addr_info is an empty array rather
+			// than an absent key.
+			description: "positive: the clean topology reproduces ip_addr_json key for key",
+			pcap:        guestDumpsDir + "netlink_route_getaddr.pcap",
+			sidecar:     "ip_addr_json",
+		},
+		{
+			// The mesh namespace is where the hand-configured 2001:db8::
+			// addresses live, and they are the only ones in either corpus
+			// carrying IFA_F_NODAD or IFA_F_MANAGETEMPADDR — so this is the
+			// row that fails when the flag keys are wrong, and the row above
+			// is the one that shows everything else still agrees.
+			description: "positive: the mesh topology reproduces mesh/ip_addr_json, nodad and mngtmpaddr included",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
+			sidecar:     "mesh/ip_addr_json",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := []string{"-json", "addr", "show"}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			assertJSONEntriesEqual(t, stdout.Bytes(), want)
 		})
 	}
 }

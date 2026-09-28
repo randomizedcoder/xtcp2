@@ -119,6 +119,64 @@ var commands = withArgs([]Command{
 		Floor: 2, Implemented: true,
 	},
 	{
+		Name: "-4 link show", Slug: "link_show_v4",
+		// Two, and byte-identical to `link show`'s two — which is the whole
+		// point of the row.
+		//
+		// ipaddr_list_link OVERWRITES preferred_family with AF_PACKET
+		// (ip/ipaddress.c:2416) before it parses a single argument, so
+		// whatever -4 set is gone by the time the request is built. `-4 link
+		// show`, `-6 link show` and `link show` therefore put the same 40
+		// bytes on the wire, and `ip -0 link show` would too.
+		//
+		// # What this row can find that no stdout comparison can
+		//
+		// The output is identical too, so a goip that honored -4 here — by
+		// filtering links, or by setting ifi_family in the request — would
+		// print the same text on this topology, where every link has both
+		// families. The L2 request comparison sees the changed byte
+		// immediately. goip models the overwrite by having req.LinkShowDump
+		// ignore c.family entirely, and this is the row that says so out loud
+		// rather than in a comment.
+		//
+		// No new fixture: the harness captures its own triple at runtime.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 link show", Slug: "link_show_v6",
+		// The other arm, and not a duplicate of the row above: `-4` and `-6`
+		// are separate assignments in the option loop, so a goip that
+		// forwarded one and not the other is a state this table can reach and
+		// a single row cannot.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-s link show", Slug: "link_show_stats",
+		// Two, exactly as `link show`: `-s` changes one byte of the request
+		// and nothing about how many are sent. It clears
+		// RTEXT_FILTER_SKIP_STATS from IFLA_EXT_MASK
+		// (ip/ipaddress.c:2017-2026) and does not reach ll_link_get or
+		// ll_init_map, whose masks are local constants
+		// (lib/ll_map.c:277,395).
+		//
+		// # Expected to be CONTROL_NOISY, permanently
+		//
+		// Every other command here is noisy by accident, when a counter
+		// happens to be sampled between the two reference captures. This one
+		// is noisy by construction: its replies carry live byte and packet
+		// counters, so IFLA_STATS and IFLA_STATS64 differ between any two
+		// runs and D_control must absorb them every time. That makes it the
+		// first real test of the control subtraction rather than a problem
+		// with it, and it is the reason this command does not join
+		// gated_commands here — it earns that on its own measured runs, once
+		// the noise has been observed rather than predicted.
+		//
+		// The stdout half is not noisy in the same way, because
+		// FacetStatsHeaders compares the column HEADINGS and not the
+		// counters or their widths. See stdout.go.
+		Floor: 2, Implemented: true,
+	},
+	{
 		Name: "link show dev", Slug: "link_show_dev",
 		NeedsDev: true,
 		// Four datagrams, not two: this command sends TWO single-gets, each

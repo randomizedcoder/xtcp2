@@ -57,7 +57,7 @@ func linkShow(c *runCtx, args []string) error {
 		return fmt.Errorf("link show %q: %w", args[0], ErrNotImplemented)
 	}
 
-	resources, err := service.New(c.src, c.nextSeq).Links()
+	resources, err := service.New(c.src, c.nextSeq).Links(c.linkExtMask())
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,11 @@ func linkShow(c *runCtx, args []string) error {
 	// of either loop would copy the whole resource once per link for nothing.
 	views := make([]render.LinkView, 0, len(links))
 	for i := range links {
-		views = append(views, render.LinkViewOf(links[i], c.lltab))
+		v := render.LinkViewOf(links[i], c.lltab)
+		if c.showStats > 0 {
+			v = v.WithStats(links[i])
+		}
+		views = append(views, v)
 	}
 
 	if c.json {
@@ -130,8 +134,10 @@ func linkShowDev(c *runCtx, name string) error {
 	}
 	c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
 
-	// Second get: iplink_get. This reply is the one that gets printed.
-	shown, err := svc.LinkShowDev(name)
+	// Second get: iplink_get. This reply is the one that gets printed, and
+	// the only one of the two that `-s` changes — ll_link_get above builds
+	// its mask as a local constant (lib/ll_map.c:276-277).
+	shown, err := svc.LinkShowDev(name, c.linkExtMask())
 	if err != nil {
 		return err
 	}
@@ -140,6 +146,9 @@ func linkShowDev(c *runCtx, name string) error {
 	resolveLinkRefs(c, svc, link)
 
 	view := render.LinkViewOf(link, c.lltab)
+	if c.showStats > 0 {
+		view = view.WithStats(link)
+	}
 	if c.json {
 		return json.NewEncoder(c.out).Encode([]render.LinkView{view})
 	}

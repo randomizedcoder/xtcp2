@@ -196,6 +196,15 @@ const (
 	tdDumpGetRouteAll_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getroute_table_all.pcap"
 	tdDumpGetNeigh_7_1_4    = tdDumps_7_1_4 + "/netlink_route_getneigh.pcap"
 
+	// `ip -s link show`. The same 40-byte request as tdDumpGetLink_7_1_4 with
+	// one byte changed: IFLA_EXT_MASK is 0x01 rather than 0x09, because -s
+	// clears RTEXT_FILTER_SKIP_STATS (ip/ipaddress.c:2017-2026). It is the
+	// only capture in the corpus that reaches IFLA_STATS/IFLA_STATS64 through
+	// a request that ASKED for them, rather than through a dump that simply
+	// carried no mask — which makes it the fixture that pins the request
+	// delta, and the two getlink pcaps together are the assertion.
+	tdDumpGetLinkStats_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getlink_stats.pcap"
+
 	// Sidecars for the dump set: the source of truth its expectations cite.
 	tdDumpIPLink_7_1_4   = tdDumps_7_1_4 + "/ip_link_n"
 	tdDumpIPAddr_7_1_4   = tdDumps_7_1_4 + "/ip_addr_n"

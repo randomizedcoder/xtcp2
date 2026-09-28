@@ -302,13 +302,19 @@ func TestFamilyName(t *testing.T) {
 // it more than a bit-to-name map: IFA_F_PERMANENT prints on absence, and
 // IFA_F_SECONDARY renames itself on AF_INET6.
 //
+// wantIfaFlags is the second return, the residue of unnamed bits. It is the
+// one value in print_addrinfo that is spelled differently in text and in
+// JSON — `flags 1000` against "ifa_flags": "1000" — which is why it comes
+// back apart from the names rather than as a token among them.
+//
 // go test ./internal/goip/render/ -run TestIfaFlagTokens
 func TestIfaFlagTokens(t *testing.T) {
 	tests := []struct {
-		description string
-		flags       uint32
-		family      uint8
-		want        []string
+		description  string
+		flags        uint32
+		family       uint8
+		want         []string
+		wantIfaFlags string
 	}{
 		{
 			// ip_addr_n:3 — "inet 127.0.0.1/8 scope host lo" has no flag
@@ -404,27 +410,39 @@ func TestIfaFlagTokens(t *testing.T) {
 		},
 		{
 			// 0x1000 is one bit above IFA_F_STABLE_PRIVACY (0x800).
-			description: "negative: the first bit above the table becomes a single flags token",
-			flags:       0x1000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 1000"},
+			description:  "negative: the first bit above the table names nothing and becomes the residue",
+			flags:        0x1000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "1000",
 		},
 		{
 			// %02x is a minimum width, so a wide residue is not truncated and
 			// a narrow one is padded; both halves need a row.
-			description: "corner: unrecognized bits are accumulated into one token, not one per bit",
-			flags:       0x1000 | 0x8000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 9000"},
+			description:  "corner: unrecognized bits are accumulated into one residue, not one per bit",
+			flags:        0x1000 | 0x8000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "9000",
 		},
 		{
 			// There is no bit between 0x800 and 0x1000, so this residue is
 			// only constructible, never captured. Reasoned from the %02x in
 			// print_ifa_flags.
-			description: "corner: a residue below 0x10 is zero-padded to two digits by %02x",
-			flags:       0x1000_0000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 10000000"},
+			description:  "corner: a residue below 0x10 is zero-padded to two digits by %02x",
+			flags:        0x1000_0000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "10000000",
+		},
+		{
+			// The two outputs are independent, so a row needs to show them
+			// together: nothing about having a residue suppresses the names.
+			description:  "corner: named flags and a residue are returned side by side",
+			flags:        unix.IFA_F_NODAD | 0x4000,
+			family:       unix.AF_INET6,
+			want:         []string{"nodad", "dynamic"},
+			wantIfaFlags: "4000",
 		},
 		{
 			description: "corner: every named bit at once, in table order, with no hex residue",
@@ -443,7 +461,11 @@ func TestIfaFlagTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			got := IfaFlagTokens(tt.flags, tt.family)
+			got, gotIfaFlags := IfaFlagTokens(tt.flags, tt.family)
+			if gotIfaFlags != tt.wantIfaFlags {
+				t.Errorf("IfaFlagTokens(%#x, %d) residue = %q, want %q",
+					tt.flags, tt.family, gotIfaFlags, tt.wantIfaFlags)
+			}
 			if len(got) == 0 && len(tt.want) == 0 {
 				return
 			}
@@ -1015,27 +1037,46 @@ func TestAddrViewJSON(t *testing.T) {
 			wantAbsent: []string{"valid_life_time", "preferred_life_time"},
 		},
 		{
-			description: "positive: flags are an array, the one deliberate key-shape divergence from ip -j",
+			// The shape the committed dumps/ip_addr_json golden actually has,
+			// and the one this row used to assert the opposite of: it wanted
+			// a "flags" ARRAY, described in its own name as a deliberate
+			// divergence. print_bool(PRINT_JSON, flag_data->name, NULL, true)
+			// makes each name a key of its own (ip/ipaddress.c:1434-1435).
+			description: "positive: each named flag is its own boolean key, and there is no flags array",
 			in: xtcpnl.AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
 				Local:   v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
 				Address: v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
 				Flags:   unix.IFA_F_MANAGETEMPADDR | unix.IFA_F_NOPREFIXROUTE,
 			},
-			wantKeys: []string{"flags"},
+			wantKeys:   []string{"dynamic", "mngtmpaddr", "noprefixroute"},
+			wantAbsent: []string{"flags", "ifa_flags", "nodad"},
 			check: func(t *testing.T, m map[string]any) {
-				got, ok := m["flags"].([]any)
-				if !ok {
-					t.Fatalf("flags is %T, want an array", m["flags"])
-				}
-				want := []string{"dynamic", "mngtmpaddr", "noprefixroute"}
-				if len(got) != len(want) {
-					t.Fatalf("flags = %v, want %v", got, want)
-				}
-				for i, w := range want {
-					if got[i] != w {
-						t.Errorf("flags[%d] = %v, want %q", i, got[i], w)
+				for _, k := range []string{"dynamic", "mngtmpaddr", "noprefixroute"} {
+					if m[k] != true {
+						t.Errorf("%s = %#v, want true", k, m[k])
 					}
+				}
+			},
+		},
+		{
+			// The other half of print_ifa_flags, and the half that is spelled
+			// differently in the two contexts: the unnamed residue is a
+			// `flags 4000` token in text and an "ifa_flags" STRING in JSON
+			// (ip/ipaddress.c:1442-1451). A string, not a number — `ip`
+			// print_string's the "%02x" it just formatted.
+			description: "boundary: unnamed bits become the ifa_flags string, alongside the named booleans",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
+				Local:   v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Address: v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Flags:   unix.IFA_F_NODAD | unix.IFA_F_PERMANENT | 0x4000,
+			},
+			wantKeys:   []string{"nodad", "ifa_flags"},
+			wantAbsent: []string{"flags", "dynamic"},
+			check: func(t *testing.T, m map[string]any) {
+				if m["ifa_flags"] != "4000" {
+					t.Errorf("ifa_flags = %#v, want the string \"4000\"", m["ifa_flags"])
 				}
 			},
 		},
@@ -1057,16 +1098,25 @@ func TestAddrViewJSON(t *testing.T) {
 		{
 			// The unexported deprecated field selects a format string and is
 			// not part of the object; if it ever became exported the JSON
-			// would gain a key `ip -j` does not have.
+			// would gain a key at a position `ip` does not put one.
+			//
+			// IFA_F_DEPRECATED is deliberately NOT set on this input, which
+			// it used to be. Now that the named flags are boolean keys,
+			// "deprecated" is a key print_ifa_flags legitimately emits, so an
+			// input carrying the bit cannot tell the two sources apart — both
+			// spell it `"deprecated": true`. With the bit clear the unexported
+			// field is false, and exporting it without omitempty would show up
+			// as `"deprecated": false` on an address `ip` says nothing about.
 			description: "corner: the deprecated selector is unexported and contributes no key",
 			in: xtcpnl.AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
 				Local:        v6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
 				Address:      v6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
-				Flags:        unix.IFA_F_SECONDARY | unix.IFA_F_DEPRECATED,
+				Flags:        unix.IFA_F_SECONDARY,
 				CacheInfo:    xtcpnl.IfaCacheinfo{Preferred: 0, Valid: 34941},
 				HasCacheInfo: true,
 			},
+			wantKeys:   []string{"temporary", "dynamic"},
 			wantAbsent: []string{"deprecated"},
 			check: func(t *testing.T, m map[string]any) {
 				if m["preferred_life_time"] != float64(0) {

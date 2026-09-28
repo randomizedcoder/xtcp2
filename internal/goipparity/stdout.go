@@ -129,6 +129,42 @@ const (
 	// about. The whole point of the mesh/ topology is that every route in it
 	// is linkdown, so the token has to be compared somewhere.
 	FacetFlags StdoutFacet = "flags"
+	// FacetStatsHeaders is the `-s` block's column HEADINGS, one element per
+	// RX or TX header line, as `RX:bytes,packets,errors,dropped,missed,mcast`.
+	//
+	// # Why the headings and not the counters
+	//
+	// `ip -s link show` is the first command here whose output is expected to
+	// differ between two runs on an idle machine: every value on both value
+	// lines is a live counter. Comparing those values is not merely useless,
+	// it is invisible — a locus that differs between the two reference `ip`
+	// captures lands in D_control and is subtracted from the test, so it
+	// would report clean while asserting nothing. The same mechanism that
+	// makes valid_lft safe to compare makes the counters pointless to.
+	//
+	// The column WIDTHS are equally unstable, and for the same reason: each
+	// is grown to the widest value in it (size_columns, ip/ipaddress.c:530-550),
+	// so the header's whitespace moves when a counter crosses a power of ten.
+	// That rules out comparing the header lines verbatim.
+	//
+	// What is left is stable, and is also the part a renderer gets wrong:
+	// which headings appear, in what order, for which direction, and how
+	// many times. Splitting on whitespace discards exactly the widths and
+	// keeps exactly that. Per-line rather than per-command, so a stats block
+	// missing from one link of eleven is a count of 10 against 11 rather
+	// than a set that still matches.
+	//
+	// It also catches the one conditional column: `compressed` is printed
+	// only when the counter is non-zero (:751,791), and it is the seventh
+	// element when present.
+	//
+	// # What it deliberately does not catch
+	//
+	// Placement. A block emitted after the altnames instead of before
+	// produces the same headings in the same order, and FacetLines is
+	// likewise blind to a reordering. That belongs to a render unit test,
+	// where it has one (TestLinkViewTextStatsBeforeAltnames), and not here.
+	FacetStatsHeaders StdoutFacet = "statsheaders"
 )
 
 // Facets returns the set facets in report order.
@@ -136,6 +172,7 @@ func Facets() []StdoutFacet {
 	return []StdoutFacet{
 		FacetLines, FacetIfNames, FacetDevNames, FacetIfIndexes,
 		FacetCIDRs, FacetMACs, FacetNextHops, FacetFlags,
+		FacetStatsHeaders,
 	}
 }
 
@@ -291,6 +328,16 @@ var reFlag = regexp.MustCompile(`\b(` + strings.Join(flagTokens, "|") + `)\b`)
 // reNextHop matches the bare `nexthop` word; see FacetNextHops.
 var reNextHop = regexp.MustCompile(`\bnexthop\b`)
 
+// reStatsHeader matches an `    RX: …` or `    TX: …` column-heading line and
+// captures the direction and the headings.
+//
+// The leading `^\s+` is load-bearing twice over. It excludes a stanza line,
+// which opens at column zero — an interface really can be named `RX` — and it
+// excludes `ip -s -s`'s `    RX errors:` line, where the colon does not
+// follow the direction. goip rejects `-s -s`, but `ip` does not, and this
+// pattern runs over `ip`'s output too.
+var reStatsHeader = regexp.MustCompile(`^\s+(RX|TX):\s+(\S.*)$`)
+
 // reKeyword matches `<keyword> <value>` for the compared keywords, built once
 // from the table so the two cannot drift.
 var reKeyword = regexp.MustCompile(
@@ -381,6 +428,13 @@ func stdoutFacets(s string) (sets map[StdoutFacet]multiset) {
 		}
 		for _, m := range reNextHop.FindAllString(line, -1) {
 			sets[FacetNextHops].add(m)
+		}
+		// strings.Fields is what discards the widths: it collapses every
+		// run of spaces, so the same headings at two different column
+		// widths produce the same element. See FacetStatsHeaders.
+		if m := reStatsHeader.FindStringSubmatch(line); m != nil {
+			sets[FacetStatsHeaders].add(
+				m[1] + ":" + strings.Join(strings.Fields(m[2]), ","))
 		}
 		for _, m := range reKeyword.FindAllStringSubmatch(line, -1) {
 			sets[FacetKeyword(m[1])].add(m[2])

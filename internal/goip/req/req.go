@@ -39,14 +39,35 @@ import (
 //	if (filter.vfinfo)  filt_mask |= RTEXT_FILTER_VF;
 //	if (!show_stats)    filt_mask |= RTEXT_FILTER_SKIP_STATS;
 //
-// `show_stats` is the `-s` flag, which goip does not implement, so SKIP_STATS
-// is always set. That is what keeps IFLA_STATS and IFLA_STATS64 out of every
-// reply, and it is why the decoder does not implement them.
+// `show_stats` is the `-s` flag, so SKIP_STATS is set for a bare `show` and
+// cleared under `-s`. That is what keeps IFLA_STATS and IFLA_STATS64 out of
+// every reply to this form; ExtMaskStats below is the other value.
 //
 // Verified against the wire, not just the source: record 0 of
 // pkg/xtcpnl/testdata/7_1_8/netlink_route_getlink.pcap carries
 // `0800 1d00 09000000` — rta_len 8, rta_type 29 (IFLA_EXT_MASK), value 0x09.
 const ExtMaskShow uint32 = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STATS
+
+// ExtMaskStats is the same mask under `ip -s`: RTEXT_FILTER_VF alone, 0x01.
+//
+// The entire difference between `ip link show` and `ip -s link show` on the
+// wire is this byte. Both send the same 40-byte datagram — same nlmsghdr,
+// same ifinfomsg with ifi_family = AF_PACKET, same IFLA_EXT_MASK attribute
+// header — differing only in the attribute's value at offset 36, 0x09 against
+// 0x01. The reply delta is not small at all: clearing RTEXT_FILTER_SKIP_STATS
+// makes the kernel attach IFLA_STATS (96 bytes) and IFLA_STATS64 (200 bytes)
+// to every link it returns.
+//
+// RTEXT_FILTER_VF survives because `filter.vfinfo` is unrelated to `-s`: it
+// defaults to 1 (ip/ipaddress.c:2153) and is cleared only by the `novf`
+// argument (:2239), which is a separate command form.
+//
+// The same `!show_stats` toggle appears in ipaddr_link_get (:2066-2067) and
+// iplink_get (ip/iplink.c:1513-1514), so `-s` composes with `link show dev`.
+// It does NOT reach ll_link_get or ll_init_map, whose masks are hardcoded
+// (lib/ll_map.c:277, :395) — so the throwaway resolution get that `link show
+// dev` sends first stays at 0x09 even under `-s`.
+const ExtMaskStats uint32 = xtcpnl.RTEXT_FILTER_VF
 
 // LinkShowDump builds the request for `ip link show`.
 //
@@ -71,8 +92,12 @@ const ExtMaskShow uint32 = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STA
 // command with no oversend, because `rtnl_linkdump_req_filter_fn` ends in
 // `send(rth->fd, &req, req.nlh.nlmsg_len, 0)` (:618) rather than
 // `sizeof(req)`.
-func LinkShowDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, ExtMaskShow, seq)
+// The mask is a parameter rather than ExtMaskShow baked in, because `-s`
+// changes it and nothing else about this request. Making the caller name the
+// value keeps the one byte that distinguishes the two commands visible at the
+// call site instead of hidden behind a boolean.
+func LinkShowDump(extMask, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, extMask, seq)
 }
 
 // AddrShowLinkDump builds the FIRST of the two requests `ip addr show` sends:
@@ -226,9 +251,23 @@ func LinkShowByName(name string, seq uint32) ([]byte, error) {
 // families in the same header field, and a shared helper would get one of them
 // wrong.
 //
-// The mask is ExtMaskShow on both, for different reasons and with different
-// futures: only the ll_link_get half is a version-skew locus. See
+// # Why only this half of the command takes a mask
+//
+// `-s` reaches iplink_get and stops there. Its `if (!show_stats) filt_mask |=
+// RTEXT_FILTER_SKIP_STATS` (ip/iplink.c:1513-1514) is the same toggle
+// ipaddr_list_link has at ip/ipaddress.c:2017-2026, so this request follows
+// `-s` exactly as the dump does. The FIRST request does not: ll_link_get
+// builds `RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS | RTEXT_FILTER_NAME_ONLY`
+// as a local constant (lib/ll_map.c:276-277) with no reference to show_stats
+// at all, so LinkShowByName above keeps ExtMaskShow under every option.
+//
+// That asymmetry is the whole reason the parameter is here rather than on a
+// shared helper: `ip -s link show dev X` sends one request that changed and
+// one that did not, and a mask threaded through both would make the first
+// wrong in a way no output could show.
+//
+// Only the ll_link_get half is a version-skew locus. See
 // xtcpnl.BuildIplinkGetRequest.
-func LinkShowDev(name string, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildIplinkGetRequest(unix.AF_PACKET, name, ExtMaskShow, seq)
+func LinkShowDev(name string, extMask, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildIplinkGetRequest(unix.AF_PACKET, name, extMask, seq)
 }

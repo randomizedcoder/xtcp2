@@ -19,7 +19,7 @@ const (
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
 where  OBJECT := { link | address | route | neigh }
-       OPTIONS := { -4 | -6 | -j[son] }
+       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] }
 
 goip is a read-only subset of ip(8), built as a coverage test for
 pkg/xtcpnl. It never creates, deletes or sets anything.
@@ -58,8 +58,38 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			c.family = unix.AF_INET
 		case a == "-6":
 			c.family = unix.AF_INET6
+		case a == "-0":
+			// AF_PACKET (ip/ip.c:221-222), and an exact match rather than a
+			// prefix for the same reason -4 and -6 are: `ip` compares these
+			// three with strcmp, not matches().
+			//
+			// This is the one option here that reaches code that was already
+			// written. `addr show`'s AF_PACKET branch — skip the address dump,
+			// list every link with no address lines — exists in obj_addr.go
+			// and in Service.AddressSnapshot, and until this case was added no
+			// CLI input could produce it, because -0 was the only thing `ip`
+			// sets preferred_family to AF_PACKET from on a show path.
+			//
+			// Not to be confused with ipaddr_list_link's AF_PACKET, which
+			// `link show` assigns internally (ip/ipaddress.c:2416) and which
+			// goip models by ignoring c.family in req.LinkShowDump.
+			c.family = unix.AF_PACKET
 		case matchesPrefix(a, "-json"):
 			c.json = true
+		case matchesPrefix(a, "-stats"), matchesPrefix(a, "-statistics"):
+			// `ip` INCREMENTS show_stats here (ip/ip.c:232-234) rather than
+			// setting it, and `-s -s` selects a second, wider render with
+			// extra error-counter lines. goip implements show_stats == 1
+			// only, so it counts too — and then refuses a count above one
+			// rather than quietly rendering the narrow form.
+			//
+			// Refusing is the deliberate choice, and the alternative is worse
+			// in a way specific to this tool: accepting `-s -s` and printing
+			// the `-s` output would be a stdout divergence the parity harness
+			// reports as goip getting `-s` wrong, with nothing in the report
+			// to say a flag had been dropped. An explicit error names the
+			// missing feature where it was asked for.
+			c.showStats++
 		case a == "-h", matchesPrefix(a, "-help"):
 			fmt.Fprint(stdout, usage)
 			return ExitOK
@@ -69,6 +99,13 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	args = args[i:]
+
+	if c.showStats > 1 {
+		fmt.Fprintf(stderr,
+			"goip: `-s -s` selects the wider statistics render, which is not implemented "+
+				"(show_stats = %d); use a single -s.\n", c.showStats)
+		return ExitUsage
+	}
 
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)

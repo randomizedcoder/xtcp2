@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 )
 
 // ErrUnknownObject is `ip`'s "Object ... is unknown" case: the argument
@@ -136,11 +138,31 @@ type runCtx struct {
 	// family is the -4 / -6 / default selection, as an AF_*. Note that
 	// `link show` overrides it to AF_PACKET regardless; see req.LinkShowDump.
 	family uint8
+	// showStats counts `-s`, mirroring iproute2's show_stats, which is an int
+	// and not a bool because `-s -s` selects a wider render than `-s`
+	// (ip/ip.c:232-234). goip implements 1 and rejects anything above it, so
+	// by the time an object runs this is 0 or 1 — but it is counted rather
+	// than set, because the rejection has to be able to tell the difference.
+	showStats int
 	// seq is the sequence number to put on the next request. iproute2 seeds it
 	// from time(NULL) and increments per request; goip starts at 1 and
 	// increments, because the parity comparator zeroes nlmsg_seq before
 	// comparing and a wall-clock seed would only add noise to a capture.
 	seq uint32
+}
+
+// linkExtMask is the IFLA_EXT_MASK an `ip link show` dump carries under this
+// invocation's options: 0x09 normally, 0x01 under `-s`.
+//
+// It lives on runCtx rather than at the one call site because `-s` composes
+// with every link-dump form, and because the single byte it chooses is the
+// entire request-side difference between two commands the parity harness
+// compares separately. See req.ExtMaskShow and req.ExtMaskStats.
+func (c *runCtx) linkExtMask() uint32 {
+	if c.showStats > 0 {
+		return req.ExtMaskStats
+	}
+	return req.ExtMaskShow
 }
 
 // nextSeq returns the sequence number for the next request.

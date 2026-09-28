@@ -948,18 +948,162 @@ func TestRunLinkArgs(t *testing.T) {
 	}
 }
 
-// TestRunLinkShowJSON asserts the -json form over the same capture.
+// TestLinkShowJSONMatchesCapturedSidecars compares `goip -json link show`
+// against the `ip -j -p link show` sidecar captured from the same guest, in
+// the same namespace, at the same moment as the pcap it replays.
+//
+// # Why this did not exist until now, and what it found
+//
+// dumps/ip_link_json and dumps/mesh/ip_link_json have been committed since
+// the in-guest capture was written (capture-netlink-dumps.exp:206) and
+// nothing read either of them, while the identical pattern was already wired
+// up for route and neigh. They were free ground truth sitting unused, and
+// wiring the ADDRESS half of the same pair immediately failed: `ip` emits one
+// boolean key per ifa flag and goip was emitting a "flags" array. See
+// TestAddrShowJSONMatchesCapturedSidecars and render/addr.go's MarshalJSON.
+// The link half, below, passed unchanged — which is the outcome that makes
+// the address finding worth trusting rather than a sign the comparison is
+// weak.
+//
+// # The stats rows, and why their counters are zeroed first
+//
+// ip_link_stats_json is `ip -j -p -s link show`, and its counters are LIVE:
+// the sidecar runs a moment after the pcap is captured, on a guest whose
+// nlmon interface is carrying the capture itself, so rx_packets has moved on
+// by the time `ip` prints. Measured, not assumed — on the clean topology the
+// sidecar says 153 packets and the replay renders 77. Comparing the numbers
+// would test the scheduler. Comparing everything else tests what the fixture
+// can actually pin: that `stats64` is the key `ip` chose, that the nesting is
+// rx/tx objects, and that the member set matches exactly.
+//
+// The values are not left untested, they are tested where they can be: the
+// decode against the same pcap is pkg/xtcpnl's TestLinkStatsRealFixtures, and
+// the rendering of given counters is render/link_stats_test.go. What only
+// this test can reach is the key names, and those are exactly what a sidecar
+// captured seconds late still states correctly.
+//
+// go test ./internal/goip/ -run TestLinkShowJSONMatchesCapturedSidecars
+func TestLinkShowJSONMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		args        []string
+		sidecar     string
+		// zeroCounters blanks every number under the stats/stats64 keys in
+		// both documents before comparing, leaving the key set and the
+		// nesting asserted and the live values not.
+		zeroCounters bool
+	}{
+		{
+			description: "positive: the clean topology reproduces ip_link_json key for key",
+			pcap:        guestDumpsDir + "netlink_route_getlink.pcap",
+			args:        []string{"-json", "link", "show"},
+			sidecar:     "ip_link_json",
+		},
+		{
+			// The mesh namespace is where IFLA_MASTER, a local IFLA_LINK pair
+			// and IFLA_INFO_KIND live, so it is not a repeat of the row above
+			// even though the assertion is the same shape.
+			description: "positive: the mesh topology reproduces mesh/ip_link_json, bridge and veth included",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getlink.pcap",
+			args:        []string{"-json", "link", "show"},
+			sidecar:     "mesh/ip_link_json",
+		},
+		{
+			description:  "positive: `-s` adds the stats64 object, with ip's key names and nesting",
+			pcap:         guestDumpsDir + "netlink_route_getlink_stats.pcap",
+			args:         []string{"-json", "-s", "link", "show"},
+			sidecar:      "ip_link_stats_json",
+			zeroCounters: true,
+		},
+		{
+			description:  "positive: the same on the mesh topology, where four more links carry counters",
+			pcap:         guestDumpsDir + "mesh/netlink_route_getlink_stats.pcap",
+			args:         []string{"-json", "-s", "link", "show"},
+			sidecar:      "mesh/ip_link_stats_json",
+			zeroCounters: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+			got := stdout.Bytes()
+			if tc.zeroCounters {
+				got, want = zeroLinkStats(t, got), zeroLinkStats(t, want)
+			}
+			assertJSONEntriesEqual(t, got, want)
+		})
+	}
+}
+
+// zeroLinkStats replaces every number reachable under a "stats" or "stats64"
+// key with 0, so two documents captured seconds apart compare on shape alone.
+//
+// It rewrites rather than deletes deliberately: deleting would make a MISSING
+// counter indistinguishable from a matching one, and the member set is the
+// half of the stats object this fixture can actually certify.
+func zeroLinkStats(t *testing.T, raw []byte) []byte {
+	t.Helper()
+
+	var entries []map[string]any
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatalf("zeroLinkStats: %v (%s)", err, raw)
+	}
+	var zero func(v any) any
+	zero = func(v any) any {
+		switch x := v.(type) {
+		case map[string]any:
+			for k, e := range x {
+				x[k] = zero(e)
+			}
+			return x
+		case float64:
+			return float64(0)
+		default:
+			return v
+		}
+	}
+	for _, e := range entries {
+		for _, k := range []string{"stats", "stats64"} {
+			if s, ok := e[k]; ok {
+				e[k] = zero(s)
+			}
+		}
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatalf("zeroLinkStats: %v", err)
+	}
+	return out
+}
+
+// TestRunLinkShowJSON asserts the -json form over the 7_1_8 capture.
 //
 // # What this asserts and what it deliberately does not
 //
-// There is no `ip -j link show` sidecar in the corpus, so this cannot compare
-// against `ip`'s JSON directly. What it can assert without one is everything
-// that does not need it: that the output parses, that it holds one object per
-// captured reply, and that the values agree with the text form goip printed
-// from the same bytes. The key *names* are asserted against `ip -j`'s in
-// render/link_test.go, where they can be stated per field with a citation; a
-// captured `ip -j` sidecar is on the plan's Item 7 list and would upgrade this
-// to a real comparison.
+// 7_1_8 has no `ip -j link show` sidecar and never will — it was taken on a
+// host that no longer exists in that state — so this test cannot compare
+// against `ip`'s JSON. What it asserts without one is everything that does not
+// need it: that the output parses, that it holds one object per captured
+// reply, and that the values agree with the text form goip printed from the
+// same bytes. It is worth having on this corpus in particular, because 7_1_8
+// is the one with the device breadth: 11 links, a bridge, a veth pair,
+// docker0, four altnames.
+//
+// The direct comparison this comment used to describe as missing now exists
+// against the OTHER corpus: TestLinkShowJSONMatchesCapturedSidecars replays
+// the in-guest 7_1_4 dumps against the `ip -j -p` sidecars captured beside
+// them. Neither test subsumes the other — that one has ground truth on a
+// five-link topology, this one has the devices.
 //
 // go test ./internal/goip/ -run TestRunLinkShowJSON
 func TestRunLinkShowJSON(t *testing.T) {

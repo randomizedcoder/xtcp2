@@ -437,15 +437,45 @@ func TestAllowlistCommitted(t *testing.T) {
 			// This row used to assert gated_commands was EMPTY, on the grounds
 			// that a command may not be gated before its tier is built. Tier C
 			// is built - nix run .#microvm-x86_64-goip-parity - and it reported
-			// `link show` clean with control nl=0 stdout=0, so the row now
-			// asserts the state that measurement earned rather than the state
-			// that preceded it. Emptiness was never the property worth
-			// protecting; gating without evidence was.
-			description: "positive: `link show` is gated, which is the state a measured-clean Tier C run earned it",
+			// each name below clean with control nl=0 stdout=0 and no findings
+			// at all, on two consecutive runs whose every line was identical.
+			// So the row asserts the state that measurement earned rather than
+			// the state that preceded it. Emptiness was never the property
+			// worth protecting; gating without evidence was.
+			//
+			// The list is spelled out rather than counted. A count would pass
+			// for any nine names, and the point of the row is which nine.
+			//
+			// It was every command in the table when it was written, which
+			// made the row read as if it could be `len(GatedCommands) ==
+			// len(Commands())`. It could not, for two reasons, and the
+			// second has already come true: internal/goipparity owns the
+			// table and imports this package, so reading it back here is an
+			// import cycle; and a newly added command is ungated until its
+			// own Tier C run says otherwise. `-s link show` is that command.
+			// It is in the table, deliberately absent from the list below,
+			// and is expected to be permanently CONTROL_NOISY - see its
+			// entry in internal/goipparity/commands.go. Spelling the names
+			// is what makes adding it here a deliberate edit rather than a
+			// silently satisfied count.
+			description: "positive: every command a measured-clean Tier C run earned is gated",
 			check: func(t *testing.T, a *Allowlist) {
-				if !a.IsGated("link show") {
-					t.Fatalf("GatedCommands = %v, want it to include `link show`",
-						a.GatedCommands)
+				earned := []string{
+					"link show",
+					"link show dev",
+					"addr show",
+					"-4 addr show",
+					"-6 addr show",
+					"route show",
+					"route show table all",
+					"-6 route show",
+					"neigh show",
+				}
+				for _, c := range earned {
+					if !a.IsGated(c) {
+						t.Fatalf("GatedCommands = %v, want it to include %q",
+							a.GatedCommands, c)
+					}
 				}
 			},
 		},

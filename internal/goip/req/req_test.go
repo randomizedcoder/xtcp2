@@ -145,7 +145,7 @@ func TestTierALinkShowDump(t *testing.T) {
 	}
 	captured := reqs[0]
 
-	got, err := LinkShowDump(12345)
+	got, err := LinkShowDump(ExtMaskShow, 12345)
 	if err != nil {
 		t.Fatalf("LinkShowDump: %v", err)
 	}
@@ -228,6 +228,108 @@ func TestTierALinkShowDump(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			if fmt.Sprint(tc.got) != fmt.Sprint(tc.want) {
 				t.Errorf("got %v, want %v", tc.got, tc.want)
+			}
+		})
+	}
+}
+
+// TestLinkShowDumpStatsMask asserts what `-s` costs on the wire, which is one
+// byte.
+//
+// Deliberately written as a DIFFERENCE rather than as a second golden request.
+// A golden would pass while both forms drifted together; comparing the two
+// builds against each other can only pass if exactly the intended byte moved.
+// There is also no captured `ip -s link show` request to compare against yet,
+// and the difference is checkable without one — TestTierALinkShowDump above
+// already pins the plain form byte-for-byte against the capture, so anchoring
+// to it inherits that.
+//
+// go test ./internal/goip/req/ -run TestLinkShowDumpStatsMask
+func TestLinkShowDumpStatsMask(t *testing.T) {
+	plain, err := LinkShowDump(ExtMaskShow, 12345)
+	if err != nil {
+		t.Fatalf("LinkShowDump(ExtMaskShow): %v", err)
+	}
+	stats, err := LinkShowDump(ExtMaskStats, 12345)
+	if err != nil {
+		t.Fatalf("LinkShowDump(ExtMaskStats): %v", err)
+	}
+
+	// The differing offsets, computed rather than transcribed, so the table
+	// below can state the expectation as a set.
+	var diff []int
+	if len(plain) == len(stats) {
+		for i := range plain {
+			if plain[i] != stats[i] {
+				diff = append(diff, i)
+			}
+		}
+	}
+
+	tests := []struct {
+		description string
+		got         any
+		want        any
+	}{
+		{
+			description: "positive: `-s` changes the length of the request not at all — the same 40-byte datagram",
+			got:         []int{len(plain), len(stats)},
+			want:        []int{40, 40},
+		},
+		{
+			// The whole claim, in one row. Offset 36 is the first byte of the
+			// IFLA_EXT_MASK attribute's u32 value: 16 nlmsghdr + 16 ifinfomsg
+			// + 4 rtattr header.
+			description: "positive: exactly one byte differs, at offset 36, the low byte of the ext-mask value",
+			got:         diff,
+			want:        []int{36},
+		},
+		{
+			description: "positive: the plain mask is RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS = 0x09",
+			got:         binary.LittleEndian.Uint32(plain[36:40]),
+			want:        uint32(0x09),
+		},
+		{
+			// Clearing SKIP_STATS is what makes the kernel attach IFLA_STATS
+			// and IFLA_STATS64 to every reply, so this byte changes the reply
+			// set far more than it changes the request.
+			description: "positive: the -s mask is RTEXT_FILTER_VF alone = 0x01",
+			got:         binary.LittleEndian.Uint32(stats[36:40]),
+			want:        uint32(0x01),
+		},
+		{
+			// Named separately because it is the bit that has to STAY: `-s`
+			// is not `novf`, and clearing RTEXT_FILTER_VF as well would be a
+			// different command (ip/ipaddress.c:2239).
+			description: "boundary: RTEXT_FILTER_VF survives -s; only RTEXT_FILTER_SKIP_STATS is cleared",
+			got: []uint32{
+				binary.LittleEndian.Uint32(stats[36:40]) & 0x01,
+				binary.LittleEndian.Uint32(stats[36:40]) & 0x08,
+			},
+			want: []uint32{0x01, 0x00},
+		},
+		{
+			description: "positive: the attribute is still IFLA_EXT_MASK under -s — the value moved and the type did not",
+			got:         binary.LittleEndian.Uint16(stats[34:36]),
+			want:        uint16(unix.IFLA_EXT_MASK),
+		},
+		{
+			description: "positive: ifi_family is AF_PACKET under -s too",
+			got:         stats[16],
+			want:        byte(unix.AF_PACKET),
+		},
+		{
+			description: "negative: -s does not turn the dump into a get — flags stay REQUEST|DUMP",
+			got:         binary.LittleEndian.Uint16(stats[6:8]),
+			want:        uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if fmt.Sprint(tc.got) != fmt.Sprint(tc.want) {
+				t.Errorf("got %v, want %v\n plain %x\n stats %x",
+					tc.got, tc.want, plain, stats)
 			}
 		})
 	}
@@ -429,7 +531,7 @@ func TestTierALinkShowDevRequests(t *testing.T) {
 			// iplink_get (ip/ipaddress.c:2293 into ip/iplink.c:1497). This
 			// reply is the one print_linkinfo renders.
 			description: "positive: the second request is iplink_get, AF_PACKET with the name first",
-			build:       func() ([]byte, error) { return LinkShowDev(devCst, 42) },
+			build:       func() ([]byte, error) { return LinkShowDev(devCst, ExtMaskShow, 42) },
 			captured:    reqs[1],
 		},
 	}
@@ -451,7 +553,7 @@ func TestTierALinkShowDevRequests(t *testing.T) {
 	// served by the other builder. Without this, a LinkShowDev that simply
 	// called LinkShowByName would fail the second row with a hex dump rather
 	// than with a reason.
-	swapped, err := LinkShowDev(devCst, 41)
+	swapped, err := LinkShowDev(devCst, ExtMaskShow, 41)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -516,7 +618,7 @@ func TestLinkShowDev(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := LinkShowDev(tc.name, 7)
+			got, err := LinkShowDev(tc.name, ExtMaskShow, 7)
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("err = %v, want %v", err, tc.wantErr)

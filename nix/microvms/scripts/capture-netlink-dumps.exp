@@ -109,6 +109,25 @@ proc capture_set {ns subdir dev} {
     # A bare `link show` is AF_PACKET and carries IFLA_EXT_MASK = 0x09.
     cap $ns $subdir netlink_route_getlink 2 "ip link show"
 
+    # The same dump with one byte changed. `-s` clears RTEXT_FILTER_SKIP_STATS
+    # from the mask, so this sends 0x01 where the line above sends 0x09
+    # (ip/ipaddress.c:2017-2026) - a one-byte difference at offset 36 of the
+    # same 40-byte datagram - and the kernel answers by attaching IFLA_STATS
+    # and IFLA_STATS64 to every reply.
+    #
+    # Worth its own pcap even though the corpus already contains replies
+    # carrying those attributes: netlink_route_getaddr_v4 and
+    # netlink_route_getneigh have them only as a SIDE EFFECT, because their
+    # link dumps send no IFLA_EXT_MASK at all and rtnl_linkdump_req_filter_fn
+    # then skips the filter entirely (lib/libnetlink.c:595). Nothing in the
+    # corpus records a request that asks for them on purpose, which is the
+    # half goip has to reproduce byte for byte.
+    #
+    # Floor 2, the same as the line above: one dump, one request, at least one
+    # reply. `-s` does not reach ll_link_get or ll_init_map, whose masks are
+    # local constants (lib/ll_map.c:277,395), so it adds no transaction.
+    cap $ns $subdir netlink_route_getlink_stats 2 "ip -s link show"
+
     # Plain `addr show` is AF_UNSPEC, so its link dump DOES carry
     # IFLA_EXT_MASK; the -4/-6 forms do not, because
     # rtnl_linkdump_req_filter_fn skips filter_fn unless the family is
@@ -154,6 +173,17 @@ proc capture_set {ns subdir dev} {
 proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_link                "ip link show"
     side $ns $subdir ip_link_n              "ip -d link show"
+
+    # The `-s` stanza, which is the only sidecar in this list whose CONTENT
+    # is expected to differ between two captures on the same topology: it
+    # prints live byte and packet counters. It is committed anyway, because
+    # what is being reviewed is the block's LAYOUT - print_stats64 widens
+    # every column to the widest value in it (ip/ipaddress.c:530-550), so the
+    # whitespace is a function of the traffic and is exactly the part a
+    # renderer gets wrong. No `-d -s` pair: goip does not implement -d, so
+    # that form has no counterpart to diff against.
+    side $ns $subdir ip_link_stats          "ip -s link show"
+    side $ns $subdir ip_link_stats_json     "ip -j -p -s link show"
     side $ns $subdir ip_addr                "ip addr show"
     side $ns $subdir ip_addr_n              "ip -d addr show"
     side $ns $subdir ip_addr_v4             "ip -4 addr show"
