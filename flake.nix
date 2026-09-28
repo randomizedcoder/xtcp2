@@ -13,6 +13,21 @@
 #   nix flake check                      # Tier 0+1 lint + go-vet + audits + smokes
 #   nix run    .#microvm-x86_64-lifecycle  # boot xtcp2 in a VM, run 3-check self-test
 #   nix run    .#microvm-x86_64-discovery-bench  # ns-discovery A/B (dir vs /proc scan)
+#   nix run    .#microvm-x86_64-goip-parity  # ip vs goip netlink comparison (needs /dev/kvm)
+#
+# Capturing netlink fixtures — use the microVM, not the host:
+#   nix run    .#microvm-x86_64-netlink-dump-capture
+#       THE SANCTIONED CAPTURE PATH. Boots a root guest, drives it over serial
+#       with tcl/expect, captures in a clean namespace with no side traffic,
+#       and writes pkg/xtcpnl/testdata/. Needs /dev/kvm; does NOT need host
+#       root, so it is runnable unattended. Pass --out DIR to write somewhere
+#       else, which is worth doing first: it rewrites EVERY fixture it
+#       captures, not only a newly added one, and committed line-number
+#       citations point into those files.
+#   nix run    .#capture-netlink-fixtures
+#       The same corpus on the HOST. Needs host root (sudo, interactively) and
+#       captures in the host's namespace, where other processes' netlink
+#       traffic is mixed in. Diagnostic fallback only — prefer the microVM.
 #
 # Overriding the giouring source (local fork):
 #   nix develop --override-input giouring path:/home/das/Downloads/giouring

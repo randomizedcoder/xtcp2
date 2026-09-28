@@ -313,6 +313,11 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 	captures := []string{
 		"netlink_route_getlink.pcap",
 		"netlink_route_getlink_dev.pcap",
+		// `ip -s link show`, the only capture whose request asked for
+		// counters. It is the corpus's first source of IFLA_STATS and
+		// IFLA_STATS64 on an RTM_GETLINK dump, so an unnamed attribute
+		// arriving with the stats would show here first.
+		"netlink_route_getlink_stats.pcap",
 		"netlink_route_getaddr.pcap",
 		"netlink_route_getaddr_v4.pcap",
 		"netlink_route_getaddr_v6.pcap",

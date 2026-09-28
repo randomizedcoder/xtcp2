@@ -44,8 +44,13 @@ func decode[T any](s *Service, request []byte, typ uint16, name string, parse fu
 	return out, nil
 }
 
-func (s *Service) Links() ([]model.Link, error) {
-	r, err := req.LinkShowDump(s.nextSeq())
+// Links runs the `ip link show` dump.
+//
+// extMask is req.ExtMaskShow for a bare show and req.ExtMaskStats under `-s`.
+// See those constants for why one byte is the whole request-side difference
+// between the two commands, and why it is passed rather than inferred.
+func (s *Service) Links(extMask uint32) ([]model.Link, error) {
+	r, err := req.LinkShowDump(extMask, s.nextSeq())
 	if err != nil {
 		return nil, fmt.Errorf("goip: build link dump request: %w", err)
 	}
@@ -90,7 +95,10 @@ func (s *Service) linkFromGet(request []byte, match func(model.Link) bool, selec
 		}
 		return model.Link(li), nil
 	}
-	links, err := s.Links()
+	// ExtMaskShow unconditionally: this fallback stands in for a by-name or
+	// by-index single-get, and `-s` does not reach the resolution path that
+	// issues those (ll_link_get's mask is hardcoded, lib/ll_map.c:277).
+	links, err := s.Links(req.ExtMaskShow)
 	if err != nil {
 		return model.Link{}, err
 	}
@@ -134,8 +142,11 @@ func (s *Service) LinkByName(name string) (model.Link, error) {
 // two attributes in opposite orders and different ifi_family values, and
 // pkg/nlparity compares requests for full byte equality — so sending either
 // one's bytes twice is a divergence. req.LinkShowDev has the details.
-func (s *Service) LinkShowDev(name string) (model.Link, error) {
-	r, err := req.LinkShowDev(name, s.nextSeq())
+//
+// extMask follows `-s`, and this is the only one of the command's two
+// requests that does — LinkByName above is hardcoded because ll_link_get is.
+func (s *Service) LinkShowDev(name string, extMask uint32) (model.Link, error) {
+	r, err := req.LinkShowDev(name, extMask, s.nextSeq())
 	if err != nil {
 		return model.Link{}, fmt.Errorf("goip: build link get request: %w", err)
 	}

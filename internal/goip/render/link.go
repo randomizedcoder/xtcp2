@@ -63,6 +63,48 @@ type LinkView struct {
 
 	AltNames []string `json:"altnames,omitempty"`
 
+	// Stats is the `-s` counter block, and nil means "do not print one".
+	//
+	// Nil-guarded rather than gated on a flag reaching the renderer, because
+	// carrying counters and being asked for them are different conditions
+	// and iproute2 requires both: print_linkinfo tests `do_link &&
+	// show_stats` before calling __print_link_stats, which then returns early
+	// if the attributes are absent (ip/ipaddress.c:832-834,1297-1300). A
+	// reply can carry counters unasked — `ip -4 addr show`'s link dump does,
+	// because its request sends no IFLA_EXT_MASK — and `ip` prints nothing
+	// for them. So LinkViewOf leaves this nil and only the `-s` path fills
+	// it, which keeps the two conditions distinct here too.
+	//
+	// json:"-" because iproute2's JSON shape for these counters is not this
+	// flat struct: it is a nested rx/tx object, under one of two key names,
+	// and with one counter swapped. JSONStats64 and JSONStats carry that.
+	Stats *xtcpnl.RtnlLinkStats64 `json:"-"`
+
+	// JSONStats64 and JSONStats are the same counters in `ip -j`'s shape,
+	// under the two names iproute2 chooses between. At most one is ever set.
+	//
+	// __print_link_stats passes `(ret == sizeof(*s)) ? "stats64" : "stats"`
+	// (ip/ipaddress.c:836-837), where ret is get_rtnl_link_stats_rta's
+	// return: sizeof(rtnl_link_stats64) when it read IFLA_STATS64, and
+	// sizeof(rtnl_link_stats) when it fell back to IFLA_STATS. So the key
+	// records which attribute the kernel sent; the contents are identical
+	// either way, because the 32-bit form has already been widened. The text
+	// render cannot see this distinction at all.
+	//
+	// # Why two omitempty fields and not a MarshalJSON
+	//
+	// A MarshalJSON on LinkView is the obvious way to pick a key name at
+	// runtime, and it is unusable here: AddrGroupView embeds LinkView, and
+	// encoding/json gives an embedded type's MarshalJSON precedence over
+	// field promotion — so `ip -j addr show` would marshal to the bare link
+	// object and lose addr_info entirely. That is not avoidable with the
+	// usual `type alias` trick, because the alias still has the embedded
+	// LinkView and the method comes back with it. Two mutually exclusive
+	// fields cost one invariant that only WithStats can break, and the
+	// embedding keeps working untouched.
+	JSONStats64 *LinkStatsJSON `json:"stats64,omitempty"`
+	JSONStats   *LinkStatsJSON `json:"stats,omitempty"`
+
 	// nameSuffix is the "@peer" or "@if2" part of the first line. It is not a
 	// JSON field: iproute2 puts the bare ifname in JSON and only concatenates
 	// for the text form (print_name_and_link, lib/utils.c:1302-1344).
@@ -207,12 +249,44 @@ func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8) LinkView {
 	return v
 }
 
+// WithStats attaches the `-s` counter block, and is the only way one gets
+// attached.
+//
+// It is a separate step from LinkViewOf because the two conditions iproute2
+// requires are separate: `do_link && show_stats` is the caller's, and the
+// attributes being present is the reply's. LinkViewOf sees only the reply, so
+// a view it built alone would print counters for `ip -4 addr show`, whose
+// link dump carries them unasked. Calling this from the `-s` path and nowhere
+// else keeps the caller's half of the condition where the caller is.
+//
+// A reply that carried no counters still leaves Stats nil, which is
+// __print_link_stats returning early on get_rtnl_link_stats_rta's -1
+// (ip/ipaddress.c:832-834) — so "asked for and not sent" prints nothing
+// rather than printing zeros.
+//
+// It sets all three stats fields together because they are one fact in three
+// shapes, and a view with the text source set and the JSON pair clear would
+// print counters and emit none.
+func (v LinkView) WithStats(li xtcpnl.LinkInfo) LinkView {
+	if li.Stats == nil {
+		return v
+	}
+	v.Stats = li.Stats
+
+	s := linkStatsJSONOf(*li.Stats)
+	if li.StatsIs64 {
+		v.JSONStats64 = &s
+	} else {
+		v.JSONStats = &s
+	}
+	return v
+}
+
 // Text renders the view the way a plain `ip link show` stanza reads, newline
 // terminated.
 //
 // The layout is print_linkinfo's call order (ip/ipaddress.c:1016-1333) with
-// every `if (show_details)` branch and every `if (do_link && show_stats)`
-// branch removed, since goip implements neither -d nor -s:
+// every `if (show_details)` branch removed, since goip does not implement -d:
 //
 //	1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
 //	    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
@@ -282,6 +356,17 @@ func (v LinkView) Text() string {
 			b.WriteString(" link-netnsid unknown")
 		}
 	}
+	// Before the altnames, not after, and that order is iproute2's rather
+	// than arbitrary: print_linkinfo emits the stats block at
+	// ip/ipaddress.c:1297-1300 and the IFLA_PROP_LIST altnames at
+	// :1322-1327. Getting it backwards is invisible on every link in the
+	// clean topology, none of which has an altname, and wrong on four of
+	// the eleven links in the 7_1_8 dump.
+	if v.Stats != nil {
+		b.WriteString("\n")
+		b.WriteString(LinkStatsText(*v.Stats))
+	}
+
 	for _, alt := range v.AltNames {
 		fmt.Fprintf(&b, "\n    altname %s", alt)
 	}

@@ -155,6 +155,33 @@ type LinkInfo struct {
 	// hold several alternative names and iproute2 prints one line per name
 	// rather than picking one.
 	AltNames []string
+
+	// Stats is IFLA_STATS64, or IFLA_STATS widened, or nil when the reply
+	// carried neither — which is every reply to a request that set
+	// RTEXT_FILTER_SKIP_STATS, i.e. everything but `ip -s`. See
+	// xtcpnl_link_stats.go for the selection and length rules, which are
+	// iproute2's, not this package's.
+	//
+	// A pointer, and the only one in this struct, for two reasons that point
+	// the same way. RtnlLinkStats64 is 200 bytes against the rest of LinkInfo
+	// put together, and LinkInfo is copied per link on every dump — a dump of
+	// a few hundred interfaces would pay that on every reply to carry a field
+	// that is nil in all of them. And nil already means "absent", so this is
+	// the one field that needs no Has* companion.
+	Stats *RtnlLinkStats64
+
+	// StatsIs64 records which attribute Stats came from: true for
+	// IFLA_STATS64, false for a widened IFLA_STATS. Meaningless when Stats is
+	// nil.
+	//
+	// It exists because the choice is observable in `ip -j` output and
+	// nowhere else. __print_link_stats passes get_rtnl_link_stats_rta's
+	// return value through as the JSON object name — `(ret == sizeof(*s)) ?
+	// "stats64" : "stats"` (ip/ipaddress.c:836) — so the same counters appear
+	// under a different key depending on which attribute the kernel sent.
+	// The text form is identical either way, which is exactly why this is
+	// easy to lose.
+	StatsIs64 bool
 }
 
 // HWAddr returns the hardware address as `ip` prints it — colon-separated lower
@@ -231,9 +258,24 @@ func (li LinkInfo) IsCarrierDown() bool {
 // Everything else in the message — 30-odd attributes per link in the committed
 // dump, most of them the `-d` detail `ip` only prints on request — is skipped.
 //
-// IFLA_STATS and IFLA_STATS64 are deliberately not here. They are absent from
-// every reply in the committed fixtures because the request sets
-// RTEXT_FILTER_SKIP_STATS, and they return only under `ip -s`.
+// IFLA_STATS and IFLA_STATS64 ARE decoded, into Stats, and the claim that
+// stood here before them is worth recording because it was wrong in a
+// load-bearing way. It read: "deliberately not here — absent from every reply
+// in the committed fixtures because the request sets RTEXT_FILTER_SKIP_STATS,
+// and they return only under `ip -s`."
+//
+// The first half is false and the second is misleading. `ip -4 addr show` and
+// `ip neigh show` take their link dump through a path that sends no
+// IFLA_EXT_MASK at all — rtnl_linkdump_req_filter_fn forwards filter_fn only
+// for AF_UNSPEC and AF_PACKET (lib/libnetlink.c:595) — so no
+// RTEXT_FILTER_SKIP_STATS reaches the kernel and it appends both attributes to
+// every reply. Both are in the committed corpus at full length, 96 and 200
+// bytes, on every link of netlink_route_getaddr_v4.pcap and
+// netlink_route_getneigh.pcap, and kernel notifications carry them too. `ip
+// -s` is the way to get stats onto a command that DOES set the mask, such as
+// `link show`; it was never what made them reachable.
+//
+// The decode rules are iproute2's and live in xtcpnl_link_stats.go.
 //
 // Duplicated attributes take the first occurrence; see
 // xtcpnl_rtattr_firstwins.go for why that is iproute2's rule and not the
@@ -254,72 +296,121 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		Type:   m.Type,
 	}
 	var seen attrSeen
+	var raw linkStatsRaw
 	err := WalkRTAttrs(body[IfInfomsgSizeCst:], func(atype uint16, val []byte) {
 		if !seen.first(atype) {
 			return
 		}
-		switch atype {
-		case uint16(unix.IFLA_IFNAME):
-			li.Name = string(bytes.TrimRight(val, "\x00"))
-		case uint16(unix.IFLA_OPERSTATE):
-			if len(val) >= 1 {
-				li.OperState = val[0]
-				li.HasOperState = true
-			}
-		case uint16(unix.IFLA_CARRIER):
-			if len(val) >= 1 {
-				li.Carrier = val[0]
-				li.HasCarrier = true
-			}
-		case uint16(unix.IFLA_MTU):
-			if len(val) >= 4 {
-				li.MTU = binary.LittleEndian.Uint32(val[0:4])
-				li.HasMTU = true
-			}
-		case uint16(unix.IFLA_ADDRESS):
-			li.Address = CopyBytes(val)
-		case uint16(unix.IFLA_BROADCAST):
-			li.Broadcast = CopyBytes(val)
-		case uint16(unix.IFLA_QDISC):
-			li.Qdisc = string(bytes.TrimRight(val, "\x00"))
-		case uint16(unix.IFLA_TXQLEN):
-			if len(val) >= 4 {
-				li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
-				li.HasTxQLen = true
-			}
-		case uint16(unix.IFLA_LINKMODE):
-			if len(val) >= 1 {
-				li.LinkMode = val[0]
-				li.HasLinkMode = true
-			}
-		case uint16(unix.IFLA_GROUP):
-			if len(val) >= 4 {
-				li.Group = binary.LittleEndian.Uint32(val[0:4])
-				li.HasGroup = true
-			}
-		case uint16(unix.IFLA_LINK):
-			if len(val) >= 4 {
-				li.Link = int32(binary.LittleEndian.Uint32(val[0:4]))
-			}
-		case uint16(unix.IFLA_MASTER):
-			if len(val) >= 4 {
-				li.Master = int32(binary.LittleEndian.Uint32(val[0:4]))
-			}
-		case uint16(unix.IFLA_LINK_NETNSID):
-			if len(val) >= 4 {
-				li.LinkNetnsID = int32(binary.LittleEndian.Uint32(val[0:4]))
-				li.HasLinkNetnsID = true
-			}
-		case uint16(unix.IFLA_LINKINFO):
-			li.Kind = linkInfoKind(val)
-		case uint16(unix.IFLA_PROP_LIST):
-			li.AltNames = linkAltNames(val)
-		}
+		setLinkAttr(&li, &raw, atype, val)
 	})
 	if err != nil {
 		return LinkInfo{}, err
 	}
+
+	// Absent is not zero, and absent is not an error either. DecodeLinkStats
+	// returns ErrLinkStatsNone when neither attribute was present, which is
+	// the ordinary case for every command except `ip -s` — so Stats is left
+	// nil rather than the error dropping a perfectly good link.
+	if s, serr := DecodeLinkStats(raw.stats64, raw.stats); serr == nil {
+		li.Stats = &s
+		// The same test DecodeLinkStats made, and the reason it is repeated
+		// rather than returned: the selection rule is presence of
+		// IFLA_STATS64, full stop, so a caller that has the raw attributes
+		// already knows the answer and a third return value would only be a
+		// second place for it to be wrong.
+		li.StatsIs64 = raw.stats64 != nil
+	}
 	return li, nil
+}
+
+// linkStatsRaw carries the two stats attributes out of the attribute walk
+// undecoded, because neither arm can decide on its own which one wins: the
+// kernel emits IFLA_STATS before IFLA_STATS64, so choosing at the case would
+// mean choosing before the winner has been seen.
+type linkStatsRaw struct {
+	stats   []byte
+	stats64 []byte
+}
+
+// setLinkAttr applies one RTA to a LinkInfo under construction.
+//
+// It is a function rather than the closure it used to be for one reason
+// worth stating, because it is the kind of split that otherwise looks like
+// taste: ParseNewLink's cyclomatic complexity is this switch's, and adding
+// the two stats cases took it past the gocyclo ceiling of 30. Moving the
+// switch out is the split that keeps the ceiling meaningful — the alternative
+// was raising it, which would have been suppressing the finding rather than
+// fixing it. The duplicate-attribute check stays at the call site, because it
+// is a property of the walk and not of any one attribute.
+func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.IFLA_IFNAME):
+		li.Name = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_OPERSTATE):
+		if len(val) >= 1 {
+			li.OperState = val[0]
+			li.HasOperState = true
+		}
+	case uint16(unix.IFLA_CARRIER):
+		if len(val) >= 1 {
+			li.Carrier = val[0]
+			li.HasCarrier = true
+		}
+	case uint16(unix.IFLA_MTU):
+		if len(val) >= 4 {
+			li.MTU = binary.LittleEndian.Uint32(val[0:4])
+			li.HasMTU = true
+		}
+	case uint16(unix.IFLA_ADDRESS):
+		li.Address = CopyBytes(val)
+	case uint16(unix.IFLA_BROADCAST):
+		li.Broadcast = CopyBytes(val)
+	case uint16(unix.IFLA_QDISC):
+		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_TXQLEN):
+		if len(val) >= 4 {
+			li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
+			li.HasTxQLen = true
+		}
+	case uint16(unix.IFLA_LINKMODE):
+		if len(val) >= 1 {
+			li.LinkMode = val[0]
+			li.HasLinkMode = true
+		}
+	case uint16(unix.IFLA_GROUP):
+		if len(val) >= 4 {
+			li.Group = binary.LittleEndian.Uint32(val[0:4])
+			li.HasGroup = true
+		}
+	case uint16(unix.IFLA_LINK):
+		if len(val) >= 4 {
+			li.Link = int32(binary.LittleEndian.Uint32(val[0:4]))
+		}
+	case uint16(unix.IFLA_MASTER):
+		if len(val) >= 4 {
+			li.Master = int32(binary.LittleEndian.Uint32(val[0:4]))
+		}
+	case uint16(unix.IFLA_LINK_NETNSID):
+		if len(val) >= 4 {
+			li.LinkNetnsID = int32(binary.LittleEndian.Uint32(val[0:4]))
+			li.HasLinkNetnsID = true
+		}
+	case uint16(unix.IFLA_LINKINFO):
+		li.Kind = linkInfoKind(val)
+	case uint16(unix.IFLA_PROP_LIST):
+		li.AltNames = linkAltNames(val)
+
+	// The two stats attributes are kept as raw slices and resolved after
+	// the walk rather than decoded in place. IFLA_STATS64 wins over
+	// IFLA_STATS whenever both are present, and that is not a property
+	// either arm can evaluate on its own: the kernel emits IFLA_STATS
+	// first, so deciding there would mean deciding before the winner has
+	// been seen.
+	case uint16(unix.IFLA_STATS):
+		raw.stats = val
+	case uint16(unix.IFLA_STATS64):
+		raw.stats64 = val
+	}
 }
 
 // linkInfoKind descends IFLA_LINKINFO and returns IFLA_INFO_KIND — "veth",

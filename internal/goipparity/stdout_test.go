@@ -2,6 +2,8 @@ package goipparity
 
 import (
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -794,6 +796,238 @@ func TestStdoutRouteFacets(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStdoutStatsHeaderFacet pins the extraction half of FacetStatsHeaders
+// against the committed `ip -s link show` sidecars and against the shapes no
+// capture on this topology produces.
+//
+// The committed rows are the ones that matter, because they are the only
+// evidence that reStatsHeader matches what the pinned `ip` actually prints
+// rather than what this file assumes it prints. The constructed rows cover
+// the conditional seventh column and the two ways the pattern could overmatch.
+//
+// go test ./internal/goipparity/ -run TestStdoutStatsHeaderFacet
+func TestStdoutStatsHeaderFacet(t *testing.T) {
+	const (
+		rx = "RX:bytes,packets,errors,dropped,missed,mcast"
+		tx = "TX:bytes,packets,errors,dropped,carrier,collsns"
+	)
+
+	tests := []struct {
+		description string
+		golden      string
+		in          string
+		want        map[string]int
+	}{
+		{
+			description: "positive: the clean topology's three links each contribute one RX and one TX heading",
+			golden:      "ip_link_stats",
+			want:        map[string]int{rx: 3, tx: 3},
+		},
+		{
+			description: "positive: the mesh topology's five links scale the same way, which is what makes this per-line rather than per-command",
+			golden:      "mesh/ip_link_stats",
+			want:        map[string]int{rx: 5, tx: 5},
+		},
+		{
+			description: "positive: RX and TX are distinct elements, so a renderer that headed both lines RX is a finding",
+			in: "    RX: bytes packets errors dropped missed mcast\n" +
+				"    TX: bytes packets errors dropped carrier collsns\n",
+			want: map[string]int{rx: 1, tx: 1},
+		},
+		{
+			description: "boundary: the column widths are discarded, so the same headings at different widths are the same element",
+			in: "    RX:  bytes packets errors dropped  missed   mcast           \n" +
+				"    RX:      bytes    packets errors dropped missed mcast\n",
+			want: map[string]int{rx: 2},
+		},
+		{
+			description: "positive: the conditional seventh column appears as a seventh element when rx_compressed is non-zero",
+			in:          "    RX: bytes packets errors dropped missed mcast compressed\n",
+			want:        map[string]int{rx + ",compressed": 1},
+		},
+		{
+			description: "negative: `ip link show` has no stats block at all, so the facet is empty rather than missing",
+			in:          refLinkShow,
+			want:        map[string]int{},
+		},
+		{
+			description: "negative: a value line is not a header line, because every field of it is a digit and the pattern is anchored on the direction word",
+			in:          "             0       0      0       0       0       0 \n",
+			want:        map[string]int{},
+		},
+		{
+			description: "boundary: `ip -s -s`'s second-level `RX errors:` line is not matched, because the colon is not on the direction word",
+			in:          "    RX errors: length crc frame fifo missed\n",
+			want:        map[string]int{},
+		},
+		{
+			description: "corner: a column-zero `RX:` is not a stats header — the block is indented four spaces and the pattern requires leading whitespace",
+			in:          "RX: bytes packets errors dropped missed mcast\n",
+			want:        map[string]int{},
+		},
+		{
+			description: "corner: a heading line with a trailing-only remainder is not matched, because \\S must follow the colon",
+			in:          "    RX:    \n",
+			want:        map[string]int{},
+		},
+		{
+			description: "boundary: empty output yields an empty facet, which is what makes the diff against a side that has stats fire",
+			in:          "",
+			want:        map[string]int{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			in := tt.in
+			if tt.golden != "" {
+				in = routeGolden(t, tt.golden)
+			}
+			got, ok := stdoutFacets(in)[FacetStatsHeaders]
+			if !ok {
+				t.Fatalf("FacetStatsHeaders is not extracted at all; it must be in Facets()")
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("FacetStatsHeaders = %v, want %v", map[string]int(got), tt.want)
+			}
+			for k, n := range tt.want {
+				if got[k] != n {
+					t.Errorf("element %q counted %d, want %d; whole set %v",
+						k, got[k], n, map[string]int(got))
+				}
+			}
+		})
+	}
+}
+
+// TestCompareStdoutStats is the comparison half: which divergences a wrong
+// `-s` rendering produces, and — just as important — which correct-but-noisy
+// ones it does not.
+//
+// The width rows are the reason this facet exists in the form it does. A
+// verbatim comparison of the header lines would fire on every run in which a
+// counter crossed a power of ten, which on a live interface is most of them.
+//
+// go test ./internal/goipparity/ -run TestCompareStdoutStats
+func TestCompareStdoutStats(t *testing.T) {
+	ref := routeGolden(t, "ip_link_stats")
+
+	// widened is the same output with every stats column one space wider,
+	// which is what size_columns does when a counter gains a digit. It must
+	// produce no statsheaders divergence.
+	widened := strings.ReplaceAll(ref, "    RX:", "    RX: ")
+	widened = strings.ReplaceAll(widened, "    TX:", "    TX: ")
+
+	tests := []struct {
+		description string
+		got         string
+		wantLoci    []string
+	}{
+		{
+			description: "positive: identical output diverges nowhere",
+			got:         ref,
+			wantLoci:    nil,
+		},
+		{
+			description: "positive: widening every column changes no heading, which is the whole reason the facet splits on whitespace",
+			got:         widened,
+			wantLoci:    nil,
+		},
+		{
+			description: "negative: dropping the stats block entirely fires statsheaders as well as the line count",
+			got:         stripStatsBlock(ref),
+			wantLoci: []string{
+				FacetLines.Locus(), FacetStatsHeaders.Locus(),
+			},
+		},
+		{
+			description: "negative: `missed` rendered as `over` — the one column whose text and JSON names disagree upstream — fires statsheaders and nothing else",
+			got:         strings.ReplaceAll(ref, "  missed ", "    over "),
+			wantLoci:    []string{FacetStatsHeaders.Locus()},
+		},
+		{
+			description: "negative: heading the TX line RX is a finding even though the multiset of words is unchanged, because the direction is part of the element",
+			got:         strings.ReplaceAll(ref, "    TX:", "    RX:"),
+			wantLoci:    []string{FacetStatsHeaders.Locus()},
+		},
+		{
+			description: "boundary: a stats block missing from one link of three is a count of 2 against 3, not a matching set",
+			got:         dropFirstStatsBlock(ref),
+			wantLoci: []string{
+				FacetLines.Locus(), FacetStatsHeaders.Locus(),
+			},
+		},
+		{
+			description: "corner: changing only the counter VALUES fires nothing, which is deliberate — those are live and D_control would subtract them anyway",
+			got:         strings.ReplaceAll(ref, "65796", "99999"),
+			wantLoci:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ds := CompareStdout("-s link show", ref, tt.got)
+			var got []string
+			for _, d := range ds {
+				got = append(got, d.Locus())
+			}
+			sort.Strings(got)
+			want := append([]string(nil), tt.wantLoci...)
+			sort.Strings(want)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("loci = %v, want %v\n%v", got, want, ds)
+			}
+		})
+	}
+}
+
+// stripStatsBlock removes every stats line, header and value both, leaving
+// the output `ip link show` would have produced.
+func stripStatsBlock(s string) string { return dropStatsLines(s, -1) }
+
+// dropFirstStatsBlock removes only the first link's two-line stats block, so
+// the two sides differ by one block rather than by all of them.
+func dropFirstStatsBlock(s string) string { return dropStatsLines(s, 2) }
+
+// dropStatsLines removes up to limit stats lines, or all of them when limit
+// is negative.
+//
+// It splits on "\n" and rejoins rather than using SplitAfter, because
+// reStatsHeader is not compiled with the `m` flag: in Go `$` matches only at
+// the end of the text, so a line that still carries its own newline never
+// matches. stdoutFacets splits the same way, which is the point — a helper
+// that recognized stats lines by a different rule than the code under test
+// would be testing itself.
+func dropStatsLines(s string, limit int) string {
+	lines := strings.Split(s, "\n")
+	out := make([]string, 0, len(lines))
+	dropped := 0
+	for _, line := range lines {
+		if (limit < 0 || dropped < limit) &&
+			(reStatsHeader.MatchString(line) || isStatsValueLine(line)) {
+			dropped++
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// isStatsValueLine reports whether a line is one of print_stats64's value
+// lines: leading whitespace and then nothing but digits and spaces.
+func isStatsValueLine(line string) bool {
+	f := strings.Fields(line)
+	if len(f) == 0 || line == strings.TrimLeft(line, " ") {
+		return false
+	}
+	for _, tok := range f {
+		if strings.TrimLeft(tok, "0123456789") != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // TestCompareStdoutRoute is the comparison half: which loci fire when a route

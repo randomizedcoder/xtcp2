@@ -111,12 +111,62 @@ func sameAll(v string) map[string]string {
 	return map[string]string{SideIPA: v, SideGoip: v, SideIPB: v}
 }
 
+// testAllowlist is the allowlist every row in this file compares against, and
+// it is deliberately NOT the committed one.
+//
+// What the rows here assert is the *shape* of the gate: a divergence on a
+// gated command must FAIL, the same divergence on an ungated command must WARN,
+// and neither may read as PASS. That is a pair, and it needs one command on
+// each side of the line. Reading gated_commands out of
+// nlparity.EmbeddedAllowlist() borrowed production policy to supply that pair,
+// which made the rows quietly dependent on a decision taken elsewhere: when
+// `link show` was gated, four rows had to migrate from it to `addr show`, and
+// they would have had to migrate again on the next gating. Worse, the WARN
+// rows would not have failed while migrating — they would have gone on passing
+// against a FAIL they no longer tested, which is the failure mode the
+// "ungated" row at TestCompareDir exists to catch and could not catch in
+// itself.
+//
+// So the tests state their own premise. `link show` gated and everything else
+// ungated is the pair, fixed here, and gating a command in production is now a
+// one-line JSON edit that breaks nothing.
+//
+// One entry, and only one, for the same reason: suppression is a separate
+// mechanism — Allowlist.Suppresses never consults the gated set — and whether
+// the committed reasons are good is settled in pkg/nlparity, where they live.
+// What this file still needs from an entry is the *rendering* of a suppressed
+// finding, which TestRender's "set facets unsuppressed" row asserts by
+// name. So the fixture carries that locus and nothing else: every other triple
+// these rows build is either identical on all three sides or divergent on
+// purpose, and has nothing for an entry to suppress.
+//
+// The locus is spelled as StdoutLoci derives it, which is the only spelling
+// that matches; the committed file's own entry for it carries the argument for
+// why suppressing it is right.
+func testAllowlist(t *testing.T) *nlparity.Allowlist {
+	t.Helper()
+	al, err := nlparity.LoadAllowlist([]byte(`{
+	  "_comment": ["test fixture: internal/goipparity/compare_test.go"],
+	  "entries": [
+	    {
+	      "command": "link show",
+	      "locus": "stdout:keyword:qlen",
+	      "kind": "version-skew",
+	      "ip_version": "7.1.0",
+	      "reason": "test fixture: faceb326's qlen skew, mirroring the committed entry so the allow-suppressed rendering has something to render"
+	    }
+	  ],
+	  "gated_commands": ["link show"]
+	}`))
+	if err != nil {
+		t.Fatalf("LoadAllowlist: %v", err)
+	}
+	return al
+}
+
 // go test ./internal/goipparity/ -run TestCompareDir
 func TestCompareDir(t *testing.T) {
-	al, err := nlparity.EmbeddedAllowlist()
-	if err != nil {
-		t.Fatalf("EmbeddedAllowlist: %v", err)
-	}
+	al := testAllowlist(t)
 	linkOut := mustRead(t, tdGuestLinkOut)
 	addrOut := mustRead(t, tdGuestAddrOut)
 
@@ -216,11 +266,11 @@ func TestCompareDir(t *testing.T) {
 				})
 			},
 			// `addr show` and not `link show`, because the distinction this row
-			// is named for only exists on a command outside gated_commands, and
-			// `link show` joined that list once a live Tier C run measured it
-			// clean. Written against linkShow this row would have gone on
-			// passing while asserting nothing it claims: the status would be
-			// FAIL, and "warns rather than fails" would be untested.
+			// is named for only exists on a command outside gated_commands,
+			// and testAllowlist gates `link show`. Written against linkShow
+			// this row would have gone on passing while asserting nothing it
+			// claims: the status would be FAIL, and "warns rather than fails"
+			// would be untested.
 			//
 			// A goip that rendered nothing must not be labeled PASS, which is
 			// why StatusWarn exists. The finding itself is asserted separately
@@ -247,8 +297,10 @@ func TestCompareDir(t *testing.T) {
 		{
 			// The same divergence on an ungated command, so the two rows
 			// together pin the gate rather than only one side of it. Without
-			// this one, a gated_commands list that had quietly grown to include
-			// every command would still be green.
+			// this one, a gated_commands list that had quietly grown to
+			// include every command would still be green — which is precisely
+			// the direction the committed file is now moving in, and precisely
+			// why this pair reads testAllowlist instead of it.
 			description: "negative: the same divergence on an ungated command warns instead, and is still never PASS",
 			setup: func(t *testing.T, dir string) {
 				writeTriple(t, dir, addrShow, map[string]string{
@@ -349,10 +401,7 @@ func TestCompareDir(t *testing.T) {
 //
 // go test ./internal/goipparity/ -run TestCompareOneUnimplemented
 func TestCompareOneUnimplemented(t *testing.T) {
-	al, err := nlparity.EmbeddedAllowlist()
-	if err != nil {
-		t.Fatalf("EmbeddedAllowlist: %v", err)
-	}
+	al := testAllowlist(t)
 	ruleShow := Command{
 		Name: "rule show", Slug: "rule_show", Floor: 2,
 		Args: []string{"rule", "show"},
@@ -507,10 +556,7 @@ func TestRenderSkip(t *testing.T) {
 //
 // go test ./internal/goipparity/ -run TestCompareDirDetail
 func TestCompareDirDetail(t *testing.T) {
-	al, err := nlparity.EmbeddedAllowlist()
-	if err != nil {
-		t.Fatalf("EmbeddedAllowlist: %v", err)
-	}
+	al := testAllowlist(t)
 	linkOut := mustRead(t, tdGuestLinkOut)
 	linkShow, err := Lookup("link show")
 	if err != nil {
@@ -654,10 +700,7 @@ func TestCompareDirDetail(t *testing.T) {
 //
 // go test ./internal/goipparity/ -run TestRender
 func TestRender(t *testing.T) {
-	al, err := nlparity.EmbeddedAllowlist()
-	if err != nil {
-		t.Fatalf("EmbeddedAllowlist: %v", err)
-	}
+	al := testAllowlist(t)
 	linkOut := mustRead(t, tdGuestLinkOut)
 	addrOut := mustRead(t, tdGuestAddrOut)
 	linkShow, _ := Lookup("link show")
@@ -749,9 +792,9 @@ func TestRender(t *testing.T) {
 			},
 			// `addr show`, because GOIP_PARITY_UNGATED_DIVERGENCES only counts
 			// findings on commands outside gated_commands - a gated one is
-			// counted by the OVERALL sentinel instead. `link show` is gated as
-			// of the first clean Tier C run, so this row measures nothing if it
-			// is written against it.
+			// counted by the OVERALL sentinel instead. testAllowlist gates
+			// `link show`, so this row measures nothing if it is written
+			// against it.
 			wantPass: false, // link show is missing
 			wantLines: []string{
 				"GOIP_PARITY_WARN addr_show",
@@ -825,14 +868,14 @@ func TestRender(t *testing.T) {
 				// qlen entry below has to keep suppressing, or this run goes
 				// red on a rendering difference that was accepted on purpose.
 				// The row stays on `link show` regardless, because the
-				// allow-suppressed assertion is the point of it and that
-				// entry exists for this command only.
+				// allow-suppressed assertion is the point of it and it is
+				// the one locus testAllowlist carries an entry for.
 				"GOIP_PARITY_FAIL link_show",
 				"finding: stdout presence stdout:lines:",
 				"finding: stdout presence stdout:ifnames:",
-				// The one committed stdout allowlist entry for this command,
-				// printed rather than hidden. Its locus is spelled the way
-				// StdoutLoci derives it, which is what makes it match at all.
+				// The stdout allowlist entry for this command, printed rather
+				// than hidden. Its locus is spelled the way StdoutLoci
+				// derives it, which is what makes it match at all.
 				"allow-suppressed: stdout value stdout:keyword:qlen:",
 			},
 			wantAbsent: []string{"GOIP_PARITY_PASS link_show"},

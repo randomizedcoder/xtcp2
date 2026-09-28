@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -251,7 +252,7 @@ func TestLinks(t *testing.T) {
 				bodies: map[uint16][][]byte{uint16(unix.RTM_NEWLINK): tc.bodies},
 				err:    tc.srcErr,
 			}
-			links, err := newService(f).Links()
+			links, err := newService(f).Links(req.ExtMaskShow)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("Links = %#v, want error", links)
@@ -480,11 +481,11 @@ func TestLinkShowDev(t *testing.T) {
 			)
 			if tc.talkBody != nil {
 				f := &fakeTalkSource{body: tc.talkBody, err: tc.talkErr}
-				l, e := newService(f).LinkShowDev(tc.name)
+				l, e := newService(f).LinkShowDev(tc.name, req.ExtMaskShow)
 				index, err, talks, dumps, reqs = l.Index, e, f.talks, len(f.types), f.reqs
 			} else {
 				f := &fakeSource{bodies: map[uint16][][]byte{uint16(unix.RTM_NEWLINK): tc.dumpBodies}}
-				l, e := newService(f).LinkShowDev(tc.name)
+				l, e := newService(f).LinkShowDev(tc.name, req.ExtMaskShow)
 				index, err, dumps = l.Index, e, len(f.types)
 			}
 			if talks != tc.wantTalks {
@@ -556,7 +557,7 @@ func TestLinkByNameSendsLlLinkGetShape(t *testing.T) {
 		},
 		{
 			description:   "positive: LinkShowDev sends iplink_get — AF_PACKET, name first",
-			call:          func(s *Service) (model.Link, error) { return s.LinkShowDev("eth0") },
+			call:          func(s *Service) (model.Link, error) { return s.LinkShowDev("eth0", req.ExtMaskShow) },
 			wantFamily:    unix.AF_PACKET,
 			wantFirstAttr: uint16(unix.IFLA_IFNAME),
 		},
