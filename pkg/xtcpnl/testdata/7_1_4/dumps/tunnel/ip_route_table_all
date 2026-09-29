@@ -1,0 +1,13 @@
+203.0.113.0/24 dev gre1 proto kernel scope link src 203.0.113.1 
+203.0.113.128/25 dev gre1 scope link 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 203.0.113.1 dev gre1 table local proto kernel scope host src 203.0.113.1 
+broadcast 203.0.113.255 dev gre1 table local proto kernel scope link src 203.0.113.1 
+2001:db8:3::/64 dev gre1 proto kernel metric 256 pref medium
+fe80::/64 dev gre1 proto kernel metric 256 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:3::1 dev gre1 table local proto kernel metric 0 pref medium
+local fe80::5efe:c000:203 dev gre1 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev gre1 table local proto kernel metric 256 pref medium

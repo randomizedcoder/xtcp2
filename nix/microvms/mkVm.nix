@@ -3689,6 +3689,25 @@ in
         # captures only off the clean topology, which has no bridge on
         # purpose (scripts/netlink-topology.exp), so loading one there would
         # add a module the run never touches.
+        #
+        # The five TUNNEL modules the tunnel capture set needs - ipip, ip_gre,
+        # sit, ip6_tunnel, ip6_gre - are deliberately NOT here, and that is a
+        # measured decision rather than an oversight.
+        #
+        # Each of them creates that family's fallback device from
+        # pernet_operations, so the devices appear in EVERY network namespace
+        # the moment the module loads, including namespaces that already
+        # exist. Naming them here does not put tunl0/gre0/sit0/ip6tnl0/
+        # ip6gre0 in the tunnel namespace alone - it puts them in the clean
+        # and mesh namespaces too. Measured: that took the clean set from
+        # three links to ten and moved goip0 from ifindex 3 to ifindex 10,
+        # which rewrites every committed fixture and every ifindex-bearing
+        # request byte with it. A separate namespace does not help, because a
+        # module is a kernel-wide object.
+        #
+        # scripts/capture-netlink-dumps.exp therefore modprobes them itself,
+        # after the clean and mesh sets are already captured. See the comment
+        # there.
         boot.kernelModules = lib.mkIf isNetlinkQuiet (
           [
             "nlmon"

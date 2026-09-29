@@ -919,7 +919,7 @@ func TestParseNewLink(t *testing.T) {
 			),
 			want: LinkInfo{
 				Index: 9, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
-				Link: 3, LinkNetnsID: -1, HasLinkNetnsID: true,
+				Link: 3, HasLink: true, LinkNetnsID: -1, HasLinkNetnsID: true,
 			},
 		},
 		{

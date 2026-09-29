@@ -1114,15 +1114,18 @@ rec {
         # instead of an empty one. `expect $SKIP_MESH` unquoted would have done
         # that too, and would have been a shellcheck finding to suppress.
         SKIP_MESH=()
+        SKIP_TUNNEL=()
         while [ $# -gt 0 ]; do
           case "$1" in
-            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
-            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
-            --out)       OUT_DIR="$2"; shift 2 ;;
-            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
-            --skip-mesh) SKIP_MESH=(--skip-mesh); shift ;;
+            --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)         OUT_DIR="$2"; shift 2 ;;
+            --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            --skip-mesh)   SKIP_MESH=(--skip-mesh); shift ;;
+            --skip-tunnel) SKIP_TUNNEL=(--skip-tunnel); shift ;;
             -h|--help)
               echo "usage: $0 [--timeout <seconds>] [--out <dir>] [--skip-mesh]"
+              echo "          [--skip-tunnel]"
               echo "  Boots the netlink-dump-capture microvm and drives it over"
               echo "  the serial console with expect: builds a clean topology in"
               echo "  a throwaway netns, captures each RTM_GET* dump off an"
@@ -1134,6 +1137,11 @@ rec {
               echo "  + veth). That set is the only source of real IFLA_MASTER /"
               echo "  IFLA_LINKINFO replies, so skipping it is for iterating on"
               echo "  the clean set, not for a capture you intend to commit."
+              echo ""
+              echo "  --skip-tunnel omits the third capture set (ipip, sit, gre,"
+              echo "  ip6tnl, ip6gre). That set is the only source of the ARPHRD"
+              echo "  types ll_addr_n2a renders as addresses rather than hex, so"
+              echo "  the same caveat applies."
               echo ""
               echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/dumps,"
               echo "  with the kernel derived from the guest's own uname"
@@ -1203,7 +1211,8 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${captureScripts}/capture-netlink-dumps.exp \
-            "$SERIAL_PORT" "$BLOB" ''${SKIP_MESH[@]+"''${SKIP_MESH[@]}"} 2>&1 \
+            "$SERIAL_PORT" "$BLOB" ''${SKIP_MESH[@]+"''${SKIP_MESH[@]}"} \
+            ''${SKIP_TUNNEL[@]+"''${SKIP_TUNNEL[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?
 
         if [ "$rc" -eq 124 ]; then

@@ -1620,6 +1620,39 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			wantMask:    0x01,
 		},
 		{
+			// The same locus on a second command, because Entry.key() is
+			// command plus locus and the `neigh show` row above therefore
+			// does not reach this one. The mask is 0x01 here for the
+			// identical reason — ip/ipneigh.c:597 calls ll_init_map before
+			// it looks at `dev` — so a row that read 0x09 would be evidence
+			// the selector had changed the dump, which is precisely what
+			// this command asserts it does not do.
+			description: "positive: the ll_init_map dump locus is derivable on `neigh show dev` too, at the same 0x01",
+			command:     "neigh show dev",
+			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:dump",
+			filename:    tdGuestGetNeighDev,
+			txn:         0,
+			wantMask:    0x01,
+		},
+		{
+			// And a third, for the third command on this object. The
+			// repetition is Entry.key() again, but the row earns its place
+			// on evidence rather than on symmetry: `proxy` is the ONE
+			// selector in the corpus that changes which kernel table is
+			// walked, so "it still did not touch txn 0" is a claim about a
+			// materially different command than the `dev` row makes. The
+			// mask is 0x01 because ip/ipneigh.c:597 runs ll_init_map before
+			// the argument loop's effects are consulted at all — the
+			// selector is parsed before, but acted on only in the dump at
+			// :490.
+			description: "positive: the ll_init_map dump locus is derivable on `neigh show proxy` too, at the same 0x01",
+			command:     "neigh show proxy",
+			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:dump",
+			filename:    tdGuestGetNeighProxy,
+			txn:         0,
+			wantMask:    0x01,
+		},
+		{
 			// ll_link_get was already RTEXT_FILTER_VF|SKIP_STATS at 7.1.0, so
 			// this locus's pinned value is 0x09 and only de91e928 moves it.
 			description: "positive: the ll_link_get single-get locus is derivable, and its pinned mask is 0x09",

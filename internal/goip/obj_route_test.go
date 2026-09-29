@@ -46,6 +46,14 @@ const (
 	routeMeshAllPcap  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/netlink_route_getroute_table_all.pcap"
 	routeSidecarDir   = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 	routeMeshSidecars = "../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/"
+
+	// `ip route show dev NAME`, the one route capture whose FIRST message is
+	// an RTM_GETLINK rather than the dump. The mesh one's named device owns no
+	// routes, so its dump is answered by NLMSG_DONE alone — the only empty
+	// listing in the corpus, and the reason `route show dev` can be shown to
+	// cost the same two transactions whatever the answer is.
+	routeDevPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute_dev.pcap"
+	routeMeshDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/netlink_route_getroute_dev.pcap"
 )
 
 // TestRouteShowMatchesCapturedSidecars replays each committed route dump and
@@ -94,6 +102,31 @@ func TestRouteShowMatchesCapturedSidecars(t *testing.T) {
 			pcap:        routeDumpAllPcap,
 			args:        []string{"route", "show", "table", "all"},
 			sidecar:     "ip_route_table_all",
+		},
+		{
+			// The golden that proves the `dev` selector is not a text filter.
+			// ip_route_dev is NOT ip_route_main with the non-matching lines
+			// deleted: every main line has LOST its `dev goip0` token, because
+			// print_route guards it on `filter.oifmask != -1` (:900-901) —
+			// while both nexthops of the multipath route have KEPT theirs,
+			// because the nexthop tokens at :743 and :751 have no guard at
+			// all. The word the command named appears nowhere on the lines it
+			// selected and twice on the lines it did not, and a line-by-line
+			// comparison against a real capture is the only thing that can
+			// state both halves at once.
+			description: "positive: `route show dev` reproduces ip_route_dev, which is not a subset of ip_route_main",
+			pcap:        routeDevPcap,
+			args:        []string{"route", "show", "dev", "goip0"},
+			sidecar:     "ip_route_dev",
+		},
+		{
+			// `oif` is not an abbreviation of anything and not a second
+			// filter: ip/iproute.c:2145-2151 assigns both keywords to the same
+			// local `od`, so this must be byte-identical to the row above.
+			description: "positive: `route show oif` is the same command as `route show dev`",
+			pcap:        routeDevPcap,
+			args:        []string{"route", "show", "oif", "goip0"},
+			sidecar:     "ip_route_dev",
 		},
 		{
 			description:    "positive: `-json route show` reproduces ip_route_main_json's keys and values",
@@ -159,6 +192,19 @@ func TestRouteShowMatchesMeshSidecars(t *testing.T) {
 			args:        []string{"route", "show", "table", "all"},
 			sidecar:     "ip_route_table_all",
 		},
+		{
+			// The empty listing, and the only golden in the corpus that is a
+			// zero-byte file. `veth0` owns no routes, so the dump answers with
+			// NLMSG_DONE alone and `ip` prints nothing — not a blank line, not
+			// a diagnostic, and exit 0. Worth a row because "renders nothing"
+			// is the easiest output for an implementation to get almost right:
+			// a stray newline, or an ExitFailure on an empty answer, would
+			// both pass every other test in this file.
+			description: "boundary: mesh `route show dev` on a device with no routes prints nothing at all",
+			pcap:        routeMeshDevPcap,
+			args:        []string{"route", "show", "dev", "veth0"},
+			sidecar:     "ip_route_dev",
+		},
 	}
 
 	for _, tc := range tests {
@@ -200,6 +246,13 @@ type routeReplay struct {
 	dumps int
 	gets  []int32
 
+	// shapes is the same sequence with the selector fields kept, which is
+	// what `route show dev NAME` needs: its FIRST get carries an
+	// IFLA_IFNAME and an ifi_index of 0, so the gets slice alone cannot tell
+	// it apart from a by-index get for index 0 — a request goip must never
+	// send.
+	shapes []getShape
+
 	// unresolvable names indexes the replayed kernel answers nothing for, so a
 	// test can exercise ll_index_to_name's does-not-cache-a-failure path.
 	unresolvable map[int32]bool
@@ -220,14 +273,24 @@ func (s *routeReplay) Dump(request []byte, msgType uint16) ([][]byte, error) {
 }
 
 // Talk answers a single-get from the RTM_NEWLINK replies the capture recorded,
-// selecting on the ifi_index the request carries. That is a faithful replay:
-// the recorded replies ARE the answers `ip` got to the same gets.
+// selecting on whichever of ifi_index and IFLA_IFNAME the request carries.
+// That is a faithful replay: the recorded replies ARE the answers `ip` got to
+// the same gets.
+//
+// Both selectors are needed because `route show dev NAME` sends one of each.
+// ll_name_to_index's get addresses the interface by NAME with ifi_index 0
+// (lib/ll_map.c:287-289); every later get is print_route's by-index
+// resolution. The name arm is what lets a capture taken without the device
+// filter answer the resolution get, which is why the two rows below can share
+// netlink_route_getroute.pcap.
 func (s *routeReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 	var ifi xtcpnl.IfInfomsg
 	if _, err := xtcpnl.DeserializeIfInfomsg(request[xtcpnl.NlMsgHdrSizeCst:], &ifi); err != nil {
 		return nil, err
 	}
+	g := selectorOf(request)
 	s.gets = append(s.gets, ifi.Index)
+	s.shapes = append(s.shapes, g)
 	if s.unresolvable[ifi.Index] {
 		return nil, fmt.Errorf("%w: index %d", ErrNoReplay, ifi.Index)
 	}
@@ -239,11 +302,17 @@ func (s *routeReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 		if err != nil {
 			continue
 		}
+		if g.name != "" {
+			if li.Name == g.name {
+				return xtcpnl.CopyBytes(m.Body), nil
+			}
+			continue
+		}
 		if li.Index == ifi.Index {
 			return xtcpnl.CopyBytes(m.Body), nil
 		}
 	}
-	return nil, fmt.Errorf("%w: RTM_GETLINK index %d", ErrNoReplay, ifi.Index)
+	return nil, fmt.Errorf("%w: RTM_GETLINK %s", ErrNoReplay, g)
 }
 
 // runRouteWith drives runRoute over a source directly, bypassing Run so the
@@ -392,6 +461,148 @@ func TestRouteShowTransactionShape(t *testing.T) {
 	}
 }
 
+// TestRouteShowDevTransactionShape is the assertion that makes `route show dev
+// NAME` worth implementing separately from `route show`: the selector ADDS one
+// transaction at the front and REMOVES every one at the back.
+//
+// The front one is ll_name_to_index's throwaway get (ip/iproute.c:2008,
+// lib/ll_map.c:354-372) — by NAME, ifi_index 0. The back ones vanish because
+// print_route's `dev` token is guarded by `filter.oifmask != -1` (:900) and
+// that token is the only caller of ll_index_to_name for RTA_OIF. So a command
+// whose bare form costs 1 + one-get-per-distinct-index costs exactly 2 here,
+// no matter how many routes come back — and the saving grows with the size of
+// the answer, which is the opposite of what an added filter usually does.
+//
+// Every row shares netlink_route_getroute.pcap, whose six routes are all on
+// goip0. The replay answers whatever is asked; what varies is what goip asks.
+//
+// go test ./internal/goip/ -run TestRouteShowDevTransactionShape
+func TestRouteShowDevTransactionShape(t *testing.T) {
+	const (
+		devName  = "goip0"
+		devIndex = int32(3)
+	)
+	// The resolution get: NLM_F_REQUEST alone, AF_UNSPEC, IFLA_EXT_MASK
+	// first and IFLA_IFNAME second (lib/ll_map.c:289-293), ifi_index 0.
+	nameGet := getShape{
+		flags:     unix.NLM_F_REQUEST,
+		family:    unix.AF_UNSPEC,
+		firstAttr: unix.IFLA_EXT_MASK,
+		name:      devName,
+	}
+
+	tests := []struct {
+		description string
+		args        []string
+		family      uint8
+		wantDumps   int
+		wantShapes  []getShape
+		// wantStdout, when non-empty, is the exact expected output.
+		wantStdout string
+		// wantStdoutHas and wantStdoutLacks are for the rows whose point is
+		// one token's presence or absence rather than the whole rendering.
+		wantStdoutHas   []string
+		wantStdoutLacks []string
+	}{
+		{
+			description: "positive: `show dev NAME` is one resolution get and one dump, and nothing else",
+			args:        []string{"show", "dev", devName},
+			family:      unix.AF_UNSPEC,
+			wantDumps:   1,
+			wantShapes:  []getShape{nameGet},
+			wantStdout: "192.0.2.0/24 proto kernel scope link src 192.0.2.1 \n" +
+				"198.18.0.0/24 via 192.0.2.10 \n" +
+				"198.18.1.0/24 via 192.0.2.10 mtu 1400 advmss 1300 \n" +
+				"198.18.2.0/24 via inet6 2001:db8::2 \n" +
+				"198.51.100.0/24 scope link \n" +
+				"203.0.113.0/24 " +
+				"\n\tnexthop via 192.0.2.10 dev goip0 weight 1 " +
+				"\n\tnexthop via 192.0.2.11 dev goip0 weight 3 \n",
+		},
+		{
+			description: "positive: `oif NAME` is the same two transactions under the other spelling",
+			args:        []string{"show", "oif", devName},
+			family:      unix.AF_UNSPEC,
+			wantDumps:   1,
+			wantShapes:  []getShape{nameGet},
+		},
+		{
+			// The bare form for comparison, in the same table so the delta is
+			// one diff rather than two files: one dump, and one BY-INDEX get
+			// that `dev NAME` does not send.
+			description: "negative: the bare form sends a by-index get the dev form does not",
+			args:        []string{"show"},
+			family:      unix.AF_UNSPEC,
+			wantDumps:   1,
+			wantShapes: []getShape{{
+				flags:     unix.NLM_F_REQUEST,
+				family:    unix.AF_UNSPEC,
+				firstAttr: unix.IFLA_EXT_MASK,
+				index:     devIndex,
+			}},
+		},
+		{
+			// The resolution get fills the index cache, so even if the render
+			// guard were removed the by-index get would not reappear — which
+			// is exactly why the guard needs its own assertion and cannot be
+			// inferred from a transaction count on this topology. Asserted
+			// here on the STDOUT instead: no `dev goip0` on the main line.
+			description:     "boundary: the dev token is gone from the main lines but kept on the nexthops",
+			args:            []string{"show", "dev", devName},
+			family:          unix.AF_UNSPEC,
+			wantDumps:       1,
+			wantShapes:      []getShape{nameGet},
+			wantStdoutLacks: []string{"192.0.2.0/24 dev goip0"},
+			wantStdoutHas:   []string{"nexthop via 192.0.2.10 dev goip0 weight 1 "},
+		},
+		{
+			// `table all` widens the dump to both families and both tables,
+			// and on this capture that reaches `lo` as well — but the oif
+			// filter drops every lo route, so the second device is never
+			// referenced and the transaction count does not move.
+			description: "corner: `table all dev NAME` still costs two transactions, because the filter removes the second device",
+			args:        []string{"show", "table", "all", "dev", devName},
+			family:      unix.AF_UNSPEC,
+			wantDumps:   1,
+			wantShapes:  []getShape{nameGet},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newRouteReplay(t, routeDumpPcap)
+			got, err := runRouteWith(t, src, tc.family, tc.args)
+			if err != nil {
+				t.Fatalf("runRoute(%q): %v", tc.args, err)
+			}
+			if src.dumps != tc.wantDumps {
+				t.Errorf("dumps = %d, want %d", src.dumps, tc.wantDumps)
+			}
+			if len(src.shapes) != len(tc.wantShapes) {
+				t.Fatalf("single-gets = %v, want %v", src.shapes, tc.wantShapes)
+			}
+			for i := range tc.wantShapes {
+				if src.shapes[i] != tc.wantShapes[i] {
+					t.Errorf("single-get %d = %+v, want %+v", i, src.shapes[i], tc.wantShapes[i])
+				}
+			}
+			if tc.wantStdout != "" && got != tc.wantStdout {
+				t.Errorf("stdout = %q\nwant     %q", got, tc.wantStdout)
+			}
+			for _, want := range tc.wantStdoutHas {
+				if !strings.Contains(got, want) {
+					t.Errorf("stdout = %q, want it to contain %q", got, want)
+				}
+			}
+			for _, unwanted := range tc.wantStdoutLacks {
+				if strings.Contains(got, unwanted) {
+					t.Errorf("stdout = %q, want it NOT to contain %q", got, unwanted)
+				}
+			}
+		})
+	}
+}
+
 func equalIndexes(got, want []int32) bool {
 	if len(got) != len(want) {
 		return false
@@ -476,13 +687,49 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			// The selector exists in `ip` and not here. Refusing it names the
-			// gap; ignoring it would list every route and look like success.
-			description:      "negative: `route show dev goip0` is refused, not ignored",
+			// The `dev goip0` token is GONE from the first line, which is the
+			// whole visible effect of the selector: print_route's guard is
+			// `if (tb[RTA_OIF] && filter.oifmask != -1)` (ip/iproute.c:900),
+			// so naming the device removes it from the output.
+			description:      "positive: `route show dev goip0` suppresses the dev token it filtered on",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "show", "dev", "goip0"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.0/24 proto kernel scope link src 192.0.2.1 \n",
+		},
+		{
+			description:      "positive: `route show oif goip0` is the same command under the other spelling",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "oif", "goip0"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.0/24 proto kernel scope link src 192.0.2.1 \n",
+		},
+		{
+			// strcmp, not matches() (ip/iproute.c:1911): `d` is not an
+			// abbreviation of `dev`, it is an unrecognized token that `ip`
+			// reads as a destination prefix. Accepting it would have goip
+			// answering a question `ip` refuses.
+			description:      "negative: `route show d goip0` is not an abbreviation of dev",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "d", "goip0"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
+		},
+		{
+			description:      "negative: `route show dev` with no name is a usage error",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "dev"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "argument expected",
+		},
+		{
+			// The name must resolve. `ip` exits 1 with `Cannot find device`;
+			// goip's resolution get comes back with nothing to match.
+			description:      "negative: a device that does not exist is an error, not an empty listing",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "dev", "nosuchdev0"},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: "nosuchdev0",
 		},
 		{
 			description:      "negative: `route show proto kernel` is refused, not ignored",
@@ -547,7 +794,7 @@ func TestParseRouteShowArgs(t *testing.T) {
 	tests := []struct {
 		description string
 		args        []string
-		want        uint32
+		want        routeSelectors
 		wantErr     bool
 		// wantErrIs, when set, is the sentinel errors.Is must find. Asserting
 		// only that "an error happened" would let a refused keyword and a
@@ -561,59 +808,59 @@ func TestParseRouteShowArgs(t *testing.T) {
 			// argument, which is why no line of ip_route_main has a table token.
 			description: "positive: no selectors leaves filter.tb at RT_TABLE_MAIN",
 			args:        nil,
-			want:        unix.RT_TABLE_MAIN,
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
 		},
 		{
 			description: "positive: `table main` is the same as the default",
 			args:        []string{"table", "main"},
-			want:        unix.RT_TABLE_MAIN,
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
 		},
 		{
 			// "all" is not a table name: rtnl_rttable_a2n fails on it and the
 			// fallback at ip/iproute.c:1850 sets filter.tb to 0.
 			description: "positive: `table all` clears the filter to 0",
 			args:        []string{"table", "all"},
-			want:        unix.RT_TABLE_UNSPEC,
+			want:        routeSelectors{Table: unix.RT_TABLE_UNSPEC},
 		},
 		{
 			// The two spellings reach 0 by different routes — "0" parses as an
 			// id, "all" does not — and must land in the same place.
 			description: "boundary: `table 0` is spelled differently but means `table all`",
 			args:        []string{"table", "0"},
-			want:        unix.RT_TABLE_UNSPEC,
+			want:        routeSelectors{Table: unix.RT_TABLE_UNSPEC},
 		},
 		{
 			description: "positive: `table local` resolves through the built-in rt_tables hash",
 			args:        []string{"table", "local"},
-			want:        unix.RT_TABLE_LOCAL,
+			want:        routeSelectors{Table: unix.RT_TABLE_LOCAL},
 		},
 		{
 			description: "positive: `table default` is the third and last built-in name",
 			args:        []string{"table", "default"},
-			want:        unix.RT_TABLE_DEFAULT,
+			want:        routeSelectors{Table: unix.RT_TABLE_DEFAULT},
 		},
 		{
 			description: "boundary: table 255 is the largest id that fits the 8-bit rtm_table field",
 			args:        []string{"table", "255"},
-			want:        255,
+			want:        routeSelectors{Table: 255},
 		},
 		{
 			// Beyond 255 the id no longer fits rtm_table, which is exactly why
 			// the request carries RTA_TABLE. See BuildDumpRouteRequestTable.
 			description: "boundary: table 256 is the first id that needs RTA_TABLE to be expressed",
 			args:        []string{"table", "256"},
-			want:        256,
+			want:        routeSelectors{Table: 256},
 		},
 		{
 			description: "corner: RT_TABLE_MAX, 4294967295, is a legal table id",
 			args:        []string{"table", "4294967295"},
-			want:        0xFFFFFFFF,
+			want:        routeSelectors{Table: 0xFFFFFFFF},
 		},
 		{
 			// strtoul(arg, &end, 0) — base 0, so the 0x form is accepted.
 			description: "corner: a 0x-prefixed id is accepted, because strtoul uses base 0",
 			args:        []string{"table", "0xff"},
-			want:        255,
+			want:        routeSelectors{Table: 255},
 		},
 		{
 			// iproute2 simply assigns filter.tb again (ip/iproute.c:1843-1858),
@@ -621,12 +868,12 @@ func TestParseRouteShowArgs(t *testing.T) {
 			// intersection. Worth pinning rather than leaving unspecified.
 			description: "corner: a repeated `table` selector is last-wins",
 			args:        []string{"table", "all", "table", "main"},
-			want:        unix.RT_TABLE_MAIN,
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
 		},
 		{
 			description: "corner: last-wins in the other direction too",
 			args:        []string{"table", "main", "table", "all"},
-			want:        unix.RT_TABLE_UNSPEC,
+			want:        routeSelectors{Table: unix.RT_TABLE_UNSPEC},
 		},
 		{
 			description: "negative: `table` with no id is a usage error",
@@ -663,7 +910,7 @@ func TestParseRouteShowArgs(t *testing.T) {
 		},
 		{
 			description: "negative: an unimplemented selector is refused rather than skipped",
-			args:        []string{"dev", "goip0"},
+			args:        []string{"via", "192.0.2.254"},
 			wantErr:     true,
 			wantErrIs:   ErrNotImplemented,
 		},
@@ -671,7 +918,90 @@ func TestParseRouteShowArgs(t *testing.T) {
 			// `tab`, `tabl` and `t` all reach "table" through matches().
 			description: "boundary: the table keyword abbreviates, as every iproute2 keyword does",
 			args:        []string{"t", "local"},
-			want:        unix.RT_TABLE_LOCAL,
+			want:        routeSelectors{Table: unix.RT_TABLE_LOCAL},
+		},
+		{
+			// ip/iproute.c:1911. The table stays at its default, which is
+			// what makes `route show dev NAME` a two-attribute request.
+			description: "positive: `dev NAME` sets the device and leaves the table alone",
+			args:        []string{"dev", "goip0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "goip0", DevSet: true},
+		},
+		{
+			// :1912, the same else-if arm. Not a near-synonym — the two
+			// spellings assign the same local and are indistinguishable
+			// downstream.
+			description: "positive: `oif NAME` is an exact synonym for `dev NAME`",
+			args:        []string{"oif", "goip0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "goip0", DevSet: true},
+		},
+		{
+			description: "positive: `table all dev NAME` composes the two selectors",
+			args:        []string{"table", "all", "dev", "goip0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_UNSPEC, Dev: "goip0", DevSet: true},
+		},
+		{
+			description: "positive: the two selectors compose in either order",
+			args:        []string{"dev", "goip0", "table", "all"},
+			want:        routeSelectors{Table: unix.RT_TABLE_UNSPEC, Dev: "goip0", DevSet: true},
+		},
+		{
+			// One local, `od`, assigned twice — so this is last-wins and not
+			// two filters, exactly as a repeated `table` is.
+			description: "corner: `dev` and `oif` share one slot, so mixing them is last-wins",
+			args:        []string{"dev", "goip0", "oif", "lo"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "lo", DevSet: true},
+		},
+		{
+			// strcmp, not matches() (ip/iproute.c:1911). An abbreviation
+			// falls through to the else-arm at :2158 and is read as a
+			// DESTINATION PREFIX, so accepting it here would make goip answer
+			// a question `ip` refuses.
+			description: "negative: `dev` does not abbreviate, unlike `table`",
+			args:        []string{"d", "goip0"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `oif` does not abbreviate either",
+			args:        []string{"o", "goip0"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			// NEXT_ARG() with nothing left.
+			description: "negative: `dev` with no name is a usage error",
+			args:        []string{"dev"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `oif` with no name is a usage error",
+			args:        []string{"oif"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			// The keyword consumes the next token unconditionally, so a
+			// second keyword after `dev` is a device NAME and the real
+			// selector is gone. `ip` does the same and then fails in
+			// ll_name_to_index; goip fails one step later, when the
+			// resolution get comes back empty. Either way `table` here is
+			// not a table.
+			description: "corner: `dev table` takes `table` as the device name",
+			args:        []string{"dev", "table"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "table", DevSet: true},
+		},
+		{
+			// DevSet is why this row can exist at all: `ip route show dev ""`
+			// is a device selector that names nothing, and it must not
+			// collapse into the no-selector case. `ip` reaches
+			// ll_name_to_index, fails all three lookups and exits with
+			// `Cannot find device ""`; goip sends the resolution get and
+			// fails on its reply.
+			description: "corner: an empty device name is still a device selector",
+			args:        []string{"dev", ""},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "", DevSet: true},
 		},
 	}
 
@@ -680,7 +1010,7 @@ func TestParseRouteShowArgs(t *testing.T) {
 			got, err := parseRouteShowArgs(tc.args)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatalf("parseRouteShowArgs(%q) = %d, want an error", tc.args, got)
+					t.Fatalf("parseRouteShowArgs(%q) = %+v, want an error", tc.args, got)
 				}
 				if tc.wantErrIs != nil && !errors.Is(err, tc.wantErrIs) {
 					t.Fatalf("parseRouteShowArgs(%q) error = %v, want errors.Is(_, %v)",
@@ -692,16 +1022,36 @@ func TestParseRouteShowArgs(t *testing.T) {
 				t.Fatalf("parseRouteShowArgs(%q): %v", tc.args, err)
 			}
 			if got != tc.want {
-				t.Errorf("parseRouteShowArgs(%q) = %d, want %d", tc.args, got, tc.want)
+				t.Errorf("parseRouteShowArgs(%q) = %+v, want %+v", tc.args, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestRouteFilter covers the three rules of filter_nlmsg that a `show` with no
-// selector other than `table` still applies. They are not redundant with the
-// request: the kernel answers a table-filtered dump on a best-effort basis and
-// `ip` re-checks every reply.
+// withOif returns a copy of r carrying RTA_OIF. A copy rather than a mutation
+// because the base routes in TestRouteFilter are shared across rows, and a row
+// that edited one in place would make every later row depend on its position
+// in the table.
+func withOif(r model.Route, oif uint32) model.Route {
+	r.Oif = oif
+	return r
+}
+
+// withNexthops returns a copy of r carrying an RTA_MULTIPATH with one entry
+// per index. Only Ifindex is set: filter_multipath reads nothing else
+// (ip/iproute.c:158-174).
+func withNexthops(r model.Route, indexes ...int32) model.Route {
+	r.Multipath = make([]xtcpnl.RouteNextHop, len(indexes))
+	for i, idx := range indexes {
+		r.Multipath[i] = xtcpnl.RouteNextHop{Ifindex: idx}
+	}
+	return r
+}
+
+// TestRouteFilter covers the four rules of filter_nlmsg that a `show` with no
+// selector other than `table` and `dev` still applies. They are not redundant
+// with the request: the kernel answers a filtered dump on a best-effort basis
+// and `ip` re-checks every reply.
 //
 // go test ./internal/goip/ -run TestRouteFilter
 func TestRouteFilter(t *testing.T) {
@@ -715,6 +1065,7 @@ func TestRouteFilter(t *testing.T) {
 		in              []model.Route
 		preferredFamily uint8
 		table           uint32
+		oif             uint32
 		wantLen         int
 	}{
 		{
@@ -826,11 +1177,88 @@ func TestRouteFilter(t *testing.T) {
 			table:           unix.RT_TABLE_MAIN,
 			wantLen:         0,
 		},
+		{
+			// ip/iproute.c:331-336. The kernel applies RTA_OIF on the dump
+			// side too, so on a strict socket these replies would not arrive;
+			// the client-side arm is the belt to that braces, and it is what
+			// a render test feeding a pcap directly relies on.
+			description: "positive: an oif filter keeps only the routes out of that device",
+			in: []model.Route{
+				withOif(v4Main, 3), withOif(v4Main, 2), withOif(v4Main, 3),
+			},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             3,
+			wantLen:         2,
+		},
+		{
+			description: "negative: an oif filter that matches nothing yields an empty listing",
+			in: []model.Route{
+				withOif(v4Main, 2), withOif(v4Main, 4),
+			},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             3,
+			wantLen:         0,
+		},
+		{
+			// filter_multipath (ip/iproute.c:158-174): ANY nexthop matching
+			// keeps the whole route, and the route is then printed with every
+			// one of its nexthops, including the ones on other devices.
+			description: "positive: a multipath route survives if any one nexthop is on the device",
+			in: []model.Route{
+				withNexthops(v4Main, 2, 3),
+				withNexthops(v4Main, 2, 4),
+			},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             3,
+			wantLen:         1,
+		},
+		{
+			// The `else if` is the trap. A route with NEITHER RTA_OIF nor
+			// RTA_MULTIPATH matches no arm of the C and therefore SURVIVES —
+			// `ip route show dev goip0` lists every blackhole route on the
+			// host. Not a bug to tidy away: on a strict socket the kernel
+			// never sends these, so the fall-through is unreachable in
+			// practice and observable only here.
+			description: "corner: a route with neither RTA_OIF nor RTA_MULTIPATH is NOT dropped",
+			in: []model.Route{
+				{Family: unix.AF_INET, Table: unix.RT_TABLE_MAIN, Type: unix.RTN_BLACKHOLE, DstLen: 32},
+			},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             3,
+			wantLen:         1,
+		},
+		{
+			// RTA_OIF wins over RTA_MULTIPATH when both are somehow present,
+			// because the C is if/else-if and not two independent tests. A
+			// kernel that sent both would have the nexthops ignored.
+			description: "corner: RTA_OIF short-circuits the multipath arm rather than being ORed with it",
+			in: []model.Route{
+				withNexthops(withOif(v4Main, 2), 3),
+			},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             3,
+			wantLen:         0,
+		},
+		{
+			// oif 0 is goip's spelling of `filter.oifmask == 0`, so the whole
+			// arm is skipped and even a route with no device survives.
+			description:     "boundary: oif 0 is not a filter",
+			in:              []model.Route{withOif(v4Main, 2), v4Main},
+			preferredFamily: unix.AF_UNSPEC,
+			table:           unix.RT_TABLE_MAIN,
+			oif:             0,
+			wantLen:         2,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := routeFilter(tc.in, tc.preferredFamily, tc.table)
+			got := routeFilter(tc.in, tc.preferredFamily, tc.table, tc.oif)
 			if len(got) != tc.wantLen {
 				t.Errorf("routeFilter() kept %d routes, want %d", len(got), tc.wantLen)
 			}

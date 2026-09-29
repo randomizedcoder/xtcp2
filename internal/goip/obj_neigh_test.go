@@ -3,13 +3,35 @@ package goip
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 const neighDumpPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap"
+
+// neighDevPcap is `ip neigh show dev goip0`. Its replies are the same set as
+// neighDumpPcap's — the interesting difference is 8 bytes on the second
+// request, which only internal/goip/req can see.
+const neighDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_dev.pcap"
+
+// neighProxyPcap is `ip neigh show proxy`. Its replies are NOT a subset of
+// neighDumpPcap's and are not a superset either: the kernel picks
+// pneigh_dump_table over neigh_dump_table on ndm_flags == NTF_PROXY
+// (net/core/neighbour.c:2955-2957), so the two tables are disjoint and the two
+// proxy entries here appear in no other capture. That is the difference from
+// neighDevPcap above, and the reason the rows below could not have been
+// written against the bare command's fixture with a filter.
+//
+// It is also the only capture in the repo whose RTM_NEWNEIGH replies carry
+// ndm_state 0 — pneigh_fill_info never sets one (:2722-2749) — which is what
+// makes the state-suppression in render.NeighView reachable from a real
+// kernel rather than only from a constructed byte slice.
+const neighProxyPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_proxy.pcap"
 
 // neighDumpPortid is the portid `ip neigh show` used during the capture.
 // Replay filters replies on it, so a wrong value yields an empty listing
@@ -36,10 +58,21 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 	tests := []struct {
 		description string
 		args        []string
-		sidecar     string
+		// pcap overrides neighDumpPcap for a row whose command has a capture
+		// of its own.
+		pcap    string
+		sidecar string
 		// jsonEquivalent compares decoded JSON instead of raw bytes, because
 		// `ip -j -p` pretty-prints and goip emits one compact line.
 		jsonEquivalent bool
+		// unordered compares the lines as a multiset. See the row that sets
+		// it for why a neighbor listing needs this and a link listing does
+		// not.
+		unordered bool
+		// noPortid replays the whole file instead of filtering on
+		// neighDumpPortid, which is the right thing for a capture taken in
+		// the quiet microVM and the wrong thing for the older ones.
+		noPortid bool
 	}{
 		{
 			description: "positive: `neigh show` reproduces ip_neigh line for line",
@@ -72,6 +105,119 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:        "ip_neigh_json",
 			jsonEquivalent: true,
 		},
+		{
+			// `neigh show dev goip0`, against its own capture. Compared as a
+			// multiset of lines rather than byte for byte, and the reason is
+			// measured rather than defensive: the run that produced this
+			// sidecar emitted 192.0.2.52, .51, .50 — kernel hash order —
+			// where the committed ip_neigh from an earlier run emitted them
+			// ascending. Same topology, same command, different order, which
+			// is exactly what model.SortNeighbors' doc says to expect.
+			//
+			// goip normalizes that order and `ip` does not, so byte equality
+			// on a neighbor listing is a property of which run the fixture
+			// came from. internal/goipparity takes the same position for the
+			// same reason — FacetLines is a multiset and stdout.go:164-165
+			// says it is "blind to a reordering" — so this row matches the gate
+			// rather than being stricter than it.
+			//
+			// The four rows above ARE byte-exact, and they pass because the
+			// capture they cite happens to be ascending. That is worth
+			// knowing rather than relying on: a re-capture of
+			// netlink_route_getneigh.pcap can break them without anything
+			// being wrong, and the fix then is to bring them here.
+			description: "positive: `neigh show dev` reproduces ip_neigh_dev, which is ip_neigh minus one token per line",
+			args:        []string{"neigh", "show", "dev", "goip0"},
+			pcap:        neighDevPcap,
+			sidecar:     "ip_neigh_dev",
+			unordered:   true,
+			// neighDumpPortid belongs to the capture the rows above replay.
+			// This file is from a later run with its own portid, and it is
+			// single-command clean, so the filter is unnecessary here and
+			// would hide every reply — the same call the route captures make
+			// (obj_route_test.go:26-39).
+			noPortid: true,
+		},
+		{
+			// `neigh show proxy` against its own capture, and this row is the
+			// one that decides whether the renderer is right, because two of
+			// its three assertions could not be made anywhere else in the
+			// corpus.
+			//
+			// The `proxy` TOKEN: print_neigh's flag run (ip/ipneigh.c:441)
+			// prints it between lladdr and the state, and no other committed
+			// reply sets a named ndm_flags bit.
+			//
+			// The ABSENT state: these entries carry ndm_state 0, print_neigh
+			// guards the whole state call on `if (r->ndm_state)` at :462, and
+			// print_neigh_state opens its JSON array from inside that guard
+			// at :239-240. So `ip` emits neither a token nor a key. goip
+			// printed NONE here until this capture existed to say otherwise —
+			// byte equality against a file `ip` wrote is what caught it,
+			// which is the argument for the sidecars generally.
+			//
+			// And the TRAILING SPACE: every token in that run carries its own
+			// from "%s ", so the line ends "proxy \n" rather than "proxy\n".
+			// A strings.Join renderer gets the token right and this wrong.
+			description: "positive: `neigh show proxy` reproduces ip_neigh_proxy, tokens and trailing space alike",
+			args:        []string{"neigh", "show", "proxy"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
+			noPortid:    true,
+		},
+		{
+			// The JSON half, and it asserts a literal `ip` gets from
+			// print_null and goip could easily get from print_bool: the value
+			// is null, not true. AddrView.MarshalJSON produces the other
+			// shape for exactly the flags iproute2 prints with print_bool, so
+			// the two marshalers differ on purpose and this row is what says
+			// which is which.
+			//
+			// jsonEquivalent decodes both sides, so it compares the key SET
+			// and the values — an omitted "state" key here is a real
+			// assertion rather than whitespace luck.
+			description:    "positive: `-json neigh show proxy` emits a null-valued proxy key and no state key",
+			args:           []string{"-json", "neigh", "show", "proxy"},
+			pcap:           neighProxyPcap,
+			sidecar:        "ip_neigh_proxy_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+		},
+		{
+			// A repeat is accepted and changes nothing, because :571-572 has
+			// no duparg and no NEXT_ARG — it is a bare assignment, so the
+			// second one assigns the same bit. Idempotent by accident of how
+			// iproute2 is written rather than by design, which is why it gets
+			// a row: a goip that "tidied it up" into an error would diverge
+			// on a command line `ip` accepts.
+			description: "corner: `neigh show proxy proxy` is accepted and identical to one proxy",
+			args:        []string{"neigh", "show", "proxy", "proxy"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
+			noPortid:    true,
+		},
+		{
+			// Kept last because it is the negative: the proxy fixture is the
+			// only one in the corpus whose entries the DEFAULT state mask
+			// cannot match, so replaying it as a bare `neigh show` must
+			// produce the entries anyway — via the NTF_PROXY escape at
+			// :335-339 and not via the mask. A goip that wrote the skip as
+			// "NUD_NOARP only" passes this by luck; one that wrote it as the
+			// mask alone prints nothing and fails.
+			//
+			// Not a claim about what `ip neigh show` returns on the host —
+			// the kernel would never put these in that dump. It is a claim
+			// about print_neigh, replayed.
+			description: "boundary: a state-0 reply survives the default state mask through the NTF_PROXY escape",
+			args:        []string{"neigh", "show"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
+			// This file is from a later run with its own portid, and it is
+			// single-command clean, so the filter is unnecessary here and
+			// would hide every reply — the same call the route captures make
+			// (obj_route_test.go:26-39).
+			noPortid: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -80,20 +226,57 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Setenv("GOIP_REPLAY", neighDumpPcap)
-			t.Setenv("GOIP_REPLAY_PORTID", neighDumpPortid)
+			pcap := tc.pcap
+			if pcap == "" {
+				pcap = neighDumpPcap
+			}
+			t.Setenv("GOIP_REPLAY", pcap)
+			if !tc.noPortid {
+				t.Setenv("GOIP_REPLAY_PORTID", neighDumpPortid)
+			}
 			var stdout, stderr bytes.Buffer
 			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
 				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
 			}
-			if !tc.jsonEquivalent {
+			switch {
+			case tc.jsonEquivalent:
+				assertJSONEntriesEqual(t, stdout.Bytes(), want)
+			case tc.unordered:
+				assertSameLines(t, stdout.String(), string(want))
+			default:
 				if !bytes.Equal(stdout.Bytes(), want) {
 					t.Fatalf("output mismatch\n got: %q\nwant: %q", stdout.Bytes(), want)
 				}
-				return
 			}
-			assertJSONEntriesEqual(t, stdout.Bytes(), want)
 		})
+	}
+}
+
+// assertSameLines compares two listings as multisets of lines, reporting the
+// symmetric difference in both directions so a missing line and an extra one
+// are distinguishable.
+//
+// A multiset and not a set: two identical lines are two entries, and a
+// renderer that emitted one of a duplicated pair would otherwise pass.
+func assertSameLines(t *testing.T, got, want string) {
+	t.Helper()
+	count := func(s string) map[string]int {
+		m := map[string]int{}
+		for _, line := range strings.Split(strings.TrimSuffix(s, "\n"), "\n") {
+			m[line]++
+		}
+		return m
+	}
+	g, w := count(got), count(want)
+	for line, n := range w {
+		if g[line] != n {
+			t.Errorf("line %q appears %d times, want %d", line, g[line], n)
+		}
+	}
+	for line, n := range g {
+		if _, ok := w[line]; !ok {
+			t.Errorf("unexpected line %q, %d times", line, n)
+		}
 	}
 }
 
@@ -208,10 +391,97 @@ func TestRunNeighArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			// The selector exists in `ip` and not here. Refusing it names the
-			// gap; ignoring it would list every neighbor and look like success.
-			description:      "negative: `neigh show dev goip0` is refused, not ignored",
+			// The selector, replayed against the BARE command's capture. That
+			// works — and is worth doing here rather than only against the
+			// dev capture — because the replay answers any RTM_GETNEIGH with
+			// the recorded bodies, so what this row exercises is the
+			// client-side half: print_neigh's :331 index test and the :415
+			// token suppression. The request half needs real bytes and is
+			// TestTierANeighShowDevRequests' job.
+			description:      "positive: `neigh show dev goip0` lists, with no dev token on the line",
 			args:             []string{"neigh", "show", "dev", "goip0"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.50 lladdr ",
+		},
+		{
+			// Resolution is from ll_init_map's cache, so a name absent from
+			// the link dump fails locally. ExitFailure and not ExitUsage: the
+			// selector IS implemented, so this is a bad command line rather
+			// than a missing feature.
+			description:      "negative: a device not in the link dump is an error, not an empty listing",
+			args:             []string{"neigh", "show", "dev", "nosuch0"},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: `cannot find device "nosuch0"`,
+		},
+		{
+			// The empty name is a real command line, and it must reach the
+			// resolver rather than being read as "no device given" — the same
+			// distinction routeSelectors.DevSet exists for.
+			description:      "corner: `dev \"\"` resolves nothing and fails, rather than listing everything",
+			args:             []string{"neigh", "show", "dev", ""},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: `cannot find device ""`,
+		},
+		{
+			// duparg (ip/ipneigh.c:526-527). This is where neigh parts company
+			// with route, whose `dev`/`oif` pair assigns one variable and lets
+			// the last one win.
+			description:      "negative: a second `dev` is duparg, not last-wins",
+			args:             []string{"neigh", "show", "dev", "goip0", "dev", "lo"},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: "duplicate",
+		},
+		{
+			// NEXT_ARG() on an exhausted argv.
+			description:      "boundary: a trailing `dev` with no value is refused",
+			args:             []string{"neigh", "show", "dev"},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: "missing its value",
+		},
+		{
+			// `proxy` and `dev` compose: do_show_or_flush has one argument
+			// loop and no mutual exclusion between them, so `ip` accepts the
+			// pair and sets both halves of the request — ndm_flags at offset
+			// 10 and NDA_IFINDEX after it, in that write order (:490, :493).
+			//
+			// Replayed against the BARE capture, for the reason the `dev` row
+			// above gives: the replay answers any RTM_GETNEIGH with the
+			// recorded bodies, so what this asserts is that goip accepts the
+			// combination and still applies the :415 dev-token suppression to
+			// whatever comes back. The request bytes are
+			// xtcpnl_rtnetlink_requests_test.go's, which checks the two
+			// selectors land in the right order.
+			description:      "corner: `proxy` and `dev` compose, and `dev` still suppresses the token",
+			args:             []string{"neigh", "show", "proxy", "dev", "goip0"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.50 lladdr ",
+		},
+		{
+			// Order-independent, because the loop assigns rather than
+			// sequences. Worth a row of its own: a hand-written parser that
+			// treated `proxy` as a mode switch instead of a flag assignment
+			// would plausibly accept one order and not the other.
+			description:      "corner: `dev` before `proxy` is the same command",
+			args:             []string{"neigh", "show", "dev", "goip0", "proxy"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.50 lladdr ",
+		},
+		{
+			// strcmp at :571, so `proxy` does not abbreviate either. In `ip`
+			// this falls to the else-arm and is read as a destination prefix;
+			// goip refuses it, the same position it takes on `d`.
+			description:      "negative: `prox` does not abbreviate `proxy`",
+			args:             []string{"neigh", "show", "prox"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			// strcmp, not matches(): `d` is not an abbreviation of `dev`
+			// here. In `ip` it falls to the else-arm and is read as a
+			// destination prefix; goip refuses it, which is the honest
+			// version of not implementing `to PREFIX`.
+			description:      "negative: `d` does not abbreviate `dev`",
+			args:             []string{"neigh", "show", "d", "goip0"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},
@@ -253,6 +523,133 @@ func TestRunNeighArgs(t *testing.T) {
 			}
 			if tc.wantStderrSubstr != "" && !strings.Contains(stderr.String(), tc.wantStderrSubstr) {
 				t.Errorf("stderr = %q, want to contain %q", stderr.String(), tc.wantStderrSubstr)
+			}
+		})
+	}
+}
+
+// runNeighWith drives runNeigh against an arbitrary Source, which is what lets
+// the transaction-shape test below count what Run() hides.
+func runNeighWith(t *testing.T, src Source, family uint8, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{
+		src:    src,
+		lltab:  NewLLTab(),
+		out:    &out,
+		errOut: io.Discard,
+		family: family,
+	}
+	err := runNeigh(c, args)
+	return out.String(), err
+}
+
+// TestNeighShowDevTransactionShape is the assertion this whole increment
+// exists for, and it is an assertion of ABSENCE: `neigh show dev NAME` sends
+// two dumps and NO single-get, where every other `dev NAME` form in goip sends
+// at least one.
+//
+// do_show_or_flush calls ll_init_map(&rth) at ip/ipneigh.c:597 before it
+// resolves the name at :600, so ll_name_to_index's ll_get_by_name hits the
+// cache that dump just filled and ll_link_get is never reached
+// (lib/ll_map.c:354-359). A goip that reached for LinkByName here — the
+// obvious thing to do, and what route, link and addr all correctly do — would
+// produce byte-identical output and one extra transaction.
+//
+// The source is routeReplay, borrowed from obj_route_test.go rather than
+// duplicated: it counts dumps and records every single-get, which is exactly
+// the pair of numbers at issue. Its Talk arm is the one that must never fire.
+//
+// Every row replays netlink_route_getneigh.pcap, the BARE command's capture.
+// The replay answers whatever is asked, so what varies between rows is only
+// what goip asks and what it prints — the request bytes are Tier A's subject,
+// in internal/goip/req.
+//
+// go test ./internal/goip/ -run TestNeighShowDevTransactionShape
+func TestNeighShowDevTransactionShape(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		wantDumps   int
+		wantErr     bool
+		// wantEmpty asserts the output is exactly empty, which no substring
+		// test can do.
+		wantEmpty bool
+		// wantStdoutHas and wantStdoutLacks assert one token's presence or
+		// absence rather than the whole rendering, which the sidecar test
+		// above already pins.
+		wantStdoutHas   []string
+		wantStdoutLacks []string
+	}{
+		{
+			description:   "positive: the bare form is two dumps and no single-get",
+			args:          []string{"show"},
+			wantDumps:     2,
+			wantStdoutHas: []string{"192.0.2.50 dev goip0 "},
+		},
+		{
+			// The delta, and there is none to count. Same dump count, same
+			// empty get list — contrast TestRouteShowDevTransactionShape,
+			// where the equivalent row has one get the bare form does not.
+			description:     "positive: `dev NAME` costs the same two dumps and still no single-get",
+			args:            []string{"show", "dev", "goip0"},
+			wantDumps:       2,
+			wantStdoutHas:   []string{"192.0.2.50 lladdr "},
+			wantStdoutLacks: []string{"dev goip0"},
+		},
+		{
+			// The client-side half of the filter (ip/ipneigh.c:331), which
+			// the replay makes load-bearing: it answers the filtered request
+			// with the whole recorded dump, so without the test every entry
+			// would print. On a live socket the kernel would have filtered
+			// already and this would be belt and braces, exactly as it is in
+			// `ip`.
+			description: "boundary: a device with no neighbors prints nothing, and still costs two dumps",
+			args:        []string{"show", "dev", "lo"},
+			wantDumps:   2,
+			wantEmpty:   true,
+		},
+		{
+			// Resolution is from the cache, so failure is local and costs
+			// only the link dump. `ip` would send ll_link_get here and pay a
+			// third transaction; goip stops, which is the position routeShow
+			// takes for the same reason.
+			description: "negative: an unresolvable device fails after the link dump, with no second dump",
+			args:        []string{"show", "dev", "nosuch0"},
+			wantDumps:   1,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newRouteReplay(t, neighDumpPcap)
+			got, err := runNeighWith(t, src, unix.AF_UNSPEC, tc.args)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("runNeigh(%q) = %q, want error", tc.args, got)
+				}
+			} else if err != nil {
+				t.Fatalf("runNeigh(%q): %v", tc.args, err)
+			}
+			if src.dumps != tc.wantDumps {
+				t.Errorf("dumps = %d, want %d", src.dumps, tc.wantDumps)
+			}
+			if len(src.gets) != 0 {
+				t.Errorf("single-gets = %v, want none: ll_init_map already filled the cache", src.gets)
+			}
+			if tc.wantEmpty && got != "" {
+				t.Errorf("stdout = %q, want empty", got)
+			}
+			for _, want := range tc.wantStdoutHas {
+				if !strings.Contains(got, want) {
+					t.Errorf("stdout = %q, want it to contain %q", got, want)
+				}
+			}
+			for _, unwanted := range tc.wantStdoutLacks {
+				if strings.Contains(got, unwanted) {
+					t.Errorf("stdout = %q, want it NOT to contain %q", got, unwanted)
+				}
 			}
 		})
 	}

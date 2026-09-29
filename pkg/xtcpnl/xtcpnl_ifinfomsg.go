@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"net/netip"
 
 	"golang.org/x/sys/unix"
 )
@@ -98,11 +99,12 @@ const (
 //	Master             the enslaving bridge — "master br-3a5828b2963a"
 //	Kind               IFLA_LINKINFO -> IFLA_INFO_KIND: "veth", "bridge", "nlmon"
 //
-// Index 0 is not a valid interface index, so Link == 0 and Master == 0 mean the
-// attribute was absent. IFLA_LINK_NETNSID needs the explicit HasLinkNetnsID
-// because -1 is a value the kernel really sends, meaning "the peer is in a
-// netns I cannot name" — iproute2 prints "link-netnsid unknown" for it, which
-// is a different line from printing nothing.
+// Index 0 is not a valid interface index, so Master == 0 means the attribute
+// was absent. Link does NOT work that way — see HasLink. IFLA_LINK_NETNSID
+// needs the explicit HasLinkNetnsID because -1 is a value the kernel really
+// sends, meaning "the peer is in a netns I cannot name" — iproute2 prints
+// "link-netnsid unknown" for it, which is a different line from printing
+// nothing.
 type LinkInfo struct {
 	Index        int32
 	Flags        uint32
@@ -116,16 +118,39 @@ type LinkInfo struct {
 	MTU          uint32 // IFLA_MTU; 0 if absent
 	HasMTU       bool   // IFLA_MTU present
 
-	Address        []byte // IFLA_ADDRESS — the hardware address; nil if absent
-	Broadcast      []byte // IFLA_BROADCAST; nil if absent
-	Qdisc          string // IFLA_QDISC
-	Kind           string // IFLA_LINKINFO -> IFLA_INFO_KIND
-	Link           int32  // IFLA_LINK — peer/lower interface index; 0 if absent
-	Master         int32  // IFLA_MASTER — enslaving interface index; 0 if absent
-	LinkNetnsID    int32  // IFLA_LINK_NETNSID; only meaningful with HasLinkNetnsID
-	HasLinkNetnsID bool   // IFLA_LINK_NETNSID present (the value may be -1)
-	LinkMode       uint8  // IFLA_LINKMODE — IF_LINK_MODE_DEFAULT / _DORMANT
-	HasLinkMode    bool   // IFLA_LINKMODE present (zero is DEFAULT)
+	Address   []byte // IFLA_ADDRESS — the hardware address; nil if absent
+	Broadcast []byte // IFLA_BROADCAST; nil if absent
+
+	// PermAddress is IFLA_PERM_ADDRESS, the address the device was born with
+	// — `ip`'s " permaddr …" token. nil if absent.
+	//
+	// It is rendered CONDITIONALLY, unlike the two above: `ip` prints it only
+	// when it is absent-from or different-to IFLA_ADDRESS
+	// (ip/ipaddress.c:1094-1111), so on an ordinary NIC whose MAC has never
+	// been overridden it decodes to a value and prints nothing. See
+	// LinkInfo.PermAddrDiffers, which is that test and not a nil check.
+	PermAddress []byte
+	Qdisc       string // IFLA_QDISC
+	Kind        string // IFLA_LINKINFO -> IFLA_INFO_KIND
+	Link        int32  // IFLA_LINK — peer/lower interface index
+
+	// HasLink separates "IFLA_LINK absent" from "IFLA_LINK carrying 0", which
+	// are two different renders and not one.
+	//
+	// Index 0 is not a valid interface index, so it is tempting to read Link
+	// == 0 as absence — and print_name_and_link does not
+	// (lib/utils.c:1309-1337). It tests the attribute first and the value
+	// second: absent prints no suffix at all, while present-and-zero prints
+	// the literal "@NONE" and, in JSON, "link": null. A tunnel device sits on
+	// no underlying interface and sends exactly the second form, so every link
+	// in the tunnel capture set is "@NONE".
+	HasLink bool
+
+	Master         int32 // IFLA_MASTER — enslaving interface index; 0 if absent
+	LinkNetnsID    int32 // IFLA_LINK_NETNSID; only meaningful with HasLinkNetnsID
+	HasLinkNetnsID bool  // IFLA_LINK_NETNSID present (the value may be -1)
+	LinkMode       uint8 // IFLA_LINKMODE — IF_LINK_MODE_DEFAULT / _DORMANT
+	HasLinkMode    bool  // IFLA_LINKMODE present (zero is DEFAULT)
 
 	// TxQLen/Group carry presence flags because zero is a legal value for
 	// both and "absent" renders differently from "zero".
@@ -184,25 +209,100 @@ type LinkInfo struct {
 	StatsIs64 bool
 }
 
-// HWAddr returns the hardware address as `ip` prints it — colon-separated lower
-// hex of every byte, whatever the length — or "" when IFLA_ADDRESS is absent.
+// HWAddr returns the hardware address as `ip` prints it, or "" when
+// IFLA_ADDRESS is absent.
 //
-// The length is not assumed to be 6. InfiniBand carries 20 bytes and a tunnel
-// carries 4, and `ip` prints all of them (ll_addr_n2a falls through to a
-// generic hex loop for any type it has no special case for). Truncating to 6
-// would silently corrupt those.
+// It is NOT always colon-hex: on the five tunnel ARPHRD types the address is
+// an IP endpoint and `ip` prints it as one. See llAddrN2A, which this defers
+// to, and which is why the link's ifi_type is part of the answer.
+//
+// The length is not assumed to be 6 either. InfiniBand carries 20 bytes and a
+// tunnel carries 4, and `ip` prints all of them. Truncating to 6 would
+// silently corrupt those.
 //
 // An absent attribute is not the same as a zero address: lo really does have
 // 00:00:00:00:00:00, while nlmon0 in the committed dump has no IFLA_ADDRESS at
-// all and `ip` prints "link/netlink " with nothing after it.
+// all and `ip` prints "link/netlink " with nothing after it. A tunnel fallback
+// device such as tunl0 is a third case again — four bytes of zero, which is a
+// present address that prints "0.0.0.0".
 func (li LinkInfo) HWAddr() string {
-	return hwAddrString(li.Address)
+	return llAddrN2A(li.Address, li.Type)
 }
 
 // BroadcastAddr is HWAddr for IFLA_BROADCAST, the "brd ff:ff:ff:ff:ff:ff" half
-// of the same line.
+// of the same line — or the "peer 198.51.100.1" half, since `ip` swaps the
+// keyword on IFF_POINTOPOINT (ip/ipaddress.c:1077-1084) without changing how
+// the value itself is formatted. Same ifi_type, same function, so a tunnel's
+// broadcast renders as an IP exactly as its address does.
 func (li LinkInfo) BroadcastAddr() string {
-	return hwAddrString(li.Broadcast)
+	return llAddrN2A(li.Broadcast, li.Type)
+}
+
+// PermAddr is HWAddr for IFLA_PERM_ADDRESS — the third and last attribute `ip`
+// puts through ll_addr_n2a with this link's ifi_type (ip/ipaddress.c:1106-1109),
+// so a tunnel's permaddr prints as an IP exactly as its address does.
+//
+// This does NOT decide whether to print it. See PermAddrDiffers.
+func (li LinkInfo) PermAddr() string {
+	return llAddrN2A(li.PermAddress, li.Type)
+}
+
+// PermAddrDiffers reports whether `ip` would print the " permaddr …" token,
+// which is not the same question as whether IFLA_PERM_ADDRESS arrived.
+//
+// ip/ipaddress.c:1097-1100 prints it only when IFLA_ADDRESS is absent, or is a
+// different length, or differs byte for byte. An ordinary NIC reports a
+// permanent address equal to its current one and gets no token at all, so a
+// renderer keyed on presence alone would add a line to nearly every link in a
+// normal dump.
+//
+// The five tunnel families are where the two answers part company: ip6_tunnel
+// and ip6_gre fill perm_addr with eth_random_addr (ip6_tunnel.c:1913,
+// ip6_gre.c:1443) while IFLA_ADDRESS holds the configured local endpoint, so
+// they always differ and the token is always printed — with a value that is
+// fresh every boot.
+func (li LinkInfo) PermAddrDiffers() bool {
+	if len(li.PermAddress) == 0 {
+		return false
+	}
+	return !bytes.Equal(li.PermAddress, li.Address)
+}
+
+// llAddrN2A mirrors iproute2's ll_addr_n2a (lib/ll_addr.c:26-44). `ip` passes
+// BOTH halves of the `link/` line through it — IFLA_ADDRESS and
+// IFLA_BROADCAST, each with ifi->ifi_type (ip/ipaddress.c:1067-1092) — so a
+// divergence here is a divergence in two places at once.
+//
+// It is not a hex formatter. Two special cases come first:
+//
+//	len == 4  && type ∈ {ARPHRD_TUNNEL, ARPHRD_SIT, ARPHRD_IPGRE}
+//	          → inet_ntop(AF_INET)   (:32-35), e.g. "192.0.2.3"
+//	len == 16 && type ∈ {ARPHRD_TUNNEL6, ARPHRD_IP6GRE}
+//	          → inet_ntop(AF_INET6)  (:37-38), e.g. "2001:db8::1"
+//
+// Each test is a length AND a type, never one or the other. A 4-byte address
+// on an ARPHRD_ETHER link stays hex, and a 6-byte address on an ARPHRD_SIT
+// link stays hex too — the type alone does not license the conversion. Only
+// when both tests fail does the generic loop at :40-43 run.
+//
+// netip rather than net.IP is deliberate, and it is not a style choice.
+// net.IP.String() renders a v4-mapped 16-byte address as the dotted quad
+// "1.2.3.4"; inet_ntop(AF_INET6) renders "::ffff:1.2.3.4", and so does netip.
+// A v4-mapped local endpoint on an ip6tnl is unusual but perfectly legal, and
+// the entire point of this function is to agree with the C.
+func llAddrN2A(b []byte, ifiType uint16) string {
+	switch {
+	case len(b) == 4 &&
+		(ifiType == unix.ARPHRD_TUNNEL ||
+			ifiType == unix.ARPHRD_SIT ||
+			ifiType == unix.ARPHRD_IPGRE):
+		return netip.AddrFrom4([4]byte(b)).String()
+
+	case len(b) == 16 &&
+		(ifiType == unix.ARPHRD_TUNNEL6 || ifiType == unix.ARPHRD_IP6GRE):
+		return netip.AddrFrom16([16]byte(b)).String()
+	}
+	return hwAddrString(b)
 }
 
 // TypeName is the ARPHRD_* name `ip` prints after "link/".
@@ -210,8 +310,13 @@ func (li LinkInfo) TypeName() string {
 	return ARPHRDName(li.Type)
 }
 
-// hwAddrString formats a hardware address the way iproute2's ll_addr_n2a does
-// for a type it has no special case for: "%02x" per byte, ":" between.
+// hwAddrString is the FALL-THROUGH half of ll_addr_n2a (lib/ll_addr.c:40-43)
+// on its own: "%02x" per byte, ":" between, any length.
+//
+// Callers rendering a link-layer address want llAddrN2A, which applies the
+// type-dependent special cases first and then lands here. This half is
+// separate because it is also the whole answer for every ARPHRD type that has
+// no special case, which is all but five of them.
 func hwAddrString(b []byte) string {
 	if len(b) == 0 {
 		return ""
@@ -365,6 +470,8 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		li.Address = CopyBytes(val)
 	case uint16(unix.IFLA_BROADCAST):
 		li.Broadcast = CopyBytes(val)
+	case uint16(unix.IFLA_PERM_ADDRESS):
+		li.PermAddress = CopyBytes(val)
 	case uint16(unix.IFLA_QDISC):
 		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_TXQLEN):
@@ -385,6 +492,7 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	case uint16(unix.IFLA_LINK):
 		if len(val) >= 4 {
 			li.Link = int32(binary.LittleEndian.Uint32(val[0:4]))
+			li.HasLink = true
 		}
 	case uint16(unix.IFLA_MASTER):
 		if len(val) >= 4 {

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,12 +29,12 @@ type LinkView struct {
 	IfName  string   `json:"ifname"`
 	Flags   []string `json:"flags"`
 
-	// Link is the resolved name of IFLA_LINK's target, set only on the path
-	// where iproute2 resolves it (no IFLA_LINK_NETNSID). LinkIndex is set on
-	// the other path, where the peer lives in another namespace and only its
-	// index is meaningful. At most one is ever set; see LinkViewOf.
-	Link      string `json:"link,omitempty"`
-	LinkIndex *int32 `json:"link_index,omitempty"`
+	// Link is IFLA_LINK's target, set only on the path where iproute2 resolves
+	// it (no IFLA_LINK_NETNSID). LinkIndex is set on the other path, where the
+	// peer lives in another namespace and only its index is meaningful. At
+	// most one is ever set; see LinkViewOf.
+	Link      *LinkTarget `json:"link,omitempty"`
+	LinkIndex *int32      `json:"link_index,omitempty"`
 
 	MTU       uint32  `json:"mtu,omitempty"`
 	Qdisc     string  `json:"qdisc,omitempty"`
@@ -50,10 +51,17 @@ type LinkView struct {
 	Address   string `json:"address,omitempty"`
 	Broadcast string `json:"broadcast,omitempty"`
 
+	// PermAddr is `ip`'s " permaddr …" token, and it is `omitempty` for a
+	// second reason on top of omitLinkLine: `ip` prints it only when
+	// IFLA_PERM_ADDRESS differs from IFLA_ADDRESS (ip/ipaddress.c:1097-1100),
+	// so on an ordinary NIC it is empty even though the attribute arrived.
+	// xtcpnl.LinkInfo.PermAddrDiffers is that test.
+	PermAddr string `json:"permaddr,omitempty"`
+
 	// LinkPointToPoint mirrors `ip -j`'s "link_pointtopoint": on a
 	// point-to-point link the second address is a peer, not a broadcast, and
 	// iproute2 signals that in JSON with a bool rather than by renaming the
-	// key (ip/ipaddress.c:1075-1083).
+	// key (ip/ipaddress.c:1077-1084).
 	LinkPointToPoint bool `json:"link_pointtopoint,omitempty"`
 
 	// LinkNetnsID is a pointer because -1 is a real value meaning "the peer is
@@ -130,6 +138,53 @@ type LinkView struct {
 	omitLinkLine bool
 }
 
+// LinkTarget is IFLA_LINK's target in `ip`'s encoding, which has three states
+// where a plain string has two.
+//
+// print_name_and_link (lib/utils.c:1309-1337) tests the attribute first and
+// its value second, and all three arms render differently:
+//
+//	absent           no "@…" suffix, and no "link" key
+//	present, != 0    "@<peer name>"   / "link": "<peer name>"  (:1321-1326)
+//	present, == 0    "@NONE"          / "link": null           (:1332-1336)
+//
+// The third arm is not a curiosity. A tunnel device sits on no underlying
+// interface and sends IFLA_LINK = 0, so every one of the fourteen links in
+// the tunnel capture set — the five configured devices and the nine fallback
+// ones alike — prints "@NONE". A `string` field with omitempty collapses arms
+// one and three into "key absent", which is a divergence on every line.
+//
+// This is a field type rather than a MarshalJSON on LinkView for the reason
+// recorded at LinkView.JSONStats64: AddrGroupView embeds LinkView, and an
+// embedded MarshalJSON takes precedence over field promotion, so it would
+// swallow addr_info.
+type LinkTarget struct {
+	// Name is the resolved peer name. It is never "" on the resolving path,
+	// because NameTab.IndexToName falls back to "if%u" rather than to the
+	// empty string, so "" unambiguously means the IFLA_LINK = 0 arm.
+	Name string
+}
+
+// LinkNone is the IFLA_LINK = 0 target: "@NONE" in text, null in JSON.
+func LinkNone() *LinkTarget { return &LinkTarget{} }
+
+// MarshalJSON writes the peer name, or null for the IFLA_LINK = 0 arm
+// (print_null at lib/utils.c:1334).
+func (t LinkTarget) MarshalJSON() ([]byte, error) {
+	if t.Name == "" {
+		return []byte("null"), nil
+	}
+	return json.Marshal(t.Name)
+}
+
+// String is the text-form suffix: the peer name, or the literal NONE.
+func (t LinkTarget) String() string {
+	if t.Name == "" {
+		return "NONE"
+	}
+	return t.Name
+}
+
 // LinkViewOf resolves a decoded link against the index cache.
 //
 // # print_name_and_link, which is where the subtlety lives
@@ -178,6 +233,13 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		AltNames:  li.AltNames,
 	}
 
+	// Presence is not the condition — see PermAddrDiffers. Setting this from
+	// li.PermAddress != nil would put a permaddr token on nearly every link
+	// in an ordinary dump, where `ip` prints none.
+	if li.PermAddrDiffers() {
+		v.PermAddr = li.PermAddr()
+	}
+
 	// Group and TxQLen are set only when the reply carried the attribute,
 	// because iproute2 tests tb[IFLA_GROUP] and tb[IFLA_TXQLEN] for presence
 	// (ip/ipaddress.c:1045,1155) and a reply with neither is a real case, not
@@ -194,15 +256,23 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		v.LinkPointToPoint = true
 	}
 
+	// The outer test is presence and the inner one is the value, in that
+	// order, because print_name_and_link distinguishes them — see LinkTarget.
 	mdown := false
-	if li.Link != 0 {
-		if li.HasLinkNetnsID {
+	if li.HasLink {
+		switch {
+		case li.Link == 0:
+			// No underlying interface. Note this arm computes no M-DOWN:
+			// there is no peer whose flags could be consulted.
+			v.Link = LinkNone()
+			v.nameSuffix = v.Link.String()
+		case li.HasLinkNetnsID:
 			idx := li.Link
 			v.LinkIndex = &idx
 			v.nameSuffix = "if" + strconv.FormatInt(int64(li.Link), 10)
-		} else {
-			v.Link = names.IndexToName(li.Link)
-			v.nameSuffix = v.Link
+		default:
+			v.Link = &LinkTarget{Name: names.IndexToName(li.Link)}
+			v.nameSuffix = v.Link.String()
 			mdown = names.IndexToFlags(li.Link)&unix.IFF_UP == 0
 		}
 	}
@@ -244,6 +314,7 @@ func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8) LinkView {
 		v.LinkType = ""
 		v.Address = ""
 		v.Broadcast = ""
+		v.PermAddr = ""
 		v.LinkPointToPoint = false
 	}
 	return v
@@ -345,6 +416,13 @@ func (v LinkView) Text() string {
 				b.WriteString(" brd ")
 			}
 			b.WriteString(v.Broadcast)
+		}
+		// Inside the same guard `ip` puts it in: the permaddr token belongs
+		// to the link/ line and closes at ip/ipaddress.c:1112, so -4 and -6
+		// drop it along with the rest of the line.
+		if v.PermAddr != "" {
+			b.WriteString(" permaddr ")
+			b.WriteString(v.PermAddr)
 		}
 	}
 	// Outside the guard above, so with omitLinkLine set this appends to the

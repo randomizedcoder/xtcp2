@@ -41,11 +41,36 @@ func runRoute(c *runCtx, args []string) error {
 		}
 		args = args[1:]
 	}
-	table, err := parseRouteShowArgs(args)
+	sel, err := parseRouteShowArgs(args)
 	if err != nil {
 		return err
 	}
-	return routeShow(c, table)
+	return routeShow(c, sel)
+}
+
+// routeSelectors is the subset of iproute2's `struct filter` that
+// `ip route show` fills from argv and that goip implements.
+//
+// Dev is the device NAME, not an index, because that is as far as the parser
+// can get: resolving it costs a netlink round trip (ll_name_to_index →
+// ll_link_get) and iproute2 defers it until after the whole argument loop has
+// run (ip/iproute.c:2002-2017). Deferring it here too is what keeps an
+// argument error — an unknown selector, a missing value — from being reported
+// only after a request has already gone out.
+type routeSelectors struct {
+	// Table is filter.tb, defaulting to RT_TABLE_MAIN.
+	Table uint32
+
+	// Dev is iproute2's local `od`, the pending `dev`/`oif` name.
+	Dev string
+
+	// DevSet is `od != NULL`. It is a separate field rather than a
+	// Dev != "" test because the two differ on `ip route show dev ""`, which
+	// is a real command: `od` is non-NULL and empty, ll_name_to_index fails
+	// all three of its lookups, and `ip` exits with `Cannot find device ""`
+	// (ip/iproute.c:2008-2010, lib/ll_map.c:354-372). Collapsing the two
+	// would turn that into a silent unfiltered dump.
+	DevSet bool
 }
 
 // routeTableMainCst is filter.tb's default, set at ip/iproute.c:1835 before
@@ -53,38 +78,64 @@ func runRoute(c *runCtx, args []string) error {
 // line of ip_route_main carries a `table` token.
 const routeTableMainCst uint32 = unix.RT_TABLE_MAIN
 
-// parseRouteShowArgs walks the selectors after the verb, returning filter.tb.
+// parseRouteShowArgs walks the selectors after the verb.
 //
-// `table` is the only selector implemented. The others — dev, via, proto,
-// scope, type, root, match, exact, src, metric, vrf, cached — are rejected
-// rather than ignored: the harness drives `ip` and `goip` with the same argv,
-// so a silently dropped filter would have the two tools answering different
-// questions while the comparator reported a stdout divergence it could not
-// explain.
+// `table` and the `dev`/`oif` pair are the only selectors implemented. The
+// others — via, proto, scope, type, root, match, exact, src, metric, vrf,
+// cached, iif, mark — are rejected rather than ignored: the harness drives
+// `ip` and `goip` with the same argv, so a silently dropped filter would have
+// the two tools answering different questions while the comparator reported a
+// stdout divergence it could not explain.
 //
-// Repeating `table` is last-wins, because iproute2's loop simply assigns
-// filter.tb again (ip/iproute.c:1843-1858). That is worth pinning rather than
-// leaving unspecified: `route show table all table main` is one table filter in
-// `ip`, not an error and not an intersection.
-func parseRouteShowArgs(args []string) (uint32, error) {
-	table := routeTableMainCst
+// # Two keyword-matching rules in one loop, and the difference is observable
+//
+// `table` is matched with matches(), so every non-empty prefix of it works —
+// `t`, `ta`, `tab` (ip/iproute.c:1844). `dev` and `oif` are matched with
+// strcmp (:1911-1913), so they do not abbreviate at all. That is not a
+// cosmetic difference: an unrecognized token falls through to the else-arm at
+// :2158, which reads it as a destination prefix, so `ip route show d eth0` is
+// a malformed ADDRESS and not a device filter. goip reproduces the split —
+// matchesPrefix for `table`, == for the other two — and refuses the abbreviated
+// forms rather than accepting a spelling `ip` would reject.
+//
+// # Repetition, and which of the two is last-wins
+//
+// Both are. iproute2's loop simply assigns filter.tb (:1843-1858) or `od`
+// (:1911-1914) again, with no accumulation and no error, so
+// `route show table all table main` is one table filter and
+// `route show dev a dev b` is one device filter. Worth pinning rather than
+// leaving unspecified.
+//
+// `dev` and `oif` are exact synonyms in the same else-if, so mixing them
+// (`dev a oif b`) is also last-wins — they are not two independent filters.
+func parseRouteShowArgs(args []string) (routeSelectors, error) {
+	sel := routeSelectors{Table: routeTableMainCst}
 	for i := 0; i < len(args); i++ {
-		if !matchesPrefix(args[i], "table") {
-			return 0, fmt.Errorf("route show %q: %w", args[i], ErrNotImplemented)
+		switch {
+		case matchesPrefix(args[i], "table"):
+			// NEXT_ARG() (include/utils.h), which exits with a usage error
+			// when the keyword is the last argument.
+			if i+1 >= len(args) {
+				return routeSelectors{}, fmt.Errorf("route show table: argument expected: %w", ErrNotImplemented)
+			}
+			i++
+			id, err := routeTableID(args[i])
+			if err != nil {
+				return routeSelectors{}, err
+			}
+			sel.Table = id
+		case args[i] == devKeywordCst, args[i] == "oif":
+			kw := args[i]
+			if i+1 >= len(args) {
+				return routeSelectors{}, fmt.Errorf("route show %s: argument expected: %w", kw, ErrNotImplemented)
+			}
+			i++
+			sel.Dev, sel.DevSet = args[i], true
+		default:
+			return routeSelectors{}, fmt.Errorf("route show %q: %w", args[i], ErrNotImplemented)
 		}
-		// NEXT_ARG() (include/utils.h), which exits with a usage error when the
-		// keyword is the last argument.
-		if i+1 >= len(args) {
-			return 0, fmt.Errorf("route show table: argument expected: %w", ErrNotImplemented)
-		}
-		i++
-		id, err := routeTableID(args[i])
-		if err != nil {
-			return 0, err
-		}
-		table = id
 	}
-	return table, nil
+	return sel, nil
 }
 
 // routeTableID is rtnl_rttable_a2n (lib/rt_names.c:552-597) plus the three
@@ -123,8 +174,8 @@ func routeTableID(arg string) (uint32, error) {
 	return uint32(id), nil
 }
 
-// routeShow runs the dump, resolves the device names it references, and
-// renders.
+// routeShow resolves the device selector if there is one, runs the dump,
+// resolves the device names the replies reference, and renders.
 //
 // # The family promotion, which is not the same as the -4/-6 option
 //
@@ -135,21 +186,59 @@ func routeTableID(arg string) (uint32, error) {
 // families. The promotion applies ONLY to the request: the client-side family
 // filter in routeFilter still uses preferred_family, which is still AF_UNSPEC,
 // so it drops nothing.
-func routeShow(c *runCtx, table uint32) error {
+//
+// The promotion is decided by the TABLE alone, and `dev NAME` does not enter
+// it — `ip route show dev goip0` is (AF_INET, 254, idx) and
+// `ip route show table all dev goip0` is (AF_UNSPEC, 0, idx). That is a real
+// consequence rather than a curiosity: the second form is the only way to see
+// an interface's v6 routes from this command without `-6`.
+//
+// # Where the name resolution goes, and why it is before the dump
+//
+// iproute2 resolves `od` after the argument loop and before
+// rtnl_routedump_req (:2002-2021), so the throwaway ll_link_get is
+// transaction one and the dump is transaction two. The order is observable on
+// the wire and the parity comparator compares positionally, so it is
+// reproduced rather than reordered — even though nothing here would break if
+// the dump went first.
+//
+// One consequence of ll_name_to_index that goip inherits: the resolution get
+// fills the index cache, so the name is already known by render time. goip
+// does not exploit that — resolveRouteNames skips the OIF index for a
+// different reason, below — but a `dev NAME` route whose RTA_IIF happened to
+// be the same interface would be answered from the cache in both tools.
+func routeShow(c *runCtx, sel routeSelectors) error {
 	dumpFamily := c.family
-	if dumpFamily == unix.AF_UNSPEC && table != unix.RT_TABLE_UNSPEC {
+	if dumpFamily == unix.AF_UNSPEC && sel.Table != unix.RT_TABLE_UNSPEC {
 		dumpFamily = unix.AF_INET
 	}
 
 	svc := service.New(c.src, c.nextSeq)
-	routes, err := svc.Routes(dumpFamily, table)
+
+	var oif uint32
+	if sel.DevSet {
+		// ll_name_to_index (lib/ll_map.c:354-372). `ip` falls back to
+		// if_nametoindex and then to the `if%u` spelling when the get fails;
+		// goip has neither fallback and reports the error, because both
+		// fallbacks resolve a name without asking the kernel and so would make
+		// goip answer where `ip` would have sent a request the capture
+		// records.
+		resolved, rerr := svc.LinkByName(sel.Dev)
+		if rerr != nil {
+			return rerr
+		}
+		c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
+		oif = uint32(resolved.Index)
+	}
+
+	routes, err := svc.Routes(dumpFamily, sel.Table, oif)
 	if err != nil {
 		return err
 	}
-	routes = routeFilter(routes, c.family, table)
-	resolveRouteNames(c, svc, routes)
+	routes = routeFilter(routes, c.family, sel.Table, oif)
+	resolveRouteNames(c, svc, routes, oif != 0)
 
-	f := render.RouteShowFilter{Table: table}
+	f := render.RouteShowFilter{Table: sel.Table, OifMask: oif != 0}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
 		views = append(views, render.RouteViewOf(xtcpnl.RouteInfo(routes[i]), c.lltab, f))
@@ -170,7 +259,7 @@ func routeShow(c *runCtx, table uint32) error {
 // the request: the kernel answers a table-filtered dump on a best-effort basis
 // and `ip` re-checks every reply.
 //
-// Three rules, in source order because the second one depends on it:
+// Four rules, in source order because the second one depends on it:
 //
 //   - preferred_family, the -4/-6 option, drops a reply of the other family.
 //     This is the UNPROMOTED family; see routeShow.
@@ -184,7 +273,9 @@ func routeShow(c *runCtx, table uint32) error {
 //   - a cloned route is dropped, which is the inverse of `route show cache`.
 //     `filter.cloned == !(rtm_flags & RTM_F_CLONED)` reads backwards: with
 //     filter.cloned zero it is true exactly when the route IS cloned.
-func routeFilter(in []model.Route, preferredFamily uint8, table uint32) []model.Route {
+//   - oif, when a `dev`/`oif` selector was given. See routeMatchesOif for the
+//     one shape this does NOT drop.
+func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []model.Route {
 	out := make([]model.Route, 0, len(in))
 	var ip6MultipleTables bool
 	for i := range in {
@@ -216,9 +307,58 @@ func routeFilter(in []model.Route, preferredFamily uint8, table uint32) []model.
 		} else if table != unix.RT_TABLE_UNSPEC && table != r.Table {
 			continue
 		}
+		// After the table block, not before it: the oif test sits at
+		// ip/iproute.c:331, downstream of the ip6_multiple_tables latch at
+		// :191. A route dropped here has already had its chance to set the
+		// latch, and moving the test earlier would change how every LATER
+		// IPv6 route is filtered.
+		if oif != 0 && !routeMatchesOif(r, oif) {
+			continue
+		}
 		out = append(out, *r)
 	}
 	return out
+}
+
+// routeMatchesOif is filter_nlmsg's oif arm (ip/iproute.c:331-341) plus
+// filter_multipath (:158-174).
+//
+// # The shape it does not drop, which is the whole reason this is a function
+//
+// C's test is an if/else-if over two attributes:
+//
+//	if (tb[RTA_OIF])            { drop unless it matches }
+//	else if (tb[RTA_MULTIPATH]) { drop unless some nexthop matches }
+//
+// A route with NEITHER — a blackhole, an unreachable, a prohibit, or a
+// nexthop-object route carrying only RTA_NH_ID — matches no arm and therefore
+// SURVIVES. `ip route show dev goip0` lists every blackhole route on the host
+// alongside goip0's, and that is not a bug in iproute2 to be tidied away: the
+// kernel applies RTA_OIF on the dump side too, so on a strict socket those
+// replies do not arrive in the first place and the client-side arm never sees
+// them. Reproducing the fall-through matters because goip's render tests feed
+// this function a pcap directly, with no kernel in between.
+//
+// # Why the xor-and-mask is spelled as equality here
+//
+// C writes `(oif ^ filter.oif) & filter.oifmask` because oifmask is either 0
+// or -1 and the same expression serves both. goip carries the mask as the
+// oif != 0 test at the call site, so the surviving comparison is a plain
+// equality — which is what the C reduces to when the mask is all-ones, the
+// only value `dev NAME` can produce (:2015-2016).
+func routeMatchesOif(r *model.Route, oif uint32) bool {
+	if r.Oif != 0 {
+		return r.Oif == oif
+	}
+	if len(r.Multipath) > 0 {
+		for i := range r.Multipath {
+			if uint32(r.Multipath[i].Ifindex) == oif {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 // resolveRouteNames fills the index cache the way `ip route show` fills it:
@@ -268,9 +408,35 @@ func routeFilter(in []model.Route, preferredFamily uint8, table uint32) []model.
 // remembering anything (lib/ll_map.c:321-327). So a second route on a
 // vanished index sends a second get. Reproducing the retry matters more than
 // saving it, because the retry is what a parity capture would show.
-func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route) {
+//
+// # oifMask suppresses the RTA_OIF walk, and it is the render that decides
+//
+// `dev NAME` makes `ip` print no `dev` token at all: print_route's call is
+// guarded by `if (tb[RTA_OIF] && filter.oifmask != -1)` (ip/iproute.c:900),
+// because the device is already in the command line. print_rta_ifidx is the
+// only thing that would have called ll_index_to_name for that index, so the
+// suppressed token suppresses the netlink transaction with it — a RENDER
+// decision that is visible on the wire. `route show dev NAME` is therefore
+// two transactions where the bare form is one plus one per distinct index,
+// and it gets SHORTER as the interface gets busier.
+//
+// Two things the guard does not reach, and both are deliberate:
+//
+//   - RTA_IIF has the mirror-image guard at :984 keyed on filter.iifmask, not
+//     oifmask, so a `dev NAME` route that also carries RTA_IIF still resolves
+//     it. goip has no `iif` selector, so iifmask is always 0 here and the
+//     walk always runs.
+//   - the multipath nexthops at :743 and :751 call ll_index_to_name with no
+//     guard at all. A multipath route surviving an oif filter prints — and
+//     resolves — every one of its nexthop devices, including the one named on
+//     the command line. The gated topology has exactly one such route, and
+//     the committed ip_route_dev sidecar shows the result: `dev goip0` on
+//     none of the main lines and on both nexthops of 203.0.113.0/24.
+func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oifMask bool) {
 	for i := range routes {
-		resolveIndexName(c, svc, int32(routes[i].Oif))
+		if !oifMask {
+			resolveIndexName(c, svc, int32(routes[i].Oif))
+		}
 		resolveIndexName(c, svc, int32(routes[i].Iif))
 		for j := range routes[i].Multipath {
 			resolveIndexName(c, svc, routes[i].Multipath[j].Ifindex)

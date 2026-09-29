@@ -161,6 +161,13 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			// that makes `ip` print no third line for it. It does carry
 			// IFLA_PROP_LIST, which is the udev-assigned MAC-derived altname,
 			// and that one IS printed by a plain `ip link show`.
+			//
+			// PermAddress EQUALS Address, which is the normal case for a NIC
+			// whose MAC has never been overridden — and it is why ip_link_n
+			// has no "permaddr" token anywhere despite three of its links
+			// carrying the attribute. `ip` guards the token on the two values
+			// differing (ip/ipaddress.c:1097-1100), so decoding presence and
+			// rendering on presence would add a token `ip` does not print.
 			description: "positive: primary NIC enp1s0 carries a real MAC, qdisc mq and one altname",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
@@ -168,9 +175,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
-				Address:   []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
-				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				PermAddress: []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Qdisc:       "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				AltNames: []string{"enxe04f43e628ef"},
 			},
 		},
@@ -185,9 +193,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
-				Address:   []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
-				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Address:     []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
+				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				PermAddress: []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
+				Qdisc:       "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				AltNames: []string{"enx040973cfd8d0"},
 			},
 		},
@@ -216,7 +225,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				Kind: "veth",
-				Link: 2, LinkNetnsID: 1, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 		},
 		{
@@ -241,7 +250,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 0, HasTxQLen: true, HasGroup: true,
 				Kind: "veth",
-				Link: 2, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
 			},
 		},
 		{
@@ -293,7 +302,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				Kind: "veth",
-				Link: 2, LinkNetnsID: 2, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 2, HasLinkNetnsID: true,
 				AltNames: []string{"ve-nordlayer-vpn"},
 			},
 		},
