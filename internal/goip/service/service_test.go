@@ -24,10 +24,18 @@ type fakeSource struct {
 	types  []uint16
 	bodies map[uint16][][]byte
 	err    error
+
+	// dumpReqs keeps every request handed to Dump, for the same reason
+	// fakeTalkSource.reqs keeps its own: a dump filter such as
+	// `neigh show dev NAME`'s NDA_IFINDEX changes the request and nothing
+	// else, so a replay source that answers every request with the same
+	// bodies makes it invisible in the return value.
+	dumpReqs [][]byte
 }
 
-func (f *fakeSource) Dump(_ []byte, typ uint16) ([][]byte, error) {
+func (f *fakeSource) Dump(request []byte, typ uint16) ([][]byte, error) {
 	f.types = append(f.types, typ)
+	f.dumpReqs = append(f.dumpReqs, request)
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -731,7 +739,7 @@ func TestRoutes(t *testing.T) {
 				bodies: map[uint16][][]byte{uint16(unix.RTM_NEWROUTE): tc.bodies},
 				err:    tc.srcErr,
 			}
-			routes, err := newService(f).Routes(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC)
+			routes, err := newService(f).Routes(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 0)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("Routes = %#v, want error", routes)
@@ -752,14 +760,27 @@ func TestRoutes(t *testing.T) {
 	}
 }
 
-func TestNeighborSnapshot(t *testing.T) {
+// TestNeighborDumps drives the two calls `ip neigh show` makes, in the order
+// it makes them, through the split that `dev NAME` forced: NeighborLinks is
+// ll_init_map (ip/ipneigh.c:597) and Neighbors is the dump after it.
+//
+// The split is the subject as much as the results are. The name is resolved
+// BETWEEN the two calls, out of the first one's replies, which is why there is
+// no combined snapshot method any more and why `dev NAME` adds no transaction.
+func TestNeighborDumps(t *testing.T) {
 	tests := []struct {
-		description   string
-		bodies        map[uint16][][]byte
-		srcErr        error
+		description string
+		bodies      map[uint16][][]byte
+		srcErr      error
+		// devIndex is the resolved `dev NAME` index, 0 for the bare command.
+		devIndex      uint32
 		wantTypes     []uint16
 		wantIfindexes []int32
-		wantErr       bool
+		// wantNeighReqLen is the length of the RTM_GETNEIGH request, which is
+		// the only place the device filter is visible: 28 bytes bare, 36 with
+		// NDA_IFINDEX. Zero skips the check.
+		wantNeighReqLen int
+		wantErr         bool
 	}{
 		{
 			// Same ordering contract as AddressSnapshot, and the same reason:
@@ -769,8 +790,26 @@ func TestNeighborSnapshot(t *testing.T) {
 				uint16(unix.RTM_NEWLINK):  {linkBody(2)},
 				uint16(unix.RTM_NEWNEIGH): {neighBody(2, unix.AF_INET)},
 			},
+			wantTypes:       []uint16{uint16(unix.RTM_NEWLINK), uint16(unix.RTM_NEWNEIGH)},
+			wantIfindexes:   []int32{2},
+			wantNeighReqLen: xtcpnl.NlMsgHdrSizeCst + xtcpnl.NdMsgSizeCst,
+		},
+		{
+			// The whole of `neigh show dev NAME` on the wire: the same two
+			// transactions in the same order, and eight more bytes on the
+			// second. Contrast route, where the selector added a transaction
+			// at the front and removed the lazy ones at the back.
+			description: "positive: a device filter adds 8 bytes to the dump request and no transaction",
+			bodies: map[uint16][][]byte{
+				uint16(unix.RTM_NEWLINK):  {linkBody(2)},
+				uint16(unix.RTM_NEWNEIGH): {neighBody(2, unix.AF_INET)},
+			},
+			devIndex:      2,
 			wantTypes:     []uint16{uint16(unix.RTM_NEWLINK), uint16(unix.RTM_NEWNEIGH)},
 			wantIfindexes: []int32{2},
+			// 8 = the NDA_IFINDEX attribute: 4 bytes of rtattr header and a
+			// u32 payload, already aligned.
+			wantNeighReqLen: xtcpnl.NlMsgHdrSizeCst + xtcpnl.NdMsgSizeCst + 8,
 		},
 		{
 			// Neighbors ARE sorted, unlike routes: the neighbor cache has no
@@ -810,18 +849,34 @@ func TestNeighborSnapshot(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			f := &fakeSource{bodies: tc.bodies, err: tc.srcErr}
-			_, neighbors, err := newService(f).NeighborSnapshot(unix.AF_INET)
+			svc := newService(f)
+
+			var neighbors []model.Neighbor
+			_, err := svc.NeighborLinks()
+			if err == nil {
+				// Only reached when the link dump succeeded, which is what
+				// makes the "stops after the link dump" row assert a real
+				// ordering rather than an accident of the fake.
+				neighbors, err = svc.Neighbors(unix.AF_INET, tc.devIndex)
+			}
+
 			if !reflect.DeepEqual(f.types, tc.wantTypes) {
 				t.Errorf("transaction order = %v, want %v", f.types, tc.wantTypes)
 			}
 			if tc.wantErr {
 				if err == nil {
-					t.Fatalf("NeighborSnapshot = %#v, want error", neighbors)
+					t.Fatalf("neighbor dumps = %#v, want error", neighbors)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("NeighborSnapshot: %v", err)
+				t.Fatalf("neighbor dumps: %v", err)
+			}
+			if tc.wantNeighReqLen != 0 {
+				got := len(f.dumpReqs[len(f.dumpReqs)-1])
+				if got != tc.wantNeighReqLen {
+					t.Errorf("RTM_GETNEIGH request = %d bytes, want %d", got, tc.wantNeighReqLen)
+				}
 			}
 			got := make([]int32, 0, len(neighbors))
 			for i := range neighbors {

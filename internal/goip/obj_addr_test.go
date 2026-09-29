@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -718,8 +719,51 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "not implemented",
 		},
 		{
-			description: "negative: a filter argument is refused rather than silently ignored",
+			// This row used to assert the opposite — that `dev` was refused
+			// along with every other filter. The refusal was right while the
+			// request was unfiltered, because answering a filtered query with
+			// an unfiltered dump is a wrong answer; now that the three
+			// transactions exist, the refusal would be the wrong answer.
+			description: "positive: `dev NAME` is served rather than refused, and renders that link",
 			args:        []string{"-4", "addr", "show", "dev", "lo"},
+			wantExit:    ExitOK,
+			wantOutHas:  "1: lo: <LOOPBACK,UP,LOWER_UP>",
+		},
+		{
+			description: "negative: a filter argument other than `dev` is still refused rather than silently ignored",
+			args:        []string{"-4", "addr", "show", "scope", "host"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// len(args) == 1, so the dev arm does not match and the generic
+			// refusal names the argument. `ip` fails here too, with
+			// "Command line is not complete" out of NEXT_ARG().
+			description: "negative: `dev` with no name is refused, not read as a device called \"dev\"",
+			args:        []string{"addr", "show", "dev"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// `ip` compares this keyword with strcmp and not matches()
+			// (ip/ipaddress.c:2241), so `d` is NOT an abbreviation of `dev`:
+			// it falls through to the else-arm as a device NAME, and the
+			// following `lo` then trips duparg2. goip must not accept as a
+			// keyword what `ip` reads as a device.
+			description: "negative: `d lo` is not `dev lo`, because iproute2 matches this keyword with strcmp",
+			args:        []string{"addr", "show", "d", "lo"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// `ip addr show lo` works — the else-arm takes a bare name. goip
+			// refuses it deliberately: that arm is reached only after every
+			// keyword test above it has failed, so implementing it before
+			// `scope`, `up`, `label` and the rest would turn
+			// `goip addr show up` from an honest refusal into
+			// `Device "up" does not exist`.
+			description: "negative: a bare device name is refused, because the keywords it must not shadow are not implemented",
+			args:        []string{"addr", "show", "lo"},
 			wantExit:    ExitUsage,
 			wantErrHas:  "not implemented",
 		},
@@ -1106,6 +1150,295 @@ func TestAddrShowTransactions(t *testing.T) {
 			s1 := uint32(rec.requests[1][8]) | uint32(rec.requests[1][9])<<8
 			if s0 == s1 {
 				t.Errorf("both requests carry nlmsg_seq %d; they must differ", s0)
+			}
+		})
+	}
+}
+
+// The `addr show dev` fixture and the interface it was taken on.
+//
+// devIndexCst is 3 and not 1 or 2: the capture namespace holds lo, then the
+// nlmon0 the capture tooling itself creates, then the dummy. It is spelled out
+// rather than read off the reply, because the ifindex is what request three
+// carries and a test that derived it from the reply could not tell a
+// correctly-filtered dump from an unfiltered one.
+const (
+	addrDevPcap    = guestDumpsDir + "netlink_route_getaddr_dev.pcap"
+	addrDevSidecar = guestDumpsDir + "ip_addr_dev"
+	devNameCst     = "goip0"
+	devIndexCst    = 3
+)
+
+// runAddressWith drives runAddress over a chosen source, bypassing Run so the
+// test can supply a TalkSource and read its counters back — the addr-side
+// twin of runLinkWith.
+func runAddressWith(t *testing.T, src Source, family uint8, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{
+		src:    src,
+		lltab:  NewLLTab(),
+		out:    &out,
+		errOut: io.Discard,
+		family: family,
+	}
+	err := runAddress(c, args)
+	return out.String(), err
+}
+
+// TestAddrShowDevTransactionShape is the assertion no output can make: that
+// `ip addr show dev NAME` is two single-gets AND a dump, in that order, and
+// that its two single-gets are not the two `link show dev` sends.
+//
+// # The three requests, and what each of them is not
+//
+//  1. ll_link_get(name, 0) — ip/ipaddress.c:2253 into lib/ll_map.c:264. By
+//     NAME, ifi_family AF_UNSPEC because the request struct is a designated
+//     initializer that never names it, ext-mask attribute first. Identical to
+//     `link show dev`'s first request, because it is the same function.
+//  2. ipaddr_link_get(index) — :2302 into :2052. By INDEX, and ifi_family is
+//     filter.family. This is where the two commands part: `link show dev`
+//     sends iplink_get here, by NAME with ifi_family AF_PACKET and the
+//     attributes in the other order.
+//  3. ip_addr_list — :2314, the RTM_GETADDR dump, with the resolved index in
+//     ifa_index.
+//
+// The wantDumps column is the half that a transaction count alone would miss.
+// A goip that dumped the links instead of getting them would send three
+// requests too, and print the same stanza, and be wrong at L2 twice over.
+//
+// go test ./internal/goip/ -run TestAddrShowDevTransactionShape
+func TestAddrShowDevTransactionShape(t *testing.T) {
+	llLinkGet := func(name string) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    unix.AF_UNSPEC,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			name:      name,
+		}
+	}
+	addrLinkGet := func(family uint8, index int32) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    family,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			index:     index,
+		}
+	}
+
+	tests := []struct {
+		description      string
+		family           uint8
+		args             []string
+		wantDumps        int
+		wantGets         []getShape
+		wantStdoutPrefix string
+		wantNoStdout     string
+	}{
+		{
+			description: "positive: `addr show dev goip0` is ll_link_get, then a by-index get, then one dump",
+			family:      unix.AF_UNSPEC,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_UNSPEC, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+		},
+		{
+			// The family DOES reach request two here, where `link show dev`
+			// has it overwritten with AF_PACKET before argument parsing
+			// (ip/ipaddress.c:2416). Request one is unmoved, because
+			// ll_link_get has no family knob at all — so this row is the one
+			// that shows the two gets disagreeing about the family inside a
+			// single command.
+			description: "positive: -4 reaches the second get and not the first",
+			family:      unix.AF_INET,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_INET, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "inet6 ",
+		},
+		{
+			description: "positive: -6 does the same with the other family, so the row above is not passing on AF_INET's value",
+			family:      unix.AF_INET6,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_INET6, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "    inet ",
+		},
+		{
+			// AF_PACKET skips the address dump entirely — ip/ipaddress.c:2310
+			// guards it — so the command degenerates to two single-gets and
+			// no dump at all. That makes this the only `dev` form whose
+			// transaction count matches `link show dev`'s while its requests
+			// differ from it.
+			description: "boundary: -0 drops the third transaction, because AF_PACKET skips the address dump",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_PACKET, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "inet",
+		},
+		{
+			description: "boundary: `addr lst dev goip0` abbreviates to the same three requests",
+			family:      unix.AF_UNSPEC,
+			args:        []string{"lst", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_UNSPEC, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newLinkReplay(t, addrDevPcap)
+			out, err := runAddressWith(t, src, tc.family, tc.args)
+			if err != nil {
+				t.Fatalf("runAddress(%q): %v", tc.args, err)
+			}
+			if src.dumps != tc.wantDumps {
+				t.Errorf("sent %d dumps, want %d", src.dumps, tc.wantDumps)
+			}
+			if len(src.gets) != len(tc.wantGets) {
+				t.Fatalf("sent %d single-gets, want %d", len(src.gets), len(tc.wantGets))
+			}
+			for i, want := range tc.wantGets {
+				if got := selectorOf(src.gets[i]); got != want {
+					t.Errorf("single-get %d = %+v, want %+v", i+1, got, want)
+				}
+			}
+			if !strings.HasPrefix(out, tc.wantStdoutPrefix) {
+				t.Errorf("stdout does not start with %q\ngot:\n%s", tc.wantStdoutPrefix, firstLines(out, 6))
+			}
+			if tc.wantNoStdout != "" && strings.Contains(out, tc.wantNoStdout) {
+				t.Errorf("stdout contains %q, which this family must not print\ngot:\n%s",
+					tc.wantNoStdout, firstLines(out, 8))
+			}
+			// One stanza, always: the selector resolved to one link and
+			// ipaddr_filter cannot add any.
+			for i, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+				if i > 0 && !strings.HasPrefix(line, " ") {
+					t.Errorf("line %d starts a second stanza: %q", i+1, line)
+				}
+			}
+		})
+	}
+
+	// The negative the rows above cannot state. getShape keeps five fields;
+	// two requests agreeing on all five can still differ in the ext-mask
+	// value, in a trailing attribute, or in nlmsg_len. Comparing the raw
+	// bytes is what closes that gap, and it is cheap here because both
+	// requests came out of the same run moments apart.
+	t.Run("negative: the two single-gets differ in full, not merely in the fields getShape keeps", func(t *testing.T) {
+		src := newLinkReplay(t, addrDevPcap)
+		if _, err := runAddressWith(t, src, unix.AF_UNSPEC, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runAddress: %v", err)
+		}
+		if len(src.gets) != 2 {
+			t.Fatalf("sent %d single-gets, want 2", len(src.gets))
+		}
+		if bytes.Equal(src.gets[0], src.gets[1]) {
+			t.Errorf("both single-gets are %x; ll_link_get and ipaddr_link_get have collapsed into one", src.gets[0])
+		}
+	})
+
+	// And the one `link show dev` asserts from the other side: this command's
+	// second request is NOT iplink_get's. Same interface, same moment, two
+	// commands, two different bytes.
+	t.Run("corner: the second get is not the iplink_get `link show dev` sends", func(t *testing.T) {
+		addrSrc := newLinkReplay(t, addrDevPcap)
+		if _, err := runAddressWith(t, addrSrc, unix.AF_UNSPEC, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runAddress: %v", err)
+		}
+		linkSrc := newLinkReplay(t, addrDevPcap)
+		if _, err := runLinkWith(t, linkSrc, unix.AF_PACKET, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runLink: %v", err)
+		}
+		if len(addrSrc.gets) != 2 || len(linkSrc.gets) != 2 {
+			t.Fatalf("gets = %d and %d, want 2 each", len(addrSrc.gets), len(linkSrc.gets))
+		}
+		if !bytes.Equal(addrSrc.gets[0], linkSrc.gets[0]) {
+			t.Errorf("the two commands' FIRST requests differ, and they must not — both are ll_link_get\n"+
+				"addr: %x\nlink: %x", addrSrc.gets[0], linkSrc.gets[0])
+		}
+		if bytes.Equal(addrSrc.gets[1], linkSrc.gets[1]) {
+			t.Errorf("the two commands' SECOND requests are identical; ipaddr_link_get and iplink_get "+
+				"are different functions with different selectors and families: %x", addrSrc.gets[1])
+		}
+	})
+}
+
+// TestAddrShowDevMatchesCapturedOutput diffs `goip addr show dev goip0`
+// against the `ip addr show dev goip0` sidecar written in the same guest
+// namespace, in the same window, as the pcap it replays.
+//
+// A matched pair, so this is a verbatim comparison rather than the
+// reconstruction the 7_1_8 corpus needs — ip_addr_dev was written by a plain
+// `ip`, not by `ip -d`.
+//
+// What it certifies beyond `addr show`'s own golden: the stanza here comes
+// from a single-get reply rather than from a dump reply, and `do_link` is
+// still 0, so it must have the address lines AND no `mode DEFAULT`. Those two
+// facts pull in opposite directions — the reply looks like `link show dev`'s
+// and the rendering must look like `addr show`'s — and only a golden taken
+// from this exact command can hold both.
+//
+// go test ./internal/goip/ -run TestAddrShowDevMatchesCapturedOutput
+func TestAddrShowDevMatchesCapturedOutput(t *testing.T) {
+	raw, err := os.ReadFile(addrDevSidecar)
+	if err != nil {
+		t.Fatalf("read %s: %v", addrDevSidecar, err)
+	}
+	want := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+
+	out, err := runAddressWith(t, newLinkReplay(t, addrDevPcap), unix.AF_UNSPEC,
+		[]string{"show", "dev", devNameCst})
+	if err != nil {
+		t.Fatalf("runAddress: %v", err)
+	}
+	got := strings.Split(strings.TrimRight(out, "\n"), "\n")
+
+	t.Run("positive: the output has the same line count as the sidecar", func(t *testing.T) {
+		if len(got) != len(want) {
+			t.Errorf("rendered %d lines, want %d\ngot:\n%s\nwant:\n%s",
+				len(got), len(want), out, string(raw))
+		}
+	})
+
+	t.Run("negative: the stanza has no `mode DEFAULT`, because do_link is 0 on the addr path", func(t *testing.T) {
+		// Stated as its own row because it is the one token that separates
+		// this output from `ip link show dev goip0`'s, and a line-by-line
+		// diff reports it as "line 1 differs" with no hint of why.
+		if strings.Contains(out, "mode DEFAULT") {
+			t.Errorf("output carries `mode DEFAULT`, which print_linkmode emits only under do_link "+
+				"(ip/ipaddress.c:1043):\n%s", firstLines(out, 3))
+		}
+	})
+
+	for i, wantLine := range want {
+		t.Run(fmt.Sprintf("positive: output line %d matches ip_addr_dev:%d", i+1, i+1), func(t *testing.T) {
+			if i >= len(got) {
+				t.Fatalf("missing output line; want %q", wantLine)
+			}
+			if got[i] != wantLine {
+				t.Errorf("line %d mismatch\n got: %q\nwant: %q", i+1, got[i], wantLine)
 			}
 		})
 	}

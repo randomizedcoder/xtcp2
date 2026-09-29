@@ -206,6 +206,40 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "addr show dev", Slug: "addr_show_dev",
+		NeedsDev: true,
+		// Six, and the count is half the assertion. `link show dev` sends two
+		// single-gets; this sends the first of those, then a DIFFERENT second
+		// one, then a dump: ll_link_get to resolve the name
+		// (ip/ipaddress.c:2253), ipaddr_link_get by INDEX rather than
+		// iplink_get by name (:2302), and the address dump with that index in
+		// ifa_index (:2314, :1954-1958). Three transactions, each a request
+		// and at least one reply.
+		//
+		// Measured: seven DATAGRAMS on the clean topology, carrying ten
+		// MESSAGES — three requests, two single-get replies, and an address
+		// dump of four RTM_NEWADDR plus NLMSG_DONE packed into two. The
+		// floor counts datagrams, so six leaves one of margin, which is what
+		// a floor is for. The two numbers differ because the kernel packs a
+		// multipart dump, and a floor written against the message count
+		// would have been a floor this command could not clear.
+		//
+		// # The one command where two single-gets for one interface differ
+		//
+		// Requests one and two ask the kernel about the same link within
+		// microseconds and are not the same bytes. ll_link_get's ifinfomsg is
+		// a designated initializer naming ifi_index alone, so its family is
+		// AF_UNSPEC; ipaddr_link_get sets ifi_family = filter.family (:2058).
+		// Nothing in either reply, and nothing in any output, reflects that
+		// byte. Full request equality is the only thing that can see it,
+		// which makes this row a test of the comparator as much as of goip.
+		//
+		// The stdout half is nearly free: the stanza is print_linkinfo's with
+		// do_link still 0, which is the rendering `addr show` already gets
+		// right, restricted to one link.
+		Floor: 6, Implemented: true,
+	},
+	{
 		Name: "route show", Slug: "route_show",
 		// Four: the route dump, then one lazy RTM_GETLINK single-get for the
 		// one ifindex the listing mentions. iproute_list_flush_or_save never
@@ -227,7 +261,79 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "route show dev", Slug: "route_show_dev",
+		NeedsDev: true,
+		// Four: two transactions, each a request and at least one reply
+		// datagram. ll_name_to_index's throwaway ll_link_get
+		// (ip/iproute.c:2008), then the dump with RTA_TABLE and RTA_OIF.
+		//
+		// # The only row whose selector makes the command CHEAPER
+		//
+		// Measured on the clean topology: five datagrams carrying ten
+		// messages — exactly what the bare `route show` measures. The two are
+		// not the same five, and the difference is the entire point of this
+		// row. `route show` sends the dump FIRST and then one lazy
+		// RTM_GETLINK at the END, by index, to name the interface every route
+		// prints. `route show dev` sends an RTM_GETLINK FIRST, by name, to
+		// resolve the selector — and then sends none at all, because
+		// print_route's `dev` token is guarded on `filter.oifmask != -1`
+		// (:900-901) and that token is the only caller of ll_index_to_name
+		// for RTA_OIF.
+		//
+		// So the get moved from the back to the front and changed from
+		// by-index to by-name, and a counting comparator sees nothing. Only
+		// positional request equality can tell these two commands apart on
+		// the wire, which makes this row a test of the comparator as much as
+		// of goip — the same property `addr show dev` carries for a different
+		// reason.
+		//
+		// It also means the saving GROWS with the answer: the bare form costs
+		// one get per distinct output interface, this one costs exactly two
+		// transactions however many routes come back. The mesh capture, whose
+		// device owns no routes at all, still sends the same two requests and
+		// lands exactly on the floor of four.
+		//
+		// The stdout half is not a slice of `route show`'s. The main lines
+		// LOSE their `dev NAME` token, while a multipath route KEEPS one on
+		// every nexthop — the nexthop tokens at :743 and :751 have no guard —
+		// so the word the command named appears nowhere on the lines it
+		// selected and everywhere on the lines it did not.
+		Floor: 4, Implemented: true,
+	},
+	{
 		Name: "neigh show", Slug: "neigh_show",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "neigh show dev", Slug: "neigh_show_dev",
+		NeedsDev: true,
+		// Four, the SAME floor as the row above — and that equality is the
+		// assertion rather than an oversight.
+		//
+		// # The only `dev` row whose selector is free
+		//
+		// The other three cost something. `link show dev` and `addr show dev`
+		// each add a throwaway ll_link_get at the front; `route show dev`
+		// adds one there and deletes the lazy ones at the back. This one adds
+		// nothing, because do_show_or_flush calls ll_init_map(&rth)
+		// unconditionally at ip/ipneigh.c:597 — for the bare command as much
+		// as for this one — and only then resolves the name at :600, out of
+		// the cache that dump just filled. ll_get_by_name hits, so
+		// ll_link_get is never reached (lib/ll_map.c:354-359).
+		//
+		// Two transactions either way, the first byte-identical, and the
+		// whole difference is 8 bytes of NDA_IFINDEX on the second. That is
+		// the narrowest delta any row in this table asserts, and it is
+		// invisible to each half of the comparison in turn: the request delta
+		// produces no output, and the output delta — the `dev` token,
+		// suppressed by print_neigh's :415 guard — produces no request.
+		// Neither half alone would catch a goip that implemented one and not
+		// the other.
+		//
+		// The index also travels as an ATTRIBUTE rather than in the
+		// ndm_ifindex field `struct ndmsg` already has (:493). A goip that
+		// filled the field would send a well-formed 28-byte request the
+		// kernel filters on nothing, and only byte equality would say so.
 		Floor: 4, Implemented: true,
 	},
 })

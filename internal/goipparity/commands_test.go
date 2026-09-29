@@ -169,20 +169,39 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: exactly one command needs a device, and it is the only one whose Argv grows",
+			description: "boundary: the dev-taking commands are exactly the ones named `... dev`, and only their Argv grows",
 			check: func(t *testing.T) {
-				var needy []string
+				// Named as a set rather than counted, because the count is
+				// not the property. What matters is that NeedsDev and the
+				// trailing `dev` keyword in Name agree in BOTH directions: a
+				// row with the keyword and no flag would run `ip addr show
+				// dev` with no device, and a row with the flag and no keyword
+				// would append a bare name to a command that does not take
+				// one. Either way the driver captures something, the
+				// comparator finds a triple, and the run looks green.
+				want := map[string]bool{
+					"link show dev":  true,
+					"addr show dev":  true,
+					"route show dev": true,
+					"neigh show dev": true,
+				}
 				for _, c := range Commands() {
-					if c.NeedsDev {
-						needy = append(needy, c.Name)
+					named := strings.HasSuffix(c.Name, " dev")
+					if named != c.NeedsDev {
+						t.Errorf("%q: Name ends in %q = %v, NeedsDev = %v; the two must agree",
+							c.Name, " dev", named, c.NeedsDev)
 					}
+					if c.NeedsDev && !want[c.Name] {
+						t.Errorf("%q takes a device and is not in the expected set", c.Name)
+					}
+					delete(want, c.Name)
 					if got := len(c.Argv("goip0")); got != len(c.Args)+boolToInt(c.NeedsDev) {
 						t.Errorf("%q: Argv is %d long, want %d",
 							c.Name, got, len(c.Args)+boolToInt(c.NeedsDev))
 					}
 				}
-				if len(needy) != 1 || needy[0] != "link show dev" {
-					t.Errorf("dev-taking commands = %q, want exactly [link show dev]", needy)
+				for name := range want {
+					t.Errorf("%q is missing from the table", name)
 				}
 			},
 		},

@@ -32,7 +32,10 @@ func TestNeighViewOfText(t *testing.T) {
 	tests := []struct {
 		description string
 		in          xtcpnl.NeighInfo
-		want        string
+		// filter is zero — no device selector — on every row transcribed
+		// from ip_neigh_n, which is the bare command's sidecar.
+		filter NeighShowFilter
+		want   string
 	}{
 		{
 			description: "positive: ip_neigh_n:1 — a permanent v4 entry with a link-layer address",
@@ -156,11 +159,52 @@ func TestNeighViewOfText(t *testing.T) {
 			},
 			want: "192.0.2.57 dev goip0 lladdr 80:00:02:08:fe:80:00:00:00:00:00:00:00:11:22:33:44:55:66:77 REACHABLE \n",
 		},
+		{
+			// The `dev NAME` form, against the same entry as row 1. The
+			// token and its keyword both go, and the single space between
+			// the destination and `lladdr` is the whole remaining gap —
+			// print_neigh emits `%s ` per token, so removing one token
+			// removes exactly one trailing space with it.
+			description: "positive: ip_neigh_dev:1 — a device filter removes the dev token and its keyword",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_PERMANENT,
+				Dst:    []byte{192, 0, 2, 50},
+				LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+			},
+			filter: NeighShowFilter{IndexSet: true},
+			want:   "192.0.2.50 lladdr 02:00:00:00:00:01 PERMANENT \n",
+		},
+		{
+			// The suppression is keyed on the filter alone, not on whether
+			// the index matches it: print_neigh's guard is
+			// `if (!filter.index && r->ndm_ifindex)` (ip/ipneigh.c:415) and
+			// never compares the two. A reply on a different interface —
+			// which only reaches the renderer if the earlier :331 test was
+			// skipped — is printed with no dev token just the same.
+			description: "corner: the filter suppresses the token without comparing indexes",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 99, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 55},
+			},
+			filter: NeighShowFilter{IndexSet: true},
+			want:   "192.0.2.55 STALE \n",
+		},
+		{
+			// The guard's OTHER arm, and the one no command line can set.
+			// ndm_ifindex 0 drops the token with no filter in play, so an
+			// unfiltered render must not fall back to `if0`.
+			description: "boundary: ifindex 0 drops the dev token even with no filter",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 0, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 58},
+			},
+			want: "192.0.2.58 STALE \n",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := NeighViewOf(tc.in, neighTabNames).Text()
+			got := NeighViewOf(tc.in, neighTabNames, tc.filter).Text()
 			if got != tc.want {
 				t.Errorf("Text() = %q, want %q", got, tc.want)
 			}
@@ -175,6 +219,7 @@ func TestNeighViewJSONKeys(t *testing.T) {
 	tests := []struct {
 		description string
 		in          xtcpnl.NeighInfo
+		filter      NeighShowFilter
 		wantKeys    []string
 		absentKeys  []string
 	}{
@@ -209,11 +254,25 @@ func TestNeighViewJSONKeys(t *testing.T) {
 			wantKeys:    []string{`"state":["NONE"]`},
 			absentKeys:  []string{`"state":null`},
 		},
+		{
+			// iproute2 emits the JSON key from the same print_color_string
+			// call that emits the text (ip/ipneigh.c:419-421), inside the
+			// same guard, so `ip -j neigh show dev X` has no dev key at all
+			// rather than an empty one. That is why Dev took omitempty.
+			description: "negative: a device filter omits the dev key entirely, not as an empty string",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_PERMANENT,
+				Dst: []byte{192, 0, 2, 50},
+			},
+			filter:     NeighShowFilter{IndexSet: true},
+			wantKeys:   []string{`"dst"`, `"state"`},
+			absentKeys: []string{`"dev"`},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			b, err := json.Marshal(NeighViewOf(tc.in, neighTabNames))
+			b, err := json.Marshal(NeighViewOf(tc.in, neighTabNames, tc.filter))
 			if err != nil {
 				t.Fatalf("Marshal: %v", err)
 			}

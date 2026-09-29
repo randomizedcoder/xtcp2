@@ -190,13 +190,9 @@ func (s *Service) AddressSnapshot(family uint8) ([]model.Link, []model.Address, 
 	}
 	var addrs []model.Address
 	if family != unix.AF_PACKET {
-		as, err := decode(s, req.AddrShowDump(family, s.nextSeq()), uint16(unix.RTM_NEWADDR), "RTM_NEWADDR", xtcpnl.ParseNewAddr)
+		addrs, err = s.Addresses(family, 0)
 		if err != nil {
 			return nil, nil, err
-		}
-		addrs = make([]model.Address, len(as))
-		for i := range as {
-			addrs[i] = model.Address(as[i])
 		}
 	}
 	// Preserve link dump order for the CLI grouping; standalone address lists
@@ -204,8 +200,56 @@ func (s *Service) AddressSnapshot(family uint8) ([]model.Link, []model.Address, 
 	return links, addrs, nil
 }
 
-func (s *Service) Routes(family uint8, table uint32) ([]model.Route, error) {
-	r, err := req.RouteShowDump(family, table, s.nextSeq())
+// Addresses runs ip_addr_list (ip/ipaddress.c:2105-2118): the RTM_GETADDR dump
+// that every `addr show` form ends with.
+//
+// ifindex is filter.ifindex — 0 for an unfiltered show, and the index a
+// `dev NAME` selector resolved to otherwise. It is passed through to the
+// request header rather than applied here, because that is where `ip` puts it;
+// see req.AddrShowDump for why one builder serves both and for the socket
+// option that decides whether the kernel acts on it.
+//
+// The replies are returned in dump order and NOT sorted, for the reason
+// AddressSnapshot gives: the CLI groups them under links it prints in the
+// kernel's own order, so imposing a canonical order here could only make the
+// output differ from `ip`'s.
+func (s *Service) Addresses(family uint8, ifindex uint32) ([]model.Address, error) {
+	as, err := decode(s, req.AddrShowDump(family, ifindex, s.nextSeq()),
+		uint16(unix.RTM_NEWADDR), "RTM_NEWADDR", xtcpnl.ParseNewAddr)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Address, len(as))
+	for i := range as {
+		out[i] = model.Address(as[i])
+	}
+	return out, nil
+}
+
+// AddrLinkGet performs ipaddr_link_get (ip/ipaddress.c:2052-2083), the
+// by-index single-get `ip addr show dev NAME` sends once ll_name_to_index has
+// resolved the selector.
+//
+// It is not LinkByIndex. That one is ll_link_get's index arm and is
+// structurally AF_UNSPEC; this one carries preferred_family, so `-4` and `-6`
+// change its header where they cannot change ll_link_get's. Both appear in
+// this one command, one byte apart, and pkg/nlparity compares requests for
+// full byte equality. req.AddrShowLinkGet has the derivation.
+func (s *Service) AddrLinkGet(family uint8, index int32, extMask uint32) (model.Link, error) {
+	r, err := req.AddrShowLinkGet(family, index, extMask, s.nextSeq())
+	if err != nil {
+		return model.Link{}, fmt.Errorf("goip: build addr link get request: %w", err)
+	}
+	match := func(l model.Link) bool { return l.Index == index }
+	return s.linkFromGet(r, match, fmt.Sprintf("index %d", index))
+}
+
+// Routes performs the RTM_GETROUTE dump behind `ip route show`, with
+// iproute_dump_filter's two optional attributes applied: table (RT_TABLE_UNSPEC
+// for none) and oif (0 for none). req.RouteShowDump has the derivation,
+// including why `iif` is deliberately absent from this signature.
+func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error) {
+	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +276,16 @@ func (s *Service) Routes(family uint8, table uint32) ([]model.Route, error) {
 	return out, nil
 }
 
-func (s *Service) Neighbors(family uint8) ([]model.Neighbor, error) {
-	v, err := decode(s, req.NeighShowDump(family, s.nextSeq()), uint16(unix.RTM_NEWNEIGH), "RTM_NEWNEIGH", xtcpnl.ParseNeigh)
+// Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface.
+//
+// ifindex 0 is the unfiltered form; see req.NeighShowDump for why the index
+// travels as an NDA_IFINDEX attribute rather than in ndm_ifindex.
+func (s *Service) Neighbors(family uint8, ifindex uint32) ([]model.Neighbor, error) {
+	r, err := req.NeighShowDump(family, ifindex, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build neighbor dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEIGH), "RTM_NEWNEIGH", xtcpnl.ParseNeigh)
 	if err != nil {
 		return nil, err
 	}
@@ -245,24 +297,27 @@ func (s *Service) Neighbors(family uint8) ([]model.Neighbor, error) {
 	return out, nil
 }
 
-// NeighborSnapshot obtains the interface-name map before the neighbor dump,
-// preserving iproute2's transaction order.
-func (s *Service) NeighborSnapshot(family uint8) ([]model.Link, []model.Neighbor, error) {
+// NeighborLinks is ll_init_map's link dump (ip/ipneigh.c:597), which every
+// `ip neigh show` sends before the neighbor dump whether or not a device was
+// named.
+//
+// It is split out from the neighbor dump rather than paired with it because
+// `dev NAME` is resolved BETWEEN the two, out of this dump's own replies —
+// which is the whole reason the selector costs no extra transaction. A
+// combined call would have to take the name and duplicate the index cache's
+// lookup to do it.
+func (s *Service) NeighborLinks() ([]model.Link, error) {
 	r, err := req.NeighShowLinkDump(s.nextSeq())
 	if err != nil {
-		return nil, nil, fmt.Errorf("goip: build neighbor link dump request: %w", err)
+		return nil, fmt.Errorf("goip: build neighbor link dump request: %w", err)
 	}
 	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	links := make([]model.Link, len(ls))
 	for i := range ls {
 		links[i] = model.Link(ls[i])
 	}
-	neighbors, err := s.Neighbors(family)
-	if err != nil {
-		return nil, nil, err
-	}
-	return links, neighbors, nil
+	return links, nil
 }

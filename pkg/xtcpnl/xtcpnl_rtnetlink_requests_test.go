@@ -222,7 +222,7 @@ func TestRequestBuilders(t *testing.T) {
 			// RTA_TABLE, and dump_family is left AF_UNSPEC (ip/iproute.c:1998
 			// promotes it to AF_INET only when a table filter is set).
 			description: "positive: ip route show table all (all-zero rtmsg, no attrs)",
-			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 0)),
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 0, 0)),
 			want:        capturedRequest(t, routeMsgs, recRouteShowAllCst, uint16(unix.RTM_GETROUTE)),
 		},
 		{
@@ -267,7 +267,7 @@ func TestRequestBuilders(t *testing.T) {
 			// Also formerly structural: the gated-topology capture supplies the
 			// bytes now.
 			description: "positive: default ip route show (AF_INET + RTA_TABLE 254)",
-			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET, unix.RT_TABLE_MAIN, 0)),
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET, unix.RT_TABLE_MAIN, 0, 0)),
 			want:        capturedRequest(t, gatedRouteMsgs, recGatedRouteDumpCst, uint16(unix.RTM_GETROUTE)),
 		},
 		{
@@ -275,7 +275,7 @@ func TestRequestBuilders(t *testing.T) {
 			// `-6` changes. Asserted separately because a builder that ignored
 			// its family argument would still pass the row above.
 			description: "positive: ip -6 route show (AF_INET6 + RTA_TABLE 254)",
-			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET6, unix.RT_TABLE_MAIN, 0)),
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET6, unix.RT_TABLE_MAIN, 0, 0)),
 			want:        capturedRequest(t, gatedRoute6Msgs, recGatedRoute6DumpCst, uint16(unix.RTM_GETROUTE)),
 		},
 		{
@@ -304,6 +304,36 @@ func TestRequestBuilders(t *testing.T) {
 			description: "boundary: BuildDumpAddrRequestIndex with ifindex 0 equals BuildDumpAddrRequest",
 			got:         BuildDumpAddrRequestIndex(unix.AF_INET, 0, testSeq),
 			want:        BuildDumpAddrRequest(unix.AF_INET, testSeq),
+		},
+		{
+			// Same contract on the neighbor side: `ip neigh show` and
+			// `ip neigh show dev NAME` share a builder, so the unfiltered
+			// form must be indistinguishable from the pre-filter one.
+			description: "boundary: BuildDumpNeighRequestFilter with ifindex 0 equals BuildDumpNeighRequest",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 0, testSeq)),
+			want:        BuildDumpNeighRequest(unix.AF_UNSPEC, testSeq),
+		},
+		{
+			// The trap, asserted rather than described. ndmsgHdr's third
+			// argument is ndm_ifindex and it stays 0 here while the index
+			// travels as NDA_IFINDEX — the opposite of the ifaddrmsg row
+			// above, where the index IS the header field. ipneigh_dump_filter
+			// (ip/ipneigh.c:493) is the reason.
+			description: "boundary: BuildDumpNeighRequestFilter sends the index as NDA_IFINDEX, leaving ndm_ifindex zero",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 3, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
+				concat(ndmsgHdr(unix.AF_UNSPEC, 0, 0, 0, 0),
+					rtattr(uint16(unix.NDA_IFINDEX), le32(3)))),
+		},
+		{
+			// The family byte is the one thing `-4`/`-6` change on this
+			// request, and a builder that ignored its family argument would
+			// still pass the row above.
+			description: "corner: BuildDumpNeighRequestFilter keeps ndm_family alongside the filter",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_INET6, 3, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
+				concat(ndmsgHdr(unix.AF_INET6, 0, 0, 0, 0),
+					rtattr(uint16(unix.NDA_IFINDEX), le32(3)))),
 		},
 		{
 			// ifa_index lives in the HEADER, at offset 4 of the ifaddrmsg. There
@@ -395,10 +425,60 @@ func TestRequestBuilders(t *testing.T) {
 			// rtm_table is one byte and cannot hold this; RTA_TABLE is the u32
 			// that supersedes it, which is the whole reason the attribute exists.
 			description: "corner: a table id above 255 fits RTA_TABLE but not rtm_table",
-			got:         mustBuildReq(BuildDumpRouteRequestTable(unix.AF_INET, 0xdeadbeef, testSeq)),
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET, 0xdeadbeef, 0, testSeq)),
 			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
 				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
 					rtattr(uint16(unix.RTA_TABLE), le32(0xdeadbeef)))),
+		},
+		{
+			// `ip route show dev NAME`. iproute_dump_filter writes RTA_TABLE
+			// at ip/iproute.c:1726 and RTA_OIF at :1731, in that order and
+			// each behind its own presence test, so this row asserts the
+			// ORDER as much as the contents — nlparity compares requests for
+			// full byte equality and the reversed pair is a divergence.
+			description: "positive: ip route show dev NAME (RTA_TABLE then RTA_OIF)",
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET, unix.RT_TABLE_MAIN, 3, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(unix.RT_TABLE_MAIN)),
+					rtattr(uint16(unix.RTA_OIF), le32(3)))),
+		},
+		{
+			// `ip route show table all dev NAME`. The two presence tests are
+			// independent, so dropping the table does not drop the device —
+			// and the family stays AF_UNSPEC because ip/iproute.c:1998
+			// promotes on the TABLE alone and knows nothing about `dev`.
+			description: "boundary: table all with a device filter carries RTA_OIF alone",
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 3, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_UNSPEC, 0, 0, 0, 0, 0, 0, 0),
+					rtattr(uint16(unix.RTA_OIF), le32(3)))),
+		},
+		{
+			// No interface has index 0, so `if (filter.oif)` (:1731) can use
+			// the value as its own presence flag — and so can this builder.
+			// Spelled out by hand rather than compared against the captured
+			// `ip route show` row above, because what needs asserting is that
+			// oif 0 appends NOTHING: an empty RTA_OIF, or a zero-valued one,
+			// would still satisfy a length check and would still be a
+			// divergence.
+			description: "corner: oif 0 appends no attribute at all",
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET, unix.RT_TABLE_MAIN, 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(unix.RT_TABLE_MAIN)))),
+		},
+		{
+			// filter.oif is an `int` in C and an ifindex is signed in the
+			// kernel, so the top bit is reachable only by a host that has
+			// churned through two billion interfaces — but the attribute is a
+			// u32 on the wire either way, and a builder that narrowed it to
+			// int16 somewhere would show up here and nowhere else.
+			description: "boundary: a 32-bit ifindex round-trips little-endian in RTA_OIF",
+			got:         mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_INET, unix.RT_TABLE_UNSPEC, 0xfeedface, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
+					rtattr(uint16(unix.RTA_OIF), le32(0xfeedface)))),
 		},
 		{
 			// A negative index is how the kernel spells "unset" in some replies;

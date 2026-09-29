@@ -43,6 +43,12 @@ const (
 	// in the whole file, which is the assertion as much as their contents are.
 	tdGatedGetLinkDev = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getlink_dev.pcap"
 
+	// The `ip addr show dev goip0` capture. Taken on the same topology by the
+	// same script as the rest of this corpus, but on a LATER run of it — see
+	// TestTierAAddrShowDevRequests for why that is sound here and what it
+	// would not be sound for.
+	tdGatedGetAddrDev = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr_dev.pcap"
+
 	// The gated-topology route captures, one command each, taken in a microVM
 	// with no other netlink traffic on the host. That is what makes "exactly
 	// one RTM_GETROUTE request" an assertion the route rows can make and the
@@ -50,6 +56,21 @@ const (
 	tdGatedGetRoute    = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute.pcap"
 	tdGatedGetRoute6   = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute6.pcap"
 	tdGatedGetRouteAll = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute_table_all.pcap"
+
+	// `ip route show dev NAME`, on both topologies. The MESH one is here for
+	// one reason: on that namespace the named device owns no routes, so the
+	// dump answers with nothing but NLMSG_DONE. Two captures of the same
+	// command whose answers differ by every route are what let the transaction
+	// count be asserted as a constant rather than as a coincidence of the
+	// clean topology's size.
+	tdGatedGetRouteDev     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getroute_dev.pcap"
+	tdGatedGetRouteDevMesh = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/netlink_route_getroute_dev.pcap"
+
+	// `ip neigh show dev NAME`, on both topologies. Its whole difference from
+	// tdGetNeigh is 8 bytes on the second request, which is precisely why it
+	// needs its own file: nothing in the replies or the output records it.
+	tdGatedGetNeighDev     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_dev.pcap"
+	tdGatedGetNeighDevMesh = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/netlink_route_getneigh_dev.pcap"
 )
 
 // canonicalRequests returns every request in a capture with nlmsg_seq and
@@ -81,7 +102,12 @@ func TestTierANeighShowRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	neigh := NeighShowDump(unix.AF_UNSPEC, 124)
+	// ifindex 0: the bare command sets no filter, so the request must come
+	// back byte-identical to the pre-filter builder's output.
+	neigh, err := NeighShowDump(unix.AF_UNSPEC, 0, 124)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(zeroSeqPid(link), reqs[0]) {
 		t.Fatalf("link-map request differs\n got %x\nwant %x", zeroSeqPid(link), reqs[0])
 	}
@@ -562,6 +588,493 @@ func TestTierALinkShowDevRequests(t *testing.T) {
 	}
 }
 
+// TestTierAAddrShowDevRequests is the Tier A positive for `addr show dev`:
+// all THREE requests the pinned `ip` sent, in order, byte for byte.
+//
+// # What the three are, and why the middle one needed a capture
+//
+// Requests one and three were predictable from the source. Request two was
+// the one worth capturing: ipaddr_link_get sets `.i.ifi_family =
+// filter.family` (ip/ipaddress.c:2058), and for a plain `addr show dev` that
+// is AF_UNSPEC — which is the same byte ll_link_get's designated initializer
+// leaves behind for a completely different reason. Two requests agreeing on a
+// field by coincidence is exactly the situation where reading the source and
+// writing down what you expect goes wrong, and the capture is what makes the
+// agreement a measurement.
+//
+// Request three is the payoff: `18000000 16000103 00000000 00000000 00000000
+// 03000000` — an RTM_GETADDR dump whose ifaddrmsg carries ifa_index 3. It is
+// the only request in the whole corpus with a non-zero value in that field,
+// and it is what makes BuildDumpAddrRequestIndex a builder with a caller
+// rather than a builder with a doc comment.
+//
+// # This capture is from a later run than the rest of the corpus
+//
+// The capture script rewrites every fixture it takes, and the guest's dummy
+// gets a fresh random MAC on each boot, so installing a whole re-capture
+// would have churned the sidecars, the portids and the neighbor dump's hash
+// order across the corpus for one new command. Only this pcap and its
+// ip_addr_dev sidecar were taken from the new run, and they are a matched
+// pair with each other, which is all any test here needs.
+//
+// What it would NOT be sound for is a test that cross-referenced this pcap
+// against another fixture's MAC or portid. Nothing does, and the topology is
+// otherwise identical — same namespace script, same indexes, same addresses.
+//
+// go test ./internal/goip/req/ -run TestTierAAddrShowDevRequests
+func TestTierAAddrShowDevRequests(t *testing.T) {
+	const (
+		devCst   = "goip0"
+		indexCst = 3
+	)
+
+	reqs := canonicalRequests(t, tdGatedGetAddrDev)
+	if len(reqs) != 3 {
+		t.Fatalf("requests in the addr dev capture = %d, want ll_link_get, ipaddr_link_get, ip_addr_list", len(reqs))
+	}
+
+	tests := []struct {
+		description string
+		build       func() ([]byte, error)
+		captured    []byte
+	}{
+		{
+			// The same function `link show dev` calls, so the same bytes.
+			// Asserted here as well as there, because "the two commands
+			// share their first request" is a claim about this capture and
+			// not only about the builder.
+			description: "positive: the first request is ll_link_get, by name, AF_UNSPEC, ext-mask first",
+			build:       func() ([]byte, error) { return LinkShowByName(devCst, 51) },
+			captured:    reqs[0],
+		},
+		{
+			description: "positive: the second request is ipaddr_link_get, by index, carrying filter.family",
+			build:       func() ([]byte, error) { return AddrShowLinkGet(unix.AF_UNSPEC, indexCst, ExtMaskShow, 52) },
+			captured:    reqs[1],
+		},
+		{
+			description: "positive: the third request is the address dump with the resolved index in ifa_index",
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_UNSPEC, indexCst, 53), nil },
+			captured:    reqs[2],
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := tc.build()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), tc.captured) {
+				t.Fatalf("request differs\n got %x\nwant %x", zeroSeqPid(got), tc.captured)
+			}
+		})
+	}
+
+	// The negatives the rows above cannot state, because each of them only
+	// says "this builder reproduces this capture".
+	t.Run("negative: the unfiltered address dump does NOT reproduce the captured third request", func(t *testing.T) {
+		// Without this, a goip that ignored the selector entirely would fail
+		// the third row with a hex dump and no reason. It is also the
+		// assertion that the index reaches the wire at all: the two requests
+		// differ in exactly four bytes.
+		unfiltered := AddrShowDump(unix.AF_UNSPEC, 0, 53)
+		if bytes.Equal(zeroSeqPid(unfiltered), reqs[2]) {
+			t.Error("the unfiltered dump equals the captured `dev` dump; ifa_index is not reaching the request")
+		}
+	})
+
+	t.Run("negative: iplink_get does not reproduce the captured second request", func(t *testing.T) {
+		// `link show dev`'s second request, for the same interface. It is by
+		// name, AF_PACKET, with the attributes in the other order — three
+		// differences, none of them visible in any output either tool prints.
+		iplink, err := LinkShowDev(devCst, ExtMaskShow, 52)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bytes.Equal(zeroSeqPid(iplink), reqs[1]) {
+			t.Error("iplink_get reproduced ipaddr_link_get's captured request; " +
+				"`link show dev` and `addr show dev` have collapsed into one command")
+		}
+	})
+
+	t.Run("corner: the first request is byte-identical to `link show dev`'s first", func(t *testing.T) {
+		// Stated as an equality between two CAPTURES rather than between two
+		// builder calls, because the claim is about iproute2 — that
+		// ll_name_to_index is reached identically from both commands — and a
+		// claim about iproute2 that is checked against goip's own output
+		// proves nothing.
+		linkDevReqs := canonicalRequests(t, tdGatedGetLinkDev)
+		if len(linkDevReqs) != 2 {
+			t.Fatalf("requests in the link dev capture = %d, want 2", len(linkDevReqs))
+		}
+		if !bytes.Equal(reqs[0], linkDevReqs[0]) {
+			t.Errorf("the two commands' first requests differ, and ll_name_to_index is the same call in both\n"+
+				"addr: %x\nlink: %x", reqs[0], linkDevReqs[0])
+		}
+	})
+}
+
+// TestTierARouteShowDevRequests is the Tier A positive for `route show dev`:
+// both requests the pinned `ip` sent, in order, byte for byte.
+//
+// # The selector both adds a transaction and removes several
+//
+// It ADDS ll_name_to_index's throwaway ll_link_get at the front
+// (ip/iproute.c:2008), which is why this capture holds two requests where the
+// bare `route show` capture holds one.
+//
+// It REMOVES every lazy by-index side-get at the back. print_route emits its
+// `dev NAME` token only under `filter.oifmask != -1` (:900-901), and that
+// token is the sole caller of ll_index_to_name for RTA_OIF, so naming a
+// device means no name ever has to be resolved. A bare `route show` costs one
+// get per distinct output interface; this form costs exactly two transactions
+// however large the answer is.
+//
+// That last claim is the reason the mesh capture is read here as well. Its
+// namespace gives the named device no routes at all, so the dump comes back
+// as nothing but NLMSG_DONE — and the request count is still two. One capture
+// could not tell "the transaction count is a constant" apart from "the clean
+// topology happens to need no lookups", and the difference is the whole
+// behavior of the selector.
+//
+// # The dump is the only two-attribute RTM_GETROUTE in the corpus
+//
+// iproute_dump_filter writes RTA_TABLE first (:1726) then RTA_OIF (:1731),
+// each behind its own presence test. Order is part of the byte-equality
+// contract and no other captured route request exercises it, because every
+// other form carries at most one of the two.
+//
+// go test ./internal/goip/req/ -run TestTierARouteShowDevRequests
+func TestTierARouteShowDevRequests(t *testing.T) {
+	const (
+		devCst  = "goip0"
+		idxCst  = 3
+		meshDev = "veth0"
+		meshIdx = 5
+	)
+
+	reqs := canonicalRequests(t, tdGatedGetRouteDev)
+	if len(reqs) != 2 {
+		t.Fatalf("requests in the route dev capture = %d, want ll_link_get then the filtered dump", len(reqs))
+	}
+
+	tests := []struct {
+		description string
+		build       func() ([]byte, error)
+		captured    []byte
+	}{
+		{
+			// The same function `link show dev` and `addr show dev` call, so
+			// the same bytes. Asserted again here because "all three `dev`
+			// commands share their first request" is a claim about these three
+			// captures, not about the builder.
+			description: "positive: the first request is ll_link_get, by name, AF_UNSPEC, ext-mask first",
+			build:       func() ([]byte, error) { return LinkShowByName(devCst, 61) },
+			captured:    reqs[0],
+		},
+		{
+			// AF_INET, not AF_UNSPEC: the promotion at ip/iproute.c:1998 keys
+			// on filter.tb alone and knows nothing about `dev`, so a plain
+			// `route show dev X` is promoted exactly as a plain `route show`
+			// is. Then RTA_TABLE=254 and RTA_OIF=3, in that order.
+			description: "positive: the second request is the dump carrying RTA_TABLE then RTA_OIF",
+			build:       func() ([]byte, error) { return RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, idxCst, 62) },
+			captured:    reqs[1],
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := tc.build()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), tc.captured) {
+				t.Fatalf("request differs\n got %x\nwant %x", zeroSeqPid(got), tc.captured)
+			}
+		})
+	}
+
+	// The negatives and corners the rows above cannot state, because each of
+	// them only says "this builder reproduces this capture".
+
+	t.Run("negative: the unfiltered route dump does NOT reproduce the captured second request", func(t *testing.T) {
+		// Without this a goip that dropped the selector on the floor would
+		// fail the second row with a hex dump and no reason. It is also the
+		// assertion that the index reaches the wire at all: the two requests
+		// differ by one whole 8-byte attribute.
+		unfiltered, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, 0, 62)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bytes.Equal(zeroSeqPid(unfiltered), reqs[1]) {
+			t.Error("the unfiltered dump equals the captured `dev` dump; RTA_OIF is not reaching the request")
+		}
+		if len(unfiltered)+8 != len(reqs[1]) {
+			t.Errorf("the `dev` dump is %d bytes and the bare one %d; want exactly one 8-byte attribute between them",
+				len(reqs[1]), len(unfiltered))
+		}
+	})
+
+	t.Run("negative: the two attributes in the other order do NOT reproduce the capture", func(t *testing.T) {
+		// The one property a length check and a field-by-field check both
+		// miss. Built by hand rather than by a second builder, because the
+		// point is that no builder in the package can produce these bytes.
+		swapped := xtcpnl.CopyBytes(reqs[1])
+		if len(swapped) != 44 {
+			t.Fatalf("captured dump is %d bytes, want 28 + two 8-byte attributes", len(swapped))
+		}
+		copy(swapped[28:36], reqs[1][36:44])
+		copy(swapped[36:44], reqs[1][28:36])
+		if bytes.Equal(swapped, reqs[1]) {
+			t.Fatal("swapping the two attributes changed nothing; they are not distinguishable and this test proves nothing")
+		}
+		got, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, idxCst, 62)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bytes.Equal(zeroSeqPid(got), swapped) {
+			t.Error("the builder emitted RTA_OIF before RTA_TABLE; iproute_dump_filter writes the table first (ip/iproute.c:1726)")
+		}
+	})
+
+	t.Run("corner: the first request is byte-identical to `link show dev`'s and `addr show dev`'s", func(t *testing.T) {
+		// Stated as an equality between CAPTURES rather than between builder
+		// calls, because the claim is about iproute2 — that ll_name_to_index
+		// is reached identically from all three objects — and a claim about
+		// iproute2 checked against goip's own output proves nothing.
+		for _, other := range []struct {
+			name string
+			path string
+		}{
+			{"link show dev", tdGatedGetLinkDev},
+			{"addr show dev", tdGatedGetAddrDev},
+		} {
+			otherReqs := canonicalRequests(t, other.path)
+			if len(otherReqs) == 0 {
+				t.Fatalf("no requests in %s", other.path)
+			}
+			if !bytes.Equal(reqs[0], otherReqs[0]) {
+				t.Errorf("`route show dev` and `%s` differ in their first request, and ll_name_to_index is the same call in both\n"+
+					"route: %x\n%5s: %x", other.name, reqs[0], "other", otherReqs[0])
+			}
+		}
+	})
+
+	t.Run("boundary: an answerless topology sends the same two requests, with its own index", func(t *testing.T) {
+		// The mesh namespace's named device owns no routes, so this capture's
+		// dump is answered by NLMSG_DONE alone. Everything on the REQUEST side
+		// is unchanged, which is the assertion: the cost of this command does
+		// not depend on the size of its answer.
+		meshReqs := canonicalRequests(t, tdGatedGetRouteDevMesh)
+		if len(meshReqs) != 2 {
+			t.Fatalf("requests in the mesh route dev capture = %d, want the same two as the clean topology", len(meshReqs))
+		}
+		name, err := LinkShowByName(meshDev, 61)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(zeroSeqPid(name), meshReqs[0]) {
+			t.Errorf("mesh ll_link_get differs\n got %x\nwant %x", zeroSeqPid(name), meshReqs[0])
+		}
+		dump, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, meshIdx, 62)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(zeroSeqPid(dump), meshReqs[1]) {
+			t.Errorf("mesh dump differs\n got %x\nwant %x", zeroSeqPid(dump), meshReqs[1])
+		}
+		// And the only difference between the two topologies' dumps is the
+		// index, which is what makes the row above a statement about the
+		// command rather than about either namespace.
+		if len(meshReqs[1]) != len(reqs[1]) {
+			t.Errorf("mesh dump is %d bytes, clean one %d; the request shape must not depend on the topology",
+				len(meshReqs[1]), len(reqs[1]))
+		}
+	})
+}
+
+// TestTierANeighShowDevRequests is the Tier A positive for `neigh show dev`,
+// and the one whose interesting property is what the capture does NOT contain.
+//
+// # Two requests, the same two as the bare command
+//
+// Every other `dev NAME` form in goip pays a throwaway ll_link_get for the
+// name: `link show dev` and `addr show dev` add one at the front,
+// `route show dev` adds one there and deletes the lazy ones at the back. This
+// capture holds no such request. do_show_or_flush calls ll_init_map(&rth) at
+// ip/ipneigh.c:597 — unconditionally, for the bare command as much as for this
+// one — and only then resolves the name at :600, out of the cache that dump
+// just filled, so ll_get_by_name hits and ll_link_get is never reached
+// (lib/ll_map.c:354-359).
+//
+// So the first request here is byte-identical to the bare capture's first, and
+// the whole difference between the two commands is 8 bytes on the second. That
+// makes this the narrowest delta in the corpus, and the reason a pcap is
+// needed rather than a sidecar: the request delta produces no output, and the
+// output delta — print_neigh's `dev` token, suppressed at :415 — produces no
+// request.
+//
+// # And the index is an attribute, not the field of that name
+//
+// ipneigh_dump_filter writes `addattr32(nlh, reqlen, NDA_IFINDEX,
+// filter.index)` (:493), leaving the `ndm_ifindex` member at offset 4 of the
+// ndmsg zero — the opposite of the addr equivalent, where the index IS the
+// header field. The negative below is what holds goip to it.
+//
+// go test ./internal/goip/req/ -run TestTierANeighShowDevRequests
+func TestTierANeighShowDevRequests(t *testing.T) {
+	// No device NAME constant, unlike the route test: neither request carries
+	// one. ll_init_map's dump is unfiltered and the neighbor dump names the
+	// interface by index, so `goip0` appears nowhere on the wire — which is
+	// itself the shape of the command.
+	const (
+		idxCst  = 3
+		meshIdx = 5
+	)
+
+	reqs := canonicalRequests(t, tdGatedGetNeighDev)
+	if len(reqs) != 2 {
+		t.Fatalf("requests in the neigh dev capture = %d, want ll_init_map's link dump then the filtered neighbor dump", len(reqs))
+	}
+
+	tests := []struct {
+		description string
+		build       func() ([]byte, error)
+		captured    []byte
+	}{
+		{
+			// RTEXT_FILTER_VF alone, 0x01, not the 0x09 every `show` dump
+			// carries: at the pinned iproute2 7.1.0 ll_init_map passes only
+			// that flag. Commit 7bd7f335 adds SKIP_STATS and de91e928 adds
+			// NAME_ONLY, and neither is in the pin — the version-skew fault
+			// line the allowlist already carries an entry for.
+			description: "positive: the first request is ll_init_map's link dump, AF_UNSPEC, EXT_MASK 0x01",
+			build:       func() ([]byte, error) { return NeighShowLinkDump(71) },
+			captured:    reqs[0],
+		},
+		{
+			description: "positive: the second request is the neighbor dump carrying NDA_IFINDEX",
+			build:       func() ([]byte, error) { return NeighShowDump(unix.AF_UNSPEC, idxCst, 72) },
+			captured:    reqs[1],
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := tc.build()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), tc.captured) {
+				t.Fatalf("request differs\n got %x\nwant %x", zeroSeqPid(got), tc.captured)
+			}
+		})
+	}
+
+	t.Run("negative: the unfiltered neighbor dump does NOT reproduce the captured second request", func(t *testing.T) {
+		// Without this, a goip that dropped the selector would fail the row
+		// above with a hex dump and no reason. The length check is the
+		// positive half: the two differ by exactly one 8-byte attribute.
+		unfiltered, err := NeighShowDump(unix.AF_UNSPEC, 0, 72)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bytes.Equal(zeroSeqPid(unfiltered), reqs[1]) {
+			t.Error("the unfiltered dump equals the captured `dev` dump; NDA_IFINDEX is not reaching the request")
+		}
+		if len(unfiltered)+8 != len(reqs[1]) {
+			t.Errorf("the `dev` dump is %d bytes and the bare one %d; want exactly one 8-byte attribute between them",
+				len(reqs[1]), len(unfiltered))
+		}
+	})
+
+	t.Run("negative: the index in ndm_ifindex instead of NDA_IFINDEX does NOT reproduce the capture", func(t *testing.T) {
+		// The trap, checked against the capture rather than against a second
+		// builder. `struct ndmsg` has an ndm_ifindex at offset 4 of the body,
+		// so a request that filled it would be well formed, the same 28 bytes
+		// as the bare dump, and filtered by nothing — plausible enough that
+		// only iproute2's own bytes settle it.
+		const bodyAt = 16 // nlmsghdr
+		if len(reqs[1]) < bodyAt+12 {
+			t.Fatalf("captured dump is %d bytes, too short to hold an ndmsg", len(reqs[1]))
+		}
+		if got := binary.LittleEndian.Uint32(reqs[1][bodyAt+4 : bodyAt+8]); got != 0 {
+			t.Errorf("captured ndm_ifindex = %d, want 0; iproute2 sends the index as NDA_IFINDEX (ip/ipneigh.c:493)", got)
+		}
+	})
+
+	t.Run("corner: the first request is byte-identical to the bare `neigh show`'s", func(t *testing.T) {
+		// Stated as an equality between CAPTURES, because the claim is about
+		// iproute2 — that ll_init_map runs the same way whether or not a
+		// device was named — and checking it against goip's own output would
+		// prove only that goip is self-consistent.
+		bare := canonicalRequests(t, tdGetNeigh)
+		if len(bare) != 2 {
+			t.Fatalf("requests in the bare neigh capture = %d, want two", len(bare))
+		}
+		if !bytes.Equal(reqs[0], bare[0]) {
+			t.Errorf("`neigh show dev` and `neigh show` differ in their first request, and ll_init_map is the same call in both\n"+
+				" dev: %x\nbare: %x", reqs[0], bare[0])
+		}
+		if bytes.Equal(reqs[1], bare[1]) {
+			t.Error("the two second requests are equal; the whole difference between the commands lives there")
+		}
+	})
+
+	t.Run("corner: `neigh show dev` sends no single-get, unlike every other dev form", func(t *testing.T) {
+		// The absence, asserted directly. Both requests in this capture are
+		// dumps; the three other `dev` captures each open with a
+		// non-dump RTM_GETLINK. Reading the flags rather than counting
+		// requests, so a capture that gained a third dump would still be
+		// reported honestly by the length check above.
+		// nlmsg_flags is at offset 6 of the nlmsghdr, after nlmsg_len and
+		// nlmsg_type.
+		const flagsAt = 6
+		for i, r := range reqs {
+			flags := binary.LittleEndian.Uint16(r[flagsAt : flagsAt+2])
+			if flags&unix.NLM_F_DUMP == 0 {
+				t.Errorf("request %d has flags %#x, a single-get; ll_init_map should have made every lookup a cache hit", i, flags)
+			}
+		}
+		// And the contrast, from the capture that does pay for one.
+		routeDev := canonicalRequests(t, tdGatedGetRouteDev)
+		if len(routeDev) == 0 {
+			t.Fatalf("no requests in %s", tdGatedGetRouteDev)
+		}
+		if flags := binary.LittleEndian.Uint16(routeDev[0][flagsAt : flagsAt+2]); flags&unix.NLM_F_DUMP != 0 {
+			t.Errorf("`route show dev`'s first request has flags %#x, a dump; it should be ll_link_get's single-get, "+
+				"and if it is not then the contrast this test draws is meaningless", flags)
+		}
+	})
+
+	t.Run("boundary: the mesh topology sends the same two requests, with its own index", func(t *testing.T) {
+		meshReqs := canonicalRequests(t, tdGatedGetNeighDevMesh)
+		if len(meshReqs) != 2 {
+			t.Fatalf("requests in the mesh neigh dev capture = %d, want the same two as the clean topology", len(meshReqs))
+		}
+		link, err := NeighShowLinkDump(71)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(zeroSeqPid(link), meshReqs[0]) {
+			t.Errorf("mesh ll_init_map dump differs\n got %x\nwant %x", zeroSeqPid(link), meshReqs[0])
+		}
+		dump, err := NeighShowDump(unix.AF_UNSPEC, meshIdx, 72)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(zeroSeqPid(dump), meshReqs[1]) {
+			t.Errorf("mesh neighbor dump differs\n got %x\nwant %x", zeroSeqPid(dump), meshReqs[1])
+		}
+		if len(meshReqs[1]) != len(reqs[1]) {
+			t.Errorf("mesh dump is %d bytes, clean one %d; the request shape must not depend on the topology",
+				len(meshReqs[1]), len(reqs[1]))
+		}
+	})
+}
+
 // TestLinkShowDev covers the SECOND by-name single-get, iplink_get, over
 // names the capture does not contain.
 //
@@ -804,7 +1317,7 @@ func TestTierAAddrShowRequests(t *testing.T) {
 		{
 			description: "positive: `ip -4 addr show` address dump is 24 bytes, ifa_family AF_INET",
 			captured:    reqs[1],
-			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_INET, 2), nil },
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_INET, 0, 2), nil },
 			wantLen:     24,
 			wantType:    unix.RTM_GETADDR,
 			wantFamily:  unix.AF_INET,
@@ -827,7 +1340,7 @@ func TestTierAAddrShowRequests(t *testing.T) {
 		{
 			description: "positive: `ip -6 addr show` address dump is 24 bytes, ifa_family AF_INET6",
 			captured:    reqs[3],
-			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_INET6, 4), nil },
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_INET6, 0, 4), nil },
 			wantLen:     24,
 			wantType:    unix.RTM_GETADDR,
 			wantFamily:  unix.AF_INET6,
@@ -1016,13 +1529,21 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 }
 
 // TestAddrShowDumpShape covers the address dump, whose whole content is a
-// family byte.
+// family byte and — under `dev NAME` — an interface index.
+//
+// The ifindex column is the `dev NAME` half. It is asserted here rather than
+// only through obj_addr, because ipaddr_dump_filter writes filter.ifindex into
+// the ifaddrmsg HEADER and not into an attribute (ip/ipaddress.c:1954-1958),
+// so getting it wrong produces a 24-byte datagram of exactly the right length
+// with four bytes in the wrong place. Length and message type would both still
+// pass; only a positional byte check catches it.
 //
 // go test ./internal/goip/req/ -run TestAddrShowDumpShape
 func TestAddrShowDumpShape(t *testing.T) {
 	tests := []struct {
 		description string
 		family      uint8
+		ifindex     uint32
 	}{
 		{description: "positive: AF_INET, as `ip -4 addr show` sends", family: unix.AF_INET},
 		{description: "positive: AF_INET6, as `ip -6 addr show` sends", family: unix.AF_INET6},
@@ -1033,11 +1554,42 @@ func TestAddrShowDumpShape(t *testing.T) {
 			description: "boundary: AF_UNSPEC is the same 24 bytes, because rtnl_addrdump_req has no family branch",
 			family:      unix.AF_UNSPEC,
 		},
+		{
+			// The `dev NAME` form. Same length, same type, same flags: the
+			// entire difference between `ip addr show` and
+			// `ip addr show dev X` on this request is four bytes at offset 4
+			// of the ifaddrmsg.
+			description: "positive: `addr show dev NAME` puts the resolved index in ifa_index and changes nothing else",
+			family:      unix.AF_UNSPEC,
+			ifindex:     2,
+		},
+		{
+			description: "positive: the index survives alongside a family, which is what `-4 addr show dev X` sends",
+			family:      unix.AF_INET,
+			ifindex:     2,
+		},
+		{
+			// Not a plausible ifindex, and that is the point: the field is a
+			// u32 written little-endian, so a builder that truncated it to a
+			// byte or wrote it big-endian passes every other row here.
+			description: "boundary: a high index is written as a full little-endian u32, not truncated",
+			family:      unix.AF_UNSPEC,
+			ifindex:     0x01020304,
+		},
+		{
+			// Documented in the builder: ifindex 0 IS the unfiltered form,
+			// because ipaddr_dump_filter assigns unconditionally and
+			// filter.ifindex is 0 when no `dev` was given. This row pins that
+			// the two spellings cannot drift apart.
+			description: "corner: index 0 is the unfiltered request, not a filter on interface zero",
+			family:      unix.AF_INET6,
+			ifindex:     0,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := AddrShowDump(tc.family, 5)
+			got := AddrShowDump(tc.family, tc.ifindex, 5)
 			if len(got) != 24 {
 				t.Fatalf("got %d bytes, want 24: %x", len(got), got)
 			}
@@ -1050,18 +1602,32 @@ func TestAddrShowDumpShape(t *testing.T) {
 			if got[16] != tc.family {
 				t.Errorf("ifa_family = %d, want %d", got[16], tc.family)
 			}
-			// The remaining seven ifaddrmsg bytes — prefixlen, flags, scope
-			// and index — are all zero for an unfiltered show.
-			// ipaddr_dump_filter writes filter.ifindex into ifa_index, which
-			// is 0 here, so a non-zero byte would mean goip had invented a
-			// filter `ip` did not send.
-			for i := 17; i < 24; i++ {
+			// ifa_prefixlen, ifa_flags and ifa_scope stay zero on every form:
+			// ipaddr_dump_filter touches ifa_index alone, so a non-zero byte
+			// here would mean goip had invented a filter `ip` did not send.
+			for i := 17; i < 20; i++ {
 				if got[i] != 0 {
 					t.Errorf("ifaddrmsg byte %d = %#x, want 0", i-16, got[i])
 				}
 			}
+			if idx := binary.LittleEndian.Uint32(got[20:24]); idx != tc.ifindex {
+				t.Errorf("ifa_index = %d, want %d (bytes %x)", idx, tc.ifindex, got[20:24])
+			}
 		})
 	}
+
+	t.Run("corner: the index-0 form is byte-identical to the unfiltered builder", func(t *testing.T) {
+		// Stated as an equality rather than as two separate shape checks,
+		// because the claim in AddrShowDump's doc is that ip has ONE request
+		// here. xtcpnl.BuildDumpAddrRequest is the older builder that predates
+		// the `dev` selector; if the two ever diverge, every `addr show`
+		// fixture in the corpus is describing a request goip no longer sends.
+		with := AddrShowDump(unix.AF_UNSPEC, 0, 7)
+		without := xtcpnl.BuildDumpAddrRequest(unix.AF_UNSPEC, 7)
+		if !bytes.Equal(with, without) {
+			t.Errorf("AddrShowDump(_, 0, _) = %x, BuildDumpAddrRequest = %x", with, without)
+		}
+	})
 }
 
 // TestTierARouteShowRequests is the route half of Tier A: the three
@@ -1122,7 +1688,7 @@ func TestTierARouteShowRequests(t *testing.T) {
 					"capture is polluted and the expectation no longer describes "+
 					"a single command", tc.capture, len(captured))
 			}
-			got, err := RouteShowDump(tc.family, tc.table, 42)
+			got, err := RouteShowDump(tc.family, tc.table, 0, 42)
 			if err != nil {
 				t.Fatalf("RouteShowDump(%d, %d): %v", tc.family, tc.table, err)
 			}
@@ -1133,36 +1699,51 @@ func TestTierARouteShowRequests(t *testing.T) {
 	}
 }
 
-// TestRouteShowDumpShape covers the table ids that have no capture: the
+// routeAttr is one expected u32 attribute of an RTM_GETROUTE dump request, in
+// emission order. Both of iproute_dump_filter's attributes are u32, so one
+// shape covers the whole surface.
+type routeAttr struct {
+	typ   uint16
+	value uint32
+}
+
+// TestRouteShowDumpShape covers the selector values that have no capture: the
 // spellings of "no filter", the edges of the byte the header field can hold,
-// and the values only RTA_TABLE can express.
+// the values only RTA_TABLE can express, and the interaction between the two
+// attributes.
 //
-// The structural invariant every row checks is that rtm_table in the HEADER
-// stays 0 no matter what the attribute says. iproute2 never writes it for a
-// dump (iproute_dump_filter only adds the attribute, ip/iproute.c:1726), and
-// filling it in would be a plausible-looking change that makes every request
-// differ from the capture by one byte.
+// Two structural invariants, checked on every row.
+//
+// rtm_table in the HEADER stays 0 no matter what the attribute says. iproute2
+// never writes it for a dump (iproute_dump_filter only adds the attribute,
+// ip/iproute.c:1726), and filling it in would be a plausible-looking change
+// that makes every request differ from the capture by one byte.
+//
+// The attributes come out in iproute_dump_filter's order — RTA_TABLE at :1726
+// then RTA_OIF at :1731 — with no gaps and nothing else. The expectation is a
+// LIST rather than a set of independent field checks, because attribute order
+// is part of the byte-equality contract and per-field assertions would pass on
+// the reversed pair.
 //
 // go test ./internal/goip/req/ -run TestRouteShowDumpShape
 func TestRouteShowDumpShape(t *testing.T) {
 	const (
 		hdrAndRtmsg = 28 // 16-byte nlmsghdr + 12-byte rtmsg
-		withTable   = 36 // ... plus one 8-byte u32 attribute
+		attrLen     = 8  // one u32 attribute: 4-byte rtattr + 4-byte payload
 	)
 
 	tests := []struct {
 		description string
 		family      uint8
 		table       uint32
-		wantLen     int
-		wantTable   uint32 // RTA_TABLE's value, checked only when wantLen is withTable
+		oif         uint32
+		wantAttrs   []routeAttr
 	}{
 		{
 			description: "positive: RT_TABLE_MAIN carries RTA_TABLE=254",
 			family:      unix.AF_INET,
 			table:       unix.RT_TABLE_MAIN,
-			wantLen:     withTable,
-			wantTable:   254,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}},
 		},
 		{
 			// `table all` and `table 0` are different spellings that both land
@@ -1172,7 +1753,6 @@ func TestRouteShowDumpShape(t *testing.T) {
 			description: "boundary: RT_TABLE_UNSPEC omits the attribute entirely",
 			family:      unix.AF_UNSPEC,
 			table:       unix.RT_TABLE_UNSPEC,
-			wantLen:     hdrAndRtmsg,
 		},
 		{
 			// The largest id rtm_table could have held, which is exactly why
@@ -1181,8 +1761,7 @@ func TestRouteShowDumpShape(t *testing.T) {
 			description: "boundary: table 255 is RT_TABLE_LOCAL and fits a byte, but still goes in the attribute",
 			family:      unix.AF_INET,
 			table:       unix.RT_TABLE_LOCAL,
-			wantLen:     withTable,
-			wantTable:   255,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 255}},
 		},
 		{
 			// One past the byte. A host with `ip route add ... table 256` has
@@ -1191,8 +1770,7 @@ func TestRouteShowDumpShape(t *testing.T) {
 			description: "corner: table 256 is unrepresentable in rtm_table and must survive in the attribute",
 			family:      unix.AF_INET,
 			table:       256,
-			wantLen:     withTable,
-			wantTable:   256,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 256}},
 		},
 		{
 			// RT_TABLE_MAX. rtnl_rttable_a2n accepts it, so goip must build it
@@ -1200,19 +1778,73 @@ func TestRouteShowDumpShape(t *testing.T) {
 			description: "corner: table 4294967295 is RT_TABLE_MAX and round-trips whole",
 			family:      unix.AF_INET,
 			table:       0xFFFFFFFF,
-			wantLen:     withTable,
-			wantTable:   0xFFFFFFFF,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 0xFFFFFFFF}},
+		},
+		{
+			// `ip route show dev goip0` on the clean topology. The ORDER is
+			// the assertion: RTA_TABLE comes first even though `dev` was the
+			// only thing on the command line, because filter.tb's default is
+			// what puts the table attribute there.
+			description: "positive: `route show dev NAME` is RTA_TABLE then RTA_OIF",
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_MAIN,
+			oif:         3,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}, {unix.RTA_OIF, 3}},
+		},
+		{
+			// `ip route show table all dev goip0`. The two presence tests are
+			// independent, so the device filter survives the table filter
+			// going away — and the family stays AF_UNSPEC, because the
+			// promotion at ip/iproute.c:1998 keys on the table alone and
+			// knows nothing about `dev`.
+			description: "boundary: `table all dev NAME` carries RTA_OIF alone and stays AF_UNSPEC",
+			family:      unix.AF_UNSPEC,
+			table:       unix.RT_TABLE_UNSPEC,
+			oif:         3,
+			wantAttrs:   []routeAttr{{unix.RTA_OIF, 3}},
+		},
+		{
+			// No interface has index 0, so `if (filter.oif)` (:1731) uses the
+			// value as its own presence flag. This row is what keeps the bare
+			// `route show` bytes from acquiring a zero-valued RTA_OIF now
+			// that the parameter exists.
+			description: "corner: oif 0 is not a filter and appends nothing",
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_MAIN,
+			oif:         0,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}},
+		},
+		{
+			// Neither selector: the 28-byte form, reachable from the CLI as
+			// `route show table all`, here with an explicit zero device as
+			// well to show the two zeros compose rather than interfering.
+			description: "boundary: no table and no device is the bare 28-byte rtmsg",
+			family:      unix.AF_UNSPEC,
+			table:       unix.RT_TABLE_UNSPEC,
+			oif:         0,
+		},
+		{
+			// An ifindex is signed in the kernel and filter.oif is an `int`,
+			// but RTA_OIF is a u32 on the wire. A builder that narrowed it
+			// anywhere would show up here and in no capture, because no real
+			// host reaches these indexes.
+			description: "corner: a top-bit-set ifindex round-trips whole in RTA_OIF",
+			family:      unix.AF_INET,
+			table:       unix.RT_TABLE_MAIN,
+			oif:         0xFFFFFFFF,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}, {unix.RTA_OIF, 0xFFFFFFFF}},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := RouteShowDump(tc.family, tc.table, 9)
+			got, err := RouteShowDump(tc.family, tc.table, tc.oif, 9)
 			if err != nil {
 				t.Fatalf("RouteShowDump: %v", err)
 			}
-			if len(got) != tc.wantLen {
-				t.Fatalf("len = %d, want %d: %x", len(got), tc.wantLen, got)
+			wantLen := hdrAndRtmsg + attrLen*len(tc.wantAttrs)
+			if len(got) != wantLen {
+				t.Fatalf("len = %d, want %d: %x", len(got), wantLen, got)
 			}
 			if mt := binary.LittleEndian.Uint16(got[4:6]); mt != uint16(unix.RTM_GETROUTE) {
 				t.Errorf("nlmsg_type = %d, want RTM_GETROUTE", mt)
@@ -1227,21 +1859,25 @@ func TestRouteShowDumpShape(t *testing.T) {
 			if got[20] != 0 {
 				t.Errorf("rtm_table = %d, want 0; the header field is never written for a dump", got[20])
 			}
-			// Every other rtmsg byte is zero for an unfiltered show: a
-			// non-zero dst_len or scope would be a filter `ip` did not send.
+			// Every other rtmsg byte is zero for a show with no address
+			// selector: a non-zero dst_len or scope would be a filter `ip`
+			// did not send.
 			for i := 17; i < 28; i++ {
 				if got[i] != 0 {
 					t.Errorf("rtmsg byte %d = %#x, want 0", i-16, got[i])
 				}
 			}
-			if tc.wantLen != withTable {
-				return
-			}
-			if at := binary.LittleEndian.Uint16(got[30:32]); at != uint16(unix.RTA_TABLE) {
-				t.Errorf("attribute type = %d, want RTA_TABLE", at)
-			}
-			if v := binary.LittleEndian.Uint32(got[32:36]); v != tc.wantTable {
-				t.Errorf("RTA_TABLE = %d, want %d", v, tc.wantTable)
+			for i, want := range tc.wantAttrs {
+				off := hdrAndRtmsg + i*attrLen
+				if l := binary.LittleEndian.Uint16(got[off : off+2]); l != attrLen {
+					t.Errorf("attribute %d rta_len = %d, want %d", i, l, attrLen)
+				}
+				if typ := binary.LittleEndian.Uint16(got[off+2 : off+4]); typ != want.typ {
+					t.Errorf("attribute %d type = %d, want %d", i, typ, want.typ)
+				}
+				if v := binary.LittleEndian.Uint32(got[off+4 : off+8]); v != want.value {
+					t.Errorf("attribute %d value = %d, want %d", i, v, want.value)
+				}
 			}
 		})
 	}

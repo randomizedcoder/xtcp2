@@ -114,6 +114,18 @@ func matchesPrefix(arg, pattern string) bool {
 	return pattern[:len(arg)] == arg
 }
 
+// devKeywordCst is the `dev NAME` selector keyword, which every object that
+// takes one spells identically.
+//
+// It is one constant rather than four literals because the spelling is
+// shared, and it is deliberately NOT a matchesPrefix pattern. iproute2
+// compares this keyword with strcmp everywhere it accepts it - route at
+// ip/iproute.c:1912, neigh at ip/ipneigh.c:526, address and link at
+// ip/ipaddress.c:2241, which both list paths reach - so `dev` does not
+// abbreviate and `ip route show d lo` is an error, not a shorter spelling.
+// Using this constant with == is therefore the faithful comparison.
+const devKeywordCst = "dev"
+
 // lookupObject resolves an argument to an object, first match in table order.
 func lookupObject(arg string) (object, error) {
 	for _, o := range objects {

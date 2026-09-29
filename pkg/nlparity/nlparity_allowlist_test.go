@@ -437,14 +437,25 @@ func TestAllowlistCommitted(t *testing.T) {
 			// This row used to assert gated_commands was EMPTY, on the grounds
 			// that a command may not be gated before its tier is built. Tier C
 			// is built - nix run .#microvm-x86_64-goip-parity - and it reported
-			// each name below clean with control nl=0 stdout=0 and no findings
-			// at all, on two consecutive runs whose every line was identical.
-			// So the row asserts the state that measurement earned rather than
-			// the state that preceded it. Emptiness was never the property
-			// worth protecting; gating without evidence was.
+			// each name below clean on two consecutive runs whose every line
+			// was identical. So the row asserts the state that measurement
+			// earned rather than the state that preceded it. Emptiness was
+			// never the property worth protecting; gating without evidence
+			// was.
+			//
+			// "Clean" is not "silent", and the list stopped being uniform
+			// once `neigh show dev` joined it. Most of these reported control
+			// nl=0 stdout=0 with nothing suppressed at all; `-4 addr show`,
+			// `neigh show` and `neigh show dev` reported nl=2, and `-6 addr
+			// show` carries an allow-suppressed qlen locus. A
+			// control-suppressed locus is absorbed before Result.Findings
+			// exists, so it is not a finding and does not weaken the gate -
+			// the argument is spelled out in goip-parity-allowlist.json's
+			// _comment. What every name here does share is zero FINDINGS.
 			//
 			// The list is spelled out rather than counted. A count would pass
-			// for any nine names, and the point of the row is which nine.
+			// for any fourteen names, and the point of the row is which
+			// fourteen.
 			//
 			// It was every command in the table when it was written, which
 			// made the row read as if it could be `len(GatedCommands) ==
@@ -462,14 +473,19 @@ func TestAllowlistCommitted(t *testing.T) {
 			check: func(t *testing.T, a *Allowlist) {
 				earned := []string{
 					"link show",
+					"-4 link show",
+					"-6 link show",
 					"link show dev",
 					"addr show",
 					"-4 addr show",
 					"-6 addr show",
+					"addr show dev",
 					"route show",
 					"route show table all",
 					"-6 route show",
+					"route show dev",
 					"neigh show",
+					"neigh show dev",
 				}
 				for _, c := range earned {
 					if !a.IsGated(c) {

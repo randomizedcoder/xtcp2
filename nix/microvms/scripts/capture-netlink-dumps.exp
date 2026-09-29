@@ -161,6 +161,64 @@ proc capture_set {ns subdir dev} {
     # open: two transactions, each a request and a reply. At 2 a capture
     # window that caught only the first would be written as a good fixture.
     cap $ns $subdir netlink_route_getlink_dev 4 "ip link show dev $dev"
+
+    # The addr object's `dev` selector, and THREE transactions rather than the
+    # link object's two - hence floor 6.
+    #
+    # `dev NAME` lands in the same catch-all else-arm in every `addr` form
+    # (ip/ipaddress.c:2241-2247) and ll_name_to_index resolves it with the
+    # same throwaway ll_link_get (:2253), so request one is byte-identical to
+    # netlink_route_getlink_dev's first. There the two commands part company:
+    # with filter.ifindex set, :2302 takes ipaddr_link_get, which re-fetches
+    # BY INDEX where iplink_get re-fetched by name, and then :2314 dumps the
+    # addresses with that index written into ifa_index.
+    #
+    # So this is the only capture in the corpus holding an RTM_GETADDR dump
+    # with a non-zero ifa_index, and the only one where a by-index and a
+    # by-name single-get for the SAME interface appear side by side. Both are
+    # request-byte facts with no output consequence at all, which is exactly
+    # why they need a pcap rather than a sidecar.
+    cap $ns $subdir netlink_route_getaddr_dev 6 "ip addr show dev $dev"
+
+    # The route object's `dev` selector, and the interesting thing about it is
+    # that the selector both ADDS a transaction and REMOVES several.
+    #
+    # It adds ll_name_to_index's throwaway ll_link_get at the front
+    # (ip/iproute.c:2008), byte-identical to the first request of the two
+    # captures above - hence two transactions and floor 4, not the single dump
+    # a bare `route show` needs.
+    #
+    # It removes every lazy by-index side-get at the back. print_route's `dev`
+    # token is guarded by `filter.oifmask != -1` (:900-901) and that token is
+    # the only caller of ll_index_to_name for RTA_OIF, so naming a device means
+    # no name ever has to be resolved. A bare `route show` costs one get per
+    # distinct output interface; this form costs exactly two transactions no
+    # matter how large the answer is, so the saving GROWS with the answer.
+    #
+    # The dump itself is also the only RTM_GETROUTE in the corpus carrying two
+    # attributes: iproute_dump_filter writes RTA_TABLE first (:1726) then
+    # RTA_OIF (:1731), each behind its own presence test, and that order is
+    # part of the byte-equality contract.
+    cap $ns $subdir netlink_route_getroute_dev 4 "ip route show dev $dev"
+
+    # The neigh object's `dev` selector, and the one that costs NOTHING -
+    # which is why the floor here is 4, the same as bare `neigh show` above,
+    # and not the 6 the addr form needed.
+    #
+    # do_show_or_flush calls ll_init_map(&rth) unconditionally at
+    # ip/ipneigh.c:597, before it resolves the name at :600. That dump has
+    # already filled the index cache, so ll_name_to_index's ll_get_by_name
+    # hits and never reaches the throwaway ll_link_get every other `dev` form
+    # in this list pays for (lib/ll_map.c:354-359). Two transactions, and the
+    # first is byte-identical to netlink_route_getneigh's.
+    #
+    # So the whole on-the-wire difference between this capture and
+    # netlink_route_getneigh is 8 bytes on the second request - and they are
+    # bytes worth a pcap, because ipneigh_dump_filter writes the index as an
+    # NDA_IFINDEX ATTRIBUTE (:493) while `struct ndmsg` has an ndm_ifindex
+    # field sitting unused at offset 4. This is the corpus's only RTM_GETNEIGH
+    # carrying an attribute at all.
+    cap $ns $subdir netlink_route_getneigh_dev 4 "ip neigh show dev $dev"
 }
 
 # PLAIN AND -d, IN PAIRS.
@@ -199,6 +257,31 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"
+
+    # The addr `dev` stanza. Not a slice of ip_addr: `addr show dev X` prints
+    # the link through print_linkinfo with do_link still 0, so it has no
+    # `mode DEFAULT`, and it is the one form whose link stanza comes from a
+    # single-get rather than from a dump. Committed so the renderer has
+    # something to diff against that was produced by the same code path.
+    side $ns $subdir ip_addr_dev            "ip addr show dev $dev"
+
+    # The route `dev` stanza, and it is NOT the `dev`-matching lines of
+    # ip_route_main with the rest deleted. Two differences, both from
+    # print_route: the main line loses its `dev NAME` token entirely
+    # (ip/iproute.c:900-901 guards it on filter.oifmask), while a multipath
+    # route KEEPS `dev NAME` on every nexthop, including nexthops on other
+    # interfaces, because the nexthop tokens at :743 and :751 have no guard.
+    # So the one word the command named appears nowhere on the lines it
+    # selected and everywhere on the lines it did not.
+    side $ns $subdir ip_route_dev           "ip route show dev $dev"
+
+    # The neigh `dev` stanza. Unlike the route one this IS the matching lines
+    # of ip_neigh with the rest deleted - minus one token per line, because
+    # print_neigh's `dev NAME` is guarded on filter.index the same way
+    # print_route's is guarded on filter.oifmask (ip/ipneigh.c:415). There is
+    # no nexthop half to keep the word alive, so here the device the command
+    # named really does appear nowhere in the output.
+    side $ns $subdir ip_neigh_dev           "ip neigh show dev $dev"
 
     # JSON, which is what turns "does goip -json use ip -j's key names?" from
     # an eyeball question into a diff. -p pretty-prints so the committed file

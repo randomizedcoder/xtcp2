@@ -137,15 +137,32 @@ func AddrShowLinkDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestFamily(family, seq), nil
 }
 
-// AddrShowDump builds the SECOND request `ip addr show` sends: the address
-// dump itself.
+// AddrShowDump builds the LAST request `ip addr show` sends: the address dump
+// itself. It is the second request of the bare form and the third of
+// `addr show dev NAME`.
 //
-// 24 bytes — an nlmsghdr and an ifaddrmsg whose only non-zero field is
-// ifa_family — with no attributes. `rtnl_addrdump_req` takes a filter_fn and
-// `ip_addr_list` passes `ipaddr_dump_filter` (ip/ipaddress.c:2107), but that
-// function assigns `ifa->ifa_index = filter.ifindex` and nothing else
-// (:2060-2067), so for a `show` with no `dev` argument it writes the zero
-// that was already there.
+// 24 bytes — an nlmsghdr and an ifaddrmsg whose only non-zero fields are
+// ifa_family and, under `dev NAME`, ifa_index — with no attributes.
+// `rtnl_addrdump_req` takes a filter_fn and `ip_addr_list` passes
+// `ipaddr_dump_filter` (ip/ipaddress.c:2107), which assigns
+// `ifa->ifa_index = filter.ifindex` and nothing else (:1954-1958).
+//
+// # Why ifindex is a parameter and not a second function
+//
+// Because iproute2 has one function here too. `ipaddr_dump_filter` writes
+// filter.ifindex unconditionally, and filter.ifindex is 0 for a `show` with no
+// `dev` argument — so the bare form is not "the request without the field", it
+// is "the request with the field set to zero". Those produce identical bytes
+// (xtcpnl.BuildDumpAddrRequestIndex says so explicitly), and modeling them as
+// two builders would invite the two to drift apart over a distinction the
+// source does not draw.
+//
+// The kernel honors ifa_index only on a socket with NETLINK_GET_STRICT_CHK
+// set. `ip` sets it once on the main handle (ip/ip.c:312) and goip sets it at
+// source.go:92, so both dumps come back filtered; on a lax socket the field is
+// ignored and the caller silently receives every address on the host. That is
+// invisible to nlmon, so no capture can distinguish the two — the client-side
+// filter in addrBelongsTo is what makes goip's output correct either way.
 //
 // # The 128 bytes goip does not send
 //
@@ -161,21 +178,115 @@ func AddrShowLinkDump(family uint8, seq uint32) ([]byte, error) {
 // Note that this request is only sent when the family is not AF_PACKET:
 // `ip -0 addr show` (preferred_family AF_PACKET) skips the address dump
 // entirely (ip/ipaddress.c:2310) and degenerates to `link show` without the
-// linkmode field. goip rejects `-0` rather than implementing it, so the caller
-// here never passes AF_PACKET.
-func AddrShowDump(family uint8, seq uint32) []byte {
-	return xtcpnl.BuildDumpAddrRequest(family, seq)
+// linkmode field. goip implements `-0` and skips it in the same place.
+func AddrShowDump(family uint8, ifindex uint32, seq uint32) []byte {
+	return xtcpnl.BuildDumpAddrRequestIndex(family, ifindex, seq)
 }
 
-// RouteShowDump applies iproute2's route-show table policy to the verified
-// rtnetlink builder.  RT_TABLE_UNSPEC means table all.
-func RouteShowDump(family uint8, table uint32, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpRouteRequestTable(family, table, seq)
+// AddrShowLinkGet builds the SECOND of the three requests
+// `ip addr show dev NAME` sends: ipaddr_link_get (ip/ipaddress.c:2052-2083),
+// the single-get whose reply supplies the one link stanza that gets printed.
+//
+// # Three requests for one interface, and none of the three is redundant
+//
+// `addr show dev NAME` takes the same `filter_dev` else-arm every other form
+// does (:2241-2247) and then resolves it with ll_name_to_index (:2253). On a
+// cache miss that is ll_link_get(name, 0) on a throwaway socket — LinkShowByName
+// above, byte for byte, because it is literally the same function. Only then,
+// with filter.ifindex set, does :2302 take the single-get branch instead of
+// ip_link_list's dump, and :2314 dump the addresses.
+//
+// So the command's shape is: resolve the name, re-fetch the link by the index
+// just learned, dump that index's addresses. `link show dev NAME` re-fetches
+// BY NAME instead (iplink_get, LinkShowDev above), which is the one place the
+// two `dev` commands part company — and it is a difference in request bytes,
+// not in behavior, so only a byte comparison can see it.
+//
+// # Why this is not LinkShowByIndex with a family argument
+//
+// It is the same builder, and deliberately a different function here, because
+// the family is decided somewhere else and decided differently. LinkShowByIndex
+// is ll_link_get's index arm, whose ifinfomsg is a designated initializer that
+// names ifi_index and nothing else (lib/ll_map.c:265-275) — so ifi_family is
+// structurally AF_UNSPEC and there is no knob. ipaddr_link_get sets
+// `.i.ifi_family = filter.family` (:2058), which is preferred_family
+// (:2152), which `-4` and `-6` do reach on this command. One command can
+// therefore send an AF_UNSPEC get and an AF_INET6 get back to back, and a
+// shared helper with a default would get one of them wrong.
+//
+// The mask is ExtMaskShow: `filter.vfinfo` is 1 unless `novf` was given
+// (:2153, :2239) and `!show_stats` ors in RTEXT_FILTER_SKIP_STATS
+// (:2066-2067). It is a parameter rather than a constant for the same reason
+// LinkShowDev's is — `-s` reaches this call site in `ip`. goip's addr object
+// does not implement `-s` at all; see addrShowDev for what that costs and why
+// it is one item rather than two.
+func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetLinkByIndexRequest(family, index, extMask, seq)
 }
 
-// NeighShowDump delegates to the verified ndmsg dump builder.
-func NeighShowDump(family uint8, seq uint32) []byte {
-	return xtcpnl.BuildDumpNeighRequest(family, seq)
+// RouteShowDump applies iproute2's route-show filter policy to the verified
+// rtnetlink builder. RT_TABLE_UNSPEC means table all; oif 0 means no device
+// filter.
+//
+// # Two selectors, one request, and the second one has a prerequisite
+//
+// `table N` needs nothing but parsing. `dev NAME` needs an ifindex, and
+// iproute2 gets it with ll_name_to_index (ip/iproute.c:2008-2016) — which, on
+// a command that never calls ll_init_map, is a throwaway ll_link_get(name, 0)
+// on its own socket. So `route show dev NAME` is TWO transactions where
+// `route show` is one, and the first of the two is LinkShowByName above, byte
+// for byte, exactly as it is for `addr show dev` and `link show dev`.
+//
+// The `dev` spelling is compared with strcmp, not matches(), and `oif` is an
+// exact synonym compared the same way (ip/iproute.c:1911-1913). Neither
+// abbreviates: `ip route show d eth0` is not a device filter, it is a
+// destination prefix, because the else-arm at :2158 reads an unrecognized
+// token as an address.
+//
+// # What this request does NOT carry
+//
+// `iif NAME` resolves the same way but lands in filter.iif, which
+// iproute_dump_filter never writes — it is a client-side filter only
+// (:325-331). So `route show iif NAME` sends the same bytes as a bare
+// `route show` and differs only in which replies survive. goip does not
+// implement it; the point of recording it here is that a future
+// implementation must NOT reach for an RTA_IIF attribute on the request.
+func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpRouteRequestFilter(family, table, oif, seq)
+}
+
+// NeighShowDump delegates to the verified ndmsg dump builder, carrying the one
+// filter attribute goip can reach: NDA_IFINDEX, for `ip neigh show dev NAME`.
+//
+// ifindex 0 is the bare command and omits the attribute.
+//
+// # `neigh show dev NAME` costs no extra transaction, and that is the point
+//
+// It is the third `dev NAME` form in goip and the first whose selector is free.
+// `link show dev` and `addr show dev` each pay a throwaway ll_link_get, and
+// `route show dev` pays one too (see RouteShowDump). This one pays nothing,
+// because do_show_or_flush calls ll_init_map(&rth) at ip/ipneigh.c:597 —
+// unconditionally, for the bare command as much as for this one — and only
+// then resolves the name at :600. ll_init_map has already dumped every link
+// into the cache (lib/ll_map.c:390-407), so ll_name_to_index's ll_get_by_name
+// hits and never reaches ll_link_get (:354-359).
+//
+// So `neigh show` and `neigh show dev NAME` are BOTH two transactions, the
+// first byte-identical, and the whole difference between the commands is the
+// 8 bytes of NDA_IFINDEX on the second. That is the exact opposite of route,
+// where the selector moved a transaction to the front and deleted several from
+// the back, and it is why the two forms need separate positional assertions
+// rather than one shared shape test.
+//
+// The exception, which is the negative case and not a caveat: a device NOT in
+// the cache misses ll_get_by_name and DOES send ll_link_get. `ip neigh show
+// dev nosuch` therefore emits a third transaction before failing. goip reports
+// the failure instead, matching the position taken in routeShow — neither of
+// iproute2's two remaining fallbacks (if_nametoindex, then the `if%u` spelling
+// via ll_idx_a2n) asks the kernel anything, so adopting them would make goip
+// answer where `ip` sent a request the capture records.
+func NeighShowDump(family uint8, ifindex, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNeighRequestFilter(family, ifindex, seq)
 }
 
 // NeighShowLinkDump is ll_init_map's link dump before a neighbor dump. Unlike

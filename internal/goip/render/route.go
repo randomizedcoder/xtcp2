@@ -514,16 +514,37 @@ func rtaxFeatures(features uint32) (string, []RouteMetricKV) {
 // RouteShowFilter is the part of iproute2's `struct filter` that changes what
 // print_route prints rather than which routes reach it.
 //
-// One field so far, and it is not cosmetic: whether the command named a table
-// decides whether every line carries a `table NAME` token. `ip route show`
-// defaults filter.tb to RT_TABLE_MAIN (ip/iproute.c:1835) and so prints no
-// table anywhere; `ip route show table all` sets it to 0 and so prints
-// `table local` on the local-table routes. The two committed goldens differ on
-// exactly that.
+// Two fields, and neither is cosmetic.
+//
+// Whether the command named a table decides whether every line carries a
+// `table NAME` token. `ip route show` defaults filter.tb to RT_TABLE_MAIN
+// (ip/iproute.c:1835) and so prints no table anywhere; `ip route show table
+// all` sets it to 0 and so prints `table local` on the local-table routes. The
+// two committed goldens differ on exactly that.
+//
+// Whether the command named a device decides whether any line carries a `dev`
+// token, and the polarity is the opposite one: naming the device REMOVES it
+// from the output, because it is already in the command line
+// (ip/iproute.c:900). That suppression reaches past the text — the token is
+// the only caller of ll_index_to_name for RTA_OIF, so hiding it also removes
+// one netlink transaction per distinct index. See goip's resolveRouteNames.
 type RouteShowFilter struct {
 	// Table is filter.tb. Zero means "table all" — no filter — which is the
 	// value that ENABLES the token.
 	Table uint32
+
+	// OifMask is `filter.oifmask == -1`, i.e. a `dev`/`oif` selector was
+	// given. True SUPPRESSES the `dev` token on the main line. It is a bool
+	// rather than the index itself because print_route never compares the
+	// two: the guard tests the mask alone (:900), so a route that survived
+	// the filter on a multipath nexthop — and whose RTA_OIF, if it has one,
+	// may name a different device — is suppressed just the same.
+	//
+	// The nexthop `dev` tokens of a multipath route are NOT suppressed
+	// (:743, :751 have no guard), so `dev` can still appear in the output of
+	// a command that named a device. That is iproute2's behavior, not an
+	// oversight reproduced by accident.
+	OifMask bool
 }
 
 // RouteView is one route as `ip route show` presents it.
@@ -641,12 +662,14 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 			Host:   addrString(ri.Via.Addr, viaFamily),
 		}
 	}
-	// RTA_OIF's presence is the gate in C. RouteInfo keeps no presence flag for
-	// it because ifindex 0 is not a device — the kernel never sends
-	// RTA_OIF = 0 — so a zero here is an absent attribute. Were it not, the
-	// token would render `dev *`, which is ll_index_to_name's own answer for
-	// index 0 and so at least not a silent wrong name.
-	if ri.Oif != 0 {
+	// RTA_OIF's presence is the gate in C, and f.OifMask is the second half of
+	// it: `if (tb[RTA_OIF] && filter.oifmask != -1)` (ip/iproute.c:900).
+	// RouteInfo keeps no presence flag for the attribute because ifindex 0 is
+	// not a device — the kernel never sends RTA_OIF = 0 — so a zero here is an
+	// absent attribute. Were it not, the token would render `dev *`, which is
+	// ll_index_to_name's own answer for index 0 and so at least not a silent
+	// wrong name.
+	if ri.Oif != 0 && !f.OifMask {
 		v.Dev = tab.IndexToName(int32(ri.Oif))
 	}
 	if ri.Table != 0 && ri.Table != unix.RT_TABLE_MAIN && f.Table == 0 {

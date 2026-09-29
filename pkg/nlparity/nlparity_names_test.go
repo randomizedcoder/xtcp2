@@ -321,10 +321,27 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 		"netlink_route_getaddr.pcap",
 		"netlink_route_getaddr_v4.pcap",
 		"netlink_route_getaddr_v6.pcap",
+		// `ip addr show dev goip0`. Its RTM_NEWADDR replies are a subset of
+		// the plain dump's, but its RTM_NEWLINK replies are not: they come
+		// from two single-gets rather than from a dump, so an attribute the
+		// kernel attaches only on the doit path would appear here and
+		// nowhere else in this list.
+		"netlink_route_getaddr_dev.pcap",
 		"netlink_route_getroute.pcap",
 		"netlink_route_getroute6.pcap",
 		"netlink_route_getroute_table_all.pcap",
+		// `ip route show dev goip0`. Its RTM_NEWROUTE replies are a subset of
+		// the plain dump's — the kernel applies RTA_OIF on the dump side — but
+		// its RTM_NEWLINK reply is not: it is ll_link_get's single-get, on the
+		// doit path. Listed for the same reason the addr `dev` capture is.
+		"netlink_route_getroute_dev.pcap",
 		"netlink_route_getneigh.pcap",
+		// `ip neigh show dev goip0`. Every REPLY in it also appears in the
+		// plain neighbor capture, so on the reply side it adds nothing; it is
+		// listed because its REQUEST carries NDA_IFINDEX, the only attribute
+		// on any RTM_GETNEIGH in the corpus, and the walk below names
+		// attributes on requests as readily as on replies.
+		"netlink_route_getneigh_dev.pcap",
 	}
 
 	// Both namespaces: the clean one the gate uses, and the mesh one that

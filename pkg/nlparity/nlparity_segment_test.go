@@ -121,6 +121,12 @@ const (
 	tdGuestGetAddr  = tdGuest + "/netlink_route_getaddr.pcap"
 	tdGuestGetNeigh = tdGuest + "/netlink_route_getneigh.pcap"
 	tdGuestLinkDev  = tdGuest + "/netlink_route_getlink_dev.pcap"
+
+	// `ip neigh show dev NAME`. Its txn 0 is byte-identical to
+	// tdGuestGetNeigh's, which is the property its allowlist entry rests on
+	// and the reason it still needs a file of its own: the whole difference
+	// between the two commands is eight bytes on txn 1.
+	tdGuestGetNeighDev = tdGuest + "/netlink_route_getneigh_dev.pcap"
 )
 
 // TestSegment is the attribution table.

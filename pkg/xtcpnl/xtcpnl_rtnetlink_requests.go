@@ -21,8 +21,9 @@ package xtcpnl
 //	BuildGetLinkByNameRequest    lib/ll_map.c     ll_link_get
 //	BuildIplinkGetRequest        ip/iplink.c      iplink_get
 //	BuildDumpAddrRequestIndex    ip/ipaddress.c   ipaddr_list_flush_or_save
-//	BuildDumpRouteRequestTable   ip/iproute.c     iproute_dump_filter
+//	BuildDumpRouteRequestFilter  ip/iproute.c     iproute_dump_filter
 //	BuildDumpNeighRequest        lib/libnetlink.c rtnl_neighdump_req
+//	BuildDumpNeighRequestFilter  ip/ipneigh.c     ipneigh_dump_filter
 //
 // # Oversend is not reproduced, and that is deliberate
 //
@@ -266,8 +267,8 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 	return BuildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
 }
 
-// BuildDumpRouteRequestTable builds an RTM_GETROUTE dump for one routing table,
-// via an RTA_TABLE attribute.
+// BuildDumpRouteRequestFilter builds an RTM_GETROUTE dump carrying the two
+// attributes iproute_dump_filter can attach: RTA_TABLE and RTA_OIF.
 //
 // table must be an RT_TABLE_* id or a numeric table. RT_TABLE_UNSPEC (0) omits
 // the attribute, which is how `ip route show table all` asks for every table —
@@ -279,22 +280,45 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 // The attribute is needed because rtm_table is a single byte and cannot hold a
 // table id above 255; RTA_TABLE is the u32 that supersedes it.
 //
-// One captured form (getroute.pcap rec 0, `ip route show table all`): 28 bytes,
-// an all-zero rtmsg, no attributes. Note the family there is AF_UNSPEC, while
-// plain `ip route show` sends AF_INET — ip/iproute.c:1998 promotes AF_UNSPEC to
+// oif is filter.oif, set by `dev NAME` or the synonym `oif NAME`
+// (ip/iproute.c:1911-1913) after ll_name_to_index resolves the name
+// (:2008-2016). Zero omits the attribute, for the same reason and by the same
+// `if (filter.oif)` test (:1731).
+//
+// # One function, because iproute2 has one, and the order is why it matters
+//
+// iproute_dump_filter writes RTA_TABLE first and RTA_OIF second, in that
+// order, each guarded by its own presence test. The parity comparator holds
+// requests to full byte equality, so the order is part of the contract rather
+// than an implementation detail — and two builders, one per attribute, would
+// have no structural reason to agree on it. Keeping the pair in one function
+// makes the order impossible to get wrong at a call site.
+//
+// # Captured forms
+//
+// getroute.pcap rec 0 (`ip route show table all`): 28 bytes, an all-zero
+// rtmsg, no attributes. Note the family there is AF_UNSPEC, while plain
+// `ip route show` sends AF_INET — ip/iproute.c:1998 promotes AF_UNSPEC to
 // AF_INET whenever a table filter is set, so the default command is
-// (AF_INET, 254) and the all-tables command is (AF_UNSPEC, 0). Both are this
-// one function.
-func BuildDumpRouteRequestTable(family uint8, table, seq uint32) ([]byte, error) {
+// (AF_INET, 254, 0) and the all-tables command is (AF_UNSPEC, 0, 0).
+// `ip route show dev NAME` is (AF_INET, 254, idx), 44 bytes.
+func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, error) {
 	hdr := make([]byte, RtMsgSizeCst)
 	hdr[0] = family // rtm_family
 
 	var attrs []byte
-	if table != uint32(unix.RT_TABLE_UNSPEC) {
+	if table != uint32(unix.RT_TABLE_UNSPEC) || oif != 0 {
 		var raw [reqAttrBufCst]byte
 		ab := NewAttrBuilder(raw[:])
-		if err := ab.PutU32(uint16(unix.RTA_TABLE), table); err != nil {
-			return nil, err
+		if table != uint32(unix.RT_TABLE_UNSPEC) {
+			if err := ab.PutU32(uint16(unix.RTA_TABLE), table); err != nil {
+				return nil, err
+			}
+		}
+		if oif != 0 {
+			if err := ab.PutU32(uint16(unix.RTA_OIF), oif); err != nil {
+				return nil, err
+			}
 		}
 		attrs = ab.Bytes()
 	}
@@ -319,6 +343,52 @@ func BuildDumpNeighRequest(family uint8, seq uint32) []byte {
 	hdr[0] = family // ndm_family
 
 	return BuildDumpRequest(uint16(unix.RTM_GETNEIGH), seq, hdr)
+}
+
+// BuildDumpNeighRequestFilter is BuildDumpNeighRequest with the device filter
+// `ip neigh show dev NAME` attaches.
+//
+// ifindex 0 omits the attribute and so produces exactly BuildDumpNeighRequest's
+// bytes, which is how the bare command is spelled and why the two cannot
+// disagree.
+//
+// # The index is an ATTRIBUTE here, not the ndm_ifindex field
+//
+// This is the trap, and it is worth more than the byte it costs. `struct ndmsg`
+// has an `ndm_ifindex` member sitting at offset 4, exactly where
+// BuildDumpAddrRequestIndex writes `ifa_index` for the addr equivalent — and
+// iproute2 leaves it zero. ipneigh_dump_filter (ip/ipneigh.c:485-504) writes
+// `addattr32(nlh, reqlen, NDA_IFINDEX, filter.index)` instead, so the request
+// grows by 8 bytes rather than filling a field it already has. A builder that
+// took the obvious route would produce a 28-byte datagram that looks right,
+// decodes right, and is filtered by nothing.
+//
+// # The other two things ipneigh_dump_filter writes, and their order
+//
+// Recorded here rather than in a commit message, because the parity comparator
+// holds requests to full byte equality and the order is part of that contract:
+//
+//  1. `ndm->ndm_flags = filter.ndm_flags` (:490) — always, into the base
+//     struct at offset 10. It is NTF_PROXY for `ip neigh show proxy` and zero
+//     for every form implemented here, which is why there is no parameter for
+//     it yet. `proxy` belongs in this function when it lands, not in a third
+//     builder.
+//  2. NDA_MASTER (:497-501), AFTER NDA_IFINDEX, for `master`/`vrf`. Same rule:
+//     it goes here, second, or the byte order stops matching.
+func BuildDumpNeighRequestFilter(family uint8, ifindex, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NdMsgSizeCst)
+	hdr[0] = family // ndm_family; ndm_ifindex deliberately stays 0, see above
+
+	var attrs []byte
+	if ifindex != 0 {
+		var raw [reqAttrBufCst]byte
+		ab := NewAttrBuilder(raw[:])
+		if err := ab.PutU32(uint16(unix.NDA_IFINDEX), ifindex); err != nil {
+			return nil, err
+		}
+		attrs = ab.Bytes()
+	}
+	return BuildRequest(uint16(unix.RTM_GETNEIGH), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.

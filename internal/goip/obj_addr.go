@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -47,7 +48,8 @@ func runAddress(c *runCtx, args []string) error {
 	}
 }
 
-// addrShow runs the two dumps and renders them.
+// addrShow dispatches `dev NAME` to addrShowDev and otherwise runs the two
+// dumps and renders them.
 //
 // # Two transactions, in this order, and the order is the assertion
 //
@@ -61,10 +63,10 @@ func runAddress(c *runCtx, args []string) error {
 // other order, would produce plausible output and diverge on the wire.
 //
 // The second dump is skipped entirely when the family is AF_PACKET (:2310).
-// goip has no `-0` option so that is unreachable here, and the condition is
-// written anyway rather than assumed — see the family argument threading
-// through req.AddrShowLinkDump, where AF_PACKET selects a different request
-// shape too.
+// That arm is reached by `-0`, which goip parses (goip.go:61) — this comment
+// used to say it was unreachable, which was true only until the option
+// landed. See the family argument threading through req.AddrShowLinkDump,
+// where AF_PACKET selects a different request shape too.
 //
 // # Why the index cache is filled between the dumps and not after
 //
@@ -76,12 +78,30 @@ func runAddress(c *runCtx, args []string) error {
 // between the fill and the render and it would be easy to render as replies
 // are decoded.
 //
-// Filtering arguments (`dev X`, `scope S`, `to PREFIX`, `up`, `label L`,
+// # What is accepted here, and the one form that is deliberately not
+//
+// `dev NAME` uses the three-request path in addrShowDev. The keyword is
+// compared with `==` and not matchesPrefix, because `ip` compares it with
+// strcmp (:2241) — `d` is not an abbreviation of `dev` there, it is a device
+// NAME, and accepting as a keyword what `ip` reads as a name would be a
+// divergence in argument parsing rather than a convenience.
+//
+// The other filtering arguments (`scope S`, `to PREFIX`, `up`, `label L`,
 // `master M`, `primary`, `secondary`, `tentative`, `deprecated`, `dynamic`,
 // `permanent`) are rejected rather than ignored, for the reason linkShow
-// gives: `dev X` changes the request, and answering a filtered query with an
-// unfiltered dump is a wrong answer rather than a missing feature.
+// gives: answering a filtered query with an unfiltered dump is a wrong answer
+// rather than a missing feature.
+//
+// And so is the BARE device name, which `ip addr show lo` accepts through the
+// same else-arm `dev` falls into. That arm is reached only after every keyword
+// test above it has failed, so implementing it while those keywords are
+// unimplemented would turn `goip addr show up` from an honest refusal into
+// `Device "up" does not exist` — a wrong answer produced by a feature, which
+// is worse than a missing one.
 func addrShow(c *runCtx, args []string) error {
+	if len(args) == 2 && args[0] == devKeywordCst {
+		return addrShowDev(c, args[1])
+	}
 	if len(args) > 0 {
 		return fmt.Errorf("address show %q: %w", args[0], ErrNotImplemented)
 	}
@@ -102,6 +122,106 @@ func addrShow(c *runCtx, args []string) error {
 		for i := range addrResources {
 			addrs[i] = xtcpnl.AddrInfo(addrResources[i])
 		}
+	}
+	return renderAddrGroups(c, links, addrs)
+}
+
+// addrShowDev serves `ip addr show dev NAME` as the three transactions
+// iproute2 sends, in iproute2's order.
+//
+// # Three requests, and the middle one is not the one you would guess
+//
+// `dev NAME` lands in the same catch-all else-arm every `addr` filter argument
+// falls through to (ip/ipaddress.c:2241-2247) and is resolved by
+// ll_name_to_index at :2253. On a cache miss that issues ll_link_get(name, 0)
+// on a throwaway socket, exactly as `link show dev` does — request one, its
+// reply thrown away apart from the cache entry.
+//
+// filter.ifindex is now set, so :2302 takes the ipaddr_link_get branch instead
+// of ip_link_list's dump: request two is a single-get addressed BY THE INDEX
+// just learned, not by the name. That is the one place the two `dev` commands
+// diverge — `link show dev` re-fetches by name through iplink_get (:2293),
+// this one re-fetches by index — and the difference is entirely in request
+// bytes, so only pkg/nlparity's byte comparison can see it.
+//
+// Request three is the address dump, with the index written into ifa_index by
+// ipaddr_dump_filter (:1954-1958). So the kernel does the address filtering
+// here where `addr show` does it client-side, and addrBelongsTo below runs
+// anyway, because `ip` applies both too.
+//
+// # The side-gets come after the dump, and the order is observable
+//
+// print_linkinfo runs in the loop at :2323-2336, which is after ip_addr_list
+// at :2314. So a link with an IFLA_MASTER or an unshadowed IFLA_LINK emits its
+// lazy ll_index_to_name single-gets as transactions FOUR and later, behind the
+// address dump — where linkShowDev, having no dump to send, emits them second.
+// Same function, same laziness, different position in the capture, and the
+// harness compares positionally. Hence resolveLinkRefs is called here after
+// Addresses returns and not before.
+//
+// The gated clean topology has neither a master nor a peer, so it sends
+// exactly three; the mesh namespace is where the fourth would appear.
+//
+// # What `-s` would add, and why it is not here
+//
+// `-s` reaches this command in `ip` twice over: ipaddr_link_get clears
+// RTEXT_FILTER_SKIP_STATS from its mask (:2066-2067), and the print loop calls
+// print_link_stats at :2333 under `!do_link && show_stats`. goip implements
+// neither, and the two are one item rather than two — the mask alone would
+// make the request right and the output wrong. Note also that :2333 comes
+// AFTER print_selected_addrinfo at :2332, so `ip -s addr show` puts the stats
+// block below the address lines, where `ip -s link show` puts it directly
+// under the link stanza. LinkView.WithStats renders the second layout, so the
+// renderer cannot simply be reused.
+func addrShowDev(c *runCtx, name string) error {
+	svc := service.New(c.src, c.nextSeq)
+
+	// Request one: ll_name_to_index. Nothing is rendered from this reply, and
+	// it is byte-identical to `link show dev`'s first request because it is
+	// the same iproute2 function.
+	resolved, err := svc.LinkByName(name)
+	if err != nil {
+		return err
+	}
+	c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
+
+	// Request two: ipaddr_link_get, by index, carrying preferred_family.
+	shown, err := svc.AddrLinkGet(c.family, resolved.Index, req.ExtMaskShow)
+	if err != nil {
+		return err
+	}
+	link := xtcpnl.LinkInfo(shown)
+	c.lltab.Fill([]xtcpnl.LinkInfo{link})
+
+	// Request three: the address dump, filtered to this index by the kernel.
+	// Skipped under AF_PACKET, the same condition and the same reason as in
+	// addrShow — ip/ipaddress.c:2310 guards both.
+	var addrs []xtcpnl.AddrInfo
+	if c.family != unix.AF_PACKET {
+		addrResources, aerr := svc.Addresses(c.family, uint32(link.Index))
+		if aerr != nil {
+			return aerr
+		}
+		addrs = make([]xtcpnl.AddrInfo, len(addrResources))
+		for i := range addrResources {
+			addrs[i] = xtcpnl.AddrInfo(addrResources[i])
+		}
+	}
+
+	resolveLinkRefs(c, svc, link)
+	return renderAddrGroups(c, []xtcpnl.LinkInfo{link}, addrs)
+}
+
+// renderAddrGroups is the half of `addr show` that is the same whether one
+// link arrived from a single-get or all of them arrived from a dump: apply
+// ipaddr_filter, group the addresses under their links, and write.
+//
+// addrs is nil under AF_PACKET, which is not a special case here — the
+// per-link inner loop simply runs zero times, and filterLinksWithAddrs is
+// skipped because `ip` skips ipaddr_filter for that family too
+// (ip/ipaddress.c:2310-2318 guards the dump and the filter together).
+func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo) error {
+	if c.family != unix.AF_PACKET {
 		links = filterLinksWithAddrs(links, addrs, c.family)
 	}
 
