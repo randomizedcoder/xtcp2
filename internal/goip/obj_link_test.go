@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1010,6 +1011,30 @@ func TestLinkShowJSONMatchesCapturedSidecars(t *testing.T) {
 			sidecar:     "mesh/ip_link_json",
 		},
 		{
+			// The tunnel namespace is the only source of two JSON shapes
+			// neither row above can produce:
+			//
+			//   "link": null       IFLA_LINK present with value 0, which is
+			//                      print_null at lib/utils.c:1333-1334 and
+			//                      not an absent key. Every device here has
+			//                      it, because a tunnel sits on nothing.
+			//   "address": an IP   ll_addr_n2a renders a 4-byte address on
+			//                      ARPHRD_TUNNEL/SIT/IPGRE and a 16-byte one
+			//                      on ARPHRD_TUNNEL6/IP6GRE as an IP, not as
+			//                      colon-hex (lib/ll_addr.c:32-38).
+			//
+			// The permaddr keys on the v6 devices are random per boot, and
+			// they still compare exactly here: the pcap and the sidecar come
+			// from the SAME boot of the SAME capture, so they agree with each
+			// other even though neither survives a re-capture unchanged. That
+			// is a property of this pair, not of the value — see
+			// pkg/xtcpnl's tdDumpsTunnel_7_1_4.
+			description: "positive: the tunnel topology reproduces tunnel/ip_link_json, null link and IP-valued addresses included",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink.pcap",
+			args:        []string{"-json", "link", "show"},
+			sidecar:     "tunnel/ip_link_json",
+		},
+		{
 			description:  "positive: `-s` adds the stats64 object, with ip's key names and nesting",
 			pcap:         guestDumpsDir + "netlink_route_getlink_stats.pcap",
 			args:         []string{"-json", "-s", "link", "show"},
@@ -1042,6 +1067,282 @@ func TestLinkShowJSONMatchesCapturedSidecars(t *testing.T) {
 			}
 			assertJSONEntriesEqual(t, got, want)
 		})
+	}
+}
+
+// TestLinkShowTextMatchesCapturedSidecars diffs `goip link show`'s TEXT output
+// against the plain `ip link show` sidecar from the same capture, line by line.
+//
+// # Why a text test when the JSON one already exists
+//
+// Two of the three things this increment added are invisible to JSON:
+//
+//   - `@NONE`. In JSON the IFLA_LINK = 0 arm is `"link": null`; the literal
+//     token only exists in the text form, where print_name_and_link splices
+//     it into the ifname (lib/utils.c:1336-1341). The JSON row can assert
+//     that the arm was taken; only this one can assert what it prints.
+//   - The ` permaddr …` prefix. print_string(PRINT_FP, NULL, " permaddr ",
+//     NULL) at ip/ipaddress.c:1101 is FP-only — the JSON half is a separate
+//     print_color_string with no leading space. Its POSITION on the line,
+//     after brd/peer and inside the same `if` that opens the link/ line, is a
+//     text-only fact.
+//
+// # Why the clean and mesh rows are here too
+//
+// They are controls, not coverage. If the tunnel row is the only row and it
+// fails, the failure is ambiguous between "the tunnel work is wrong" and
+// "goip's plain text form has always differed from `ip`'s". With all three,
+// a tunnel-only failure is attributable and a three-way failure is a finding
+// about something else.
+//
+// go test ./internal/goip/ -run TestLinkShowTextMatchesCapturedSidecars
+func TestLinkShowTextMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+	}{
+		{
+			description: "control: the clean topology reproduces ip_link line for line",
+			pcap:        guestDumpsDir + "netlink_route_getlink.pcap",
+			sidecar:     "ip_link",
+		},
+		{
+			description: "control: the mesh topology reproduces mesh/ip_link line for line",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getlink.pcap",
+			sidecar:     "mesh/ip_link",
+		},
+		{
+			description: "positive: the tunnel topology reproduces tunnel/ip_link, @NONE and permaddr included",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink.pcap",
+			sidecar:     "tunnel/ip_link",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := []string{"link", "show"}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			assertLinesEqual(t, stdout.String(), string(raw))
+		})
+	}
+}
+
+// TestLinkShowStatsTextMatchesCapturedSidecars diffs `goip -s link show`'s TEXT
+// output against the plain `ip -s link show` sidecar, with the counter values
+// normalized away and everything else compared exactly.
+//
+// # Why this is not already covered
+//
+// The `-s` render is compared byte-for-byte inside the parity microVM, where
+// `ip` and `goip` run milliseconds apart in one boot. That comparison is
+// stronger than this one and it needs /dev/kvm, so on a plain `go test` — and
+// therefore in every CI path that is not the KVM integration run — nothing
+// checks print_stats64's transcription at all. The JSON sibling
+// (TestLinkShowJSONMatchesCapturedSidecars, zeroCounters) covers the key names
+// and nesting; it cannot cover a column header or a field order, because JSON
+// has neither.
+//
+// # Why normalization is required, and what survives it
+//
+// The sidecar and the pcap come from two different invocations of the capture
+// driver, so lo and goip0 moved traffic in between: the committed goldens and
+// a replay of the committed pcap differ on exactly two lines out of thirty-two,
+// and only in the counter values (65796/149 against 31596/77). Everything else
+// — every link header, every link/ line, and both
+//
+//	RX:  bytes packets errors dropped  missed   mcast
+//	TX:  bytes packets errors dropped carrier collsns
+//
+// header rows, trailing spaces included — is already identical. Those two rows
+// are format-string constants transcribed from ip/ipaddress.c, and they are the
+// thing worth pinning; the counters are not, and cannot be.
+//
+// So normalizeLinkStatsText rewrites ONLY the value line that follows an RX:/TX:
+// header, and only into a field count. A column header that lost a column, a
+// swapped field order, a dropped stanza, a wrong indent, or a missing trailing
+// space all still fail. A counter that advanced does not.
+//
+// go test ./internal/goip/ -run TestLinkShowStatsTextMatchesCapturedSidecars
+func TestLinkShowStatsTextMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+	}{
+		{
+			description: "control: the clean topology reproduces ip_link_stats, headers and stanza layout",
+			pcap:        guestDumpsDir + "netlink_route_getlink_stats.pcap",
+			sidecar:     "ip_link_stats",
+		},
+		{
+			description: "control: the mesh topology reproduces mesh/ip_link_stats across its extra links",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getlink_stats.pcap",
+			sidecar:     "mesh/ip_link_stats",
+		},
+		{
+			// The stats stanza has to sit under a header line carrying @NONE
+			// and, on the v6 devices, a permaddr token. This is the only row
+			// where the two renders meet.
+			description: "positive: the tunnel topology reproduces tunnel/ip_link_stats under @NONE headers",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink_stats.pcap",
+			sidecar:     "tunnel/ip_link_stats",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := []string{"-s", "link", "show"}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			assertLinesEqual(t,
+				normalizeLinkStatsText(t, stdout.String()),
+				normalizeLinkStatsText(t, string(raw)))
+		})
+	}
+}
+
+// normalizeLinkStatsText replaces the counter values under each RX:/TX: header
+// with their field count, leaving every other line byte-for-byte.
+//
+// It asserts on the way through that the line it is about to erase really was
+// all digits. Without that, a render which printed a word where a number
+// belongs would be normalized into agreement — the normalizer would be hiding
+// the bug it exists to tolerate.
+func normalizeLinkStatsText(t *testing.T, s string) string {
+	t.Helper()
+
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	inStats := false
+	for i, line := range lines {
+		if !inStats {
+			trimmed := strings.TrimSpace(line)
+			inStats = strings.HasPrefix(trimmed, "RX:") || strings.HasPrefix(trimmed, "TX:")
+			continue
+		}
+		inStats = false
+
+		fields := strings.Fields(line)
+		for _, f := range fields {
+			if strings.TrimLeft(f, "0123456789") != "" {
+				t.Fatalf("line %d: %q is not a counter, and this line follows an RX:/TX: header; "+
+					"normalizing it would hide a render bug", i+1, f)
+			}
+		}
+		lines[i] = "<" + strconv.Itoa(len(fields)) + " counters>"
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// TestNormalizeLinkStatsText checks the normalizer against the golden it is
+// applied to, because a normalizer is the one helper whose failure mode is
+// silent: if it erased too much, every row of
+// TestLinkShowStatsTextMatchesCapturedSidecars would still pass and would mean
+// nothing.
+//
+// Each row mutates the real dumps/ip_link_stats and states whether the
+// mutation must survive normalization. The counter row is the only `false`,
+// and it is the entire reason the helper exists.
+//
+// go test ./internal/goip/ -run TestNormalizeLinkStatsText
+func TestNormalizeLinkStatsText(t *testing.T) {
+	tests := []struct {
+		description string
+		from, to    string
+		wantDetect  bool
+	}{
+		{
+			description: "negative: a counter that advanced between the sidecar and the pcap is tolerated",
+			from:        "         65796     149",
+			to:          "         31596      77",
+			wantDetect:  false,
+		},
+		{
+			description: "positive: a dropped column in the RX header is detected",
+			from:        "errors dropped  missed",
+			to:          "errors  missed",
+			wantDetect:  true,
+		},
+		{
+			description: "positive: RX and TX transposed is detected",
+			from:        "    RX:  bytes",
+			to:          "    TX:  bytes",
+			wantDetect:  true,
+		},
+		{
+			// print_stats64 pads the header to a fixed width, so the run of
+			// spaces after `mcast` is part of the format string and not
+			// incidental. Nothing else in the suite would notice it going.
+			description: "boundary: the trailing padding on a header line is detected",
+			from:        "  mcast           \n",
+			to:          "  mcast\n",
+			wantDetect:  true,
+		},
+		{
+			description: "boundary: a one-space indent change on a link/ line is detected",
+			from:        "    link/loopback",
+			to:          "   link/loopback",
+			wantDetect:  true,
+		},
+	}
+
+	raw, err := os.ReadFile(guestDumpsDir + "ip_link_stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := normalizeLinkStatsText(t, string(raw))
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			mutated := strings.Replace(string(raw), tc.from, tc.to, 1)
+			if mutated == string(raw) {
+				t.Fatalf("mutation %q -> %q did not apply; the golden has changed shape "+
+					"and this row no longer tests what it says", tc.from, tc.to)
+			}
+			if got := normalizeLinkStatsText(t, mutated) != base; got != tc.wantDetect {
+				t.Errorf("detected = %v, want %v", got, tc.wantDetect)
+			}
+		})
+	}
+}
+
+// assertLinesEqual reports the FIRST differing line and the counts, rather
+// than dumping two whole documents.
+//
+// A stanza-per-link diff is long enough that a %q of both sides buries the one
+// line that moved, and these sidecars run to fourteen links.
+func assertLinesEqual(t *testing.T, got, want string) {
+	t.Helper()
+	gotLines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	wantLines := strings.Split(strings.TrimSuffix(want, "\n"), "\n")
+
+	n := len(gotLines)
+	if len(wantLines) < n {
+		n = len(wantLines)
+	}
+	for i := range n {
+		if gotLines[i] != wantLines[i] {
+			t.Fatalf("line %d differs\n got: %q\nwant: %q", i+1, gotLines[i], wantLines[i])
+		}
+	}
+	if len(gotLines) != len(wantLines) {
+		t.Fatalf("line count = %d, want %d; first %d lines agree",
+			len(gotLines), len(wantLines), n)
 	}
 }
 

@@ -130,6 +130,29 @@ namespace eval nltopo {
         topo $ns $subdir neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev $dummy nud stale
         topo $ns $subdir neigh add 192.0.2.52 dev $dummy nud incomplete
         topo $ns $subdir -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev $dummy nud permanent
+
+        # Two PROXY entries, one per family, and they are not two more
+        # neighbors. A proxy entry lives in the table's pneigh list, which
+        # neigh_dump_table never walks: the kernel picks between
+        # pneigh_dump_table and neigh_dump_table on whether the request's
+        # ndm_flags EQUALS NTF_PROXY (net/core/neighbour.c:2956), so the four
+        # entries above and these two are disjoint sets reached by different
+        # commands. Adding these therefore does not change a single byte of
+        # what `ip neigh show` returns, which is the property that lets them
+        # into an already-gated topology.
+        #
+        # What they are FOR is the shape pneigh_fill_info emits (:2739-2749)
+        # and nothing else in this topology produces: ndm_state NUD_NONE,
+        # i.e. zero. Every regular entry above has a state, so without these
+        # the renderer's zero-state path and print_neigh's NTF_PROXY escape
+        # from the state filter (ip/ipneigh.c:335-339) have no positive.
+        # There is no NDA_LLADDR and no NDA_CACHEINFO either, by construction
+        # rather than by timing.
+        #
+        # Both families, because the proxy dump walks arp_tbl before nd_tbl
+        # and one entry could not show the order is preserved.
+        topo $ns $subdir neigh add proxy 192.0.2.60 dev $dummy
+        topo $ns $subdir -6 neigh add proxy 2001:db8::60 dev $dummy
     }
 
     ###########################################################################
@@ -150,5 +173,88 @@ namespace eval nltopo {
         topo $ns $subdir link set br0 up
         topo $ns $subdir link set veth0 up
         topo $ns $subdir route add 198.19.1.0/24 dev br0
+    }
+
+    ###########################################################################
+    # build_tunnel - one device per ARPHRD type that ll_addr_n2a special-cases.
+    #
+    # WHY THIS SET EXISTS
+    #
+    # ll_addr_n2a (lib/ll_addr.c:26-44) does not always print colon-hex. It
+    # returns inet_ntop(AF_INET) when the address is 4 bytes AND the type is
+    # ARPHRD_TUNNEL, ARPHRD_SIT or ARPHRD_IPGRE (:32-35), and
+    # inet_ntop(AF_INET6) when it is 16 bytes AND the type is ARPHRD_TUNNEL6
+    # or ARPHRD_IP6GRE (:37-38). Only after both tests fail does it reach the
+    # generic hex loop at :40-43.
+    #
+    # No device in `clean` or `mesh` has any of those five types, so the two
+    # special cases had no positive anywhere in the corpus - which is why
+    # xtcpnl's hwAddrString implements the fall-through only, and says so in a
+    # doc comment that describes a tunnel as taking it.
+    #
+    # Both IFLA_ADDRESS and IFLA_BROADCAST are rendered through ll_addr_n2a
+    # with ifi->ifi_type (ip/ipaddress.c:1067-1092), so every device below
+    # exercises the divergence twice, on two different attributes.
+    #
+    # WHY ITS OWN NAMESPACE RATHER THAN AN ADDITION TO `clean`
+    #
+    # Adding a device to `clean` rewrites every committed clean fixture and
+    # every sidecar, for a property not one of them is about. A separate set
+    # costs one subdir.
+    #
+    # The namespace is NOT what keeps the clean set intact, though, and it is
+    # worth being exact about that because the first attempt got it wrong.
+    # These five families put their fallback device in every namespace from
+    # pernet_operations, so a module loaded at boot reaches `clean` however
+    # many namespaces are between them. What protects `clean` is that
+    # scripts/capture-netlink-dumps.exp modprobes them only after the clean
+    # and mesh sets are captured; see the comment at that call.
+    #
+    # WHY NOTHING HERE BINDS AN UNDERLYING DEVICE
+    #
+    # A tunnel created without `dev` carries no IFLA_LINK and no IFLA_MASTER,
+    # so it provokes none of the side ll_link_get transactions that keep
+    # `mesh` out of the gated parity run. This set is therefore positionally
+    # comparable in principle; it is ungated here only because the bar is two
+    # measured runs and it has had none.
+    #
+    # DETERMINISM, AND THE ONE PLACE IT DOES NOT HOLD
+    #
+    # A tunnel's link-layer address IS its local endpoint, not a MAC the
+    # kernel randomizes per boot, so IFLA_ADDRESS and IFLA_BROADCAST - the
+    # two attributes this set exists for - are stable across captures where
+    # the dummy in `clean` is not.
+    #
+    # IFLA_PERM_ADDRESS is the exception, and it was found by capturing
+    # rather than predicted: ip6_tunnel.c:1913 and ip6_gre.c:1443 both call
+    # eth_random_addr(dev->perm_addr), so ip6tnl0, ip6tnl1, ip6gre0 and
+    # ip6gre1 carry a fresh permaddr every boot, and `ip` prints it because
+    # it differs from IFLA_ADDRESS (ip/ipaddress.c:1094-1101). The four v4
+    # devices have no permaddr line at all. So the sidecars in this set are
+    # stable except for one token on four lines - the same situation as
+    # ip_link_stats, which is committed anyway and for the same reason.
+    ###########################################################################
+    proc build_tunnel {ns subdir} {
+        # A distinct local per device on purpose: a decoder that reads the
+        # right attribute off the wrong link still yields a plausible dotted
+        # quad, and five copies of one address would hide exactly that.
+        topo $ns $subdir link add ipip1   type ipip   local 192.0.2.1 remote 198.51.100.1
+        topo $ns $subdir link add sit1    type sit    local 192.0.2.2 remote 198.51.100.2
+        topo $ns $subdir link add gre1    type gre    local 192.0.2.3 remote 198.51.100.3
+        topo $ns $subdir link add ip6tnl1 type ip6tnl mode ip6ip6 local 2001:db8::1 remote 2001:db8:100::1
+        topo $ns $subdir link add ip6gre1 type ip6gre local 2001:db8::2 remote 2001:db8:100::2
+
+        # Loading each module also creates that family's FALLBACK device in
+        # the namespace - tunl0, sit0, gre0, ip6tnl0, ip6gre0 - and those earn
+        # their place rather than being noise. Their addresses are all-zero
+        # and they are NOT IFF_POINTOPOINT, so they take the `brd` arm of
+        # ip/ipaddress.c:1077-1084 where the five configured devices take
+        # `peer`. One namespace covers both arms, and the all-zero address is
+        # the boundary case that must render "0.0.0.0" and not "00:00:00:00".
+
+        topo $ns $subdir link set gre1 up
+        topo $ns $subdir addr add 203.0.113.1/24 dev gre1
+        topo $ns $subdir -6 addr add 2001:db8:3::1/64 nodad dev gre1
+        topo $ns $subdir route add 203.0.113.128/25 dev gre1
     }
 }

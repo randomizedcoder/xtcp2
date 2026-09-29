@@ -306,21 +306,24 @@ func TestRequestBuilders(t *testing.T) {
 			want:        BuildDumpAddrRequest(unix.AF_INET, testSeq),
 		},
 		{
-			// Same contract on the neighbor side: `ip neigh show` and
-			// `ip neigh show dev NAME` share a builder, so the unfiltered
-			// form must be indistinguishable from the pre-filter one.
-			description: "boundary: BuildDumpNeighRequestFilter with ifindex 0 equals BuildDumpNeighRequest",
-			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 0, testSeq)),
+			// Same contract on the neighbor side: `ip neigh show`, `ip neigh
+			// show dev NAME` and `ip neigh show proxy` share a builder, so the
+			// unfiltered form must be indistinguishable from the pre-filter
+			// one. Both selectors are off here, and ndm_flags 0 is a byte the
+			// bare command writes too (ip/ipneigh.c:490 is unconditional) —
+			// which is exactly why passing it zero has to equal not passing it.
+			description: "boundary: BuildDumpNeighRequestFilter with ifindex 0 and ndm_flags 0 equals BuildDumpNeighRequest",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 0, 0, testSeq)),
 			want:        BuildDumpNeighRequest(unix.AF_UNSPEC, testSeq),
 		},
 		{
-			// The trap, asserted rather than described. ndmsgHdr's third
+			// The trap, asserted rather than described. ndmsgHdr's second
 			// argument is ndm_ifindex and it stays 0 here while the index
 			// travels as NDA_IFINDEX — the opposite of the ifaddrmsg row
 			// above, where the index IS the header field. ipneigh_dump_filter
 			// (ip/ipneigh.c:493) is the reason.
 			description: "boundary: BuildDumpNeighRequestFilter sends the index as NDA_IFINDEX, leaving ndm_ifindex zero",
-			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 3, testSeq)),
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, 0, 3, testSeq)),
 			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
 				concat(ndmsgHdr(unix.AF_UNSPEC, 0, 0, 0, 0),
 					rtattr(uint16(unix.NDA_IFINDEX), le32(3)))),
@@ -330,10 +333,47 @@ func TestRequestBuilders(t *testing.T) {
 			// request, and a builder that ignored its family argument would
 			// still pass the row above.
 			description: "corner: BuildDumpNeighRequestFilter keeps ndm_family alongside the filter",
-			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_INET6, 3, testSeq)),
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_INET6, 0, 3, testSeq)),
 			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
 				concat(ndmsgHdr(unix.AF_INET6, 0, 0, 0, 0),
 					rtattr(uint16(unix.NDA_IFINDEX), le32(3)))),
+		},
+		{
+			// `ip neigh show proxy`, and the cheapest selector in goip: one
+			// byte at offset 10 of a struct the bare command already sends, so
+			// the datagram stays 28 bytes and no attribute appears. ndmsgHdr's
+			// fourth argument is that byte.
+			description: "boundary: BuildDumpNeighRequestFilter writes ndm_flags NTF_PROXY and adds no attribute",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, unix.NTF_PROXY, 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
+				ndmsgHdr(unix.AF_UNSPEC, 0, 0, unix.NTF_PROXY, 0)),
+		},
+		{
+			// The two selectors compose — do_show_or_flush parses them in one
+			// loop with no mutual exclusion (ip/ipneigh.c:506-594) — and the
+			// write ORDER is the assertion. ipneigh_dump_filter sets ndm_flags
+			// at :490 before it appends NDA_IFINDEX at :493, so a builder that
+			// appended the attribute first would produce the same information
+			// and different bytes.
+			description: "corner: BuildDumpNeighRequestFilter writes ndm_flags before NDA_IFINDEX when both selectors are set",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, unix.NTF_PROXY, 3, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
+				concat(ndmsgHdr(unix.AF_UNSPEC, 0, 0, unix.NTF_PROXY, 0),
+					rtattr(uint16(unix.NDA_IFINDEX), le32(3)))),
+		},
+		{
+			// The builder's job is to write the byte it was given, not to
+			// judge it, and this row is what says so. NTF_ROUTER is not a
+			// value goip ever passes — under strict check the kernel answers
+			// `ndm_flags & ~NTF_PROXY` with EINVAL
+			// (net/core/neighbour.c:2903-2906) — but a builder that quietly
+			// normalized the argument to NTF_PROXY or to zero would turn that
+			// diagnosable error into a wrong answer, and only a row asserting
+			// an unwelcome value survives intact would catch it.
+			description: "negative: BuildDumpNeighRequestFilter passes a non-proxy ndm_flags through unchanged",
+			got:         mustBuildReq(BuildDumpNeighRequestFilter(unix.AF_UNSPEC, unix.NTF_ROUTER, 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETNEIGH), wantDumpFlags, testSeq,
+				ndmsgHdr(unix.AF_UNSPEC, 0, 0, unix.NTF_ROUTER, 0)),
 		},
 		{
 			// ifa_index lives in the HEADER, at offset 4 of the ifaddrmsg. There

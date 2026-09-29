@@ -127,6 +127,19 @@ const (
 	// and the reason it still needs a file of its own: the whole difference
 	// between the two commands is eight bytes on txn 1.
 	tdGuestGetNeighDev = tdGuest + "/netlink_route_getneigh_dev.pcap"
+
+	// `ip neigh show proxy`. The narrowest request delta in the corpus and
+	// the only one that is a single byte: its txn 1 body is
+	// 00*10 08 00 where the bare command's is 00*12, the 0x08 being
+	// NTF_PROXY at ndm_flags (offset 10). Measured, not derived — both
+	// bodies are printed in the row below's sidecar.
+	//
+	// That one byte changes which TABLE the kernel walks, not how much of
+	// one it returns (net/core/neighbour.c:2955-2957 picks
+	// pneigh_dump_table over neigh_dump_table), so this capture's replies
+	// are disjoint from tdGuestGetNeigh's rather than a subset — the
+	// opposite of what tdGuestGetNeighDev's eight bytes do.
+	tdGuestGetNeighProxy = tdGuest + "/netlink_route_getneigh_proxy.pcap"
 )
 
 // TestSegment is the attribution table.
@@ -264,6 +277,62 @@ func TestSegment(t *testing.T) {
 				}
 				if got := s.Txns[1].Request.Hdr.Type; got != uint16(unix.RTM_GETNEIGH) {
 					t.Errorf("txn 1 request type = %d, want RTM_GETNEIGH (%d)", got, unix.RTM_GETNEIGH)
+				}
+			},
+		},
+		{
+			// `ip neigh show proxy`, and the point of the row is the check:
+			// the two transactions are the SAME SHAPE as the bare command's
+			// — ll_init_map's link dump, then one neighbor dump, one socket,
+			// both closed by NLMSG_DONE — because `proxy` adds no
+			// transaction and reorders none. What it changes is twelve bytes
+			// of one body, of which eleven are the same as before.
+			//
+			// Three replies against the bare command's six, and that is not
+			// a narrower filter: pneigh_dump_table and neigh_dump_table are
+			// different tables (net/core/neighbour.c:2955-2957), so these
+			// two proxy entries appear in NO other capture in the repo. That
+			// is why the fixture exists at all rather than the comparator
+			// replaying netlink_route_getneigh.pcap and filtering it.
+			description: "positive: `ip neigh show proxy` is the same two transactions as the bare command, one byte apart",
+			filename:    tdGuestGetNeighProxy,
+			sidecar:     "dumps/ip_neigh_proxy; txn 1 body 00*10 08 00 vs the bare command's 00*12",
+			wantTxns:    2,
+			wantClean:   true,
+			wantPids:    []uint32{1085},
+			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
+			wantReplies: []int{4, 3},
+			check: func(t *testing.T, _ Capture, s Segmentation) {
+				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
+					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
+				}
+				if got := s.Txns[1].Request.Hdr.Type; got != uint16(unix.RTM_GETNEIGH) {
+					t.Errorf("txn 1 request type = %d, want RTM_GETNEIGH (%d)", got, unix.RTM_GETNEIGH)
+				}
+
+				// The one byte, asserted against the bare command's own
+				// capture rather than against a literal, so that a re-capture
+				// of either file cannot quietly make the claim false. The
+				// ndmsg is bare — no attribute follows — on both sides, which
+				// is the other half of "one byte apart".
+				bare, err := ParseRouteCaptureFile(tdGuestGetNeigh)
+				if err != nil {
+					t.Fatalf("%s: %v", tdGuestGetNeigh, err)
+				}
+				want := SegmentCapture(bare).Txns[1].Request.Body
+				got := s.Txns[1].Request.Body
+				if len(got) != len(want) {
+					t.Fatalf("proxy ndmsg is %d bytes, the bare command's is %d; `proxy` adds no attribute",
+						len(got), len(want))
+				}
+				for i := range got {
+					wantByte := want[i]
+					if i == 10 {
+						wantByte = unix.NTF_PROXY
+					}
+					if got[i] != wantByte {
+						t.Errorf("proxy ndmsg byte %d = 0x%02x, want 0x%02x", i, got[i], wantByte)
+					}
 				}
 			},
 		},

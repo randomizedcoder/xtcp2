@@ -342,6 +342,15 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 		// on any RTM_GETNEIGH in the corpus, and the walk below names
 		// attributes on requests as readily as on replies.
 		"netlink_route_getneigh_dev.pcap",
+		// `ip neigh show proxy`. The reverse of the row above: its REQUEST
+		// adds nothing — a bare ndmsg with one flag byte set, no attribute —
+		// and its REPLIES are what is new. They come from pneigh_dump_table
+		// (net/core/neighbour.c:2955-2957), a table no other capture here
+		// touches, so these are the corpus's only RTM_NEWNEIGH messages with
+		// NTF_PROXY in ndm_flags, and its only ones carrying NDA_DST without
+		// an NDA_LLADDR or NDA_CACHEINFO beside it (pneigh_fill_info,
+		// :2722-2749).
+		"netlink_route_getneigh_proxy.pcap",
 	}
 
 	// Both namespaces: the clean one the gate uses, and the mesh one that

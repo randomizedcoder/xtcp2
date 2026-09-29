@@ -857,7 +857,7 @@ func TestNeighborDumps(t *testing.T) {
 				// Only reached when the link dump succeeded, which is what
 				// makes the "stops after the link dump" row assert a real
 				// ordering rather than an accident of the fake.
-				neighbors, err = svc.Neighbors(unix.AF_INET, tc.devIndex)
+				neighbors, err = svc.Neighbors(unix.AF_INET, 0, tc.devIndex)
 			}
 
 			if !reflect.DeepEqual(f.types, tc.wantTypes) {

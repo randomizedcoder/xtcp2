@@ -4,10 +4,13 @@
 #
 # Usage:
 #   capture-netlink-dumps.exp <serial-port> <blob-out> [--skip-mesh]
+#                                                      [--skip-tunnel]
 #
 #   <serial-port>  host TCP port qemu bound the guest's serial console to
 #   <blob-out>     file to write the base64 tarball to
-#   --skip-mesh    capture only the clean set (faster; loses the advisory set)
+#   --skip-mesh    skip the mesh set (faster; loses the advisory bridge set)
+#   --skip-tunnel  skip the tunnel set (faster; loses every ARPHRD type that
+#                  ll_addr_n2a special-cases)
 #
 # This file holds the POLICY half of the capture: which namespaces exist,
 # which commands are captured, what each capture's floor is, and which
@@ -44,9 +47,11 @@ if {$argc < 2} {
 set port     [lindex $argv 0]
 set blob_out [lindex $argv 1]
 set skip_mesh 0
+set skip_tunnel 0
 foreach a [lrange $argv 2 end] {
     switch -- $a {
-        --skip-mesh { set skip_mesh 1 }
+        --skip-mesh   { set skip_mesh 1 }
+        --skip-tunnel { set skip_tunnel 1 }
         default {
             puts "unknown argument: $a"
             exit 2
@@ -54,9 +59,16 @@ foreach a [lrange $argv 2 end] {
     }
 }
 
-set NS_CLEAN "nlcapc"
-set NS_MESH  "nlcapm"
-set DUMMY    "goip0"
+set NS_CLEAN  "nlcapc"
+set NS_MESH   "nlcapm"
+set NS_TUNNEL "nlcapt"
+set DUMMY     "goip0"
+
+# The tunnel set's `dev` selector. gre1 rather than one of the other four
+# because it is the only device in that namespace carrying addresses and a
+# route, so `addr show dev` and `route show dev` have something to print;
+# the other four exist for their link-layer address alone.
+set TUNDEV    "gre1"
 
 # Accumulated problems, reported together at the end rather than scrolling
 # past in the middle of the run.
@@ -219,6 +231,28 @@ proc capture_set {ns subdir dev} {
     # field sitting unused at offset 4. This is the corpus's only RTM_GETNEIGH
     # carrying an attribute at all.
     cap $ns $subdir netlink_route_getneigh_dev 4 "ip neigh show dev $dev"
+
+    # The neigh object's OTHER free selector, and the narrowest request delta
+    # in the whole set: ONE byte.
+    #
+    # ipneigh_dump_filter writes filter.ndm_flags into the base struct at
+    # offset 10 (ip/ipneigh.c:490), unconditionally and before either
+    # attribute, so `ip neigh show proxy` and `ip neigh show` send the same
+    # 28-byte datagram differing in a single position. The `dev` form above
+    # needed 8 bytes to say what it wanted; this one needs one.
+    #
+    # The REPLY side is the opposite of narrow. The kernel tests that byte
+    # for equality with NTF_PROXY (net/core/neighbour.c:2956) and walks
+    # pneigh_dump_table instead of neigh_dump_table, so this capture and
+    # netlink_route_getneigh hold DISJOINT entry sets rather than a subset
+    # and a superset. It is the corpus's only RTM_GETNEIGH reply stream with
+    # ndm_state NUD_NONE, no NDA_LLADDR and no NDA_CACHEINFO
+    # (pneigh_fill_info, :2739-2749) - the shape a decoder that assumes every
+    # neighbor has a state gets wrong.
+    #
+    # Floor 4, the same as the two above, because the byte changes which
+    # table is walked and not how many dumps are sent.
+    cap $ns $subdir netlink_route_getneigh_proxy 4 "ip neigh show proxy"
 }
 
 # PLAIN AND -d, IN PAIRS.
@@ -283,6 +317,23 @@ proc sidecar_set {ns subdir dev} {
     # named really does appear nowhere in the output.
     side $ns $subdir ip_neigh_dev           "ip neigh show dev $dev"
 
+    # The proxy stanza, and it is not a slice of ip_neigh in either
+    # direction: the two commands read different tables, so not one line is
+    # shared. Every line here is short — destination, `dev NAME`, `proxy`,
+    # and then nothing, because pneigh_fill_info sends no NDA_LLADDR and
+    # ndm_state NUD_NONE, and print_neigh guards the state on
+    # `if (r->ndm_state)` (ip/ipneigh.c:462). That trailing absence is the
+    # part worth committing: it is the only sidecar in this list where a
+    # line ENDS at a flag token, so a renderer that emitted a placeholder
+    # for the empty state diverges here and nowhere else.
+    #
+    # No `-d` pair, for the reason the `-s` stanza above has none. The JSON
+    # form IS captured because the flags are where the two output modes
+    # disagree most: print_null writes `"proxy": null`, not the `true`
+    # print_bool writes for an address flag.
+    side $ns $subdir ip_neigh_proxy         "ip neigh show proxy"
+    side $ns $subdir ip_neigh_proxy_json    "ip -j -p neigh show proxy"
+
     # JSON, which is what turns "does goip -json use ip -j's key names?" from
     # an eyeball question into a diff. -p pretty-prints so the committed file
     # is reviewable line by line.
@@ -332,6 +383,44 @@ if {!$skip_mesh} {
     sidecar_set $NS_MESH "mesh" "veth0"
 }
 
+if {!$skip_tunnel} {
+    vmlib::log "=== tunnel namespace (ll_addr_n2a) ==="
+
+    # Load the five tunnel modules HERE, and not in boot.kernelModules, and
+    # not before the two sets above have been captured. The ordering is
+    # load-bearing, not tidiness.
+    #
+    # Each module creates its family's fallback device from
+    # pernet_operations, which runs for every network namespace that exists
+    # when the module loads as well as every one created afterwards. So
+    # loading these at boot puts tunl0, gre0, gretap0, erspan0, sit0,
+    # ip6tnl0 and ip6gre0 in the CLEAN and MESH namespaces as well as this
+    # one. Measured, on the run that found it: the clean set went from three
+    # links to ten and goip0 moved from ifindex 3 to ifindex 10, which
+    # rewrites every committed fixture and every NDA_IFINDEX / RTA_OIF /
+    # ifa_index byte that names it. Putting the tunnels in their own
+    # namespace does not avoid that, because a module is kernel-wide.
+    #
+    # Loading them at this point puts the fallback devices where they are
+    # wanted - they are half this set's coverage, being the all-zero,
+    # non-IFF_POINTOPOINT arm of ip/ipaddress.c:1077-1084 - and nowhere that
+    # has anything left to capture.
+    #
+    # Not vmlib::must: a failure here must not abort a run whose clean and
+    # mesh fixtures are already recorded but not yet packed. build_tunnel's
+    # own refusals report it, and NLCAP_TOPO_REFUSED names every step.
+    set modprobe_rc [vmlib::run "modprobe ipip ip_gre sit ip6_tunnel ip6_gre"]
+    if {$modprobe_rc != 0} {
+        vmlib::log "WARNING: modprobe of the tunnel modules returned $modprobe_rc;"
+        vmlib::log "         expect every build_tunnel step below to be refused."
+    }
+
+    vmlib::must "xtcp2-nlcap ns-add $NS_TUNNEL"
+    nltopo::build_tunnel $NS_TUNNEL "tunnel"
+    capture_set $NS_TUNNEL "tunnel" $TUNDEV
+    sidecar_set $NS_TUNNEL "tunnel" $TUNDEV
+}
+
 # Inventory before pack, so a missing file is named here rather than inferred
 # from a short tar on the host.
 lassign [nlcap inventory] inv_rc inventory
@@ -358,6 +447,9 @@ vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
 vmlib::run "xtcp2-nlcap ns-del $NS_CLEAN"
 if {!$skip_mesh} {
     vmlib::run "xtcp2-nlcap ns-del $NS_MESH"
+}
+if {!$skip_tunnel} {
+    vmlib::run "xtcp2-nlcap ns-del $NS_TUNNEL"
 }
 
 vmlib::poweroff

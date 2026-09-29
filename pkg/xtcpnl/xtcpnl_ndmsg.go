@@ -37,6 +37,14 @@ const (
 	NdMsgSizeCst = 12
 	NdMsgReadCst = NdMsgSizeCst
 
+	// NdMsgFlagsOffCst is the byte offset of ndm_family's third neighbor:
+	// ndm_flags, at 10, after the 4-byte ndm_ifindex at 4 and the 2-byte
+	// ndm_state at 8. It is the only member of this struct that a REQUEST
+	// ever sets — `ip neigh show proxy` writes NTF_PROXY here and nothing
+	// else (ip/ipneigh.c:490) — so the builder needs it by offset while the
+	// decoder below reads it by field. Naming it keeps the two from drifting.
+	NdMsgFlagsOffCst = 10
+
 	// NdaCacheInfoSizeCst is `struct nda_cacheinfo`: four __u32 counters.
 	NdaCacheInfoSizeCst = 16
 )
@@ -57,7 +65,7 @@ func DeserializeNdMsg(data []byte, m *NdMsg) (n int, err error) {
 	m.Pad2 = binary.LittleEndian.Uint16(data[2:4])
 	m.Ifindex = int32(binary.LittleEndian.Uint32(data[4:8]))
 	m.State = binary.LittleEndian.Uint16(data[8:10])
-	m.Flags = data[10]
+	m.Flags = data[NdMsgFlagsOffCst]
 	m.Type = data[11]
 
 	return NdMsgReadCst, nil

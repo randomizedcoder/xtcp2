@@ -14,3 +14,5 @@ ok    [nlcapc] ip neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev goip0 nud pe
 ok    [nlcapc] ip neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev goip0 nud stale
 ok    [nlcapc] ip neigh add 192.0.2.52 dev goip0 nud incomplete
 ok    [nlcapc] ip -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev goip0 nud permanent
+ok    [nlcapc] ip neigh add proxy 192.0.2.60 dev goip0
+ok    [nlcapc] ip -6 neigh add proxy 2001:db8::60 dev goip0

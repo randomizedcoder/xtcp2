@@ -3,7 +3,9 @@ package xtcpnl
 // go test ./pkg/xtcpnl/ -run TestDumpSet
 
 import (
+	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -879,10 +881,14 @@ func TestDumpSetLinkRelations(t *testing.T) {
 				if goip0.Kind != "dummy" {
 					t.Errorf("goip0 Kind = %q, want %q", goip0.Kind, "dummy")
 				}
-				if goip0.Link != 0 || goip0.Master != 0 || goip0.HasLinkNetnsID {
-					t.Errorf("goip0 has relations (link=%d master=%d netnsid=%v); a dummy must have none, "+
+				// HasLink rather than Link != 0: a tunnel sends IFLA_LINK
+				// carrying 0, so "no IFLA_LINK at all" is the stronger
+				// statement, and it is the one that stays correct now that
+				// the corpus contains devices for which zero is a value.
+				if goip0.HasLink || goip0.Master != 0 || goip0.HasLinkNetnsID {
+					t.Errorf("goip0 has relations (hasLink=%v master=%d netnsid=%v); a dummy must have none, "+
 						"because ll_link_get fires on IFLA_LINK and IFLA_MASTER rendering",
-						goip0.Link, goip0.Master, goip0.HasLinkNetnsID)
+						goip0.HasLink, goip0.Master, goip0.HasLinkNetnsID)
 				}
 			},
 		},
@@ -1396,6 +1402,319 @@ func TestDumpSetLinkSingleGet(t *testing.T) {
 					t.Errorf("reply[%d] name = %q, want %q", i, links[i].Name, want)
 				}
 			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tunnel link-layer addresses (ll_addr_n2a)
+// ---------------------------------------------------------------------------
+
+// TestDumpSetTunnelLinkAddr covers ll_addr_n2a's special cases against the
+// only capture in the repo that produces them.
+//
+// # What ll_addr_n2a actually is
+//
+// It is not a hex formatter with an escape hatch. lib/ll_addr.c:26-44 tests a
+// LENGTH and a TYPE together, three times:
+//
+//	:32-35  alen == 4  && (ARPHRD_TUNNEL | ARPHRD_SIT | ARPHRD_IPGRE)  -> inet_ntop(AF_INET)
+//	:37-38  alen == 16 && (ARPHRD_TUNNEL6 | ARPHRD_IP6GRE)             -> inet_ntop(AF_INET6)
+//	:40-43  otherwise                                                   -> the colon-hex loop
+//
+// and print_linkinfo pushes three separate attributes through it, each with
+// ifi->ifi_type: IFLA_ADDRESS (ip/ipaddress.c:1067-1076), IFLA_BROADCAST
+// (:1077-1093) and IFLA_PERM_ADDRESS (:1094-1111). So one function decides
+// how all three render, and neither length nor type alone is sufficient — a
+// 4-byte address on ARPHRD_ETHER is still colon-hex, and a 6-byte one on
+// ARPHRD_TUNNEL is too.
+//
+// # Why the rows are keyed by name
+//
+// Loading the five modules also creates each family's FALLBACK device from
+// pernet_operations, and how many of those appear depends on the module set
+// the guest kernel actually has. Position would therefore be a hostage to the
+// kernel config; a name is not. See tdDumpsTunnel_7_1_4 for the other
+// stability caveat, the per-boot random v6 permaddr.
+//
+// go test ./pkg/xtcpnl/ -run TestDumpSetTunnelLinkAddr
+func TestDumpSetTunnelLinkAddr(t *testing.T) {
+	tests := []struct {
+		description string
+		sidecar     string
+		check       func(t *testing.T, links []LinkInfo)
+	}{
+		{
+			// The v4 arm, on all three types that take it. Each device was
+			// given a DIFFERENT local on purpose: a decoder that read the
+			// right attribute off the wrong link would still yield a
+			// plausible dotted quad, and five copies of one address would
+			// hide exactly that.
+			description: "positive: a 4-byte address on TUNNEL/SIT/IPGRE renders as a dotted quad, one distinct local each",
+			sidecar:     "tunnel/ip_link:ipip1,sit1,gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, want := range []struct {
+					name    string
+					ifiType uint16
+					local   string
+					remote  string
+				}{
+					{"ipip1", unix.ARPHRD_TUNNEL, "192.0.2.1", "198.51.100.1"},
+					{"sit1", unix.ARPHRD_SIT, "192.0.2.2", "198.51.100.2"},
+					{"gre1", unix.ARPHRD_IPGRE, "192.0.2.3", "198.51.100.3"},
+				} {
+					li := linkByName(t, links, want.name)
+					if li.Type != want.ifiType {
+						t.Errorf("%s ifi_type = %d, want %d", want.name, li.Type, want.ifiType)
+					}
+					if len(li.Address) != 4 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 4", want.name, len(li.Address))
+					}
+					if got := li.HWAddr(); got != want.local {
+						t.Errorf("%s HWAddr() = %q, want %q", want.name, got, want.local)
+					}
+					if got := li.BroadcastAddr(); got != want.remote {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", want.name, got, want.remote)
+					}
+				}
+			},
+		},
+		{
+			// The v6 arm. netip rather than net.IP is load-bearing here and
+			// only measurably so on a v4-mapped value, but the type choice
+			// is the same one: net.IP(v4mapped).String() is "1.2.3.4" while
+			// netip.AddrFrom16 gives "::ffff:1.2.3.4", and inet_ntop(AF_INET6)
+			// agrees with netip. The constructed rows in
+			// xtcpnl_arphrd_test.go pin that case; this one pins the
+			// ordinary one against real bytes.
+			description: "positive: a 16-byte address on TUNNEL6/IP6GRE renders as IPv6",
+			sidecar:     "tunnel/ip_link:ip6tnl1,ip6gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, want := range []struct {
+					name    string
+					ifiType uint16
+					local   string
+					remote  string
+				}{
+					{"ip6tnl1", unix.ARPHRD_TUNNEL6, "2001:db8::1", "2001:db8:100::1"},
+					{"ip6gre1", unix.ARPHRD_IP6GRE, "2001:db8::2", "2001:db8:100::2"},
+				} {
+					li := linkByName(t, links, want.name)
+					if li.Type != want.ifiType {
+						t.Errorf("%s ifi_type = %d, want %d", want.name, li.Type, want.ifiType)
+					}
+					if len(li.Address) != 16 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 16", want.name, len(li.Address))
+					}
+					if got := li.HWAddr(); got != want.local {
+						t.Errorf("%s HWAddr() = %q, want %q", want.name, got, want.local)
+					}
+					if got := li.BroadcastAddr(); got != want.remote {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", want.name, got, want.remote)
+					}
+				}
+			},
+		},
+		{
+			// The all-zero boundary, which only the fallback devices reach.
+			// Nothing configures tunl0/sit0/gre0, so both their address and
+			// their broadcast are four zero bytes — and four zero bytes is
+			// precisely the input where a decoder that fell through to the
+			// hex loop produces "00:00:00:00" and looks harmless.
+			description: "boundary: the fallback devices carry an all-zero address that must render 0.0.0.0, not 00:00:00:00",
+			sidecar:     "tunnel/ip_link:tunl0,sit0,gre0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"tunl0", "sit0", "gre0"} {
+					li := linkByName(t, links, name)
+					for _, f := range []struct {
+						what string
+						got  string
+					}{
+						{"HWAddr", li.HWAddr()},
+						{"BroadcastAddr", li.BroadcastAddr()},
+					} {
+						if f.got != "0.0.0.0" {
+							t.Errorf("%s %s() = %q, want %q", name, f.what, f.got, "0.0.0.0")
+						}
+					}
+				}
+			},
+		},
+		{
+			// **IFLA_LINK present and zero.** Every device here has it, and
+			// it is the whole reason LinkInfo needs HasLink: index 0 is not
+			// a valid interface, so Link == 0 reads as absence, and
+			// print_name_and_link does not read it that way — it prints
+			// "@NONE" (lib/utils.c:1332-1336).
+			description: "positive: every tunnel device sends IFLA_LINK carrying 0, which is presence and not absence",
+			sidecar:     "tunnel/ip_link",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{
+					"ipip1", "sit1", "gre1", "ip6tnl1", "ip6gre1",
+					"tunl0", "sit0", "gre0",
+				} {
+					li := linkByName(t, links, name)
+					if !li.HasLink {
+						t.Errorf("%s HasLink = false; `ip` prints @NONE for it, which needs the attribute present", name)
+					}
+					if li.Link != 0 {
+						t.Errorf("%s Link = %d, want 0: a tunnel sits on no underlying interface", name, li.Link)
+					}
+				}
+			},
+		},
+		{
+			// The permaddr half, asserted on SHAPE only.
+			// eth_random_addr(dev->perm_addr) runs in both v6 tunnel setups
+			// (net/ipv6/ip6_tunnel.c:1913, net/ipv6/ip6_gre.c:1443), so the
+			// bytes change on every capture. What does not change: the field
+			// is 16 wide while the random part is 6, so the value always
+			// ends in ten zero bytes and always renders with a trailing "::".
+			description: "corner: the v6 tunnels carry a random 6-byte permaddr in a 16-byte field, so it always ends in ::",
+			sidecar:     "tunnel/ip_link:ip6tnl1,ip6gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ip6tnl1", "ip6gre1"} {
+					li := linkByName(t, links, name)
+					if len(li.PermAddress) != 16 {
+						t.Errorf("%s IFLA_PERM_ADDRESS is %d bytes, want 16", name, len(li.PermAddress))
+						continue
+					}
+					if !li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = false; a random permaddr cannot equal the configured local", name)
+					}
+					for i, b := range li.PermAddress[6:] {
+						if b != 0 {
+							t.Errorf("%s PermAddress[%d] = %#x, want 0: eth_random_addr writes only the first 6",
+								name, i+6, b)
+						}
+					}
+					if got := li.PermAddr(); !strings.HasSuffix(got, "::") {
+						t.Errorf("%s PermAddr() = %q, want a trailing \"::\"", name, got)
+					}
+				}
+			},
+		},
+		{
+			// The negative that makes the positives mean something, and it is
+			// not the one I first wrote. I expected the v4 tunnels to omit
+			// IFLA_PERM_ADDRESS entirely, since ipip/sit/gre never call
+			// eth_random_addr. The capture says otherwise: ipip1 sends
+			// [192 0 2 1], sit1 [192 0 2 2], gre1 [192 0 2 3] — the attribute
+			// is present and EQUAL to IFLA_ADDRESS.
+			//
+			// That is the stronger case. `ip` still prints no permaddr token,
+			// because the guard at ip/ipaddress.c:1097-1100 is a comparison
+			// and not a presence test. A PermAddrDiffers implemented as
+			// len(PermAddress) > 0 passes every other row in this file and
+			// fails only here.
+			description: "negative: the v4 tunnels carry IFLA_PERM_ADDRESS EQUAL to the address, so the token is still suppressed",
+			sidecar:     "tunnel/ip_link:ipip1,sit1,gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ipip1", "sit1", "gre1"} {
+					li := linkByName(t, links, name)
+					if len(li.PermAddress) == 0 {
+						t.Errorf("%s has no IFLA_PERM_ADDRESS; the capture carries one equal to the address, "+
+							"and that equality is what this row exists to pin", name)
+						continue
+					}
+					if !bytes.Equal(li.PermAddress, li.Address) {
+						t.Errorf("%s PermAddress = %v, want it equal to Address = %v",
+							name, li.PermAddress, li.Address)
+					}
+					if li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = true for an identical permaddr; the guard is a comparison, "+
+							"not a presence test", name)
+					}
+				}
+			},
+		},
+		{
+			// The A/B no constructed row can buy: gretap0 and erspan0 sit in
+			// the SAME dump as gre0, carry an all-zero address like gre0, and
+			// are ARPHRD_ETHER rather than ARPHRD_IPGRE. Same bytes, different
+			// type, different render — which is the claim ll_addr_n2a makes
+			// and the one a length-only decoder gets wrong.
+			description: "negative: gretap0 and erspan0 are ARPHRD_ETHER in the same dump, so their all-zero address stays colon-hex",
+			sidecar:     "tunnel/ip_link:gretap0,erspan0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"gretap0", "erspan0"} {
+					li := linkByName(t, links, name)
+					if li.Type != unix.ARPHRD_ETHER {
+						t.Errorf("%s ifi_type = %d, want ARPHRD_ETHER (%d)", name, li.Type, unix.ARPHRD_ETHER)
+					}
+					if got, want := li.HWAddr(), "00:00:00:00:00:00"; got != want {
+						t.Errorf("%s HWAddr() = %q, want %q", name, got, want)
+					}
+					if got, want := li.BroadcastAddr(), "ff:ff:ff:ff:ff:ff"; got != want {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", name, got, want)
+					}
+				}
+			},
+		},
+		{
+			// The v6 all-zero boundary, which is a different render from the
+			// v4 one two rows up: sixteen zero bytes through
+			// inet_ntop(AF_INET6) is "::", where four zero bytes is "0.0.0.0".
+			// The fallback devices also prove the permaddr comparison from the
+			// other side — eth_random_addr ran, so here the value DIFFERS and
+			// the token IS printed, on the same devices whose address is zero.
+			description: "boundary: the v6 fallbacks carry an all-zero 16-byte address that renders ::",
+			sidecar:     "tunnel/ip_link:ip6tnl0,ip6gre0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ip6tnl0", "ip6gre0"} {
+					li := linkByName(t, links, name)
+					if len(li.Address) != 16 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 16", name, len(li.Address))
+						continue
+					}
+					for _, f := range []struct {
+						what string
+						got  string
+					}{
+						{"HWAddr", li.HWAddr()},
+						{"BroadcastAddr", li.BroadcastAddr()},
+					} {
+						if f.got != "::" {
+							t.Errorf("%s %s() = %q, want %q", name, f.what, f.got, "::")
+						}
+					}
+					if !li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = false; eth_random_addr ran, so the permaddr cannot be "+
+							"the all-zero address", name)
+					}
+				}
+			},
+		},
+		{
+			// lo is in this namespace too, and it is the control: same dump,
+			// same decoder, an ARPHRD the special cases do not name, and a
+			// 6-byte address. If the type test were dropped and the length
+			// test kept, everything above would still pass and this row
+			// would not notice — which is why the row that matters is the
+			// 6-byte-on-a-tunnel-type case in xtcpnl_arphrd_test.go. What
+			// this one certifies is that adding the special cases did not
+			// disturb the fall-through.
+			description: "control: lo in the same dump still renders colon-hex, so the special cases did not widen",
+			sidecar:     "tunnel/ip_link:1-2",
+			check: func(t *testing.T, links []LinkInfo) {
+				lo := linkByName(t, links, "lo")
+				if lo.Type != unix.ARPHRD_LOOPBACK {
+					t.Errorf("lo ifi_type = %d, want %d", lo.Type, unix.ARPHRD_LOOPBACK)
+				}
+				if got := lo.HWAddr(); got != "00:00:00:00:00:00" {
+					t.Errorf("lo HWAddr() = %q, want %q", got, "00:00:00:00:00:00")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			links, done := linksIn(t, tdDumpTunnelGetLink_7_1_4)
+			if !done {
+				t.Fatalf("%s: dump not terminated by NLMSG_DONE", tdDumpTunnelGetLink_7_1_4)
+			}
+			tt.check(t, links)
 		})
 	}
 }

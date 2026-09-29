@@ -104,7 +104,7 @@ func TestTierANeighShowRequests(t *testing.T) {
 	}
 	// ifindex 0: the bare command sets no filter, so the request must come
 	// back byte-identical to the pre-filter builder's output.
-	neigh, err := NeighShowDump(unix.AF_UNSPEC, 0, 124)
+	neigh, err := NeighShowDump(unix.AF_UNSPEC, 0, 0, 124)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,7 +956,7 @@ func TestTierANeighShowDevRequests(t *testing.T) {
 		},
 		{
 			description: "positive: the second request is the neighbor dump carrying NDA_IFINDEX",
-			build:       func() ([]byte, error) { return NeighShowDump(unix.AF_UNSPEC, idxCst, 72) },
+			build:       func() ([]byte, error) { return NeighShowDump(unix.AF_UNSPEC, 0, idxCst, 72) },
 			captured:    reqs[1],
 		},
 	}
@@ -977,7 +977,7 @@ func TestTierANeighShowDevRequests(t *testing.T) {
 		// Without this, a goip that dropped the selector would fail the row
 		// above with a hex dump and no reason. The length check is the
 		// positive half: the two differ by exactly one 8-byte attribute.
-		unfiltered, err := NeighShowDump(unix.AF_UNSPEC, 0, 72)
+		unfiltered, err := NeighShowDump(unix.AF_UNSPEC, 0, 0, 72)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1061,7 +1061,7 @@ func TestTierANeighShowDevRequests(t *testing.T) {
 		if !bytes.Equal(zeroSeqPid(link), meshReqs[0]) {
 			t.Errorf("mesh ll_init_map dump differs\n got %x\nwant %x", zeroSeqPid(link), meshReqs[0])
 		}
-		dump, err := NeighShowDump(unix.AF_UNSPEC, meshIdx, 72)
+		dump, err := NeighShowDump(unix.AF_UNSPEC, 0, meshIdx, 72)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

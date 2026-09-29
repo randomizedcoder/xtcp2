@@ -255,10 +255,25 @@ func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpRouteRequestFilter(family, table, oif, seq)
 }
 
-// NeighShowDump delegates to the verified ndmsg dump builder, carrying the one
-// filter attribute goip can reach: NDA_IFINDEX, for `ip neigh show dev NAME`.
+// NeighShowDump delegates to the verified ndmsg dump builder, carrying the two
+// filters goip can reach: NDA_IFINDEX, for `ip neigh show dev NAME`, and
+// ndm_flags, for `ip neigh show proxy`.
 //
-// ifindex 0 is the bare command and omits the attribute.
+// ifindex 0 omits the attribute and ndmFlags 0 writes a zero byte the bare
+// command writes too, so the two zeros together are `ip neigh show`.
+//
+// # `proxy` is orthogonal to `dev`, and iproute2 lets them combine
+//
+// do_show_or_flush parses them in one loop with no mutual exclusion
+// (ip/ipneigh.c:506-594), so `ip neigh show proxy dev eth0` sets both and
+// ipneigh_dump_filter writes both — ndm_flags at :490 first, NDA_IFINDEX at
+// :493 second. That ordering is the request's byte layout and is fixed in the
+// builder, not here.
+//
+// The two are not two filters over one set, though. NTF_PROXY selects a
+// different TABLE in the kernel (net/core/neighbour.c:2956), so combining them
+// asks for the proxy entries on one device rather than narrowing the neighbor
+// entries this command otherwise returns.
 //
 // # `neigh show dev NAME` costs no extra transaction, and that is the point
 //
@@ -285,8 +300,8 @@ func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
 // iproute2's two remaining fallbacks (if_nametoindex, then the `if%u` spelling
 // via ll_idx_a2n) asks the kernel anything, so adopting them would make goip
 // answer where `ip` sent a request the capture records.
-func NeighShowDump(family uint8, ifindex, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpNeighRequestFilter(family, ifindex, seq)
+func NeighShowDump(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNeighRequestFilter(family, ndmFlags, ifindex, seq)
 }
 
 // NeighShowLinkDump is ll_init_map's link dump before a neighbor dump. Unlike

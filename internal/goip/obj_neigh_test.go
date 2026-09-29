@@ -19,6 +19,20 @@ const neighDumpPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getne
 // request, which only internal/goip/req can see.
 const neighDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_dev.pcap"
 
+// neighProxyPcap is `ip neigh show proxy`. Its replies are NOT a subset of
+// neighDumpPcap's and are not a superset either: the kernel picks
+// pneigh_dump_table over neigh_dump_table on ndm_flags == NTF_PROXY
+// (net/core/neighbour.c:2955-2957), so the two tables are disjoint and the two
+// proxy entries here appear in no other capture. That is the difference from
+// neighDevPcap above, and the reason the rows below could not have been
+// written against the bare command's fixture with a filter.
+//
+// It is also the only capture in the repo whose RTM_NEWNEIGH replies carry
+// ndm_state 0 — pneigh_fill_info never sets one (:2722-2749) — which is what
+// makes the state-suppression in render.NeighView reachable from a real
+// kernel rather than only from a constructed byte slice.
+const neighProxyPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_proxy.pcap"
+
 // neighDumpPortid is the portid `ip neigh show` used during the capture.
 // Replay filters replies on it, so a wrong value yields an empty listing
 // rather than an error.
@@ -103,8 +117,8 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			// goip normalizes that order and `ip` does not, so byte equality
 			// on a neighbor listing is a property of which run the fixture
 			// came from. internal/goipparity takes the same position for the
-			// same reason — FacetLines is a multiset and stdout.go:164 says
-			// it is "blind to a reordering" — so this row matches the gate
+			// same reason — FacetLines is a multiset and stdout.go:164-165
+			// says it is "blind to a reordering" — so this row matches the gate
 			// rather than being stricter than it.
 			//
 			// The four rows above ARE byte-exact, and they pass because the
@@ -118,6 +132,86 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:     "ip_neigh_dev",
 			unordered:   true,
 			// neighDumpPortid belongs to the capture the rows above replay.
+			// This file is from a later run with its own portid, and it is
+			// single-command clean, so the filter is unnecessary here and
+			// would hide every reply — the same call the route captures make
+			// (obj_route_test.go:26-39).
+			noPortid: true,
+		},
+		{
+			// `neigh show proxy` against its own capture, and this row is the
+			// one that decides whether the renderer is right, because two of
+			// its three assertions could not be made anywhere else in the
+			// corpus.
+			//
+			// The `proxy` TOKEN: print_neigh's flag run (ip/ipneigh.c:441)
+			// prints it between lladdr and the state, and no other committed
+			// reply sets a named ndm_flags bit.
+			//
+			// The ABSENT state: these entries carry ndm_state 0, print_neigh
+			// guards the whole state call on `if (r->ndm_state)` at :462, and
+			// print_neigh_state opens its JSON array from inside that guard
+			// at :239-240. So `ip` emits neither a token nor a key. goip
+			// printed NONE here until this capture existed to say otherwise —
+			// byte equality against a file `ip` wrote is what caught it,
+			// which is the argument for the sidecars generally.
+			//
+			// And the TRAILING SPACE: every token in that run carries its own
+			// from "%s ", so the line ends "proxy \n" rather than "proxy\n".
+			// A strings.Join renderer gets the token right and this wrong.
+			description: "positive: `neigh show proxy` reproduces ip_neigh_proxy, tokens and trailing space alike",
+			args:        []string{"neigh", "show", "proxy"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
+			noPortid:    true,
+		},
+		{
+			// The JSON half, and it asserts a literal `ip` gets from
+			// print_null and goip could easily get from print_bool: the value
+			// is null, not true. AddrView.MarshalJSON produces the other
+			// shape for exactly the flags iproute2 prints with print_bool, so
+			// the two marshalers differ on purpose and this row is what says
+			// which is which.
+			//
+			// jsonEquivalent decodes both sides, so it compares the key SET
+			// and the values — an omitted "state" key here is a real
+			// assertion rather than whitespace luck.
+			description:    "positive: `-json neigh show proxy` emits a null-valued proxy key and no state key",
+			args:           []string{"-json", "neigh", "show", "proxy"},
+			pcap:           neighProxyPcap,
+			sidecar:        "ip_neigh_proxy_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+		},
+		{
+			// A repeat is accepted and changes nothing, because :571-572 has
+			// no duparg and no NEXT_ARG — it is a bare assignment, so the
+			// second one assigns the same bit. Idempotent by accident of how
+			// iproute2 is written rather than by design, which is why it gets
+			// a row: a goip that "tidied it up" into an error would diverge
+			// on a command line `ip` accepts.
+			description: "corner: `neigh show proxy proxy` is accepted and identical to one proxy",
+			args:        []string{"neigh", "show", "proxy", "proxy"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
+			noPortid:    true,
+		},
+		{
+			// Kept last because it is the negative: the proxy fixture is the
+			// only one in the corpus whose entries the DEFAULT state mask
+			// cannot match, so replaying it as a bare `neigh show` must
+			// produce the entries anyway — via the NTF_PROXY escape at
+			// :335-339 and not via the mask. A goip that wrote the skip as
+			// "NUD_NOARP only" passes this by luck; one that wrote it as the
+			// mask alone prints nothing and fails.
+			//
+			// Not a claim about what `ip neigh show` returns on the host —
+			// the kernel would never put these in that dump. It is a claim
+			// about print_neigh, replayed.
+			description: "boundary: a state-0 reply survives the default state mask through the NTF_PROXY escape",
+			args:        []string{"neigh", "show"},
+			pcap:        neighProxyPcap,
+			sidecar:     "ip_neigh_proxy",
 			// This file is from a later run with its own portid, and it is
 			// single-command clean, so the filter is unnecessary here and
 			// would hide every reply — the same call the route captures make
@@ -343,6 +437,43 @@ func TestRunNeighArgs(t *testing.T) {
 			args:             []string{"neigh", "show", "dev"},
 			wantCode:         ExitFailure,
 			wantStderrSubstr: "missing its value",
+		},
+		{
+			// `proxy` and `dev` compose: do_show_or_flush has one argument
+			// loop and no mutual exclusion between them, so `ip` accepts the
+			// pair and sets both halves of the request — ndm_flags at offset
+			// 10 and NDA_IFINDEX after it, in that write order (:490, :493).
+			//
+			// Replayed against the BARE capture, for the reason the `dev` row
+			// above gives: the replay answers any RTM_GETNEIGH with the
+			// recorded bodies, so what this asserts is that goip accepts the
+			// combination and still applies the :415 dev-token suppression to
+			// whatever comes back. The request bytes are
+			// xtcpnl_rtnetlink_requests_test.go's, which checks the two
+			// selectors land in the right order.
+			description:      "corner: `proxy` and `dev` compose, and `dev` still suppresses the token",
+			args:             []string{"neigh", "show", "proxy", "dev", "goip0"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.50 lladdr ",
+		},
+		{
+			// Order-independent, because the loop assigns rather than
+			// sequences. Worth a row of its own: a hand-written parser that
+			// treated `proxy` as a mode switch instead of a flag assignment
+			// would plausibly accept one order and not the other.
+			description:      "corner: `dev` before `proxy` is the same command",
+			args:             []string{"neigh", "show", "dev", "goip0", "proxy"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.50 lladdr ",
+		},
+		{
+			// strcmp at :571, so `proxy` does not abbreviate either. In `ip`
+			// this falls to the else-arm and is read as a destination prefix;
+			// goip refuses it, the same position it takes on `d`.
+			description:      "negative: `prox` does not abbreviate `proxy`",
+			args:             []string{"neigh", "show", "prox"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
 		},
 		{
 			// strcmp, not matches(): `d` is not an abbreviation of `dev`

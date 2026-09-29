@@ -2844,23 +2844,31 @@ whether the object's `do_*` function happens to call `ll_init_map` first:
 
 The index goes out as an **attribute** while `ndm_ifindex`, sitting at offset 4
 of the ndmsg exactly where `BuildDumpAddrRequestIndex` writes `ifa_index` for
-the addr equivalent, is left zero. A builder that took the obvious route would
-emit a well-formed 28-byte request that decodes correctly and is filtered by
-nothing. Only byte equality against iproute2's own request says so, which is
-why `TestTierANeighShowDevRequests` reads `ndm_ifindex` out of the capture and
-asserts it is zero.
+the addr equivalent, is left zero. `TestTierANeighShowDevRequests` reads
+`ndm_ifindex` out of the capture and asserts it is zero for that reason.
 
-The two things that are *not* implemented are recorded in
-`BuildDumpNeighRequestFilter`'s doc rather than in a commit message, because
-their order is part of the byte contract: `ndm_flags` is `NTF_PROXY` for
-`neigh show proxy` and belongs in that same function, and `NDA_MASTER` goes
-**after** `NDA_IFINDEX`.
+This section used to add that a builder filling the field "would emit a
+well-formed 28-byte request that decodes correctly and is filtered by nothing".
+That holds only on a socket without `NETLINK_GET_STRICT_CHK`. With the option —
+which `ip` sets at `ip/ip.c:312` and goip at `internal/goip/source.go:93` —
+`neigh_valid_dump_req` rejects a nonzero `ndm_pad1`, `ndm_pad2`, `ndm_ifindex`,
+`ndm_state` or `ndm_type` with `EINVAL` and the message *Invalid values in
+header for neighbor dump request* (`net/core/neighbour.c:2897-2901`), and
+rejects `ndm_flags & ~NTF_PROXY` with a second `EINVAL` at `:2903-2906`. So on
+both tools as they are actually configured that mistake is loud; the silent
+version is what a caller gets by omitting a setsockopt made somewhere else.
+
+`NDA_MASTER` is still not implemented, and its position is recorded in
+`BuildDumpNeighRequestFilter`'s doc rather than in a commit message because the
+order is part of the byte contract: it goes **after** `NDA_IFINDEX`. The other
+item that used to sit beside it — `ndm_flags = NTF_PROXY` for
+`ip neigh show proxy` — is implemented, and has a section of its own below.
 
 #### `dev` does not abbreviate, and cannot be repeated
 
-`dev` is compared with `strcmp` (`:524`), so `ip neigh show d eth0` is not a
+`dev` is compared with `strcmp` (`:526`), so `ip neigh show d eth0` is not a
 device filter. And unlike route — where `dev` and `oif` are synonyms assigning
-one local and the last one wins — a second `dev` here is `duparg` (`:526-527`)
+one local and the last one wins — a second `dev` here is `duparg` (`:528-529`)
 and an error. Three objects in goip now take a `dev` and they disagree about
 repetition; the disagreement is reproduced rather than smoothed over.
 
@@ -3026,6 +3034,430 @@ its caller, so tracking the pin removes the request divergence and the reply
 divergence in one edit. Both `neigh show` and `neigh show dev` are gated, so
 both go red until it is made, which is the correct outcome and worth knowing
 in advance rather than at bump time.
+
+### `neigh show proxy`: one byte out, a different table back
+
+The smallest request delta in the corpus and the largest change in meaning.
+`ip/ipneigh.c:571-572`:
+
+```c
+} else if (strcmp(*argv, "proxy") == 0) {
+	filter.ndm_flags = NTF_PROXY;
+```
+
+`ipneigh_dump_filter` then writes it unconditionally at `:490`, before
+`NDA_IFINDEX` at `:493` and `NDA_MASTER` at `:498`. So the whole command is
+`0x08` at offset 10 of a twelve-byte `struct ndmsg` that is otherwise zero, and
+that is exactly what the capture holds:
+
+```
+ip neigh show          txn 1 body: 00 00 00 00 00 00 00 00 00 00 00 00
+ip neigh show proxy    txn 1 body: 00 00 00 00 00 00 00 00 00 00 08 00
+```
+
+`nlparity_segment_test.go` asserts those two bodies **against each other**
+rather than against a literal, so a re-capture of either file cannot quietly
+make the claim false.
+
+#### It is a different table, not a narrower view of one
+
+`net/core/neighbour.c:2955-2957`:
+
+```c
+if (nlmsg_len(nlh) >= sizeof(struct ndmsg) &&
+    ((struct ndmsg *)nlmsg_data(nlh))->ndm_flags == NTF_PROXY)
+        proxy = 1;
+```
+
+An **equality**, not a mask test, and it selects `pneigh_dump_table` in place
+of `neigh_dump_table`. The two tables are disjoint: the proxy entries never
+appear in `ip neigh show` and the regular ones never appear here. Three
+consequences that shaped the work:
+
+- The comparator cannot answer `proxy` from the bare command's fixture with a
+  client-side filter, the way it can for `dev`. So unlike `-4 link show`, this
+  form needed a capture of its own — `netlink_route_getneigh_proxy.pcap`.
+- `neighShow` deliberately has **no** client-side re-check of `NTF_PROXY` to
+  match the `NDA_IFINDEX` one beside it. A replay source answering `proxy` from
+  a bare-command fixture returns the wrong table entirely, and no filter turns
+  one into the other; the divergence has to stay visible.
+- Adding the two topology entries is safe for every already-gated command, and
+  that is provable rather than hopeful. The re-capture confirmed it: the new
+  `ip_neigh` holds the same four entries as the committed one.
+
+#### `pneigh_fill_info` fills in less, and the renderer had it wrong
+
+`net/core/neighbour.c:2722-2749` sets `ndm_flags = NTF_PROXY`, `ndm_type =
+RTN_UNICAST`, and `NDA_DST` — and **`ndm_state = NUD_NONE`**, i.e. zero. No
+`NDA_LLADDR`, no `NDA_CACHEINFO`. These are the corpus's only replies with a
+zero state, and they found two divergences that predated this work.
+
+**`ip` prints no state token and emits no state key for a zero state.**
+`print_neigh` guards the whole call on `if (r->ndm_state)` at `:462`, and
+`print_neigh_state` opens its JSON array from *inside* that guard at
+`:239-240`. goip printed `NONE` and `"state": ["NONE"]`. A test row asserted
+that behavior and justified it as "unreachable from a kernel, which never dumps
+state 0" — which `pneigh_fill_info` does on every proxy entry. Both the code
+and the row are fixed, and the sidecar comparison is now what holds the claim.
+
+**`print_null` writes `null`, not `true`.** The flag run at `:440-451` uses
+`print_null(PRINT_ANY, "proxy", "%s ", "proxy")`, which reaches
+`jsonw_null_field` (`lib/json_writer.c:336-340`). That is a different function
+from the `print_bool` behind `print_ifa_flags`, so `NeighView.MarshalJSON`
+deliberately emits a different literal from `AddrView.MarshalJSON`'s. `ip`'s
+own output settles it:
+
+```json
+{ "dst": "192.0.2.60", "dev": "goip0", "proxy": null }
+```
+
+#### The escape at `:335-339` is what makes the command work at all
+
+```c
+if (!(filter.state&r->ndm_state) &&
+    !(r->ndm_flags & NTF_PROXY) &&
+    !(r->ndm_flags & NTF_EXT_LEARNED) &&
+    (r->ndm_state || !(filter.state&0x100)))
+	return 0;
+```
+
+`filter.state` defaults to `0xFF & ~NUD_NOARP` (`:523`), which a zero state
+misses entirely — so without the `NTF_PROXY` clause `ip neigh show proxy` would
+print nothing. goip had been approximating this whole test as "skip
+`NUD_NOARP`", which happens to pass the proxy rows through, for the wrong
+reason, and would also let a genuine state-0 non-proxy entry through. It is
+now written out in full.
+
+The fourth clause is the one omission, and it is deliberate: `0x100` is the
+sentinel `nud none` assigns at `:568-569`, `nud` is not implemented, and at the
+fixed mask the clause is constant true. `neighStateFiltered`'s doc says to
+reinstate it in the same commit that adds `nud`.
+
+#### Four named flag tokens, and two that are unreachable
+
+The run at `:440-451` is six `if`s, but `managed` (`:444-445`) and
+`extern_valid` (`:450-451`) test `ext_flags` — the `u32` of `NDA_FLAGS_EXT` —
+not `ndm_flags`.
+xtcpnl does not decode that attribute, so those two stay a reported gap rather
+than being listed against the wrong source. `ndm_flags` also carries
+`NTF_USE`, `NTF_SELF`, `NTF_MASTER` and `NTF_STICKY`, and `print_neigh` prints
+none of them **and emits no residue key**. That is the difference from
+`print_ifa_flags` and the reason `NeighFlagTokens` returns one value where
+`IfaFlagTokens` returns two: there is nothing to report the leftovers as.
+(`golang.org/x/sys/unix` exports every `NTF_*` bit except `NTF_STICKY`, so the
+test names that one locally with a citation.)
+
+#### No `duparg`, so a repeat is accepted
+
+`:571-572` has no `NEXT_ARG` and no `duparg` — it is a bare assignment — so
+`ip neigh show proxy proxy` is accepted and means what one `proxy` means, and
+the two selectors compose in either order because the loop assigns rather than
+sequences. That is idempotence by accident of how iproute2 is written rather
+than by design, but it is observable behavior; `dev`, two lines away at
+`:528-529`, *is* `duparg` and errors on the second occurrence. Three commands
+in goip now take a `dev` and they disagree about repetition.
+
+#### The fixtures were installed partially, on purpose
+
+The capture VM rewrites every fixture it captures, so it was run to a scratch
+directory and diffed first. Two things move between boots and neither is a
+defect: the dummy device's MAC is random, and the neighbor table's hash order
+is seeded per boot — the new `ip_neigh` came out `.52, .51, .50` where the
+committed one is ascending. Installing the whole tree would therefore have
+churned fifty binaries and broken the four byte-exact `ip_neigh` rows, for no
+information that is not already committed. Only the new files went in. The tree
+was already a multi-run mix — `ip_neigh_dev` carries its own portid and says so
+at `obj_neigh_test.go:134-138` — so this follows existing practice rather than
+setting a precedent.
+
+The ordering finding itself is not new and is not a bug: goip sorts
+(`model.SortNeighbors`), `ip` does not, and `internal/goipparity` compares
+`FacetLines` as a multiset for that reason. What the re-capture confirms is the
+warning already written at `obj_neigh_test.go:124-128` — the four byte-exact
+rows pass because their capture happens to be ascending, and a future
+re-capture can break them without anything being wrong.
+
+#### What the live tier measured, and the gate it earned
+
+Two runs before gating, and the `neigh_show_proxy` line was identical on both:
+
+```
+GOIP_PARITY_PASS neigh_show_proxy (neigh show proxy)
+  txns: ip=2 goip=2  pids: ip=[2099] goip=[2126]  control: nl=2 stdout=0
+```
+
+Six datagrams and 58 bytes of stdout on all three sides, `ip_a`, `goip` and
+`ip_b`, both times. The `nl=2` is the same two loci as `neigh show`'s and
+`neigh show dev`'s — `IFLA_STATS64` and `IFLA_STATS` on `ifindex=2` in `txn[0]`
+— because all three send `ll_init_map`'s `0x01` link dump first and all three
+get live counters back. It inherits that argument rather than needing one of
+its own, and `D_control` absorbs the loci before `Result.Findings` exists,
+which is why `control: nl=2` sits beside `PASS`.
+
+No `allow-suppressed` line appeared on this command. The version-skew entry
+added for it is dormant at the 7.1.0 pin, as its two siblings are; what gating
+changes is that after a bump past `7bd7f335` the entry is what keeps the
+command green rather than merely quiet.
+
+**The two runs were not identical overall, and that is the CONTROL_NOISY thesis
+holding rather than failing.** `GOIP_PARITY_CONTROL_NOISY` was `14` and then
+`10`, entirely because `-s link show` measured `nl=6` and then `nl=2` — the
+command predicted to be permanently noisy, sampling differently. Every other
+command's control count matched across both runs. A total that moves while
+every gated command's own count holds is the shape that number is supposed to
+have, and it is the reason the bar is two runs rather than one.
+
+#### What gating buys here, which is not what it bought for `dev`
+
+`route show dev` moved a transaction; `neigh show dev` added eight bytes and
+nothing else. This selector changes the question. Because the kernel dispatches
+on an equality to a different table, a goip that simply dropped the byte would
+send a well-formed request, get a well-formed reply, and print the contents of
+the other table.
+
+The stdout half would catch that *here* — 58 bytes is not 202 — but only
+because this topology happens to populate both tables. A topology with neither
+a proxy entry nor a regular one would leave both sides empty and equal, and the
+divergence would be invisible. That makes stdout's catch a property of the
+fixture rather than of the comparison, and positional request equality is what
+actually sees the byte.
+
+Getting it wrong the *other* way is loud, and the kernel is what makes it loud.
+Under `NETLINK_GET_STRICT_CHK`, `neigh_valid_dump_req` answers
+`ndm_flags & ~NTF_PROXY` with `EINVAL` and "Invalid flags in header for
+neighbor dump request" (`net/core/neighbour.c:2903-2906`).
+
+That is the `ndm_flags` companion to a correction the allowlist `_comment`
+already records for `ndm_ifindex`, and it is worth stating because the
+equality above invites the wrong inference. "The kernel tests for equality, so
+an extra bit falls through and selects the regular table" is a reasonable
+reading of `:2955-2957` alone, and it is **unreachable** in practice: the
+strict check rejects the request before the dispatch is reached. Both programs
+set the option — `ip` at `ip/ip.c:312`, goip at `internal/goip/source.go:93` —
+so the silent version exists only on a socket without it. One mistake, two
+failure modes, chosen by a `setsockopt` made somewhere else, which is the
+argument for writing the byte correctly rather than relying on either.
+
+One locus must never get an allowlist entry: `ndm_flags` itself, at
+`request:RTM_GETNEIGH` offset 10. It is a request *value*, so the loader would
+accept a suppression of it — that is exactly the trap. Suppressing it would
+mean goip asking the kernel for a different table than `ip` did, and the
+harness calling the result parity.
+
+### Tunnel devices: `ll_addr_n2a` is not a hex formatter
+
+The first increment in this document driven by a **topology** rather than by a
+request byte. No new command, no new request shape, no new wire builder — the
+same `ip link show` that was gated first. What changed is the devices it is
+pointed at, and three renderings that no previous capture could produce.
+
+#### The function, read rather than assumed
+
+`lib/ll_addr.c:26-44`. The name suggests "address to ASCII", and the prior
+comment in `xtcpnl_ifinfomsg.go` said it "falls through to a generic hex loop".
+That was wrong, and it was wrong in the way that is hardest to notice: it is
+right for every device in every fixture the repo had.
+
+```c
+:32-35   alen == 4  && (ARPHRD_TUNNEL | ARPHRD_SIT | ARPHRD_IPGRE)   -> inet_ntop(AF_INET)
+:37-38   alen == 16 && (ARPHRD_TUNNEL6 | ARPHRD_IP6GRE)              -> inet_ntop(AF_INET6)
+:40-43   otherwise                                                    -> the colon-hex loop
+```
+
+Each test is a **length AND a type**. `print_linkinfo` pushes three separate
+attributes through it, each with `ifi->ifi_type`: `IFLA_ADDRESS`
+(`ip/ipaddress.c:1067-1076`), `IFLA_BROADCAST` (`:1077-1093`) and
+`IFLA_PERM_ADDRESS` (`:1094-1111`). So one function decides how all three
+render, and a fix at one call site would have been two-thirds of a fix.
+
+All five ARPHRD constants are exported by `golang.org/x/sys/unix`
+(`ARPHRD_TUNNEL` 768, `TUNNEL6` 769, `SIT` 776, `IPGRE` 778, `IP6GRE` 823), so
+no local constants were needed.
+
+`netip` rather than `net.IP`, and the difference is measurable: on a v4-mapped
+16-byte value `net.IP(b).String()` is `"1.2.3.4"` while
+`netip.AddrFrom16(b).String()` is `"::ffff:1.2.3.4"`. `inet_ntop(AF_INET6)`
+agrees with `netip`.
+
+#### Two more divergences the same capture exposed
+
+Neither was in the plan; both are unavoidable once a tunnel is in the dump,
+because they are on every line of it.
+
+**`@NONE`.** `print_name_and_link` (`lib/utils.c:1309-1337`) tests the
+attribute first and its value second, and present-with-zero is its own arm:
+
+```c
+if (tb[IFLA_LINK]) {
+	int iflink = rta_getattr_u32(tb[IFLA_LINK]);
+	if (iflink) { ... } else {
+		if (is_json_context()) print_null(PRINT_JSON, "link", NULL, NULL);
+		else                   link = "NONE";
+	}
+```
+
+Index 0 is not a valid interface index, so reading `Link == 0` as absence is
+the obvious Go instinct and it is wrong — a tunnel sits on no underlying
+device and sends exactly that. `LinkInfo` gained `HasLink`, and `LinkView.Link`
+became a `*LinkTarget` so that JSON can express three states rather than two:
+key absent, key with a name, key with `null`. A `string` with `omitempty`
+collapses the first and third, which is a divergence on every tunnel line.
+
+A `MarshalJSON` on `LinkView` would have been the obvious way to pick the
+encoding, and it is unusable here for a reason already recorded in the file:
+`AddrGroupView` embeds `LinkView`, and `encoding/json` gives an embedded type's
+`MarshalJSON` precedence over field promotion, so `ip -j addr show` would
+marshal to the bare link object and lose `addr_info`.
+
+**`permaddr`.** `IFLA_PERM_ADDRESS` was decoded by nothing. `ip` prints it
+under a guard that is a **comparison, not a presence test**
+(`ip/ipaddress.c:1097-1100`): absent `IFLA_ADDRESS`, a different length, or
+differing bytes. The committed 7.1.8 dump settles which it is — three of its
+eleven links carry the attribute and `grep -c permaddr` on `ip_link_n` is
+**0**, because each equals `IFLA_ADDRESS`. So `PermAddrDiffers()` is that test
+and not `len(PermAddress) > 0`. Adding the decode immediately failed
+`TestParseNewLinkRealFixture` on `enp1s0` and `enp35s0f0np0`, which is the test
+doing its job.
+
+The tunnel capture then proved the same point a second time, by falsifying a
+premise I had written into a test row before running it. I expected the v4
+tunnels to omit `IFLA_PERM_ADDRESS` entirely, on the reasoning that ipip, sit
+and gre never call `eth_random_addr`. They do send it — `ipip1` carries
+`192.0.2.1`, `sit1` `192.0.2.2`, `gre1` `192.0.2.3`, each exactly equal to its
+`IFLA_ADDRESS` — and `ip` still prints no token. The row was rewritten to
+assert what the wire says. It is the better case: a `PermAddrDiffers`
+implemented as a presence test passes every other row in the file and fails
+only on these three.
+
+#### The regression the scratch-directory rule caught
+
+The first attempt added the five modules to `boot.kernelModules` in
+`nix/microvms/mkVm.nix`. Loading a tunnel module creates that family's
+**fallback device** from `pernet_operations` — `tunl0`, `sit0`, `gre0`,
+`ip6tnl0`, `ip6gre0` — in **every** network namespace, including ones that
+already exist. Measured against the committed tree, not predicted:
+
+```
+clean set:  3 links -> 10 links
+goip0:      ifindex 3 -> ifindex 10
+```
+
+That rewrites every `NDA_IFINDEX`, `RTA_OIF` and `ifa_index` byte assertion in
+the gated corpus. A separate namespace does not help: a module is a
+kernel-wide object, and namespace isolation cannot contain it.
+
+The fix is ordering, not isolation. `mkVm.nix` keeps its original
+`bridge`-only module list, and the capture driver issues
+`modprobe ipip ip_gre sit ip6_tunnel ip6_gre` **after** the clean and mesh
+sets are recorded. It uses `vmlib::run` rather than `vmlib::must`, so a
+`modprobe` failure cannot abort a run whose earlier fixtures are captured but
+not yet packed.
+
+This is what the standing rule — capture to a `--out` scratch directory and
+diff against the committed tree before writing `pkg/xtcpnl/testdata/` — is
+for. The run that found this wrote nothing.
+
+#### What this set can and cannot promise
+
+`ip6_tunnel` and `ip6_gre` call `eth_random_addr(dev->perm_addr)` in their
+setup (`net/ipv6/ip6_tunnel.c:1913`, `net/ipv6/ip6_gre.c:1443`), so the four
+v6 `permaddr` values are **random per boot**. An earlier version of the
+topology comment claimed the set was fully deterministic; the capture
+falsified it.
+
+Two consequences, and they pull in opposite directions:
+
+- Within one capture the pcap and its sidecars come from the same boot, so
+  they agree with each other exactly. `tunnel/ip_link_json` therefore compares
+  key-for-key like every other JSON golden.
+- Across captures the value changes, so a re-capture churns those four tokens.
+  The decoder tests assert **shape** only: 16 bytes wide, the last ten zero
+  (because `eth_random_addr` writes six), and a trailing `::` in the rendered
+  form. The bytes are pinned in `render/link_test.go` against a constructed
+  link instead.
+
+Interface indexes depend on which fallback modules the guest kernel has, so
+every expectation in this set cites a device by **name**. `linkByName` already
+existed for the mesh set for the same reason.
+
+#### What is asserted, and where
+
+| claim | where |
+|---|---|
+| 4-byte address on `TUNNEL`/`SIT`/`IPGRE` renders as a dotted quad | `TestDumpSetTunnelLinkAddr`, real bytes |
+| 16-byte on `TUNNEL6`/`IP6GRE` renders as IPv6 | same |
+| all-zero 4 bytes render `0.0.0.0`, not `00:00:00:00` | same, the fallback devices |
+| all-zero 16 bytes render `::`, not `0.0.0.0` | same, `ip6tnl0`/`ip6gre0` |
+| all-zero 6 bytes on `ARPHRD_ETHER` stay colon-hex, in the same dump | same, `gretap0`/`erspan0` |
+| `IFLA_PERM_ADDRESS` present and equal suppresses the token | same, `ipip1`/`sit1`/`gre1` |
+| `IFLA_LINK` present and zero | same |
+| a 6-byte address on a tunnel type is still colon-hex | `xtcpnl_arphrd_test.go`, constructed |
+| a 4-byte address on `ARPHRD_ETHER` is still colon-hex | same |
+| v4-mapped on `IP6GRE` gives `::ffff:1.2.3.4` | same — the `netip` row |
+| `@NONE` as a text token | `TestLinkShowTextMatchesCapturedSidecars` |
+| `"link": null` as distinct from an absent key | `TestLinkViewJSON`, `wantValues` |
+| ` permaddr ` position on the line | the text sidecar test |
+| `permaddr` with no `IFLA_ADDRESS` at all | `render/link_test.go` — no capture reaches it |
+| `"link": null` and `addr_info` coexisting | `TestAddrShowJSONMatchesCapturedSidecars`, tunnel row |
+| `@NONE` reached through `AddrGroupView`, not `LinkView` | `TestAddrShowTextMatchesCapturedSidecars` |
+| the `-s` stanza under an `@NONE` header | `TestLinkShowStatsTextMatchesCapturedSidecars` |
+
+`TestLinkViewJSON` gained a `wantValues` column for this. Its existing
+`wantKeys` check cannot distinguish `"link": null` from `"link": "eth0"`,
+because `null` unmarshals into `map[string]any` as a **present key with a nil
+value**.
+
+The text sidecar test carries clean and mesh rows as **controls**. With the
+tunnel row alone a failure would be ambiguous between "the tunnel work is
+wrong" and "goip's plain text form has always differed from `ip`'s". Both
+controls pass byte-for-byte, so a tunnel-only failure is attributable.
+
+#### The fixtures the capture wrote and nothing read
+
+Installing `tunnel/` added 43 files, of which three had a consumer. The
+capture driver records the whole set per namespace, so most of that is
+by-product — but three of the unread ones were not, and each closed a gap the
+tunnel devices had just made reachable:
+
+- **`tunnel/ip_addr_json`.** `ip addr show` prints the same link header as `ip
+  link show`, so all thirteen tunnel devices carry `"link": null` there too.
+  That makes it the row which **falsifies** the `LinkTarget`-as-a-field-type
+  decision rather than restating it: if the `MarshalJSON`-on-`LinkView`
+  reasoning at `render/link.go:101-111` were wrong, `addr_info` would vanish
+  from every entry here. It does not. `gre1` is what makes the row bite — the
+  only UP tunnel, carrying a v4, a `nodad` v6, and the `kernel_ll`
+  `fe80::5efe:c000:203` that only a SIT-style device generates.
+- **`ip_addr` (all three topologies).** There was no text sidecar comparison
+  for the addr object at all — only a JSON one, which is the gap that let the
+  flags divergence live undetected until the JSON test was written. The new
+  `TestAddrShowTextMatchesCapturedSidecars` passes on clean, mesh and tunnel,
+  so goip's plain `addr show` text is now known to be byte-identical to `ip`'s
+  and not merely assumed to be.
+- **`ip_link_stats` (all three topologies).** The `-s` text render was compared
+  byte-for-byte only **inside the parity microVM**, which needs `/dev/kvm`, so
+  no plain `go test` checked `print_stats64`'s transcription. Offline equality
+  is impossible — the sidecar and the pcap are two different invocations, so lo
+  and goip0 moved traffic in between — but the difference is exactly two lines
+  out of thirty-two and only in the counter values. `normalizeLinkStatsText`
+  rewrites the value line under each `RX:`/`TX:` header into a field count and
+  leaves everything else alone, so the two column-header format strings, the
+  stanza layout and the indents are all still compared exactly.
+
+A normalizer is the one helper whose failure is silent: if it erased too much,
+every row using it would still pass and mean nothing. So
+`TestNormalizeLinkStatsText` mutates the real golden and asserts which
+mutations must survive it — a dropped column, transposed `RX:`/`TX:`, the
+trailing padding after `mcast`, a one-space indent change — against the single
+`false` row, an advanced counter. It also fails loudly if the line it is about
+to erase is not all digits, so a render that printed a word where a number
+belongs cannot be normalized into agreement.
+
+#### Not done, and deliberately
+
+The tunnel namespace is **not** added to `goip-parity.exp`, for the same
+reason the mesh namespace is not: it is invisible to the parity tier by
+construction. That remains the standing limitation recorded under
+"the mesh namespace is invisible to every tier".
 
 ### Remaining
 

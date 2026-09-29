@@ -276,12 +276,17 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
-// Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface.
+// Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface and
+// optionally asking for the proxy table instead of the neighbor table.
 //
 // ifindex 0 is the unfiltered form; see req.NeighShowDump for why the index
 // travels as an NDA_IFINDEX attribute rather than in ndm_ifindex.
-func (s *Service) Neighbors(family uint8, ifindex uint32) ([]model.Neighbor, error) {
-	r, err := req.NeighShowDump(family, ifindex, s.nextSeq())
+//
+// ndmFlags is NTF_PROXY or zero. It is not a filter over these replies — it
+// picks which table the kernel walks — so a caller cannot get the same answer
+// by passing zero and discarding rows afterwards.
+func (s *Service) Neighbors(family, ndmFlags uint8, ifindex uint32) ([]model.Neighbor, error) {
+	r, err := req.NeighShowDump(family, ndmFlags, ifindex, s.nextSeq())
 	if err != nil {
 		return nil, fmt.Errorf("goip: build neighbor dump request: %w", err)
 	}

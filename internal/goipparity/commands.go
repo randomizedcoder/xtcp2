@@ -336,6 +336,41 @@ var commands = withArgs([]Command{
 		// kernel filters on nothing, and only byte equality would say so.
 		Floor: 4, Implemented: true,
 	},
+	{
+		Name: "neigh show proxy", Slug: "neigh_show_proxy",
+		// Four again, for the third time on this object, and again the
+		// equality is the point: `proxy` changes one BYTE of one request and
+		// nothing else about the shape of the exchange.
+		//
+		// # The narrowest request delta in the table, and the widest reply one
+		//
+		// `neigh show dev` was the previous narrowest at 8 bytes. This is one:
+		// ndm_flags at offset 10 of a struct the bare command already sends
+		// (ip/ipneigh.c:490), so both datagrams are 28 bytes and differ in a
+		// single position. No attribute appears and no transaction moves.
+		//
+		// What comes back is not a subset. The kernel tests that byte for
+		// EQUALITY with NTF_PROXY (net/core/neighbour.c:2956) and dispatches to
+		// pneigh_dump_table instead of neigh_dump_table, so the two commands
+		// walk DIFFERENT tables and return disjoint sets. That asymmetry is
+		// what makes the row worth a capture: a goip that dropped the byte
+		// would send a well-formed request, get a well-formed reply, and print
+		// the wrong table's contents — and the stdout half would catch it only
+		// because the two tables happen to be disjoint in this topology.
+		//
+		// # What the harness would actually see if goip got the byte wrong
+		//
+		// Both sides set NETLINK_GET_STRICT_CHK — `ip` at ip/ip.c:312, goip
+		// at internal/goip/source.go:93 — and under it the kernel rejects
+		// `ndm_flags & ~NTF_PROXY` with EINVAL rather than falling back to
+		// the equality above (net/core/neighbour.c:2903-2906). So a goip that
+		// or-ed NTF_PROXY into another bit fails LOUDLY: a one-byte request
+		// divergence and an empty, errored goip side. A goip that dropped the
+		// byte entirely fails quietly instead — a valid request, a valid
+		// reply, and the wrong table's contents — and only the request half
+		// of the comparison names the cause.
+		Floor: 4, Implemented: true,
+	},
 })
 
 // withArgs fills every row's Args from its Name.

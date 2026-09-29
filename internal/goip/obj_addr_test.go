@@ -875,6 +875,25 @@ func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
 			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
 			sidecar:     "mesh/ip_addr_json",
 		},
+		{
+			// This row exists to falsify a design decision, not to confirm
+			// one. `ip addr show` prints the SAME link header as `ip link
+			// show`, so all thirteen tunnel devices carry "link": null here
+			// too — and render.LinkTarget is a field type rather than a
+			// MarshalJSON on LinkView precisely because AddrGroupView embeds
+			// LinkView and encoding/json gives an embedded type's MarshalJSON
+			// precedence over field promotion (render/link.go:101-111).
+			//
+			// If that reasoning were wrong, this is where it shows: the whole
+			// addr_info array would vanish and every entry would marshal to a
+			// bare link object. gre1 is the device that makes the check bite,
+			// because it is the only UP tunnel and carries three addresses —
+			// a v4, a nodad v6, and the kernel_ll fe80::5efe:c000:203 that
+			// only a SIT-style device generates.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr_json, so null link and addr_info coexist",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			sidecar:     "tunnel/ip_addr_json",
+		},
 	}
 
 	for _, tc := range tests {
@@ -890,6 +909,80 @@ func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
 				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
 			}
 			assertJSONEntriesEqual(t, stdout.Bytes(), want)
+		})
+	}
+}
+
+// TestAddrShowTextMatchesCapturedSidecars diffs `goip addr show`'s TEXT output
+// against the plain `ip addr show` sidecar from the same capture, line by line.
+//
+// # Why this did not exist before
+//
+// dumps/ip_addr, mesh/ip_addr and tunnel/ip_addr have all been committed since
+// their captures were written and nothing read any of them — the addr object
+// had a JSON sidecar comparison and no text one, which is the gap that let the
+// flags divergence live in the JSON half undetected until
+// TestAddrShowJSONMatchesCapturedSidecars was written. This is the same debt on
+// the other encoding.
+//
+// # What the text form asserts that the JSON form cannot
+//
+// `ip addr show` prints the link header through the same code as `ip link
+// show` and then indents an addr stanza under it, so the text is the only
+// place two layout facts are visible:
+//
+//   - the `inet`/`inet6` continuation lines' indentation and their trailing
+//     `valid_lft forever preferred_lft forever`, which in JSON are separate
+//     numeric keys and carry no layout at all;
+//   - `@NONE` and ` permaddr `, which are text-only for the reasons recorded on
+//     TestLinkShowTextMatchesCapturedSidecars, now asserted a second time on a
+//     code path that reaches them through AddrGroupView rather than LinkView.
+//
+// The clean and mesh rows are controls on the same argument as the link test:
+// with the tunnel row alone a failure cannot be attributed between "the tunnel
+// work is wrong" and "goip's plain addr text has always differed".
+//
+// go test ./internal/goip/ -run TestAddrShowTextMatchesCapturedSidecars
+func TestAddrShowTextMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+	}{
+		{
+			description: "control: the clean topology reproduces ip_addr line for line",
+			pcap:        guestDumpsDir + "netlink_route_getaddr.pcap",
+			sidecar:     "ip_addr",
+		},
+		{
+			description: "control: the mesh topology reproduces mesh/ip_addr line for line",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
+			sidecar:     "mesh/ip_addr",
+		},
+		{
+			// gre1 is the only tunnel carrying addresses, so it is the only
+			// device here whose link header and addr stanzas must both be
+			// right at once — @NONE and `peer 198.51.100.3` on the first
+			// line, three indented stanzas under it.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr, @NONE header over gre1's stanzas",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			sidecar:     "tunnel/ip_addr",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := []string{"addr", "show"}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			assertLinesEqual(t, stdout.String(), string(raw))
 		})
 	}
 }

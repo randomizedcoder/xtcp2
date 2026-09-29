@@ -235,6 +235,33 @@ const (
 	tdDumpMeshIPAddr_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_addr_n"
 	tdDumpMeshIPNeigh_7_1_4 = tdDumpsMesh_7_1_4 + "/ip_neigh_n"
 
+	// The tunnel half of the same capture run: five configured tunnel devices
+	// — ipip, sit, gre, ip6tnl, ip6gre — plus the fallback device each of
+	// those five modules creates from pernet_operations when it loads.
+	//
+	// It is the only source in the repo of ll_addr_n2a's SPECIAL cases
+	// (lib/ll_addr.c:32-38), where a 4- or 16-byte link-layer address renders
+	// as an IP rather than as colon-hex, and the only one of IFLA_LINK
+	// present with value 0 — `ip`'s "@NONE" suffix, which every device here
+	// carries because a tunnel sits on no underlying interface.
+	//
+	// # Two things this set cannot promise
+	//
+	//  1. **The v6 permaddrs are random per boot.** ip6_tunnel and ip6_gre
+	//     call eth_random_addr(dev->perm_addr) in their setup
+	//     (net/ipv6/ip6_tunnel.c:1913, net/ipv6/ip6_gre.c:1443), so the four
+	//     " permaddr …" tokens in tunnel/ip_link change on every capture.
+	//     Assert their shape, never their bytes; the bytes are pinned in
+	//     internal/goip/render's table instead.
+	//  2. **Interface indexes depend on module load order.** The modules are
+	//     loaded by the capture driver AFTER the clean and mesh sets are
+	//     recorded, precisely so their fallback devices cannot renumber those
+	//     namespaces. Cite devices here by name, not by position.
+	tdDumpsTunnel_7_1_4 = tdDumps_7_1_4 + "/tunnel"
+
+	tdDumpTunnelGetLink_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getlink.pcap"
+	tdDumpTunnelIPLink_7_1_4  = tdDumpsTunnel_7_1_4 + "/ip_link_n"
+
 	// Sidecars: the source of truth the event expectations are derived from.
 	// ip_monitor_all is the event-side counterpart to ip_link_n — `ip monitor`
 	// decoded the same notifications live as they were captured.

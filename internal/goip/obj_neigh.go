@@ -10,6 +10,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// proxyKeywordCst is `ip neigh show proxy`'s keyword. Like devKeywordCst it
+// is compared with == because iproute2 compares it with strcmp
+// (ip/ipneigh.c:571), so it does not abbreviate; unlike devKeywordCst it is
+// spelled in exactly one place, and it is a constant only so that the
+// comparison and the reason for its strictness stay together.
+const proxyKeywordCst = "proxy"
+
 // neighSelectors is the subset of do_show_or_flush's filter struct that goip
 // can set (ip/ipneigh.c:506-594).
 type neighSelectors struct {
@@ -21,33 +28,54 @@ type neighSelectors struct {
 	// same reason routeSelectors.DevSet is: `ip neigh show dev ""` is a real
 	// command that resolves nothing and exits `Cannot find device ""`.
 	DevSet bool
+
+	// NdmFlags is filter.ndm_flags, which `proxy` assigns NTF_PROXY (:572)
+	// and nothing else in goip sets. It needs no companion bool: iproute2
+	// initializes the field to 0 and writes it unconditionally (:490), so
+	// "unset" and "zero" are the same request byte.
+	NdmFlags uint8
 }
 
 // parseNeighShowArgs walks the selectors after the verb.
 //
-// # One keyword, compared the strict way, and it can be given only once
+// # Two keywords, both compared the strict way, and they disagree about repeats
 //
-// `dev` is compared with strcmp (:524), so it does not abbreviate — `ip neigh
-// show d eth0` is not a device filter. Unlike route, where `dev` and `oif` are
-// synonyms assigning one variable and the last one wins, a second `dev` here
-// is duparg (:526-527) and an ERROR. Three commands in goip now take a `dev`
-// and they disagree about repetition; reproducing that is the difference
-// between parsing iproute2 and parsing something that resembles it.
+// Both are strcmp — `dev` at :526 and `proxy` at :571 — so neither
+// abbreviates: `ip neigh show d eth0` is not a device filter and `ip neigh
+// show prox` is not the proxy table. What differs is what a second one does.
 //
-// The remaining selectors — master, vrf, nomaster, unused, nud, proxy,
-// protocol, and the bare `to PREFIX` else-arm — are rejected rather than
-// ignored, the policy every other object in goip follows: answering a filtered
-// query with an unfiltered dump is a wrong answer, not a missing feature.
+// `dev` is duparg (:528-529) and an ERROR on the second occurrence. Unlike
+// route, where `dev` and `oif` are synonyms assigning one variable and the
+// last one wins. Three commands in goip now take a `dev` and they disagree
+// about repetition; reproducing that is the difference between parsing
+// iproute2 and parsing something that resembles it.
 //
-// `proxy` is the nearest of those and is deliberately still refused. It is one
-// byte, ndm_flags = NTF_PROXY (:570), but it is a byte on the REQUEST, so
-// accepting it without setting it would make goip send `neigh show`'s bytes
-// for a different command — precisely the divergence the parity comparator
-// exists to catch, produced on purpose.
+// `proxy` has no duparg and takes no value — it is the bare assignment
+// `filter.ndm_flags = NTF_PROXY` — so `ip neigh show proxy proxy` is accepted
+// and means exactly what one `proxy` means. That is idempotence by accident
+// of how it is written rather than by design, but it is observable behavior
+// and goip reproduces it rather than tidying it up.
+//
+// The two compose. do_show_or_flush has one loop and no mutual exclusion, so
+// `proxy dev eth0` sets both; see neighShow for why that is not two filters
+// over one set.
+//
+// The remaining selectors — master, vrf, nomaster, unused, nud, protocol, and
+// the bare `to PREFIX` else-arm — are rejected rather than ignored, the policy
+// every other object in goip follows: answering a filtered query with an
+// unfiltered dump is a wrong answer, not a missing feature.
 func parseNeighShowArgs(args []string) (neighSelectors, error) {
 	var sel neighSelectors
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case proxyKeywordCst:
+			// No NEXT_ARG and no duparg at :571-572, so there is nothing to
+			// check: a repeat assigns the same bit again. Written as an
+			// assignment rather than an |= for the same reason iproute2
+			// writes one — see BuildDumpNeighRequestFilter on why the
+			// kernel's test is an equality and NTF_PROXY may not be or-ed
+			// with anything.
+			sel.NdmFlags = unix.NTF_PROXY
 		case devKeywordCst:
 			// The two errors below are plain, with no sentinel, and so map
 			// to ExitFailure rather than ExitUsage (goip.go:140-146). That
@@ -86,17 +114,18 @@ func runNeigh(c *runCtx, args []string) error {
 }
 
 // neighShow sends the two transactions `ip neigh show` sends, in iproute2's
-// order, and `dev NAME` adds neither a third nor reorders them.
+// order, and neither `dev NAME` nor `proxy` adds a third or reorders them.
 //
 // # The link dump is unconditional, and it is what makes the selector free
 //
 // do_show_or_flush calls ll_init_map(&rth) at ip/ipneigh.c:597 after the
 // argument loop and before anything else, for every form of the command. Only
 // then does it resolve `dev` (:600), out of the cache that dump just filled.
-// So the two commands send the same first request and differ by the 8 bytes of
-// NDA_IFINDEX on the second — where `route show dev` moved a get to the front
-// and deleted the lazy ones from the back, and `addr show dev` went from two
-// transactions to three. req.NeighShowDump carries the full comparison.
+// So every form sends the same first request. `dev NAME` differs by the 8
+// bytes of NDA_IFINDEX on the second and `proxy` by one byte inside it — where
+// `route show dev` moved a get to the front and deleted the lazy ones from the
+// back, and `addr show dev` went from two transactions to three.
+// req.NeighShowDump carries the full comparison.
 //
 // # The filtering is done twice, on purpose, as `ip` does it twice
 //
@@ -106,12 +135,31 @@ func runNeigh(c *runCtx, args []string) error {
 // whole recorded dump: without the client-side test a fixture captured for the
 // bare command would render as though the filter had done nothing.
 //
-// # NUD_NOARP is dropped before rendering and that is the default filter
+// # `proxy` is a different TABLE, not a narrower view of this one
 //
-// filter.state is `0xFF & ~NUD_NOARP` for show (:522), which is why the
+// The kernel reads ndm_flags on the request to choose between
+// pneigh_dump_table and neigh_dump_table (net/core/neighbour.c:2956), so the
+// two commands return disjoint sets. There is deliberately no client-side
+// re-check of NTF_PROXY to match the NDA_IFINDEX one below: a replay source
+// answering `proxy` from a bare-command fixture would return the wrong table
+// entirely, and no amount of filtering turns one into the other. The
+// divergence has to be visible, not papered over.
+//
+// # The state filter, and the escape that exists for exactly this command
+//
+// filter.state is `0xFF & ~NUD_NOARP` for show (:523), which is why the
 // multicast neighbor-cache rows never appear. It is a default rather than a
 // constant — `nud STATE` replaces it — so the skip lives here with the other
 // filtering rather than in the renderer.
+//
+// The test at :335-339 is not simply that test, though. It skips a reply when
+// the state misses the mask AND the entry is neither NTF_PROXY nor
+// NTF_EXT_LEARNED. Proxy entries carry ndm_state 0, which misses every mask,
+// so without that escape `ip neigh show proxy` would print nothing at all —
+// the two halves of :335-339 are what make the command work. Writing the skip
+// as "NUD_NOARP only" would pass the proxy rows through for the wrong reason
+// and would silently let a genuine state-0 non-proxy entry through too, so it
+// is written out in full.
 func neighShow(c *runCtx, sel neighSelectors) error {
 	svc := service.New(c.src, c.nextSeq)
 
@@ -139,9 +187,9 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 		index = uint32(idx)
 	}
 
-	// Transaction two: the neighbor dump, filtered by the kernel when a device
-	// was named.
-	neighbors, err := svc.Neighbors(c.family, index)
+	// Transaction two: the dump. The device narrows it kernel-side; ndm_flags
+	// chooses which table the kernel walks in the first place.
+	neighbors, err := svc.Neighbors(c.family, sel.NdmFlags, index)
 	if err != nil {
 		return err
 	}
@@ -150,7 +198,7 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 	views := make([]render.NeighView, 0, len(neighbors))
 	for i := range neighbors {
 		n := xtcpnl.NeighInfo(neighbors[i])
-		if n.State&unix.NUD_NOARP != 0 {
+		if neighStateFiltered(n) {
 			continue
 		}
 		if index != 0 && uint32(n.Ifindex) != index {
@@ -167,4 +215,41 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 		}
 	}
 	return nil
+}
+
+// neighShowStateMaskCst is filter.state for `show`, set at ip/ipneigh.c:523 as
+// `~0 & ~NUD_NOARP`. It is a constant in goip because `nud STATE` — the only
+// thing that replaces it (:553-570) — is not implemented; see
+// neighStateFiltered for the one clause of iproute2's test that assumption
+// removes.
+const neighShowStateMaskCst = 0xFF &^ uint16(unix.NUD_NOARP)
+
+// neighStateFiltered is print_neigh's state test (ip/ipneigh.c:335-339),
+// reporting whether a reply is dropped before rendering.
+//
+// iproute2 writes it as one four-clause conjunction that SKIPS when all four
+// hold:
+//
+//	!(filter.state & r->ndm_state) &&
+//	!(r->ndm_flags & NTF_PROXY) &&
+//	!(r->ndm_flags & NTF_EXT_LEARNED) &&
+//	(r->ndm_state || !(filter.state & 0x100))
+//
+// The first clause is the ordinary state filter, and on its own it is what
+// hides the NUD_NOARP multicast rows. The next two are escapes: a proxy or
+// externally-learned entry is printed whatever its state, which is not a
+// nicety — pneigh entries carry ndm_state 0, so `ip neigh show proxy` would
+// print an empty dump without the NTF_PROXY clause.
+//
+// The fourth clause is absent here, and deliberately. 0x100 is the sentinel
+// `nud none` assigns when nud_state_a2n yields 0 (:568-569); it is the only
+// way that bit enters filter.state, and goip does not implement `nud`. At the
+// fixed neighShowStateMaskCst the clause is therefore constant true and
+// contributes nothing. Reinstate it in the same commit that adds `nud`, or
+// `ip neigh show nud none` will print state-0 entries goip drops.
+func neighStateFiltered(n xtcpnl.NeighInfo) bool {
+	if neighShowStateMaskCst&n.State != 0 {
+		return false
+	}
+	return n.Flags&(unix.NTF_PROXY|unix.NTF_EXT_LEARNED) == 0
 }

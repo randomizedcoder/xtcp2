@@ -345,12 +345,33 @@ func BuildDumpNeighRequest(family uint8, seq uint32) []byte {
 	return BuildDumpRequest(uint16(unix.RTM_GETNEIGH), seq, hdr)
 }
 
-// BuildDumpNeighRequestFilter is BuildDumpNeighRequest with the device filter
-// `ip neigh show dev NAME` attaches.
+// BuildDumpNeighRequestFilter is BuildDumpNeighRequest with the two filters
+// goip can reach: the device of `ip neigh show dev NAME` and the ndm_flags of
+// `ip neigh show proxy`.
 //
-// ifindex 0 omits the attribute and so produces exactly BuildDumpNeighRequest's
+// ifindex 0 and ndmFlags 0 together produce exactly BuildDumpNeighRequest's
 // bytes, which is how the bare command is spelled and why the two cannot
 // disagree.
+//
+// # ndmFlags is a field write, and that makes `proxy` the cheapest selector here
+//
+// NTF_PROXY does not grow the datagram at all: it is one byte at offset 10 of a
+// struct the bare command already sends, so `ip neigh show` and `ip neigh show
+// proxy` are both 28 bytes and differ in exactly one of them. Contrast the
+// device filter below, which adds 8. Neither changes the transaction count.
+//
+// The kernel reads that byte to pick a TABLE, not to filter one
+// (net/core/neighbour.c:2956): it sends neigh_dump_info down pneigh_dump_table
+// instead of neigh_dump_table, so the two commands return disjoint sets rather
+// than a subset and a superset. A request that dropped the byte would answer
+// with the wrong table's contents and still look well-formed.
+//
+// That test is `ndm_flags == NTF_PROXY`, an EQUALITY and not a mask test, so
+// NTF_PROXY may not be or-ed with anything. It is also guarded on
+// `nlmsg_len(nlh) >= sizeof(struct ndmsg)`, which holds here only because this
+// builder always sends the full 12-byte struct — a caller that trimmed the
+// header to the rtgenmsg the kernel will otherwise accept would lose the
+// selector without changing a visible byte of it.
 //
 // # The index is an ATTRIBUTE here, not the ndm_ifindex field
 //
@@ -359,9 +380,25 @@ func BuildDumpNeighRequest(family uint8, seq uint32) []byte {
 // BuildDumpAddrRequestIndex writes `ifa_index` for the addr equivalent — and
 // iproute2 leaves it zero. ipneigh_dump_filter (ip/ipneigh.c:485-504) writes
 // `addattr32(nlh, reqlen, NDA_IFINDEX, filter.index)` instead, so the request
-// grows by 8 bytes rather than filling a field it already has. A builder that
-// took the obvious route would produce a 28-byte datagram that looks right,
-// decodes right, and is filtered by nothing.
+// grows by 8 bytes rather than filling a field it already has.
+//
+// # Both traps are LOUD, and only because the socket is in strict-dump mode
+//
+// neigh_valid_dump_req (net/core/neighbour.c:2880-2907) rejects a dump request
+// outright under strict check: EINVAL for a nonzero ndm_pad1, ndm_pad2,
+// ndm_ifindex, ndm_state or ndm_type, and a separate EINVAL for
+// `ndm_flags & ~NTF_PROXY`. So a builder that filled ndm_ifindex, or that
+// or-ed NTF_PROXY into some other bit, does not get a well-formed dump of the
+// wrong thing — it gets an error with a message naming the field.
+//
+// That is a property of the SOCKET and not of these bytes. `ip` sets
+// NETLINK_GET_STRICT_CHK on its main handle at ip/ip.c:312 and goip sets it at
+// internal/goip/source.go:93, so the loud behavior is what both sides see;
+// drop the option and the same request is instead parsed leniently, where
+// ndm_ifindex is simply unread and any extra flag bit falls through the
+// equality above and silently returns the REGULAR table. Two failure modes for
+// one mistake, chosen by a setsockopt made somewhere else, which is the reason
+// to write the bytes correctly here rather than rely on either.
 //
 // # The other two things ipneigh_dump_filter writes, and their order
 //
@@ -369,15 +406,16 @@ func BuildDumpNeighRequest(family uint8, seq uint32) []byte {
 // holds requests to full byte equality and the order is part of that contract:
 //
 //  1. `ndm->ndm_flags = filter.ndm_flags` (:490) — always, into the base
-//     struct at offset 10. It is NTF_PROXY for `ip neigh show proxy` and zero
-//     for every form implemented here, which is why there is no parameter for
-//     it yet. `proxy` belongs in this function when it lands, not in a third
-//     builder.
+//     struct at offset 10, and BEFORE either attribute. That is the ndmFlags
+//     parameter.
 //  2. NDA_MASTER (:497-501), AFTER NDA_IFINDEX, for `master`/`vrf`. Same rule:
 //     it goes here, second, or the byte order stops matching.
-func BuildDumpNeighRequestFilter(family uint8, ifindex, seq uint32) ([]byte, error) {
+func BuildDumpNeighRequestFilter(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) {
 	hdr := make([]byte, NdMsgSizeCst)
 	hdr[0] = family // ndm_family; ndm_ifindex deliberately stays 0, see above
+	// ndm_flags, offset 10. Written unconditionally, exactly as :490 does:
+	// zero is the value the bare command sends, not the absence of a value.
+	hdr[NdMsgFlagsOffCst] = ndmFlags
 
 	var attrs []byte
 	if ifindex != 0 {
