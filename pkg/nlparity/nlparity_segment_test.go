@@ -214,10 +214,10 @@ func TestSegment(t *testing.T) {
 			sidecar:     "dumps/topology; seqs 1790540819 then 1790540820",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{731},
+			wantPids:    []uint32{825},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
 			wantReplies: []int{4, 7},
-			wantTxnPids: []uint32{731, 731},
+			wantTxnPids: []uint32{825, 825},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
@@ -268,9 +268,13 @@ func TestSegment(t *testing.T) {
 			sidecar:     "ip/ipneigh.c:601; dumps/ip_neigh",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{894},
+			wantPids:    []uint32{978},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
-			wantReplies: []int{4, 6},
+			// 12 neighbor replies, not the 6 this row carried before
+			// nltopo::build_clean gained five flagged entries. The count is
+			// the dump's, not `ip neigh`'s nine printed lines: the default
+			// state filter hides some of what the kernel sends.
+			wantReplies: []int{4, 12},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
@@ -288,8 +292,8 @@ func TestSegment(t *testing.T) {
 			// transaction and reorders none. What it changes is twelve bytes
 			// of one body, of which eleven are the same as before.
 			//
-			// Three replies against the bare command's six, and that is not
-			// a narrower filter: pneigh_dump_table and neigh_dump_table are
+			// Three replies against the bare command's twelve, and that is
+			// not a narrower filter: pneigh_dump_table and neigh_dump_table are
 			// different tables (net/core/neighbour.c:2955-2957), so these
 			// two proxy entries appear in NO other capture in the repo. That
 			// is why the fixture exists at all rather than the comparator
@@ -299,7 +303,7 @@ func TestSegment(t *testing.T) {
 			sidecar:     "dumps/ip_neigh_proxy; txn 1 body 00*10 08 00 vs the bare command's 00*12",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{1085},
+			wantPids:    []uint32{1107},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
 			wantReplies: []int{4, 3},
 			check: func(t *testing.T, _ Capture, s Segmentation) {

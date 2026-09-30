@@ -114,6 +114,22 @@ func matchesPrefix(arg, pattern string) bool {
 	return pattern[:len(arg)] == arg
 }
 
+// matchesAny is matchesPrefix against a set, for the places where iproute2
+// writes a chain of `matches(*argv, …) == 0 ||` over synonyms for one verb.
+//
+// It exists so a synonym list is data rather than a boolean expression that
+// has to be edited in two places. The neigh listing is the case in point:
+// ip/ipneigh.c:758-760 accepts show, list AND lst, and goip carried only the
+// first two for as long as the test was a hand-written pair of conditions.
+func matchesAny(arg string, patterns []string) bool {
+	for _, p := range patterns {
+		if matchesPrefix(arg, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // devKeywordCst is the `dev NAME` selector keyword, which every object that
 // takes one spells identically.
 //

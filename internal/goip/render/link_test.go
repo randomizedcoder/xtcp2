@@ -18,6 +18,12 @@ import (
 type fakeNames map[int32]struct {
 	name  string
 	flags uint32
+	// typ is the entry's ifi_type, and it stays zero in almost every literal
+	// below. That is not laziness: ll_index_to_type answers 0 on a miss, 0 is
+	// ARPHRD_NETROM, and neither has a special case in ll_addr_n2a — so an
+	// unset typ renders exactly as an uncached index does. Only the neigh
+	// lladdr rows that need a tunnel type set it.
+	typ uint16
 }
 
 func (f fakeNames) IndexToName(idx int32) string {
@@ -38,6 +44,12 @@ func (f fakeNames) IndexToFlags(idx int32) int64 {
 		return int64(e.flags)
 	}
 	return -1
+}
+
+// IndexToType has no -1 arm because ll_index_to_type has none: a miss is 0,
+// the same as a cached ARPHRD_NETROM.
+func (f fakeNames) IndexToType(idx int32) uint16 {
+	return f[idx].typ
 }
 
 func itoa(v int32) string {

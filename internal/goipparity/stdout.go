@@ -211,10 +211,30 @@ func (f StdoutFacet) Locus() string { return "stdout:" + string(f) }
 //
 // The route flag tokens (`linkdown` and friends) are deliberately NOT here;
 // see FacetFlags for why a bare positional token cannot be a keyword.
+//
+// The third line is the ll_addr_n2a set, and it is here because the renders
+// that produce those tokens now exist. `brd` was on the first line from the
+// start, so the link half of a link-layer address divergence was caught and
+// the other three were not:
+//
+//	peer      the IFF_POINTOPOINT arm of ip/ipaddress.c:1077-1084, which
+//	          takes the place of `brd` rather than joining it
+//	permaddr  ip/ipaddress.c:1101, printed only when it DIFFERS from the
+//	          address, so its absence is as meaningful as its value
+//	lladdr    ip/ipneigh.c:432, the neighbor half — formatted through the
+//	          DEVICE's ifi_type, which is the divergence that made the
+//	          whole ll_addr_n2a thread worth pulling
+//
+// None of the three appears in the clean or mesh topologies the parity tier
+// builds, so adding them changes no current run. That is the point: they are
+// here so the facet is CAPABLE when a topology that produces them is
+// compared, rather than being added at the same time as the thing they are
+// supposed to catch.
 var keywords = []string{
 	"mtu", "qdisc", "state", "mode", "group", "qlen", "master",
 	"scope", "brd", "link-netnsid", "proto", "valid_lft", "preferred_lft",
 	"via", "metric", "src", "table", "advmss", "weight", "pref",
+	"peer", "permaddr", "lladdr",
 }
 
 // Keywords returns the compared keywords, sorted, so a report's line order is
@@ -313,14 +333,64 @@ var (
 	reDev = regexp.MustCompile(`\bdev\s+(\S+)`)
 )
 
-// flagTokens are the bare route flag words, spelled as render.RtFlagTokens
-// and print_rt_flags spell them.
+// flagTokens are the bare flag words, spelled as render.RtFlagTokens /
+// print_rt_flags and render.NeighFlagTokens / print_neigh spell them.
 //
 // The \b on both sides is doing real work: `offload` must not match inside
-// `rt_offload`, and it does not, because `_` is a word character.
+// `rt_offload`, and it does not, because `_` is a word character. The same
+// boundary is what keeps `proxy` out of `proxy_arp`.
+//
+// # Two sources, one facet, and why that is not a conflation
+//
+// The first two lines are print_rt_flags (ip/iproute.c:388-417); the third is
+// print_neigh's flag run (ip/ipneigh.c:440-451). They share a facet because
+// they share a SHAPE — bare positional tokens, compared for presence — and
+// because no single command emits both: a route listing has no neighbors in
+// it and a neighbor listing has no routes. `offload` is in both vocabularies
+// and was already here as the route spelling; one entry serves both, since
+// the facet is a set of words and not a map to their origin.
+//
+// # Four of the five are live; one is not
+//
+// `proxy` was live the moment it was listed. `neigh show proxy` is a compared
+// and GATED command, and both lines of its committed golden end in the token:
+//
+//	192.0.2.60 dev goip0 proxy
+//	2001:db8::60 dev goip0 proxy
+//
+// That it was missing is the point — the command whose entire reason for
+// existing is that `proxy` dispatches the kernel to a DIFFERENT table
+// (pneigh_dump_table) was comparing the token that says so only as part of a
+// line count.
+//
+// `router`, `extern_learn` and `extern_valid` became live with the flagged
+// neighbors added to nltopo::build_clean. That proc is shared: the capture
+// script builds the `dumps/` namespace from it (capture-netlink-dumps.exp:374)
+// and the parity harness builds its own from the same code
+// (goip-parity.exp:265), so a topology entry becomes a fixture and a compared
+// line in one move. `neigh show` is gated, so all three are enforced rather
+// than advisory. The combined entry puts all three on one line, which is the
+// only place the facet sees tokens from both ndm_flags and NDA_FLAGS_EXT
+// adjacent.
+//
+// `managed` is the one that stays dormant, and the obstacle is the device
+// rather than the flag. A dummy carries IFF_NOARP, so every neighbor on it is
+// NUD_NOARP, and `ip neigh show`'s default filter is `0xFF & ~NUD_NOARP`
+// (ip/ipneigh.c:523) — the entry exists and is simply not printed. Reaching
+// it needs the veth pair in build_mesh, a namespace the parity tier does not
+// build. Listed for completeness of print_neigh's run, as `peer` and
+// `permaddr` are in keywords: the facet is capable before the thing it
+// catches exists, rather than arriving with it.
+//
+// `locked` is deliberately ABSENT, and it is the one token in print_neigh's
+// vocabulary that a future topology still could not produce: iproute2 prints
+// it from bridge/fdb.c:121 only, so it belongs to `bridge fdb` output and not
+// to any `ip` command this harness compares. Listing it would create a locus
+// that can never match.
 var flagTokens = []string{
 	"dead", "onlink", "pervasive", "offload", "trap", "notify",
 	"linkdown", "unresolved", "rt_offload", "rt_trap", "rt_offload_failed",
+	"router", "proxy", "managed", "extern_learn", "extern_valid",
 }
 
 var reFlag = regexp.MustCompile(`\b(` + strings.Join(flagTokens, "|") + `)\b`)

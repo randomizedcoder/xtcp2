@@ -53,6 +53,25 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		if len(a) == 0 || a[0] != '-' {
 			break
 		}
+		// `--` ends the options and is CONSUMED, so `ip -- link show` runs
+		// `link show` (ip/ip.c:192-195). The `i++` is the `argv++` there; the
+		// loop's own increment must not also run, hence the explicit break.
+		if a == "--" {
+			i++
+			break
+		}
+		// One leading dash is stripped when the second character is also a
+		// dash (ip/ip.c:198-199), so `--json` is `-json` and `--oneline` is
+		// `-oneline`. This is why goip rejected `ip --json link show` while
+		// `ip` accepted it: matchesPrefix("--json", "-json") is false on
+		// length alone, before any character is compared.
+		//
+		// Exactly one dash comes off, not all of them. `---json` becomes
+		// `--json`, which matches nothing and is still an error — worth a row,
+		// because a strings.TrimLeft would quietly accept it.
+		if len(a) > 1 && a[1] == '-' {
+			a = a[1:]
+		}
 		switch {
 		case a == "-4":
 			c.family = unix.AF_INET

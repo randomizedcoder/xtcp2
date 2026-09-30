@@ -48,7 +48,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "be:ad:59:b4:c5:28",
+        "address": "5e:c9:4c:d7:ab:ef",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ {
                 "family": "inet",
@@ -78,7 +78,7 @@
                 "preferred_life_time": 4294967295
             },{
                 "family": "inet6",
-                "local": "fe80::bcad:59ff:feb4:c528",
+                "local": "fe80::5cc9:4cff:fed7:abef",
                 "prefixlen": 64,
                 "scope": "link",
                 "protocol": "kernel_ll",

@@ -908,7 +908,7 @@ func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
 			if code := Run(args, &stdout, &stderr); code != ExitOK {
 				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
 			}
-			assertJSONEntriesEqual(t, stdout.Bytes(), want)
+			assertJSONEntriesEqual(t, stdout.Bytes(), want, false)
 		})
 	}
 }

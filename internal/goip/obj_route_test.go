@@ -149,7 +149,7 @@ func TestRouteShowMatchesCapturedSidecars(t *testing.T) {
 				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
 			}
 			if tc.jsonEquivalent {
-				assertJSONEntriesEqual(t, stdout.Bytes(), want)
+				assertJSONEntriesEqual(t, stdout.Bytes(), want, false)
 				return
 			}
 			if !bytes.Equal(stdout.Bytes(), want) {

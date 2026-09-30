@@ -23,9 +23,19 @@ import (
 // link-layer address yet, so `lladdr` is absent rather than empty, and a
 // renderer that printed `lladdr ` unconditionally would diverge on it.
 
+// The typ fields are what make the ll_addr_n2a rows below possible. A
+// neighbor's ndmsg carries no type, so print_neigh formats NDA_LLADDR with
+// ll_index_to_type(ndm_ifindex) (ip/ipneigh.c:428-430) — the type lives here,
+// on the DEVICE, and not on the entry being printed.
+//
+// goip0 is spelled ARPHRD_ETHER rather than left zero so the ether rows assert
+// a type rather than a default; the rendering is the same either way, which is
+// exactly why leaving it implicit would be worth nothing.
 var neighTabNames = fakeNames{
-	1: {name: "lo"},
-	3: {name: "goip0"},
+	1:  {name: "lo", typ: unix.ARPHRD_LOOPBACK},
+	3:  {name: "goip0", typ: unix.ARPHRD_ETHER},
+	10: {name: "gre1", typ: unix.ARPHRD_IPGRE},
+	12: {name: "ip6tnl1", typ: unix.ARPHRD_TUNNEL6},
 }
 
 // ntfStickyTestCst is NTF_STICKY, `(1 << 6)` at
@@ -157,6 +167,79 @@ func TestNeighViewOfText(t *testing.T) {
 			want: "192.0.2.62 dev goip0 STALE \n",
 		},
 		{
+			description: "positive: NTF_EXT_MANAGED prints managed, from NDA_FLAGS_EXT rather than ndm_flags",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				FlagsExt: xtcpnl.NtfExtManaged,
+				Dst:      []byte{192, 0, 2, 70},
+			},
+			want: "192.0.2.70 dev goip0 managed REACHABLE \n",
+		},
+		{
+			description: "positive: NTF_EXT_EXT_VALIDATED prints extern_valid",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_PERMANENT,
+				FlagsExt: xtcpnl.NtfExtExtValidated,
+				Dst:      []byte{192, 0, 2, 71},
+			},
+			want: "192.0.2.71 dev goip0 extern_valid PERMANENT \n",
+		},
+		{
+			// The row the whole two-word table exists for, and the only one
+			// that can fail if the ext tokens are appended instead of
+			// interleaved. print_neigh's order is router, proxy, managed,
+			// extern_learn, offload, extern_valid (ip/ipneigh.c:440-451) —
+			// the two ext tokens sit at positions THREE and SIX, not five and
+			// six. Concatenating an ndm_flags run with an ext run would give
+			// "router proxy extern_learn offload managed extern_valid" and
+			// pass every other row in this file.
+			description: "corner: all six tokens print interleaved in source order, not grouped by which word they came from",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Flags:    unix.NTF_ROUTER | unix.NTF_PROXY | unix.NTF_EXT_LEARNED | unix.NTF_OFFLOADED,
+				FlagsExt: xtcpnl.NtfExtManaged | xtcpnl.NtfExtExtValidated,
+				Dst:      []byte{192, 0, 2, 72},
+				LLAddr:   []byte{0x02, 0, 0, 0, 0, 0x03},
+			},
+			want: "192.0.2.72 dev goip0 lladdr 02:00:00:00:00:03 router proxy managed extern_learn offload extern_valid STALE \n",
+		},
+		{
+			// NTF_EXT_LOCKED is a real, defined bit that iproute2 prints —
+			// but only from bridge/fdb.c:121, for a bridge FDB entry.
+			// ip/ipneigh.c never tests it, so `ip neigh` renders a locked
+			// entry identically to an unflagged one.
+			description: "negative: NTF_EXT_LOCKED is defined but has no ip-neigh token, so it prints nothing",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				FlagsExt: xtcpnl.NtfExtLocked,
+				Dst:      []byte{192, 0, 2, 73},
+			},
+			want: "192.0.2.73 dev goip0 STALE \n",
+		},
+		{
+			// The A to the next row's B. NTF_USE is bit 0 of ndm_flags and
+			// NTF_EXT_MANAGED is bit 0 of ext_flags; the same numeric 1 in
+			// the other word must produce the opposite output. A renderer
+			// that tested one mask against both words would print "managed"
+			// here.
+			description: "corner: bit 0 in ndm_flags is NTF_USE and prints nothing",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Flags: unix.NTF_USE,
+				Dst:   []byte{192, 0, 2, 74},
+			},
+			want: "192.0.2.74 dev goip0 STALE \n",
+		},
+		{
+			description: "corner: the same bit 0 in NDA_FLAGS_EXT is NTF_EXT_MANAGED and does print",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				FlagsExt: 1,
+				Dst:      []byte{192, 0, 2, 74},
+			},
+			want: "192.0.2.74 dev goip0 managed STALE \n",
+		},
+		{
 			// An index the cache does not hold falls back to if%u, exactly as
 			// ll_index_to_name does when its live single-get finds nothing.
 			description: "negative: an unresolvable ifindex renders the if%u fallback",
@@ -255,6 +338,90 @@ func TestNeighViewOfText(t *testing.T) {
 			},
 			want: "192.0.2.58 STALE \n",
 		},
+		{
+			// ll_addr_n2a's v4 arm, reached through the DEVICE's type. The
+			// bytes c0 00 02 63 are 192.0.2.99; a renderer that formatted
+			// them without consulting gre1's ARPHRD_IPGRE prints
+			// "c0:00:02:63", which is well-formed, plausible, and wrong.
+			description: "positive: a 4-byte lladdr on an ARPHRD_IPGRE device is a dotted quad",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 10, State: unix.NUD_PERMANENT,
+				Dst:    []byte{203, 0, 113, 5},
+				LLAddr: []byte{192, 0, 2, 99},
+			},
+			want: "203.0.113.5 dev gre1 lladdr 192.0.2.99 PERMANENT \n",
+		},
+		{
+			// The v6 arm on a TUNNEL6 device, and the reason netip is used
+			// rather than net.IP: both render an ordinary 16-byte value the
+			// same, so this row is the ordinary case and the v4-mapped corner
+			// is pinned in xtcpnl_arphrd_test.go.
+			description: "positive: a 16-byte lladdr on an ARPHRD_TUNNEL6 device is an IPv6 address",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET6, Ifindex: 12, State: unix.NUD_PERMANENT,
+				Dst: []byte{
+					0x20, 0x01, 0x0d, 0xb8, 1, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x05,
+				},
+				LLAddr: []byte{
+					0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x63,
+				},
+			},
+			want: "2001:db8:100::5 dev ip6tnl1 lladdr 2001:db8::63 PERMANENT \n",
+		},
+		{
+			// The negative that makes the two above mean something: the same
+			// four bytes on an ARPHRD_ETHER device stay colon-hex. ll_addr_n2a
+			// tests a length AND a type, so neither alone licenses the
+			// conversion.
+			description: "negative: the same 4 bytes on an ARPHRD_ETHER device stay colon-hex",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_PERMANENT,
+				Dst:    []byte{192, 0, 2, 60},
+				LLAddr: []byte{192, 0, 2, 99},
+			},
+			want: "192.0.2.60 dev goip0 lladdr c0:00:02:63 PERMANENT \n",
+		},
+		{
+			// The other half of "length AND type": six bytes on a tunnel type
+			// has no special case either, so it falls through to the hex loop.
+			description: "negative: a 6-byte lladdr on an ARPHRD_IPGRE device stays colon-hex",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 10, State: unix.NUD_STALE,
+				Dst:    []byte{203, 0, 113, 6},
+				LLAddr: []byte{0x02, 0, 0, 0, 0, 0x07},
+			},
+			want: "203.0.113.6 dev gre1 lladdr 02:00:00:00:00:07 STALE \n",
+		},
+		{
+			// An index the cache does not hold. ll_index_to_type answers 0,
+			// which is ARPHRD_NETROM and has no special case, so the four
+			// bytes stay hex — and the dev token falls back to "if%u". Both
+			// halves of the miss on one line.
+			description: "boundary: an uncached index types as 0, so a 4-byte lladdr stays colon-hex",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 77, State: unix.NUD_STALE,
+				Dst:    []byte{192, 0, 2, 61},
+				LLAddr: []byte{192, 0, 2, 99},
+			},
+			want: "192.0.2.61 dev if77 lladdr c0:00:02:63 STALE \n",
+		},
+		{
+			// The interaction nobody would think to check: `dev NAME`
+			// suppresses the printed token, and the TYPE lookup must still
+			// happen on the real index. A renderer that reused the suppressed
+			// value would format every entry as ARPHRD_NETROM and regress
+			// this line to colon-hex while looking correct everywhere else.
+			description: "corner: `dev NAME` suppresses the token but not the type lookup",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 10, State: unix.NUD_PERMANENT,
+				Dst:    []byte{203, 0, 113, 5},
+				LLAddr: []byte{192, 0, 2, 99},
+			},
+			filter: NeighShowFilter{IndexSet: true},
+			want:   "203.0.113.5 lladdr 192.0.2.99 PERMANENT \n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -340,6 +507,116 @@ func TestNeighViewJSONKeys(t *testing.T) {
 			absentKeys: []string{`"proxy"`, `"router"`, `"extern_learn"`, `"offload"`, `"sticky"`},
 		},
 		{
+			description: "positive: NTF_EXT_MANAGED emits a null-valued managed key, like the ndm_flags tokens",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				FlagsExt: xtcpnl.NtfExtManaged,
+				Dst:      []byte{192, 0, 2, 70},
+			},
+			wantKeys:   []string{`"managed":null`},
+			absentKeys: []string{`"managed":true`, `"extern_valid"`},
+		},
+		{
+			// One substring rather than six, because the claim is the ORDER.
+			// Six independent presence checks pass for any permutation, and
+			// permuting is exactly what appending the ext tokens instead of
+			// interleaving them would do.
+			description: "corner: all six flag keys appear as one ordered run, managed third and extern_valid last",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Flags:    unix.NTF_ROUTER | unix.NTF_PROXY | unix.NTF_EXT_LEARNED | unix.NTF_OFFLOADED,
+				FlagsExt: xtcpnl.NtfExtManaged | xtcpnl.NtfExtExtValidated,
+				Dst:      []byte{192, 0, 2, 72},
+			},
+			wantKeys: []string{
+				`"router":null,"proxy":null,"managed":null,"extern_learn":null,"offload":null,"extern_valid":null`,
+			},
+		},
+		{
+			// The state key's POSITION, which every other row here is blind
+			// to because they test for `"state"` on its own and a substring
+			// match does not care what precedes it. print_neigh prints the
+			// flag run at :440-451 and the state at :462-463, and `ip -j`
+			// writes keys in print order, so the flags come first.
+			//
+			// Confirmed against the pinned iproute2 7.1.0 on a live
+			// namespace rather than inferred from the print order:
+			//
+			//	$ ip -j neigh show
+			//	[{"dst":"192.0.2.53","dev":"goip0",
+			//	  "lladdr":"02:00:00:00:00:04","router":null,
+			//	  "state":["PERMANENT"]}]
+			//
+			// The absent key is the whole point of the row: it is the exact
+			// output a `json:"state,omitempty"` tag produces, because a
+			// tagged field marshals before members spliced onto the end.
+			description: "corner: the state key follows the flag run, because ip -j writes keys in print order",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_PERMANENT,
+				Flags:  unix.NTF_ROUTER,
+				Dst:    []byte{192, 0, 2, 53},
+				LLAddr: []byte{0x02, 0, 0, 0, 0, 0x04},
+			},
+			wantKeys:   []string{`"router":null,"state":["PERMANENT"]`},
+			absentKeys: []string{`"state":["PERMANENT"],"router":null`},
+		},
+		{
+			// The same claim at full width: six flags and a state in one
+			// substring. If the state were tagged rather than spliced it
+			// would sit before `"router"`, and if the ext tokens were
+			// appended rather than interleaved `managed` would move — so
+			// this single string is the only row that fails for either
+			// mistake.
+			description: "corner: six flag keys then state, one unbroken run across both words",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Flags:    unix.NTF_ROUTER | unix.NTF_PROXY | unix.NTF_EXT_LEARNED | unix.NTF_OFFLOADED,
+				FlagsExt: xtcpnl.NtfExtManaged | xtcpnl.NtfExtExtValidated,
+				Dst:      []byte{192, 0, 2, 75},
+			},
+			wantKeys: []string{
+				`"router":null,"proxy":null,"managed":null,"extern_learn":null,"offload":null,"extern_valid":null,"state":["STALE"]`,
+			},
+		},
+		{
+			// State with no flags now takes the splice path too, where
+			// before it was emitted by the struct tag. Same bytes, different
+			// code, so it needs its own row: the key must still be there,
+			// still be an array, and still sit directly after lladdr with no
+			// stray comma between them.
+			description: "boundary: a flagless entry still emits state, which now comes from the splice rather than a tag",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst:    []byte{192, 0, 2, 76},
+				LLAddr: []byte{0x02, 0, 0, 0, 0, 0x0a},
+			},
+			wantKeys:   []string{`"lladdr":"02:00:00:00:00:0a","state":["REACHABLE"]`},
+			absentKeys: []string{`,,`},
+		},
+		{
+			// Neither splice fires. The object has to come back exactly as
+			// json.Marshal produced it, with no trailing comma and no empty
+			// `"state":[]` — this is the early-return path, and it is the
+			// one an added `b.WriteByte(',')` outside a guard would break.
+			description: "negative: an entry with no flags and no state emits neither, and closes cleanly",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3,
+				Dst: []byte{192, 0, 2, 77},
+			},
+			wantKeys:   []string{`"dst":"192.0.2.77","dev":"goip0"}`},
+			absentKeys: []string{`"state"`, `,}`},
+		},
+		{
+			description: "negative: NTF_EXT_LOCKED emits no key, having no ip-neigh token to emit one from",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				FlagsExt: xtcpnl.NtfExtLocked,
+				Dst:      []byte{192, 0, 2, 73},
+			},
+			wantKeys:   []string{`"state":["STALE"]`},
+			absentKeys: []string{`"locked"`, `"managed"`, `"extern_valid"`},
+		},
+		{
 			// iproute2 emits the JSON key from the same print_color_string
 			// call that emits the text (ip/ipneigh.c:419-421), inside the
 			// same guard, so `ip -j neigh show dev X` has no dev key at all
@@ -378,6 +655,155 @@ func TestNeighViewJSONKeys(t *testing.T) {
 			for _, k := range tc.absentKeys {
 				if strings.Contains(got, k) {
 					t.Errorf("JSON %s unexpectedly contains %s", got, k)
+				}
+			}
+		})
+	}
+}
+
+// TestNeighFlagTokens sweeps NeighFlagTokens directly, which nothing else in
+// this package does.
+//
+// Every other test here reaches it through NeighViewOf, and that is enough to
+// check the tokens a REALISTIC entry produces — but not enough to sweep the
+// input space. The function takes two words whose bit sets overlap
+// numerically, and the interesting inputs are the ones a captured neighbor
+// never has: both words saturated, a bit set in the wrong word, a word whose
+// only bits are unnamed. Those belong here rather than in a view test, where
+// each would need a whole NeighInfo built around it.
+//
+// go test ./internal/goip/render/ -run TestNeighFlagTokens
+func TestNeighFlagTokens(t *testing.T) {
+	// allNdm is every ndm_flags bit, named or not, and allExt the same for
+	// NDA_FLAGS_EXT. Saturation is the cheapest way to assert that the table
+	// selects rather than accumulates.
+	const (
+		allNdm uint8  = 0xFF
+		allExt uint32 = 0xFFFFFFFF
+	)
+
+	tests := []struct {
+		description string
+		flags       uint8
+		flagsExt    uint32
+		want        []string
+	}{
+		{
+			description: "positive: NTF_ROUTER alone yields router",
+			flags:       unix.NTF_ROUTER,
+			want:        []string{"router"},
+		},
+		{
+			description: "positive: NTF_PROXY alone yields proxy",
+			flags:       unix.NTF_PROXY,
+			want:        []string{"proxy"},
+		},
+		{
+			description: "positive: NTF_EXT_LEARNED alone yields extern_learn",
+			flags:       unix.NTF_EXT_LEARNED,
+			want:        []string{"extern_learn"},
+		},
+		{
+			description: "positive: NTF_OFFLOADED alone yields offload",
+			flags:       unix.NTF_OFFLOADED,
+			want:        []string{"offload"},
+		},
+		{
+			description: "positive: NTF_EXT_MANAGED alone yields managed, from the other word",
+			flagsExt:    xtcpnl.NtfExtManaged,
+			want:        []string{"managed"},
+		},
+		{
+			description: "positive: NTF_EXT_EXT_VALIDATED alone yields extern_valid",
+			flagsExt:    xtcpnl.NtfExtExtValidated,
+			want:        []string{"extern_valid"},
+		},
+		{
+			// print_neigh's order across both words, which is the property
+			// the single interleaved table exists to hold.
+			description: "boundary: every named bit in both words yields all six in print order",
+			flags:       unix.NTF_ROUTER | unix.NTF_PROXY | unix.NTF_EXT_LEARNED | unix.NTF_OFFLOADED,
+			flagsExt:    xtcpnl.NtfExtManaged | xtcpnl.NtfExtExtValidated,
+			want:        []string{"router", "proxy", "managed", "extern_learn", "offload", "extern_valid"},
+		},
+		{
+			// Saturating both words must give the SAME six and no more: the
+			// table selects named bits rather than walking the word. A
+			// renderer that emitted a residue token — as print_ifa_flags
+			// does — would differ here and nowhere else in this file.
+			description: "boundary: saturating both words still yields exactly the six named tokens",
+			flags:       allNdm,
+			flagsExt:    allExt,
+			want:        []string{"router", "proxy", "managed", "extern_learn", "offload", "extern_valid"},
+		},
+		{
+			description: "negative: both words zero yields nil, not an empty slice",
+			want:        nil,
+		},
+		{
+			description: "negative: only unnamed ndm_flags bits yields nil",
+			flags:       unix.NTF_USE | unix.NTF_SELF | unix.NTF_MASTER | ntfStickyTestCst,
+			want:        nil,
+		},
+		{
+			description: "negative: NTF_EXT_LOCKED is the only named ext bit ip neigh ignores, so it yields nil",
+			flagsExt:    xtcpnl.NtfExtLocked,
+			want:        nil,
+		},
+		{
+			// The collision, from both sides. The same numeric 1 means
+			// NTF_USE in one word and NTF_EXT_MANAGED in the other, so a
+			// function testing one mask against both would answer the same
+			// for these two rows instead of opposite.
+			description: "corner: bit 0 of ndm_flags is NTF_USE and names nothing",
+			flags:       1,
+			want:        nil,
+		},
+		{
+			description: "corner: bit 0 of NDA_FLAGS_EXT is NTF_EXT_MANAGED and names managed",
+			flagsExt:    1,
+			want:        []string{"managed"},
+		},
+		{
+			// The mirror of the pair above, on the bit where the ndm side is
+			// the one that names something: 1<<7 is NTF_ROUTER in ndm_flags
+			// and is unnamed in ext_flags.
+			description: "corner: bit 7 names router in ndm_flags and nothing in NDA_FLAGS_EXT",
+			flagsExt:    1 << 7,
+			want:        nil,
+		},
+		{
+			description: "corner: that same bit 7 set in ndm_flags does name router",
+			flags:       1 << 7,
+			want:        []string{"router"},
+		},
+		{
+			// An ext bit far above anything defined must not wrap, alias or
+			// panic — the word is compared with &, so the only risk would be
+			// a table entry stored in too narrow a type.
+			description: "corner: the top ext bit is unnamed and yields nil",
+			flagsExt:    1 << 31,
+			want:        nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			got := NeighFlagTokens(tt.flags, tt.flagsExt)
+
+			// nil and []string{} both render as no tokens, but only nil
+			// keeps MarshalJSON off its append path, so the distinction is
+			// asserted rather than smoothed over by a length comparison.
+			if tt.want == nil && got != nil {
+				t.Fatalf("NeighFlagTokens(%#x, %#x) = %v, want nil", tt.flags, tt.flagsExt, got)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("NeighFlagTokens(%#x, %#x) = %v, want %v", tt.flags, tt.flagsExt, got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("token %d = %q, want %q (full: %v, want %v)",
+						i, got[i], tt.want[i], got, tt.want)
 				}
 			}
 		})

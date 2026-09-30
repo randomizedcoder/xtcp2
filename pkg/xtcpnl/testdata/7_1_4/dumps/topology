@@ -16,3 +16,8 @@ ok    [nlcapc] ip neigh add 192.0.2.52 dev goip0 nud incomplete
 ok    [nlcapc] ip -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev goip0 nud permanent
 ok    [nlcapc] ip neigh add proxy 192.0.2.60 dev goip0
 ok    [nlcapc] ip -6 neigh add proxy 2001:db8::60 dev goip0
+ok    [nlcapc] ip neigh add 192.0.2.53 lladdr 02:00:00:00:00:04 dev goip0 nud permanent router
+ok    [nlcapc] ip neigh add 192.0.2.54 lladdr 02:00:00:00:00:05 dev goip0 nud permanent extern_learn
+ok    [nlcapc] ip neigh add 192.0.2.55 lladdr 02:00:00:00:00:06 dev goip0 nud permanent extern_valid
+ok    [nlcapc] ip neigh add 192.0.2.56 lladdr 02:00:00:00:00:07 dev goip0 nud permanent router extern_learn extern_valid
+ok    [nlcapc] ip -6 neigh add 2001:db8::53 lladdr 02:00:00:00:00:08 dev goip0 nud permanent router extern_valid

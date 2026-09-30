@@ -99,8 +99,18 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 	return sel, nil
 }
 
+// neighShowVerbs are the three spellings ip/ipneigh.c:758-760 accepts for the
+// listing, each through matches() and so each abbreviable.
+//
+// `lst` is the one that is easy to miss, because it is not a prefix of
+// anything else and reads like a typo. It is a real alias, unique to the neigh
+// object — ipaddress.c and iproute.c have "show"/"list"/"lst" too, but goip's
+// other objects reach them by different paths. Spelling the set as a slice
+// rather than a chain of conditions keeps the next alias a one-line change.
+var neighShowVerbs = []string{"show", "list", "lst"}
+
 func runNeigh(c *runCtx, args []string) error {
-	if len(args) > 0 && !matchesPrefix(args[0], "show") && !matchesPrefix(args[0], "list") {
+	if len(args) > 0 && !matchesAny(args[0], neighShowVerbs) {
 		return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
 	}
 	if len(args) > 0 {

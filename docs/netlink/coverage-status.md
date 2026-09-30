@@ -3133,19 +3133,135 @@ sentinel `nud none` assigns at `:568-569`, `nud` is not implemented, and at the
 fixed mask the clause is constant true. `neighStateFiltered`'s doc says to
 reinstate it in the same commit that adds `nud`.
 
-#### Four named flag tokens, and two that are unreachable
+#### Six named flag tokens, from two different words
 
 The run at `:440-451` is six `if`s, but `managed` (`:444-445`) and
 `extern_valid` (`:450-451`) test `ext_flags` — the `u32` of `NDA_FLAGS_EXT` —
-not `ndm_flags`.
-xtcpnl does not decode that attribute, so those two stay a reported gap rather
-than being listed against the wrong source. `ndm_flags` also carries
+not `ndm_flags`. xtcpnl now decodes that attribute into `NeighInfo.FlagsExt`,
+so all six are reachable. `ndm_flags` also carries
 `NTF_USE`, `NTF_SELF`, `NTF_MASTER` and `NTF_STICKY`, and `print_neigh` prints
 none of them **and emits no residue key**. That is the difference from
 `print_ifa_flags` and the reason `NeighFlagTokens` returns one value where
 `IfaFlagTokens` returns two: there is nothing to report the leftovers as.
 (`golang.org/x/sys/unix` exports every `NTF_*` bit except `NTF_STICKY`, so the
 test names that one locally with a citation.)
+
+##### The interleaving is the assertion
+
+`managed` prints **third** and `extern_valid` **sixth**, so the two ext tokens
+are not a block at either end of the run — they are interleaved among the four
+`ndm_flags` ones. `neighFlagNames` is therefore a single table with an `ext`
+column selecting the word, rather than two tables concatenated. The
+concatenated version yields `router proxy extern_learn offload managed
+extern_valid`, which is wrong and which **every existing row in
+`render/neigh_test.go` accepts**: reordering the table was tried, and exactly
+two rows failed, the two written for the ordering. That measurement is why
+they are one ordered substring each rather than six presence checks.
+
+##### The two bit sets overlap numerically
+
+`NTF_EXT_MANAGED` is `1<<0` and so is `NTF_USE`; `NTF_EXT_LOCKED` is `1<<1` and
+so is `NTF_SELF`. Nothing about a bit says which word it came from, so
+`FlagsExt` is a separate field rather than a widening of `Flags`, and the
+renderer tests each entry against the word its `ext` column names. Merging the
+two would print `managed` for an entry carrying only `NTF_USE`.
+
+##### `locked` is defined and still unreachable
+
+`NTF_EXT_LOCKED` is a real bit and iproute2 does print it — from
+`bridge/fdb.c:121`, and nowhere else. `ip/ipneigh.c` never tests it, so
+`ip neigh` renders a locked entry identically to an unflagged one. xtcpnl
+declares the constant (the decoder reports the wire and does not mask unknown
+bits) and the renderer deliberately has no token for it; `flagTokens` in the
+stdout comparator omits it for the same reason, since a locus that can never
+match is the dead-locus mistake that file is organized around.
+
+##### The one number nothing else could check
+
+`NDA_FLAGS_EXT` is 15, hand-declared, because `x/sys/unix` stops its `NDA_*`
+run at `NDA_SRC_VNI = 11`. A wrong attribute number does not error — it simply
+never matches, `FlagsExt` stays 0 forever, and every capture-based test still
+passes. `TestParseNeigh` cannot catch it either, because it builds the
+attribute from the same constant it decodes with: self-consistent and blind.
+`TestNdaFlagsExtValue` anchors the value to `NDA_SRC_VNI + 4` and fences off
+the neighbors in the enum — particularly `NDA_FDB_EXT_ATTRS` at 14, a
+**nested** attribute whose first four bytes would decode as a plausible flag
+word. Setting the constant to 14 fails six rows of that test and nothing else.
+
+##### Making the tokens reachable moved the JSON `state` key
+
+The flag work above was unit-tested only, so it was checked against a live
+namespace before being captured: `unshare -rn`, the pinned 7.1.0 `ip`, and
+`goip` built from this tree, both reading the same kernel. The text output
+matched byte for byte on the first try. `ip -j` did not.
+
+`ip` emits `…,"lladdr":…,"router":null,"state":["PERMANENT"]`; goip emitted
+the state key **before** the flags. The cause is structural rather than a
+transcription slip: `NeighView.State` was a tagged field and the flags are
+spliced onto the end of the marshaled object by `MarshalJSON`, so anything
+tagged necessarily sorts ahead of every flag. `print_neigh` prints the flag
+run at `:440-451` and the state at `:462-463`, and `ip -j` writes keys in
+print order, so the correct order is the opposite of what a tag can produce.
+`State` is now `json:"-"` and spliced after the flags, with its `omitempty`
+reproduced as a length test.
+
+**This was latent, not introduced.** `NeighView.Flags` has existed for some
+time, but no committed fixture contained a neighbor with a flag on it — the
+open finding recorded it as "decoded and never rendered" — so the two keys
+were never in the same object and nothing could have ordered them wrongly in
+a golden. The bug became reachable at the exact moment the topology gained a
+flagged entry, which is the argument for capturing one.
+
+The test gap was the same shape. Eleven rows of `TestNeighViewJSONKeys`
+passed against the wrong order, because each tests for `"state"` as a
+standalone substring and a substring match does not care what precedes it.
+The fix is two rows asserting flags and state as one unbroken substring;
+reverting `State` to `json:"state,omitempty"` fails exactly those two and no
+others.
+
+##### The capture, and what a re-capture costs
+
+The five entries went into `nltopo::build_clean`, which is shared: the capture
+script builds the `dumps/` namespace from it
+(`capture-netlink-dumps.exp:374`) and the parity harness builds its own from
+the same proc (`goip-parity.exp:265`). One topology edit therefore produces
+both a fixture and a compared line, and because `neigh show` is gated, the
+three reachable tokens are enforced rather than advisory.
+
+The run was `PASS`: every command met its datagram floor across all three
+namespaces, `ip_neigh_proxy` came back byte-identical, and every text
+difference outside the neighbor goldens was the dummy's random MAC and the
+link-local derived from it. `ip neigh show` went from four lines to nine.
+
+**Installing it broke fourteen test rows across four packages, and not one of
+them was a decode error.** Every failure was a constant that had quietly
+recorded a property of the previous capture:
+
+| what broke | why |
+|---|---|
+| `neighDumpPortid = "894"` | the netlink socket's portid is the pid; a new run gets a new one (978). Every row filtering on it went silent, comparing an empty listing against a populated sidecar |
+| 6 byte-exact `ip_neigh` rows | the kernel dumps its hash table in hash order and goip sorts; the old fixture happened to come out ascending |
+| the `-json` row | `assertJSONEntriesEqual` decodes both sides and still walks them by index, so decoding bought no order-independence |
+| `wantFound: 5`, `wantReplies: {4, 6}`, `sidecarLines = 4`, `wantLines: 4` | counts of the old topology |
+| `ns[0]`, `ns[1]`, `ns[2]`, `ns[4]` in `TestDumpSetNeigh` | positional lookups into a reordered dump |
+| `dst=c0000232` in `TestObjectKey` | "the first reply in this pcap" |
+
+The lesson is narrower than "fixtures are brittle". A literal that restates
+something the fixture already says is a second copy that drifts, and it fails
+in a voice that names neither the capture nor the topology —
+`TestNeighShowEntryCount` said `lines = 9, want 4` while testing nothing that
+had changed. So the counts are now **derived** (`countLines`, the sidecar's
+own line count) and the lookups are **keyed** (`neighByDst`, matching on
+destination and requiring exactly one hit so it is not a weakening). What
+stays hand-written is the portid and the per-run reply counts, which are
+genuinely facts about a capture and are now commented as such.
+
+`TestNormalizeLinkStatsText` deserves its own note as the one that failed
+*correctly*: it mutates the golden and asserts the mutation applied, so a
+re-capture made it report "the golden has changed shape and this row no
+longer tests what it says" rather than passing vacuously. Its counter literal
+is now derived by rotating the digits of a real counter line, which is the
+mutation the row always meant.
 
 #### No `duparg`, so a repeat is accepted
 
@@ -3270,9 +3386,148 @@ attributes through it, each with `ifi->ifi_type`: `IFLA_ADDRESS`
 `IFLA_PERM_ADDRESS` (`:1094-1111`). So one function decides how all three
 render, and a fix at one call site would have been two-thirds of a fix.
 
+##### The fourth call site, which is not on a link
+
+`print_neigh` formats `NDA_LLADDR` through the same function
+(`ip/ipneigh.c:424-438`), and it is the odd one out: a neighbor's `struct
+ndmsg` carries **no type of its own**, so `ip` reaches for the type of the
+neighbor's *device* via `ll_index_to_type(r->ndm_ifindex)`. Everything else
+takes `ifi_type` straight off the message it is already holding; this one needs
+a lookup.
+
+That is why `LLTab.IndexToType` existed with **zero callers** — it had been
+written for this and never wired up — and why its doc comment was wrong in two
+ways at once. It claimed `ip` used it "for address rendering, where the
+ARPHRD_* of the link decides how an `IFA_ADDRESS` is formatted": `IFA_ADDRESS`
+is an IP address and never goes near `ll_addr_n2a`, and `ll_index_to_type` has
+exactly two call sites in iproute2, both in `ip/ipneigh.c` (`:292` in
+`print_neigh_brief`, `:430` in `print_neigh`). Only the second is reachable
+from goip, since `-br` is not implemented.
+
+`render.NameTab` therefore gained `IndexToType`. Unlike `IndexToFlags` it has
+**no sentinel and needs none**: `ll_index_to_type` answers 0 on a miss, 0 is
+`ARPHRD_NETROM`, and `ARPHRD_NETROM` has no special case in `ll_addr_n2a` — so
+a cache miss and an unremarkable type render identically.
+`TestLLTabIndexToType` asserts that equivalence directly rather than leaving it
+implied by two rows that happen to share a number, because "these two cases are
+indistinguishable" is a claim that can rot.
+
+One interaction is worth naming because it is invisible until it breaks:
+`neigh show dev NAME` suppresses the printed `dev` token, and the **type lookup
+still has to use the real `ndm_ifindex`**. A renderer that reused the
+suppressed value would format every entry as `ARPHRD_NETROM`, regressing
+exactly the tunnel lines to colon-hex while looking correct everywhere else.
+There is a `corner:` row for it.
+
+##### The parse side is not symmetric, which matters for capturing
+
+`ll_addr_a2n` (`lib/ll_addr.c:47-63`) branches on a **literal `.` in the
+string** and never looks at the device type. So `ip neigh add … lladdr
+192.0.2.99 dev gre1` stores four bytes on any device at all, while rendering
+those four bytes back needs `gre1` to be `ARPHRD_IPGRE`. Input is type-blind,
+output is type-driven.
+
+##### What the topology could actually produce, which is not what was asked for
+
+The plan was a matched pair on one device — a 4-byte and a 6-byte `lladdr` on
+the same `gre1`, same `ifi_type`, different length, different render. The
+kernel does not allow it, and the capture is how that was learned rather than
+assumed. Three `neigh add` commands all returned **ok**; two entries exist:
+
+```
+0.0.0.0         dev gre1     lladdr 2.0.0.0       PERMANENT
+2001:db8:100::5 dev ip6tnl1  lladdr 2001:db8::63  PERMANENT
+```
+
+Two separate kernel behaviors, both invisible from the command line:
+
+- `gre1` is `<POINTOPOINT,NOARP>`, so its neighbor keys **degenerate to the
+  all-zero address**. Both requested entries landed on one key and the second
+  overwrote the first, which is why one survives and its destination is
+  `0.0.0.0` rather than the `203.0.113.5` that was asked for.
+- The lladdr is truncated to `dev->addr_len`, which for `ARPHRD_IPGRE` is
+  **4**. The request for `02:00:00:00:00:07` is stored, and rendered, as the
+  four bytes `02:00:00:00` — hence `2.0.0.0`.
+
+So **a six-byte lladdr on a tunnel type is not capturable at all**. That
+negative is unreachable rather than merely unwritten, and it stays constructed
+in `render/neigh_test.go`. A multipoint GRE — `type gre` with a local and no
+remote — would give real destinations and is the obvious improvement; it costs
+another capture run.
+
+What the capture does prove, on bytes `ip` wrote: the 4-byte arm (`2.0.0.0`
+can only come from `inet_ntop(AF_INET)` on an `ARPHRD_IPGRE` device; a hex
+loop gives `02:00:00:00`), the 16-byte arm on `ARPHRD_TUNNEL6`, and — better
+than planned — `tunnel/ip_neigh_dev`, which is the `dev NAME` trap above on
+real bytes.
+
+The discrimination was measured, not asserted. With `IndexToType` forced to 0,
+**exactly the three new tunnel rows fail and the ten pre-existing neigh rows
+pass**: the entire `ARPHRD_ETHER` corpus is blind to this bug, which is the
+whole argument for the fixture.
+
+##### The stdout comparator could not have caught any of it
+
+A standing finding said `internal/goipparity/stdout.go`'s `keywords` had `brd`
+but not `lladdr`, so the link half of an `ll_addr_n2a` divergence would be
+caught and the neighbor half would not. That was true of two more tokens than
+it named. All three are now in the list:
+
+| token | site | why it was missing |
+|---|---|---|
+| `peer` | `ip/ipaddress.c:1077-1084` | the `IFF_POINTOPOINT` arm *replaces* `brd`, so having `brd` alone covers neither |
+| `permaddr` | `ip/ipaddress.c:1101` | printed only when it differs from the address |
+| `lladdr` | `ip/ipneigh.c:432` | the neighbor half, formatted through the **device's** `ifi_type` |
+
+None of the three appears in the clean or mesh topologies the parity tier
+builds, so adding them changes no current run — which is the point. They go in
+while the renders that produce them are fresh, rather than arriving at the
+same moment as the bug they are supposed to catch.
+
+Because a keyword that is listed but not matched by the extraction pattern
+fails **silently** — `CompareStdout` stays quiet and a quiet comparator reads
+as a pass — `TestStdoutRouteFacets` gained six rows that pull each token out of
+a committed golden and count it: five `peer` in `tunnel/ip_link` (one per
+configured tunnel; the five fallback devices take the `brd` arm), four
+`permaddr` (count only — the values are random per boot), the three
+`ARPHRD_ETHER` `lladdr`s in `ip_neigh`, the two type-driven ones in
+`tunnel/ip_neigh`, and two negatives on the clean golden.
+
 All five ARPHRD constants are exported by `golang.org/x/sys/unix`
 (`ARPHRD_TUNNEL` 768, `TUNNEL6` 769, `SIT` 776, `IPGRE` 778, `IP6GRE` 823), so
 no local constants were needed.
+
+###### The flag tokens go in `flagTokens`, not `keywords`, and one of them is live
+
+The six neighbor flag tokens are **bare positional words**, not
+`<keyword> <value>` pairs, so `keywords` is the wrong home: `reKeyword`'s
+trailing `\s+(\S+)` would record `managed`'s value as the *state* that follows
+it. They belong in `flagTokens` / `FacetFlags`, which exists for exactly this
+shape — and `offload` was already there as a route flag, one entry now serving
+both vocabularies since no single command emits routes and neighbors together.
+Five were added: `router`, `proxy`, `managed`, `extern_learn`, `extern_valid`.
+
+`proxy` is the one that is **not** dormant, and it is the find. `neigh show
+proxy` is a compared and **gated** command, and both lines of its committed
+golden end in the token:
+
+```
+192.0.2.60 dev goip0 proxy
+2001:db8::60 dev goip0 proxy
+```
+
+So the command whose entire justification is that `proxy` dispatches the
+kernel to a *different table* (`pneigh_dump_table`) was comparing the token
+that says so only as part of a line count. That locus matches on the next
+parity run rather than waiting for a topology. The paired negative is
+`ip_neigh`, the plain listing, which has no `proxy` in it at all — the two
+tables are disjoint here, so a substring-rather-than-token match would show up
+as a false positive on that row.
+
+The `\b` on both sides of the pattern is load-bearing for two of the new
+entries and is now tested rather than asserted: `proxy_arp` must not yield
+`proxy` and `rt_offload` must yield itself rather than `offload`, both of
+which hold because `_` is a word character.
 
 `netip` rather than `net.IP`, and the difference is measurable: on a v4-mapped
 16-byte value `net.IP(b).String()` is `"1.2.3.4"` while
@@ -3401,6 +3656,11 @@ existed for the mesh set for the same reason.
 | `"link": null` and `addr_info` coexisting | `TestAddrShowJSONMatchesCapturedSidecars`, tunnel row |
 | `@NONE` reached through `AddrGroupView`, not `LinkView` | `TestAddrShowTextMatchesCapturedSidecars` |
 | the `-s` stanza under an `@NONE` header | `TestLinkShowStatsTextMatchesCapturedSidecars` |
+| a 4-byte `NDA_LLADDR` on `ARPHRD_IPGRE` is a dotted quad | `TestNeighShowMatchesCapturedSidecars`, tunnel row |
+| a 16-byte `NDA_LLADDR` on `ARPHRD_TUNNEL6` is IPv6 | same |
+| `neigh show dev` suppresses the token, not the type lookup | same, the `corner:` row — and `render/neigh_test.go` |
+| a 6-byte `NDA_LLADDR` on a tunnel type stays colon-hex | `render/neigh_test.go` only — the kernel truncates to `addr_len`, so no capture can reach it |
+| `ll_index_to_type` answers 0 for a miss and for `ARPHRD_NETROM` alike | `TestLLTabIndexToType` |
 
 `TestLinkViewJSON` gained a `wantValues` column for this. Its existing
 `wantKeys` check cannot distinguish `"link": null` from `"link": "eth0"`,

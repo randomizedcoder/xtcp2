@@ -1065,7 +1065,7 @@ func TestLinkShowJSONMatchesCapturedSidecars(t *testing.T) {
 			if tc.zeroCounters {
 				got, want = zeroLinkStats(t, got), zeroLinkStats(t, want)
 			}
-			assertJSONEntriesEqual(t, got, want)
+			assertJSONEntriesEqual(t, got, want, false)
 		})
 	}
 }
@@ -1261,15 +1261,33 @@ func normalizeLinkStatsText(t *testing.T, s string) string {
 //
 // go test ./internal/goip/ -run TestNormalizeLinkStatsText
 func TestNormalizeLinkStatsText(t *testing.T) {
+	raw, err := os.ReadFile(guestDumpsDir + "ip_link_stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	counterFrom, counterTo := advancedCounterLine(t, string(raw))
+
 	tests := []struct {
 		description string
 		from, to    string
 		wantDetect  bool
 	}{
 		{
+			// The only row whose mutation is DERIVED from the golden rather
+			// than written out, because it is the only one about counter
+			// VALUES rather than about the format around them. It used to
+			// carry a literal `         65796     149`, which meant
+			// "whatever nlmon0 had received when this golden was captured" —
+			// so re-capturing ip_link_stats made the mutation stop applying
+			// and the row failed with the shape complaint below, which says
+			// nothing about counters.
+			//
+			// advancedCounterLine picks a real counter line and rotates its
+			// digits, which is the mutation this row always meant: same
+			// columns, same widths, same field count, different numbers.
 			description: "negative: a counter that advanced between the sidecar and the pcap is tolerated",
-			from:        "         65796     149",
-			to:          "         31596      77",
+			from:        counterFrom,
+			to:          counterTo,
 			wantDetect:  false,
 		},
 		{
@@ -1301,10 +1319,6 @@ func TestNormalizeLinkStatsText(t *testing.T) {
 		},
 	}
 
-	raw, err := os.ReadFile(guestDumpsDir + "ip_link_stats")
-	if err != nil {
-		t.Fatal(err)
-	}
 	base := normalizeLinkStatsText(t, string(raw))
 
 	for _, tc := range tests {
@@ -1319,6 +1333,65 @@ func TestNormalizeLinkStatsText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// advancedCounterLine returns a counter line from an `ip -s link show` dump
+// and the same line with every digit rotated, as a (from, to) pair for
+// strings.Replace.
+//
+// It stands in for a hand-written counter literal, which is unwritable
+// without pinning it to one capture: the values are whatever the interface
+// had transferred at that instant.
+//
+// Two things make the returned pair a fair test of the normalizer. The
+// rotation is character-for-character, so column widths, the field count and
+// the trailing space all survive — the mutation differs from the original in
+// digits and nothing else, which is exactly the difference the normalizer is
+// supposed to tolerate. And the line chosen has at least one NON-ZERO field:
+// an all-zero line is both the commonest in the dump and the weakest choice,
+// since `0` rotating to `1` is a change a reader has to squint at, and the
+// first such line in the file is ambiguous about which interface it came
+// from.
+func advancedCounterLine(t *testing.T, s string) (string, string) {
+	t.Helper()
+
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	rotate := func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return '0' + (r-'0'+1)%10
+		}
+		return r
+	}
+	inStats := false
+	for _, line := range lines {
+		if !inStats {
+			trimmed := strings.TrimSpace(line)
+			inStats = strings.HasPrefix(trimmed, "RX:") || strings.HasPrefix(trimmed, "TX:")
+			continue
+		}
+		inStats = false
+
+		nonZero := false
+		for _, f := range strings.Fields(line) {
+			if strings.TrimLeft(f, "0123456789") != "" {
+				// Not a counter line after all. normalizeLinkStatsText
+				// fails loudly on this; here it only means "keep looking",
+				// because that test's job is to report it and this
+				// helper's is to find an input for it.
+				nonZero = false
+				break
+			}
+			if strings.Trim(f, "0") != "" {
+				nonZero = true
+			}
+		}
+		if nonZero {
+			return line, strings.Map(rotate, line)
+		}
+	}
+	t.Fatalf("no counter line with a non-zero field in ip_link_stats; " +
+		"either the dump changed shape or the capture was taken on an idle guest")
+	return "", ""
 }
 
 // assertLinesEqual reports the FIRST differing line and the counts, rather

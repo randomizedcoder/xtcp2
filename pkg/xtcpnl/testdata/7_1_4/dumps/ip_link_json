@@ -33,6 +33,6 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "be:ad:59:b4:c5:28",
+        "address": "5e:c9:4c:d7:ab:ef",
         "broadcast": "ff:ff:ff:ff:ff:ff"
     } ]

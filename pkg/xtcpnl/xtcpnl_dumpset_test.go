@@ -1149,9 +1149,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: a permanent IPv4 entry decodes dst, lladdr and state",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:1",
+			sidecar:     "ip_neigh_n:192.0.2.50",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[0]
+				ni := neighByDst(t, ns, "192.0.2.50")
 				if ni.Family != unix.AF_INET || ni.Ifindex != 3 || ni.Type != unix.RTN_UNICAST {
 					t.Errorf("family/ifindex/type = %d/%d/%d, want %d/3/%d",
 						ni.Family, ni.Ifindex, ni.Type, unix.AF_INET, unix.RTN_UNICAST)
@@ -1170,9 +1170,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: a stale entry keeps its lladdr, so state is the only thing that distinguishes it",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:2",
+			sidecar:     "ip_neigh_n:192.0.2.51",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[1]
+				ni := neighByDst(t, ns, "192.0.2.51")
 				if ipText(ni.Dst) != "192.0.2.51" || hwAddrString(ni.LLAddr) != "02:00:00:00:00:02" {
 					t.Errorf("dst/lladdr = %s/%s, want 192.0.2.51/02:00:00:00:00:02",
 						ipText(ni.Dst), hwAddrString(ni.LLAddr))
@@ -1185,9 +1185,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: an IPv6 permanent entry decodes the same three attributes",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:4",
+			sidecar:     "ip_neigh_n:2001:db8::50",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[4]
+				ni := neighByDst(t, ns, "2001:db8::50")
 				if ni.Family != unix.AF_INET6 {
 					t.Errorf("Family = %d, want AF_INET6", ni.Family)
 				}
@@ -1203,9 +1203,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "boundary: an incomplete entry has NDA_DST but no hardware address at all",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:3",
+			sidecar:     "ip_neigh_n:192.0.2.52",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[2]
+				ni := neighByDst(t, ns, "192.0.2.52")
 				if ipText(ni.Dst) != "192.0.2.52" {
 					t.Errorf("Dst = %q, want %q", ipText(ni.Dst), "192.0.2.52")
 				}
@@ -1219,18 +1219,31 @@ func TestDumpSetNeigh(t *testing.T) {
 			},
 		},
 		{
+			// Keyed by destination, not by position. This row used to carry
+			// `[]bool{true, false, false, true, true}` against the reply
+			// slice, which silently asserted the kernel's hash order as well
+			// as IsReachable's behavior — and a re-capture that reordered
+			// the dump failed it on the part it was not testing.
+			//
+			// The states are what matter and they cover the split: STALE and
+			// INCOMPLETE are the two reachable-looking states that are not
+			// reachable, and NOARP is the one that is.
 			description: "boundary: IsReachable splits the table the way the doc comment claims, excluding NUD_STALE",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:1-4",
+			sidecar:     "ip_neigh_n",
 			check: func(t *testing.T, ns []NeighInfo) {
-				want := []bool{true, false, false, true, true} // PERMANENT, STALE, INCOMPLETE, NOARP, PERMANENT
-				if len(ns) != len(want) {
-					t.Fatalf("got %d replies, want %d", len(ns), len(want))
+				want := map[string]bool{
+					"192.0.2.50":   true,  // PERMANENT
+					"192.0.2.51":   false, // STALE — the whole point of the row
+					"192.0.2.52":   false, // INCOMPLETE
+					"ff02::2":      true,  // NOARP
+					"2001:db8::50": true,  // PERMANENT
 				}
-				for i, w := range want {
-					if got := ns[i].IsReachable(); got != w {
-						t.Errorf("neigh[%d] (%s) IsReachable = %v, want %v",
-							i, NudStateString(ns[i].State), got, w)
+				for dst, w := range want {
+					ni := neighByDst(t, ns, dst)
+					if got := ni.IsReachable(); got != w {
+						t.Errorf("neigh %s (%s) IsReachable = %v, want %v",
+							dst, NudStateString(ni.State), got, w)
 					}
 				}
 			},
@@ -1255,29 +1268,56 @@ func TestDumpSetNeigh(t *testing.T) {
 			filename:    tdDumpGetNeigh_7_1_4,
 			sidecar:     "", // constructed: the kernel does not emit an unknown bit
 			check: func(t *testing.T, ns []NeighInfo) {
-				got := NudStateString(ns[0].State | 0x800)
+				got := NudStateString(neighByDst(t, ns, "192.0.2.50").State | 0x800)
 				if got != "NUD_PERMANENT|0x800" {
 					t.Errorf("NudStateString = %q, want %q", got, "NUD_PERMANENT|0x800")
 				}
 			},
 		},
 		{
-			description: "corner: the dump holds one more reply than ip_neigh_n holds lines, an RTN_MULTICAST entry",
+			// The count relationship is the claim, so the sidecar is COUNTED
+			// rather than a number being written down beside it. It used to
+			// say `const sidecarLines = 4`, which made the row assert the
+			// topology's neighbor count as much as the filtering behavior —
+			// and adding five neighbors broke it while the thing it tests
+			// was unchanged.
+			//
+			// The excess is 2, not 1, as of the capture that added the
+			// flagged entries: `ip neigh show` prints nine lines where the
+			// dump carries eleven replies. The extras are the entries the
+			// default state filter (0xFF & ~NUD_NOARP, ip/ipneigh.c:523)
+			// drops — RTN_MULTICAST entries in NUD_NOARP, which the kernel
+			// reports and `ip` declines to print.
+			description: "corner: the dump holds more replies than ip_neigh_n holds lines, the extras being NUD_NOARP multicast",
 			filename:    tdDumpGetNeigh_7_1_4,
 			sidecar:     "ip_neigh_n",
 			check: func(t *testing.T, ns []NeighInfo) {
-				const sidecarLines = 4
-				if len(ns) != sidecarLines+1 {
-					t.Fatalf("got %d replies, want %d", len(ns), sidecarLines+1)
+				sidecarLines := countLines(t, tdDumpIPNeigh_7_1_4)
+				if len(ns) <= sidecarLines {
+					t.Fatalf("got %d replies and %d sidecar lines; the dump must hold MORE, "+
+						"or there is nothing the state filter is dropping", len(ns), sidecarLines)
 				}
-				extra := ns[3]
-				if extra.Type != unix.RTN_MULTICAST {
-					t.Errorf("neigh[3] ndm_type = %d, want RTN_MULTICAST (%d)",
-						extra.Type, unix.RTN_MULTICAST)
+				hidden := 0
+				for _, ni := range ns {
+					if ni.State&unix.NUD_NOARP == 0 {
+						continue
+					}
+					hidden++
+					if ni.Type != unix.RTN_MULTICAST {
+						t.Errorf("neigh %s is NUD_NOARP but ndm_type = %d, want RTN_MULTICAST (%d)",
+							ipText(ni.Dst), ni.Type, unix.RTN_MULTICAST)
+					}
 				}
-				if ipText(extra.Dst) != "ff02::2" || extra.State != unix.NUD_NOARP {
-					t.Errorf("neigh[3] = %s %s, want ff02::2 NUD_NOARP",
-						ipText(extra.Dst), NudStateString(extra.State))
+				if got := len(ns) - sidecarLines; got != hidden {
+					t.Errorf("dump exceeds the sidecar by %d, but %d replies are NUD_NOARP; "+
+						"something other than the state filter is hiding a line", got, hidden)
+				}
+				// The specific entry the row was written for, still asserted
+				// by name rather than by position.
+				extra := neighByDst(t, ns, "ff02::2")
+				if extra.Type != unix.RTN_MULTICAST || extra.State != unix.NUD_NOARP {
+					t.Errorf("ff02::2 = type %d %s, want RTN_MULTICAST NUD_NOARP",
+						extra.Type, NudStateString(extra.State))
 				}
 			},
 		},
@@ -1310,6 +1350,59 @@ func TestDumpSetNeigh(t *testing.T) {
 			tt.check(t, neighs)
 		})
 	}
+}
+
+// neighByDst returns the entry with the given textual destination, failing the
+// test if it is absent or duplicated.
+//
+// The rows above index neighbors by ADDRESS rather than by position because a
+// neighbor dump has no order to speak of: the kernel walks its hash table, so
+// the sequence is a property of the run and not of the topology. Every one of
+// these rows was originally written as ns[0], ns[1], ns[2], ns[4] and every
+// one of them failed when nltopo::build_clean gained five entries — not
+// because any decoded value changed, but because the entries moved.
+//
+// Requiring exactly one match is the part that keeps this from being a
+// weakening. An indexed lookup at least asserted the reply was THERE; a
+// find-first would quietly pass if the dump held two of something or none of
+// what a later row expects.
+func neighByDst(t *testing.T, ns []NeighInfo, dst string) NeighInfo {
+	t.Helper()
+
+	var found []NeighInfo
+	for _, ni := range ns {
+		if ipText(ni.Dst) == dst {
+			found = append(found, ni)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0]
+	case 0:
+		var have []string
+		for _, ni := range ns {
+			have = append(have, ipText(ni.Dst))
+		}
+		t.Fatalf("no neighbor with dst %s in the dump; it holds %v", dst, have)
+	default:
+		t.Fatalf("%d neighbors with dst %s; the key is meant to be unique", len(found), dst)
+	}
+	return NeighInfo{}
+}
+
+// countLines returns the number of newline-terminated lines in a sidecar, for
+// the rows whose claim is a relationship between a dump and the text `ip`
+// printed from it. Counting beats writing the number down beside the file: a
+// literal is a second copy of a fact the fixture already states, and the two
+// drift on the next capture.
+func countLines(t *testing.T, path string) int {
+	t.Helper()
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bytes.Count(b, []byte("\n"))
 }
 
 // ---------------------------------------------------------------------------

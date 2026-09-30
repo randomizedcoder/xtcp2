@@ -152,9 +152,19 @@ func (t *LLTab) NameToIndex(name string) int32 {
 	return t.byName[name]
 }
 
-// IndexToType returns the cached ifi_type, or 0. `ip` reads it through
-// ll_index_to_type for address rendering, where the ARPHRD_* of the *link*
-// decides how an IFA_ADDRESS is formatted.
+// IndexToType returns the cached ifi_type, or 0, as ll_index_to_type does.
+//
+// Its one caller is the neighbor renderer. An earlier version of this comment
+// said `ip` read it "for address rendering, where the ARPHRD_* of the link
+// decides how an IFA_ADDRESS is formatted", which was wrong twice over:
+// IFA_ADDRESS is an IP address and never goes near ll_addr_n2a, and
+// ll_index_to_type has exactly two call sites in iproute2, both in
+// ip/ipneigh.c — :292 in print_neigh_brief and :430 in print_neigh. A link
+// formats its own hardware address with the ifi_type already on the message
+// it is holding and needs no lookup; a neighbor has no type of its own, and
+// that is the only reason this method exists.
+//
+// It had zero callers for as long as that comment stood. See render.NameTab.
 func (t *LLTab) IndexToType(idx int32) uint16 {
 	return t.byIndex[idx].typ
 }
