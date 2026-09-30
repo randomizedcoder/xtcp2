@@ -177,6 +177,34 @@ var commands = withArgs([]Command{
 		Floor: 2, Implemented: true,
 	},
 	{
+		Name: "-d link show", Slug: "link_show_details",
+		// Two, exactly as `link show`, and this time the request is not one
+		// byte different — it is IDENTICAL. show_details is not one of the
+		// two variables iplink_filter_req reads (ip/ipaddress.c:2017-2026),
+		// so `-d link show` and `link show` put the same 40 bytes on the
+		// wire and the kernel answers both the same way.
+		//
+		// # This row is stdout, and it is the widest stdout row in the table
+		//
+		// That makes it the mirror image of `-4 link show`, whose whole value
+		// is on the request side because its output is identical. Here the
+		// request comparison is a control — it should be byte-identical to
+		// link_show's, and a goip that changed a request byte for -d would be
+		// wrong — while the output grows by sixteen tokens per link, two of
+		// them opening continuation lines.
+		//
+		// # Why it is worth a live triple when eight goldens already exist
+		//
+		// TestLinkShowDetailMatchesSidecar compares the same render against
+		// the committed ip_link_n, and has to substitute one field to do it:
+		// nlmon0's promiscuity, which the pcap records as 1 because tcpdump
+		// was listening and the text sidecar records as 0 because it was not.
+		// Here both sides run inside one capture window, so the substitution
+		// is unnecessary and the comparison is exact — the only place in the
+		// project where that field is checked rather than excused.
+		Floor: 2, Implemented: true,
+	},
+	{
 		Name: "link show dev", Slug: "link_show_dev",
 		NeedsDev: true,
 		// Four datagrams, not two: this command sends TWO single-gets, each
@@ -203,6 +231,25 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "-6 addr show", Slug: "addr_show_v6",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d addr show", Slug: "addr_show_details",
+		// Four, the same as `addr show`: -d reaches no request.
+		//
+		// # The row that isolates do_link
+		//
+		// Its output is `-d link show`'s detail run minus exactly one token,
+		// addrgenmode, because print_af_spec is guarded on `do_link &&
+		// tb[IFLA_AF_SPEC]` (ip/ipaddress.c:1185-1186) and do_link is set
+		// only by the `ip link show` entry point (:2417). The same variable
+		// also removes `mode DEFAULT` from the stanza line, so one flag
+		// accounts for two absences in two different parts of the output.
+		//
+		// Worth its own triple because goip passes that flag explicitly —
+		// obj_addr calls WithDetail(li, false) where obj_link calls it with
+		// true — and an inverted argument would show up here and in exactly
+		// one committed golden.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -261,6 +308,35 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "-d route show", Slug: "route_show_details",
+		// Four, the same as `route show`, and the request is identical:
+		// show_details reaches nothing iproute_dump_filter writes.
+		//
+		// # A different KIND of -d from the link one
+		//
+		// The link object's -d adds attributes to the output. This one adds
+		// nothing new at all — it UNSUPPRESSES four tokens the plain form
+		// hides because their value is the default: the route type at
+		// ip/iproute.c:828, `table` at :903, `proto` at :909 and `scope` at
+		// :916, each behind the identical guard `(X != DEFAULT ||
+		// show_details > 0)`.
+		//
+		// So the delta on this topology is `unicast` on all six lines and
+		// `proto boot scope global` on the five that were defaulting. Every
+		// value involved was already decoded and already correct; what -d
+		// tests is the suppression logic, which nothing else can reach —
+		// a renderer that printed the defaults unconditionally passes every
+		// plain golden only because the guards exist.
+		//
+		// `table main` is NOT in that delta, because the token needs
+		// filter.tb == 0 as well and a bare `route show` defaults it to
+		// RT_TABLE_MAIN. Only `-d route show table all` shows it, which is
+		// why the offline test covers that form and this row does not: the
+		// harness compares one argv, and this is the one whose suppression
+		// arithmetic has three conjuncts rather than two.
+		Floor: 4, Implemented: true,
+	},
+	{
 		Name: "route show dev", Slug: "route_show_dev",
 		NeedsDev: true,
 		// Four: two transactions, each a request and at least one reply
@@ -302,6 +378,31 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d neigh show", Slug: "neigh_show_details",
+		// Four, and the only row in this table whose OUTPUT is expected to
+		// be byte-identical to another row's.
+		//
+		// # A row that asserts an absence, live
+		//
+		// ip/ipneigh.c does not contain the identifier show_details — not
+		// once — so `ip -d neigh show` and `ip neigh show` print the same
+		// bytes. The committed pair agrees: ip_neigh and ip_neigh_n are the
+		// same file.
+		//
+		// That is exactly why it needs a triple rather than a unit test. "-d
+		// changed nothing" and "-d was dropped on the floor" produce the same
+		// goip output here, and the offline test can only compare goip
+		// against goip or against a golden captured from the same claim. This
+		// row compares goip against a LIVE `ip` that was also given -d, which
+		// is the only evidence that the absence is iproute2's and not an
+		// assumption both sides of the fixture inherited.
+		//
+		// It is also the cheapest row to be wrong about: if a future
+		// iproute2 adds a detail token to print_neigh, this fails and the
+		// three other -d rows do not.
 		Floor: 4, Implemented: true,
 	},
 	{

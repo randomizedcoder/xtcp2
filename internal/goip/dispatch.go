@@ -172,6 +172,11 @@ type runCtx struct {
 	// by the time an object runs this is 0 or 1 — but it is counted rather
 	// than set, because the rejection has to be able to tell the difference.
 	showStats int
+	// showDetails counts `-d`, mirroring iproute2's show_details. Unlike
+	// show_stats no site reads it for a value above one, so goip implements
+	// every count it accepts and rejects nothing — see the parsing arm in Run,
+	// and detailed for the predicate the object handlers actually use.
+	showDetails int
 	// seq is the sequence number to put on the next request. iproute2 seeds it
 	// from time(NULL) and increments per request; goip starts at 1 and
 	// increments, because the parity comparator zeroes nlmsg_seq before
@@ -192,6 +197,14 @@ func (c *runCtx) linkExtMask() uint32 {
 	}
 	return req.ExtMaskShow
 }
+
+// detailed is `show_details` as the object handlers want it: a predicate.
+//
+// It exists so that the count-versus-bool question is answered in one place.
+// Every one of iproute2's nine readers tests `show_details` or `show_details >
+// 0` and none tests for two, so a `-d -d` is a `-d` — the opposite of `-s -s`,
+// which selects a different render and which goip therefore refuses.
+func (c *runCtx) detailed() bool { return c.showDetails > 0 }
 
 // nextSeq returns the sequence number for the next request.
 func (c *runCtx) nextSeq() uint32 {

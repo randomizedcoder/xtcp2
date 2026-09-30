@@ -169,7 +169,18 @@ func runNeigh(c *runCtx, args []string) error {
 // the two halves of :335-339 are what make the command work. Writing the skip
 // as "NUD_NOARP only" would pass the proxy rows through for the wrong reason
 // and would silently let a genuine state-0 non-proxy entry through too, so it
-// is written out in full.
+// # `-d` reaches nothing here, and that is a property worth asserting
+//
+// This function takes no show_details and passes none on, because ip/ipneigh.c
+// does not contain the identifier. `ip neigh show` is the only object goip
+// implements whose output -d leaves byte-identical, and the committed pair says
+// so with no diff at all: ip_neigh and ip_neigh_n are the same file.
+//
+// It is a real coverage row rather than a triviality, because "-d changed
+// nothing" and "-d was dropped on the floor" produce the same output for this
+// command and different output for the other three. See
+// TestNeighShowIgnoresDetails, which asserts the equality against the same
+// invocation that proves -d is wired up at all.
 func neighShow(c *runCtx, sel neighSelectors) error {
 	svc := service.New(c.src, c.nextSeq)
 

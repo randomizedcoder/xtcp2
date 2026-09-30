@@ -73,6 +73,153 @@ const (
 	IfOperUp             uint8 = 6
 )
 
+// IflaNetnsImmutable is IFLA_NETNS_IMMUTABLE, the u8 behind `ip -d`'s
+// "netns-immutable" token. Declared here because golang.org/x/sys/unix does not
+// export it, as NdaFlagsExt is in xtcpnl_ndmsg.go.
+//
+// The value is 67, and it is the one detail attribute whose number had to be
+// counted rather than looked up. x/sys stops four short of it: its IFLA_* run
+// ends at IFLA_GRO_IPV4_MAX_SIZE = 0x40, and the enum continues IFLA_DPLL_PIN
+// 65, IFLA_MAX_PACING_OFFLOAD_HORIZON 66, IFLA_NETNS_IMMUTABLE 67,
+// IFLA_HEADROOM 68, IFLA_TAILROOM 69. TestIflaNetnsImmutableValue pins that
+// offset against the last constant x/sys does define.
+//
+// The count is also confirmed on the wire, which is worth more than the
+// arithmetic: in netlink_route_getlink.pcap attribute 67 arrives as a u8 equal
+// to 1 on lo and 0 on nlmon0 and goip0, and the committed ip_link_n sidecar
+// prints "netns-immutable" on lo and on neither of the others. A miscount would
+// have to reproduce that split by accident.
+//
+// Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/if_link.h
+const IflaNetnsImmutable uint16 = 67
+
+// IN6_ADDR_GEN_MODE_* are IFLA_INET6_ADDR_GEN_MODE's values — `ip -d`'s
+// "addrgenmode" token. x/sys/unix exports the attribute type and none of the
+// values.
+//
+// Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/if_link.h
+const (
+	In6AddrGenModeEUI64         uint8 = 0
+	In6AddrGenModeNone          uint8 = 1
+	In6AddrGenModeStablePrivacy uint8 = 2
+	In6AddrGenModeRandom        uint8 = 3
+)
+
+// U32Attr is a __u32 attribute whose ABSENCE and whose ZERO render differently.
+//
+// LinkInfo spells that distinction as an `X uint32` beside a `HasX bool` — see
+// MTU/HasMTU, TxQLen/HasTxQLen, Group/HasGroup. This type exists because
+// LinkDetail below needs the same distinction ten times over, and twenty
+// parallel fields is a wall rather than a struct. Where there is one of
+// something the pair reads better; where there are ten, a named type does.
+//
+// The distinction is not theoretical here, and it is not "zero is rare" either:
+// `ip -d link show` prints "promiscuity 0 allmulti 0 minmtu 0 maxmtu 0" on lo,
+// so zero is the COMMON rendered value. What has to be told apart from it is a
+// reply that carried no such attribute at all — which is every link in an
+// AF_INET6 link dump, whose six attributes are listed at LinkInfo.TxQLen. The
+// committed ip_addr_v6_n sidecar is that case rendered: `ip -d -6 addr show`
+// restores the link/ line and prints not one detail token after it.
+type U32Attr struct {
+	Value   uint32
+	Present bool
+}
+
+// setU32 fills a from the first four bytes of val, or leaves it absent when the
+// attribute is short. A short attribute is treated as absent rather than as
+// zero for the same reason the pair exists at all.
+func (a *U32Attr) setU32(val []byte) {
+	if len(val) < 4 {
+		return
+	}
+	a.Value = binary.LittleEndian.Uint32(val[0:4])
+	a.Present = true
+}
+
+// LinkDetail is the group of attributes print_linkinfo reads only under `ip -d`
+// (ip/ipaddress.c:1153-1284), kept together because they are decoded
+// unconditionally and rendered conditionally.
+//
+// # The attributes arrive whether or not -d was asked for
+//
+// Nothing in the request selects them: `ip link show` and `ip -d link show`
+// send the same 40-byte datagram, because show_details never reaches filt_mask
+// (ip/ipaddress.c:2017-2026 tests filter.vfinfo and show_stats and nothing
+// else). Every reply in netlink_route_getlink.pcap already carries all of
+// these. So -d is a pure render flag, and the whole of its cost is here and in
+// render.LinkDetailView — which is why `ip -d link show` needed no capture.
+//
+// # Field order is print order
+//
+// The fields are in the order print_linkinfo emits them, which is a contract
+// and not a preference: the tokens run together on one line, so a renderer that
+// walks this struct in declaration order produces the right line. The two runs
+// of U32Attr are contiguous for the same reason — render walks each as a table.
+//
+// # What is deliberately not here
+//
+// IFLA_DPLL_PIN, IFLA_MAX_PACING_OFFLOAD_HORIZON, IFLA_HEADROOM and
+// IFLA_TAILROOM all arrive in the committed dump and none is decoded, because
+// iproute2 7.1.0 — the pinned version — prints none of them.
+//
+// IFLA_DPLL_PIN is the one worth a sentence, because the reference clone at
+// ~/Downloads/iproute2 is 7.2.0 and 7.2.0 DOES print it: the `dpll-pin` block
+// was added after the pin. It would print nothing here anyway, because in the
+// committed dump the attribute arrives as a ZERO-LENGTH nest on all three
+// links and the token needs DPLL_A_PIN_ID inside it. Two independent reasons,
+// and the version one is the decisive one.
+//
+// The per-kind IFLA_INFO_DATA blob is also not here; see LinkInfo.HasInfoData
+// for why its PRESENCE is recorded when its contents are not.
+type LinkDetail struct {
+	// The first run, printed before the link kind.
+	Promiscuity U32Attr // IFLA_PROMISCUITY — "promiscuity %u "
+	AllMulti    U32Attr // IFLA_ALLMULTI — "allmulti %u "
+	MinMTU      U32Attr // IFLA_MIN_MTU — "minmtu %u "
+	MaxMTU      U32Attr // IFLA_MAX_MTU — "maxmtu %u "
+
+	// NetnsImmutable is IFLA_NETNS_IMMUTABLE, and it is a plain bool where
+	// everything around it carries presence, because iproute2 tests the VALUE:
+	// `if (tb[X] && rta_getattr_u8(tb[X]))` (ip/ipaddress.c:1176-1179). All
+	// three links in the committed dump carry the attribute and only lo carries
+	// a 1, so presence would print the token three times where `ip` prints it
+	// once.
+	NetnsImmutable bool
+
+	// AddrGenMode is IFLA_AF_SPEC -> AF_INET6 -> IFLA_INET6_ADDR_GEN_MODE, the
+	// "addrgenmode" token, and it is the only field here that comes from a
+	// two-level nest rather than a top-level attribute.
+	//
+	// It is also the only one `ip addr show` does not print even under -d:
+	// print_af_spec is guarded by `do_link && tb[IFLA_AF_SPEC]`
+	// (ip/ipaddress.c:1185-1186), and do_link is set only by the `ip link show`
+	// entry point. The committed pair says it plainly — ip_link_n has
+	// "addrgenmode eui64" on every link and ip_addr_n has it on none — which is
+	// why render keeps this token behind a flag of its own.
+	AddrGenMode    uint8
+	HasAddrGenMode bool
+
+	// The second run, printed after the link kind.
+	NumTxQueues    U32Attr // IFLA_NUM_TX_QUEUES — "numtxqueues %u "
+	NumRxQueues    U32Attr // IFLA_NUM_RX_QUEUES — "numrxqueues %u "
+	GSOMaxSize     U32Attr // IFLA_GSO_MAX_SIZE — "gso_max_size %u "
+	GSOMaxSegs     U32Attr // IFLA_GSO_MAX_SEGS — "gso_max_segs %u "
+	TSOMaxSize     U32Attr // IFLA_TSO_MAX_SIZE — "tso_max_size %u "
+	TSOMaxSegs     U32Attr // IFLA_TSO_MAX_SEGS — "tso_max_segs %u "
+	GROMaxSize     U32Attr // IFLA_GRO_MAX_SIZE — "gro_max_size %u "
+	GSOIPv4MaxSize U32Attr // IFLA_GSO_IPV4_MAX_SIZE — "gso_ipv4_max_size %u "
+	GROIPv4MaxSize U32Attr // IFLA_GRO_IPV4_MAX_SIZE — "gro_ipv4_max_size %u "
+
+	// The tail, which is physical-device territory: none of these appears on
+	// any link in the 7_1_4 guest topology, and four of them appear in the
+	// 7_1_8 host dump on the three real NICs.
+	PhysPortName     string // IFLA_PHYS_PORT_NAME — "portname %s "
+	PhysPortID       []byte // IFLA_PHYS_PORT_ID — "portid %s ", lower hex
+	PhysSwitchID     []byte // IFLA_PHYS_SWITCH_ID — "switchid %s ", lower hex
+	ParentDevBusName string // IFLA_PARENT_DEV_BUS_NAME — "parentbus %s "
+	ParentDevName    string // IFLA_PARENT_DEV_NAME — "parentdev %s "
+}
+
 // LinkInfo is the subset of an RTM_*LINK message xtcp2 keeps: the interface
 // index, flags, and name (IFLA_IFNAME), used to label addresses/routes per
 // link, plus the state fields a link up/down event turns on.
@@ -132,7 +279,37 @@ type LinkInfo struct {
 	PermAddress []byte
 	Qdisc       string // IFLA_QDISC
 	Kind        string // IFLA_LINKINFO -> IFLA_INFO_KIND
-	Link        int32  // IFLA_LINK — peer/lower interface index
+
+	// SlaveKind is IFLA_LINKINFO -> IFLA_INFO_SLAVE_KIND: what this link is to
+	// its master, rather than what it is in itself. print_linktype emits it as
+	// a second continuation line under -d (ip/ipaddress.c:250-258), so a
+	// bridge port shows "veth" on one line and "bridge_slave" on the next.
+	//
+	// This holds the WIRE value, which for that bridge port is "bridge" and
+	// not "bridge_slave". The suffix lives in iproute2's format string —
+	// `"    %s_slave "` — so it reaches the text form and not the `-j` one,
+	// and reproducing that split is the renderer's job rather than the
+	// decoder's. See render.LinkView.detailText.
+	SlaveKind string
+
+	// HasInfoData and HasInfoSlaveData record that IFLA_INFO_DATA or
+	// IFLA_INFO_SLAVE_DATA was in the nest, without decoding either.
+	//
+	// The contents are out of scope and will stay out of scope: they are the
+	// per-kind blob iproute2 hands to one of forty print_opt implementations,
+	// and reproducing those is a different project from reproducing
+	// print_linkinfo. The PRESENCE is in scope because it is exactly the
+	// condition under which a -d render that stopped at the kind token would be
+	// WRONG rather than merely short — print_linktype prints the kind and then
+	// the whole of print_opt's output on the same line. render.LinkDetailView
+	// reads these to refuse instead of truncating.
+	//
+	// Measured on the corpus: every link in the 7_1_4 guest topology has an
+	// IFLA_LINKINFO holding IFLA_INFO_KIND alone, so nothing there is refused.
+	HasInfoData      bool
+	HasInfoSlaveData bool
+
+	Link int32 // IFLA_LINK — peer/lower interface index
 
 	// HasLink separates "IFLA_LINK absent" from "IFLA_LINK carrying 0", which
 	// are two different renders and not one.
@@ -207,6 +384,10 @@ type LinkInfo struct {
 	// The text form is identical either way, which is exactly why this is
 	// easy to lose.
 	StatsIs64 bool
+
+	// Detail is the `ip -d` attribute group. Always decoded, because the
+	// kernel always sends it; see LinkDetail.
+	Detail LinkDetail
 }
 
 // HWAddr returns the hardware address as `ip` prints it, or "" when
@@ -521,7 +702,7 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 			li.HasLinkNetnsID = true
 		}
 	case uint16(unix.IFLA_LINKINFO):
-		li.Kind = linkInfoKind(val)
+		setLinkInfoNest(li, val)
 	case uint16(unix.IFLA_PROP_LIST):
 		li.AltNames = linkAltNames(val)
 
@@ -535,30 +716,138 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		raw.stats = val
 	case uint16(unix.IFLA_STATS64):
 		raw.stats64 = val
+
+	default:
+		setLinkDetailAttr(&li.Detail, atype, val)
 	}
 }
 
-// linkInfoKind descends IFLA_LINKINFO and returns IFLA_INFO_KIND — "veth",
-// "bridge", "nlmon" — or "" when the nest carries no kind.
+// setLinkDetailAttr applies one RTA to the `ip -d` attribute group.
+//
+// It is split from setLinkAttr rather than folded into it for the reason
+// setLinkAttr itself was split out of ParseNewLink, recorded there: these
+// twenty cases would take that switch's cyclomatic complexity from nineteen to
+// thirty-nine, past the gocyclo ceiling of thirty. Raising the ceiling would be
+// suppressing the finding rather than fixing it; the split is the fix, and it
+// happens to divide the switch exactly where the render does — the attributes a
+// plain `ip link show` reads, and the ones only -d does.
+//
+// Reached from setLinkAttr's default arm, so an attribute belonging to neither
+// group still falls through both and is ignored.
+func setLinkDetailAttr(d *LinkDetail, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.IFLA_PROMISCUITY):
+		d.Promiscuity.setU32(val)
+	case uint16(unix.IFLA_ALLMULTI):
+		d.AllMulti.setU32(val)
+	case uint16(unix.IFLA_MIN_MTU):
+		d.MinMTU.setU32(val)
+	case uint16(unix.IFLA_MAX_MTU):
+		d.MaxMTU.setU32(val)
+
+	case IflaNetnsImmutable:
+		// The value, not the presence — see LinkDetail.NetnsImmutable.
+		if len(val) >= 1 {
+			d.NetnsImmutable = val[0] != 0
+		}
+	case uint16(unix.IFLA_AF_SPEC):
+		setAddrGenMode(d, val)
+
+	case uint16(unix.IFLA_NUM_TX_QUEUES):
+		d.NumTxQueues.setU32(val)
+	case uint16(unix.IFLA_NUM_RX_QUEUES):
+		d.NumRxQueues.setU32(val)
+	case uint16(unix.IFLA_GSO_MAX_SIZE):
+		d.GSOMaxSize.setU32(val)
+	case uint16(unix.IFLA_GSO_MAX_SEGS):
+		d.GSOMaxSegs.setU32(val)
+	case uint16(unix.IFLA_TSO_MAX_SIZE):
+		d.TSOMaxSize.setU32(val)
+	case uint16(unix.IFLA_TSO_MAX_SEGS):
+		d.TSOMaxSegs.setU32(val)
+	case uint16(unix.IFLA_GRO_MAX_SIZE):
+		d.GROMaxSize.setU32(val)
+	case uint16(unix.IFLA_GSO_IPV4_MAX_SIZE):
+		d.GSOIPv4MaxSize.setU32(val)
+	case uint16(unix.IFLA_GRO_IPV4_MAX_SIZE):
+		d.GROIPv4MaxSize.setU32(val)
+
+	case uint16(unix.IFLA_PHYS_PORT_NAME):
+		d.PhysPortName = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_PHYS_PORT_ID):
+		d.PhysPortID = CopyBytes(val)
+	case uint16(unix.IFLA_PHYS_SWITCH_ID):
+		d.PhysSwitchID = CopyBytes(val)
+	case uint16(unix.IFLA_PARENT_DEV_BUS_NAME):
+		d.ParentDevBusName = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_PARENT_DEV_NAME):
+		d.ParentDevName = string(bytes.TrimRight(val, "\x00"))
+	}
+}
+
+// setAddrGenMode descends IFLA_AF_SPEC to the one value inside it that `ip -d`
+// prints.
+//
+// Two levels, and the outer one is not a plain nest: IFLA_AF_SPEC's entries are
+// keyed by ADDRESS FAMILY rather than by an IFLA_* attribute type, so the entry
+// wanted is `AF_INET6` (10) and the sibling `AF_INET` (2) — 140 bytes of
+// devconf in the committed dump — is not an attribute type at all. iproute2
+// says the same thing with parse_rtattr_one_nested(AF_INET6, …)
+// (ip/ipaddress.c:158-166). Reading the outer level as IFLA_* would be a
+// type-punning bug that happened to compile.
+//
+// Tolerant of a malformed nest at either level, for the reason recorded at
+// walkNestTolerant: an undecodable devconf blob should cost this one token, not
+// the whole link.
+func setAddrGenMode(d *LinkDetail, val []byte) {
+	walkNestTolerant(val, func(family uint16, afVal []byte) {
+		if family != uint16(unix.AF_INET6) {
+			return
+		}
+		walkNestTolerant(afVal, func(atype uint16, inner []byte) {
+			if atype != uint16(unix.IFLA_INET6_ADDR_GEN_MODE) || len(inner) < 1 {
+				return
+			}
+			if !d.HasAddrGenMode {
+				d.AddrGenMode = inner[0]
+				d.HasAddrGenMode = true
+			}
+		})
+	})
+}
+
+// setLinkInfoNest descends IFLA_LINKINFO and takes the four things this
+// package keeps from it: the kind — "veth", "bridge", "nlmon" — the slave
+// kind, and whether either per-kind data blob was present.
 //
 // This is the first production caller of WalkRTAttrsNested, closing
 // TODO-SOON.md §12. The descent is one level and stops there: IFLA_INFO_DATA is
 // the per-kind blob `ip` hands to one of forty print_opt implementations, and
-// decoding it is explicitly out of scope.
+// decoding it is explicitly out of scope. Its presence is not — see
+// LinkInfo.HasInfoData.
 //
 // A walk error inside the nest is swallowed rather than failing the whole
 // message. That is the same tolerance WalkRTAttrs already applies to a short
 // trailing attribute at the top level, and the alternative — dropping an
 // otherwise good link because a nest it did not need was malformed — is worse
 // for a renderer.
-func linkInfoKind(val []byte) string {
-	var kind string
+func setLinkInfoNest(li *LinkInfo, val []byte) {
 	walkNestTolerant(val, func(atype uint16, inner []byte) {
-		if atype == uint16(unix.IFLA_INFO_KIND) && kind == "" {
-			kind = string(bytes.TrimRight(inner, "\x00"))
+		switch atype {
+		case uint16(unix.IFLA_INFO_KIND):
+			if li.Kind == "" {
+				li.Kind = string(bytes.TrimRight(inner, "\x00"))
+			}
+		case uint16(unix.IFLA_INFO_SLAVE_KIND):
+			if li.SlaveKind == "" {
+				li.SlaveKind = string(bytes.TrimRight(inner, "\x00"))
+			}
+		case uint16(unix.IFLA_INFO_DATA):
+			li.HasInfoData = true
+		case uint16(unix.IFLA_INFO_SLAVE_DATA):
+			li.HasInfoSlaveData = true
 		}
 	})
-	return kind
 }
 
 // walkNestTolerant walks a nested attribute stream and keeps whatever fn

@@ -19,7 +19,7 @@ const (
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
 where  OBJECT := { link | address | route | neigh }
-       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] }
+       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] }
 
 goip is a read-only subset of ip(8), built as a coverage test for
 pkg/xtcpnl. It never creates, deletes or sets anything.
@@ -109,6 +109,22 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			// to say a flag had been dropped. An explicit error names the
 			// missing feature where it was asked for.
 			c.showStats++
+		case matchesPrefix(a, "-details"):
+			// `ip` increments show_details here too (ip/ip.c:235-236), and
+			// unlike -s it is never tested for a count above one: every one of
+			// the nine sites that reads it tests `show_details` or
+			// `show_details > 0`. So `-d -d` is `-d`, and goip counts for the
+			// same reason `ip` does — to have nothing to say about the second
+			// one — rather than needing the count.
+			//
+			// No option earlier in this switch begins with `-d`, so `-d` alone
+			// reaches here, which is the spelling everything in the corpus was
+			// captured with. That is a property of the ORDER of iproute2's
+			// chain (`-loops`, `-family`, `-4`, `-6`, `-0`, `-M`, `-B`,
+			// `-human`, `-iec`, `-stats`, `-details`, …) and not of the
+			// pattern, since matches() is an unanchored prefix test — see
+			// matchesPrefix.
+			c.showDetails++
 		case a == "-h", matchesPrefix(a, "-help"):
 			fmt.Fprint(stdout, usage)
 			return ExitOK

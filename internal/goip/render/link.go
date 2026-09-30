@@ -113,6 +113,25 @@ type LinkView struct {
 	JSONStats64 *LinkStatsJSON `json:"stats64,omitempty"`
 	JSONStats   *LinkStatsJSON `json:"stats,omitempty"`
 
+	// LinkDetailView is the `-d` token run, and nil means "do not print one".
+	//
+	// EMBEDDED, and anonymously, because iproute2 puts every one of these keys
+	// at the TOP level of the link object — print_uint(PRINT_ANY,
+	// "promiscuity", …) opens no JSON object around itself. A named field
+	// would nest them one level down and diverge on every key at once.
+	// encoding/json promotes an embedded struct pointer's fields and skips
+	// them entirely when it is nil, which is exactly the two behaviors wanted.
+	//
+	// Nil-guarded rather than gated on a flag reaching the renderer, for the
+	// same reason LinkView.Stats is — except that here the two conditions come
+	// apart in the opposite direction. A reply carries these attributes
+	// whether or not -d was asked for, always, because show_details never
+	// reaches the request (see xtcpnl.LinkDetail). So the reply half of the
+	// condition is satisfied by every link in the corpus and the caller's half
+	// is the whole of it: only WithDetail sets this, and only the -d path
+	// calls WithDetail.
+	*LinkDetailView
+
 	// nameSuffix is the "@peer" or "@if2" part of the first line. It is not a
 	// JSON field: iproute2 puts the bare ifname in JSON and only concatenates
 	// for the text form (print_name_and_link, lib/utils.c:1302-1344).
@@ -306,10 +325,21 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 // family is the -4/-6/default selection as an AF_*, which for this command
 // reaches the renderer unchanged; `link show`'s AF_PACKET override does not
 // apply here.
-func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8) LinkView {
+//
+// details is show_details, and it belongs to the SECOND difference rather than
+// being a third one: the guard is `if (!filter.family || filter.family ==
+// AF_PACKET || show_details)` (ip/ipaddress.c:1060), so -d is the third way to
+// satisfy it and `ip -d -6 addr show` prints a `link/` line where `ip -6 addr
+// show` prints none. The committed ip_addr_v6_n is that output, and it is the
+// most useful two lines in the corpus for this renderer: the line comes back
+// and NOT ONE detail token comes with it, because an AF_INET6 link dump
+// carries no detail attribute. A renderer that emitted the run from the flag
+// rather than from the attributes passes every other fixture and fails that
+// one.
+func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8, details bool) LinkView {
 	v := LinkViewOf(li, names)
 	v.LinkMode = ""
-	if family != unix.AF_UNSPEC && family != unix.AF_PACKET {
+	if !details && family != unix.AF_UNSPEC && family != unix.AF_PACKET {
 		v.omitLinkLine = true
 		v.LinkType = ""
 		v.Address = ""
@@ -434,6 +464,15 @@ func (v LinkView) Text() string {
 			b.WriteString(" link-netnsid unknown")
 		}
 	}
+	// The `-d` run, and it lands here rather than anywhere else because
+	// print_linkinfo's `if (show_details)` block opens at ip/ipaddress.c:1153
+	// — AFTER the link-netnsid print at :1114 and BEFORE the stats at :1297.
+	// It is not inside the omitLinkLine guard, and the committed goldens are
+	// the proof: `ip -d -6 addr show` restores the link/ line (the guard at
+	// :1060 tests show_details too) but prints no detail token at all,
+	// because an AF_INET6 link dump carries none of the attributes.
+	b.WriteString(v.detailText())
+
 	// Before the altnames, not after, and that order is iproute2's rather
 	// than arbitrary: print_linkinfo emits the stats block at
 	// ip/ipaddress.c:1297-1300 and the IFLA_PROP_LIST altnames at
