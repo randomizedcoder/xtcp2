@@ -60,6 +60,11 @@ var filterMain = RouteShowFilter{Table: unix.RT_TABLE_MAIN}
 // the `table local` token through on the local-table routes.
 var filterAll = RouteShowFilter{Table: 0}
 
+// filterMainDetails and filterAllDetails are the same two commands under -d.
+// See RouteShowFilter.Details for the four guards that weakens.
+var filterMainDetails = RouteShowFilter{Table: unix.RT_TABLE_MAIN, Details: true}
+var filterAllDetails = RouteShowFilter{Table: 0, Details: true}
+
 // mx builds the RouteMetrics a decoded RTA_METRICS would have produced.
 // Pairs are {RTAX_*, value}; the presence bit is set for each, so a metric
 // explicitly set to zero stays distinguishable from an absent one.
@@ -1121,6 +1126,171 @@ func TestGetRealFamily(t *testing.T) {
 			if got := getRealFamily(tc.rtmType, tc.rtmFamily); got != tc.want {
 				t.Errorf("getRealFamily(%d, %d) = %d, want %d",
 					tc.rtmType, tc.rtmFamily, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRouteViewOfTextDetails is `ip -d route show`, which does exactly one
+// thing to a route line: it UNSUPPRESSES four tokens whose value is the
+// default.
+//
+// The rows are paired against TestRouteViewOfText above — same RouteInfo,
+// different filter — because the point is the delta and not the line. Every
+// want here is transcribed from ip_route_main_n or ip_route_table_all_n, and
+// the plain form of the same route is quoted beside it.
+//
+// go test ./internal/goip/render/ -run TestRouteViewOfTextDetails
+func TestRouteViewOfTextDetails(t *testing.T) {
+	tests := []struct {
+		description string
+		in          xtcpnl.RouteInfo
+		filter      RouteShowFilter
+		want        string
+	}{
+		{
+			// ip_route_main:1 "192.0.2.0/24 dev goip0 proto kernel scope link src …"
+			// ip_route_main_n:1 adds only `unicast`, because this route's
+			// proto and scope are already non-default and were already
+			// printed. The narrowest of the four deltas, and the one that
+			// says the guards are independent.
+			description: "positive: a route already showing proto and scope gains only the type token",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_LINK, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_KERNEL,
+				Dst:      v4(192, 0, 2, 0), PrefSrc: v4(192, 0, 2, 1), Oif: 3,
+			},
+			filter: filterMainDetails,
+			want:   "unicast 192.0.2.0/24 dev goip0 proto kernel scope link src 192.0.2.1 \n",
+		},
+		{
+			// ip_route_main:2   "198.18.0.0/24 via 192.0.2.10 dev goip0 "
+			// ip_route_main_n:2 "unicast 198.18.0.0/24 via 192.0.2.10 dev goip0 proto boot scope global "
+			//
+			// Three of the four at once, and the widest delta in the corpus.
+			description: "positive: a default-everything route gains type, proto and scope",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_BOOT,
+				Dst:      v4(198, 18, 0, 0), Gateway: v4(192, 0, 2, 10), Oif: 3,
+			},
+			filter: filterMainDetails,
+			want:   "unicast 198.18.0.0/24 via 192.0.2.10 dev goip0 proto boot scope global \n",
+		},
+		{
+			// ip_route_table_all_n:1 — the fourth token, and the one with an
+			// extra conjunct. `table` needs `filter.tb == 0` as well
+			// (ip/iproute.c:903), so it appears under `table all` and not
+			// under a bare `route show`; the row below is the negative half.
+			description: "positive: under table all, -d adds the table token the main-table default was hiding",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_LINK, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_KERNEL,
+				Dst:      v4(192, 0, 2, 0), PrefSrc: v4(192, 0, 2, 1), Oif: 3,
+			},
+			filter: filterAllDetails,
+			want:   "unicast 192.0.2.0/24 dev goip0 table main proto kernel scope link src 192.0.2.1 \n",
+		},
+		{
+			// ip_route6:1   "2001:db8::/64 dev goip0 proto kernel metric 256 pref medium"
+			// ip_route6_n:1 "unicast 2001:db8::/64 dev goip0 proto kernel scope global metric 256 pref medium"
+			//
+			// The v6 arm, and the token it adds is `scope global` — the NAME
+			// RT_SCOPE_UNIVERSE renders under. That is why every IPv6 line in
+			// ip_route6_n carries it: the kernel sets rtm_scope to UNIVERSE on
+			// v6 routes as a matter of course, so the token is suppressed on
+			// all of them without -d and appears on all of them with it.
+			//
+			// It also lands BEFORE `metric`, which is print_route's order
+			// (:916 then :925) and not a place a v4 row could have checked —
+			// no IPv4 route in the corpus carries both a restored scope and an
+			// RTA_PRIORITY.
+			description: "positive: an IPv6 route gains scope global, and it precedes the metric",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET6, DstLen: 64, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_KERNEL,
+				Dst:      v6(t, "2001:db8::"), Oif: 3,
+				Priority: 256, HasPriority: true,
+				Pref: icmpv6RouterPrefMedium, HasPref: true,
+			},
+			filter: filterMainDetails,
+			want:   "unicast 2001:db8::/64 dev goip0 proto kernel scope global metric 256 pref medium\n",
+		},
+		{
+			// Table 0 is the other conjunct, and it is outside the
+			// parenthesis too: `if (table && …)`. A route with no RTA_TABLE
+			// and rtm_table 0 prints no table token under -d either.
+			description: "boundary: a route in table 0 prints no table token under -d",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: 0,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_BOOT,
+				Dst:      v4(203, 0, 113, 0),
+			},
+			filter: filterAllDetails,
+			want:   "unicast 203.0.113.0/24 proto boot scope global \n",
+		},
+		{
+			// ip_route_table_all_n:9 "local 127.0.0.0/8 dev lo table local proto
+			// kernel scope host src 127.0.0.1" — byte-identical to its plain
+			// form at ip_route_table_all:9. A non-unicast route in a named
+			// table with a non-default proto and scope has all four tokens
+			// already, so -d changes nothing. The only rows in the corpus
+			// where the two goldens agree line for line.
+			description: "negative: a local-table route already prints all four tokens, so -d changes nothing",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 8, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_HOST, Type: unix.RTN_LOCAL,
+				Protocol: unix.RTPROT_KERNEL,
+				Dst:      v4(127, 0, 0, 0), PrefSrc: v4(127, 0, 0, 1), Oif: 1,
+			},
+			filter: filterAllDetails,
+			want:   "local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 \n",
+		},
+		{
+			// `dev` is the token -d does NOT bring back. Its guard is
+			// `filter.oifmask != -1` with no show_details arm at all
+			// (ip/iproute.c:900), which is consistent: the other four hide a
+			// DEFAULT, while this one hides something the user typed. Nothing
+			// in the corpus states this — ip_route_dev is a plain capture —
+			// so the row exists because only the source says it.
+			description: "negative: -d does not restore the dev token a dev selector suppressed",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_BOOT,
+				Dst:      v4(198, 18, 0, 0), Gateway: v4(192, 0, 2, 10), Oif: 3,
+			},
+			filter: RouteShowFilter{Table: unix.RT_TABLE_MAIN, OifMask: true, Details: true},
+			want:   "unicast 198.18.0.0/24 via 192.0.2.10 proto boot scope global \n",
+		},
+		{
+			// The cloned guard is not weakened either: proto and scope live
+			// inside `if (!(rtm_flags & RTM_F_CLONED))` (:905-919), which -d
+			// never reaches. The type token is outside it and still appears,
+			// so this row is also what shows the two guards are nested rather
+			// than parallel.
+			description: "corner: a cloned route gains the type token under -d but still no proto or scope",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Protocol: unix.RTPROT_BOOT, Flags: unix.RTM_F_CLONED,
+				Dst: v4(198, 18, 0, 0), Oif: 3,
+			},
+			filter: filterMainDetails,
+			want:   "unicast 198.18.0.0/24 dev goip0 \n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got := RouteViewOf(tc.in, routeTabNames, tc.filter).Text()
+			if got != tc.want {
+				t.Errorf("Text() =\n  %q\nwant\n  %q", got, tc.want)
 			}
 		})
 	}

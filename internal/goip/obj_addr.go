@@ -224,6 +224,9 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 	if c.family != unix.AF_PACKET {
 		links = filterLinksWithAddrs(links, addrs, c.family)
 	}
+	if err := checkDetailSupported(c, links); err != nil {
+		return err
+	}
 
 	// Both of these loops, and the two in filterLinksWithAddrs below, range by
 	// index rather than by value. Both resource structs are large, and an
@@ -232,8 +235,22 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 	// read two integer fields off each.
 	groups := make([]render.AddrGroupView, 0, len(links))
 	for i := range links {
+		// Two different flags on two lines, and they are easy to read as one.
+		//
+		// LinkViewForAddr's last argument is show_details, which here restores
+		// the `link/` line that -4 and -6 suppress (ip/ipaddress.c:1060).
+		// WithDetail's is do_link, which is FALSE on this path however many
+		// -d's were given: do_link is set by the `ip link show` entry point
+		// alone (:2417), and it suppresses exactly one token of the detail
+		// run, addrgenmode, via print_af_spec's guard at :1185-1186. The
+		// committed pair is the evidence — ip_link_n has addrgenmode on every
+		// link and ip_addr_n on none.
+		lv := render.LinkViewForAddr(links[i], c.lltab, c.family, c.detailed())
+		if c.detailed() {
+			lv = lv.WithDetail(links[i], false)
+		}
 		g := render.AddrGroupView{
-			LinkView: render.LinkViewForAddr(links[i], c.lltab, c.family),
+			LinkView: lv,
 			// Non-nil so the JSON is `"addr_info": []` rather than null for a
 			// link with no addresses. iproute2 opens the array
 			// unconditionally (open_json_array at the top of

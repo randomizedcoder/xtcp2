@@ -1047,15 +1047,50 @@ func TestParseNewLink(t *testing.T) {
 			// A nest carrying only IFLA_INFO_DATA — which is what `ip` hands to
 			// one of its forty per-kind print_opt bodies, and which this package
 			// deliberately does not decode.
-			description: "corner: IFLA_LINKINFO with no IFLA_INFO_KIND leaves Kind empty",
+			//
+			// The four bytes stay undecoded and HasInfoData records that they
+			// were there, which is the distinction `-d` turns into behavior:
+			// goip refuses a detail render for this link rather than printing
+			// a kind token where `ip` prints a kind token plus print_opt's
+			// whole output on the same line. See checkDetailSupported.
+			description: "corner: IFLA_LINKINFO with no IFLA_INFO_KIND leaves Kind empty but records the data",
 			body: concat(
 				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 17, unix.IFF_UP),
 				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04})),
 			),
-			want: LinkInfo{Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+			want: LinkInfo{
+				Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				HasInfoData: true,
+			},
 		},
 		{
-			// A malformed nest must not fail the whole link. linkInfoKind
+			// The bridge-port shape, and the row that says the two kinds are
+			// not alternatives: print_linktype emits IFLA_INFO_KIND on one
+			// continuation line and IFLA_INFO_SLAVE_KIND on the next
+			// (ip/ipaddress.c:221-223, :250-257), so veth179a698 in the 7_1_8
+			// sidecar reads "    veth " and then "    bridge_slave …".
+			//
+			// Both data blobs are present here too, and each is recorded
+			// separately: a link can carry slave data without carrying its own,
+			// and the two refusals name different kinds.
+			description: "positive: IFLA_LINKINFO carries a kind and a slave kind, with both data blobs",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 19, unix.IFF_UP),
+				rtattr(unix.IFLA_LINKINFO, concat(
+					rtattr(unix.IFLA_INFO_KIND, append([]byte("veth"), 0)),
+					rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04}),
+					rtattr(unix.IFLA_INFO_SLAVE_KIND, append([]byte("bridge_slave"), 0)),
+					rtattr(unix.IFLA_INFO_SLAVE_DATA, []byte{0x05, 0x06, 0x07, 0x08}),
+				)),
+			),
+			want: LinkInfo{
+				Index: 19, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				Kind: "veth", SlaveKind: "bridge_slave",
+				HasInfoData: true, HasInfoSlaveData: true,
+			},
+		},
+		{
+			// A malformed nest must not fail the whole link. setLinkInfoNest
 			// swallows the walk error, so the message still decodes and only the
 			// kind is lost — dropping an otherwise good link because a nest it
 			// did not need was truncated is worse for a renderer.

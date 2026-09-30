@@ -72,6 +72,10 @@ func linkShow(c *runCtx, args []string) error {
 	}
 	c.lltab.Fill(links)
 
+	if err := checkDetailSupported(c, links); err != nil {
+		return err
+	}
+
 	// Ranged by index: both structs are deliberately large, so the value form
 	// of either loop would copy the whole resource once per link for nothing.
 	views := make([]render.LinkView, 0, len(links))
@@ -79,6 +83,9 @@ func linkShow(c *runCtx, args []string) error {
 		v := render.LinkViewOf(links[i], c.lltab)
 		if c.showStats > 0 {
 			v = v.WithStats(links[i])
+		}
+		if c.detailed() {
+			v = v.WithDetail(links[i], true)
 		}
 		views = append(views, v)
 	}
@@ -150,15 +157,73 @@ func linkShowDev(c *runCtx, name string) error {
 	c.lltab.Fill([]xtcpnl.LinkInfo{link})
 	resolveLinkRefs(c, svc, link)
 
+	if err := checkDetailSupported(c, []xtcpnl.LinkInfo{link}); err != nil {
+		return err
+	}
+
 	view := render.LinkViewOf(link, c.lltab)
 	if c.showStats > 0 {
 		view = view.WithStats(link)
+	}
+	if c.detailed() {
+		view = view.WithDetail(link, true)
 	}
 	if c.json {
 		return json.NewEncoder(c.out).Encode([]render.LinkView{view})
 	}
 	_, err = fmt.Fprint(c.out, view.Text())
 	return err
+}
+
+// checkDetailSupported refuses `-d` on a link whose kind would have made
+// iproute2 print more than the kind token.
+//
+// # Why this refuses rather than printing a short line
+//
+// print_linktype emits the kind and then, on the SAME line, the whole output
+// of that kind's print_opt (ip/ipaddress.c:230-244). Forty of those exist and
+// none is implemented here — see the header of render/link_detail.go for why
+// that boundary is where it is. The consequence is that a link with per-kind
+// data has no partially-correct render: a line reading `    bridge ` where
+// `ip`'s reads `    bridge forward_delay 200 hello_time 200 …` is not shorter,
+// it is a different line.
+//
+// So this follows the `-s -s` precedent rather than the usual omitempty one.
+// An explicit error names the missing feature at the point it was asked for;
+// a plausible-looking wrong line reaches the parity harness as a stdout
+// divergence with nothing in the report to say that a subsystem is absent
+// rather than buggy.
+//
+// # The condition is the data, not a list of kinds
+//
+// Tested on IFLA_INFO_DATA / IFLA_INFO_SLAVE_DATA being present rather than on
+// li.Kind appearing in a table of the kinds iproute2 has a print_opt for. A
+// table would go stale every time iproute2 gained an iplink_*.c, and it would
+// be wrong in both directions today: `veth` has no print_opt at all, while a
+// kind that has one prints nothing from it when the nest holds no data, since
+// every print_opt begins by testing its argument.
+//
+// Measured on the corpus, which is what makes the refusal cheap: no link in
+// the 7_1_4 guest topology carries either attribute — all three have an
+// IFLA_LINKINFO holding IFLA_INFO_KIND alone, or in lo's case none at all — so
+// `-d link show` and `-d addr show` are refused nowhere the parity harness
+// runs.
+func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
+	if !c.detailed() {
+		return nil
+	}
+	for i := range links {
+		li := &links[i]
+		switch {
+		case li.HasInfoData:
+			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_DATA for kind %q "+
+				"and goip does not: %w", li.Name, li.Kind, ErrNotImplemented)
+		case li.HasInfoSlaveData:
+			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_SLAVE_DATA for slave kind %q "+
+				"and goip does not: %w", li.Name, li.SlaveKind, ErrNotImplemented)
+		}
+	}
+	return nil
 }
 
 // resolveLinkRefs sends the side-gets print_linkinfo issues for the two

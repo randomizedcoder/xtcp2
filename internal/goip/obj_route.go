@@ -238,7 +238,11 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	routes = routeFilter(routes, c.family, sel.Table, oif)
 	resolveRouteNames(c, svc, routes, oif != 0)
 
-	f := render.RouteShowFilter{Table: sel.Table, OifMask: oif != 0}
+	if err := checkRouteDetailSupported(c, routes); err != nil {
+		return err
+	}
+
+	f := render.RouteShowFilter{Table: sel.Table, OifMask: oif != 0, Details: c.detailed()}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
 		views = append(views, render.RouteViewOf(xtcpnl.RouteInfo(routes[i]), c.lltab, f))
@@ -249,6 +253,43 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	for i := range views {
 		if _, werr := fmt.Fprint(c.out, views[i].Text()); werr != nil {
 			return werr
+		}
+	}
+	return nil
+}
+
+// checkRouteDetailSupported refuses `-d` on a dump holding a route that
+// delegates its next hop to a nexthop object.
+//
+// # This one is not a rendering gap, it is a TRANSACTION
+//
+// Under -d, print_route follows RTA_NH_ID: `if (tb[RTA_NH_ID] &&
+// show_details)` calls print_cache_nexthop_id (ip/iproute.c:1002-1004), which
+// on a cache miss calls ipnh_cache_add — and that sends a live RTM_GETNEXTHOP
+// and prints the whole nexthop entry under an "\n\tnh_info " prefix. So -d
+// turns one dump into one dump plus a single-get per distinct nexthop id, and
+// a goip that rendered the routes and skipped the block would diverge on the
+// wire as well as on stdout. That is the harness's highest-value assertion,
+// and failing it silently is worse than not implementing the form.
+//
+// Unreachable on every topology the harness builds: no namespace in
+// netlink-topology.exp creates a nexthop object, so no route in the corpus
+// carries RTA_NH_ID and nothing is refused. It is checked rather than assumed
+// because the check is three lines and the assumption is about a machine this
+// code has not seen.
+//
+// Note that a bare `route show` prints `nhid %u` from the same attribute
+// (ip/iproute.c:859-861, outside the guard) and sends nothing. Only the -d
+// block is a transaction, which is why this refusal is conditioned on the
+// option and not on the attribute.
+func checkRouteDetailSupported(c *runCtx, routes []model.Route) error {
+	if !c.detailed() {
+		return nil
+	}
+	for i := range routes {
+		if routes[i].NhID != 0 {
+			return fmt.Errorf("-d on a route with nhid %d: iproute2 fetches and renders the "+
+				"nexthop object and goip does not: %w", routes[i].NhID, ErrNotImplemented)
 		}
 	}
 	return nil

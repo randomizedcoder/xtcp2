@@ -444,18 +444,23 @@ func TestAllowlistCommitted(t *testing.T) {
 			// was.
 			//
 			// "Clean" is not "silent", and the list stopped being uniform
-			// once `neigh show dev` joined it. Most of these reported control
+			// once `neigh show dev` joined it. Many of these reported control
 			// nl=0 stdout=0 with nothing suppressed at all; `-4 addr show`,
-			// `neigh show` and `neigh show dev` reported nl=2, and `-6 addr
-			// show` carries an allow-suppressed qlen locus. A
-			// control-suppressed locus is absorbed before Result.Findings
-			// exists, so it is not a finding and does not weaken the gate -
-			// the argument is spelled out in goip-parity-allowlist.json's
-			// _comment. What every name here does share is zero FINDINGS.
+			// `neigh show`, `neigh show dev`, `neigh show proxy` and `-d
+			// neigh show` reported nl=2 or more, `-6 addr show` reported
+			// nl=1 on two runs of five and also carries an allow-suppressed
+			// qlen locus. Which names are noisy is a sample and not a
+			// property - `-6 addr show` was quiet on the first two runs and
+			// noisy on the next two - so this list is deliberately not
+			// partitioned into quiet and noisy names. A control-suppressed
+			// locus is absorbed before Result.Findings exists, so it is not
+			// a finding and does not weaken the gate; the argument is
+			// spelled out in goip-parity-allowlist.json's _comment. What
+			// every name here does share is zero FINDINGS.
 			//
 			// The list is spelled out rather than counted. A count would pass
-			// for any fourteen names, and the point of the row is which
-			// fourteen.
+			// for any nineteen names, and the point of the row is which
+			// nineteen.
 			//
 			// It was every command in the table when it was written, which
 			// made the row read as if it could be `len(GatedCommands) ==
@@ -463,7 +468,8 @@ func TestAllowlistCommitted(t *testing.T) {
 			// second has already come true: internal/goipparity owns the
 			// table and imports this package, so reading it back here is an
 			// import cycle; and a newly added command is ungated until its
-			// own Tier C run says otherwise. `-s link show` is that command.
+			// own Tier C run says otherwise. `-s link show` is that command,
+			// and since the four `-d` rows were gated it is the only one.
 			// It is in the table, deliberately absent from the list below,
 			// and is expected to be permanently CONTROL_NOISY - see its
 			// entry in internal/goipparity/commands.go. Spelling the names
@@ -486,12 +492,47 @@ func TestAllowlistCommitted(t *testing.T) {
 					"route show dev",
 					"neigh show",
 					"neigh show dev",
+					"neigh show proxy",
+					"-d link show",
+					"-d addr show",
+					"-d route show",
+					"-d neigh show",
 				}
 				for _, c := range earned {
 					if !a.IsGated(c) {
 						t.Fatalf("GatedCommands = %v, want it to include %q",
 							a.GatedCommands, c)
 					}
+				}
+			},
+		},
+		{
+			// The row above asserts what IS gated; this asserts what is
+			// deliberately NOT, because GOIP_PARITY_UNGATED_CLEAN only means
+			// something while something is ungated. It counts StatusWarn on
+			// commands outside gated_commands
+			// (internal/goipparity/compare.go:265-266, reported at :334-338),
+			// so a list that grew to cover the whole table would make it
+			// vacuously
+			// true - green because nothing is left to warn about, which is
+			// indistinguishable from green because nothing warned. That
+			// happened once already, for the interval when nine commands
+			// were the whole table, and goip-parity-allowlist.json's
+			// _comment records it.
+			//
+			// `-s link show` is the one command held out, and not
+			// arbitrarily: its replies carry live packet and byte counters
+			// by construction, so it is expected to be permanently
+			// CONTROL_NOISY and its steady state has to stay observable. If
+			// a later change gates it, this row should name whatever command
+			// is then being held out rather than be deleted - the property
+			// worth keeping is that the ungated surface is chosen, not that
+			// it is this particular command.
+			description: "negative: the permanently-noisy command is held out, so UNGATED_CLEAN still measures something",
+			check: func(t *testing.T, a *Allowlist) {
+				if a.IsGated("-s link show") {
+					t.Fatalf("GatedCommands = %v, want `-s link show` held out "+
+						"so UNGATED_CLEAN is not vacuously true", a.GatedCommands)
 				}
 			},
 		},

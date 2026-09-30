@@ -359,7 +359,15 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: gated_commands is allowed to be empty, and is the honest state until the live tiers exist",
+			// The description used to say empty "is the honest state until
+			// the live tiers exist". Tier C exists and nineteen of the
+			// table's twenty commands are gated, so the row is no longer
+			// about emptiness being expected — it is about emptiness still
+			// being LEGAL, which matters because this package must not
+			// require production gating policy to be non-empty. Which names
+			// are gated is settled in pkg/nlparity, where the file lives;
+			// what stays here is the log line, deliberately not a failure.
+			description: "boundary: gated_commands is allowed to be empty, so this package never depends on production gating policy",
 			check: func(t *testing.T) {
 				if len(al.GatedCommands) != 0 {
 					t.Logf("gated_commands is now %q; this row is a reminder to "+

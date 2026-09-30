@@ -545,6 +545,40 @@ type RouteShowFilter struct {
 	// a command that named a device. That is iproute2's behavior, not an
 	// oversight reproduced by accident.
 	OifMask bool
+
+	// Details is show_details, and it is the odd one out here: the two fields
+	// above come from the command's arguments and this one from a global
+	// option. It lives in the same struct because it does the same job —
+	// changing what print_route prints about a route rather than which routes
+	// reach it — and because all four of its effects are the same kind of
+	// effect.
+	//
+	// # What -d does to a route is UNSUPPRESS, four times
+	//
+	// print_route hides four tokens whose value is the default, and -d shows
+	// them. Every one of the four guards has the identical shape `(X != DEFAULT
+	// || show_details > 0)`:
+	//
+	//	type   RTN_UNICAST         ip/iproute.c:828
+	//	table  RT_TABLE_MAIN       :903
+	//	proto  RTPROT_BOOT         :909
+	//	scope  RT_SCOPE_UNIVERSE   :916
+	//
+	// So `ip -d route show` turns `192.0.2.0/24 dev goip0 proto kernel scope
+	// link src 192.0.2.1` into `unicast 192.0.2.0/24 …` and, on the routes
+	// that were hiding them, adds `proto boot` and `scope global`. The
+	// committed ip_route_main / ip_route_main_n pair is exactly that diff, on
+	// six routes, and the ip_route_table_all pair adds `table main` on top.
+	//
+	// # The token that this deliberately does NOT unsuppress
+	//
+	// `dev` stays hidden under -d. Its guard is `filter.oifmask != -1` with no
+	// show_details arm at all (:900), which is consistent rather than an
+	// oversight: the other four hide a DEFAULT and -d means "show me the
+	// defaults", while `dev` hides something the user typed on the command
+	// line. The ip_route_dev sidecar is a plain capture, so nothing in the
+	// corpus states this — it comes from the guard.
+	Details bool
 }
 
 // RouteView is one route as `ip route show` presents it.
@@ -633,7 +667,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		Flags: RtFlagTokens(ri.Flags),
 	}
 
-	if ri.Type != unix.RTN_UNICAST {
+	if ri.Type != unix.RTN_UNICAST || f.Details {
 		v.Type = routeTypeName(ri.Type)
 	}
 	switch {
@@ -672,18 +706,28 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	if ri.Oif != 0 && !f.OifMask {
 		v.Dev = tab.IndexToName(int32(ri.Oif))
 	}
-	if ri.Table != 0 && ri.Table != unix.RT_TABLE_MAIN && f.Table == 0 {
+	// Three conjuncts, and -d weakens only the middle one. `if (table &&
+	// (table != RT_TABLE_MAIN || show_details > 0) && !filter.tb)`
+	// (ip/iproute.c:903): table 0 still prints nothing, and a command that
+	// NAMED a table still prints nothing, because both of those are outside
+	// the parenthesis. So `ip -d route show` adds `table main` and `ip -d
+	// route show table main` does not.
+	if ri.Table != 0 && (ri.Table != unix.RT_TABLE_MAIN || f.Details) && f.Table == 0 {
 		v.Table = routeTableName(ri.Table)
 	}
 	// Both of these live inside `if (!(rtm_flags & RTM_F_CLONED))`
 	// (ip/iproute.c:905-919). goip never prints a cloned route — routeFilter
 	// drops it, as `ip` does — so the guard is reproduced for the case where a
 	// caller renders one directly.
+	//
+	// -d weakens the two inner tests and NOT the cloned guard, which is
+	// iproute2's shape exactly (:905-919): a cloned route prints neither token
+	// however many -d's are given.
 	if ri.Flags&unix.RTM_F_CLONED == 0 {
-		if ri.Protocol != unix.RTPROT_BOOT {
+		if ri.Protocol != unix.RTPROT_BOOT || f.Details {
 			v.Protocol = routeProtoName(ri.Protocol)
 		}
-		if ri.Scope != unix.RT_SCOPE_UNIVERSE {
+		if ri.Scope != unix.RT_SCOPE_UNIVERSE || f.Details {
 			v.Scope = scopeName(ri.Scope)
 		}
 	}

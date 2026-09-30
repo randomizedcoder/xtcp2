@@ -1313,7 +1313,7 @@ func TestLinkViewForAddr(t *testing.T) {
 			family:      unix.AF_INET6,
 			wantLines:   1,
 			check: func(t *testing.T, v LinkView, text string) {
-				want := firstLine(LinkViewForAddr(veth, names, unix.AF_UNSPEC).Text())
+				want := firstLine(LinkViewForAddr(veth, names, unix.AF_UNSPEC, false).Text())
 				got := firstLine(text)
 				// AF_UNSPEC keeps link-netnsid on line two; the other
 				// families append it to line one, so compare up to it.
@@ -1327,7 +1327,7 @@ func TestLinkViewForAddr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			v := LinkViewForAddr(veth, names, tt.family)
+			v := LinkViewForAddr(veth, names, tt.family, false)
 			text := v.Text()
 			if n := len(strings.Split(strings.TrimRight(text, "\n"), "\n")); n != tt.wantLines {
 				t.Errorf("stanza has %d lines, want %d:\n%s", n, tt.wantLines, text)
@@ -1499,7 +1499,7 @@ func TestLinkViewForAddrPresence(t *testing.T) {
 				defer func(prev bool) { RenderQlenZero = prev }(RenderQlenZero)
 				RenderQlenZero = true
 			}
-			v := LinkViewForAddr(tt.in, names, tt.family)
+			v := LinkViewForAddr(tt.in, names, tt.family, false)
 			text := v.Text()
 			if tt.check != nil {
 				tt.check(t, v)
@@ -1609,7 +1609,7 @@ func TestAddrGroupViewText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			g := AddrGroupView{
-				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC),
+				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC, false),
 				AddrInfo: tt.addrs,
 			}
 			got := strings.Split(strings.TrimRight(g.Text(), "\n"), "\n")
@@ -1707,7 +1707,7 @@ func TestAddrGroupViewJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			g := AddrGroupView{
-				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC),
+				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC, false),
 				AddrInfo: tt.addrs,
 			}
 			b, err := json.Marshal(g)

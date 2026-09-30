@@ -55,9 +55,15 @@ const wantLinkStanzas = 11
 //
 // nix/capture-netlink-fixtures.nix captures the *pcap* with a plain `ip` but
 // writes its sidecars with `ip -d` (:120-122 vs :128-131) — they are not a
-// matched pair. Diffing goip's output against `ip_link_n` verbatim therefore
-// shows a ~90% difference made entirely of `-d` attributes goip deliberately
-// does not decode.
+// matched pair, so there is no plain 7_1_8 sidecar to diff a plain render
+// against.
+//
+// That WAS two problems and is now one. goip implements -d, so the `-d`
+// attributes are no longer "attributes goip does not decode" and the guest
+// corpus's `_n` sidecars are compared directly by
+// internal/goip/goip_details_test.go. What remains is the missing plain
+// sidecar, which no amount of decoding fixes: the file was never written.
+// Hence the reconstruction, and hence its scope — 7_1_8 only.
 //
 // The in-guest capture does ship matched pairs, and 7_1_4/dumps/ holds them —
 // but 7_1_8 does not and will not, since it was taken on a host that no longer

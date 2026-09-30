@@ -3719,6 +3719,262 @@ reason the mesh namespace is not: it is invisible to the parity tier by
 construction. That remains the standing limitation recorded under
 "the mesh namespace is invisible to every tier".
 
+### `ip -d`: the option that needed no capture, and the eight goldens nobody read
+
+`-d` is the cheapest form in the project and it had been left undone the
+longest. It changes **no request byte**: `show_details` is not one of the two
+variables `iplink_filter_req` reads when it builds `IFLA_EXT_MASK`
+(`ip/ipaddress.c:2017-2026` tests `filter.vfinfo` and `show_stats` and nothing
+else), and it reaches nothing `iproute_dump_filter` or `ipneigh_dump_filter`
+writes. So `ip link show` and `ip -d link show` put the same 40 bytes on the
+wire and the kernel answers both with the same attributes — every one of which
+was already sitting in `netlink_route_getlink.pcap`, decoded by nothing.
+
+The goldens were already there too. `capture-netlink-dumps.exp`'s
+`sidecar_set` writes plain and `-d` **in pairs**, and the `-d` half is the `_n`
+suffix: `ip_link_n`, `ip_addr_n`, `ip_addr_v4_n`, `ip_addr_v6_n`,
+`ip_route_main_n`, `ip_route_table_all_n`, `ip_route6_n`, `ip_neigh_n`. Eight
+files, committed, and read by nothing until `internal/goip/goip_details_test.go`
+existed. The script said so itself — "goip does not implement -d, so that form
+has no counterpart to diff against" — which was accurate and had become the
+reason not to fix it.
+
+#### Four objects, four different kinds of change
+
+The interesting thing about `-d` is that it does something structurally
+different to each object, and only one of the four is what the name suggests.
+
+| object | what `-d` does | where |
+|---|---|---|
+| `link` | **adds** sixteen tokens per link, from attributes already arriving | `ipaddress.c:1153-1284` |
+| `addr` | the same run minus `addrgenmode`, plus it **restores the `link/` line** under `-4`/`-6` | `:1185-1186`, `:1060` |
+| `route` | **unsuppresses** four tokens whose value is the default | `iproute.c:828,903,909,916` |
+| `neigh` | nothing at all | `ipneigh.c` has no `show_details` |
+
+The route column is the one worth dwelling on, because it adds no information:
+every value was already decoded and already correct, and the four guards
+`(X != DEFAULT || show_details > 0)` are the only thing that had never been
+exercised. A renderer that printed `unicast`, `table main`, `proto boot` and
+`scope global` unconditionally passes every plain golden in the corpus.
+
+And the neigh column is not a triviality either. "`-d` changed nothing" and
+"`-d` was dropped on the floor" produce identical goip output for that command
+and only that command, which is why it gets both an offline row
+(`TestNeighShowIgnoresDetails`, three selectors) and a live parity row where a
+real `ip` is given the same flag.
+
+##### `-d -6 addr show` is the row that earns the pointer types
+
+`LinkDetailView` stores every counter as a `*uint32` rather than a `uint32`,
+because **zero is a printed value**: `ip -d link show` opens lo's run with
+`promiscuity 0 allmulti 0 minmtu 0 maxmtu 0`. What has to be distinguished
+from that is an attribute the reply never carried — and the corpus has that
+case, committed, as `ip_addr_v6_n`.
+
+`ip -d -6 addr show` restores the `link/` line, because the guard at `:1060` is
+`(!filter.family || filter.family == AF_PACKET || show_details)` and `-d`
+satisfies the third disjunct — and then prints **not one token after it**. Its
+link dump is `AF_INET6`, the kernel answers that with `inet6_fill_ifinfo`
+(`net/ipv6/addrconf.c`), and that function sends `IFLA_IFNAME`, `IFLA_ADDRESS`,
+`IFLA_MTU`, `IFLA_LINK`, `IFLA_OPERSTATE` and `IFLA_PROTINFO`. None of the
+detail attributes is among them. A renderer keyed on the flag rather than on
+the attributes passes `ip_addr_v4_n` and puts fourteen zeros on that line.
+
+##### Two things the renderer does that look like typos
+
+Both are transcription, and both would have been "cleaned up" by anyone not
+reading the format strings.
+
+`promiscuity`'s format is `" promiscuity %u "` — a **leading** space as well as
+a trailing one, where the thirteen tokens around it have only the trailing one
+(`:1154-1158` against `:1160-1164`). It is the first token of the run and the
+thing before it is the `link/` line's address, which ends without a space, so
+that one character is the entire separator. It also explains the double space
+in `link/netlink  promiscuity 0`, which reads like a mistake until you notice
+nlmon0 has no `IFLA_ADDRESS`: one space closes `"    link/%s "` and the other
+opens the run.
+
+`info_slave_kind`'s format is `"    %s_slave "` (`:254-257`), so the `_slave`
+suffix lives in the **format** and `print_string`'s JSON arm writes the raw
+argument. The same call therefore emits `bridge_slave` to a terminal and
+`bridge` to `ip -j`. `xtcpnl.LinkInfo.SlaveKind` holds the wire value and
+`render` adds the suffix, which is the only split that gets both right.
+
+#### The boundary is enforced, not noted
+
+`IFLA_INFO_DATA` is the per-kind blob `print_linktype` hands to one of forty
+`print_opt` implementations, and it prints **on the same line as the kind
+token**. So a renderer that emitted the kind and stopped would not be short by
+a line, it would emit a line that says something different. `tunnel/ip_link_n:3`
+shows the size of that:
+
+```
+    ipip any remote any local any ttl inherit nopmtudisc numtxqueues 1 …
+```
+
+Everything between `ipip` and `numtxqueues` is `print_opt`. So
+`checkDetailSupported` **refuses** — the `-s -s` precedent, where an explicit
+error names the missing feature at the point it was asked for rather than
+letting a plausible-looking wrong line reach the parity harness as a rendering
+bug.
+
+The condition is `IFLA_INFO_DATA` / `IFLA_INFO_SLAVE_DATA` being **present**,
+not a table of kinds that have a `print_opt`. A table would go stale with every
+new `iplink_*.c` and is wrong in both directions today: `veth` has no
+`print_opt` at all, while a kind that has one prints nothing from it when the
+nest holds no data, since every `print_opt` begins by testing its argument.
+
+Measured, and the measurement is itself a test
+(`TestLinkInfoDataPresenceRealFixture`): **no link in the 7_1_4 clean topology
+carries either attribute**, so the parity harness — which runs only there —
+never meets the refusal. The mesh namespace has three bridges' worth and the
+tunnel namespace has five tunnels' worth, and both are refused.
+
+The route object has a refusal too, and it is a different kind of gap. Under
+`-d`, `print_route` follows `RTA_NH_ID` into `print_cache_nexthop_id`
+(`iproute.c:1002-1004`), which calls `ipnh_cache_add` and **sends a live
+`RTM_GETNEXTHOP`**. So `-d` on such a route turns one dump into a dump plus a
+single-get per distinct nexthop id, and a goip that rendered the routes and
+skipped the block would diverge on the wire as well as on stdout. No topology
+the capture builds creates a nexthop object, so nothing in the corpus reaches
+it; `checkRouteDetailSupported` is three lines and is checked rather than
+assumed.
+
+#### One field the pcap and its sidecar can never agree on
+
+`nlmon0`'s `promiscuity`. It is the interface the capture is taken on: tcpdump
+opens a packet socket, the kernel raises `IFF_PROMISC` for the lifetime of that
+socket, and every reply recorded **inside** a capture window reports 1. The
+text sidecars come from `nlcap`'s `cmd_side`, which runs the command with no
+tcpdump (`nix/microvms/netlink-capture.nix:425-435`), and report 0.
+
+No re-capture reconciles them, because capturing the pcap is what sets the bit.
+It is one field on one interface, it is causal, and it had been invisible for
+the whole life of the corpus — plain `ip link show` prints no promiscuity at
+all, so nothing could see it until this work. Both the 7_1_4 guest pcap and the
+7_1_8 host pcap have it.
+
+The accommodation is stated once, in `sidecarWithCapturePromisc`, and it
+**fails if it finds nothing to rewrite** — so a corpus that ever stopped
+needing it fails rather than passing while still carrying the excuse.
+
+**The parity tier is unaffected**, and that is the useful half: `capio` runs
+`ip`, `goip` and `ip` again all inside capture windows, so all three see 1 and
+the field is compared exactly. It is the only place in the project where that
+field is checked rather than excused.
+
+##### Related, and already known: `qlen` on `-6 addr show` is an ioctl
+
+While establishing the above, the same `ip -d -6 addr show` comparison turned
+up a `qlen 1000` goip does not print. That one is **not** new: iproute2
+7.1.0's `print_queuelen` falls back to `ioctl(SIOCGIFTXQLEN)` when
+`IFLA_TXQLEN` is absent, and an `AF_INET6` link dump never carries it. There is
+nothing in the netlink reply for goip to have missed.
+`internal/goipparity/stdout.go:63-68` already says exactly this and the
+allowlist already carries the `stdout:` entry that keeps `-6 addr show`
+gateable over it; `sidecarWithoutIoctlQlen` is the offline half of the same
+accommodation.
+
+Worth recording separately: the fallback is **gone in iproute2 7.2.0**, and the
+reference clone at `~/Downloads/iproute2` is 7.2.0 while the pin is 7.1.0. The
+`print_linkinfo` detail block is otherwise byte-identical between the two —
+the only other differences are a `print_hexstring` refactor with the same
+output and `IFLA_DPLL_PIN`, which 7.2.0 added and 7.1.0 does not print at all.
+So the transcription above is correct for the pin, and `IFLA_DPLL_PIN` is out
+of scope for two independent reasons rather than one.
+
+#### What is asserted, and where
+
+- `pkg/xtcpnl/xtcpnl_link_detail_test.go` — `TestSetLinkDetailAttr` over
+  synthetic attributes (short payload absent, over-long truncating, `0xFFFFFFFF`
+  unsigned, the family-keyed `IFLA_AF_SPEC` outer level, a malformed nest
+  costing one token); `TestParseNewLinkDetailRealFixture` over the 7_1_8 host
+  dump, which is the only corpus with `portname`, `switchid`, `parentbus` and
+  `parentdev` on it; `TestIflaNetnsImmutableValue`, which pins 67 relative to
+  the last `IFLA_*` x/sys defines.
+- `internal/goip/render/link_detail_test.go` — the token run on its own,
+  including the two transcription traps above and `addrGenModeName`'s
+  `%#.2hhx` default arm, verified against a C reference.
+- `internal/goip/render/route_test.go` — `TestRouteViewOfTextDetails`, eight
+  rows paired against their plain siblings, including the three tokens `-d`
+  does **not** restore (`dev`, and `proto`/`scope` on a cloned route).
+- `internal/goip/goip_details_test.go` — eight end-to-end sidecar comparisons,
+  the two refusals, and the option spelling.
+- `internal/goipparity/commands.go` — four live rows, **gated**, but only
+  after two runs measured them ungated first. See the allowlist's `_comment`
+  for the measurements behind that.
+
+##### What the live tier measured
+
+Five runs now: two with the rows ungated, then three with them gated. The
+gated pair that carries the bar is the second and third, which ran back to
+back with **no edit of any kind between them** — two runs on one tree rather
+than on trees differing by comments, which is what the first pair could only
+claim. Every run: twenty `PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`,
+`OVERALL_PASS`, `DRIVER_PASS`.
+
+| command | txns | control | stdout bytes ×3 sides |
+|---|---|---|---|
+| `-d link show` | 1 = 1 | `nl=0 stdout=0` | 1194 |
+| `-d addr show` | 2 = 2 | `nl=0 stdout=0` | 1685 / 1687 / 1686 / 1687 / 1687 |
+| `-d route show` | 2 = 2 | `nl=0 stdout=0` | 507 |
+| `-d neigh show` | 2 = 2 | `nl=2 stdout=0` | 575 |
+
+Every column but the last is **unchanged across all five runs**. Three of the
+four cleared `nl=0 stdout=0` with nothing suppressed at all. `-d neigh show`'s
+`nl=2` is the same two loci its three siblings have, on the same `txn[0]`: all
+four send `ll_init_map`'s `0x01` link dump first, so all four get live
+`IFLA_STATS`/`IFLA_STATS64` back.
+
+The gated pair's `GOIP_PARITY` line sets diff on exactly one line — the
+`CONTROL_NOISY` total, 21 against 16 — and the whole delta is `neigh show
+proxy` going 6 → 2 and `-6 addr show` going 1 → 0. Both are pre-existing
+live-counter loci; neither is a `-d` row. A total that moves while every
+command the change touches holds is the shape that number should have.
+
+Three numbers are worth reading rather than skipping.
+
+**`-d addr show`'s byte count**, which took three distinct values over five
+boots while the three sides agreed **exactly** within every run. The variable
+is the dummy's link-local, and the mechanism was computed rather than assumed:
+the address is EUI-64 from a per-boot random MAC, and leading-zero suppression
+across the four derived hextets prints it as 25 characters ~82% of the time,
+24 ~14% and 23 ~3%. A two-character spread over five boots is that
+distribution, not instability.
+
+**`-6 addr show`**, which is the clearest thing in the log about what gating a
+control-noisy command means, and which also corrects an earlier claim. It
+measured `nl=0` on both ungated runs, then `nl=1` on two of the three gated
+ones — so the allowlist's older line that exactly two of the addr/neigh family
+are the `CONTROL_NOISY` ones described a sample, not a property. It is gated,
+and it reported `PASS` every time regardless: `D_control` absorbs the locus
+before `Result.Findings` exists, so the gate has nothing to act on. That is
+the designed behavior observed rather than argued.
+
+Its locus is a mechanism no other noisy locus in the corpus uses. The others
+are `IFLA_STATS`/`IFLA_STATS64` hanging off a link dump; this one is the v6
+device's SNMP counters nested inside `IFLA_PROTINFO`, and it is
+**unconditional**. `inet6_fill_ifla6_attrs` does honor
+`RTEXT_FILTER_SKIP_STATS` (`net/ipv6/addrconf.c:5850`) — but
+`inet6_fill_ifinfo` calls it with a hardcoded mask of `0` (`:6110`), throwing
+away whatever the client asked for. No `ip -6 addr show` can obtain a
+stats-free link dump. It is moot in practice for a second, independent reason
+— `rtnl_linkdump_req_filter_fn` forwards `filter_fn` only for `AF_UNSPEC` and
+`AF_PACKET` (`lib/libnetlink.c:595`), so an `AF_INET6` dump carries no
+`IFLA_EXT_MASK` at all — but the kernel-side hardcode is the half that would
+still hold if iproute2 ever started sending one.
+
+**`-d link show` measured `nl=0`** where `-s link show` measured `nl=2` once
+and `nl=6` four times. That is precisely the distinction the two commands
+exist to draw: `-d` asks for no counters, so its replies carry none to be
+noisy about, while `-s` is noisy by construction.
+
+With these four gated, nineteen of the table's twenty commands gate, and
+`UNGATED_CLEAN` is load-bearing for exactly one — `-s link show`, held out
+deliberately so the sentinel never becomes vacuously true. That holdout is now
+asserted rather than merely intended, by a row in
+`pkg/nlparity/nlparity_allowlist_test.go`.
+
 ### Remaining
 
 The three `route show` forms are **implemented and compared** as of the

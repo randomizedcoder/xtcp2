@@ -262,6 +262,13 @@ proc capture_set {ns subdir dev} {
 # difference made entirely of -d-only attributes the renderer never decodes.
 # Both forms are written, under distinct names: the `_n` suffix keeps meaning
 # `-d`, so existing line-number citations keep their meaning.
+#
+# Every `_n` sidecar below is now READ, by internal/goip/goip_details_test.go
+# — goip implements -d, and the eight of them had been committed and unread
+# since this proc was written. Note the one comparison they cannot make:
+# nlmon0's promiscuity, which a `cap` records as 1 because tcpdump holds a
+# packet socket on it and a `side` records as 0 because it does not. No
+# re-capture reconciles that, since capturing is what sets the bit.
 proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_link                "ip link show"
     side $ns $subdir ip_link_n              "ip -d link show"
@@ -272,8 +279,14 @@ proc sidecar_set {ns subdir dev} {
     # what is being reviewed is the block's LAYOUT - print_stats64 widens
     # every column to the widest value in it (ip/ipaddress.c:530-550), so the
     # whitespace is a function of the traffic and is exactly the part a
-    # renderer gets wrong. No `-d -s` pair: goip does not implement -d, so
-    # that form has no counterpart to diff against.
+    # renderer gets wrong.
+    #
+    # Still no `-d -s` pair, and the reason has changed now that goip has -d.
+    # What that sidecar would add over the two already captured is the ORDER
+    # of the detail run against the stats block, and print_linkinfo settles
+    # that statically: the show_details block closes at ip/ipaddress.c:1284
+    # and __print_link_stats is called at :1297. A capture cannot disagree
+    # with a call order, so it would cost a sidecar to restate one.
     side $ns $subdir ip_link_stats          "ip -s link show"
     side $ns $subdir ip_link_stats_json     "ip -j -p -s link show"
     side $ns $subdir ip_addr                "ip addr show"

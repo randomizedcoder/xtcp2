@@ -90,12 +90,27 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 		t.Fatalf("RTM_NEWLINK count = %d, want 11", len(bodies))
 	}
 
+	// Detail is cleared before comparison, so the rows below say nothing
+	// about it.
+	//
+	// Not a convenience. This test identifies a link by stating ALL of the
+	// fields a link stanza renders from, which is what makes it catch a
+	// decoder that put the right value in the wrong field. Keeping that
+	// property means each want literal has to stay complete — and a complete
+	// one now has to spell out twenty-odd `ip -d` attributes per row, on
+	// eleven rows, none of which is what any row here is asking about.
+	//
+	// The detail group has its own fixture test over the same dump and the
+	// same sidecar: TestParseNewLinkDetailRealFixture. Splitting them is what
+	// keeps each want literal short enough to be checked by eye against the
+	// line of ip_link_n quoted above it.
 	links := make([]LinkInfo, 0, len(bodies))
 	for i, b := range bodies {
 		li, err := ParseNewLink(b)
 		if err != nil {
 			t.Fatalf("ParseNewLink(msg %d): %v", i, err)
 		}
+		li.Detail = LinkDetail{}
 		links = append(links, li)
 	}
 
@@ -249,7 +264,19 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 0, HasTxQLen: true, HasGroup: true,
-				Kind: "veth",
+				// The only link in the corpus with two kinds, and the pair
+				// does not read the way the sidecar does: ip_link_n:30 says
+				// "    bridge_slave state forwarding …" while the wire
+				// attribute holds plain "bridge". The `_slave` lives in
+				// iproute2's format string, so it reaches the text form and
+				// not the JSON one — see render.LinkView.detailText.
+				//
+				// HasInfoSlaveData without HasInfoData is the other half of
+				// the shape: the port's own kind, veth, sends no per-kind
+				// blob, and everything after "bridge_slave" on that line
+				// comes out of the SLAVE blob. It is why this is one of the
+				// four links `goip -d` refuses.
+				Kind: "veth", SlaveKind: "bridge", HasInfoSlaveData: true,
 				Link: 2, HasLink: true, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
 			},
 		},
@@ -274,7 +301,14 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
-				Kind: "bridge",
+				// HasInfoData, with no decoded contents behind it: the nest
+				// holds 800-odd bytes of bridge parameters that
+				// ip_link_n:14 prints in full and this package deliberately
+				// does not decode. Recording the presence is what lets
+				// `goip -d` refuse this link instead of printing a bare
+				// "    bridge " where `ip` prints "    bridge forward_delay
+				// 200 hello_time 200 …".
+				Kind: "bridge", HasInfoData: true,
 			},
 		},
 		{
