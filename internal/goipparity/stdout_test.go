@@ -643,6 +643,11 @@ func TestStdoutRouteFacets(t *testing.T) {
 		// exact map, not a subset: an element appearing twice where it should
 		// appear once is the duplicate-line bug the multisets exist for.
 		want map[string]int
+		// countOnly is for the one facet whose VALUES are random per boot:
+		// the v6 tunnels' permaddr comes from eth_random_addr, so the set
+		// cannot be written down and only its size is stable. Set it instead
+		// of want; zero means "use want".
+		countOnly int
 	}{
 		{
 			description: "positive: every `dev goip0` in ip_route_main is extracted, the five route lines and the two nexthop continuations",
@@ -744,6 +749,77 @@ func TestStdoutRouteFacets(t *testing.T) {
 			want:        map[string]int{},
 		},
 		{
+			// The live one. `neigh show proxy` is gated, and until `proxy`
+			// joined flagTokens the token that distinguishes this command's
+			// output from `neigh show`'s was compared only as part of a line
+			// count. Both golden lines carry it, so the count is two.
+			description: "positive: both proxy entries in ip_neigh_proxy are extracted, on a command that is already gated",
+			golden:      "ip_neigh_proxy",
+			facet:       FacetFlags,
+			want:        map[string]int{"proxy": 2},
+		},
+		{
+			// The A/B that makes the row above mean something: the two
+			// commands walk different kernel tables, and the plain listing
+			// has no proxy entry in it at all. If `proxy` were matching some
+			// substring rather than the flag token, it would fire here too.
+			//
+			// The other three tokens ARE here now, and asserting them by
+			// name is what keeps this a negative about `proxy` rather than
+			// a negative about flags in general. It read `map[string]int{}`
+			// while the topology had no flagged neighbor — an emptiness that
+			// was a fact about the fixture and not about pneigh, and that
+			// would have gone on passing if `proxy` were dropped from
+			// flagTokens entirely.
+			//
+			// The counts come from nltopo::build_clean: `router` on .53, .56
+			// and 2001:db8::53; `extern_learn` on .54 and .56;
+			// `extern_valid` on .55, .56 and 2001:db8::53.
+			description: "negative: the plain ip_neigh listing carries the other flag tokens but no proxy, since pneigh is a different table",
+			golden:      "ip_neigh",
+			facet:       FacetFlags,
+			want: map[string]int{
+				"router": 3, "extern_learn": 2, "extern_valid": 3,
+			},
+		},
+		{
+			description: "positive: the neigh flag run is extracted whole, including the two tokens that come from NDA_FLAGS_EXT",
+			in:          "192.0.2.72 dev goip0 lladdr 02:00:00:00:00:03 router proxy managed extern_learn offload extern_valid STALE \n",
+			facet:       FacetFlags,
+			want: map[string]int{
+				"router": 1, "proxy": 1, "managed": 1,
+				"extern_learn": 1, "offload": 1, "extern_valid": 1,
+			},
+		},
+		{
+			// `offload` is in flagTokens once and serves both vocabularies —
+			// print_rt_flags and print_neigh both spell it that way. This row
+			// checks that the single entry really does cover both, rather
+			// than the route spelling shadowing a neighbor one that was never
+			// added.
+			description: "corner: offload is one element serving both the route and the neighbor vocabulary",
+			in:          "192.0.2.80 dev goip0 offload STALE \n",
+			facet:       FacetFlags,
+			want:        map[string]int{"offload": 1},
+		},
+		{
+			// The word-boundary claim, tested rather than asserted in a
+			// comment. `proxy_arp` and `rt_offload` each contain a shorter
+			// token, and `_` being a word character is the only thing
+			// stopping them matching it. rt_offload IS itself a token, so it
+			// must appear exactly once and not also as `offload`.
+			description: "corner: proxy_arp does not yield proxy, and rt_offload yields itself rather than offload",
+			in:          "192.0.2.81 dev goip0 proxy_arp rt_offload \n",
+			facet:       FacetFlags,
+			want:        map[string]int{"rt_offload": 1},
+		},
+		{
+			description: "negative: a link listing contributes no neighbor flag tokens, so the new entries cannot fire on link show",
+			in:          refLinkShow,
+			facet:       FacetFlags,
+			want:        map[string]int{},
+		},
+		{
 			description: "boundary: empty output yields an empty facet, which is what makes the diff against a non-empty side fire",
 			in:          "",
 			facet:       FacetDevNames,
@@ -773,6 +849,71 @@ func TestStdoutRouteFacets(t *testing.T) {
 			facet:       FacetKeyword("pref"),
 			want:        map[string]int{},
 		},
+		{
+			// The three ll_addr_n2a keywords, against the goldens that
+			// actually contain them. A keyword added to the list but not
+			// matched by the pattern is precisely the silent failure this
+			// test exists for: CompareStdout would stay quiet and read as a
+			// pass.
+			//
+			// tunnel/ip_link is the only golden with `peer`, and it has five
+			// — one per configured tunnel. The five fallback devices take the
+			// `brd` arm instead, which is why this is 5 and not 10.
+			description: "positive: peer is extracted from tunnel/ip_link, once per configured tunnel",
+			golden:      "tunnel/ip_link",
+			facet:       FacetKeyword("peer"),
+			want: map[string]int{
+				"198.51.100.1": 1, "198.51.100.2": 1, "198.51.100.3": 1,
+				"2001:db8:100::1": 1, "2001:db8:100::2": 1,
+			},
+		},
+		{
+			// permaddr prints only where it DIFFERS from the address, so four
+			// of the fourteen links carry it: the v6 tunnels, whose perm_addr
+			// comes from eth_random_addr. The values change every boot, so
+			// this row asserts the count alone.
+			description: "positive: permaddr is extracted from tunnel/ip_link on exactly the four v6 tunnels",
+			golden:      "tunnel/ip_link",
+			facet:       FacetKeyword("permaddr"),
+			countOnly:   4,
+		},
+		{
+			// Eight of the nine entries: 192.0.2.52 is the `nud incomplete`
+			// one, added with no lladdr precisely so an absent NDA_LLADDR
+			// has a positive. That it is the only one missing here is the
+			// assertion — a keyword facet that invented an empty value for
+			// it would show a ninth key.
+			description: "positive: lladdr is extracted from ip_neigh, on the eight entries that have one",
+			golden:      "ip_neigh",
+			facet:       FacetKeyword("lladdr"),
+			want: map[string]int{
+				"02:00:00:00:00:01": 1, "02:00:00:00:00:02": 1, "02:00:00:00:00:03": 1,
+				"02:00:00:00:00:04": 1, "02:00:00:00:00:05": 1, "02:00:00:00:00:06": 1,
+				"02:00:00:00:00:07": 1, "02:00:00:00:00:08": 1,
+			},
+		},
+		{
+			// The type-driven values, which are why lladdr is in the list at
+			// all. A renderer that ignored the device's ifi_type would put
+			// "02:00:00:00" and "20:01:0d:b8:…" here instead, and the facet
+			// now reports the difference rather than missing it.
+			description: "positive: tunnel/ip_neigh's lladdrs are the ll_addr_n2a forms, not colon-hex",
+			golden:      "tunnel/ip_neigh",
+			facet:       FacetKeyword("lladdr"),
+			want:        map[string]int{"2.0.0.0": 1, "2001:db8::63": 1},
+		},
+		{
+			description: "negative: the clean link golden has no peer, because nothing in it is IFF_POINTOPOINT",
+			golden:      "ip_link",
+			facet:       FacetKeyword("peer"),
+			want:        map[string]int{},
+		},
+		{
+			description: "negative: the clean link golden has no permaddr, because no address there differs from its perm_addr",
+			golden:      "ip_link",
+			facet:       FacetKeyword("permaddr"),
+			want:        map[string]int{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -784,6 +925,17 @@ func TestStdoutRouteFacets(t *testing.T) {
 			got, ok := stdoutFacets(in)[tt.facet]
 			if !ok {
 				t.Fatalf("facet %q is not extracted at all; it must be in Facets() or keywords", tt.facet)
+			}
+			if tt.countOnly != 0 {
+				total := 0
+				for _, n := range got {
+					total += n
+				}
+				if total != tt.countOnly {
+					t.Errorf("facet %q has %d values, want %d; whole set %v",
+						tt.facet, total, tt.countOnly, map[string]int(got))
+				}
+				return
 			}
 			if len(got) != len(tt.want) {
 				t.Fatalf("facet %q = %v, want %v", tt.facet, map[string]int(got), tt.want)

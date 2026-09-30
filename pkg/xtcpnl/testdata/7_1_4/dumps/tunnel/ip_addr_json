@@ -190,7 +190,7 @@
         "link_type": "tunnel6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "8255:ed41:439a::",
+        "permaddr": "fa11:56ed:a8ff::",
         "addr_info": [ ]
     },{
         "ifindex": 12,
@@ -206,7 +206,7 @@
         "address": "2001:db8::1",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::1",
-        "permaddr": "86b4:3cd9:becd::",
+        "permaddr": "46f3:2db2:256a::",
         "addr_info": [ ]
     },{
         "ifindex": 13,
@@ -221,7 +221,7 @@
         "link_type": "gre6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "c2c6:281b:be4b::",
+        "permaddr": "ba89:8ae5:c104::",
         "addr_info": [ ]
     },{
         "ifindex": 14,
@@ -237,6 +237,6 @@
         "address": "2001:db8::2",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::2",
-        "permaddr": "deb2:5825:4034::",
+        "permaddr": "c2d6:8874:f73c::",
         "addr_info": [ ]
     } ]

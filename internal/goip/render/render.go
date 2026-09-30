@@ -105,7 +105,7 @@ import (
 var RenderQlenZero = false
 
 // NameTab is what a renderer needs from the interface index cache, and no
-// more: iproute2's ll_index_to_name and ll_index_to_flags.
+// more: iproute2's ll_index_to_name, ll_index_to_flags and ll_index_to_type.
 //
 // It is an interface here rather than a concrete type so this package stays
 // free of the netlink socket the real cache is filled from, and so the
@@ -121,6 +121,23 @@ type NameTab interface {
 	// (lib/ll_map.c:343-352). The -1 is load-bearing and must not be
 	// normalized to 0 — see LinkView's M-DOWN handling.
 	IndexToFlags(idx int32) int64
+
+	// IndexToType returns the cached ifi_type for an index, or 0
+	// (ll_index_to_type, lib/ll_map.c).
+	//
+	// It exists for exactly one caller, and the asymmetry is the reason. A
+	// link renders its own address with its own ifi_type, straight off the
+	// message being printed. A NEIGHBOR has no type of its own — struct ndmsg
+	// carries none — so print_neigh formats NDA_LLADDR with the type of the
+	// neighbor's DEVICE, via ll_index_to_type(r->ndm_ifindex)
+	// (ip/ipneigh.c:428-430). Resolving that needs a lookup, and this is it.
+	//
+	// Unlike IndexToFlags there is no sentinel, and none is needed:
+	// ll_index_to_type answers 0 on a miss, and 0 is ARPHRD_NETROM, which has
+	// no special case in ll_addr_n2a. A cache miss and an unremarkable type
+	// therefore render identically, so nothing downstream has to tell them
+	// apart.
+	IndexToType(idx int32) uint16
 }
 
 // operStates are the RFC 2863 names, indexed by IFLA_OPERSTATE.

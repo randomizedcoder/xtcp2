@@ -365,7 +365,7 @@ func TestHWAddr(t *testing.T) {
 			want:        "c0:00:02:01",
 		},
 		{
-			// The reason llAddrN2A uses netip and not net.IP: net.IP.String()
+			// The reason LLAddrN2A uses netip and not net.IP: net.IP.String()
 			// would answer "1.2.3.4" here, where inet_ntop(AF_INET6) — the
 			// function actually being mirrored — answers this.
 			description: "corner: a v4-mapped 16-byte address keeps its ::ffff: prefix, as inet_ntop does",

@@ -2,7 +2,6 @@ package render
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/netip"
@@ -49,24 +48,35 @@ type NeighView struct {
 	Dev    string `json:"dev,omitempty"`
 	LLAddr string `json:"lladdr,omitempty"`
 
-	// Flags are the print_null tokens of ndm_flags, and they are `json:"-"`
+	// Flags are the print_null tokens of ndm_flags and NDA_FLAGS_EXT, already
+	// merged into print order by NeighFlagTokens, and they are `json:"-"`
 	// for the reason AddrView.Flags is: `ip -j` gives each its own key
 	// (ip/ipneigh.c:440-451). The value is null, not true — print_null is a
 	// different function from print_bool — so MarshalJSON below expands them
 	// rather than a `[]string` tag doing it.
 	Flags []string `json:"-"`
 
-	// State is omitempty because print_neigh guards the whole call on
-	// `if (r->ndm_state)` (:462-463) and print_neigh_state opens the JSON
-	// array from inside it (:239-240). A zero state therefore emits no
-	// "state" key at all, which is not the same as an empty array — and it
-	// is the normal case for a proxy entry, so this is reachable rather than
-	// theoretical.
-	State []string `json:"state,omitempty"`
+	// State is `json:"-"` and hand-written by MarshalJSON for one reason
+	// only: POSITION. print_neigh emits the flag run at :440-451 and the
+	// state at :462-463, in that order, and `ip -j` writes keys in print
+	// order — so "state" has to follow the flags. A struct tag cannot express
+	// that, because the flags are not struct fields; they are expanded from
+	// Flags. Leaving this as `json:"state,omitempty"` put it before every
+	// flag, which was correct-looking for as long as no captured neighbor
+	// carried a flag at all.
+	//
+	// The omitempty it used to carry is reproduced by the length test in
+	// MarshalJSON, and it is load-bearing rather than tidiness: print_neigh
+	// guards the whole call on `if (r->ndm_state)` (:462-463) and
+	// print_neigh_state opens the JSON array from inside it (:239-240). A
+	// zero state emits no "state" key at all, which is not an empty array —
+	// and that is the normal case for a proxy entry, so it is reachable
+	// rather than theoretical.
+	State []string `json:"-"`
 }
 
 func NeighViewOf(n xtcpnl.NeighInfo, names NameTab, f NeighShowFilter) NeighView {
-	v := NeighView{State: neighStates(n.State), Flags: NeighFlagTokens(n.Flags)}
+	v := NeighView{State: neighStates(n.State), Flags: NeighFlagTokens(n.Flags, n.FlagsExt)}
 	if !f.IndexSet && n.Ifindex != 0 {
 		v.Dev = names.IndexToName(n.Ifindex)
 	}
@@ -74,15 +84,18 @@ func NeighViewOf(n xtcpnl.NeighInfo, names NameTab, f NeighShowFilter) NeighView
 		v.Dst = a.String()
 	}
 	if len(n.LLAddr) > 0 {
-		s := hex.EncodeToString(n.LLAddr)
-		var b strings.Builder
-		for i := 0; i < len(s); i += 2 {
-			if i > 0 {
-				b.WriteByte(':')
-			}
-			b.WriteString(s[i : i+2])
-		}
-		v.LLAddr = b.String()
+		// The THIRD consumer of ll_addr_n2a, and the only one that has to go
+		// looking for its type. print_neigh passes
+		// ll_index_to_type(r->ndm_ifindex) (ip/ipneigh.c:428-430) because
+		// struct ndmsg carries no type of its own — so on a tunnel device an
+		// NDA_LLADDR of four bytes is a dotted quad, not colon-hex.
+		//
+		// Note this uses n.Ifindex directly rather than anything derived from
+		// f: the NeighShowFilter suppresses the printed `dev` token, but the
+		// type lookup still happens on the real index. Reusing the suppressed
+		// value here would silently format every entry as ARPHRD_NETROM on
+		// `neigh show dev NAME`.
+		v.LLAddr = xtcpnl.LLAddrN2A(n.LLAddr, names.IndexToType(n.Ifindex))
 	}
 	return v
 }
@@ -103,48 +116,85 @@ func neighStates(state uint16) []string {
 	return parts
 }
 
-// neighFlagNames is the ndm_flags half of print_neigh's flag run
-// (ip/ipneigh.c:440-451), in its source order, which is also its print order.
+// neighFlagNames is print_neigh's flag run (ip/ipneigh.c:440-451) in its
+// source order, which is also its print order.
 //
-// # Why four and not six
+// # Six ifs, but two words
 //
-// The run is six `if`s, but two of them — `managed` (:444-445) and
-// `extern_valid` (:450-451) — test ext_flags, the u32 of NDA_FLAGS_EXT, and
-// not ndm_flags. xtcpnl does not decode that attribute, so those two are
-// unreachable regardless of what this table says; listing them with the wrong
-// source would be worse than omitting them. They stay a reported gap.
+// The run reads like one block of ndm_flags tests and is not. `managed`
+// (:444-445) and `extern_valid` (:450-451) test ext_flags — the u32 of
+// NDA_FLAGS_EXT — while the other four test ndm_flags, and the `ext` column
+// here is which. Keeping them in one table rather than two is what preserves
+// the interleaving: `managed` prints THIRD, between two ndm_flags tokens, and
+// `extern_valid` prints last. Two tables concatenated would put both at one
+// end and quietly reorder any line carrying a bit from each.
+//
+// The bits themselves give no hint of which word they came from, which is why
+// the column is not inferable. NTF_EXT_MANAGED is 1<<0 and so is NTF_USE;
+// testing either against the wrong word matches and prints a token `ip` would
+// not. See the NtfExt* constants in xtcpnl.
 //
 // # The bits this deliberately does not name
 //
 // ndm_flags also carries NTF_USE (0x01), NTF_SELF (0x02), NTF_MASTER (0x04)
-// and NTF_STICKY (0x40). print_neigh prints none of them and emits no residue
-// key for them either, which is the difference from print_ifa_flags and the
-// reason NeighFlagTokens returns one value where IfaFlagTokens returns two:
-// there is nothing to report the leftovers as.
+// and NTF_STICKY (0x40), and ext_flags carries NTF_EXT_LOCKED (1<<1).
+// print_neigh prints none of the five and emits no residue key for them
+// either, which is the difference from print_ifa_flags and the reason
+// NeighFlagTokens returns one value where IfaFlagTokens returns two: there is
+// nothing to report the leftovers as. NTF_EXT_LOCKED is the clearest of them
+// — iproute2 prints it only from bridge/fdb.c:121, because it describes a
+// bridge FDB entry and not a neighbor.
 var neighFlagNames = []struct {
-	bit  uint8
+	bit uint32
+	// ext selects the word: true reads NDA_FLAGS_EXT, false ndm_flags.
+	ext  bool
 	name string
 }{
-	{unix.NTF_ROUTER, "router"},
-	{unix.NTF_PROXY, "proxy"},
-	{unix.NTF_EXT_LEARNED, "extern_learn"},
-	{unix.NTF_OFFLOADED, "offload"},
+	{unix.NTF_ROUTER, false, "router"},
+	{unix.NTF_PROXY, false, "proxy"},
+	{xtcpnl.NtfExtManaged, true, "managed"},
+	{unix.NTF_EXT_LEARNED, false, "extern_learn"},
+	{unix.NTF_OFFLOADED, false, "offload"},
+	{xtcpnl.NtfExtExtValidated, true, "extern_valid"},
 }
 
-// NeighFlagTokens renders ndm_flags as print_neigh's named tokens, in print
-// order. A flags byte with no named bit set returns nil, which prints nothing
-// and emits no JSON key.
-func NeighFlagTokens(flags uint8) []string {
+// NeighFlagTokens renders ndm_flags and NDA_FLAGS_EXT as print_neigh's named
+// tokens, in print order. Two words in, because the six tokens come from two
+// (ip/ipneigh.c:440-451); no named bit set in either returns nil, which prints
+// nothing and emits no JSON key.
+func NeighFlagTokens(flags uint8, flagsExt uint32) []string {
 	var out []string
 	for _, f := range neighFlagNames {
-		if flags&f.bit != 0 {
+		word := uint32(flags)
+		if f.ext {
+			word = flagsExt
+		}
+		if word&f.bit != 0 {
 			out = append(out, f.name)
 		}
 	}
 	return out
 }
 
-// MarshalJSON appends one null-valued member per named ndm_flags bit.
+// MarshalJSON appends one null-valued member per named flag token and then
+// the state array, in the order NeighFlagTokens produced them — which is
+// print_neigh's order across both ndm_flags and NDA_FLAGS_EXT, not one word's
+// and then the other's.
+//
+// # Why state is spliced here rather than tagged
+//
+// Because it comes AFTER the flags. print_neigh's six flag ifs are at
+// :440-451 and the state is at :462-463, `ip -j` writes keys in print order,
+// and a struct tag cannot place a field after members that are not fields.
+// Verified against the pinned iproute2 7.1.0 on a live namespace: `ip -j` for
+// a neighbor with three flags gives
+//
+//	{"dst":…,"dev":…,"lladdr":…,"router":null,"extern_learn":null,
+//	 "extern_valid":null,"state":["PERMANENT"]}
+//
+// The two omitempty rules are therefore hand-written below. They are not the
+// same rule: a flagless neighbor omits every flag key, a zero-state neighbor
+// omits "state", and a proxy entry is both at once.
 //
 // The value is `null` because iproute2 uses print_null, which reaches
 // jsonw_null_field (lib/json_writer.c:336-340) and writes the name followed
@@ -164,7 +214,7 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(v.Flags) == 0 {
+	if len(v.Flags) == 0 && len(v.State) == 0 {
 		return raw, nil
 	}
 	// Dst has no omitempty, so the object always has a member to append to
@@ -184,6 +234,14 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 		b.WriteByte(',')
 		b.Write(key)
 		b.WriteString(":null")
+	}
+	if len(v.State) > 0 {
+		state, err := json.Marshal(v.State)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteString(`,"state":`)
+		b.Write(state)
 	}
 	b.WriteByte('}')
 	return b.Bytes(), nil

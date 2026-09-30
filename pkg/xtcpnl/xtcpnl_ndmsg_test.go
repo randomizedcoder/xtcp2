@@ -333,6 +333,151 @@ func TestParseNeigh(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: NDA_FLAGS_EXT carrying NTF_EXT_MANAGED lands in FlagsExt",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 4)),
+				rtattr(NdaFlagsExt, le32(NtfExtManaged)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst:      v4b(10, 0, 0, 4),
+				FlagsExt: NtfExtManaged,
+			},
+		},
+		{
+			// The row that would catch a single widened flags field. NTF_USE
+			// is bit 0 of ndm_flags and NTF_EXT_MANAGED is bit 0 of
+			// ext_flags; if the decoder OR-ed the two words together, each
+			// would be indistinguishable from the other and the renderer
+			// would print `managed` for an entry that only has NTF_USE.
+			description: "corner: ndm_flags NTF_USE and ext NTF_EXT_MANAGED are both bit 0 and stay in separate fields",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, unix.NTF_USE, 0),
+				rtattr(NdaFlagsExt, le32(NtfExtManaged)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Flags:    unix.NTF_USE,
+				FlagsExt: NtfExtManaged,
+			},
+		},
+		{
+			description: "positive: every defined ext bit at once, including the one ip neigh never prints",
+			body: concat(
+				ndmsgHdr(unix.AF_INET6, 3, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaFlagsExt, le32(NtfExtManaged|NtfExtLocked|NtfExtExtValidated)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET6, Ifindex: 3, State: unix.NUD_PERMANENT,
+				FlagsExt: NtfExtManaged | NtfExtLocked | NtfExtExtValidated,
+			},
+		},
+		{
+			description: "negative: no NDA_FLAGS_EXT leaves FlagsExt zero, which is what ip's ext_flags initializer gives",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, unix.NTF_ROUTER, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 5)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Flags: unix.NTF_ROUTER,
+				Dst:   v4b(10, 0, 0, 5),
+			},
+		},
+		{
+			description: "boundary: a three-byte NDA_FLAGS_EXT is below the u32 guard and decodes as zero",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(NdaFlagsExt, []byte{0x01, 0x00, 0x00}),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+			},
+		},
+		{
+			// A future kernel widening the attribute must not break the
+			// decode of the bits that already exist — the same rule
+			// get_rtnl_link_stats_rta applies to an over-long IFLA_STATS64.
+			description: "boundary: an eight-byte NDA_FLAGS_EXT decodes its first four and ignores the tail",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(NdaFlagsExt, concat(le32(NtfExtExtValidated), le32(0xdeadbeef))),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				FlagsExt: NtfExtExtValidated,
+			},
+		},
+		{
+			// Undefined ext bits are KEPT rather than masked: the decoder's
+			// job is to report the wire, and NeighFlagTokens does the
+			// selecting. Masking here would make a new kernel flag invisible
+			// to a caller that already knows about it.
+			description: "corner: ext bits with no NTF_EXT_* name are preserved rather than masked off",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(NdaFlagsExt, le32(0x8000_0000)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				FlagsExt: 0x8000_0000,
+			},
+		},
+		{
+			// parse_rtattr keeps the FIRST occurrence, and attrSeen mirrors
+			// that for every attribute in this package. NDA_FLAGS_EXT is 15,
+			// comfortably under attrSeen's 64-bit ceiling, so it is tracked
+			// rather than falling through the `atype >= 64` escape — which is
+			// the thing this row would catch if the constant ever grew past
+			// it.
+			description: "corner: a duplicate NDA_FLAGS_EXT keeps the first value, as parse_rtattr does",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(NdaFlagsExt, le32(NtfExtManaged)),
+				rtattr(NdaFlagsExt, le32(NtfExtExtValidated)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				FlagsExt: NtfExtManaged,
+			},
+		},
+		{
+			// The claim NeighInfo.FlagsExt's doc makes, tested rather than
+			// asserted: there is no HasFlagsExt because absent and
+			// present-but-zero are the same to every consumer. This row and
+			// the "negative: no NDA_FLAGS_EXT" row above must produce the
+			// same FlagsExt, and a presence bit would be the one thing that
+			// could tell them apart.
+			description: "boundary: a present-but-zero NDA_FLAGS_EXT is indistinguishable from an absent one",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, unix.NTF_ROUTER, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 5)),
+				rtattr(NdaFlagsExt, le32(0)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Flags: unix.NTF_ROUTER,
+				Dst:   v4b(10, 0, 0, 5),
+			},
+		},
+		{
+			// Distinct from the three-byte row: that one has a payload the
+			// guard rejects, this one has no payload at all. rtattr emits a
+			// bare four-byte header, which the walk must hand over as an
+			// empty value rather than skipping or erroring.
+			description: "boundary: a zero-length NDA_FLAGS_EXT decodes as zero without erroring the message",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(NdaFlagsExt, nil),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 6)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst: v4b(10, 0, 0, 6),
+			},
+		},
+		{
 			description: "corner: one byte short of the ndmsg header -> ErrNdMsgSmall",
 			body:        make([]byte, NdMsgSizeCst-1),
 			wantErr:     ErrNdMsgSmall,
@@ -505,6 +650,149 @@ func TestNeighInfoIsReachable(t *testing.T) {
 			ni := NeighInfo{State: tc.state}
 			if got := ni.IsReachable(); got != tc.want {
 				t.Errorf("IsReachable(%s) = %v, want %v", NudStateString(tc.state), got, tc.want)
+			}
+		})
+	}
+}
+
+// ---- NDA_FLAGS_EXT ----------------------------------------------------------
+
+// TestNdaFlagsExtValue pins the one number in this file that nothing else can
+// check.
+//
+// NdaFlagsExt is hand-declared as 15 because golang.org/x/sys/unix stops its
+// NDA_* run at NDA_SRC_VNI = 11, so the compiler cannot catch a miscount and
+// neither can any capture: an attribute type that is simply wrong does not
+// error, it just never matches, and FlagsExt stays 0 forever while every
+// existing test passes. The failure mode is a silent one, so it gets an
+// explicit test.
+//
+// The rows anchor the value from below (four past the last constant x/sys
+// does define) and fence it off from its neighbors in the enum. The dangerous
+// neighbor is NDA_FDB_EXT_ATTRS at 14: it is a NESTED attribute, so an
+// off-by-one would hand the decoder a nested blob whose first four bytes read
+// as a perfectly plausible flag word.
+//
+// go test ./pkg/xtcpnl/ -run TestNdaFlagsExtValue
+func TestNdaFlagsExtValue(t *testing.T) {
+	// The enum tail x/sys does not carry, from
+	// include/uapi/linux/neighbour.h. NDA_SRC_VNI is the last one it does.
+	const (
+		ndaProtocol     = unix.NDA_SRC_VNI + 1 // 12
+		ndaNhID         = unix.NDA_SRC_VNI + 2 // 13
+		ndaFdbExtAttrs  = unix.NDA_SRC_VNI + 3 // 14
+		ndaFlagsExt     = unix.NDA_SRC_VNI + 4 // 15
+		ndaNdmStateMask = unix.NDA_SRC_VNI + 5 // 16
+	)
+
+	tests := []struct {
+		description string
+		got         uint16
+		want        uint16
+	}{
+		{
+			description: "positive: NdaFlagsExt is four past NDA_SRC_VNI, the last NDA_* x/sys defines",
+			got:         NdaFlagsExt,
+			want:        ndaFlagsExt,
+		},
+		{
+			description: "positive: and that derivation is the literal 15",
+			got:         NdaFlagsExt,
+			want:        15,
+		},
+		{
+			description: "boundary: one below is NDA_FDB_EXT_ATTRS, the nested attribute an off-by-one would decode",
+			got:         NdaFlagsExt - 1,
+			want:        ndaFdbExtAttrs,
+		},
+		{
+			description: "boundary: one above is NDA_NDM_STATE_MASK, not another flag word",
+			got:         NdaFlagsExt + 1,
+			want:        ndaNdmStateMask,
+		},
+		{
+			description: "corner: the skipped middle of the tail is NDA_PROTOCOL then NDA_NH_ID",
+			got:         NdaFlagsExt - 3,
+			want:        ndaProtocol,
+		},
+		{
+			description: "corner: NDA_NH_ID sits between them",
+			got:         NdaFlagsExt - 2,
+			want:        ndaNhID,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Errorf("= %d, want %d", tc.got, tc.want)
+			}
+		})
+	}
+
+	// NdaFlagsExt must not be any attribute type ParseNeigh already handles,
+	// or the switch would have two arms that can never both run. The compiler
+	// does not check a switch on non-constant cases for duplicates, so this
+	// does.
+	for _, known := range []uint16{
+		unix.NDA_DST, unix.NDA_LLADDR, unix.NDA_CACHEINFO, unix.NDA_IFINDEX,
+	} {
+		if NdaFlagsExt == known {
+			t.Errorf("NdaFlagsExt = %d collides with an attribute ParseNeigh already decodes", known)
+		}
+	}
+}
+
+// TestNtfExtBits pins the NDA_FLAGS_EXT bit values and, more importantly, the
+// fact that they are a SEPARATE numbering from the ndm_flags NTF_* set.
+//
+// go test ./pkg/xtcpnl/ -run TestNtfExtBits
+func TestNtfExtBits(t *testing.T) {
+	tests := []struct {
+		description string
+		got         uint32
+		want        uint32
+	}{
+		{
+			description: "positive: NTF_EXT_MANAGED is 1<<0",
+			got:         NtfExtManaged,
+			want:        1,
+		},
+		{
+			description: "positive: NTF_EXT_LOCKED is 1<<1, declared though ip neigh never prints it",
+			got:         NtfExtLocked,
+			want:        2,
+		},
+		{
+			description: "positive: NTF_EXT_EXT_VALIDATED is 1<<2",
+			got:         NtfExtExtValidated,
+			want:        4,
+		},
+		{
+			description: "boundary: the three are disjoint, so a combined word decomposes",
+			got:         NtfExtManaged | NtfExtLocked | NtfExtExtValidated,
+			want:        7,
+		},
+		{
+			// Not a redundant restatement of the row above: this is the
+			// collision that makes FlagsExt a separate field. If ndm_flags
+			// and ext_flags were ever merged into one word, NTF_USE and
+			// NTF_EXT_MANAGED would be the same bit.
+			description: "corner: NTF_EXT_MANAGED equals ndm_flags NTF_USE numerically, which is why the words stay apart",
+			got:         NtfExtManaged,
+			want:        unix.NTF_USE,
+		},
+		{
+			description: "corner: NTF_EXT_LOCKED likewise equals ndm_flags NTF_SELF",
+			got:         NtfExtLocked,
+			want:        unix.NTF_SELF,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Errorf("= %d, want %d", tc.got, tc.want)
 			}
 		})
 	}

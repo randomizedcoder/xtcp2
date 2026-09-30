@@ -157,6 +157,102 @@ func TestLLTabIndexToFlags(t *testing.T) {
 	}
 }
 
+// TestLLTabIndexToType covers ll_index_to_type, which until the neigh lladdr
+// work had no callers and no test.
+//
+// # Why the sentinel question is different here
+//
+// IndexToFlags needs its -1 because 0 and "missing" render differently. This
+// method has no sentinel and needs none: ll_index_to_type answers 0 on a miss,
+// 0 is ARPHRD_NETROM, and ARPHRD_NETROM has no special case in ll_addr_n2a —
+// so a miss and an unremarkable type produce the same output. The two rows at
+// the bottom assert exactly that equivalence rather than assuming it, because
+// "these two cases are indistinguishable" is a claim that can rot.
+//
+// The fixture is extended locally rather than in fixtureLinks so the other
+// tests in this file keep the corpus they were written against.
+//
+// go test ./internal/goip/ -run TestLLTabIndexToType
+func TestLLTabIndexToType(t *testing.T) {
+	links := append(fixtureLinks(),
+		xtcpnl.LinkInfo{Index: 10, Name: "gre1", Type: unix.ARPHRD_IPGRE},
+		xtcpnl.LinkInfo{Index: 12, Name: "ip6tnl1", Type: unix.ARPHRD_TUNNEL6},
+		// A device whose type really is ARPHRD_NETROM, so the "miss looks
+		// like zero" rows below have a genuine zero to compare against.
+		xtcpnl.LinkInfo{Index: 14, Name: "nr0", Type: unix.ARPHRD_NETROM},
+	)
+	tab := NewLLTab()
+	tab.Fill(links)
+
+	tests := []struct {
+		description string
+		idx         int32
+		want        uint16
+	}{
+		{
+			description: "positive: a tunnel device reports ARPHRD_IPGRE, the type ll_addr_n2a keys on",
+			idx:         10,
+			want:        unix.ARPHRD_IPGRE,
+		},
+		{
+			description: "positive: a v6 tunnel reports ARPHRD_TUNNEL6",
+			idx:         12,
+			want:        unix.ARPHRD_TUNNEL6,
+		},
+		{
+			description: "positive: an ordinary NIC reports ARPHRD_ETHER",
+			idx:         2,
+			want:        unix.ARPHRD_ETHER,
+		},
+		{
+			description: "positive: loopback reports ARPHRD_LOOPBACK",
+			idx:         1,
+			want:        unix.ARPHRD_LOOPBACK,
+		},
+		{
+			// ARPHRD_NETROM is 0. A cached device of this type is
+			// indistinguishable from a miss, by construction and not by
+			// accident — see the two rows below.
+			description: "boundary: a cached ARPHRD_NETROM device reports 0",
+			idx:         14,
+			want:        unix.ARPHRD_NETROM,
+		},
+		{
+			description: "negative: an uncached index reports 0, the same as ARPHRD_NETROM",
+			idx:         42,
+			want:        0,
+		},
+		{
+			description: "negative: a negative index is a miss, so 0",
+			idx:         -7,
+			want:        0,
+		},
+		{
+			// Index 0 is not a valid interface index and reaches the same
+			// zero value. Worth its own row because IndexToName and
+			// IndexToFlags both special-case it and this method does not.
+			description: "boundary: index 0 reports 0 with no special case",
+			idx:         0,
+			want:        0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := tab.IndexToType(tc.idx); got != tc.want {
+				t.Errorf("IndexToType(%d) = %d, want %d", tc.idx, got, tc.want)
+			}
+		})
+	}
+
+	// The equivalence the missing sentinel rests on, asserted once rather
+	// than implied by two rows that happen to share a number.
+	if tab.IndexToType(14) != tab.IndexToType(42) {
+		t.Errorf("a cached ARPHRD_NETROM (%d) and a miss (%d) differ; the no-sentinel design assumes they do not",
+			tab.IndexToType(14), tab.IndexToType(42))
+	}
+}
+
 // TestLLTabNameToIndex covers name resolution, including altnames.
 //
 // go test ./internal/goip/ -run TestLLTabNameToIndex

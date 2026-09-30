@@ -1,2 +1,2 @@
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether be:ad:59:b4:c5:28 brd ff:ff:ff:ff:ff:ff
+    link/ether 5e:c9:4c:d7:ab:ef brd ff:ff:ff:ff:ff:ff

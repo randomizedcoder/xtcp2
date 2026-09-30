@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -33,10 +34,48 @@ const neighDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnei
 // kernel rather than only from a constructed byte slice.
 const neighProxyPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_proxy.pcap"
 
+// neighTunnelPcap and neighTunnelDevPcap are the tunnel namespace's neighbor
+// dumps, and they are the only captures in the corpus whose NDA_LLADDR does
+// not sit on an ARPHRD_ETHER device — so they are the only ones where
+// ll_addr_n2a's type-driven arms are reachable from a neighbor.
+//
+// # What the topology could and could not produce
+//
+// Two entries were requested on gre1 and one survives, with a destination of
+// 0.0.0.0 rather than the 203.0.113.5 that was asked for. That is not a
+// capture fault; it is what the kernel does. gre1 is <POINTOPOINT,NOARP>, so
+// its neighbor keys degenerate to the all-zero address and both entries land
+// on one key, the second overwriting the first. The lladdr is truncated to
+// dev->addr_len, which for ARPHRD_IPGRE is 4 — which is why a request for
+// 02:00:00:00:00:07 is stored, and rendered, as the four bytes 02:00:00:00.
+//
+// Two consequences worth stating rather than discovering later:
+//
+//   - The 4-byte v4 arm IS proven here, on bytes `ip` wrote. The dotted quad
+//     "2.0.0.0" can only come from inet_ntop(AF_INET) on an ARPHRD_IPGRE
+//     device; a hex loop gives "02:00:00:00".
+//   - A SIX-byte lladdr on a tunnel type is not capturable at all, because
+//     the kernel will not store more than dev->addr_len. That negative stays
+//     constructed, in render/neigh_test.go, and it is unreachable rather than
+//     merely unwritten.
+//
+// A multipoint GRE — `type gre` with a local and no remote — would give real
+// destinations and is the obvious improvement; it costs another capture run.
+const neighTunnelPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getneigh.pcap"
+
+const neighTunnelDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getneigh_dev.pcap"
+
 // neighDumpPortid is the portid `ip neigh show` used during the capture.
 // Replay filters replies on it, so a wrong value yields an empty listing
 // rather than an error.
-const neighDumpPortid = "894"
+//
+// It is a property of the RUN, not of the command: it is the netlink socket's
+// portid, which on Linux defaults to the pid. Re-capturing
+// netlink_route_getneigh.pcap therefore changes it and every row that filters
+// on it goes quiet — an empty listing compared against a non-empty sidecar,
+// which fails loudly, but for a reason that looks nothing like its cause.
+// Read it back out of the new pcap rather than guessing.
+const neighDumpPortid = "978"
 
 const neighSidecarDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 
@@ -75,9 +114,32 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 		noPortid bool
 	}{
 		{
+			// # Why this is a multiset and not byte equality
+			//
+			// goip sorts neighbors (model.SortNeighbors) and `ip` does not —
+			// it prints them in kernel hash order, which is a property of the
+			// run rather than of the topology. These rows WERE byte-exact,
+			// and passed only because the capture they cited happened to come
+			// out ascending. The comment that stood here said so, and said
+			// that a re-capture would break them "without anything being
+			// wrong, and the fix then is to bring them here".
+			//
+			// That is what happened. The capture that added the flagged
+			// entries emitted .51, .56, .54, .52, .50, .55, .53 — hash order
+			// — and the four byte-exact rows failed exactly as predicted. So
+			// the prediction is now the behavior: compared as a multiset of
+			// lines, which is the same position internal/goipparity takes
+			// (FacetLines is a multiset, and stdout.go says it is "blind to a
+			// reordering"), so these rows match the gate rather than being
+			// stricter than it.
+			//
+			// What is NOT given up: every line must still be present, exactly
+			// once each, byte for byte including the trailing space. Only the
+			// order between lines is free.
 			description: "positive: `neigh show` reproduces ip_neigh line for line",
 			args:        []string{"neigh", "show"},
 			sidecar:     "ip_neigh",
+			unordered:   true,
 		},
 		{
 			// `ip neigh` with no verb lists, so a bare object must not be a
@@ -85,11 +147,31 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			description: "positive: a bare `neigh` is a show",
 			args:        []string{"neigh"},
 			sidecar:     "ip_neigh",
+			unordered:   true,
 		},
 		{
 			description: "positive: `neigh list` is the same listing as `neigh show`",
 			args:        []string{"neigh", "list"},
 			sidecar:     "ip_neigh",
+			unordered:   true,
+		},
+		{
+			// The third spelling, ip/ipneigh.c:759. It is not a prefix of
+			// anything else and reads like a typo, which is exactly why goip
+			// carried show and list and dropped it — the verb test was a
+			// hand-written pair of conditions rather than the list the C is.
+			description: "positive: `neigh lst` is the third accepted spelling of the listing",
+			args:        []string{"neigh", "lst"},
+			sidecar:     "ip_neigh",
+			unordered:   true,
+		},
+		{
+			// matches() again, so every one of the three abbreviates. "ls" is
+			// a prefix of "lst" and of nothing else in the chain.
+			description: "boundary: `neigh ls` abbreviates lst, because the verbs go through matches()",
+			args:        []string{"neigh", "ls"},
+			sidecar:     "ip_neigh",
+			unordered:   true,
 		},
 		{
 			// The `-d` variant, asserted because it IS identical for this
@@ -98,12 +180,19 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			description: "boundary: ip_neigh_n is identical to ip_neigh, because -d adds no neighbor token",
 			args:        []string{"neigh", "show"},
 			sidecar:     "ip_neigh_n",
+			unordered:   true,
 		},
 		{
+			// unordered for the same reason as the text rows above, and it
+			// is not redundant with jsonEquivalent: that one decodes both
+			// sides but still walks them BY INDEX, so it is every bit as
+			// order-sensitive as bytes.Equal. The entries are matched on
+			// `dst` instead, which is unique per listing.
 			description:    "positive: `-json neigh show` reproduces ip_neigh_json's keys and values",
 			args:           []string{"-json", "neigh", "show"},
 			sidecar:        "ip_neigh_json",
 			jsonEquivalent: true,
+			unordered:      true,
 		},
 		{
 			// `neigh show dev goip0`, against its own capture. Compared as a
@@ -218,6 +307,51 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			// (obj_route_test.go:26-39).
 			noPortid: true,
 		},
+		{
+			// **The third consumer of ll_addr_n2a, on real bytes.** Every
+			// other neighbor in the corpus sits on an ARPHRD_ETHER device,
+			// where the type-aware path and a plain hex loop agree. These two
+			// do not:
+			//
+			//	0.0.0.0         dev gre1     lladdr 2.0.0.0       (4 bytes, ARPHRD_IPGRE)
+			//	2001:db8:100::5 dev ip6tnl1  lladdr 2001:db8::63  (16 bytes, ARPHRD_TUNNEL6)
+			//
+			// A renderer that formatted NDA_LLADDR without resolving the
+			// DEVICE's ifi_type prints "02:00:00:00" and
+			// "20:01:0d:b8:...:63" — well-formed, plausible, and wrong on
+			// both lines. `ip` resolves it with
+			// ll_index_to_type(r->ndm_ifindex) (ip/ipneigh.c:428-430) because
+			// struct ndmsg carries no type of its own.
+			description: "positive: tunnel `neigh show` renders lladdr through the DEVICE's ifi_type",
+			args:        []string{"neigh", "show"},
+			pcap:        neighTunnelPcap,
+			sidecar:     "tunnel/ip_neigh",
+			noPortid:    true,
+		},
+		{
+			description:    "positive: the JSON half carries the same two type-driven lladdr values",
+			args:           []string{"-json", "neigh", "show"},
+			pcap:           neighTunnelPcap,
+			sidecar:        "tunnel/ip_neigh_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+		},
+		{
+			// The interaction that is invisible until it breaks. `dev NAME`
+			// suppresses the printed `dev` token, and the TYPE lookup must
+			// still run on the real ndm_ifindex. A renderer that reused the
+			// suppressed value would resolve type 0, ARPHRD_NETROM, and
+			// regress this one line to "02:00:00:00" while every other row
+			// in this file still passed.
+			//
+			// There is a constructed row for it in render/neigh_test.go; this
+			// is the same claim against bytes `ip` wrote.
+			description: "corner: `neigh show dev` on a tunnel keeps the type lookup after suppressing the token",
+			args:        []string{"neigh", "show", "dev", "gre1"},
+			pcap:        neighTunnelDevPcap,
+			sidecar:     "tunnel/ip_neigh_dev",
+			noPortid:    true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -240,7 +374,7 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			}
 			switch {
 			case tc.jsonEquivalent:
-				assertJSONEntriesEqual(t, stdout.Bytes(), want)
+				assertJSONEntriesEqual(t, stdout.Bytes(), want, tc.unordered)
 			case tc.unordered:
 				assertSameLines(t, stdout.String(), string(want))
 			default:
@@ -282,7 +416,15 @@ func assertSameLines(t *testing.T, got, want string) {
 
 // assertJSONEntriesEqual compares two `ip -j`-shaped arrays of objects key by
 // key in both directions, so a missing key and an extra key are both reported.
-func assertJSONEntriesEqual(t *testing.T, gotRaw, wantRaw []byte) {
+//
+// unordered sorts both sides on `dst` first, for the neighbor listings where
+// goip's sort and the kernel's hash order disagree. Decoding the JSON does
+// NOT make the comparison order-insensitive on its own — the loop below walks
+// got[i] against want[i] — so a caller that needs that has to say so. The key
+// is `dst` because it is the one member every entry has and no two entries in
+// a listing share; sorting on the marshaled form instead would be sensitive
+// to the member order this file's fixtures exist to pin.
+func assertJSONEntriesEqual(t *testing.T, gotRaw, wantRaw []byte, unordered bool) {
 	t.Helper()
 	var got, want []map[string]any
 	if err := json.Unmarshal(gotRaw, &got); err != nil {
@@ -293,6 +435,17 @@ func assertJSONEntriesEqual(t *testing.T, gotRaw, wantRaw []byte) {
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d entries, want %d", len(got), len(want))
+	}
+	if unordered {
+		byDst := func(s []map[string]any) {
+			sort.Slice(s, func(i, j int) bool {
+				a, _ := s[i]["dst"].(string)
+				b, _ := s[j]["dst"].(string)
+				return a < b
+			})
+		}
+		byDst(got)
+		byDst(want)
 	}
 	for i := range want {
 		for k, wv := range want[i] {
@@ -662,21 +815,43 @@ func TestNeighShowDevTransactionShape(t *testing.T) {
 // moves even when every rendered line still looks right.
 //
 // go test ./internal/goip/ -run TestNeighShowEntryCount
+// TestNeighShowEntryCount checks the listing length against the sidecar's,
+// for each spelling of the verb.
+//
+// The expectation is DERIVED from ip_neigh rather than written as a literal,
+// and that is a correction rather than a convenience. It used to say 4, which
+// silently meant "the number of neighbors the topology had when this was
+// written" — so adding the flagged entries to nltopo::build_clean broke it in
+// a way that named neither the topology nor the capture. A literal here is a
+// second, unmarked copy of a fact the fixture already states.
+//
+// It still fails for everything it is meant to catch: a renderer that drops
+// an entry, emits one twice, or forgets the final newline. What it no longer
+// does is fail for a topology change that both files agree about.
 func TestNeighShowEntryCount(t *testing.T) {
+	sidecar, err := os.ReadFile(neighSidecarDir + "ip_neigh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLines := strings.Count(string(sidecar), "\n")
+	if wantLines == 0 {
+		t.Fatalf("sidecar ip_neigh has no lines, so this test would assert nothing")
+	}
+
 	tests := []struct {
 		description string
 		args        []string
 		wantLines   int
 	}{
 		{
-			description: "positive: the listing has exactly the sidecar's four entries",
+			description: "positive: the listing has exactly as many entries as the sidecar",
 			args:        []string{"neigh", "show"},
-			wantLines:   4,
+			wantLines:   wantLines,
 		},
 		{
 			description: "boundary: `neigh list` yields the same count as `neigh show`",
 			args:        []string{"neigh", "list"},
-			wantLines:   4,
+			wantLines:   wantLines,
 		},
 	}
 

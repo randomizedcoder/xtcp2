@@ -213,7 +213,7 @@ type LinkInfo struct {
 // IFLA_ADDRESS is absent.
 //
 // It is NOT always colon-hex: on the five tunnel ARPHRD types the address is
-// an IP endpoint and `ip` prints it as one. See llAddrN2A, which this defers
+// an IP endpoint and `ip` prints it as one. See LLAddrN2A, which this defers
 // to, and which is why the link's ifi_type is part of the answer.
 //
 // The length is not assumed to be 6 either. InfiniBand carries 20 bytes and a
@@ -226,7 +226,7 @@ type LinkInfo struct {
 // device such as tunl0 is a third case again — four bytes of zero, which is a
 // present address that prints "0.0.0.0".
 func (li LinkInfo) HWAddr() string {
-	return llAddrN2A(li.Address, li.Type)
+	return LLAddrN2A(li.Address, li.Type)
 }
 
 // BroadcastAddr is HWAddr for IFLA_BROADCAST, the "brd ff:ff:ff:ff:ff:ff" half
@@ -235,7 +235,7 @@ func (li LinkInfo) HWAddr() string {
 // the value itself is formatted. Same ifi_type, same function, so a tunnel's
 // broadcast renders as an IP exactly as its address does.
 func (li LinkInfo) BroadcastAddr() string {
-	return llAddrN2A(li.Broadcast, li.Type)
+	return LLAddrN2A(li.Broadcast, li.Type)
 }
 
 // PermAddr is HWAddr for IFLA_PERM_ADDRESS — the third and last attribute `ip`
@@ -244,7 +244,7 @@ func (li LinkInfo) BroadcastAddr() string {
 //
 // This does NOT decide whether to print it. See PermAddrDiffers.
 func (li LinkInfo) PermAddr() string {
-	return llAddrN2A(li.PermAddress, li.Type)
+	return LLAddrN2A(li.PermAddress, li.Type)
 }
 
 // PermAddrDiffers reports whether `ip` would print the " permaddr …" token,
@@ -268,10 +268,27 @@ func (li LinkInfo) PermAddrDiffers() bool {
 	return !bytes.Equal(li.PermAddress, li.Address)
 }
 
-// llAddrN2A mirrors iproute2's ll_addr_n2a (lib/ll_addr.c:26-44). `ip` passes
+// LLAddrN2A mirrors iproute2's ll_addr_n2a (lib/ll_addr.c:26-44). `ip` passes
 // BOTH halves of the `link/` line through it — IFLA_ADDRESS and
 // IFLA_BROADCAST, each with ifi->ifi_type (ip/ipaddress.c:1067-1092) — so a
 // divergence here is a divergence in two places at once.
+//
+// # Three consumers, and the third is not on a link at all
+//
+// IFLA_ADDRESS, IFLA_BROADCAST and IFLA_PERM_ADDRESS take ifi_type straight off
+// the message being printed. print_neigh is the odd one: NDA_LLADDR belongs to
+// a NEIGHBOR, whose ndmsg carries no type, so `ip` reaches for the type of the
+// neighbor's DEVICE via ll_index_to_type(r->ndm_ifindex)
+// (ip/ipneigh.c:428-430). That is why this is exported — internal/goip/render
+// needs it for a path that has no LinkInfo in hand.
+//
+// # The parse side is not symmetric, which is worth knowing before capturing
+//
+// ll_addr_a2n (lib/ll_addr.c:47-63) decides on a literal '.' in the STRING and
+// never looks at the device type. So `ip neigh add … lladdr 192.0.2.99 dev
+// gre1` stores four bytes no matter what gre1 is, while rendering those four
+// bytes back needs gre1 to be ARPHRD_IPGRE. Input is type-blind, output is
+// type-driven.
 //
 // It is not a hex formatter. Two special cases come first:
 //
@@ -290,7 +307,7 @@ func (li LinkInfo) PermAddrDiffers() bool {
 // "1.2.3.4"; inet_ntop(AF_INET6) renders "::ffff:1.2.3.4", and so does netip.
 // A v4-mapped local endpoint on an ip6tnl is unusual but perfectly legal, and
 // the entire point of this function is to agree with the C.
-func llAddrN2A(b []byte, ifiType uint16) string {
+func LLAddrN2A(b []byte, ifiType uint16) string {
 	switch {
 	case len(b) == 4 &&
 		(ifiType == unix.ARPHRD_TUNNEL ||
@@ -313,7 +330,7 @@ func (li LinkInfo) TypeName() string {
 // hwAddrString is the FALL-THROUGH half of ll_addr_n2a (lib/ll_addr.c:40-43)
 // on its own: "%02x" per byte, ":" between, any length.
 //
-// Callers rendering a link-layer address want llAddrN2A, which applies the
+// Callers rendering a link-layer address want LLAddrN2A, which applies the
 // type-dependent special cases first and then lands here. This half is
 // separate because it is also the whole answer for every ARPHRD type that has
 // no special case, which is all but five of them.

@@ -50,7 +50,12 @@ func runLink(c *runCtx, args []string) error {
 // arguments (`up`, `group G`, `master M`) are not implemented and are rejected
 // rather than ignored.
 func linkShow(c *runCtx, args []string) error {
-	if len(args) == 2 && matchesPrefix(args[0], "dev") {
+	// devKeywordCst with ==, not matchesPrefix: ip/ipaddress.c:2241 compares
+	// this keyword with strcmp, so `dev` is the one selector keyword that does
+	// NOT abbreviate. See devKeywordCst, which records why. This site was the
+	// only one of the four still using a prefix match, which made `ip link
+	// show d lo` succeed here and fail in `ip`.
+	if len(args) == 2 && args[0] == devKeywordCst {
 		return linkShowDev(c, args[1])
 	}
 	if len(args) > 0 {
