@@ -107,7 +107,7 @@ Every figure here was measured on `feat/netlink-events-and-coverage-roadmap` at
 | Repo coverage ratchet baseline | **78.6** | `docs/coverage-baseline.txt` |
 | `nix flake check` checks | **41** | `nix eval .#checks.x86_64-linux` attr count |
 | Kernel fixture corpora | 10 kernels, `4_19_319` → `7_1_8` | `ls pkg/xtcpnl/testdata/` |
-| Dump-request builders | **3** (`Link`, `Addr`, `Route`) | `grep 'func BuildDump' pkg/xtcpnl/*.go` |
+| Dump-request builders | **11** functions over **5** objects (`Link`, `Addr`, `Route`, `Neigh`, `Rule`) | `grep 'func BuildDump' pkg/xtcpnl/*.go` |
 | Subpackages under `pkg/xtcpnl` | **0** — still flat | `find pkg/xtcpnl -mindepth 1 -type d` |
 | In-guest rtnetlink assertions | **0** | `grep -cE 'xtcpnl\|rtnetlink\|RTM_' nix/microvms/self-test.nix` |
 
@@ -122,7 +122,7 @@ Phases and scope are as defined in
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | `RTA_EXPIRES`/`RTA_CACHEINFO` decode (`RTA_CACHEINFO` has real fixtures on 48 of 74 captured routes), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it |
-| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested` | `FRA_*`, `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
+| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table) | `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
 | **6** | xfrm, conntrack, ipset, proc_event, rdma | not started | — | all of it, plus a hand-declared constant block per family |
@@ -3974,6 +3974,158 @@ With these four gated, nineteen of the table's twenty commands gate, and
 deliberately so the sentinel never becomes vacuously true. That holdout is now
 asserted rather than merely intended, by a row in
 `pkg/nlparity/nlparity_allowlist_test.go`.
+
+### `ip rule show`: the object with no name table
+
+The fifth rtnetlink object, the twenty-first through twenty-fourth commands,
+and the head of the repo's own Phase 3 — `FRA_*` was the one prefix in
+[parsing-comparison](parsing-comparison.md) where xtcp2 decoded **zero**
+attributes and iproute2 decoded twenty-five.
+
+**The request is the smallest in the corpus and the only one that may not
+carry an attribute.** `rtnl_ruledump_req` (`lib/libnetlink.c:407-421`) sends a
+16-byte `nlmsghdr` and a 12-byte `fib_rule_hdr` with only the family byte set:
+28 bytes, no attributes. That is not a simplification the builder chose — the
+kernel forbids the alternative. `fib_valid_dumprule_req` errors with "Invalid
+data after header in fib rule dump request" whenever `nlmsg_attrlen` is nonzero
+(`net/core/fib_rules.c:1278-1281`), and separately rejects a nonzero `dst_len`,
+`src_len`, `tos`, `table`, `res1`, `res2`, `action` or `flags` (`:1271-1276`).
+
+What it does **not** check is the family, and that asymmetry is worth recording
+because it decides what a wrong byte costs. Every other header field is
+validated; family is read and used. A goip that sent the wrong one would get a
+well-formed reply to a different question.
+
+**Every selector is client-side.** `iprule_list_flush_or_save` parses `pref`,
+`from`, `to`, `iif`, `oif`, `table`, `fwmark` and the rest into `filter`, and
+`filter_nlmsg` applies them to REPLIES (`ip/iprule.c:98-243`). None can reach
+the wire — per the paragraph above, none *could*. So `ip rule` is the one
+object where adding a selector buys no new request shape at all, and
+`parseRuleShowArgs` refuses them rather than silently ignoring them.
+
+**`ip rule show` and `ip -4 rule show` are the same command.**
+`iprule_list_flush_or_save` substitutes `AF_INET` for `AF_UNSPEC` before it
+builds anything (`:748-752`), so the two forms are identical in request bytes
+and in output. Both halves are asserted: the byte half as a parity row, the
+output half by `ip_rule` and `ip_rule_v4` being byte-identical files, which
+`TestRuleSidecarsAreIdentical` checks so the identity cannot rot unnoticed.
+
+**It is the only goip object rendered with no `NameTab`.** There is no
+`ll_init_map` anywhere in `iprule.c` and there cannot need to be:
+`FRA_IIFNAME` and `FRA_OIFNAME` arrive as STRINGS, so `print_rule` has no
+index to turn into a name. One transaction, floor 2 — and the measurement below
+shows this rather than merely asserting it, because the `pids` column for all
+four rule commands is a single pid on the `ip` side where `route show` shows
+two. That second pid is `ll_link_get`'s throwaway socket. Its absence is the
+claim.
+
+#### What the capture measured that source reading would not have
+
+The topology adds nineteen rules (`nix/microvms/scripts/netlink-topology.exp`)
+to reach the attributes, and five of the resulting facts were surprises:
+
+- **`FRA_SUPPRESS_PREFIXLEN` is on every reply**, all twenty, nineteen of them
+  carrying the sentinel `0xFFFFFFFF`. Its sibling `FRA_SUPPRESS_IFGROUP` is
+  sent **only when set**. Two attributes from the same `ip rule` clause with
+  opposite presence rules.
+- **`fwmark 0x10` with no mask arrives with `FRA_FWMASK = 0xFFFFFFFF`.** The
+  kernel supplies the mask the user did not.
+- **`dport 80` arrives as a degenerate range `{80,80}` plus
+  `FRA_DPORT_MASK = 0xffff`**, an attribute `x/sys` v0.47.0 does not have a
+  constant for. A decoder stopping at `FRA_DPORT_RANGE` silently drops an
+  attribute every plain `dport` rule carries.
+- **An `RTN_NAT` rule round-trips without its gateway.** `ip rule add nat
+  192.0.2.99` is accepted and dumped back with no `RTA_GATEWAY`, so
+  `print_rule`'s `map-to` arm is unreachable on a live kernel and `masquerade`
+  is the only one a capture can produce. `map-to` is therefore permanently a
+  constructed-bytes row, and the test says so rather than leaving the gap.
+- **`FIB_RULE_INVERT` is the only nonzero `frh_flags` in the whole dump.**
+
+Two further facts are about `x/sys` rather than the kernel. Its `FRA_` run
+stops at `FRA_DPORT_RANGE = 24`, a complete prefix with a missing **tail**;
+the six beyond it are hand-declared in `pkg/xtcpnl/xtcpnl_fib_rule_hdr.go` and
+pinned by offset from `FRA_DPORT_RANGE`, which matters more here than for the
+other hand-declared blocks because every value in the run is a plausible
+attribute type, so a miscount decodes a *neighbor* of the intended attribute —
+and `FRA_SPORT_MASK` and `FRA_DPORT_MASK` are both u16 and sit one apart. The
+argument is spelled out in
+[coverage-expansion](coverage-expansion.md#the-fra_-note-and-what-a-count-cannot-tell-you).
+
+And the attribute-number collisions are real: **`FRA_TABLE` and `RTA_TABLE`
+are both 15**, and **`RTA_GATEWAY` is 5, which is `FRA_UNUSED2`**. The rule
+decoder reads `RTA_GATEWAY` out of the same attribute space for the `RTN_NAT`
+action, which is why `parsing-comparison` records 25 `FRA_*` "plus
+`RTA_GATEWAY`, which is not an `FRA_*` constant at all".
+
+#### Where text and JSON deliberately disagree
+
+`print_rule` suppresses a default; the JSON writer often does not. Four
+divergences, each its own row in `internal/goip/render/rule_test.go`:
+
+| value | text | JSON |
+|---|---|---|
+| all-ones `fwmask` | suppressed | suppressed |
+| `dport_mask` == `0xffff` | suppressed | **emitted** |
+| `flowlabel_mask` == `LABEL_MAX_MASK` | suppressed | **emitted** |
+| `flow_from` == 0 | ` realms ` keyword still printed | key dropped |
+
+The JSON key kinds also do not follow the text tokens. `nop`, `masquerade`,
+`not`, `l3mdev`, `iif_detached`, `oif_detached` and `unresolved` are
+print_null **keys**; `blackhole` is the **value** of key `"action"`; and
+`"goto"` is a **number**, or the string `"none"`.
+
+Print order is confirmed by the goldens rather than by reading: `realms` comes
+AFTER `lookup TABLE`, the action token after both, `proto` AFTER the action,
+and `flowlabel` AFTER `proto`. That last one is the only place in `print_rule`
+where a `-d` token is not last, so a renderer that appended `proto` at the end
+of the line passes every other row and fails `-6 -d rule show`.
+
+#### Fixtures, and the rule that none go unread
+
+The capture writes six sidecars and two pcaps per namespace across four
+namespaces. Nine sidecars and three pcaps had no Go consumer when first
+committed — the same shape as the four JSON goldens
+[above](#the-four-json-goldens-nobody-read-and-the-divergence-one-of-them-found),
+one of which turned out to disagree with the renderer. All twenty-four now
+have one, and the extra rows are not busywork: the mesh and tunnel IPv6
+listings are the only place the "IPv4 ships three kernel default rules, IPv6
+ships two" split is visible as a property of the KERNEL rather than of what
+the topology added, and the mesh JSON row is the only one exercising which
+keys are **omitted** rather than which appear.
+
+The committed goldens are 742, 1002 and 131 bytes for `ip_rule`, `ip_rule_n`
+and `ip_rule6`. The live VM measured the same three numbers, on all three
+sides — so the fixtures and today's kernel agree byte for byte, independently
+of the comparator. The 1002-versus-742 delta is exactly 260, which is twenty
+lines times the thirteen characters of ` proto kernel` / ` proto unspec`.
+
+#### What the ungated runs measured
+
+    rule show          txns 1=1  control nl=0 stdout=0   742 B x3
+    -4 rule show       txns 1=1  control nl=0 stdout=0   742 B x3
+    -6 rule show       txns 1=1  control nl=0 stdout=0   131 B x3
+    -d rule show       txns 1=1  control nl=0 stdout=0  1002 B x3
+
+All four cleared `nl=0 stdout=0` with **nothing suppressed at all**, not even
+a suppressed finding, which is the bar the top of
+`pkg/nlparity/goip-parity-allowlist.json` sets. Twenty-four PASS,
+HYGIENE_PASS, UNGATED_CLEAN, OVERALL_PASS.
+
+Then the four were gated and the tier run three more times. The second and
+third gated runs went back to back inside one shell command, so no edit
+separates them; their `GOIP_PARITY` line sets are **byte identical** to each
+other, not identical after normalization. Across all five runs the four rows'
+transaction counts, control counts and stdout byte counts never moved: `1=1`,
+`nl=0`, and 742/742/131/1002 every time.
+
+The `CONTROL_NOISY` total did move, 12 against 16, and the entire delta is
+`-s link show` going `nl=2` to `nl=6` — the one command predicted to be
+permanently noisy, sampling differently while every other command's count
+held. That is the shape the number should have.
+
+With these four gated, **twenty-three of the table's twenty-four commands
+gate**, and `UNGATED_CLEAN` is still load-bearing for exactly one, `-s link
+show`.
 
 ### Remaining
 

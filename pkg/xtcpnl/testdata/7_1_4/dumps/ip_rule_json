@@ -1,0 +1,103 @@
+[ {
+        "priority": 0,
+        "src": "all",
+        "table": "local"
+    },{
+        "priority": 100,
+        "src": "192.0.2.0",
+        "srclen": 24,
+        "table": "100"
+    },{
+        "priority": 200,
+        "src": "all",
+        "dst": "198.51.100.0",
+        "dstlen": 24,
+        "iif": "goip0",
+        "table": "200"
+    },{
+        "priority": 300,
+        "src": "all",
+        "fwmark": "0x1234",
+        "fwmask": "0xff00",
+        "table": "300"
+    },{
+        "priority": 400,
+        "src": "all",
+        "oif": "goip0",
+        "table": "400"
+    },{
+        "priority": 500,
+        "src": "all",
+        "uid_start": 1000,
+        "uid_end": 2000,
+        "table": "500"
+    },{
+        "priority": 600,
+        "src": "all",
+        "sport_start": 1000,
+        "sport_end": 2000,
+        "dport": 80,
+        "dport_mask": "0xffff",
+        "table": "600"
+    },{
+        "priority": 700,
+        "src": "all",
+        "table": "main",
+        "suppress_prefixlen": 0
+    },{
+        "priority": 800,
+        "src": "all",
+        "action": "blackhole"
+    },{
+        "priority": 900,
+        "src": "all",
+        "goto": 32766
+    },{
+        "priority": 1000,
+        "not": null,
+        "src": "203.0.113.0",
+        "srclen": 24,
+        "table": "main"
+    },{
+        "priority": 1100,
+        "src": "all",
+        "nop": null
+    },{
+        "priority": 1200,
+        "src": "all",
+        "l3mdev": null
+    },{
+        "priority": 1300,
+        "src": "all",
+        "tun_id": 42,
+        "table": "1300"
+    },{
+        "priority": 1400,
+        "src": "all",
+        "table": "main",
+        "suppress_ifgroup": "5"
+    },{
+        "priority": 1500,
+        "src": "all",
+        "table": "1500",
+        "flow_from": "1",
+        "flow_to": "2"
+    },{
+        "priority": 1600,
+        "src": "all",
+        "fwmark": "0x10",
+        "table": "1600"
+    },{
+        "priority": 1700,
+        "src": "all",
+        "table": "main",
+        "masquerade": null
+    },{
+        "priority": 32766,
+        "src": "all",
+        "table": "main"
+    },{
+        "priority": 32767,
+        "src": "all",
+        "table": "default"
+    } ]

@@ -205,12 +205,35 @@ const (
 	// delta, and the two getlink pcaps together are the assertion.
 	tdDumpGetLinkStats_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getlink_stats.pcap"
 
+	// `ip rule show` and `ip -6 rule show`. The smallest captures in the
+	// corpus — two datagrams each, one request and one multipart reply — and
+	// smallest for a structural reason rather than an incidental one:
+	// iprule_list_flush_or_save calls no ll_init_map, because FRA_IIFNAME and
+	// FRA_OIFNAME travel as strings and there is no index to resolve. Every
+	// other dump in this set pays for at least one side transaction.
+	//
+	// The request is 28 bytes with ZERO attributes: nlmsghdr plus a bare
+	// fib_rule_hdr (lib/libnetlink.c:407-421). That is not a stylistic choice
+	// by iproute2 — under strict checking the kernel REFUSES a rule dump that
+	// carries any attribute at all (net/core/fib_rules.c:1278-1281), so these
+	// two pcaps pin the one dump shape in the corpus where an extra attribute
+	// is an error rather than an addition.
+	//
+	// There is deliberately no `-4` pcap. iprule_list_flush_or_save
+	// substitutes AF_INET for AF_UNSPEC before building the request
+	// (ip/iprule.c:748-752), so `ip rule show` and `ip -4 rule show` emit
+	// identical bytes; the committed ip_rule and ip_rule_v4 sidecars are
+	// byte-identical for the same reason. A third pcap would assert nothing.
+	tdDumpGetRule_7_1_4  = tdDumps_7_1_4 + "/netlink_route_getrule.pcap"
+	tdDumpGetRule6_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getrule6.pcap"
+
 	// Sidecars for the dump set: the source of truth its expectations cite.
 	tdDumpIPLink_7_1_4   = tdDumps_7_1_4 + "/ip_link_n"
 	tdDumpIPAddr_7_1_4   = tdDumps_7_1_4 + "/ip_addr_n"
 	tdDumpIPRoute_7_1_4  = tdDumps_7_1_4 + "/ip_route_main_n"
 	tdDumpIPRoute6_7_1_4 = tdDumps_7_1_4 + "/ip_route6_n"
 	tdDumpIPNeigh_7_1_4  = tdDumps_7_1_4 + "/ip_neigh_n"
+	tdDumpIPRule_7_1_4   = tdDumps_7_1_4 + "/ip_rule_n"
 	tdDumpTopology_7_1_4 = tdDumps_7_1_4 + "/topology"
 
 	// The mesh half of the same capture run: a bridge with a veth member whose
@@ -230,6 +253,7 @@ const (
 	tdDumpMeshGetAddr_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getaddr.pcap"
 	tdDumpMeshGetRoute_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getroute.pcap"
 	tdDumpMeshGetNeigh_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getneigh.pcap"
+	tdDumpMeshGetRule_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getrule.pcap"
 
 	tdDumpMeshIPLink_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_link_n"
 	tdDumpMeshIPAddr_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_addr_n"

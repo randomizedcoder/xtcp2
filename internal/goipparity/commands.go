@@ -472,6 +472,103 @@ var commands = withArgs([]Command{
 		// of the comparison names the cause.
 		Floor: 4, Implemented: true,
 	},
+	{
+		Name: "rule show", Slug: "rule_show",
+		// TWO, and it is the only object in this table with that floor on its
+		// bare listing — every other one is four.
+		//
+		// # One transaction, because there is no name to resolve
+		//
+		// iprule_list_flush_or_save calls no ll_init_map
+		// (ip/iprule.c:745-800), and it cannot need one: FRA_IIFNAME and
+		// FRA_OIFNAME arrive as STRINGS, so print_rule has no index to turn
+		// into a name. `ip neigh show` needs two transactions for exactly the
+		// attribute this object does not have. So the whole exchange is one
+		// request and one multipart reply, and the floor is the request plus
+		// the datagram carrying NLMSG_DONE.
+		//
+		// # The request is 28 bytes with no attribute, and cannot be anything else
+		//
+		// rtnl_ruledump_req (lib/libnetlink.c:407-421) sends a 16-byte
+		// nlmsghdr and a 12-byte fib_rule_hdr with only the family byte set.
+		// The kernel does not merely ignore an attribute here, it REFUSES
+		// one: fib_valid_dumprule_req errors with "Invalid data after header
+		// in fib rule dump request" whenever nlmsg_attrlen is nonzero
+		// (net/core/fib_rules.c:1278-1281), and rejects a nonzero dst_len,
+		// src_len, tos, table, res1, res2, action or flags at :1271-1276.
+		//
+		// That makes this the most constrained request in the table: there is
+		// exactly one legal encoding, and eight of the twelve header bytes
+		// are validator-enforced zeros.
+		//
+		// # Every selector is client-side, which is why none of them is a row
+		//
+		// `from`, `to`, `iif`, `oif`, `pref`, `fwmark`, `uidrange` and the
+		// rest are parsed into `filter` and applied to REPLIES by filter_nlmsg
+		// (ip/iprule.c:98-243). None reaches the wire — they could not, per
+		// the paragraph above — so a `rule show pref N` row would compare two
+		// identical requests and a narrowed listing, which is a stdout test
+		// wearing a triple's clothes. goip rejects them rather than filtering,
+		// and obj_rule.go's parseRuleShowArgs says why.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-4 rule show", Slug: "rule_show_v4",
+		// Two, and byte-identical to the row above in BOTH halves.
+		//
+		// iprule_list_flush_or_save substitutes AF_INET for AF_UNSPEC before
+		// it builds anything (ip/iprule.c:748-752), so a bare `ip rule show`
+		// already asks for IPv4 rules and `-4` changes nothing at all — not
+		// one byte of the request, not one character of the output.
+		//
+		// A row that asserts an identity, then, and the identity is load
+		// bearing rather than decorative. The kernel's strict-mode validator
+		// checks every fib_rule_hdr field EXCEPT family (:1271-1276), so a
+		// goip that skipped the substitution would send AF_UNSPEC, be
+		// answered, and print every family's rules — a longer listing that
+		// errors nowhere. This row and the one above are what make that
+		// visible: the request halves must match each other, and the stdout
+		// halves must too.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 rule show", Slug: "rule_show_v6",
+		// Two, and the one family byte is the whole delta — the same shape as
+		// `-6 route show`, at a quarter the datagram count.
+		//
+		// The reply is where it stops being symmetric. IPv6 ships TWO default
+		// rules, local and main, where IPv4 ships three: fib_default_rules_init
+		// adds a `default` rule at priority 32767 for IPv4 only
+		// (net/ipv4/fib_rules.c) and IPv6 has no equivalent
+		// (net/ipv6/fib6_rules.c). So the two listings differ in length before
+		// the topology adds anything, which is a fact about the kernel that
+		// only a live comparison states.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d rule show", Slug: "rule_show_details",
+		// Two, and the request is IDENTICAL — show_details reaches nothing
+		// rtnl_ruledump_req writes, the same as the -d rows for route and
+		// neigh.
+		//
+		// # The cleanest presence-versus-value case in the corpus
+		//
+		// print_rule's protocol guard is `(protocol && protocol !=
+		// RTPROT_KERNEL) || show_details` (ip/iprule.c:551-557), and every
+		// rule the topology adds carries FRA_PROTOCOL with value ZERO. So the
+		// attribute is present, decoded, and printed nowhere without -d, and
+		// prints ` proto unspec` with it.
+		//
+		// That is a state a decoder holding a bare uint8 cannot represent:
+		// "absent" and "present, zero" render identically on the plain form
+		// and differently under -d. xtcpnl.RuleInfo.HasProtocol exists for
+		// this, and this row is the live evidence that it has to.
+		//
+		// The delta is therefore ` proto unspec` on every user-added rule and
+		// ` proto kernel` on each default — one token per line, on every line,
+		// from an attribute the plain golden proves nothing about.
+		Floor: 2, Implemented: true,
+	},
 })
 
 // withArgs fills every row's Args from its Name.

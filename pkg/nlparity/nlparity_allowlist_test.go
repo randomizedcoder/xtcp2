@@ -459,8 +459,17 @@ func TestAllowlistCommitted(t *testing.T) {
 			// every name here does share is zero FINDINGS.
 			//
 			// The list is spelled out rather than counted. A count would pass
-			// for any nineteen names, and the point of the row is which
-			// nineteen.
+			// for any twenty-three names, and the point of the row is which
+			// twenty-three.
+			//
+			// The four `rule show` names are the newest, and they are the
+			// quietest entries in the list: all four measured `control: nl=0
+			// stdout=0` with nothing suppressed on both ungated runs, and one
+			// transaction per side rather than two. That last number is the
+			// interesting one - they are the only commands here whose ip side
+			// opens a single socket, because ip/iprule.c has no ll_init_map
+			// and needs none, FRA_IIFNAME and FRA_OIFNAME being strings on the
+			// wire.
 			//
 			// It was every command in the table when it was written, which
 			// made the row read as if it could be `len(GatedCommands) ==
@@ -497,6 +506,10 @@ func TestAllowlistCommitted(t *testing.T) {
 					"-d addr show",
 					"-d route show",
 					"-d neigh show",
+					"rule show",
+					"-4 rule show",
+					"-6 rule show",
+					"-d rule show",
 				}
 				for _, c := range earned {
 					if !a.IsGated(c) {

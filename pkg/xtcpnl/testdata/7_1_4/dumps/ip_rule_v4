@@ -1,0 +1,20 @@
+0:	from all lookup local
+100:	from 192.0.2.0/24 lookup 100
+200:	from all to 198.51.100.0/24 iif goip0 lookup 200
+300:	from all fwmark 0x1234/0xff00 lookup 300
+400:	from all oif goip0 lookup 400
+500:	from all uidrange 1000-2000 lookup 500
+600:	from all sport 1000-2000 dport 80 lookup 600
+700:	from all lookup main suppress_prefixlength 0
+800:	from all blackhole
+900:	from all goto 32766
+1000:	not from 203.0.113.0/24 lookup main
+1100:	from all nop
+1200:	from all lookup [l3mdev-table]
+1300:	from all tun_id 42 lookup 1300
+1400:	from all lookup main suppress_ifgroup 5
+1500:	from all lookup 1500 realms 1/2
+1600:	from all fwmark 0x10 lookup 1600
+1700:	from all lookup main masquerade
+32766:	from all lookup main
+32767:	from all lookup default

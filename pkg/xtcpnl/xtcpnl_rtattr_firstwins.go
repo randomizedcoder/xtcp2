@@ -23,11 +23,18 @@ package xtcpnl
 
 // attrSeen is a bitset of the rtattr types one parse has already consumed.
 //
-// Only types below 64 are tracked. That covers every attribute this package
-// decodes — the highest is IFLA_LINK_NETNSID at 37 — and a type at or above 64
-// is always reported as first, which degrades to the kernel's last-wins rule
-// rather than dropping the attribute. Extend to a wider bitset before decoding
-// anything up there (the IFLA_* space already reaches into the 60s).
+// Only types below 64 are tracked. A type at or above 64 is always reported as
+// first, which degrades to the kernel's last-wins rule rather than dropping the
+// attribute.
+//
+// Two decoded attributes are already up there, both in the `ip -d link` detail
+// group: IFLA_GRO_IPV4_MAX_SIZE at exactly 64, and IflaNetnsImmutable at 67.
+// Neither is duplicated by any kernel, so the degradation costs nothing today,
+// but the IFLA_* space has passed this bitset and will keep going — widen it
+// before adding a detail attribute whose duplicate would matter. Every other
+// group stays well below the line: the highest NDA_* this package reads is
+// NdaFlagsExt at 15, the highest RTA_* is RTA_PREF at 20, and the highest
+// FRA_* is FraDscpMask at 30.
 type attrSeen uint64
 
 // first reports whether atype has not been consumed yet, and marks it consumed.
