@@ -1,0 +1,3 @@
+0:	from all lookup local proto kernel
+32766:	from all lookup main proto kernel
+32767:	from all lookup default proto kernel

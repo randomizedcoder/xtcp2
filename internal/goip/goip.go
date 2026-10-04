@@ -18,7 +18,7 @@ const (
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
-where  OBJECT := { link | address | route | neigh }
+where  OBJECT := { link | address | route | rule | neigh }
        OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] }
 
 goip is a read-only subset of ip(8), built as a coverage test for

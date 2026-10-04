@@ -429,6 +429,70 @@ func BuildDumpNeighRequestFilter(family, ndmFlags uint8, ifindex, seq uint32) ([
 	return BuildRequest(uint16(unix.RTM_GETNEIGH), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// BuildDumpRuleRequest builds `ip rule show`'s only request: RTM_GETRULE with
+// NLM_F_DUMP and a fib_rule_hdr whose family byte is the only thing set.
+//
+// It is rtnl_ruledump_req (lib/libnetlink.c:407-421) and that function is
+// unusually short, so it is quoted whole rather than paraphrased:
+//
+//	struct {
+//		struct nlmsghdr nlh;
+//		struct fib_rule_hdr frh;
+//	} req = {
+//		.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct fib_rule_hdr)),
+//		.nlh.nlmsg_type = RTM_GETRULE,
+//		.nlh.nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST,
+//		.nlh.nlmsg_seq = rth->dump = ++rth->seq,
+//		.frh.family = family
+//	};
+//	return send(rth->fd, &req, sizeof(req), 0);
+//
+// # Three things make this the simplest dump in the corpus
+//
+// There is no attribute stream, and there CANNOT be one. Every `ip rule show`
+// selector — `from`, `to`, `iif`, `oif`, `fwmark`, `pref`, `uidrange` and the
+// rest — is applied client-side in filter_nlmsg (ip/iprule.c:98-243), against
+// replies; and under strict check the kernel rejects a rule dump carrying any
+// attribute at all, `if (nlmsg_attrlen(nlh, sizeof(*frh)))` →
+// "Invalid data after header in fib rule dump request"
+// (net/core/fib_rules.c:1278-1281). So unlike neigh, where `dev NAME` costs
+// eight bytes of NDA_IFINDEX, and unlike route, where `dev NAME` moves a whole
+// transaction, every form of `ip rule show` sends these same 28 bytes — and
+// the nil attrs argument below is the only value the kernel accepts, not a
+// convenience. That makes the request comparison a statement about the family
+// byte and nothing else.
+//
+// Second, there is no ll_init_map. iprule_list_flush_or_save never calls it,
+// which is why `ip rule show` prints an FRA_IIFNAME as the string the kernel
+// sent rather than resolving an index — the attribute is a NAME on the wire,
+// not an ifindex. One transaction, total.
+//
+// Third, the designated initializer leaves dst_len, src_len, tos, table, res1,
+// res2, action and flags all zero, and fib_valid_dumprule_req tests exactly
+// that eight-way disjunction (net/core/fib_rules.c:1271-1276) before it will
+// dump anything. So the zeros are load-bearing rather than incidental, the
+// same relationship BuildDumpNeighRequestFilter documents for ndm_ifindex.
+// Note which field is NOT in that list: family. The validator never looks at
+// it, so a wrong family byte yields an empty dump rather than an error — the
+// quiet failure mode, and the reason the substitution below is worth a test.
+//
+// # The family byte is never AF_UNSPEC from `ip`, and that is the caller's job
+//
+// iprule_list_flush_or_save substitutes AF_INET for AF_UNSPEC before it gets
+// here (ip/iprule.c:749-752), so a bare `ip rule show` asks for IPv4 rules and
+// not for every family. This builder does NOT do that substitution, because
+// rtnl_ruledump_req does not: it sends whatever family it is handed. The
+// substitution lives with its `ip` counterpart, in internal/goip/obj_rule.go.
+// Splitting it that way keeps each function comparable to the C one it is
+// named after, and leaves this builder usable for the AF_UNSPEC dump that
+// `ip` never sends but the kernel will happily answer.
+func BuildDumpRuleRequest(family uint8, seq uint32) ([]byte, error) {
+	hdr := make([]byte, FibRuleHdrSizeCst)
+	hdr[0] = family // frh.family; every other byte stays zero, see above
+
+	return BuildRequest(uint16(unix.RTM_GETRULE), uint16(unix.NLM_F_DUMP), seq, hdr, nil)
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {

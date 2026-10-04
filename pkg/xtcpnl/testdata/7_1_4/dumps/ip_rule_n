@@ -1,0 +1,20 @@
+0:	from all lookup local proto kernel
+100:	from 192.0.2.0/24 lookup 100 proto unspec
+200:	from all to 198.51.100.0/24 iif goip0 lookup 200 proto unspec
+300:	from all fwmark 0x1234/0xff00 lookup 300 proto unspec
+400:	from all oif goip0 lookup 400 proto unspec
+500:	from all uidrange 1000-2000 lookup 500 proto unspec
+600:	from all sport 1000-2000 dport 80 lookup 600 proto unspec
+700:	from all lookup main suppress_prefixlength 0 proto unspec
+800:	from all blackhole proto unspec
+900:	from all goto 32766 proto unspec
+1000:	not from 203.0.113.0/24 lookup main proto unspec
+1100:	from all nop proto unspec
+1200:	from all lookup [l3mdev-table] proto unspec
+1300:	from all tun_id 42 lookup 1300 proto unspec
+1400:	from all lookup main suppress_ifgroup 5 proto unspec
+1500:	from all lookup 1500 realms 1/2 proto unspec
+1600:	from all fwmark 0x10 lookup 1600 proto unspec
+1700:	from all lookup main masquerade proto unspec
+32766:	from all lookup main proto kernel
+32767:	from all lookup default proto kernel

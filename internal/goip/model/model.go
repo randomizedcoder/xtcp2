@@ -15,6 +15,17 @@ type Address xtcpnl.AddrInfo
 type Route xtcpnl.RouteInfo
 type Neighbor xtcpnl.NeighInfo
 
+// Rule is a routing policy database entry. It has no SortRules companion, and
+// that absence is deliberate rather than pending.
+//
+// The kernel keeps each family's rule list ordered by preference —
+// fib_nl_newrule walks the list and inserts ahead of the first rule with a
+// higher pref (net/core/fib_rules.c) — and fib_nl_dumprule walks that same
+// list. So wire order IS preference order, and a sort here could only agree
+// with it or invent an order `ip` does not use. SortNeighbors exists because
+// the neighbor hash has no such property and its order varies across boots.
+type Rule xtcpnl.RuleInfo
+
 func SortLinks(v []Link) { sort.SliceStable(v, func(i, j int) bool { return v[i].Index < v[j].Index }) }
 
 func SortAddresses(v []Address) {

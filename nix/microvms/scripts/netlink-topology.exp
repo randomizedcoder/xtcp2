@@ -212,6 +212,99 @@ namespace eval nltopo {
         # `ip neigh` has no such keyword at all. The pinned 7.1.0 answers
         # `either "to" is duplicate, or "locked" is garbage`. It is a bridge
         # FDB token, printed at bridge/fdb.c:121 and nowhere in ip/ipneigh.c.
+
+        build_clean_rules $ns $subdir $dummy
+    }
+
+    ###########################################################################
+    # build_clean_rules - the routing policy database, `ip rule`.
+    #
+    # Split out of build_clean only for length; it is part of the same
+    # topology and runs unconditionally at the end of it. The rules reference
+    # tables that hold no routes, on purpose: a rule is visible to RTM_GETRULE
+    # whether or not its table exists, so leaving the tables empty means this
+    # block cannot change what `ip route show table all` captures.
+    #
+    # Every line below exists for exactly one attribute or one print_rule
+    # branch, the contract build_clean's routes are written to. Preferences
+    # are spaced by 100 and assigned in print order, so the golden reads top
+    # to bottom in the order print_rule emits and a renderer diff points at a
+    # branch rather than at a line number.
+    #
+    # Two branches are deliberately NOT here, for one shared reason: their
+    # tokens come from a name table iproute2 loads from a FILE on whichever
+    # host runs it. `ipproto tcp` goes through inet_proto_n2a ->
+    # getprotobynumber -> /etc/protocols, and `dscp AF11` through
+    # rtnl_dscp_n2a -> rtnl_dsfield_get_name -> /etc/iproute2/rt_dsfield
+    # (lib/rt_names.c:634-644). A fixture whose text depends on which files
+    # the guest image happens to ship is not a fixture - the same reason
+    # render/route.go's dsfieldName is pinned to its 0x%02x fallback. goip
+    # DECODES FRA_IP_PROTO and FRA_DSCP and refuses to render them; see
+    # internal/goip/render/rule.go.
+    ###########################################################################
+    proc build_clean_rules {ns subdir dummy} {
+        # FRA_SRC with a prefix shorter than host_len, so print_rule takes the
+        # `/%u` arm at ip/iprule.c:322-324 rather than the bare-address one.
+        # Also FRA_TABLE above 255, which CANNOT fit fib_rule_hdr.table and is
+        # the whole reason frh_get_table exists (:90-96).
+        topo $ns $subdir rule add pref 100 from 192.0.2.0/24 lookup 100
+        # FRA_DST and FRA_IIFNAME. The interface name is a STRING on the wire
+        # here, not an index, which is why `ip rule show` needs no ll_init_map.
+        topo $ns $subdir rule add pref 200 to 198.51.100.0/24 iif $dummy lookup 200
+        # FRA_FWMARK with FRA_FWMASK, the two-token arm (:355-361). The mask is
+        # not 0xFFFFFFFF, which is what selects it over the one-token arm.
+        topo $ns $subdir rule add pref 300 fwmark 0x1234/0xff00 lookup 300
+        topo $ns $subdir rule add pref 400 oif $dummy lookup 400
+        # FRA_UID_RANGE. The kernel validates both ends against the CALLING
+        # user namespace (net/core/fib_rules.c:681), so this step is refused
+        # inside `unshare -r` and accepted here, where the guest is real root.
+        topo $ns $subdir rule add pref 500 uidrange 1000-2000 lookup 500
+        # FRA_SPORT_RANGE with start != end and FRA_DPORT_RANGE with
+        # start == end, which are different arms (:436-440 against :433-435).
+        # No `ipproto` keyword, so nothing here reaches inet_proto_n2a.
+        topo $ns $subdir rule add pref 600 sport 1000-2000 dport 80 lookup 600
+        # FRA_SUPPRESS_PREFIXLEN, which prints only INSIDE the `if (table)`
+        # block (:485-491), so it needs a rule that also looks a table up.
+        topo $ns $subdir rule add pref 700 lookup main suppress_prefixlength 0
+        # An action that is none of the three cased above it, so it falls to
+        # rtnl_rtntype_n2a at :546-548.
+        topo $ns $subdir rule add pref 800 blackhole
+        # FRA_GOTO with FR_ACT_GOTO (:536-541).
+        topo $ns $subdir rule add pref 900 goto 32766
+        # FIB_RULE_INVERT, the `not` token - emitted BEFORE `from` (:313-314),
+        # the one token on any of these lines that precedes the source.
+        topo $ns $subdir rule add pref 1000 not from 203.0.113.0/24 lookup main
+        topo $ns $subdir rule add pref 1100 nop
+        # FRA_L3MDEV. Prints the literal `lookup [l3mdev-table]` (:393-399) and
+        # leaves the table 0, so the line has one `lookup` token and it is not
+        # the one the table block emits.
+        topo $ns $subdir rule add pref 1200 l3mdev
+        # FRA_TUN_ID, the only BIG-ENDIAN integer in the attribute set -
+        # print_rule wraps it in ntohll (:474). A byte-swapped decoder renders
+        # 42 as 3026418949592973312, which is not a plausible tunnel id.
+        topo $ns $subdir rule add pref 1300 tun_id 42 lookup 1300
+        topo $ns $subdir rule add pref 1400 lookup main suppress_ifgroup 5
+        # FRA_FLOW, the realms pair packed as from<<16 | to (:509-521).
+        topo $ns $subdir rule add pref 1500 realms 1/2 lookup 1500
+        # FRA_FWMARK with no FRA_FWMASK, the one-token arm, against pref 300.
+        topo $ns $subdir rule add pref 1600 fwmark 0x10 lookup 1600
+        # RTN_NAT, which is not an FR_ACT_* value at all - it is 10, past
+        # FR_ACT_PROHIBIT at 8 - and the branch prints `masquerade` rather
+        # than `map-to` because the kernel accepts the action and drops the
+        # address, leaving tb[RTA_GATEWAY] absent (:525-534).
+        topo $ns $subdir rule add pref 1700 nat 192.0.2.99
+
+        # IPv6, and the FAMILY is the point: the v6 policy database is a
+        # separate table with its own defaults - two of them, `local` and
+        # `main`, where v4 has three. A decoder tested only against v4 never
+        # learns that the missing `default` rule is absent rather than
+        # filtered.
+        topo $ns $subdir -6 rule add pref 100 from 2001:db8::/64 lookup 100
+        # FRA_FLOWLABEL with FRA_FLOWLABEL_MASK. The mask is LABEL_MAX_MASK,
+        # which sends the mask to JSON ONLY and prints one token to the
+        # terminal (:583-596) - a place where the two output modes emit a
+        # different NUMBER of values, not a different spelling of one.
+        topo $ns $subdir -6 rule add pref 200 flowlabel 0x12345/0xfffff lookup 200
     }
 
     ###########################################################################

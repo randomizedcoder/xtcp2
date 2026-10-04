@@ -169,6 +169,9 @@ func runNeigh(c *runCtx, args []string) error {
 // the two halves of :335-339 are what make the command work. Writing the skip
 // as "NUD_NOARP only" would pass the proxy rows through for the wrong reason
 // and would silently let a genuine state-0 non-proxy entry through too, so it
+// is written the way iproute2 writes it — the mask test and both flag escapes
+// in one condition. See neighStateFiltered.
+//
 // # `-d` reaches nothing here, and that is a property worth asserting
 //
 // This function takes no show_details and passes none on, because ip/ipneigh.c

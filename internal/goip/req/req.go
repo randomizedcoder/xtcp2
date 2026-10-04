@@ -397,3 +397,19 @@ func LinkShowByName(name string, seq uint32) ([]byte, error) {
 func LinkShowDev(name string, extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildIplinkGetRequest(unix.AF_PACKET, name, extMask, seq)
 }
+
+// RuleShowDump is `ip rule show`'s only request, rtnl_ruledump_req
+// (lib/libnetlink.c:407-421).
+//
+// One transaction, 28 bytes, no attributes — and no attribute is POSSIBLE,
+// because under strict check the kernel rejects a rule dump carrying one
+// (net/core/fib_rules.c:1278-1281). Every selector `ip rule show` accepts is
+// applied client-side against replies, so this is the one show command in
+// goip whose request cannot vary with its arguments at all.
+//
+// The family byte is the caller's; the AF_UNSPEC substitution iproute2 makes
+// lives in internal/goip/obj_rule.go beside the `ip` line it comes from. See
+// xtcpnl.BuildDumpRuleRequest for why the split is there and not here.
+func RuleShowDump(family uint8, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpRuleRequest(family, seq)
+}

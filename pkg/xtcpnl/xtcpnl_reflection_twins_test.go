@@ -89,6 +89,17 @@ func deserializeDCTCPInfoReflection(data []byte, d *DCTCPInfo) (n int, err error
 	return DCTCPInfoReadCst, err
 }
 
+func deserializeFibRuleHdrReflection(data []byte, m *FibRuleHdr) (n int, err error) {
+	reader := bytes.NewReader(data)
+
+	err = binary.Read(reader, binary.LittleEndian, m)
+	if err != nil {
+		return 0, err
+	}
+
+	return FibRuleHdrReadCst, err
+}
+
 func deserializeIfAddrmsgReflection(data []byte, m *IfAddrmsg) (n int, err error) {
 	reader := bytes.NewReader(data)
 

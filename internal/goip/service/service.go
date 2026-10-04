@@ -326,3 +326,30 @@ func (s *Service) NeighborLinks() ([]model.Link, error) {
 	}
 	return links, nil
 }
+
+// Rules is `ip rule show`'s single dump.
+//
+// The shortest method in this file, and the shape is the point: no
+// ll_init_map beforehand, no by-index side-gets afterwards, and no filtering
+// argument, because iprule_list_flush_or_save applies every selector
+// client-side. Compare Neighbors, whose caller must send NeighborLinks first,
+// and Routes, whose replies can each cost a side-get to name an interface.
+//
+// The replies are left in wire order. The kernel's rule list is maintained in
+// preference order, so that IS the order `ip` prints; see model.Rule for why
+// there is no SortRules.
+func (s *Service) Rules(family uint8) ([]model.Rule, error) {
+	r, err := req.RuleShowDump(family, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build rule dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWRULE), "RTM_NEWRULE", xtcpnl.ParseRule)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Rule, len(v))
+	for i := range v {
+		out[i] = model.Rule(v[i])
+	}
+	return out, nil
+}

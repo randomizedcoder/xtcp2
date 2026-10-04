@@ -50,7 +50,7 @@ var objects = []object{
 	{name: "addrlabel"},
 	{name: "maddress"},
 	{name: "route", run: runRoute},
-	{name: "rule"},
+	{name: "rule", run: runRule},
 	{name: "neighbor", run: runNeigh},
 	{name: "neighbour", run: runNeigh},
 	{name: "ntable"},

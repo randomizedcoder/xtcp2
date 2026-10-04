@@ -360,8 +360,8 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 		},
 		{
 			// The description used to say empty "is the honest state until
-			// the live tiers exist". Tier C exists and nineteen of the
-			// table's twenty commands are gated, so the row is no longer
+			// the live tiers exist". Tier C exists and twenty-three of the
+			// table's twenty-four commands are gated, so the row is no longer
 			// about emptiness being expected — it is about emptiness still
 			// being LEGAL, which matters because this package must not
 			// require production gating policy to be non-empty. Which names

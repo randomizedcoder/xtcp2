@@ -253,6 +253,27 @@ proc capture_set {ns subdir dev} {
     # Floor 4, the same as the two above, because the byte changes which
     # table is walked and not how many dumps are sent.
     cap $ns $subdir netlink_route_getneigh_proxy 4 "ip neigh show proxy"
+
+    # The fifth object, and the corpus's first RTM_GETRULE and first
+    # fib_rule_hdr. Floor 2, the lowest in this table, because
+    # iprule_list_flush_or_save sends exactly one dump and calls no
+    # ll_init_map at all - `ip rule show` resolves no interface name, since
+    # FRA_IIFNAME and FRA_OIFNAME arrive as STRINGS rather than as indices.
+    #
+    # The request is 28 bytes and carries no attribute, and cannot: under
+    # strict check the kernel rejects a rule dump carrying any attribute
+    # (net/core/fib_rules.c:1278-1281). So the only byte that varies across
+    # every form of this command is frh.family, which makes the v6 capture
+    # below a one-byte delta - the narrowest in this set apart from
+    # netlink_route_getneigh_proxy's.
+    #
+    # That family byte is never AF_UNSPEC. iprule_list_flush_or_save
+    # substitutes AF_INET first (ip/iprule.c:749-752), so a BARE `ip rule
+    # show` asks for IPv4. Which is why there is no separate `-4` capture
+    # here: `ip -4 rule show` sends the same 28 bytes and prints the same
+    # output, and that equality is worth a parity row rather than a pcap.
+    cap $ns $subdir netlink_route_getrule 2 "ip rule show"
+    cap $ns $subdir netlink_route_getrule6 2 "ip -6 rule show"
 }
 
 # PLAIN AND -d, IN PAIRS.
@@ -354,6 +375,29 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_addr_json           "ip -j -p addr show"
     side $ns $subdir ip_route_main_json     "ip -j -p route show"
     side $ns $subdir ip_neigh_json          "ip -j -p neigh show"
+
+    # The rule stanzas. `ip_rule_v4` is captured even though it must equal
+    # ip_rule byte for byte - the bare form forces AF_INET at
+    # ip/iprule.c:749-752 - because "must equal" is the claim, and a sidecar
+    # that is diffed against another sidecar is how it gets checked without
+    # trusting the reading of one C line.
+    #
+    # The `-d` pair is the useful one here in a way the neigh pair was not.
+    # Every rule in the topology carries FRA_PROTOCOL, and for the sixteen
+    # user-added ones it carries ZERO; print_rule suppresses the token unless
+    # `protocol && protocol != RTPROT_KERNEL` or show_details (:552-557). So
+    # ip_rule holds an attribute that is present, decoded, and printed
+    # nowhere, and ip_rule_n is the only file that proves it was there. That
+    # is the cleanest presence-versus-value case in the corpus: a renderer
+    # that stored FRA_PROTOCOL as a bare uint8 cannot tell the sixteen
+    # `proto unspec` rules from a rule that never sent the attribute, and
+    # both goldens are needed to catch it.
+    side $ns $subdir ip_rule                "ip rule show"
+    side $ns $subdir ip_rule_v4             "ip -4 rule show"
+    side $ns $subdir ip_rule_n              "ip -d rule show"
+    side $ns $subdir ip_rule6               "ip -6 rule show"
+    side $ns $subdir ip_rule6_n             "ip -d -6 rule show"
+    side $ns $subdir ip_rule_json           "ip -j -p rule show"
 }
 
 ###############################################################################

@@ -21,3 +21,22 @@ ok    [nlcapc] ip neigh add 192.0.2.54 lladdr 02:00:00:00:00:05 dev goip0 nud pe
 ok    [nlcapc] ip neigh add 192.0.2.55 lladdr 02:00:00:00:00:06 dev goip0 nud permanent extern_valid
 ok    [nlcapc] ip neigh add 192.0.2.56 lladdr 02:00:00:00:00:07 dev goip0 nud permanent router extern_learn extern_valid
 ok    [nlcapc] ip -6 neigh add 2001:db8::53 lladdr 02:00:00:00:00:08 dev goip0 nud permanent router extern_valid
+ok    [nlcapc] ip rule add pref 100 from 192.0.2.0/24 lookup 100
+ok    [nlcapc] ip rule add pref 200 to 198.51.100.0/24 iif goip0 lookup 200
+ok    [nlcapc] ip rule add pref 300 fwmark 0x1234/0xff00 lookup 300
+ok    [nlcapc] ip rule add pref 400 oif goip0 lookup 400
+ok    [nlcapc] ip rule add pref 500 uidrange 1000-2000 lookup 500
+ok    [nlcapc] ip rule add pref 600 sport 1000-2000 dport 80 lookup 600
+ok    [nlcapc] ip rule add pref 700 lookup main suppress_prefixlength 0
+ok    [nlcapc] ip rule add pref 800 blackhole
+ok    [nlcapc] ip rule add pref 900 goto 32766
+ok    [nlcapc] ip rule add pref 1000 not from 203.0.113.0/24 lookup main
+ok    [nlcapc] ip rule add pref 1100 nop
+ok    [nlcapc] ip rule add pref 1200 l3mdev
+ok    [nlcapc] ip rule add pref 1300 tun_id 42 lookup 1300
+ok    [nlcapc] ip rule add pref 1400 lookup main suppress_ifgroup 5
+ok    [nlcapc] ip rule add pref 1500 realms 1/2 lookup 1500
+ok    [nlcapc] ip rule add pref 1600 fwmark 0x10 lookup 1600
+ok    [nlcapc] ip rule add pref 1700 nat 192.0.2.99
+ok    [nlcapc] ip -6 rule add pref 100 from 2001:db8::/64 lookup 100
+ok    [nlcapc] ip -6 rule add pref 200 flowlabel 0x12345/0xfffff lookup 200

@@ -71,6 +71,18 @@ const (
 	// needs its own file: nothing in the replies or the output records it.
 	tdGatedGetNeighDev     = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_dev.pcap"
 	tdGatedGetNeighDevMesh = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/netlink_route_getneigh_dev.pcap"
+
+	// `ip rule show` and `ip -6 rule show`. Two datagrams each — one request
+	// and one multipart reply — the smallest captures in the corpus, and for a
+	// structural reason rather than an incidental one:
+	// iprule_list_flush_or_save calls no ll_init_map, because FRA_IIFNAME and
+	// FRA_OIFNAME arrive as strings and there is no index to resolve.
+	//
+	// There is deliberately no `-4` file. `ip rule show` and `ip -4 rule show`
+	// build the same bytes (ip/iprule.c:748-752), so a second capture would
+	// assert nothing; the identity is claimed by a parity row instead.
+	tdGatedGetRule  = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getrule.pcap"
+	tdGatedGetRule6 = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getrule6.pcap"
 )
 
 // canonicalRequests returns every request in a capture with nlmsg_seq and
@@ -1877,6 +1889,153 @@ func TestRouteShowDumpShape(t *testing.T) {
 				}
 				if v := binary.LittleEndian.Uint32(got[off+4 : off+8]); v != want.value {
 					t.Errorf("attribute %d value = %d, want %d", i, v, want.value)
+				}
+			}
+		})
+	}
+}
+
+// TestTierARuleShowRequests compares the built rule dump request against the
+// bytes the pinned `ip` emitted, for both families.
+//
+// # The one command in goip whose request is fully determined
+//
+// Every other Tier A test above has at least one degree of freedom to get
+// wrong — a family, a mask, a table, an index. This one has a single byte:
+// rtnl_ruledump_req (lib/libnetlink.c:407-421) writes a 12-byte fib_rule_hdr
+// with only frh_family set, and the kernel's strict-mode validator rejects a
+// nonzero dst_len, src_len, tos, table, res1, res2, action or flags
+// (net/core/fib_rules.c:1271-1276) and refuses any attribute at all
+// (:1278-1281).
+//
+// So the assertion is narrow and total: 28 bytes, of which 27 are fixed. The
+// value in checking it against a capture rather than against the C is that the
+// one free byte is precisely the one the kernel does NOT validate — a wrong
+// family is answered rather than refused, with a different family's rules.
+//
+// go test ./internal/goip/req/ -run TestTierARuleShowRequests
+func TestTierARuleShowRequests(t *testing.T) {
+	tests := []struct {
+		description string
+		capture     string
+		family      uint8
+	}{
+		{
+			// AF_INET and not AF_UNSPEC, because iprule_list_flush_or_save
+			// substitutes it before building anything (ip/iprule.c:748-752).
+			// That substitution is in obj_rule.go, so this row is also what
+			// proves it is applied: a goip that left it out would build the
+			// same 28 bytes with a 0 in the first position of the body.
+			description: "positive: `rule show` is AF_INET with no attributes",
+			capture:     tdGatedGetRule,
+			family:      unix.AF_INET,
+		},
+		{
+			description: "positive: `-6 rule show` differs in exactly the family byte",
+			capture:     tdGatedGetRule6,
+			family:      unix.AF_INET6,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var captured [][]byte
+			for _, r := range canonicalRequests(t, tc.capture) {
+				if binary.LittleEndian.Uint16(r[4:6]) == uint16(unix.RTM_GETRULE) {
+					captured = append(captured, r)
+				}
+			}
+			if len(captured) != 1 {
+				t.Fatalf("RTM_GETRULE requests in %s = %d, want exactly 1; the "+
+					"capture is polluted and the expectation no longer describes "+
+					"a single command", tc.capture, len(captured))
+			}
+			got, err := RuleShowDump(tc.family, 42)
+			if err != nil {
+				t.Fatalf("RuleShowDump(%d): %v", tc.family, err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), captured[0]) {
+				t.Errorf("built    %x\ncaptured %x", zeroSeqPid(got), captured[0])
+			}
+		})
+	}
+}
+
+// TestRuleShowDumpShape asserts the invariants the two captured families cannot
+// distinguish between them: the length, the flags, and that all eleven bytes
+// after the family are zero.
+//
+// It is the negative half of the test above. Byte equality against a capture
+// proves AF_INET and AF_INET6 are right; it says nothing about AF_UNSPEC or
+// AF_PACKET, and those are exactly the two a goip bug would produce — the
+// first by skipping the substitution, the second by honoring `-0`. Both are
+// legal requests the kernel answers, so nothing downstream would complain.
+//
+// go test ./internal/goip/req/ -run TestRuleShowDumpShape
+func TestRuleShowDumpShape(t *testing.T) {
+	// 16-byte nlmsghdr + 12-byte fib_rule_hdr, and nothing else is possible.
+	const hdrAndFibRule = 28
+
+	tests := []struct {
+		description string
+		family      uint8
+	}{
+		{
+			description: "positive: AF_INET, the family a bare `rule show` resolves to",
+			family:      unix.AF_INET,
+		},
+		{
+			description: "positive: AF_INET6, the only other family `ip rule` produces",
+			family:      unix.AF_INET6,
+		},
+		{
+			// The substitution's input, which must never reach the wire from
+			// goip — the kernel would answer it with every family's rules at
+			// once. The builder still has to encode it faithfully, because the
+			// substitution's home is the object layer; this row pins the
+			// builder's half of that split.
+			description: "boundary: AF_UNSPEC encodes as zero, so a missing substitution is visible in the bytes",
+			family:      unix.AF_UNSPEC,
+		},
+		{
+			// `-0`. preferred_family survives the substitution, reaches the
+			// kernel, finds no AF_PACKET rules_ops, and the dump comes back
+			// empty rather than erroring.
+			description: "corner: AF_PACKET passes through unchanged, which is how `-0 rule show` comes back empty",
+			family:      unix.AF_PACKET,
+		},
+		{
+			description: "corner: a family byte the kernel has no rules_ops for is still encoded, not rejected here",
+			family:      0xFF,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := RuleShowDump(tc.family, 9)
+			if err != nil {
+				t.Fatalf("RuleShowDump: %v", err)
+			}
+			if len(got) != hdrAndFibRule {
+				t.Fatalf("len = %d, want %d: %x", len(got), hdrAndFibRule, got)
+			}
+			if mt := binary.LittleEndian.Uint16(got[4:6]); mt != uint16(unix.RTM_GETRULE) {
+				t.Errorf("nlmsg_type = %d, want RTM_GETRULE", mt)
+			}
+			if want := uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP); binary.LittleEndian.Uint16(got[6:8]) != want {
+				t.Errorf("nlmsg_flags = %#x, want %#x", binary.LittleEndian.Uint16(got[6:8]), want)
+			}
+			if got[16] != tc.family {
+				t.Errorf("frh_family = %d, want %d", got[16], tc.family)
+			}
+			// Bytes 17..27 are dst_len, src_len, tos, table, res1, res2,
+			// action and the four flag bytes. The validator refuses the dump
+			// if any is nonzero, so this is not style — it is the difference
+			// between a dump and an EINVAL.
+			for i := 17; i < hdrAndFibRule; i++ {
+				if got[i] != 0 {
+					t.Errorf("fib_rule_hdr byte %d = %#x, want 0; "+
+						"fib_valid_dumprule_req refuses a nonzero one", i-16, got[i])
 				}
 			}
 		})

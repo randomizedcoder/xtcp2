@@ -156,7 +156,7 @@ referenced; xtcp2 counts are attributes actually extracted into a struct field.
 |---|---|---|---|
 | `IFLA_*` (link) | **412** | ~~**4**~~ → **14** as of `4494b42` — `IFNAME`, `OPERSTATE`, `CARRIER`, `MTU`, `ADDRESS`, `BROADCAST`, `QDISC`, `LINK`, `MASTER`, `TXQLEN`, `GROUP`, `LINKMODE`, `LINK_NETNSID`, `LINKINFO`→`INFO_KIND` (`xtcpnl_ifinfomsg.go`) | Fork, by an order of magnitude — but the gap is now mostly `IFLA_INFO_DATA` per link kind, plus `-s` statistics |
 | `TCA_*` (tc) | **344** | 0 | Fork |
-| `FRA_*` (rules) | **25** | 0 | Fork |
+| `FRA_*` (rules) | **25** | ~~0~~ → **25** — every attribute `print_rule` reads, plus `RTA_GATEWAY`, which is not an `FRA_*` constant at all and is read from the same table for the `RTN_NAT` action (`xtcpnl_fib_rule_hdr.go`) | **Level** — the only prefix in this table where they are, and the reason is that `ip rule` has no nest to descend into |
 | `RTA_*` (route) | **24** | **9** — `DST`, `GATEWAY`, `PREFSRC`, `OIF`, `PRIORITY`, `TABLE`, `MULTIPATH`, `VIA`, `NH_ID` (`xtcpnl_rtmsg.go:130-157`) | Fork |
 | `NDA_*` (neigh) | **17** | **3** — `DST`, `LLADDR`, `CACHEINFO` (`xtcpnl_ndmsg.go:213`) | Fork |
 | `IFA_*` (addr) | **10** | ~~**3**~~ → **7** as of `4494b42` — `ADDRESS`, `LOCAL`, `LABEL`, `FLAGS`, `BROADCAST`, `CACHEINFO`, `IFA_PROTO` (`xtcpnl_ifaddrmsg.go`) | Fork, by three — the closest either side comes to level |
