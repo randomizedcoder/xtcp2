@@ -175,8 +175,15 @@ func contains(v []string, want string) bool {
 
 // AddressSnapshot performs the link dump before the address dump, matching
 // iproute2 and returning both typed collections from one application call.
-func (s *Service) AddressSnapshot(family uint8) ([]model.Link, []model.Address, error) {
-	r, err := req.AddrShowLinkDump(family, s.nextSeq())
+//
+// extMask is the caller's req.ExtMaskShow / req.ExtMaskStats choice, which is
+// to say `-s`. It reaches the wire only for AF_UNSPEC and AF_PACKET; the
+// family arm of req.AddrShowLinkDump drops it on purpose, and that function's
+// doc has the derivation. The replies carry IFLA_STATS and IFLA_STATS64 under
+// both the 0x01 mask and no mask at all, so what the caller renders is its own
+// decision and not one it can read off this request.
+func (s *Service) AddressSnapshot(family uint8, extMask uint32) ([]model.Link, []model.Address, error) {
+	r, err := req.AddrShowLinkDump(family, extMask, s.nextSeq())
 	if err != nil {
 		return nil, nil, fmt.Errorf("goip: build addr link dump request: %w", err)
 	}

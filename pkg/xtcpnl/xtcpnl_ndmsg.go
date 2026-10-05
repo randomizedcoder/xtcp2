@@ -170,6 +170,17 @@ type NeighInfo struct {
 
 	HasCacheInfo bool // NDA_CACHEINFO present and well-formed
 	CacheInfo    NdaCacheInfo
+
+	// Probes is NDA_PROBES, the count of unanswered solicitations for this
+	// entry, and HasProbes records its presence.
+	//
+	// The presence bit is load-bearing here for the same reason as
+	// HasCacheInfo and unlike FlagsExt above: print_neigh emits the token
+	// whenever the attribute exists, with no test on its value
+	// (ip/ipneigh.c:457-459), so `probes 0` and no token at all are two
+	// different outputs for two different wire states.
+	Probes    uint32 // NDA_PROBES
+	HasProbes bool   // NDA_PROBES present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -256,6 +267,16 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		case uint16(unix.NDA_CACHEINFO):
 			if _, cerr := DeserializeNdaCacheInfo(val, &ni.CacheInfo); cerr == nil {
 				ni.HasCacheInfo = true
+			}
+		case uint16(unix.NDA_PROBES):
+			// Same length guard as NDA_FLAGS_EXT below, and the same
+			// divergence from iproute2's unchecked rta_getattr_u32. Note the
+			// presence bit is set only for a well-formed attribute, so a
+			// short NDA_PROBES renders no token here while `ip` would print
+			// one built from over-read bytes.
+			if len(val) >= 4 {
+				ni.Probes = binary.LittleEndian.Uint32(val[0:4])
+				ni.HasProbes = true
 			}
 		case NdaFlagsExt:
 			// The length guard is this package's convention for a u32

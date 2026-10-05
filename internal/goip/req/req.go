@@ -127,12 +127,34 @@ func LinkShowDump(extMask, seq uint32) ([]byte, error) {
 // One consequence worth stating because it is invisible in the request: the
 // AF_INET form carries no ext mask, so RTEXT_FILTER_SKIP_STATS is clear and
 // the replies **do** carry IFLA_STATS and IFLA_STATS64 — the attributes plan
-// fact 3 observed to be absent from `ip link show`'s replies. goip renders
-// neither (no -s), so this costs nothing but it does mean an `addr show` reply
-// is materially bigger than a `link show` one.
-func AddrShowLinkDump(family uint8, seq uint32) ([]byte, error) {
+// fact 3 observed to be absent from `ip link show`'s replies. Under `-s` goip
+// now renders them (see renderAddrGroups), and for AF_INET it does so from
+// counters it never had to ask for.
+//
+// # extMask is honored on one arm and DELIBERATELY DROPPED on the other
+//
+// This is not an oversight, and it is the asymmetry most likely to be
+// "cleaned up" by a later reader. It is `rtnl_linkdump_req_filter_fn`'s own
+// shape: the filter fn is the only thing that appends IFLA_EXT_MASK, it runs
+// for AF_UNSPEC and AF_PACKET only, and every other family falls through to
+// the bare `__rtnl_linkdump_req` (lib/libnetlink.c:591-618). So `ip -s -4 addr
+// show` sends bytes IDENTICAL to `ip -4 addr show` — there is no attribute in
+// which to carry the mask — while `ip -s addr show` sends 0x01 where plain
+// `addr show` sends 0x09.
+//
+// The stats still come back on the family arm, because an absent mask leaves
+// RTEXT_FILTER_SKIP_STATS clear, which is why `-s -4 addr show` can render a
+// stats block from a request that never asked for one. Passing extMask into
+// the family arm would therefore change nothing about what is rendered and
+// everything about whether the bytes match `ip`'s.
+//
+// Contrast AddrShowLinkGet, which is stats-sensitive for EVERY family:
+// ipaddr_link_get addattr32s the mask unconditionally (ip/ipaddress.c:2066).
+// The two live one call apart in `ip -s addr show dev NAME` and disagree, and
+// pkg/nlparity compares requests for full byte equality.
+func AddrShowLinkDump(family uint8, extMask, seq uint32) ([]byte, error) {
 	if family == unix.AF_UNSPEC || family == unix.AF_PACKET {
-		return xtcpnl.BuildDumpLinkRequestExt(family, ExtMaskShow, seq)
+		return xtcpnl.BuildDumpLinkRequestExt(family, extMask, seq)
 	}
 	return xtcpnl.BuildDumpLinkRequestFamily(family, seq), nil
 }
@@ -214,12 +236,20 @@ func AddrShowDump(family uint8, ifindex uint32, seq uint32) []byte {
 // therefore send an AF_UNSPEC get and an AF_INET6 get back to back, and a
 // shared helper with a default would get one of them wrong.
 //
-// The mask is ExtMaskShow: `filter.vfinfo` is 1 unless `novf` was given
-// (:2153, :2239) and `!show_stats` ors in RTEXT_FILTER_SKIP_STATS
-// (:2066-2067). It is a parameter rather than a constant for the same reason
-// LinkShowDev's is — `-s` reaches this call site in `ip`. goip's addr object
-// does not implement `-s` at all; see addrShowDev for what that costs and why
-// it is one item rather than two.
+// The mask is ExtMaskShow without `-s` and ExtMaskStats with it:
+// `filter.vfinfo` is 1 unless `novf` was given (:2153, :2239) and
+// `!show_stats` ors in RTEXT_FILTER_SKIP_STATS (:2066-2067). It is a parameter
+// rather than a constant for the same reason LinkShowDev's is — `-s` reaches
+// this call site in `ip`, and goip's addr object now passes it through
+// (obj_addr.go's addrShowDev).
+//
+// Unlike AddrShowLinkDump, this one is stats-sensitive for EVERY family.
+// ipaddr_link_get addattr32s the mask unconditionally, with no
+// rtnl_linkdump_req_filter_fn in the way to skip it for a non-AF_UNSPEC
+// family. So under `ip -s -4 addr show dev NAME` the dump carries no
+// IFLA_EXT_MASK while this get carries 0x01 — two requests of one command,
+// disagreeing, and that disagreement is the correct behavior rather than a
+// bug to normalize away.
 func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetLinkByIndexRequest(family, index, extMask, seq)
 }

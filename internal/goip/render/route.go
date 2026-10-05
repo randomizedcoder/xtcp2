@@ -38,8 +38,12 @@ import (
 // so they are absent rather than wrong. None of them appears on any route in
 // the two committed topologies:
 //
-//   - RTA_CACHEINFO (`expires`, `error`) and RTA_MARK, RTA_UID, RTA_FLOW
-//     (`realms`), RTA_TTL_PROPAGATE — not decoded into xtcpnl.RouteInfo.
+//   - RTA_MARK, RTA_UID, RTA_FLOW (`realms`), RTA_TTL_PROPAGATE — not decoded
+//     into xtcpnl.RouteInfo. RTA_CACHEINFO used to be on this list and is not
+//     any more; see applyRouteCacheinfo, and note that the claim it carried —
+//     "none of them appears on any route in the two committed topologies" —
+//     was true of the ATTRIBUTE's non-zero members and false of the attribute
+//     itself, which every IPv6 route in the corpus carries.
 //   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
 //     tunnel surfaces; RTA_ENCAP alone is a second parser.
 //   - `nh_info`, which print_route emits only under `-d`, and the RTM_F_CLONED
@@ -579,6 +583,24 @@ type RouteShowFilter struct {
 	// line. The ip_route_dev sidecar is a plain capture, so nothing in the
 	// corpus states this — it comes from the guard.
 	Details bool
+
+	// Stats is show_stats, and on this object it gates three tokens that a
+	// route DUMP can never populate: `users`, `used` and `age`
+	// (print_rta_cacheinfo, ip/iproute.c:514-525).
+	//
+	// All three come from members the kernel writes only behind `if (dst)`,
+	// and the dump path passes dst == NULL — so on every command goip
+	// implements they are structurally zero and all three guards suppress.
+	// It is threaded anyway rather than hardcoded false, because the
+	// suppression is a property of the DATA while this struct's job is to
+	// carry the FLAG; conflating the two is how a renderer silently becomes
+	// wrong the day `route get` lands. See xtcpnl_rta_cacheinfo.go for the
+	// measurement behind that claim.
+	//
+	// The other five tokens print_rta_cacheinfo can emit — `expires`,
+	// `error`, `ipid`, `ts`, `tsage` — are NOT gated by it, which is the
+	// whole reason this renderer needed changing at all.
+	Stats bool
 }
 
 // RouteView is one route as `ip route show` presents it.
@@ -631,6 +653,39 @@ type RouteView struct {
 
 	// Flags is never nil; see RtFlagTokens.
 	Flags []string `json:"flags"`
+
+	// The RTA_CACHEINFO tokens, in print_rta_cacheinfo's emission order
+	// (ip/iproute.c:500-532). Each is a pointer because every one of the
+	// seven is suppressed at zero — `if (ci->rta_expires != 0)` and so on —
+	// so "absent" and "present and zero" render identically but must not be
+	// confused in the view.
+	//
+	// They sit between Flags and Metrics because that is where print_route
+	// calls print_rta_cacheinfo: after RTA_UID (:966) and before RTA_METRICS
+	// (:982). Verified against `ip -6 -j route show` on an expiring route,
+	// whose object orders the keys `…,"metric":1024,"flags":[],"expires":599,
+	// "pref":"medium"`.
+	//
+	// Expires is int32, not uint32: rta_expires is the struct's one signed
+	// member and `ip` prints it with %d.
+	Expires *int32  `json:"expires,omitempty"`
+	Error   *uint32 `json:"error,omitempty"`
+
+	// Users, Used and Age are the three `-s`-gated tokens. A route dump
+	// cannot populate them — see RouteShowFilter.Stats.
+	Users *uint32 `json:"users,omitempty"`
+	Used  *uint32 `json:"used,omitempty"`
+	Age   *uint32 `json:"age,omitempty"`
+
+	// IPID is rta_id, printed as `ipid 0x%04llx` via print_0xhex, so its JSON
+	// form is the hex STRING rather than a number.
+	IPID *string `json:"ipid,omitempty"`
+
+	// Ts and Tsage share one guard — `if (ci->rta_ts || ci->rta_tsage)`
+	// (:529) — so either being non-zero prints BOTH, and that is why they are
+	// set together rather than each on its own test.
+	Ts    *string `json:"ts,omitempty"`
+	Tsage *uint32 `json:"tsage,omitempty"`
 
 	Metrics *RouteMetricsView `json:"metrics,omitempty"`
 
@@ -738,6 +793,12 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		metric := ri.Priority
 		v.Metric = &metric
 	}
+	// ri.Family, deliberately, not the `family` local: print_route's cacheinfo
+	// guard tests the RAW rtm_family (:970, :976), while `family` above is
+	// getRealFamily's, which folds RTNL_FAMILY_IPMR/IP6MR onto AF_INET/AF_INET6.
+	// A multicast route out of the mroute tables therefore prints no cacheinfo
+	// even though its real family is AF_INET.
+	applyRouteCacheinfo(&v, ri.Family, ri.CacheInfo, f.Stats)
 	v.Metrics = RouteMetricsViewOf(ri.Metrics)
 	if ri.Iif != 0 {
 		v.Iif = tab.IndexToName(int32(ri.Iif))
@@ -749,6 +810,72 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab))
 	}
 	return v
+}
+
+// applyRouteCacheinfo fills RouteView's RTA_CACHEINFO tokens, reproducing
+// print_rta_cacheinfo (ip/iproute.c:500-532) and the family guard that decides
+// whether it is called at all (:970-979).
+//
+// Every token is suppressed at zero, each on its own `!= 0` test, except Ts
+// and Tsage which share one. Reproducing the suppression per-field rather than
+// per-struct matters: a route carrying a non-zero rta_used and a zero
+// rta_clntref prints `used N` with no `users` before it.
+//
+// stats is show_stats. It gates exactly three of the seven; see
+// RouteShowFilter.Stats for why the other four are not gated and why that is
+// the part of this function that was actually missing.
+func applyRouteCacheinfo(v *RouteView, rtmFamily uint8, ci *xtcpnl.RtaCacheinfo, stats bool) {
+	if ci == nil {
+		return
+	}
+	// print_route calls print_rta_cacheinfo only from the AF_INET and AF_INET6
+	// arms. Any other family drops the attribute entirely, decoded or not.
+	if rtmFamily != unix.AF_INET && rtmFamily != unix.AF_INET6 {
+		return
+	}
+
+	if ci.Expires != 0 {
+		// Integer division, matching C: rta_expires/hz truncates toward zero.
+		// Go truncates toward zero for negative operands too, which is what
+		// C99 specifies, so a lapsed expiry renders the same on both.
+		e := ci.Expires / xtcpnl.RtaUserHzCst
+		v.Expires = &e
+	}
+	if ci.Error != 0 {
+		e := ci.Error
+		v.Error = &e
+	}
+
+	if stats {
+		if ci.Clntref != 0 {
+			u := ci.Clntref
+			v.Users = &u
+		}
+		if ci.Used != 0 {
+			u := ci.Used
+			v.Used = &u
+		}
+		if ci.Lastuse != 0 {
+			a := ci.Lastuse / xtcpnl.RtaUserHzCst
+			v.Age = &a
+		}
+	}
+
+	if ci.ID != 0 {
+		// print_0xhex(PRINT_ANY, "ipid", "ipid 0x%04llx ", …). print_0xhex
+		// emits a STRING in JSON, not a number, so the view holds the
+		// formatted text for both outputs.
+		s := fmt.Sprintf("0x%04x", ci.ID)
+		v.IPID = &s
+	}
+	if ci.Ts != 0 || ci.Tsage != 0 {
+		// One guard, two tokens (:529-534) — either member being non-zero
+		// prints both, so these are set together and never independently.
+		ts := fmt.Sprintf("0x%x", ci.Ts)
+		v.Ts = &ts
+		tsage := ci.Tsage
+		v.Tsage = &tsage
+	}
 }
 
 // routePrefixWildcard is the token print_route emits for a destination with no
@@ -878,6 +1005,35 @@ func (v RouteView) Text() string {
 	}
 	for _, f := range v.Flags {
 		fmt.Fprintf(&b, "%s ", f)
+	}
+	// print_rta_cacheinfo's seven tokens, in its own order. Note `ts` alone
+	// carries NO trailing space in its format string — `"ts 0x%llx"` against
+	// `"tsage %usec "` (ip/iproute.c:530-534) — so the two run together as
+	// `ts 0x1tsage 2sec `. That is upstream's output, reproduced rather than
+	// tidied.
+	if v.Expires != nil {
+		fmt.Fprintf(&b, "expires %dsec ", *v.Expires)
+	}
+	if v.Error != nil {
+		fmt.Fprintf(&b, "error %d ", *v.Error)
+	}
+	if v.Users != nil {
+		fmt.Fprintf(&b, "users %d ", *v.Users)
+	}
+	if v.Used != nil {
+		fmt.Fprintf(&b, "used %d ", *v.Used)
+	}
+	if v.Age != nil {
+		fmt.Fprintf(&b, "age %dsec ", *v.Age)
+	}
+	if v.IPID != nil {
+		fmt.Fprintf(&b, "ipid %s ", *v.IPID)
+	}
+	if v.Ts != nil {
+		fmt.Fprintf(&b, "ts %s", *v.Ts)
+	}
+	if v.Tsage != nil {
+		fmt.Fprintf(&b, "tsage %dsec ", *v.Tsage)
 	}
 	if v.Metrics != nil {
 		b.WriteString(v.Metrics.Text())

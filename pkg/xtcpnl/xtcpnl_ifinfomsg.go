@@ -614,25 +614,42 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 	// returns ErrLinkStatsNone when neither attribute was present, which is
 	// the ordinary case for every command except `ip -s` — so Stats is left
 	// nil rather than the error dropping a perfectly good link.
-	if s, serr := DecodeLinkStats(raw.stats64, raw.stats); serr == nil {
+	if s, serr := DecodeLinkStats(raw.stats64, raw.stats, raw.protinfo); serr == nil {
 		li.Stats = &s
 		// The same test DecodeLinkStats made, and the reason it is repeated
 		// rather than returned: the selection rule is presence of
 		// IFLA_STATS64, full stop, so a caller that has the raw attributes
 		// already knows the answer and a third return value would only be a
 		// second place for it to be wrong.
-		li.StatsIs64 = raw.stats64 != nil
+		//
+		// The IFLA_PROTINFO arm counts as 64-bit, and that is not a
+		// convenience. Upstream's third arm ends `return sizeof(*stats64)`,
+		// and __print_link_stats keys the JSON object on that return value
+		// (`size == sizeof(stats64) ? "stats64" : "stats"`, ip/ipaddress.c:836)
+		// — so `ip -s -6 -j addr show` emits "stats64" over MIB counters that
+		// never saw a struct rtnl_link_stats64. Nothing in the text output
+		// reveals this, so getting it wrong would be invisible until the JSON
+		// golden disagreed.
+		li.StatsIs64 = raw.stats64 != nil ||
+			(raw.stats == nil && raw.protinfo != nil)
 	}
 	return li, nil
 }
 
-// linkStatsRaw carries the two stats attributes out of the attribute walk
-// undecoded, because neither arm can decide on its own which one wins: the
+// linkStatsRaw carries the three stats-bearing attributes out of the attribute
+// walk undecoded, because no arm can decide on its own which one wins: the
 // kernel emits IFLA_STATS before IFLA_STATS64, so choosing at the case would
 // mean choosing before the winner has been seen.
+//
+// protinfo is the IFLA_INET6_STATS carrier and is only ever populated on an
+// AF_INET6 link dump, where the other two are absent. It is kept raw for the
+// same reason, and for one more: on an AF_BRIDGE dump the same attribute
+// carries bridge-port flags instead, so deciding what it means at the case
+// would mean deciding without knowing which of the three is present.
 type linkStatsRaw struct {
-	stats   []byte
-	stats64 []byte
+	stats    []byte
+	stats64  []byte
+	protinfo []byte
 }
 
 // setLinkAttr applies one RTA to a LinkInfo under construction.
@@ -716,6 +733,8 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		raw.stats = val
 	case uint16(unix.IFLA_STATS64):
 		raw.stats64 = val
+	case uint16(unix.IFLA_PROTINFO):
+		raw.protinfo = val
 
 	default:
 		setLinkDetailAttr(&li.Detail, atype, val)

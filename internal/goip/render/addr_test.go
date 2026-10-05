@@ -1722,3 +1722,210 @@ func TestAddrGroupViewJSON(t *testing.T) {
 		})
 	}
 }
+
+// TestAddrGroupViewWithStats covers the `-s addr show` block: whether it is
+// emitted, where it lands, and under which JSON key.
+//
+// The placement rows are the reason this is a separate table from
+// TestLinkViewWithStats rather than more rows in it. The two objects emit the
+// SAME block in DIFFERENT positions — print_link_stats runs at
+// ip/ipaddress.c:2333, one line after print_selected_addrinfo at :2332, so
+// the counters land below the address lines; print_linkinfo emits them at
+// :1297-1300, directly under the stanza and above any altname. A block
+// appended by the wrong mechanism would satisfy every keyword check and fail
+// the ordering rows alone.
+//
+// go test ./internal/goip/render/ -run TestAddrGroupViewWithStats
+func TestAddrGroupViewWithStats(t *testing.T) {
+	full := rxtx([6]uint64{1, 2, 3, 4, 5, 6}, [6]uint64{7, 8, 9, 10, 11, 12})
+
+	// One address so the "below the addresses" claim has something to be
+	// below. The payload is a real v4 address shape rather than a round
+	// number, per this file's header.
+	addr := AddrViewOf(xtcpnl.AddrInfo{
+		Index:     2,
+		Family:    unix.AF_INET,
+		Prefixlen: 24,
+		Address:   v4(192, 0, 2, 10),
+		Local:     v4(192, 0, 2, 10),
+		Scope:     0,
+	})
+
+	tests := []struct {
+		description string
+		li          xtcpnl.LinkInfo
+		withStats   bool
+		// wantBlock is whether Text() carries an "RX:" line.
+		wantBlock bool
+		// wantKey is the JSON key expected, or "" for neither.
+		wantKey string
+	}{
+		{
+			description: "positive: IFLA_STATS64 under -s renders the block and the stats64 key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true},
+			withStats:   true,
+			wantBlock:   true,
+			wantKey:     "stats64",
+		},
+		{
+			// The key records which attribute arrived, not which counters
+			// (ip/ipaddress.c:836-837).
+			description: "positive: a widened IFLA_STATS under -s renders the same block under the stats key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: false},
+			withStats:   true,
+			wantBlock:   true,
+			wantKey:     "stats",
+		},
+		{
+			// The whole point of threading showStats rather than reading the
+			// reply: `ip -4 addr show` gets counters it never asked for,
+			// because its 32-byte dump carries no RTEXT_FILTER_SKIP_STATS,
+			// and prints none of them.
+			description: "negative: counters present but -s absent renders no block and no key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true},
+			withStats:   false,
+			wantBlock:   false,
+			wantKey:     "",
+		},
+		{
+			// `-s` asked, kernel sent neither attribute. Constructed: under
+			// both the 0x01 mask and no mask at all the kernel attaches both
+			// IFLA_STATS and IFLA_STATS64, so no capture on this topology can
+			// produce a counter-less reply to a command that wanted one.
+			description: "negative: -s with neither attribute prints nothing, not a block of zeros",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0"},
+			withStats:   true,
+			wantBlock:   false,
+			wantKey:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			g := AddrGroupView{
+				LinkView: LinkViewForAddr(tt.li, fakeNames{}, unix.AF_INET, false),
+				AddrInfo: []AddrView{addr},
+			}
+			if tt.withStats {
+				g = g.WithStats(tt.li)
+			}
+
+			text := g.Text()
+			if got := strings.Contains(text, "    RX: "); got != tt.wantBlock {
+				t.Errorf("Text() has an RX line = %v, want %v:\n%s", got, tt.wantBlock, text)
+			}
+
+			// Placement, asserted only when there is a block to place. The
+			// keyword check above passes for a block anywhere in the output;
+			// this is the half that says WHERE.
+			if tt.wantBlock {
+				rx := strings.Index(text, "    RX: ")
+				ia := strings.Index(text, "    inet ")
+				if ia < 0 {
+					t.Fatalf("no address line to position the block against:\n%s", text)
+				}
+				if rx < ia {
+					t.Errorf("stats block at %d precedes the address line at %d; "+
+						"ip/ipaddress.c:2333 runs AFTER :2332:\n%s", rx, ia, text)
+				}
+				if !strings.HasSuffix(text, "\n") {
+					t.Errorf("block-then-newline is print_link_stats' order "+
+						"(ip/ipaddress.c:840-848); output does not end in a newline:\n%q", text)
+				}
+			}
+
+			b, err := json.Marshal(g)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			var obj map[string]json.RawMessage
+			if uerr := json.Unmarshal(b, &obj); uerr != nil {
+				t.Fatalf("Unmarshal: %v", uerr)
+			}
+			for _, k := range []string{"stats", "stats64"} {
+				_, present := obj[k]
+				if present != (k == tt.wantKey) {
+					t.Errorf("JSON key %q present = %v, want %v: %s",
+						k, present, k == tt.wantKey, b)
+				}
+			}
+
+			// The key must follow addr_info, matching :2332 then :2333.
+			// encoding/json would otherwise emit the embedded LinkView's
+			// promoted stats keys at the position of the embedding, which is
+			// BEFORE addr_info — the opposite order. Only a check on the raw
+			// bytes can see this; the map above has no order.
+			if tt.wantKey != "" {
+				ai := strings.Index(string(b), `"addr_info"`)
+				sk := strings.Index(string(b), `"`+tt.wantKey+`"`)
+				if ai < 0 || sk < 0 {
+					t.Fatalf("expected both addr_info and %q in %s", tt.wantKey, b)
+				}
+				if sk < ai {
+					t.Errorf("JSON key %q at %d precedes addr_info at %d, "+
+						"but ip emits stats after the address array: %s",
+						tt.wantKey, sk, ai, b)
+				}
+			}
+		})
+	}
+}
+
+// TestAddrGroupViewStatsPlacementDiffersFromLink is the corner the plan named:
+// one block, two objects, two positions, asserted side by side in one test so
+// that a change to either renderer has to confront the other.
+//
+// `ip -s link show` puts the counters directly under the link stanza
+// (print_linkinfo, ip/ipaddress.c:1297-1300, newline-then-block). `ip -s addr
+// show` puts them under the ADDRESSES (print_link_stats at :2333, called after
+// print_selected_addrinfo at :2332, block-then-newline). Reusing
+// LinkView.WithStats on the addr object would produce the link layout and
+// pass every other assertion in this file.
+//
+// go test ./internal/goip/render/ -run TestAddrGroupViewStatsPlacementDiffersFromLink
+func TestAddrGroupViewStatsPlacementDiffersFromLink(t *testing.T) {
+	full := rxtx([6]uint64{1, 2, 3, 4, 5, 6}, [6]uint64{7, 8, 9, 10, 11, 12})
+	li := xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true}
+
+	addrText := AddrGroupView{
+		LinkView: LinkViewForAddr(li, fakeNames{}, unix.AF_INET, false),
+		AddrInfo: []AddrView{AddrViewOf(xtcpnl.AddrInfo{
+			Index:     2,
+			Family:    unix.AF_INET,
+			Prefixlen: 24,
+			Address:   v4(192, 0, 2, 10),
+			Local:     v4(192, 0, 2, 10),
+		})},
+	}.WithStats(li).Text()
+
+	linkText := LinkViewOf(li, fakeNames{}).WithStats(li).Text()
+
+	// Same block, both times. If these ever differ the two renderers have
+	// forked and the rest of this test is measuring the wrong thing.
+	block := LinkStatsText(full)
+	if !strings.Contains(addrText, block) {
+		t.Fatalf("addr object does not contain the shared block:\n%s", addrText)
+	}
+	if !strings.Contains(linkText, block) {
+		t.Fatalf("link object does not contain the shared block:\n%s", linkText)
+	}
+
+	// Different position. On the addr object the block is last; on the link
+	// object nothing of the address list exists at all, and the block follows
+	// the link/ether line immediately.
+	if ia := strings.Index(addrText, "    inet "); ia < 0 || strings.Index(addrText, "    RX: ") < ia {
+		t.Errorf("addr object must put the block below its addresses:\n%s", addrText)
+	}
+	if strings.Contains(linkText, "    inet ") {
+		t.Fatalf("link object unexpectedly rendered an address line:\n%s", linkText)
+	}
+
+	// The LinkView inside the group must stay clear. This is what makes the
+	// position a property of the group rather than an accident of ordering:
+	// if WithStats had been called on the embedded view too, the block would
+	// appear twice and the first copy would be in the link position.
+	if n := strings.Count(addrText, "    RX: "); n != 1 {
+		t.Errorf("block appears %d times, want 1 — the embedded LinkView "+
+			"must not also carry stats:\n%s", n, addrText)
+	}
+}

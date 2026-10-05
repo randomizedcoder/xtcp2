@@ -1,0 +1,1 @@
+2001:db8:ff::/64 dev br0 proto kernel metric 256 linkdown pref medium

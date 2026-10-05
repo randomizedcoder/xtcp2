@@ -488,17 +488,84 @@ func lifetime(v uint32, signed bool) string {
 type AddrGroupView struct {
 	LinkView
 	AddrInfo []AddrView `json:"addr_info"`
+
+	// The `-s` counter block, and the three fields below are declared AFTER
+	// AddrInfo for a reason that is invisible in Go and decisive in JSON.
+	//
+	// # Why these duplicate LinkView's and do not reuse them
+	//
+	// print_link_stats runs at ip/ipaddress.c:2333, which is AFTER
+	// print_selected_addrinfo at :2332. So on this object the counters come
+	// BELOW the address lines, where `ip -s link show` puts them directly
+	// under the link stanza (print_linkinfo, :1297-1300). LinkView renders
+	// the second layout and LinkView.WithStats is the only way to reach it,
+	// so this object deliberately does not call it.
+	//
+	// encoding/json emits an embedded struct's promoted fields at the
+	// position of the embedding, so LinkView's `stats64`/`stats` keys would
+	// land BEFORE `addr_info` — the opposite of iproute2's order. Declaring
+	// the same JSON names here fixes that: on a tag conflict encoding/json
+	// takes the field at the SHALLOWER depth, so these win outright and
+	// LinkView's promoted pair is dropped rather than duplicated.
+	//
+	// The Go names differ from LinkView's on purpose. Naming them Stats and
+	// JSONStats64 would shadow the embedded fields, and then `g.Stats` would
+	// silently mean one of two things depending on how the reader counts
+	// depth. Different names make `g.LinkStats` and `g.LinkView.Stats` two
+	// visibly different expressions, which is what they are.
+	LinkStats *xtcpnl.RtnlLinkStats64 `json:"-"`
+
+	JSONLinkStats64 *LinkStatsJSON `json:"stats64,omitempty"`
+	JSONLinkStats   *LinkStatsJSON `json:"stats,omitempty"`
 }
 
-// Text renders the link stanza and its address lines.
+// WithStats attaches the `-s` counter block to the GROUP, below the addresses.
+//
+// It is AddrGroupView's counterpart to LinkView.WithStats and splits the
+// condition the same way: `!do_link && show_stats` is the caller's half and
+// the attributes being present is the reply's. A reply with neither
+// IFLA_STATS nor IFLA_STATS64 leaves every field nil and prints nothing,
+// which is __print_link_stats returning early on get_rtnl_link_stats_rta's -1
+// (ip/ipaddress.c:832-834) — "asked for and not sent" must print nothing
+// rather than a block of zeros.
+//
+// All three fields move together because they are one fact in three shapes;
+// a view with the text source set and the JSON pair clear would print
+// counters under `ip -s addr show` and emit none under `ip -s -j addr show`.
+func (g AddrGroupView) WithStats(li xtcpnl.LinkInfo) AddrGroupView {
+	if li.Stats == nil {
+		return g
+	}
+	g.LinkStats = li.Stats
+
+	s := linkStatsJSONOf(*li.Stats)
+	if li.StatsIs64 {
+		g.JSONLinkStats64 = &s
+	} else {
+		g.JSONLinkStats = &s
+	}
+	return g
+}
+
+// Text renders the link stanza, its address lines, and the `-s` block last.
 //
 // Ranged by index: AddrView is 176 bytes and Text reads it, so the value form
 // copies every address in the group to call a method on it.
+//
+// The newline is on the other side of the block from the link object's. Here
+// print_link_stats does `__print_link_stats(...); print_nl()`
+// (ip/ipaddress.c:840-848); there print_linkinfo does `print_nl();
+// __print_link_stats(...)` (:1297-1300). LinkStatsText emits neither, so each
+// caller supplies its own and the two differ by exactly that.
 func (g AddrGroupView) Text() string {
 	var b strings.Builder
 	b.WriteString(g.LinkView.Text())
 	for i := range g.AddrInfo {
 		b.WriteString(g.AddrInfo[i].Text())
+	}
+	if g.LinkStats != nil {
+		b.WriteString(LinkStatsText(*g.LinkStats))
+		b.WriteString("\n")
 	}
 	return b.String()
 }

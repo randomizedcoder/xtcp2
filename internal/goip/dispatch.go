@@ -206,6 +206,12 @@ func (c *runCtx) linkExtMask() uint32 {
 // which selects a different render and which goip therefore refuses.
 func (c *runCtx) detailed() bool { return c.showDetails > 0 }
 
+// stats is show_stats as a boolean, for the renderers whose only use of it is
+// a presence test. Every `if (show_stats)` guard in iproute2 that goip
+// reproduces tests for non-zero, not for a specific count; the one place the
+// count matters is `-s -s`, which goip refuses at the option loop.
+func (c *runCtx) stats() bool { return c.showStats > 0 }
+
 // nextSeq returns the sequence number for the next request.
 func (c *runCtx) nextSeq() uint32 {
 	c.seq++

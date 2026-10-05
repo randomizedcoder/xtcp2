@@ -242,7 +242,12 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 		return err
 	}
 
-	f := render.RouteShowFilter{Table: sel.Table, OifMask: oif != 0, Details: c.detailed()}
+	f := render.RouteShowFilter{
+		Table:   sel.Table,
+		OifMask: oif != 0,
+		Details: c.detailed(),
+		Stats:   c.stats(),
+	}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
 		views = append(views, render.RouteViewOf(xtcpnl.RouteInfo(routes[i]), c.lltab, f))

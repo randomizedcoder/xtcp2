@@ -218,7 +218,7 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 		return err
 	}
 
-	f := render.NeighShowFilter{IndexSet: index != 0}
+	f := render.NeighShowFilter{IndexSet: index != 0, Stats: c.stats()}
 	views := make([]render.NeighView, 0, len(neighbors))
 	for i := range neighbors {
 		n := xtcpnl.NeighInfo(neighbors[i])

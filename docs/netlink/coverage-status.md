@@ -121,7 +121,7 @@ Phases and scope are as defined in
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
-| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | `RTA_EXPIRES`/`RTA_CACHEINFO` decode (`RTA_CACHEINFO` has real fixtures on 48 of 74 captured routes), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it |
+| **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table) | `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
@@ -2578,6 +2578,14 @@ test rather than indexed.
 
 #### `ip -s addr show` is wrong today, and was before this change
 
+> **Superseded.** This section records the defect as it stood when it was
+> found. It is fixed; the measurement that replaced it is
+> [`-s` across the addr object](#s-across-the-addr-object-four-commands-three-different-answers)
+> below. Kept because the prediction it makes about the render position turned
+> out to be right and the one it makes about the request turned out to be
+> incomplete — `-6` sends the same bytes either way, which this did not
+> anticipate.
+
 Found while deciding what `-s` should do on the new path, and **not fixed
 here**. `-s` reaches the addr object in `ip` twice: `ipaddr_link_get` clears
 `RTEXT_FILTER_SKIP_STATS` from its mask (`:2066-2067`), and the print loop
@@ -3716,8 +3724,10 @@ belongs cannot be normalized into agreement.
 
 The tunnel namespace is **not** added to `goip-parity.exp`, for the same
 reason the mesh namespace is not: it is invisible to the parity tier by
-construction. That remains the standing limitation recorded under
-"the mesh namespace is invisible to every tier".
+construction — `goip-parity.exp:87-93` builds only the clean topology, so no
+parity row can ever reach either namespace. Offline Go tests are the only
+evidence their fixtures can carry, which is what
+"The fixture-consumer rule, re-closed" below acts on.
 
 ### `ip -d`: the option that needed no capture, and the eight goldens nobody read
 
@@ -4125,7 +4135,788 @@ held. That is the shape the number should have.
 
 With these four gated, **twenty-three of the table's twenty-four commands
 gate**, and `UNGATED_CLEAN` is still load-bearing for exactly one, `-s link
-show`.
+show`. *(True when written; superseded by the section immediately below, which
+gates the twenty-fourth. This file is a log, so the count above is left as the
+state that run measured rather than edited to today's.)*
+
+### `-s link show` gates, on runs that disagree
+
+The last ungated command. It was held out from the beginning as the one
+expected to be **permanently** `CONTROL_NOISY` — its replies carry live byte
+and packet counters, so `IFLA_STATS` and `IFLA_STATS64` differ between any two
+captures and `D_control` has to absorb them every time. Its row in
+`internal/goipparity/commands.go` said it would earn gating "on its own
+measured runs, once the noise has been observed rather than predicted".
+
+Three runs, launched back to back inside **one** shell command on an
+unmodified tree, so no edit could separate them:
+
+    run 1   link_show_stats  control nl=2 stdout=0   CONTROL_NOISY 12
+    run 2   link_show_stats  control nl=2 stdout=0   CONTROL_NOISY 12
+    run 3   link_show_stats  control nl=6 stdout=0   CONTROL_NOISY 16
+
+All three: twenty-four `PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`,
+`OVERALL_PASS`, `DRIVER_PASS`. The totals reconcile exactly against the
+per-command counts — 12 = 2 (`link_show_stats`) + 2 (`-4 addr show`) + 4 × 2
+(the four neigh rows), and 16 is the same sum with `link_show_stats` at 6 — so
+`link_show_stats` is the only row that differs across the three.
+
+**The disagreement is the evidence, which inverts the bar every other command
+cleared.** The twenty-three above gated on runs that were identical. This one
+could not have: three runs all reading `nl=2` would not distinguish
+"`D_control` absorbed the delta" from "there was no delta to absorb", and the
+second is a property of sixty quiet milliseconds rather than of the
+comparator. A count that moves 2, 2, 6 while `Findings` stays empty every time
+demonstrates the mechanism itself. For a permanently-noisy command, varying
+runs are the stronger result and identical ones the weaker.
+
+Run 3's six loci are all monotonic traffic counters, on two links rather than
+one: `IFLA_STATS64` and `IFLA_STATS` on ifindex 2, where `rx_packets` moved
+`0xc5` → `0xcb` and `rx_bytes` `0x14d84` → `0x15f40`; the same pair on ifindex
+3, 4 packets → 5; and because ifindex 3 is the v6-active link, that tick
+dragged `IFLA_AF_SPEC:AF_INET6:IFLA_INET6_STATS` and `IFLA_INET6_ICMP6STATS`
+in with it. Runs 1 and 2 caught only ifindex 2 mid-tick.
+
+A fourth run, after the gating edit, reported `link_show_stats` `PASS` with
+`control: nl=2 stdout=0`, `CONTROL_NOISY 12`, `HYGIENE_PASS`, `UNGATED_CLEAN`,
+`OVERALL_PASS` — identical to runs 1 and 2. Gating changed nothing, which is
+the point of running it: it is the check that `D_control` really was what
+absorbed the delta, because a gate only alters the verdict for a divergence
+`D_control` could not explain, and there were none to alter.
+
+#### `UNGATED_CLEAN` is vacuous again — do not read it as a result
+
+**Twenty-four of twenty-four commands now gate**, so the ungated surface is
+empty. `GOIP_PARITY_UNGATED_CLEAN` counts `StatusWarn` on commands outside
+`gated_commands` (`internal/goipparity/compare.go:265-266`, reported at
+`:334-338`), and there are none left. From this commit it is green because
+nothing is left to warn about, which is indistinguishable from green because
+nothing warned.
+
+This is the second such interval. The first was when nine commands were the
+whole table, and it ended when a tenth — `-s link show` itself — was compared
+ungated. The same thing has to happen again: the sentinel becomes evidence
+only when the next command joins the table and is measured ungated first.
+`pkg/nlparity/nlparity_allowlist_test.go`'s negative row was rewritten to
+match, since the command it named is no longer held out. It now asserts the
+direction that still has teeth — nothing is gated that the `earned` list does
+not record a run for — because the live failure mode is no longer a command
+sneaking out of the gate but one sneaking *into* it by a one-line JSON edit
+with no measured run behind it.
+
+*(That interval is over, and this section is left as the state it described.
+The `-s` sweep's other five commands — `-s addr show`, `-s -6 addr show`,
+`-s route show`, `-s neigh show`, `-s rule show` — are in the table and
+deliberately ungated, so the count is **twenty-four of twenty-nine** and five
+commands can warn. A second negative row names those five, rather than
+asserting a bare count, because a count passes if the five held out are a
+different five. They have now been measured, and one of the five warned — see
+"The measurement: three predictions held, two did not" below. The warning was a
+real divergence that gating would have hidden, which is the argument for the
+hold-out stated as a result rather than as a policy. None of the five has
+joined `gated_commands`; four need no entry and the fifth earned a locus
+entry instead, which is the narrower instrument.)*
+
+### `-s` across the addr object: four commands, three different answers
+
+`-s` is the last global option that changes request bytes, and the addr object
+is the one where it does not behave uniformly. Every row below was traced in
+`ip` and then measured against it on the host; none was inferred from the
+one above.
+
+| command | request changes? | reply changes? | where the counters come from |
+|---|---|---|---|
+| `addr show` | **yes** — `IFLA_EXT_MASK` `0x09`→`0x01` (`ipaddress.c:2024`) | yes | `IFLA_STATS64` |
+| `addr show dev NAME` | **yes**, every family — `ipaddr_link_get` always `addattr32`s the mask (`:2066`) | yes | `IFLA_STATS64` |
+| `-4 addr show` | **no** | no | nothing — the reply has no stats and `ip` prints none |
+| `-6 addr show` | **no** | **no** | `IFLA_PROTINFO` → `IFLA_INET6_STATS`, the IPv6 SNMP MIB |
+
+The first two are the request-byte bug the section above predicted, and they
+are fixed: `req.AddrShowLinkDump` takes an `extMask` and `obj_addr.go` passes
+`c.linkExtMask()` on both paths. `goip -s addr show` is byte-identical to
+`ip -s addr show` on the host.
+
+The family arm **deliberately drops the mask**, and that is the asymmetry most
+likely to be "cleaned up" later. `rtnl_linkdump_req_filter_fn`
+(`lib/libnetlink.c:591-618`) invokes its filter function — the only thing that
+appends `IFLA_EXT_MASK` — for `AF_UNSPEC` and `AF_PACKET` only; a real family
+falls through to bare `__rtnl_linkdump_req`. So `ip -s -4 addr show` sends
+bytes identical to `ip -4 addr show`: there is no attribute in which to carry
+the mask.
+
+#### `-6` prints counters that are not link counters
+
+The last row is the one worth reading twice. `PF_INET6` `RTM_GETLINK` *dumps*
+are answered by `inet6_dump_ifinfo` → `inet6_fill_ifinfo`
+(`net/ipv6/addrconf.c:6073-6117`), a function unrelated to
+`rtnl_fill_ifinfo`. It emits six attribute types and no more — `IFLA_IFNAME`,
+`IFLA_ADDRESS`, `IFLA_MTU`, `IFLA_LINK`, `IFLA_OPERSTATE`, `IFLA_PROTINFO` —
+so there is no `IFLA_STATS64` to read. `ip` falls to the third arm of
+`get_rtnl_link_stats_rta` (`lib/utils.c:1563-1572`), which maps eight IPv6 MIB
+entries onto the link-stats struct and returns `sizeof(*stats64)`, so the
+block renders under the **`stats64`** key over numbers that never saw one.
+
+Two consequences that are easy to get wrong:
+
+- **`-s` never reaches the wire here.** `inet6_fill_ifinfo` calls
+  `inet6_fill_ifla6_attrs(skb, idev, 0)` at `:6110` — `ext_filter_mask`
+  hardcoded to zero — so `IFLA_INET6_STATS` is present whether or not stats
+  were asked for. The request and the reply are identical with and without
+  `-s`; only the rendering differs. A renderer gated on attribute presence
+  rather than on `show_stats` would print the block for both commands.
+- **The `dev` variant disagrees with the dump, and both are right.** A
+  non-dump `RTM_GETLINK` has no `PF_INET6` `doit` handler, so
+  `ip -s -6 addr show dev lo` goes through `rtnl_getlink` → `rtnl_fill_ifinfo`
+  and gets real link counters. Measured on the host: the bare form prints lo
+  as `22929548957 11159836`, exactly `/proc/net/dev_snmp6/lo`'s
+  `Ip6InOctets`/`Ip6InReceives`, while the `dev` form prints `73355704546` =
+  sysfs `rx_bytes`. One program, one column heading, two counter sets.
+
+This **invalidated a standing justification**.
+`pkg/xtcpnl/xtcpnl_link_stats.go` declined the third arm on the grounds that
+"nothing in the corpus reaches it". `netlink_route_getaddr_v6.pcap` had
+carried `IFLA_INET6_STATS` since the day it was captured; the comment outlived
+the fact it rested on. It is rewritten, and the arm is implemented — with no
+new capture, because the fixture was already there.
+
+Two divergences from upstream are deliberate and commented at the call site.
+`get_snmp_counters` indexes `mib[]` with **no bounds check**, so against a
+kernel with a shorter enum `ip` reads past the attribute; goip returns zero
+for an index the payload does not reach, because a Go slice index panics where
+the C reads adjacent bytes. And `get_rtnl_link_stats_rta` returns success from
+the `IFLA_PROTINFO` arm even when the nest holds no `IFLA_INET6_STATS`,
+printing an unwritten stack struct; goip reports the attribute as absent.
+
+`-s -6 addr show` is clean now except for `qlen`, which is **pre-existing and
+not a stats issue at all**: `print_linkinfo` falls back to a `SIOCGIFTXQLEN`
+ioctl when `IFLA_TXQLEN` is absent, 17 calls in one observed run. That is not
+netlink, a netlink-only goip cannot match it, and it is already the
+`stdout:keyword:qlen` allowlist entry for this command.
+
+#### What the committed fixture can and cannot prove
+
+Worth stating, because the replay rows in `obj_addr_test.go` read as stronger
+evidence than they are. In `netlink_route_getaddr_v6.pcap` every *received*
+IPv6 counter is zero and the only traffic is goip0's 432 octets in 7 packets
+outbound, so a transposition of the two rx indices is invisible there — and
+`OutRequests` equals `OutTransmits` on a host that originates everything,
+hiding a second one. Four single-index transpositions were tried: the replay
+row caught one of four, and `TestInet6StatsSnmpCounters`, whose fixtures set
+one index at a time with distinct values, caught four of four. The two tests
+are not redundant — the unit table pins *which* index each member reads, the
+replay row pins that the numbers survive decode, render and column formatting
+on the way to the right link.
+
+### `-s` on route, neigh and rule: two no-ops, and a bug in the *ungated* form
+
+`struct rta_cacheinfo` now decodes — `pkg/xtcpnl/xtcpnl_rta_cacheinfo.go`,
+eight 32-bit members, 32 bytes, with `__s32 rta_expires` the one signed member
+— and `RouteInfo.CacheInfo` is a pointer rather than a value plus a presence
+bool, matching its sibling `Metrics`/`Via` fields and avoiding the redundant
+presence bit this file's findings list complains about elsewhere.
+
+The interesting part is not the decoder. The plan that ordered this work stated
+a premise, and measuring it first returned the opposite answer, which is what
+the measure-before-you-write rule is for.
+
+#### The premise that was wrong: `-s route show` is a genuine no-op
+
+The plan predicted the `-s route show` parity row would fail on stdout before
+the decoder existed, because `rta_clntref` — which `-s` prints as `users` — is
+a dst refcount and is "non-zero for essentially every route". It is zero on
+every route, on every command goip implements, by kernel construction.
+
+`rtnl_put_cacheinfo` (`net/core/rtnetlink.c:1028-1052`) writes `rta_lastuse`,
+`rta_used` and `rta_clntref` only inside `if (dst)`. It has exactly two
+callers:
+
+| caller | commands it serves | `dst` passed? |
+|---|---|---|
+| `rt_fill_info` (`net/ipv4/route.c:3074`) | `route get` only — the v4 FIB **dump** never calls it | yes |
+| `rt6_fill_node` (`net/ipv6/route.c:5944`) | both the v6 dump **and** `route get` | only on the get |
+
+So those three members are structurally zero on every dump, and they are
+*exactly* the three `print_rta_cacheinfo` puts behind `show_stats`
+(`ip/iproute.c:500-532`). The other five cannot help: `rta_error` is
+`dst ? dst->error : 0`, `rta_id` is the literal `0` at both call sites, and
+`rta_ts`/`rta_tsage` are never assigned anywhere in the tree. **`-s route
+show` therefore changes nothing**, the same answer as `-s rule show` and for a
+completely different reason.
+
+Measured over the committed corpus rather than argued from source alone: v4
+route dumps carry **no** `RTA_CACHEINFO` at all; v6 dumps carry one per route
+with all 32 bytes zero; the 7.1.8 corpus has it on 48 of 74 routes, every one
+all-zero. Zero non-zero `rta_cacheinfo` anywhere in the tree. That is the same
+observation the normalizer section above records as
+`wantZeroedWasZero`, now explained rather than noted.
+
+#### What the wrong premise was hiding
+
+`rta_expires` is the sole member reachable without a `dst`:
+`net/ipv6/route.c:5931` reads `expires = dst ? READ_ONCE(dst->expires) :
+rt->expires` — the `fib6_info`'s own expiry, with no dst at all, whenever
+`RTF_EXPIRES` is set. And `print_rta_cacheinfo` prints `expires`, `error`,
+`ipid` and `ts`/`tsage` **outside** the `show_stats` guard.
+
+Which means the divergence was never in the new `-s` row. Plain `-6 route
+show` — already implemented, already gated, green on every run — was silently
+dropping `expires Nsec`. It held only because no committed fixture and no test
+host carried a route with a finite lifetime, so nothing could see it.
+
+Proven rather than reasoned, in a `unshare -rn` namespace that cannot touch
+the host routing table: with one expiring v6 route present, `ip -6 route show`
+printed `expires 599sec` and `goip -6 route show` printed nothing, in text and
+in JSON both. Both now agree, with and without `-s`.
+
+The parity row for `route_show_stats` is consequently a **no-op row** — it
+asserts that `-s` changes nothing — not a stats feature. The feature it was
+supposed to add turned out to belong to a command that was not asking for it.
+
+#### Two things the port gets right only by being careful
+
+**Raw family, not real family.** `print_route`'s cacheinfo guard (`:970`,
+`:976`) tests `r->rtm_family` directly, *not* the value `getRealFamily` would
+return, which folds `RTNL_FAMILY_IPMR`/`IP6MR` (128/129) onto
+`AF_INET`/`AF_INET6`. `applyRouteCacheinfo` is therefore passed `ri.Family`
+and not the `family` local, with a comment saying why. The same raw-family
+dependence is visible in output already: `host_len` derives from the raw
+family too, `afBitLen(128) == 0`, so an IPMR multicast route prints `/32`
+where an `AF_INET` one shows a bare address. A render row's expectation was
+wrong about that `/32` and was corrected toward upstream after checking, which
+is how the distinction got confirmed from two directions instead of one.
+
+**`USER_HZ` is 100, and the division truncates.** `age` and `used` divide by
+`get_user_hz()` → `__get_user_hz()` → `sysconf(_SC_CLK_TCK)`
+(`include/utils.h:218-223`, `lib/utils.c:1016-1019`). The Go port hardcodes
+`RtaUserHzCst = 100` with that derivation in its doc comment, and the
+truncation gets its own boundary rows — `149/100 == 1`, `99/100 == 0` — as
+integers, not floats. Go truncates toward zero for negatives as C99 does, so
+the signed `rta_expires` needs no special case.
+
+#### `-s neigh show`: no new struct, and upstream's spacing reproduced
+
+`NdaCacheInfo` has decoded since Phase 1 and had **zero readers** in
+`internal/goip/render/`. Only one attribute was genuinely missing, `NDA_PROBES`
+(a `u32`), now decoded with a `len(val) >= 4` guard — stricter than upstream's
+unchecked `rta_getattr_u32`.
+
+`-s` gates both the cacheinfo block and `probes` (`ip/ipneigh.c:453-460`), and
+the block lands **between** the flag run and the state, not at the end of the
+line. Three formatting quirks were reproduced rather than tidied, because
+tidying any of them is a divergence:
+
+- `print_cacheinfo`'s formats carry a **leading** space and no trailing one
+  (`" ref %u"`, `" used %u"`, `"/%u"`, `"/%u"`) while `probes %u ` is the
+  reverse. The result is a **doubled** space after the lladdr and a run-on
+  `…/1362276probes 3 `.
+- With cacheinfo present but `probes` absent, nothing supplies a trailing
+  space at all and the state runs straight on: `used 3/3/3REACHABLE`. Six
+  `want` strings were first written with a space there, failed, and were
+  corrected to upstream's output rather than the renderer being "fixed".
+- That case is unreachable from a real kernel anyway: `neigh_fill_info` emits
+  `NDA_PROBES` and `NDA_CACHEINFO` in one `||` chain (kernel `net/core`,
+  `:2690-2692`), so an entry carries both or neither. The single-attribute
+  rows are constructed, and say so.
+
+Two orderings that look like typos and are not. The **wire** order is
+probes-then-cacheinfo, the reverse of `ip`'s print order. And `nda_cacheinfo`'s
+struct order is confirmed, used, updated, refcnt while `print_cacheinfo` emits
+ref, used, confirmed, updated — so the test helper is written in *struct*
+order deliberately, to keep a transposition from being symmetric with the
+expectation it is checked against.
+
+The view's five new fields are `json:"-"` and hand-written, because they must
+be emitted after the hand-expanded flags and before the state, which no struct
+tag can express.
+
+One difference that is **not** new and not a bug: goip sorts neighbors
+(`internal/goip/model/model.go:25` — "SortNeighbors exists because the neighbor
+hash has no such property and its order varies across boots") where `ip`
+prints kernel hash-bucket order. Verified identical on the pre-Step-4 binary,
+so pre-existing and intentional; the host comparison normalizes for it.
+
+#### `-s rule show`: the cheapest evidence in the sweep
+
+`grep -n show_stats ip/iprule.c` returns **nothing** — against 5 hits in
+`iproute.c`, 4 in `ipneigh.c` and 15 in `ipaddress.c`. On the request side
+`req.RuleShowDump(family, seq)` has no mask parameter, so `-s` cannot reach
+the rule wire even in principle. Six rows in `obj_rule_test.go`, every one a
+negative, compare `-s` output against the **non-`-s`** golden.
+
+No duplicate request-side row was added: `TestRuleShowDumpShape` already pins
+the 28-byte attribute-free datagram, and a second table asserting the same
+bytes from a function with no mask parameter would assert nothing. Its doc
+comment now names it as where that half of the no-op lives, which is the
+honest version of the claim.
+
+#### Mutation testing, and a harness that was wrong before the tests were
+
+Fifteen mutations on the route half, thirteen on the neigh half, all caught —
+but not on the first pass, and the two failures are worth recording.
+
+Dropping the `NDA_PROBES` decode arm was reported **MISSED**, correctly: the
+render rows set `HasProbes` directly, so nothing exercised the decoder at all.
+Six decode rows closed that. Adding them then broke a pre-existing row that
+had used `NDA_PROBES` as its example of an *unknown* attribute type — fixed by
+switching that row to `NDA_VLAN`, with a comment, since the attribute is no
+longer unknown.
+
+Then the decoder mutations were *still* reported MISSED, and this time the
+tests were right and the measurement was wrong: the mutation harness ran
+`-run 'NeighView|ParseNewNeigh'` while the test is named `TestParseNeigh`. The
+mutations had been caught all along by a test the harness never ran. All four
+report CAUGHT against the corrected invocation. A mutation score is a
+measurement of two things, and only one of them is the test suite.
+
+#### The capture: 39 files, and why the other 155 were left alone
+
+One run of `nix run .#microvm-x86_64-netlink-dump-capture` produced 194 files
+against the 155 committed. 39 are new — 13 names across the clean, `mesh/` and
+`tunnel/` namespaces — and **87 of the existing 155 differed**. None of those
+87 was copied in, because every difference is a property of the boot rather
+than of the renderer:
+
+- the guest dummy gets a **fresh random MAC on every boot**, which moves every
+  `link/ether`, every derived EUI-64 `fe80::` link-local, every `permaddr`,
+  and — on the mesh bridge — `bridge_id` and `designated_root` too;
+- the **neighbor hash order varies per boot**, so `ip_neigh*` reorders;
+- the link counters are live, so `ip_link_stats*` moves.
+
+Checked by normalizing MACs, link-locals, permaddrs and digit runs out of both
+sides and diffing: every one of the 87 is accounted for. Installing them would
+have churned the sidecars, the portids and the line numbers cited across this
+file for no change in behavior, which is what the "run it to a `--out`
+directory first" rule exists to prevent.
+
+#### `capio` versus `side`, and the normalizer that was not written
+
+`capture-netlink-dumps.exp` grew a `capio` proc for this sweep. `cap` records a
+pcap; `side` records a stdout golden from a **separate** invocation; `capio`
+records both **from one**. The distinction is load-bearing for `-s` in a way it
+was not for anything before it, because every `-s` golden contains counters:
+
+- Four goldens are replay-compared against a pcap byte for byte, so they must
+  be `capio`: `ip_addr_stats`, `ip_addr_v6_stats`, `ip_addr_dev_stats`,
+  `ip_neigh_stats`. Two of their pcaps duplicate an existing capture's request
+  bytes exactly (`netlink_route_getaddr_v6_stats`,
+  `netlink_route_getneigh_stats`) and were taken anyway, for the pairing.
+- Five stay `side`: the two JSON forms, where the comparison drops counter
+  values regardless, and the three no-ops, where the golden is diffed against
+  another golden and no pcap is involved.
+
+The first attempt had `ip_addr_v6_stats` as a `side` sidecar, replay-compared
+against the **committed** v6 pcap from a different boot. It differed on exactly
+the MAC-derived `fe80::` line — which reads precisely like a renderer bug.
+Discovering `capio` removed the need for a normalizer instead of adding one:
+`ip_neigh_stats` would otherwise have needed a counter normalizer rewriting
+the middle of the very line under test, since `used 115/115/115` *is* the
+subject.
+
+Where a `side` golden is still compared, the division of labor is written into
+the helper rather than left implicit. `zeroNeighCacheCounters` zeroes `used`,
+`confirmed` and `updated` for the JSON rows — `ip_neigh_stats_json` is a
+second invocation and its tunnel entry reads `257/255/255` where the text
+golden reads `93/91/91` — and its doc comment says that the text rows pin the
+values, including that three-way disagreement, while the JSON rows pin the key
+set, in particular that `refcnt` is **absent** rather than zero.
+
+#### The nine no-op goldens are stronger evidence than planned
+
+`ip_route_main_stats`, `ip_route6_stats` and `ip_rule_stats`, in all three
+namespaces, are byte-identical to their non-`-s` pairs — and the pairs are
+from a **different boot**. That is a stronger claim than a same-boot identity:
+it says the output does not depend on the run, which is what a no-op means.
+`ip_route6_stats` is the most valuable of the nine and is the one the plan did
+not list: the v6 dump is the only command here that puts `RTA_CACHEINFO` on
+the wire at all, so it is the only file whose identity to its pair rules out a
+renderer that prints the attribute merely because it arrived.
+
+#### The captured `ip -s neigh show` confirmed the reverse-engineered spacing
+
+Step 4's formatting findings were written out of the C with no transcript to
+check them against, and six `want` strings had been corrected toward upstream
+on the strength of the source alone. The capture agrees on all five counts:
+the doubled space after the lladdr, the run-on `used 115/115/115probes 0 `,
+`ref` suppressed on every line because `ndm_refcnt` is zero, `probes 0`
+printed because the attribute arrived, and the lladdr-less INCOMPLETE entry
+printing the block anyway.
+
+#### A defect in the fixture reader, which read exactly like a renderer bug
+
+`ip_addr_dev_stats` was the one new golden goip could not reproduce: no stats
+block at all. The live command was byte-identical to `ip`'s throughout, which
+is what located the fault.
+
+`ip -s addr show dev NAME` asks about the interface **twice**, and the capture
+holds both replies for the same link:
+
+| record | request | reply |
+|---|---|---|
+| 0 | `RTM_GETLINK` by name, `EXT_MASK=0x09` | no `IFLA_STATS64` |
+| 2 | `RTM_GETLINK` by index, `EXT_MASK=0x01` | `IFLA_STATS64` |
+
+`ll_link_get` asks first, on a throwaway socket whose mask is hardcoded to
+`RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS` (`lib/ll_map.c:264`), purely to
+turn `dev NAME` into an index; `ipaddr_link_get` then asks again carrying
+`show_stats`' mask, and only that second reply has counters. The test harness
+`linkReplay.Talk` matched **replies** by selector, so both gets were answered
+from record 1 — the stats-free one. On mesh it also hid the `IFLA_MASTER` and
+`IFLA_LINK` side-gets, degrading `veth0@veth1 … master br0 … M-DOWN` to
+`veth0@if4 … master if3` with no `M-DOWN`: four wrong tokens, every one
+plausible.
+
+The fix walks the transcript **request-first** — find the recorded request this
+one matches, return the reply that follows it — since a pcap is an ordered
+request/reply log and `getShape` is already the comparison that separates two
+gets for one link. The reply-first scan stays below it as a fallback, because
+most callers hand `linkReplay` a capture that cannot hold a matching request
+at all: `TestLinkShowDevTransactionShape` answers by-name gets out of a *dump*
+capture, and `TestAddrShowDevTransactionShape` sends `-4`/`-6` gets whose
+`ifi_family` the capture's own never had. What the fallback can mask is narrow
+and stated where it lives: it can pick a different reply for the same link,
+which is only observable when a capture holds two, and in that case the
+pairing above has already won.
+
+Worth separating from the renderer claims above: nothing in goip changed. This
+was a test-harness defect that a new fixture exposed, and the only thing that
+distinguished the two explanations was running `goip` against a real socket.
+
+#### What `-s` does to the request bytes, measured pairwise
+
+`-s` reaches the wire through exactly one attribute — `IFLA_EXT_MASK`, whose
+value is `RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS` without it and
+`RTEXT_FILTER_VF` alone with it. One byte. `TestTierAStatsRequestPairs` diffs
+each `-s` capture's requests against its non-`-s` twin's rather than asserting
+each in isolation, because the interesting results are the null ones:
+
+| command | requests | differ | where |
+|---|---|---|---|
+| `-s addr show` | 2 | 1 | request 1, byte 36: `0x09` → `0x01` |
+| `-s addr show dev NAME` | 3 | 1 | request **2**, byte 36, same values |
+| `-s -6 addr show` | 2 | **0** | no `IFLA_EXT_MASK` attribute exists to change |
+| `-s neigh show` | 2 | **0** | the mask is already `0x01` without `-s` |
+
+The two zeros have different causes, and neither could be asserted from the
+source without the assertion being a transcription of the thing it tests.
+`rtnl_linkdump_req_filter_fn` attaches no mask for a non-`AF_UNSPEC` family, so
+`-6` has nowhere to put one; `ll_init_map` passes `RTEXT_FILTER_VF`
+unconditionally, so `ip neigh show`'s link dump is already what `-s` would have
+made it — which means the `0x01` in that capture is **not** evidence that `-s`
+did anything, and the row says so.
+
+This test cannot fail because goip changed; nothing in it calls a builder. Two
+mutations to `AddrShowLinkDump` that each broke a row in
+`TestTierAStatsRequests` left it green, which is the intended division and is
+recorded in its doc comment rather than assumed.
+
+#### The fixture-consumer rule, held on the way in
+
+All 39 new files have a reader: **0 orphans**. That includes the `mesh/` and
+`tunnel/` copies, which the parity tier cannot reach
+(`goip-parity.exp:87-93` builds only the clean topology), so an offline Go
+test is the only evidence they can ever carry.
+
+The check here was a path-literal grep, which
+"The fixture-consumer rule, re-closed" below shows is the wrong instrument —
+it reports 157 orphans corpus-wide where the filesystem reports 49. The claim
+survives anyway, because the atime measurement independently confirms all 39
+are opened, and none of them is in the 49.
+
+#### The measurement: three predictions held, two did not
+
+Five rows joined `internal/goipparity/commands.go`, taking the table **24 → 29**,
+and all five were deliberately held out of `gated_commands` so their predicted
+behavior would be measured rather than assumed. The predictions were written
+into the allowlist `_comment` and the table **before** any run. Measured:
+
+`nl` is given for all three runs; `stdout` was 0 on every row of every run.
+
+| row | predicted | measured `nl` | verdict |
+|---|---|---|---|
+| `addr_show_stats` | netlink-noisy, stdout quiet | 2, 2, 6 | held |
+| `route_show_stats` | no-op on both halves | 0, 0, 0 | held |
+| `rule_show_stats` | as quiet as `rule show` | 0, 0, 0 | held |
+| `addr_show_v6_stats` | permanently netlink-noisy | 0, 0, 0 | **wrong** |
+| `neigh_show_stats` | **stdout**-noisy | 2, 2, 2 | **wrong** |
+
+29 of 29 `GOIP_PARITY_PASS`, `HYGIENE_PASS` and `OVERALL_PASS` on each of
+three runs.
+
+One of the three that held needs a control to mean anything, and has one.
+`addr_show_stats`' noise reads as "`-s` added that" only because `addr show`
+measures `nl=0` on every run — but `-4 addr show` measures `nl=2` on every run
+**without** `-s`, because a non-`AF_UNSPEC` family sends no `IFLA_EXT_MASK` at
+all and so never sets `RTEXT_FILTER_SKIP_STATS`; the counters arrive unbidden.
+Read alone, the row would overstate what `-s` did.
+
+**`addr_show_v6_stats` was predicted noisy and is quiet.** The counters are
+there and they do not move: `IFLA_INET6_STATS` is an IPv6 MIB, and in a
+namespace that originates no IPv6 during the run its entries sit still, where
+the sysfs counters in `IFLA_STATS64` move constantly. "A stats attribute is on
+the wire" does not imply "it ticks", and which counter it is decides that.
+
+**`neigh_show_stats` was predicted stdout-noisy and is quiet, and this one
+costs the step its headline claim.** `used`, `confirmed` and `updated` are
+"ticks since", so they were expected to differ between `ip_a` and `ip_b` — and
+the prediction forgot the division. `print_cacheinfo` divides each by
+`USER_HZ` and prints an **integer**, so they move once per *second* and a
+triple completes in far less. Its `nl=2` is not `-s`'s doing either: plain
+`neigh show` measures `nl=2` as well, from `ll_init_map`'s link dump, whose
+mask is `RTEXT_FILTER_VF` regardless.
+
+So the honest statement is the one the plan hoped to retire: **the stdout
+control-subtraction path is still untested by any row in this table.** No
+command has yet produced steady-state stdout noise. `-s neigh show` was the
+best candidate in the whole read-only surface and it is not one.
+
+#### What holding the five rows out actually bought
+
+`GOIP_PARITY_UNGATED_DIVERGENCES 1`, on the first run: a `GOIP_PARITY_WARN`
+for `addr_show_v6_stats` reporting
+`stdout:keyword:qlen: ip=1000 x2 goip=<absent>`.
+
+That is `faceb326`'s ioctl fallback reaching a second command — structural,
+unmatchable by a netlink-only tool, and already carried as an allowlist entry
+for `-6 addr show`. It now has an entry of its own, **earned by that run**
+rather than predicted into existence, and the entry says in its own reason
+that it was fully predictable from the one above it and is still kept separate
+because `Entry.key()` is command plus locus.
+
+Adding it made `TestAllowlistCommitted`'s "faceb326 has exactly two entries"
+row fail, which is that row doing its job: the count is maintained by hand
+precisely so that a skew reaching one more command cannot increment quietly.
+It now reads three, with the reason recorded next to it.
+
+One run of five ungated commands produced one real finding. Gating them first
+would have produced none, and `GOIP_PARITY_UNGATED_CLEAN` — vacuously true
+while 24 of 24 were gated — is load-bearing again at **24 of 29**.
+
+#### Three runs, and the third one is the one that mattered
+
+29 of 29 PASS and `OVERALL_PASS` on all three. `UNGATED_CLEAN` on runs 2 and
+3, after the entry run 1 earned. `CONTROL_NOISY` **20, 16, 27** — and a moved
+sentinel is the plan's own trigger for a third run, which is the rule earning
+its keep, because run 3 contradicted what two runs had established.
+
+`CONTROL_NOISY` is exactly the sum of the per-row `nl` counts; checked, it
+matches all three totals. Only three of the 29 rows move:
+
+| row | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| `link_show_stats` | 6 | 2 | 6 |
+| `addr_show_stats` | **2** | **2** | **6** |
+| `neigh_show_dev` | 2 | 2 | 5 |
+| the other 26 | — | unchanged | unchanged |
+
+After two runs the honest summary was "all five new rows reproduced their
+counts exactly, and the only mover is `-s link show`". **Run 3 falsified the
+first half of that.** `addr_show_stats` samples 2, 2, 6 — the same shape
+`-s link show` samples at, from the same cause, and now the third independent
+instance of the pattern: a permanently-noisy command whose count moves while
+`Findings` stays empty, which is the evidence that `D_control` is absorbing a
+real delta rather than that there was none. Two runs would have recorded
+`addr_show_stats` as stable and been wrong about which kind of row it is.
+
+So the corrected statement is four of five, not five of five:
+`addr_show_v6_stats`, `route_show_stats`, `neigh_show_stats` and
+`rule_show_stats` are stable at `nl=0, 0, 2, 0` across all three runs, and
+`addr_show_stats` is permanently noisy with sampling variance — which is what
+it was predicted to be.
+
+Run 3's total is fully attributed: 27 − 16 = 11 = `link_show_stats` +4,
+`addr_show_stats` +4, `neigh_show_dev` +3. `neigh_show_dev` is a pre-existing
+row and this is the first time this file has recorded it moving.
+
+**And `stdout=0` on all 29 rows in all three runs.** That is the strongest
+form of the gap named above: it is not that `-s neigh show` happened to be
+quiet, it is that nothing in the table has ever produced stdout control noise,
+across 87 row-runs.
+
+### The fixture-consumer rule, re-closed: a grep replaced by a measurement
+
+The rule is this file's own: *a fixture nobody reads is not evidence.* It had
+been violated again — 49 files under `pkg/xtcpnl/testdata/7_1_4/dumps/` with no
+consumer — and closing it turned out to be less interesting than **how the 49
+were counted**, which was wrong.
+
+#### The instrument was wrong, and the number was right by accident
+
+The 49 came from matching each fixture's quoted repo-relative path against
+every Go source. That is the wrong instrument, and not marginally: the tests do
+not spell those paths. A sidecar is opened as `dir_constant + basename` where
+the basename comes from a table row, so the repo-relative path never appears as
+a string literal anywhere. Re-run carefully, the literal matcher reports
+**157** orphans, not 49.
+
+What answers the question directly is the filesystem. `pkg/` is on `ext4
+rw,relatime`, so setting every fixture's atime older than its mtime and reading
+it back after a test run records exactly which files were **opened**:
+
+```bash
+D=pkg/xtcpnl/testdata/7_1_4/dumps
+find $D -type f -exec touch -a -t 202001010000 {} +
+go test -count=1 ./internal/goip/... ./internal/goipparity/... \
+                 ./pkg/xtcpnl/... ./pkg/nlparity/...
+find $D -type f -newerat '2020-01-02' -printf '%P\n' | sort   # the readers
+```
+
+That reproduced **49 exactly**, which is why the figure stood — the two methods
+happened to agree on the total. They did not agree on the membership, and the
+plan's description of it was wrong in three places:
+
+- **Four of the 49 are in the CLEAN namespace**, not under `mesh/` or
+  `tunnel/`: `ip_link_dev`, `ip_version`, `topology` and `uname`. The first two
+  are *cited* — by name, in comments and in `t.Run` descriptions — and never
+  opened. A citation is not a read, and that is the whole point of the rule.
+- **There are 11 dead fixture constants, not 12.** The plan's own cited line
+  ranges sum to 11, and counting references confirms it.
+- **The predicted divergence is stale.** `tunnel/ip_neigh_n` was expected to
+  break `ll_addr_n2a`; `LLAddrN2A` has implemented the special cases since the
+  tunnel work, `tunnel/ip_neigh` was already read and green, and the `_n` form
+  is byte-identical to it.
+
+Run over the whole of `pkg/xtcpnl/testdata/` rather than this one directory, the
+same measurement reports **462 fixtures, 284 read, 178 unread** — and every one
+of the 178 is outside `7_1_4/dumps/`. Re-run with `-bench=. -benchtime=1x` so
+the benchmarks execute, in case a fixture's only reader was one: unchanged. The
+178 break down as
+
+| group | unread |
+|---|---|
+| `netlink_packets_capture/` (the bulk/scale corpus) | 80 |
+| the per-kernel `sock_diag` sets (`6_6_44`, `6_10_3`, `5_4_281`, …) | 98 |
+
+and the only rtnetlink survivors are six sidecars: `7_1_4/ip_addr_n`,
+`7_1_4/ip_neigh_n`, `7_1_4/ip_route_table_all_n`, `7_1_4/nlcap_triggers`,
+`7_1_8/ip_route_table_all_n` and `7_0_3/ss_tcp_info_n`. That is a separate
+backlog item, recorded here rather than closed — the `sock_diag` half is a much
+older corpus with a different shape, and the rule is worth applying to it on its
+own terms rather than as a footnote to this one.
+
+#### What the 49 became
+
+**194 of 194** files under `7_1_4/dumps/` now have a reader, measured the same
+way. The groups did not divide the way "add a row each" suggests.
+
+- **Four were unrenderable, and became the strongest rows of the set.** goip
+  refuses `-d` per-*command* on per-kind `IFLA_INFO_DATA`, so
+  `mesh/ip_addr_v4_n`, `tunnel/ip_addr_v4_n`, `tunnel/ip_addr_n` and
+  `tunnel/ip_link_n` cannot be reproduced at all. Their consumer is a
+  **refusal-premise** assertion: the refusal is justified by "`ip` prints
+  per-kind data here", so `TestDetailRefusedForPerKindData` now asserts each
+  sidecar *carries* the tokens goip is declining to print. An iproute2 that
+  stopped printing them would make the refusal reject output goip could in fact
+  reproduce, and nothing else in the repo could notice.
+- **`-d`'s effect splits by family inside one namespace.** `-d -4 addr show` is
+  refused in both mesh and tunnel, because the AF_INET link dump brings
+  `IFLA_LINKINFO`; `-d -6 addr show` *renders* off the same devices, because
+  `inet6_dump_ifinfo` sends no `IFLA_LINKINFO`. Two families, one topology, and
+  the option's effect decided by what is on the wire rather than by the option.
+  Both directions are now asserted.
+- **Six were empty listings, and emptiness had to be made an assertion.**
+  `mesh/ip_neigh{,_dev,_json,_proxy,_proxy_json}` and
+  `tunnel/ip_neigh_proxy{,_json}` are captures of a table with nothing in it.
+  `assertJSONEntriesEqual` passes vacuously on two zero-length arrays and
+  `bytes.Equal` on two zero-length strings, so a `wantEmpty` field is checked
+  in **both** directions — against the sidecar and against goip — and
+  `neighEntryCount` rejects `null` where `[]` is required, which is the one
+  nil-slice mistake no other comparison in that file can see.
+- **Neighbor listings compare as line multisets, by design.** goip sorts
+  neighbors where `ip` prints kernel hash order
+  (`internal/goip/model/model.go:25`). The *sidecar pair* comparison stays
+  byte-exact, which pins something new: `ip_neigh` and `ip_neigh_n` are
+  byte-identical in all three namespaces, from two separate `ip` invocations, so
+  the hash order is stable within a boot for an unchanging table.
+- **The three `topology` transcripts, `uname` and `ip_version` became
+  provenance assertions**, in `pkg/xtcpnl/xtcpnl_capture_provenance_test.go`.
+  The directory name `7_1_4` is a *claim* about which kernel answered the dumps
+  and nothing checked it; `uname`'s release field now has to match the directory
+  name read back with dots. `nix/upstream-pins.json` states the missing half
+  itself, under iproute2's `recorded_in_fixtures` — the eval-time check compares
+  the pin against the `ip` the checks will *run*, and says nothing about the
+  `ip` that *rendered* the goldens — so `ip_version` is now compared against the
+  pin. The two `uname` files are not two copies of one fact: `7_1_4`'s hostname
+  is `xtcp2-vm-x8664` and `7_1_8`'s is `l`, which is the only committed evidence
+  for the reproducible/advisory split this file leans on throughout.
+- **The transcripts also close a loop.** `build_mesh` adding no neighbor and
+  neither namespace adding a proxy entry are the *reasons* the six empty rows
+  above are empty, and they were nowhere asserted. They are now command counts
+  over the transcripts, so a re-capture that added a neighbor to the mesh
+  namespace fails saying the **topology** moved rather than the renderer.
+
+#### `ok` is an exit status, not an effect
+
+The tunnel transcript issues three `ip neigh add` commands and reports `ok` for
+all three. Two name `gre1`:
+
+```
+ok    [nlcapt] ip neigh add 203.0.113.5 lladdr 192.0.2.99 nud permanent dev gre1
+ok    [nlcapt] ip neigh add 203.0.113.6 lladdr 02:00:00:00:00:07 nud permanent dev gre1
+```
+
+`tunnel/ip_neigh` holds **one** gre1 entry, rendered
+`0.0.0.0 dev gre1 lladdr 2.0.0.0 PERMANENT`. Searched as raw bytes, neither
+`203.0.113.5` nor `203.0.113.6` nor `192.0.2.99` appears anywhere in
+`tunnel/netlink_route_getneigh.pcap`, and `2.0.0.0` is the first four octets of
+the second command's six-octet lladdr — `gre1` is `ARPHRD_IPGRE`, whose
+`addr_len` is 4. So one add left no trace and the other landed with a zero
+destination and a truncated link-layer address, both at exit 0. The third add,
+16 bytes on `ip6tnl1`, landed intact and is the control that makes those three
+absences meaningful.
+
+This is not a goip defect — goip reproduces the sidecar byte for byte. It is a
+property of the fixture, and it is pinned rather than commented because the
+fixture is otherwise actively misleading: a reader comparing the transcript
+against the listing would conclude the dump had lost an entry. If a re-capture
+ever behaves differently, the right response is to rewrite the tunnel topology
+to configure what it means, not to widen the expectation.
+
+#### The 11 dead constants, and the citations they were standing in for
+
+Every one of the 11 now has a consumer, and none was deleted. The useful
+observation is *why* they were dead: they are path constants for sidecars this
+package cites by **line number**, around 50 times, in four test files — and not
+one of those citations was ever resolved. `ip_link_n:33`, `mesh/ip_link_n:12`,
+`ip_monitor_all:436` are the *derivations* of the expectations beside them, and
+a line number is the most fragile thing a comment can hold: a regenerated
+sidecar shifts every line below the first rendering change, the fixtures still
+parse, the expectations still pass, and every citation below the shift now
+points at a different interface.
+
+`TestFixtureLineCitationsResolve` resolves a spread of them, including the two
+boundary cases a mid-file row cannot reach — the first line, because a sidecar
+that gained a line at the top shifts everything, and the exact last line,
+because that is what catches a truncated re-capture.
+
+It is a table and not a source scanner, which would be self-maintaining and is
+the better instrument eventually. It cannot work yet: **`ip_link_n` is the name
+of five different files** in this corpus — `7_1_8/`, `7_1_4/`, `7_1_4/dumps/`,
+`7_1_4/dumps/mesh/` and `7_1_4/dumps/tunnel/` — and the unqualified citations
+resolve by which test file they sit in. Disambiguating them is a change to the
+comments, not to a test.
+
+`TestEventIfIndexConstantsMatchSidecar` is the same move on three Go constants
+rather than on comments. `nlcap0IfIndexCst` is 5 and `nlcap1IfIndexCst` is 4,
+and the two are a veth **pair** created in one command — so which end got which
+index is an ordering detail of `veth_newlink`, not something the capture chose.
+A re-capture that allocated them the other way round would leave every event
+expectation passing against the wrong device, because both ends carry the same
+flags for most of the transcript. Index 6, `nlcapd0`, is the negative: created
+and destroyed inside the monitored window, so it is in `ip_monitor_all` and
+absent from the link listing taken afterwards.
+
+#### Two more predictions that did not survive measurement
+
+- **`tunnel/ip_route*` was to be the place a non-zero `rta_expires` could
+  appear.** It is not. All four tunnel route pcaps were probed: every
+  `RTA_CACHEINFO` is 32 zero bytes, `nonzero=0` everywhere. The precondition
+  row in `TestParseNewRouteCacheinfo` holds across the tunnel namespace too.
+- **`mesh/ip_route_main_json` turned out to be the valuable JSON golden**, not
+  the tunnel one. `print_rt_flags` builds a JSON **array**, and every `flags`
+  array in every other committed route golden is empty. `[ "linkdown" ]` here
+  is the only captured evidence that the array is ever populated: a renderer
+  emitting the flag as a bare string, or as `"linkdown": true`, matches the
+  clean golden key for key and fails only against this one.
 
 ### Remaining
 

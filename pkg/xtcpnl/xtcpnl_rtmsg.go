@@ -124,6 +124,15 @@ type RouteInfo struct {
 
 	// Metrics is the decoded RTA_METRICS nested stream, nil when absent.
 	Metrics *RouteMetrics
+
+	// CacheInfo is the decoded RTA_CACHEINFO payload, nil when absent.
+	//
+	// A pointer rather than a value plus a HasCacheInfo bool, for the same
+	// reason as Metrics and Via above: absent and all-zero are different
+	// states here and both occur in the committed corpus. Every IPv6 route
+	// carries the attribute with all 32 bytes zero, and no IPv4 route carries
+	// it at all — see xtcpnl_rta_cacheinfo.go for why the kernel does that.
+	CacheInfo *RtaCacheinfo
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -216,6 +225,16 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 				return
 			}
 			ri.Metrics = mx
+		case uint16(unix.RTA_CACHEINFO):
+			if nestErr != nil {
+				return
+			}
+			var ci RtaCacheinfo
+			if _, cerr := DeserializeRtaCacheinfo(val, &ci); cerr != nil {
+				nestErr = cerr
+				return
+			}
+			ri.CacheInfo = &ci
 		case RtaNhID:
 			if len(val) >= 4 {
 				ri.NhID = binary.LittleEndian.Uint32(val[0:4])

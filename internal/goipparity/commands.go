@@ -167,9 +167,21 @@ var commands = withArgs([]Command{
 		// counters, so IFLA_STATS and IFLA_STATS64 differ between any two
 		// runs and D_control must absorb them every time. That makes it the
 		// first real test of the control subtraction rather than a problem
-		// with it, and it is the reason this command does not join
-		// gated_commands here — it earns that on its own measured runs, once
-		// the noise has been observed rather than predicted.
+		// with it, and it is the reason this command did not join
+		// gated_commands when it was written — it had to earn that on its own
+		// measured runs, once the noise was observed rather than predicted.
+		//
+		// It has, and it is gated. Three back-to-back runs of one unmodified
+		// tree measured nl=2, nl=2, nl=6, zero findings every time, with every
+		// other command's control count unmoved. The prediction above is
+		// therefore confirmed in the only way it could be: by runs that
+		// DISAGREE. Three identical quiet runs would not separate "D_control
+		// absorbed the delta" from "there was no delta to absorb", so for this
+		// command varying samples are the stronger evidence and identical ones
+		// the weaker. Run 3's extra four loci were ifindex 3 ticking as well as
+		// ifindex 2, which dragged IFLA_INET6_STATS and IFLA_INET6_ICMP6STATS
+		// in behind IFLA_STATS and IFLA_STATS64; the values are recorded in
+		// pkg/nlparity/goip-parity-allowlist.json's _comment.
 		//
 		// The stdout half is not noisy in the same way, because
 		// FacetStatsHeaders compares the column HEADINGS and not the
@@ -231,6 +243,82 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "-6 addr show", Slug: "addr_show_v6",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s addr show", Slug: "addr_show_stats",
+		// Four, like the bare form: `-s` adds no transaction, it changes one
+		// byte of one request. The AF_UNSPEC addr dump's link half carries
+		// IFLA_EXT_MASK, so clearing RTEXT_FILTER_SKIP_STATS sends 0x01 where
+		// `addr show` sends 0x09 (ip/ipaddress.c:2017-2026).
+		//
+		// Expected CONTROL_NOISY on the netlink side for the same reason
+		// `-s link show` is: the replies now carry IFLA_STATS and
+		// IFLA_STATS64, which differ between any two captures. The stdout
+		// half should be quiet, because FacetStatsHeaders compares the column
+		// HEADINGS and not the counters under them.
+		//
+		// MEASURED over three runs, and the prediction holds: stdout 0 every
+		// time, and nl 2, 2, **6**. The two are IFLA_STATS64 and IFLA_STATS
+		// on ifindex 2; the six are that pair on ifindex 2 AND on ifindex 3,
+		// plus IFLA_AF_SPEC:AF_INET6's IFLA_INET6_STATS and
+		// IFLA_INET6_ICMP6STATS — ifindex 3 being the v6-active link, so a
+		// tick there drags the nest in with it. That is `-s link show`'s
+		// run-3 shape attribute for attribute, which the allowlist _comment
+		// already describes for that row, and this is the second command
+		// measured showing it.
+		//
+		// Two runs would have recorded this row as stable at 2 and been
+		// wrong about which KIND of row it is: permanently noisy with
+		// variance, not quiet. The third run caught it, which is why a moved
+		// sentinel mandates one.
+		//
+		// `addr show` measures nl=0, so `-s` is what added the noise — and
+		// `-4 addr show` is the control that keeps that from being
+		// over-read, because it measures nl=2 WITHOUT `-s`: a non-AF_UNSPEC
+		// family sends no mask at all, so RTEXT_FILTER_SKIP_STATS is absent
+		// and the counters arrive unbidden.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s -6 addr show", Slug: "addr_show_v6_stats",
+		// Four, and the request is BYTE-IDENTICAL to `-6 addr show` — not
+		// merely the same length. rtnl_linkdump_req_filter_fn skips filter_fn
+		// unless the family is AF_UNSPEC or AF_PACKET
+		// (lib/libnetlink.c:595), so neither form sends a mask at all.
+		//
+		// Which makes this the one `-s` row where the request half asserts a
+		// no-op and the stdout half asserts a feature. The reply is identical
+		// too: inet6_fill_ifinfo calls inet6_fill_ifla6_attrs with
+		// ext_filter_mask hardcoded to 0 (net/ipv6/addrconf.c:6110), so
+		// IFLA_INET6_STATS is on the wire with or without `-s` and only the
+		// rendering gate differs.
+		//
+		// Expected noisy on the netlink side anyway, WITHOUT `-s` being in
+		// the request — the MIB counters tick on their own.
+		//
+		// MEASURED, and that prediction was WRONG: `control: nl=0 stdout=0`.
+		// Quiet on both halves, where `-s addr show` measures `nl=2`. The
+		// reason is the same two-counter-sets fact from the other direction —
+		// IFLA_INET6_STATS is an IPv6 MIB, and in a namespace that sends no
+		// IPv6 during the run its counters do not move, where the sysfs link
+		// counters in IFLA_STATS64 move constantly. "A stats attribute is on
+		// the wire" does not imply "it ticks"; which counter it is decides
+		// that, and this row is the pair's control.
+		//
+		// What it DID find is a real divergence, which is the better outcome
+		// for a row held out of gated_commands: GOIP_PARITY_WARN with
+		// `stdout:keyword:qlen: ip=1000 x2 goip=<absent>`. That is
+		// faceb326's ioctl fallback reaching a second command — structural,
+		// unmatchable by a netlink-only tool, and already the `-6 addr show`
+		// allowlist entry. It now has its own entry, earned by this run
+		// rather than predicted into existence.
+		//
+		// The counters it prints are IPv6 MIB counters, not link counters,
+		// because a PF_INET6 link dump is answered by inet6_fill_ifinfo
+		// (net/ipv6/addrconf.c:6073-6117) and never by rtnl_fill_ifinfo. The
+		// `dev` form of the same command prints real link counters under the
+		// same header; see docs/netlink/coverage-status.md.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -308,6 +396,48 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "-s route show", Slug: "route_show_stats",
+		// A NO-OP row, and the reason is worth stating because the sweep that
+		// added it predicted the opposite.
+		//
+		// print_rta_cacheinfo gates exactly three members on show_stats —
+		// rta_clntref (`users`), rta_used and rta_lastuse (`age`),
+		// ip/iproute.c:500-532 — and all three are written only inside
+		// rtnl_put_cacheinfo's `if (dst)` arm
+		// (net/core/rtnetlink.c:1028-1052). No route DUMP ever takes that
+		// arm: rt_fill_info passes a dst on a `route get` only and the v4 FIB
+		// dump never calls it at all (net/ipv4/route.c:3074), while
+		// rt6_fill_node serves both the v6 dump and the get but passes a dst
+		// only on the get (net/ipv6/route.c:5944). So the three members `-s`
+		// would print are structurally zero on every command here.
+		//
+		// Measured, not assumed: v4 dumps carry no RTA_CACHEINFO at all, v6
+		// dumps carry one per route with all 32 bytes zero, 48 of 74 routes
+		// in the committed corpus, every one all-zero.
+		//
+		// Expected as quiet as `route show` — control nl=0 stdout=0. The
+		// sweep's plan predicted this row would be the harness's first
+		// stdout-noisy command; it is not, and `-s neigh show` below is the
+		// only new row that can be.
+		//
+		// What the measurement DID find is in the ungated form: rta_expires
+		// is the one member reachable without a dst
+		// (net/ipv6/route.c:5931) and print_rta_cacheinfo prints it OUTSIDE
+		// show_stats, so plain `-6 route show` was dropping `expires Nsec`.
+		// Fixed there, not here. This row cannot see it — no route in the
+		// gated topology has a finite lifetime, which is exactly why the bug
+		// survived as long as it did.
+		//
+		// MEASURED: `control: nl=0 stdout=0`, identical to `route show`'s.
+		// The no-op claim holds on the wire and on stdout, which is what the
+		// corrected premise predicted. The plan's ORIGINAL prediction for
+		// this row was "noisy on the stdout side", and it was wrong twice
+		// over — once because `-s route show` renders nothing new at all,
+		// and once because the three members it would have rendered are
+		// structurally zero on a dump.
+		Floor: 4, Implemented: true,
+	},
+	{
 		Name: "-d route show", Slug: "route_show_details",
 		// Four, the same as `route show`, and the request is identical:
 		// show_details reaches nothing iproute_dump_filter writes.
@@ -378,6 +508,51 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s neigh show", Slug: "neigh_show_stats",
+		// Four, and the request is byte-identical to `neigh show`:
+		// req.NeighShowDump takes family, ndmFlags, ifindex and seq, and no
+		// mask. `-s` is output-only here, gating both the cacheinfo block and
+		// `probes` (ip/ipneigh.c:453-460).
+		//
+		// # The first row expected to be noisy on the STDOUT side
+		//
+		// Every other CONTROL_NOISY row in this table is noisy on the netlink
+		// side. This one's output carries used/confirmed/updated, which are
+		// all "ticks since" and move between ip_a and ip_b by construction,
+		// so D_control has to absorb a steady-state stdout delta — a path
+		// that has never carried one before. That makes this row a test of
+		// the stdout control subtraction as much as of goip, which is the
+		// reason it is in the table at all and not just in a golden.
+		//
+		// `-s route show` above was predicted to be the other such row and
+		// turned out to be a no-op, so this is the only one.
+		//
+		// Two formatting facts it is the only live check of: the block lands
+		// BETWEEN the flag run and the state rather than at the end of the
+		// line (:453-465), and print_cacheinfo's formats carry a leading
+		// space with no trailing one while `probes %u ` is the reverse, so a
+		// conforming renderer emits two spaces after the lladdr and runs the
+		// counters straight into `probes`. A keyword-set comparison passes
+		// either way; only a live diff against `ip` sees it.
+		//
+		// MEASURED: `control: nl=2 stdout=0`. The stdout half was predicted
+		// NOISY — `used`, `confirmed` and `updated` are "seconds since" and
+		// were expected to tick between ip_a and ip_b — and it was quiet. The
+		// prediction forgot the division: print_cacheinfo divides each by
+		// USER_HZ and prints an integer, so all three only move once per
+		// second, and the three invocations of a triple complete in well
+		// under that. So the stdout control-diffing path that this row was
+		// meant to be the first real test of is STILL untested, and this row
+		// does not establish that it works — it establishes that no command
+		// in the table has yet produced steady-state stdout noise.
+		//
+		// The netlink nl=2 is not `-s`'s doing either: plain `neigh show`
+		// measures nl=2 as well, from ll_init_map's link dump, whose mask is
+		// RTEXT_FILTER_VF with or without `-s`. The pair of rows is what
+		// says so; this row alone would have read as `-s` adding noise.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -567,6 +742,30 @@ var commands = withArgs([]Command{
 		// The delta is therefore ` proto unspec` on every user-added rule and
 		// ` proto kernel` on each default — one token per line, on every line,
 		// from an attribute the plain golden proves nothing about.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-s rule show", Slug: "rule_show_stats",
+		// Two, and the cheapest no-op in the whole `-s` sweep.
+		//
+		// `grep -n show_stats ip/iprule.c` returns NOTHING — against 5 hits
+		// in iproute.c, 4 in ipneigh.c and 15 in ipaddress.c — so `-s`
+		// reaches no print decision for this object. On the request side
+		// req.RuleShowDump takes family and seq and no mask, so it cannot
+		// reach the wire either.
+		//
+		// Expected `control nl=0 stdout=0`, exactly as quiet as `rule show`.
+		// If it is not, the no-op claim is wrong, and this row is the only
+		// thing that would say so: goip accepts `-s` silently, so "-s
+		// changed nothing" and "-s was dropped on the floor" look identical
+		// from the goip side alone. Comparing against a live `ip` that was
+		// also given `-s` is what makes the absence iproute2's rather than an
+		// assumption both sides inherited — the same argument the
+		// `-d neigh show` row above makes for its own absence.
+		//
+		// MEASURED: `control: nl=0 stdout=0`, identical to `rule show`,
+		// `-4 rule show`, `-6 rule show` and `-d rule show`. Step 5's no-op
+		// claim holds live, on the cheapest row in the table.
 		Floor: 2, Implemented: true,
 	},
 })

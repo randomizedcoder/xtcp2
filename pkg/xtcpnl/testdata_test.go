@@ -234,7 +234,19 @@ const (
 	tdDumpIPRoute6_7_1_4 = tdDumps_7_1_4 + "/ip_route6_n"
 	tdDumpIPNeigh_7_1_4  = tdDumps_7_1_4 + "/ip_neigh_n"
 	tdDumpIPRule_7_1_4   = tdDumps_7_1_4 + "/ip_rule_n"
-	tdDumpTopology_7_1_4 = tdDumps_7_1_4 + "/topology"
+
+	// The three provenance sidecars, and the only files in the corpus that
+	// describe the CAPTURE rather than an answer to a command.
+	//
+	// topology is the transcript of every `ip` command the driver ran to build
+	// the namespace, one line each, tagged with the namespace it ran in. uname
+	// and ip_version are the kernel and the `ip` that produced everything
+	// beside them. All three are claims the rest of the corpus rests on —
+	// which kernel answered, which iproute2 rendered, and what was configured
+	// — and TestCaptureProvenance is what turns them into assertions.
+	tdDumpTopology_7_1_4  = tdDumps_7_1_4 + "/topology"
+	tdDumpUname_7_1_4     = tdDumps_7_1_4 + "/uname"
+	tdDumpIPVersion_7_1_4 = tdDumps_7_1_4 + "/ip_version"
 
 	// The mesh half of the same capture run: a bridge with a veth member whose
 	// peer is left down. It is the only source in the repo of IFLA_MASTER,
@@ -258,6 +270,8 @@ const (
 	tdDumpMeshIPLink_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_link_n"
 	tdDumpMeshIPAddr_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_addr_n"
 	tdDumpMeshIPNeigh_7_1_4 = tdDumpsMesh_7_1_4 + "/ip_neigh_n"
+
+	tdDumpMeshTopology_7_1_4 = tdDumpsMesh_7_1_4 + "/topology"
 
 	// The tunnel half of the same capture run: five configured tunnel devices
 	// — ipip, sit, gre, ip6tnl, ip6gre — plus the fallback device each of
@@ -283,8 +297,21 @@ const (
 	//     namespaces. Cite devices here by name, not by position.
 	tdDumpsTunnel_7_1_4 = tdDumps_7_1_4 + "/tunnel"
 
-	tdDumpTunnelGetLink_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getlink.pcap"
-	tdDumpTunnelIPLink_7_1_4  = tdDumpsTunnel_7_1_4 + "/ip_link_n"
+	tdDumpTunnelGetLink_7_1_4  = tdDumpsTunnel_7_1_4 + "/netlink_route_getlink.pcap"
+	tdDumpTunnelGetNeigh_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getneigh.pcap"
+
+	// The tunnel namespace's four route dumps. They were predicted to be the
+	// one place in the corpus where a non-zero rta_expires could appear — a
+	// tunnel route is the kind that can carry a lifetime — and measurement
+	// says otherwise: every RTA_CACHEINFO in all four is 32 zero bytes.
+	// TestParseNewRouteCacheinfo carries them as the rows that say so.
+	tdDumpTunnelGetRoute_7_1_4    = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute.pcap"
+	tdDumpTunnelGetRoute6_7_1_4   = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute6.pcap"
+	tdDumpTunnelGetRouteDev_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute_dev.pcap"
+	tdDumpTunnelGetRouteAll_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute_table_all.pcap"
+	tdDumpTunnelIPLink_7_1_4      = tdDumpsTunnel_7_1_4 + "/ip_link_n"
+	tdDumpTunnelIPNeigh_7_1_4     = tdDumpsTunnel_7_1_4 + "/ip_neigh"
+	tdDumpTunnelTopology_7_1_4    = tdDumpsTunnel_7_1_4 + "/topology"
 
 	// Sidecars: the source of truth the event expectations are derived from.
 	// ip_monitor_all is the event-side counterpart to ip_link_n — `ip monitor`

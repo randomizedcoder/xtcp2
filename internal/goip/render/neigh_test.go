@@ -809,3 +809,380 @@ func TestNeighFlagTokens(t *testing.T) {
 		})
 	}
 }
+
+// statsFilter is `ip -s neigh show`; statsDevFilter adds a `dev` selector.
+var statsFilter = NeighShowFilter{Stats: true}
+var statsDevFilter = NeighShowFilter{IndexSet: true, Stats: true}
+
+// nci builds the NdaCacheInfo a decoded NDA_CACHEINFO would have produced.
+//
+// The parameter order is the KERNEL STRUCT's — confirmed, used, updated,
+// refcnt — deliberately, so that reading a call against `struct
+// nda_cacheinfo` works. print_cacheinfo emits them in a different order
+// (ref, used, confirmed, updated), which is the transposition this helper
+// makes visible rather than hides.
+func nci(confirmed, used, updated, refcnt uint32) xtcpnl.NdaCacheInfo {
+	return xtcpnl.NdaCacheInfo{
+		Confirmed: confirmed, Used: used, Updated: updated, Refcnt: refcnt,
+	}
+}
+
+// TestNeighViewOfStatsText drives the `-s` block: print_cacheinfo
+// (ip/ipneigh.c:220-234) and the `probes` token (:457-459), both inside the
+// one `if (show_stats)` at :453-460.
+//
+// # The spacing is the hard part and it is upstream's
+//
+// print_cacheinfo's formats carry a LEADING space and no trailing one, while
+// `probes %u ` is the reverse. The visible result on a real entry is a
+// DOUBLED space after the lladdr and `probes` running straight on from the
+// last counter with no space at all. Measured, not guessed — `ip -s neigh
+// show` in a throwaway namespace printed
+//
+//	192.0.2.2 dev dummy0 lladdr 02:00:00:00:00:02  used 0/0/0probes 0 PERMANENT
+//
+// and `cat -A` confirmed the two spaces and the missing one. A renderer that
+// "tidies" either diverges.
+//
+// The sharper consequence is in the rows where NDA_PROBES is absent: nothing
+// then supplies a trailing space at all, so the state runs straight on as
+// `used 3/3/3REACHABLE`. That reads like a bug in this renderer and is not —
+// it is what print_cacheinfo's trailing `"/%u"` produces when the
+// `probes %u ` that normally follows is missing. Several `want` strings
+// below were first written with a space there, failed, and were corrected to
+// upstream's output rather than the other way around.
+//
+// Those rows are constructed and unreachable from a real kernel:
+// neigh_fill_info emits NDA_PROBES and NDA_CACHEINFO together in one `||`
+// chain (kernel net/core, :2690-2692 — grep the function name, the file is
+// spelled the way iproute2 spells the command alias), so an entry carries
+// both or neither. Worth noting while reading that function — it puts
+// NDA_PROBES on the wire BEFORE NDA_CACHEINFO, while `ip` prints them the
+// other way round. Attribute order is not print order.
+//
+// # Position
+//
+// The block sits between the flag run and the state, not at the end of the
+// line. A block appended after the state would satisfy a keyword-set check
+// and fail the ordering rows below.
+//
+// go test ./internal/goip/render/ -run TestNeighViewOfStatsText
+func TestNeighViewOfStatsText(t *testing.T) {
+	tests := []struct {
+		description string
+		in          xtcpnl.NeighInfo
+		filter      NeighShowFilter
+		want        string
+	}{
+		{
+			description: "positive: a reachable entry with refcnt renders ` ref 1 used 3/3/3` — leading space, no trailing space, then probes",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(300, 300, 300, 1),
+				Probes: 0, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  ref 1 used 3/3/3probes 0 REACHABLE \n",
+		},
+		{
+			description: "corner: the DOUBLED space after lladdr and the MISSING space before probes, on one line — both are upstream format-string artifacts",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 1),
+				Probes: 3, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  ref 1 used 0/0/0probes 3 REACHABLE \n",
+		},
+		{
+			description: "corner: the counters render in PRINT order (ref, used, confirmed, updated), which is not the struct's order (confirmed, used, updated, refcnt)",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				// confirmed=200, used=100, updated=300, refcnt=4 — four
+				// distinct values, so any transposition is visible.
+				HasCacheInfo: true, CacheInfo: nci(200, 100, 300, 4),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  ref 4 used 1/2/3REACHABLE \n",
+		},
+		{
+			description: "negative: the same entry WITHOUT -s renders no block at all — the gate is show_stats, not attribute presence",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(300, 300, 300, 1),
+				Probes: 3, HasProbes: true,
+			},
+			filter: NeighShowFilter{},
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01 REACHABLE \n",
+		},
+		{
+			description: "negative: NDA_CACHEINFO absent under -s prints no counters — NOT ` ref 0 used 0/0/0`",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01 REACHABLE \n",
+		},
+		{
+			description: "negative: NDA_PROBES absent prints no probes token, while the cacheinfo block still renders — they are siblings under one guard, not one unit",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(300, 300, 300, 1),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  ref 1 used 3/3/3REACHABLE \n",
+		},
+		{
+			description: "corner: NDA_PROBES present with NO cacheinfo prints probes alone — the other half of the sibling relationship",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				Probes: 7, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01 probes 7 REACHABLE \n",
+		},
+		{
+			description: "boundary: ndm_refcnt == 0 suppresses ` ref ` alone — the only one of the four counters with a guard",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(300, 300, 300, 0),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02  used 3/3/3STALE \n",
+		},
+		{
+			description: "boundary: an all-zero cacheinfo still prints ` used 0/0/0` — only refcnt is guarded, so present-and-zero is a visible output here",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 0),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02  used 0/0/0STALE \n",
+		},
+		{
+			description: "boundary: ndm_used 149 renders `used 1` — USER_HZ division truncates rather than rounding",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(0, 149, 0, 0),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02  used 1/0/0STALE \n",
+		},
+		{
+			description: "boundary: NDA_PROBES present and zero prints `probes 0` — present-and-zero differs from absent, which is why HasProbes exists",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				Probes: 0, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02 probes 0 STALE \n",
+		},
+		{
+			description: "corner: an INCOMPLETE entry with no lladdr still renders the block, between the (empty) flag run and the state",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_INCOMPLETE,
+				Dst:          []byte{192, 0, 2, 52},
+				HasCacheInfo: true, CacheInfo: nci(6000, 0, 0, 0),
+				Probes: 1, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "192.0.2.52 dev goip0  used 0/60/0probes 1 INCOMPLETE \n",
+		},
+		{
+			description: "corner: POSITION — with a router flag set, the order is flags then block then state, so the block lands BEFORE `router` would be wrong and before STALE is right",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET6, Ifindex: 3, State: unix.NUD_STALE,
+				Flags: unix.NTF_ROUTER,
+				Dst: []byte{
+					0xfd, 0x99, 0, 0, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x02,
+				},
+				LLAddr:       []byte{0x02, 0, 0, 0, 0, 0x06},
+				HasCacheInfo: true, CacheInfo: nci(100, 100, 100, 0),
+				Probes: 1, HasProbes: true,
+			},
+			filter: statsFilter,
+			want:   "fd99::2 dev goip0 lladdr 02:00:00:00:00:06 router  used 1/1/1probes 1 STALE \n",
+		},
+		{
+			description: "corner: under a `dev` selector the block is unaffected — -s and the device filter compose without interacting",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 1),
+				Probes: 0, HasProbes: true,
+			},
+			filter: statsDevFilter,
+			want:   "192.0.2.50 lladdr 02:00:00:00:00:01  ref 1 used 0/0/0probes 0 REACHABLE \n",
+		},
+		{
+			description: "corner: a zero ndm_state prints no state, so the block is the LAST thing on the line and its missing trailing space shows",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: 0,
+				Dst:          []byte{192, 0, 2, 53},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 2),
+			},
+			filter: statsFilter,
+			want:   "192.0.2.53 dev goip0  ref 2 used 0/0/0\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			got := NeighViewOf(tt.in, neighTabNames, tt.filter).Text()
+			if got != tt.want {
+				t.Errorf("got  %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestNeighViewStatsJSON is the JSON half of the `-s` block.
+//
+// Three things here are not simply the text form restated:
+//
+//  1. KEY ORDER. The five keys must land after the flags and before the
+//     state, which is why they are `json:"-"` and hand-written in
+//     MarshalJSON. A struct tag would have put them ahead of every flag.
+//  2. One text token is THREE keys. `used 3/3/3` comes from three separate
+//     print_uint calls (ip/ipneigh.c:231-234) whose text formats concatenate;
+//     in JSON they are "used", "confirmed" and "updated" with no such
+//     merging.
+//  3. The counters are the DIVIDED values, as in text. print_uint is handed
+//     `ci->ndm_used / hz`, so JSON carries seconds, not ticks.
+//
+// Expectations verified against real `ip -s -j neigh show` in a throwaway
+// namespace, whose entries came back as
+// {"dst":…,"lladdr":…,"used":0,"confirmed":60,"updated":0,"probes":0,
+//
+//	"state":["STALE"]}.
+//
+// go test ./internal/goip/render/ -run TestNeighViewStatsJSON
+func TestNeighViewStatsJSON(t *testing.T) {
+	tests := []struct {
+		description string
+		in          xtcpnl.NeighInfo
+		filter      NeighShowFilter
+		wantExact   string
+		absentKeys  []string
+	}{
+		{
+			description: "positive: the full key order — dst, dev, lladdr, then the five -s keys, then state",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(6000, 0, 0, 0),
+				Probes: 0, HasProbes: true,
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"192.0.2.51","dev":"goip0","lladdr":"02:00:00:00:00:02",` +
+				`"used":0,"confirmed":60,"updated":0,"probes":0,"state":["STALE"]}`,
+		},
+		{
+			description: "positive: refcnt leads the five when non-zero",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE,
+				Dst: []byte{192, 0, 2, 50}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 1),
+				Probes: 0, HasProbes: true,
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"192.0.2.50","dev":"goip0","lladdr":"02:00:00:00:00:01",` +
+				`"refcnt":1,"used":0,"confirmed":0,"updated":0,"probes":0,"state":["REACHABLE"]}`,
+		},
+		{
+			description: "corner: POSITION — a flag pushes the -s keys after it and keeps state last, which a struct tag could not express",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET6, Ifindex: 3, State: unix.NUD_STALE,
+				Flags: unix.NTF_ROUTER,
+				Dst: []byte{
+					0xfd, 0x99, 0, 0, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x02,
+				},
+				LLAddr:       []byte{0x02, 0, 0, 0, 0, 0x06},
+				HasCacheInfo: true, CacheInfo: nci(100, 100, 100, 0),
+				Probes: 1, HasProbes: true,
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"fd99::2","dev":"goip0","lladdr":"02:00:00:00:00:06",` +
+				`"router":null,"used":1,"confirmed":1,"updated":1,"probes":1,"state":["STALE"]}`,
+		},
+		{
+			description: "negative: without -s none of the five keys appears, and the object is exactly what it was before this change",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(6000, 0, 0, 2),
+				Probes: 3, HasProbes: true,
+			},
+			filter:     NeighShowFilter{},
+			wantExact:  `{"dst":"192.0.2.51","dev":"goip0","lladdr":"02:00:00:00:00:02","state":["STALE"]}`,
+			absentKeys: []string{"refcnt", "used", "confirmed", "updated", "probes"},
+		},
+		{
+			description: "negative: NDA_CACHEINFO absent under -s emits no counter keys — not zeros",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				Probes: 3, HasProbes: true,
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"192.0.2.51","dev":"goip0","lladdr":"02:00:00:00:00:02",` +
+				`"probes":3,"state":["STALE"]}`,
+			absentKeys: []string{"refcnt", "used", "confirmed", "updated"},
+		},
+		{
+			description: "boundary: refcnt 0 drops its key while the other three stay — the same independent suppression as the text form",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_STALE,
+				Dst: []byte{192, 0, 2, 51}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x02},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 0),
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"192.0.2.51","dev":"goip0","lladdr":"02:00:00:00:00:02",` +
+				`"used":0,"confirmed":0,"updated":0,"state":["STALE"]}`,
+			absentKeys: []string{"refcnt", "probes"},
+		},
+		{
+			description: "corner: a zero ndm_state emits the -s keys and NO state key, so the object ends on probes",
+			in: xtcpnl.NeighInfo{
+				Family: unix.AF_INET, Ifindex: 3, State: 0,
+				Dst:          []byte{192, 0, 2, 53},
+				HasCacheInfo: true, CacheInfo: nci(0, 0, 0, 2),
+				Probes: 1, HasProbes: true,
+			},
+			filter: statsFilter,
+			wantExact: `{"dst":"192.0.2.53","dev":"goip0",` +
+				`"refcnt":2,"used":0,"confirmed":0,"updated":0,"probes":1}`,
+			absentKeys: []string{"state"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			b, err := json.Marshal(NeighViewOf(tt.in, neighTabNames, tt.filter))
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if got := string(b); got != tt.wantExact {
+				t.Errorf("got  %s\nwant %s", got, tt.wantExact)
+			}
+			for _, k := range tt.absentKeys {
+				if strings.Contains(string(b), `"`+k+`":`) {
+					t.Errorf("key %q present, want absent: %s", k, b)
+				}
+			}
+		})
+	}
+}

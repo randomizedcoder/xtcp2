@@ -33,6 +33,15 @@ type NeighShowFilter struct {
 	// that a filter exists. The per-neighbor index test is a separate,
 	// earlier statement (:331).
 	IndexSet bool
+
+	// Stats is show_stats, gating print_cacheinfo and the `probes` token
+	// together (ip/ipneigh.c:453-460).
+	//
+	// Unlike the route object, where `-s` gates three members a dump can
+	// never populate, this gate is live: NDA_CACHEINFO is on every entry the
+	// kernel returns and its counters are the entry's real ages, so `-s
+	// neigh show` genuinely prints more than `neigh show`.
+	Stats bool
 }
 
 // NeighView is the iproute2-compatible typed presentation of one neighbor.
@@ -73,6 +82,31 @@ type NeighView struct {
 	// and that is the normal case for a proxy entry, so it is reachable
 	// rather than theoretical.
 	State []string `json:"-"`
+
+	// The `-s` block: print_cacheinfo's four counters (ip/ipneigh.c:220-234)
+	// followed by `probes` (:457-459). Both sit inside one `if (show_stats)`
+	// (:453-460), between the flag run and the state.
+	//
+	// All five are `json:"-"` and hand-written by MarshalJSON for the same
+	// POSITION reason as State: they have to land after the flags, which are
+	// not struct fields, so no struct tag can express the order.
+	//
+	// Pointers because presence is not value. Refcnt is suppressed at zero
+	// by its own guard, while Used, Confirmed and Updated print
+	// unconditionally once NDA_CACHEINFO exists — so a zero Used is a
+	// printed `used 0` and an absent one is no token at all. Probes is the
+	// same: `probes 0` is a real output.
+	//
+	// Declared in PRINT order, which is not the order of `struct
+	// nda_cacheinfo`. The struct is confirmed, used, updated, refcnt; the
+	// print is ref, used, confirmed, updated. Anyone checking this against
+	// the header rather than against print_cacheinfo will read it as two
+	// transpositions.
+	Refcnt    *uint32 `json:"-"`
+	Used      *uint32 `json:"-"`
+	Confirmed *uint32 `json:"-"`
+	Updated   *uint32 `json:"-"`
+	Probes    *uint32 `json:"-"`
 }
 
 func NeighViewOf(n xtcpnl.NeighInfo, names NameTab, f NeighShowFilter) NeighView {
@@ -82,6 +116,30 @@ func NeighViewOf(n xtcpnl.NeighInfo, names NameTab, f NeighShowFilter) NeighView
 	}
 	if a, ok := netip.AddrFromSlice(n.Dst); ok {
 		v.Dst = a.String()
+	}
+	if f.Stats {
+		// print_cacheinfo (ip/ipneigh.c:220-234). `ref` is the only one of
+		// the four with a guard; the other three print whenever the
+		// attribute is present, zero or not. All three are divided by
+		// USER_HZ, which truncates.
+		if n.HasCacheInfo {
+			if n.CacheInfo.Refcnt != 0 {
+				r := n.CacheInfo.Refcnt
+				v.Refcnt = &r
+			}
+			used := n.CacheInfo.Used / xtcpnl.RtaUserHzCst
+			confirmed := n.CacheInfo.Confirmed / xtcpnl.RtaUserHzCst
+			updated := n.CacheInfo.Updated / xtcpnl.RtaUserHzCst
+			v.Used, v.Confirmed, v.Updated = &used, &confirmed, &updated
+		}
+		// `probes` is NOT inside print_cacheinfo and NOT conditional on
+		// NDA_CACHEINFO: it is a sibling attribute under the same show_stats
+		// guard (:457-459), so an entry with probes and no cacheinfo prints
+		// the one without the other.
+		if n.HasProbes {
+			p := n.Probes
+			v.Probes = &p
+		}
 	}
 	if len(n.LLAddr) > 0 {
 		// The THIRD consumer of ll_addr_n2a, and the only one that has to go
@@ -214,7 +272,8 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(v.Flags) == 0 && len(v.State) == 0 {
+	if len(v.Flags) == 0 && len(v.State) == 0 &&
+		v.Refcnt == nil && v.Used == nil && v.Probes == nil {
 		return raw, nil
 	}
 	// Dst has no omitempty, so the object always has a member to append to
@@ -234,6 +293,25 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 		b.WriteByte(',')
 		b.Write(key)
 		b.WriteString(":null")
+	}
+	// The `-s` keys, in print order, after the flags and before the state.
+	// Used/Confirmed/Updated are one text token but three JSON keys, because
+	// print_cacheinfo makes three print_uint calls whose text formats happen
+	// to concatenate (ip/ipneigh.c:231-234).
+	for _, kv := range []struct {
+		key string
+		val *uint32
+	}{
+		{"refcnt", v.Refcnt},
+		{"used", v.Used},
+		{"confirmed", v.Confirmed},
+		{"updated", v.Updated},
+		{"probes", v.Probes},
+	} {
+		if kv.val == nil {
+			continue
+		}
+		fmt.Fprintf(&b, `,"%s":%d`, kv.key, *kv.val)
 	}
 	if len(v.State) > 0 {
 		state, err := json.Marshal(v.State)
@@ -272,6 +350,24 @@ func (v NeighView) Text() string {
 	for _, f := range v.Flags {
 		b.WriteString(f)
 		b.WriteByte(' ')
+	}
+	// The `-s` block, between the flags and the state.
+	//
+	// print_cacheinfo's formats carry a LEADING space and no trailing one —
+	// `" ref %u"`, `" used %u"`, `"/%u"`, `"/%u"` — so the block starts with
+	// a space the flag run has already supplied one of, giving the doubled
+	// space real `ip` prints after an lladdr. `probes %u ` then has no
+	// leading space and a trailing one, which is why its output runs
+	// straight on from the last counter as `…/1362276probes 3 `. Both
+	// oddities are upstream's; see the golden.
+	if v.Refcnt != nil {
+		fmt.Fprintf(&b, " ref %d", *v.Refcnt)
+	}
+	if v.Used != nil {
+		fmt.Fprintf(&b, " used %d/%d/%d", *v.Used, *v.Confirmed, *v.Updated)
+	}
+	if v.Probes != nil {
+		fmt.Fprintf(&b, "probes %d ", *v.Probes)
 	}
 	for _, s := range v.State {
 		b.WriteString(s)
