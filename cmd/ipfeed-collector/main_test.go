@@ -232,8 +232,16 @@ func TestParseFlagsDaemonValidation(t *testing.T) {
 			[]string{}, false},
 		{"positive_daemon", "positive: daemon with a valid interval", "positive",
 			[]string{"-daemon", "-interval", "6h"}, false},
+		{"positive_daemon_jitter", "positive: daemon with explicit startup and interval jitter", "positive",
+			[]string{"-daemon", "-interval", "6h", "-startup-jitter", "5m", "-interval-jitter-pct", "20"}, false},
 		{"negative_daemon_zero", "negative: daemon with a zero interval is rejected", "negative",
 			[]string{"-daemon", "-interval", "0"}, true},
+		{"negative_startup_jitter_negative", "negative: startup jitter cannot be negative", "negative",
+			[]string{"-startup-jitter", "-1s"}, true},
+		{"negative_interval_jitter_negative", "negative: interval jitter percent cannot be negative", "negative",
+			[]string{"-interval-jitter-pct", "-1"}, true},
+		{"negative_interval_jitter_above_100", "negative: interval jitter percent cannot exceed 100", "negative",
+			[]string{"-interval-jitter-pct", "101"}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -390,7 +398,7 @@ func TestRunDaemon(t *testing.T) {
 
 			// Tiny interval so ticks fire quickly; correctness does not depend
 			// on timing because collect cancels the context deterministically.
-			err := runDaemon(ctx, time.Millisecond, readyFn, collect, discardLogger())
+			err := runDaemon(ctx, daemonSchedule{Interval: time.Millisecond}, readyFn, collect, discardLogger())
 			if err != nil {
 				t.Fatalf("%s: runDaemon returned error: %v", tc.desc, err)
 			}
@@ -401,5 +409,58 @@ func TestRunDaemon(t *testing.T) {
 				t.Errorf("%s: ready = %v, want %v", tc.desc, ready.Load(), tc.wantReady)
 			}
 		})
+	}
+}
+
+func TestDaemonJitter(t *testing.T) {
+	tests := []struct {
+		description string
+		interval    time.Duration
+		pct         int
+		jitter      time.Duration
+		want        time.Duration
+	}{
+		{"positive: 20 percent jitter shifts around the same mean interval", 100 * time.Second, 20, 7 * time.Second, 97 * time.Second},
+		{"boundary: zero percent keeps the interval unchanged", 100 * time.Second, 0, 7 * time.Second, 100 * time.Second},
+		{"boundary: zero interval stays zero", 0, 20, 7 * time.Second, 0},
+		{"corner: percent above 100 is clamped", 100 * time.Second, 150, 25 * time.Second, 75 * time.Second},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got := jitteredInterval(tc.interval, tc.pct, func(time.Duration) time.Duration { return tc.jitter })
+			if got != tc.want {
+				t.Fatalf("jitteredInterval(%s,%d) = %s, want %s", tc.interval, tc.pct, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunDaemonStartupJitter(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var slept atomic.Int64
+	var calls atomic.Int64
+	schedule := daemonSchedule{
+		Interval:         time.Hour,
+		StartupJitterMax: 5 * time.Minute,
+		Jitter:           func(max time.Duration) time.Duration { return max / 2 },
+		Sleep: func(_ context.Context, d time.Duration) bool {
+			slept.Store(int64(d))
+			return true
+		},
+	}
+	collect := func(context.Context) error {
+		calls.Add(1)
+		cancel()
+		return nil
+	}
+	if err := runDaemon(ctx, schedule, nil, collect, discardLogger()); err != nil {
+		t.Fatalf("runDaemon: %v", err)
+	}
+	if got, want := time.Duration(slept.Load()), 150*time.Second; got != want {
+		t.Fatalf("startup jitter sleep = %s, want %s", got, want)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("collect calls = %d, want 1", got)
 	}
 }

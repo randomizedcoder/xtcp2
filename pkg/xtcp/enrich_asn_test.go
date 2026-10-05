@@ -56,6 +56,19 @@ func writeAsnArtifact(t *testing.T, path string, rows []model.Record) {
 	}
 }
 
+func writeLookupCacheArtifact(t *testing.T, path string, rows []model.Record) {
+	t.Helper()
+	full := filepath.Join(t.TempDir(), "source.parquet")
+	writeAsnArtifact(t, full, rows)
+	artifact, err := ipasn.LoadArtifact(full)
+	if err != nil {
+		t.Fatalf("LoadArtifact(%s): %v", full, err)
+	}
+	if _, err := ipasn.PublishLookupCache(path, "", artifact, ipasn.Stats{}); err != nil {
+		t.Fatalf("PublishLookupCache(%s): %v", path, err)
+	}
+}
+
 // go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestInitAsnEnricher
 func TestInitAsnEnricher(t *testing.T) {
 	const tick = 20 * time.Millisecond
@@ -165,6 +178,110 @@ func TestInitAsnEnricher(t *testing.T) {
 				tc.after(t, x, path)
 			}
 		})
+	}
+}
+
+func TestInitAsnEnricherBootstrapCachePrecedence(t *testing.T) {
+	tests := []struct {
+		description string
+		setup       func(t *testing.T, dir string) (cache, bootstrap string)
+		wantOwner   string
+	}{
+		{
+			description: "positive: current cache wins over bootstrap",
+			setup: func(t *testing.T, dir string) (string, string) {
+				cache := filepath.Join(dir, "current.lookup.parquet.zst")
+				bootstrap := filepath.Join(dir, "bootstrap.lookup.parquet.zst")
+				writeLookupCacheArtifact(t, cache, []model.Record{{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 1, NetworkOwner: "current"}})
+				writeLookupCacheArtifact(t, bootstrap, []model.Record{{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 2, NetworkOwner: "bootstrap"}})
+				return cache, bootstrap
+			},
+			wantOwner: "current",
+		},
+		{
+			description: "positive: previous cache is used when current is corrupt",
+			setup: func(t *testing.T, dir string) (string, string) {
+				cache := filepath.Join(dir, "current.lookup.parquet.zst")
+				previous := filepath.Join(dir, "previous.lookup.parquet.zst")
+				bootstrap := filepath.Join(dir, "bootstrap.lookup.parquet.zst")
+				writeBytesFile(t, cache, []byte("not zstd"))
+				writeLookupCacheArtifact(t, previous, []model.Record{{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 3, NetworkOwner: "previous"}})
+				writeLookupCacheArtifact(t, bootstrap, []model.Record{{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 4, NetworkOwner: "bootstrap"}})
+				return cache, bootstrap
+			},
+			wantOwner: "previous",
+		},
+		{
+			description: "positive: bootstrap is used when no cache exists",
+			setup: func(t *testing.T, dir string) (string, string) {
+				cache := filepath.Join(dir, "current.lookup.parquet.zst")
+				bootstrap := filepath.Join(dir, "bootstrap.lookup.parquet.zst")
+				writeLookupCacheArtifact(t, bootstrap, []model.Record{{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 5, NetworkOwner: "bootstrap"}})
+				return cache, bootstrap
+			},
+			wantOwner: "bootstrap",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			x := newMetricsFixture(t, time.Minute)
+			dir := t.TempDir()
+			cache, bootstrap := tc.setup(t, dir)
+			x.config = &xtcp_config.XtcpConfig{
+				EnrichAsnEnable:     true,
+				IpmetaCachePath:     cache,
+				IpmetaBootstrapPath: bootstrap,
+				AsnRefreshInterval:  durationpb.New(0),
+			}
+			x.initAsnEnricher(context.Background())
+			if asnIdx(x) == nil {
+				t.Fatal("ASN enricher was not installed")
+			}
+			got, ok := asnIdx(x).Lookup(netip.MustParseAddr("1.1.1.1"))
+			if !ok || got.NetworkOwner != tc.wantOwner {
+				t.Fatalf("Lookup owner = (%+v,%v), want %q", got, ok, tc.wantOwner)
+			}
+		})
+	}
+}
+
+func TestAsnRefreshPublishesLookupCache(t *testing.T) {
+	const tick = 20 * time.Millisecond
+	x := newMetricsFixture(t, time.Minute)
+	dir := t.TempDir()
+	source := filepath.Join(dir, "asn.parquet")
+	cache := filepath.Join(dir, "current.lookup.parquet.zst")
+	previous := filepath.Join(dir, "previous.lookup.parquet.zst")
+	writeAsnArtifact(t, source, asnRowsA)
+	x.config = &xtcp_config.XtcpConfig{
+		EnrichAsnEnable:    true,
+		AsnDbPath:          source,
+		AsnRefreshInterval: durationpb.New(tick),
+		IpmetaCachePath:    cache,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	x.initAsnEnricher(ctx)
+
+	waitFor(t, "initial live artifact to publish current cache", func() bool {
+		_, err := os.Stat(cache)
+		return err == nil
+	})
+	time.Sleep(15 * time.Millisecond)
+	writeAsnArtifact(t, source, []model.Record{
+		{Prefix: "1.1.1.0/24", IPVersion: 4, ASN: 1, NetworkOwner: "replaced-owner"},
+		{Prefix: "8.8.8.0/24", IPVersion: 4, ASN: 15169, NetworkOwner: "google"},
+	})
+	waitFor(t, "refresh to rewrite current cache", func() bool {
+		ix, err := ipasn.New(cache)
+		if err != nil {
+			return false
+		}
+		attr, ok := ix.Lookup(netip.MustParseAddr("1.1.1.1"))
+		return ok && attr.NetworkOwner == "replaced-owner"
+	})
+	if _, err := os.Stat(previous); err != nil {
+		t.Fatalf("previous cache missing after rotation: %v", err)
 	}
 }
 

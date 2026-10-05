@@ -835,6 +835,24 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xa8
 	}
+	if len(m.IpmetaCachePath) > 0 {
+		i -= len(m.IpmetaCachePath)
+		copy(dAtA[i:], m.IpmetaCachePath)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.IpmetaCachePath)))
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0xa2
+	}
+	if len(m.IpmetaBootstrapPath) > 0 {
+		i -= len(m.IpmetaBootstrapPath)
+		copy(dAtA[i:], m.IpmetaBootstrapPath)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.IpmetaBootstrapPath)))
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0x9a
+	}
 	if m.AsnRefreshInterval != nil {
 		size, err := (*durationpb.Duration)(m.AsnRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -2061,6 +2079,14 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.AsnRefreshInterval != nil {
 		l = (*durationpb.Duration)(m.AsnRefreshInterval).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.IpmetaBootstrapPath)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.IpmetaCachePath)
+	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.EnrichLocalityEnable {
@@ -5651,6 +5677,70 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 			if err := (*durationpb.Duration)(m.AsnRefreshInterval).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 243:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IpmetaBootstrapPath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IpmetaBootstrapPath = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 244:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IpmetaCachePath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IpmetaCachePath = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 245:
 			if wireType != 0 {

@@ -926,6 +926,8 @@ func TestPrintFlags(t *testing.T) {
 	f.enrichAsn = &b
 	f.asnDbPath = &s
 	f.asnRefreshInterval = &d
+	f.ipmetaBootstrapPath = &s
+	f.ipmetaCachePath = &s
 	f.enrichLocality = &b
 	f.localityRefreshInterval = &d
 	// Redirect stdout so the call doesn't litter test output.
@@ -1010,6 +1012,8 @@ func TestBuildConfig(t *testing.T) {
 	rbp := false
 	uplinkCount := uint(2)
 	uplinkInterfaces := "eth0,eth1"
+	ipmetaBootstrap := "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"
+	ipmetaCache := "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1058,6 +1062,7 @@ func TestBuildConfig(t *testing.T) {
 		profileMode: &pm, v: &v, conf: &conf, d: &d,
 		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
 		enrichAsn: &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
+		ipmetaBootstrapPath: &ipmetaBootstrap, ipmetaCachePath: &ipmetaCache,
 		enrichLocality: &iu, localityRefreshInterval: &rf,
 	}
 	des := getDeserializers(*f.deserializers)
@@ -1101,6 +1106,8 @@ func TestBuildConfig(t *testing.T) {
 		{"S3UploadBackoffCap", c.S3UploadBackoffCap.AsDuration(), 90 * time.Second},
 		{"ReconcileFrequency", c.ReconcileFrequency.AsDuration(), 3 * time.Minute},
 		{"ReconcileBeforePoll", c.ReconcileBeforePoll, false},
+		{"IpmetaBootstrapPath", c.IpmetaBootstrapPath, ipmetaBootstrap},
+		{"IpmetaCachePath", c.IpmetaCachePath, ipmetaCache},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
@@ -1381,21 +1388,32 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 			func(c *xtcp_config.XtcpConfig) bool { return c.AsnDbPath == "/var/lib/xtcp/feeds.parquet" }},
 		{"ASN_REFRESH_INTERVAL=30m parses as a duration", map[string]string{"ASN_REFRESH_INTERVAL": "30m"},
 			func(c *xtcp_config.XtcpConfig) bool { return c.AsnRefreshInterval.AsDuration() == 30*time.Minute }},
+		{"IPMETA_BOOTSTRAP_PATH sets the bootstrap artifact path verbatim", map[string]string{"IPMETA_BOOTSTRAP_PATH": "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"},
+			func(c *xtcp_config.XtcpConfig) bool {
+				return c.IpmetaBootstrapPath == "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"
+			}},
+		{"IPMETA_CACHE_PATH sets the writable cache artifact path verbatim", map[string]string{"IPMETA_CACHE_PATH": "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"},
+			func(c *xtcp_config.XtcpConfig) bool {
+				return c.IpmetaCachePath == "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"
+			}},
 		{"ENRICH_LOCALITY=1 enables locality enrichment", map[string]string{"ENRICH_LOCALITY": "1"},
 			func(c *xtcp_config.XtcpConfig) bool { return c.EnrichLocalityEnable }},
 		{"LOCALITY_REFRESH_INTERVAL=90s parses as a duration", map[string]string{"LOCALITY_REFRESH_INTERVAL": "90s"},
 			func(c *xtcp_config.XtcpConfig) bool { return c.LocalityRefreshInterval.AsDuration() == 90*time.Second }},
 		{"all five together", map[string]string{
 			"ENRICH_ASN": "true", "ASN_DB_PATH": "/f.parquet", "ASN_REFRESH_INTERVAL": "1h",
+			"IPMETA_BOOTSTRAP_PATH": "/bootstrap.zst", "IPMETA_CACHE_PATH": "/cache.zst",
 			"ENRICH_LOCALITY": "true", "LOCALITY_REFRESH_INTERVAL": "2m"},
 			func(c *xtcp_config.XtcpConfig) bool {
 				return c.EnrichAsnEnable && c.AsnDbPath == "/f.parquet" && c.AsnRefreshInterval.AsDuration() == time.Hour &&
+					c.IpmetaBootstrapPath == "/bootstrap.zst" && c.IpmetaCachePath == "/cache.zst" &&
 					c.EnrichLocalityEnable && c.LocalityRefreshInterval.AsDuration() == 2*time.Minute
 			}},
 		// negative — unset leaves zero values
 		{"nothing set -> all zero", map[string]string{},
 			func(c *xtcp_config.XtcpConfig) bool {
 				return !c.EnrichAsnEnable && c.AsnDbPath == "" && c.AsnRefreshInterval == nil &&
+					c.IpmetaBootstrapPath == "" && c.IpmetaCachePath == "" &&
 					!c.EnrichLocalityEnable && c.LocalityRefreshInterval == nil
 			}},
 		{"ENRICH_ASN=maybe (unparseable bool) is ignored", map[string]string{"ENRICH_ASN": "maybe"},
@@ -1412,10 +1430,14 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 		// corner
 		{"ASN_DB_PATH set to empty string is applied as empty", map[string]string{"ASN_DB_PATH": ""},
 			func(c *xtcp_config.XtcpConfig) bool { return c.AsnDbPath == "" }},
+		{"IPMETA_BOOTSTRAP_PATH set to empty string is applied as empty", map[string]string{"IPMETA_BOOTSTRAP_PATH": ""},
+			func(c *xtcp_config.XtcpConfig) bool { return c.IpmetaBootstrapPath == "" }},
+		{"IPMETA_CACHE_PATH set to empty string is applied as empty", map[string]string{"IPMETA_CACHE_PATH": ""},
+			func(c *xtcp_config.XtcpConfig) bool { return c.IpmetaCachePath == "" }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			for _, k := range []string{"ENRICH_ASN", "ASN_DB_PATH", "ASN_REFRESH_INTERVAL", "ENRICH_LOCALITY", "LOCALITY_REFRESH_INTERVAL"} {
+			for _, k := range []string{"ENRICH_ASN", "ASN_DB_PATH", "ASN_REFRESH_INTERVAL", "IPMETA_BOOTSTRAP_PATH", "IPMETA_CACHE_PATH", "ENRICH_LOCALITY", "LOCALITY_REFRESH_INTERVAL"} {
 				if v, ok := tc.env[k]; ok {
 					t.Setenv(k, v)
 				} else {

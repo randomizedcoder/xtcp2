@@ -1209,6 +1209,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.bool? enrichAsnEnable,
     $core.String? asnDbPath,
     $1.Duration? asnRefreshInterval,
+    $core.String? ipmetaBootstrapPath,
+    $core.String? ipmetaCachePath,
     $core.bool? enrichLocalityEnable,
     $1.Duration? localityRefreshInterval,
   }) {
@@ -1305,6 +1307,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     if (asnDbPath != null) result.asnDbPath = asnDbPath;
     if (asnRefreshInterval != null)
       result.asnRefreshInterval = asnRefreshInterval;
+    if (ipmetaBootstrapPath != null)
+      result.ipmetaBootstrapPath = ipmetaBootstrapPath;
+    if (ipmetaCachePath != null) result.ipmetaCachePath = ipmetaCachePath;
     if (enrichLocalityEnable != null)
       result.enrichLocalityEnable = enrichLocalityEnable;
     if (localityRefreshInterval != null)
@@ -1436,6 +1441,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(241, _omitFieldNames ? '' : 'asnDbPath')
     ..aOM<$1.Duration>(242, _omitFieldNames ? '' : 'asnRefreshInterval',
         subBuilder: $1.Duration.create)
+    ..aOS(243, _omitFieldNames ? '' : 'ipmetaBootstrapPath')
+    ..aOS(244, _omitFieldNames ? '' : 'ipmetaCachePath')
     ..aOB(245, _omitFieldNames ? '' : 'enrichLocalityEnable')
     ..aOM<$1.Duration>(246, _omitFieldNames ? '' : 'localityRefreshInterval',
         subBuilder: $1.Duration.create)
@@ -2369,6 +2376,31 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(242)
   $1.Duration ensureAsnRefreshInterval() => $_ensure(71);
 
+  /// Optional zstd-compressed lookup artifact baked into the image and used at
+  /// startup when no fresher writable cache is available. Default is supplied
+  /// by the daemon CLI as /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst.
+  @$pb.TagNumber(243)
+  $core.String get ipmetaBootstrapPath => $_getSZ(72);
+  @$pb.TagNumber(243)
+  set ipmetaBootstrapPath($core.String value) => $_setString(72, value);
+  @$pb.TagNumber(243)
+  $core.bool hasIpmetaBootstrapPath() => $_has(72);
+  @$pb.TagNumber(243)
+  void clearIpmetaBootstrapPath() => $_clearField(243);
+
+  /// Optional writable zstd-compressed lookup artifact used at startup before
+  /// the image bootstrap and refreshed after successful asn_db_path reloads.
+  /// The companion previous.lookup.parquet.zst in the same directory is kept
+  /// as a recovery fallback.
+  @$pb.TagNumber(244)
+  $core.String get ipmetaCachePath => $_getSZ(73);
+  @$pb.TagNumber(244)
+  set ipmetaCachePath($core.String value) => $_setString(73, value);
+  @$pb.TagNumber(244)
+  $core.bool hasIpmetaCachePath() => $_has(73);
+  @$pb.TagNumber(244)
+  void clearIpmetaCachePath() => $_clearField(244);
+
   /// -- locality (245-249)
   /// Classify the destination IP's locality (record field 310) — self /
   /// local-subnet / remote — from each monitored network namespace's local
@@ -2378,11 +2410,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Non-fatal: a per-namespace discovery failure just leaves that namespace's
   /// sockets unclassified (and is retried with backoff). Default false.
   @$pb.TagNumber(245)
-  $core.bool get enrichLocalityEnable => $_getBF(72);
+  $core.bool get enrichLocalityEnable => $_getBF(74);
   @$pb.TagNumber(245)
-  set enrichLocalityEnable($core.bool value) => $_setBool(72, value);
+  set enrichLocalityEnable($core.bool value) => $_setBool(74, value);
   @$pb.TagNumber(245)
-  $core.bool hasEnrichLocalityEnable() => $_has(72);
+  $core.bool hasEnrichLocalityEnable() => $_has(74);
   @$pb.TagNumber(245)
   void clearEnrichLocalityEnable() => $_clearField(245);
 
@@ -2391,15 +2423,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// namespaces are always snapshotted on the next reconcile regardless. 0 =
   /// discover once per namespace, never refresh. Daemon default 60s.
   @$pb.TagNumber(246)
-  $1.Duration get localityRefreshInterval => $_getN(73);
+  $1.Duration get localityRefreshInterval => $_getN(75);
   @$pb.TagNumber(246)
   set localityRefreshInterval($1.Duration value) => $_setField(246, value);
   @$pb.TagNumber(246)
-  $core.bool hasLocalityRefreshInterval() => $_has(73);
+  $core.bool hasLocalityRefreshInterval() => $_has(75);
   @$pb.TagNumber(246)
   void clearLocalityRefreshInterval() => $_clearField(246);
   @$pb.TagNumber(246)
-  $1.Duration ensureLocalityRefreshInterval() => $_ensure(73);
+  $1.Duration ensureLocalityRefreshInterval() => $_ensure(75);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

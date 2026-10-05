@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/randomizedcoder/xtcp2/internal/ipfeed/model"
@@ -112,6 +113,8 @@ func TestReloadKeepsTable(t *testing.T) {
 			func(*testing.T) string { return "/nonexistent/feeds.parquet" }, os.ErrNotExist, true, 5},
 		{"corrupt (non-parquet) file keeps the good table", true,
 			func(t *testing.T) string { return writeBytes(t, []byte("this is not a parquet file")) }, errAny, true, 5},
+		{"corrupt zstd file keeps the good table", true,
+			func(t *testing.T) string { return writeBytesNamed(t, "bad.parquet.zst", []byte("this is not zstd")) }, errAny, true, 5},
 		{"zero-row artifact is refused (ErrNoPrefixes), good table kept", true,
 			func(t *testing.T) string { return writeArtifact(t, nil) }, ErrNoPrefixes, true, 5},
 		{"artifact whose every prefix is unparseable is refused", true,
@@ -160,9 +163,42 @@ var errAny = errors.New("any error")
 // writeBytes writes raw bytes to a temp file and returns its path.
 func writeBytes(t testing.TB, b []byte) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "raw.parquet")
+	return writeBytesNamed(t, "raw.parquet", b)
+}
+
+func writeBytesNamed(t testing.TB, name string, b []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
 	if err := os.WriteFile(path, b, 0o600); err != nil {
 		t.Fatalf("write: %v", err)
+	}
+	return path
+}
+
+func writeZstdArtifact(t testing.TB, rows []row) string {
+	t.Helper()
+	src := writeArtifact(t, rows)
+	in, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read source artifact: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "feeds.parquet.zst")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zstd artifact: %v", err)
+	}
+	zw, err := zstd.NewWriter(f)
+	if err != nil {
+		t.Fatalf("new zstd writer: %v", err)
+	}
+	if _, err := zw.Write(in); err != nil {
+		t.Fatalf("write zstd artifact: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zstd writer: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close zstd artifact: %v", err)
 	}
 	return path
 }
@@ -280,6 +316,104 @@ func TestCollectorSchemaArtifact(t *testing.T) {
 				if !ok || got != want {
 					t.Errorf("Lookup(%s) = (%+v,%v), want %+v", addr, got, ok, want)
 				}
+			}
+		})
+	}
+}
+
+func TestZstdArtifactLoadAndStats(t *testing.T) {
+	path := writeZstdArtifact(t, fixtureRows)
+	var ix Index
+	if err := ix.Reload(path); err != nil {
+		t.Fatalf("Reload(zstd): %v", err)
+	}
+	got, ok := ix.Lookup(netip.MustParseAddr("8.8.8.8"))
+	if !ok || got.ASN != 15169 || got.NetworkOwner != "google" {
+		t.Fatalf("Lookup(8.8.8.8) = (%+v,%v), want google ASN 15169", got, ok)
+	}
+	st := ix.Stats()
+	if st.SourceKind != "parquet.zst" || st.CompressedBytes <= 0 || st.DecompressedBytes <= 0 {
+		t.Fatalf("Stats after zstd load = %+v, want compressed parquet stats", st)
+	}
+}
+
+func TestPublishLookupCacheRotation(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, "current.lookup.parquet.zst")
+	previous := filepath.Join(dir, "previous.lookup.parquet.zst")
+
+	first, err := LoadArtifact(writeArtifact(t, []row{{Prefix: "1.1.1.0/24", ASN: 1, NetworkOwner: "first"}}))
+	if err != nil {
+		t.Fatalf("LoadArtifact(first): %v", err)
+	}
+	if _, err := PublishLookupCache(current, previous, first, Stats{}); err != nil {
+		t.Fatalf("PublishLookupCache(first): %v", err)
+	}
+	if _, err := os.Stat(previous); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("previous after first publish err = %v, want not exist", err)
+	}
+
+	currentArtifact, err := LoadArtifact(current)
+	if err != nil {
+		t.Fatalf("LoadArtifact(current): %v", err)
+	}
+	second, err := LoadArtifact(writeArtifact(t, []row{{Prefix: "1.1.1.0/24", ASN: 2, NetworkOwner: "second"}}))
+	if err != nil {
+		t.Fatalf("LoadArtifact(second): %v", err)
+	}
+	if _, err := PublishLookupCache(current, previous, second, currentArtifact.Stats()); err != nil {
+		t.Fatalf("PublishLookupCache(second): %v", err)
+	}
+
+	for _, tc := range []struct {
+		description string
+		path        string
+		wantOwner   string
+	}{
+		{"current is the newly published cache", current, "second"},
+		{"previous is the prior cache", previous, "first"},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			ix, err := New(tc.path)
+			if err != nil {
+				t.Fatalf("New(%s): %v", tc.path, err)
+			}
+			got, ok := ix.Lookup(netip.MustParseAddr("1.1.1.1"))
+			if !ok || got.NetworkOwner != tc.wantOwner {
+				t.Fatalf("Lookup owner = (%+v,%v), want %q", got, ok, tc.wantOwner)
+			}
+		})
+	}
+}
+
+func TestPublishLookupCacheSanityBounds(t *testing.T) {
+	tests := []struct {
+		description      string
+		candidateRows    int
+		baselinePrefixes int
+		wantErr          bool
+	}{
+		{"positive: same prefix count as baseline is accepted", 10, 10, false},
+		{"boundary: exactly 80 percent of baseline is accepted", 8, 10, false},
+		{"boundary: exactly 120 percent of baseline is accepted", 12, 10, false},
+		{"negative: below 80 percent of baseline is rejected", 7, 10, true},
+		{"negative: above 120 percent of baseline is rejected", 13, 10, true},
+		{"corner: no baseline skips baseline sanity", 3, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			artifact, err := LoadArtifact(writeArtifact(t, manyRows(tc.candidateRows)))
+			if err != nil {
+				t.Fatalf("LoadArtifact: %v", err)
+			}
+			_, err = PublishLookupCache(
+				filepath.Join(t.TempDir(), "current.lookup.parquet.zst"),
+				"",
+				artifact,
+				Stats{Prefixes: tc.baselinePrefixes},
+			)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("PublishLookupCache err = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}

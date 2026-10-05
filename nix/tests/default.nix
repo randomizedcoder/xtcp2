@@ -5,12 +5,23 @@
 {
   pkgs,
   lib,
+  src,
   vendoredSource,
+  binaries,
   microvms,
 }:
 
 let
   focused = import ./focused-quality.nix { inherit pkgs lib vendoredSource; };
+  ipmetaBootstrap = import ./ipmeta-bootstrap.nix {
+    inherit
+      pkgs
+      lib
+      src
+      vendoredSource
+      binaries
+      ;
+  };
 in
 {
   go-unit = import ./go-unit.nix { inherit pkgs vendoredSource; };
@@ -20,6 +31,8 @@ in
     inherit pkgs vendoredSource;
   };
   inherit focused;
+  ipmeta-bootstrap-artifact = ipmetaBootstrap.artifact;
+  oci-ipmeta-bootstrap-contents = ipmetaBootstrap.oci-contents;
 
   # Whole-repo race-detector test (cgo-enabled).
   go-race = import ./go-test-race.nix { inherit pkgs vendoredSource; };
@@ -27,6 +40,7 @@ in
   # Microvm lifecycle, per arch. The microvms input is the result of
   # `import ./nix/microvms { ... }`.
   microvm-lifecycle = microvms.lifecycle;
+  microvm-lifecycle-ipmeta-bootstrap = microvms.lifecycleIpmetaBootstrap;
 }
 // (import ./go-test-flavors.nix { inherit pkgs lib vendoredSource; })
 // (import ./go-test-per-package.nix { inherit pkgs lib vendoredSource; })

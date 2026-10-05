@@ -95,38 +95,65 @@ The three "fat" images carry every cmd binary; the slim images carry only the si
 Sizes below are the uncompressed tar stream (`./result | wc -c`), which is what `docker load`
 consumes. A registry stores the layers gzipped, so a push is considerably smaller.
 
-The fat images carry every cmd binary and every enricher:
+Re-measure with:
 
-| Target | Tag | Contents | Size |
+```sh
+nix run .#oci-size-report                  # slim daemon matrix + standalone images
+nix run .#oci-size-report -- --fat         # fat images only
+nix run .#oci-size-report -- --all         # both sets
+```
+
+The fat images carry every cmd binary and every enricher. They are exposed by the flake, but this
+2026-09-28 local tree cannot currently build them because `xtcp2-all` includes `goip`, and
+`cmd/goip` is blocked by `internal/goip/dispatch.go:50:23: undefined: runRoute`.
+
+| Target | Tag | Contents | Current status |
 |---|---|---|---|
-| `nix build .#oci-xtcp2` | `xtcp2:latest` | all cmds, all destinations, all enrichers | 167.4 MiB |
-| `nix build .#oci-xtcp2-debug` | `xtcp2:debug` | as above, debug variant | 215.4 MiB |
-| `nix build .#oci-xtcp2-stripped` | `xtcp2:stripped` | as above, stripped | 150.4 MiB |
+| `nix build .#oci-xtcp2` | `xtcp2:latest` | all cmds, all destinations, all enrichers | build blocked by `goip` |
+| `nix build .#oci-xtcp2-debug` | `xtcp2:debug` | as above, debug variant | build blocked by `goip` |
+| `nix build .#oci-xtcp2-stripped` | `xtcp2:stripped` | as above, stripped | build blocked by `goip` |
 
 The slim images carry exactly one `xtcp2` binary at the matching destination × enrichment cell. The
 image tag is the attr name minus the `oci-xtcp2-` prefix (`oci-xtcp2-kafka-asn` → `xtcp2:kafka-asn`):
 
 | Destination flavor | none | `-asn` | `-locality` | `-enrich` |
 |---|---|---|---|---|
-| `oci-xtcp2-min` | 25.2 MiB | 30.2 MiB | 25.6 MiB | 30.5 MiB |
-| `oci-xtcp2-kafka` | 29.1 MiB | 33.6 MiB | 29.4 MiB | 33.9 MiB |
-| `oci-xtcp2-nats` | 26.3 MiB | 31.2 MiB | 26.7 MiB | 31.5 MiB |
-| `oci-xtcp2-nsq` | 25.4 MiB | 30.4 MiB | 25.8 MiB | 30.7 MiB |
-| `oci-xtcp2-valkey` | 29.1 MiB | 34.0 MiB | 29.4 MiB | 34.3 MiB |
-| `oci-xtcp2-s3parquet` | 33.2 MiB | 33.7 MiB | 33.6 MiB | 33.9 MiB |
+| `oci-xtcp2-min` | 25.3 MiB | 31.0 MiB | 25.7 MiB | 31.3 MiB |
+| `oci-xtcp2-kafka` | 29.2 MiB | 34.4 MiB | 29.6 MiB | 34.7 MiB |
+| `oci-xtcp2-nats` | 26.4 MiB | 32.1 MiB | 26.8 MiB | 32.3 MiB |
+| `oci-xtcp2-nsq` | 25.5 MiB | 31.2 MiB | 25.9 MiB | 31.5 MiB |
+| `oci-xtcp2-valkey` | 29.2 MiB | 34.9 MiB | 29.6 MiB | 35.2 MiB |
+| `oci-xtcp2-s3parquet` | 33.3 MiB | 33.8 MiB | 33.7 MiB | 34.1 MiB |
 
 The standalone single-purpose images:
 
 | Target | Tag | Contents | Size |
 |---|---|---|---|
 | `nix build .#oci-ipfeed-collector` | `ipfeed-collector:latest` | only `ipfeed-collector`, which builds the ASN Parquet artifact | 27.9 MiB |
-| `nix build .#oci-xtcp2client` | `xtcp2client:latest` | only `xtcp2client` (gRPC record-stream client) | 14.8 MiB |
+| `nix build .#oci-xtcp2client` | `xtcp2client:latest` | only `xtcp2client` (gRPC record-stream client) | 16.0 MiB |
 | `nix build .#oci-xtcp2ctl` | `xtcp2ctl:latest` | only `xtcp2ctl` (runtime-control client) | 15.4 MiB |
+| `nix build .#oci-xtcp2-tcp-stress` | `xtcp2-tcp-stress:latest` | `tcp_server`, `tcp_client`, and the shell entrypoint used by microVM stress tests | 72.7 MiB |
 
 `ipfeed-collector` is packaged on its own rather than bundled into the enrichment images: it is a
 periodic batch job that produces the artifact, not part of the daemon's runtime, and at 27.9 MiB it
 would roughly double a slim image. Run it as a sidecar or a cron job and hand the daemon the result
 through a mounted volume or S3.
+
+The ASN flavor includes both the representative ASN lookup and the `network_owner` lookup from the
+same IP metadata artifact. Bootstrap-capable daemon image attrs append `-bootstrap` to the normal
+image attr and Docker tag, for example `oci-xtcp2-kafka-asn-bootstrap` and
+`xtcp2:kafka-asn-bootstrap`. All bootstrap images share one Nix artifact,
+`ipmeta-bootstrap-artifact`, installed at:
+
+```text
+/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst
+```
+
+That artifact is built from `nix/ipmeta-bootstrap-lock.json` when present. The lock can point at a
+checked-in file under `nix/` or at an immutable/fixed-hash remote URL such as a GitHub release asset.
+`nix/ipmeta-bootstrap-lock.example.json` shows the local-file shape; the build error includes both
+local and remote examples when the real lock is missing. The measured images above contain code
+support only, because this repo does not yet carry or pin a real fleet bootstrap artifact.
 
 Images are built with `pkgs.dockerTools.streamLayeredImage`: `./result` is a script that streams a docker-loadable tarball on stdout.
 
@@ -153,12 +180,12 @@ docker run --rm xtcp2ctl:latest -help
 
 ## Choosing a flavor
 
-- **Everything** (config-driven destination, both enrichers available): `xtcp2` / `oci-xtcp2`.
+- **Everything** (config-driven destination, both enrichers available): `xtcp2` / `oci-xtcp2`; the fat OCI image is currently blocked by the local `goip` compile issue noted above.
 - **Unix-socket sink only** (`unix:` / `unixgram:`): `xtcp2-min` / `oci-xtcp2-min`. UDP and null come for free since they share Go's already-linked `net` package.
-- **Kafka producer**: `xtcp2-kafka` / `oci-xtcp2-kafka` — 26.1 MB against the everything build's 39.9 MB, by omitting the nats, nsq, redis and s3/parquet clients and both enrichers.
+- **Kafka producer**: `xtcp2-kafka` / `oci-xtcp2-kafka` — the slim image is 29.2 MiB without gated enrichers, by omitting the nats, nsq, redis and s3/parquet clients.
 - **Debugging / profiling**: `xtcp2-debug` — keeps the symbol table and DWARF so `delve` and `go tool pprof` work directly.
-- **Smallest image**: `xtcp2-stripped`, or a slim per-flavor image at enrichment `none` — `xtcp2-min` at 22.1 MB is the floor.
-- **ASN / locality enrichment**: append `-asn`, `-locality` or `-enrich` to any destination flavor (`xtcp2-s3parquet-enrich`, `oci-xtcp2-kafka-asn`, ...). Cost is in the table above. The ASN Parquet artifact is **never baked into an image** — mount it at runtime, or run `oci-ipfeed-collector` as a sidecar; see [ipfeed-asn-enrichment.md](ipfeed-asn-enrichment.md).
+- **Smallest image**: a slim per-flavor image at enrichment `none` — `oci-xtcp2-min` at 25.3 MiB is the current image floor.
+- **ASN / locality enrichment**: append `-asn`, `-locality` or `-enrich` to any destination flavor (`xtcp2-s3parquet-enrich`, `oci-xtcp2-kafka-asn`, ...). Cost is in the table above. For cold-start bootstrap data, use a matching `-bootstrap` OCI attr after adding `nix/ipmeta-bootstrap-lock.json`; otherwise mount the IP metadata artifact at runtime or run `oci-ipfeed-collector` as a sidecar. See [ipfeed-asn-enrichment.md](ipfeed-asn-enrichment.md).
 
 ## Custom destination and enrichment combinations
 

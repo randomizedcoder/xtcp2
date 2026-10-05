@@ -26,6 +26,7 @@
   # nanoseconds (Docker image-config convention), e.g.
   #   { Test = [ "CMD" "/bin/xtcp2" "-healthcheck" ]; Interval = 30000000000; }
   healthcheck ? null,
+  extraContents ? [ ],
 }:
 
 let
@@ -46,7 +47,8 @@ let
       mkdir -p $out
       cp ${protoFile} $out/${baseNameOf (toString protoFile)}
     ''
-  );
+  )
+  ++ extraContents;
 
   exposedPortsAttr = lib.listToAttrs (
     map (p: {

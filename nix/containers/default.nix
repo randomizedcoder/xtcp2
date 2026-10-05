@@ -48,11 +48,21 @@
   lib,
   src,
   binaries,
+  ipmetaBootstrapArtifact ? null,
+  daemonAttrSuffix ? "",
+  daemonTagSuffix ? "",
 }:
 
 let
   mkOciImage = import ../lib/mkOciImage.nix { inherit pkgs lib; };
   versions = import ../versions.nix { inherit pkgs; };
+
+  ipmetaBootstrapContents = lib.optional (ipmetaBootstrapArtifact != null) (
+    pkgs.runCommand "xtcp2-ipmeta-bootstrap" { } ''
+      mkdir -p $out/share/xtcp2/ipmeta
+      cp ${ipmetaBootstrapArtifact} $out/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst
+    ''
+  );
 
   # Self-contained container HEALTHCHECK for the xtcp2-daemon images (scratch,
   # no shell/curl): the binary probes its own /readyz via `-healthcheck`.
@@ -167,6 +177,7 @@ let
       ];
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
+      extraContents = ipmetaBootstrapContents;
     };
 
   # Slim single-binary daemon image for one {destination, enrichment} cell.
@@ -178,7 +189,7 @@ let
     { dest, enrich }:
     mkOciImage {
       name = "xtcp2";
-      tag = "${dest}${lib.optionalString (enrich != "none") "-${enrich}"}";
+      tag = "${dest}${lib.optionalString (enrich != "none") "-${enrich}"}${daemonTagSuffix}";
       binaries = binaries.xtcp2OnlyByFlavor.${dest}.${enrich};
       protoFile = src + "/proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
       exposedPorts = [
@@ -187,6 +198,7 @@ let
       ];
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
+      extraContents = ipmetaBootstrapContents;
     };
 
   # The slim daemon images: 6 destination flavors × 4 enrichment flavors = 24.
@@ -198,7 +210,7 @@ let
     lib.concatMap (
       dest:
       map (enrich: {
-        name = "oci-xtcp2-${dest}${lib.optionalString (enrich != "none") "-${enrich}"}";
+        name = "oci-xtcp2-${dest}${lib.optionalString (enrich != "none") "-${enrich}"}${daemonAttrSuffix}";
         value = mkFlavorImage { inherit dest enrich; };
       }) (builtins.attrNames versions.enrichmentFlavors)
     ) (lib.remove "full" (builtins.attrNames versions.destinationFlavors))
@@ -236,17 +248,17 @@ let
 in
 slimDaemonImages
 // {
-  oci-xtcp2 = mkFatImage {
+  "oci-xtcp2${daemonAttrSuffix}" = mkFatImage {
     attr = "xtcp2-all";
-    tag = "latest";
+    tag = "latest${daemonTagSuffix}";
   };
-  oci-xtcp2-debug = mkFatImage {
+  "oci-xtcp2-debug${daemonAttrSuffix}" = mkFatImage {
     attr = "xtcp2-all-debug";
-    tag = "debug";
+    tag = "debug${daemonTagSuffix}";
   };
-  oci-xtcp2-stripped = mkFatImage {
+  "oci-xtcp2-stripped${daemonAttrSuffix}" = mkFatImage {
     attr = "xtcp2-all-stripped";
-    tag = "stripped";
+    tag = "stripped${daemonTagSuffix}";
   };
 
   # The 24 slim per-flavor daemon images (oci-xtcp2-<dest>[-<enrich>]) are

@@ -21,6 +21,9 @@
   # it is a sidecar daemon, not one of the daemon's own tools. Only the
   # interface-naming flavor's xtcp2-asn-collector unit uses it.
   ipfeedCollectorPackage,
+  # Normalizes a locked IP metadata artifact into bootstrap.lookup.parquet.zst
+  # for the dedicated ipmeta-bootstrap microVM flavor.
+  ipmetaBootstrapTool ? null,
   # Optional: the streamLayeredImage script for oci-xtcp2-tcp-stress.
   # Phase C ("tcp-stress" sink) loads this into the in-VM docker daemon
   # at boot and spawns N containers from it. When null, the tcp-stress
@@ -153,6 +156,23 @@ let
         ipfeedCollectorPackage
         ;
       sink = "interface-naming";
+    };
+
+  mkOneIpmetaBootstrap =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ipmetaBootstrapTool
+        ;
+      sink = "ipmeta-bootstrap";
     };
 
   mkOneClickPipe =
@@ -516,6 +536,8 @@ let
 
   vmsInterfaceNaming = lib.genAttrs constants.supportedArchs mkOneInterfaceNaming;
 
+  vmsIpmetaBootstrap = lib.genAttrs constants.supportedArchs mkOneIpmetaBootstrap;
+
   vmsClickPipe = lib.genAttrs constants.supportedArchs mkOneClickPipe;
 
   vmsClickHttp = lib.genAttrs constants.supportedArchs mkOneClickHttp;
@@ -598,6 +620,19 @@ let
       # the default stall watchdog, and the old 600 s absolute cap is now below
       # the default backstop, so both overrides are dropped — the progress
       # watchdog is what guards this flavor.
+    };
+  });
+
+  lifecycleIpmetaBootstrap = lib.genAttrs constants.supportedArchs (arch: {
+    fullTest = microvmLib.mkLifecycleFullTest {
+      inherit arch;
+      vm = vmsIpmetaBootstrap.${arch};
+      suffix = "-ipmeta-bootstrap";
+      extraSentinels = [
+        "IPMETA_BOOTSTRAP"
+        "IPMETA_RECOVERY"
+        "IPMETA_BAD_UPDATE"
+      ];
     };
   });
 
@@ -915,6 +950,7 @@ in
     vmsNlmonCapture
     vmsNetlinkDumpCapture
     vmsGoipParity
+    vmsIpmetaBootstrap
     s3parquetLong
     discoveryBench
     nlmonCapture
@@ -939,6 +975,7 @@ in
     lifecycleCoverage
     lifecycleCoverageIoUring
     lifecycleInterfaceNaming
+    lifecycleIpmetaBootstrap
     vmsInterfaceNaming
     soak
     tcpStress

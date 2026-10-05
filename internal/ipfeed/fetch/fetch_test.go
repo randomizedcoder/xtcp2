@@ -6,6 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -155,6 +158,53 @@ func TestGetBodyLimit(t *testing.T) {
 			}
 			if calls != tc.expectCalls {
 				t.Errorf("server calls = %d, want %d", calls, tc.expectCalls)
+			}
+		})
+	}
+}
+
+func TestGetFileURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "feed.json")
+	if err := os.WriteFile(path, []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	escapedPath := filepath.Join(dir, "feed with space.json")
+	if err := os.WriteFile(escapedPath, []byte(`{"escaped":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		description string
+		rawurl      string
+		wantErr     bool
+		wantBody    string
+	}{
+		{"positive: file URL returns the local file body", "file://" + path, false, `{"ok":true}`},
+		{"negative: missing file returns an error", "file://" + filepath.Join(dir, "missing.json"), true, ""},
+		{"negative: file URL with a host is rejected", "file://example.com/feed.json", true, ""},
+		{"corner: escaped path characters are decoded", "file://" + (&url.URL{Path: escapedPath}).EscapedPath(), false, `{"escaped":true}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			res, err := testClient(3, nil).Get(context.Background(), tc.rawurl, Conditional{})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if res.Attempts != 1 {
+				t.Fatalf("attempts = %d, want 1", res.Attempts)
+			}
+			if res.Status != http.StatusOK {
+				t.Fatalf("status = %d, want 200", res.Status)
+			}
+			if string(res.Body) != tc.wantBody {
+				t.Fatalf("body = %q, want %q", res.Body, tc.wantBody)
 			}
 		})
 	}

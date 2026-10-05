@@ -45,6 +45,33 @@ let
       binaries
       ;
   };
+  ipmetaBootstrapArtifact = import ./ipmeta-bootstrap {
+    inherit pkgs lib;
+    ipmetaBootstrapTool = binaries.ipmeta-bootstrap;
+    lockFile = "${toString src}/nix/ipmeta-bootstrap-lock.json";
+  };
+  containersWithIpmetaBootstrap =
+    let
+      allBootstrapContainers = import ./containers {
+        inherit
+          pkgs
+          lib
+          src
+          binaries
+          ipmetaBootstrapArtifact
+          ;
+        daemonAttrSuffix = "-bootstrap";
+        daemonTagSuffix = "-bootstrap";
+      };
+      isUsefulBootstrapImage =
+        n:
+        n == "oci-xtcp2-bootstrap"
+        || n == "oci-xtcp2-debug-bootstrap"
+        || n == "oci-xtcp2-stripped-bootstrap"
+        || lib.hasSuffix "-asn-bootstrap" n
+        || lib.hasSuffix "-enrich-bootstrap" n;
+    in
+    lib.filterAttrs (n: _v: isUsefulBootstrapImage n) allBootstrapContainers;
 
   # Protobuf FileDescriptorSet for the XtcpFlatRecord schema. Kept for
   # external consumers that want the .desc without standing up the whole
@@ -67,6 +94,7 @@ let
     xtcp2Package = binaries.xtcp2;
     xtcp2AllPackage = binaries.xtcp2-all;
     ipfeedCollectorPackage = binaries."ipfeed-collector";
+    ipmetaBootstrapTool = binaries.ipmeta-bootstrap;
     xtcp2CoverPackage = binaries.xtcp2-cover;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
   };
@@ -88,7 +116,9 @@ let
     inherit
       pkgs
       lib
+      src
       vendoredSource
+      binaries
       microvms
       ;
   };
@@ -191,6 +221,78 @@ let
         "$FLAKE_REF#test-focused-xtcp-enrich"
 
       echo "==> focused quality checks passed"
+    '';
+  };
+
+  ociImageSizeReport = pkgs.writeShellApplication {
+    name = "xtcp2-oci-size-report";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gawk
+      nix
+    ];
+    text = ''
+            set -eu
+
+            mode="default"
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --default|--slim) mode="default"; shift ;;
+                --fat) mode="fat"; shift ;;
+                --all) mode="all"; shift ;;
+                -h|--help)
+                  cat <<'EOF'
+      usage: oci-size-report [--default|--slim|--fat|--all]
+
+      Streams docker-loadable OCI tarballs and prints CSV:
+        attr,bytes,mib
+
+      Default measures the slim daemon matrix plus standalone images. Use --fat for
+      oci-xtcp2{,-debug,-stripped}; use --all for both sets.
+
+      Set XTCP2_FLAKE_REF=. for committed-source parity, or leave it unset to use
+      path:. so local WIP files are included.
+      EOF
+                  exit 0
+                  ;;
+                *) echo "unknown arg: $1" >&2; exit 2 ;;
+              esac
+            done
+
+            if [ ! -f flake.nix ]; then
+              echo "oci-size-report: must be run from the xtcp2 repo root" >&2
+              exit 2
+            fi
+
+            FLAKE_REF=''${XTCP2_FLAKE_REF:-path:.}
+
+            fat_attrs=(
+              oci-xtcp2 oci-xtcp2-debug oci-xtcp2-stripped
+            )
+            slim_attrs=(
+              oci-xtcp2-min oci-xtcp2-min-asn oci-xtcp2-min-locality oci-xtcp2-min-enrich
+              oci-xtcp2-kafka oci-xtcp2-kafka-asn oci-xtcp2-kafka-locality oci-xtcp2-kafka-enrich
+              oci-xtcp2-nats oci-xtcp2-nats-asn oci-xtcp2-nats-locality oci-xtcp2-nats-enrich
+              oci-xtcp2-nsq oci-xtcp2-nsq-asn oci-xtcp2-nsq-locality oci-xtcp2-nsq-enrich
+              oci-xtcp2-valkey oci-xtcp2-valkey-asn oci-xtcp2-valkey-locality oci-xtcp2-valkey-enrich
+              oci-xtcp2-s3parquet oci-xtcp2-s3parquet-asn oci-xtcp2-s3parquet-locality oci-xtcp2-s3parquet-enrich
+              oci-ipfeed-collector oci-xtcp2client oci-xtcp2ctl oci-xtcp2-tcp-stress
+            )
+
+            attrs=()
+            case "$mode" in
+              default) attrs=("''${slim_attrs[@]}") ;;
+              fat) attrs=("''${fat_attrs[@]}") ;;
+              all) attrs=("''${fat_attrs[@]}" "''${slim_attrs[@]}") ;;
+            esac
+
+            printf 'attr,bytes,mib\n'
+            for attr in "''${attrs[@]}"; do
+              path=$(nix build --no-link --print-out-paths --accept-flake-config "$FLAKE_REF#$attr")
+              bytes=$("$path" | wc -c)
+              mib=$(awk -v b="$bytes" 'BEGIN { printf "%.1f", b / 1024 / 1024 }')
+              printf '%s,%s,%s\n' "$attr" "$bytes" "$mib"
+            done
     '';
   };
 
@@ -587,6 +689,7 @@ in
     #   oci-ipfeed-collector           ASN artifact builder
     #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
     // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
+    // containersWithIpmetaBootstrap
     # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
     # a convenience list for nix/devshell.nix, not a package, so drop it.
     // (removeAttrs lintTiers [ "all" ])
@@ -598,6 +701,7 @@ in
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
       microvm-x86_64-interface-naming = microvms.vmsInterfaceNaming.x86_64;
+      microvm-x86_64-ipmeta-bootstrap = microvms.vmsIpmetaBootstrap.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
       microvm-x86_64-clickhouse-http = microvms.vmsClickHttp.x86_64;
       microvm-x86_64-clickhouse-pipeline-rate = microvms.vmsClickPipeRate.x86_64;
@@ -627,6 +731,8 @@ in
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
       integration-all = integrationAll;
+      oci-size-report = ociImageSizeReport;
+      ipmeta-bootstrap-artifact = ipmetaBootstrapArtifact;
 
       # Protobuf FileDescriptorSet — buildable so users can grab the .desc
       # without standing up the whole microvm.
@@ -652,10 +758,13 @@ in
       test-go-race = tests.go-race;
       test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
+      test-ipmeta-bootstrap-artifact = tests.ipmeta-bootstrap-artifact;
+      test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-ipmeta-bootstrap = tests.microvm-lifecycle-ipmeta-bootstrap.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-uds-security = microvms.lifecycleUdsSecurity.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-clickhouse-http = microvms.lifecycleClickHttp.x86_64.fullTest;
@@ -975,6 +1084,10 @@ in
     focused-quality = {
       type = "app";
       program = "${focusedQuality}/bin/xtcp2-focused-quality";
+    };
+    oci-size-report = {
+      type = "app";
+      program = "${ociImageSizeReport}/bin/xtcp2-oci-size-report";
     };
   }
   # The five tiers as apps too, so `nix run .#lint-quick` works without

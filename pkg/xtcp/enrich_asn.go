@@ -12,6 +12,8 @@ import (
 	"context"
 	"log"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/ipasn"
@@ -66,33 +68,74 @@ func (x *XTCP) initAsnEnricher(ctx context.Context) {
 		return
 	}
 	path := x.config.AsnDbPath
-	if path == "" {
-		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
-		log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort): asn_db_path is empty")
-		return
-	}
 	interval := x.config.GetAsnRefreshInterval().AsDuration()
 
 	idx := &ipasn.Index{}
-	if _, err := x.loadAsn(idx, path, true); err != nil {
+	loadedSource, startupErr := x.loadInitialAsn(idx)
+	if loadedSource == "" && path != "" {
+		_, startupErr = x.loadAsn(idx, path, true)
+		if startupErr == nil {
+			loadedSource = "live"
+		}
+	}
+	if loadedSource == "" && path == "" {
+		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
+		log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort): no usable ipmeta cache/bootstrap and asn_db_path is empty")
+		return
+	}
+	if loadedSource == "" {
 		x.pC.WithLabelValues("initEnrichers", "asn", "error").Inc()
 		if interval <= 0 {
-			log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort, asn_refresh_interval is 0 so it will not retry): %v", err)
+			log.Printf("initAsnEnricher: ASN enrichment disabled (best-effort, asn_refresh_interval is 0 so it will not retry): %v", startupErr)
 			return
 		}
-		log.Printf("initAsnEnricher: ASN artifact not loaded (will retry every %s; lookups miss until then): %v", interval, err)
+		log.Printf("initAsnEnricher: ASN artifact not loaded (will retry every %s; lookups miss until then): %v", interval, startupErr)
 	} else {
 		x.pC.WithLabelValues("initEnrichers", "asn", "enabled").Inc()
 		if x.debugLevel > 10 {
-			log.Printf("initAsnEnricher: ASN enrichment enabled (db:%s prefixes:%d)", path, idx.Len())
+			log.Printf("initAsnEnricher: ASN enrichment enabled (source:%s db:%s prefixes:%d)", loadedSource, path, idx.Len())
 		}
 	}
 	x.asn = asnIndex{idx: idx}
 
-	if interval <= 0 {
-		return // load-once; no background refresh
+	if interval <= 0 || path == "" {
+		return // load-once, or cache/bootstrap-only with no live refresh source
 	}
 	go x.refreshAsn(ctx, idx, path, interval)
+}
+
+func (x *XTCP) loadInitialAsn(idx *ipasn.Index) (string, error) {
+	candidates := []struct {
+		source string
+		path   string
+	}{
+		{"current", x.config.GetIpmetaCachePath()},
+		{"previous", previousLookupPath(x.config.GetIpmetaCachePath())},
+		{"bootstrap", x.config.GetIpmetaBootstrapPath()},
+	}
+	var lastErr error
+	for _, candidate := range candidates {
+		if candidate.path == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate.path); err != nil {
+			if !os.IsNotExist(err) {
+				lastErr = err
+				x.pC.WithLabelValues("initAsnEnricher", candidate.source, "error").Inc()
+				log.Printf("initAsnEnricher: ASN %s artifact unavailable: %v", candidate.source, err)
+			}
+			continue
+		}
+		if _, _, err := idx.ReloadArtifact(candidate.path, true); err != nil {
+			lastErr = err
+			x.pC.WithLabelValues("initAsnEnricher", candidate.source, "error").Inc()
+			log.Printf("initAsnEnricher: ASN %s artifact rejected: %v", candidate.source, err)
+			continue
+		}
+		x.pC.WithLabelValues("initAsnEnricher", candidate.source, "ok").Inc()
+		return candidate.source, nil
+	}
+	return "", lastErr
 }
 
 // refreshAsn is initAsnEnricher's background loop: every interval it asks the
@@ -139,11 +182,12 @@ func (x *XTCP) refreshAsn(ctx context.Context, idx *ipasn.Index, path string, in
 // new table was swapped in.
 func (x *XTCP) loadAsn(idx *ipasn.Index, path string, force bool) (reloaded bool, err error) {
 	start := time.Now()
+	before := idx.Stats()
+	var artifact *ipasn.Artifact
 	if force {
-		err = idx.Reload(path)
-		reloaded = err == nil
+		reloaded, artifact, err = idx.ReloadArtifact(path, true)
 	} else {
-		reloaded, err = idx.ReloadIfChanged(path)
+		reloaded, artifact, err = idx.ReloadArtifact(path, false)
 	}
 	if err != nil {
 		x.pH.WithLabelValues("loadAsn", "error", "duration").Observe(time.Since(start).Seconds())
@@ -155,7 +199,23 @@ func (x *XTCP) loadAsn(idx *ipasn.Index, path string, force bool) (reloaded bool
 	st := idx.Stats()
 	x.pGV.WithLabelValues("loadAsn", "prefixes", "gauge").Set(float64(st.Prefixes))
 	x.pGV.WithLabelValues("loadAsn", "artifactBytes", "gauge").Set(float64(st.ArtifactBytes))
+	x.pGV.WithLabelValues("loadAsn", "decompressedBytes", "gauge").Set(float64(st.DecompressedBytes))
 	x.pGV.WithLabelValues("loadAsn", "loadedAt", "gauge").Set(float64(st.LoadedAt.Unix()))
 	x.pH.WithLabelValues("loadAsn", "build", "duration").Observe(st.BuildDuration.Seconds())
+	if cachePath := x.config.GetIpmetaCachePath(); cachePath != "" && artifact != nil {
+		if _, perr := ipasn.PublishLookupCache(cachePath, previousLookupPath(cachePath), artifact, before); perr != nil {
+			x.pC.WithLabelValues("loadAsn", "cachePublish", "error").Inc()
+			log.Printf("initAsnEnricher: ASN cache publish failed (keeping loaded table): %v", perr)
+		} else {
+			x.pC.WithLabelValues("loadAsn", "cachePublish", "ok").Inc()
+		}
+	}
 	return true, nil
+}
+
+func previousLookupPath(current string) string {
+	if current == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(current), "previous.lookup.parquet.zst")
 }

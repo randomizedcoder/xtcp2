@@ -296,10 +296,11 @@ logged.
 ## Run summary
 
 Printed to stdout at the end of each cycle — a per-source table (`status`,
-`http`, `fetched`, `parsed`, `+valid`, `-rejected`, `dur`, `note`) plus totals
-showing sources ok/fail and the +valid / −rejected record boundaries, and the
-uploaded `s3://` URL when an upload happened. The process exits non-zero if
-fewer than `-min-successful-sources` succeeded (the summary is still printed).
+`http`, `attempts`, `fetched`, `parsed`, `+valid`, `-rejected`, `dur`, `note`)
+plus totals showing sources ok/fail and the +valid / −rejected record
+boundaries, and the uploaded `s3://` URL when an upload happened. The process
+exits non-zero if fewer than `-min-successful-sources` succeeded (the summary is
+still printed).
 
 ## Run modes (single-shot & daemon)
 
@@ -310,25 +311,33 @@ long-running services.
   returns; `main` maps a shortfall below `-min-successful-sources` to a non-zero
   exit. This is the cron / CI / manual path.
 - **Daemon** (`-daemon`): the long-lived collaborators (telemetry, HTTP client)
-  are built **once**, then `runDaemon` executes a cycle immediately and repeats
-  every `-interval` (default `6h`). Design points:
+  are built **once**, then `runDaemon` sleeps for a random delay in
+  `[0, -startup-jitter)` (default `5m`), executes a cycle, and repeats around
+  `-interval` (default `6h`) using `-interval-jitter-pct` spread (default `20`).
+  Design points:
+  - **Fleet safety:** startup jitter prevents a fresh deployment or host reboot
+    from sending every node to the upstreams at once. Interval jitter keeps
+    long-running nodes from converging back into a synchronized refresh wave.
+    Per-source fetches still use full-jitter exponential backoff, so an
+    upstream outage spreads retries inside a cycle as well as across cycles.
   - **Signals:** the root context comes from `signal.NotifyContext` on
     `SIGINT`/`SIGTERM`; on signal the loop finishes the in-flight cycle, logs
     `daemon stopping`, shuts telemetry down, and exits 0.
-  - **No overlap:** cycles run sequentially on a single `time.Ticker` loop, so a
-    slow cycle can never overlap the next tick. Because Go's `select` gives no
-    priority between a ready tick and a cancelled context, the tick branch
-    re-checks `ctx.Err()` before starting another cycle — cancellation is
-    authoritative and there is no spurious final cycle.
+  - **No overlap:** cycles run sequentially on a self-resetting timer, so a
+    slow cycle can never overlap the next scheduled refresh. Because Go's
+    `select` gives no priority between a ready timer and a cancelled context,
+    the timer branch re-checks `ctx.Err()` before starting another cycle —
+    cancellation is authoritative and there is no spurious final cycle.
   - **Fault tolerance:** a failed cycle is logged and the loop continues (a
     transient upstream outage does not kill the daemon). Each cycle records the
     `ipfeed.cycles` counter with `outcome=success|failure`.
   - **Hot reload:** every cycle re-reads `-sources-dir`, so feeds can be added
     or removed without restarting.
 
-`runDaemon` takes plain `collect`/`ready` function seams (no telemetry or HTTP
-types) so it is tested deterministically: the fake `collect` cancels the context
-after N calls, letting the test assert exact cycle counts and readiness
+`runDaemon` takes plain `collect`/`ready` function seams plus injectable
+`jitter`/`sleep` functions (no telemetry or HTTP types) so it is tested
+deterministically: the fake `collect` cancels the context after N calls, letting
+the test assert exact cycle counts, startup delay behavior, and readiness
 transitions without sleeping on real timers.
 
 ### Health endpoints
@@ -352,9 +361,10 @@ built-in default**. The S3 credential and region flags insert the standard
 `AWS_*` names between their `IPFEED_S3_*` env and the default (**flag >
 `IPFEED_S3_*` > `AWS_*` > default**). An invalid env value falls back to the
 built-in default rather than erroring, so a malformed variable cannot
-crash-loop the daemon. Daemon mode additionally validates `-interval > 0` at
-startup; a failed validation is printed to stderr and exits 2. See the README
-for the full flag ↔ env mapping.
+crash-loop the daemon. Daemon mode additionally validates `-interval > 0`,
+`-startup-jitter >= 0`, and `0 <= -interval-jitter-pct <= 100` at startup; a
+failed validation is printed to stderr and exits 2. See the README for the full
+flag ↔ env mapping.
 
 ## Testing
 

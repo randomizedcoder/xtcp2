@@ -13,15 +13,16 @@ import (
 
 // SourceResult is the outcome for one source.
 type SourceResult struct {
-	Name         string
-	OK           bool
-	HTTPStatus   int
-	FetchedBytes int64
-	Parsed       int // rows the parser produced
-	Valid        int // positive (+) boundary
-	Rejected     int // negative (-) boundary
-	Duration     time.Duration
-	Note         string // failure reason or extra context
+	Name          string
+	OK            bool
+	HTTPStatus    int
+	FetchAttempts int
+	FetchedBytes  int64
+	Parsed        int // rows the parser produced
+	Valid         int // positive (+) boundary
+	Rejected      int // negative (-) boundary
+	Duration      time.Duration
+	Note          string // failure reason or extra context
 }
 
 // Summary collects SourceResults and computes totals.
@@ -72,7 +73,7 @@ func (s *Summary) Print(w io.Writer, uploadURL string, uploadBytes int64) error 
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "source\tstatus\thttp\tfetched\tparsed\t+valid\t-rejected\tdur\tnote")
+	fmt.Fprintln(tw, "source\tstatus\thttp\tattempts\tfetched\tparsed\t+valid\t-rejected\tdur\tnote")
 	for _, r := range rows {
 		status := "ok"
 		if !r.OK {
@@ -82,8 +83,8 @@ func (s *Summary) Print(w io.Writer, uploadURL string, uploadBytes int64) error 
 		if r.HTTPStatus > 0 {
 			http = fmt.Sprintf("%d", r.HTTPStatus)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\n",
-			r.Name, status, http, humanBytes(r.FetchedBytes),
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%d\t%d\t%d\t%s\t%s\n",
+			r.Name, status, http, r.FetchAttempts, humanBytes(r.FetchedBytes),
 			r.Parsed, r.Valid, r.Rejected, r.Duration.Round(time.Millisecond), r.Note)
 	}
 	if err := tw.Flush(); err != nil {

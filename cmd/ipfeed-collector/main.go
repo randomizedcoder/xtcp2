@@ -14,10 +14,12 @@ package main
 
 import (
 	"context"
+	crand "crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -60,11 +62,13 @@ type flags struct {
 	verbose     bool
 	debug       bool
 
-	daemon      bool
-	interval    time.Duration
-	httpAddr    string
-	healthcheck bool
-	version     bool
+	daemon            bool
+	interval          time.Duration
+	startupJitter     time.Duration
+	intervalJitterPct int
+	httpAddr          string
+	healthcheck       bool
+	version           bool
 
 	s3              s3.Config
 	s3SecretKeyFile string
@@ -126,6 +130,8 @@ func parseFlags(args []string) (flags, error) {
 
 	fs.BoolVar(&f.daemon, "daemon", envBool("IPFEED_DAEMON", false), "run continuously, repeating every -interval")
 	fs.DurationVar(&f.interval, "interval", envDur("IPFEED_INTERVAL", 6*time.Hour), "daemon collection interval")
+	fs.DurationVar(&f.startupJitter, "startup-jitter", envDur("IPFEED_STARTUP_JITTER", 5*time.Minute), "daemon mode: random delay in [0,d) before the first collection cycle; 0 disables")
+	fs.IntVar(&f.intervalJitterPct, "interval-jitter-pct", envInt("IPFEED_INTERVAL_JITTER_PCT", 20), "daemon mode: per-cycle collection interval jitter percent, keeping the same mean interval; 0 disables")
 	fs.StringVar(&f.httpAddr, "http-addr", envStr("IPFEED_HTTP_ADDR", ""), "daemon health (/healthz, /readyz) and Prometheus (/metrics) endpoint address, e.g. :8080 (empty disables)")
 	fs.BoolVar(&f.healthcheck, "healthcheck", envBool("IPFEED_HEALTHCHECK", false), "probe a running daemon's /readyz and exit 0 (ready) or 1; used as the container HEALTHCHECK")
 	fs.BoolVar(&f.version, "version", false, "print build version and exit")
@@ -147,6 +153,12 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.daemon && f.interval <= 0 {
 		return flags{}, fmt.Errorf("-interval must be > 0 in daemon mode")
+	}
+	if f.startupJitter < 0 {
+		return flags{}, fmt.Errorf("-startup-jitter must be >= 0")
+	}
+	if f.intervalJitterPct < 0 || f.intervalJitterPct > 100 {
+		return flags{}, fmt.Errorf("-interval-jitter-pct must be between 0 and 100")
 	}
 	return f, nil
 }
@@ -326,15 +338,37 @@ func run(rootCtx context.Context, f flags, log *slog.Logger) error {
 		}()
 		ready = hs.SetReady
 	}
-	log.Info("daemon started", "interval", f.interval)
-	return runDaemon(ctx, f.interval, ready, collect, log)
+	schedule := daemonSchedule{
+		Interval:          f.interval,
+		StartupJitterMax:  f.startupJitter,
+		IntervalJitterPct: f.intervalJitterPct,
+		Jitter:            cryptoJitterDuration,
+		Sleep:             sleepCtx,
+	}
+	log.Info("daemon started", "interval", f.interval, "startup_jitter", f.startupJitter, "interval_jitter_pct", f.intervalJitterPct)
+	return runDaemon(ctx, schedule, ready, collect, log)
 }
 
-// runDaemon runs collect immediately, then on every interval tick, until ctx
-// is canceled. A failed cycle is logged but does not stop the loop; ready is
-// invoked after each successful cycle (nil ready is a no-op). It is kept free
-// of telemetry/HTTP so it is straightforward to test with fakes.
-func runDaemon(ctx context.Context, interval time.Duration, ready func(), collect func(context.Context) error, log *slog.Logger) error {
+type daemonSchedule struct {
+	Interval          time.Duration
+	StartupJitterMax  time.Duration
+	IntervalJitterPct int
+	Jitter            func(time.Duration) time.Duration
+	Sleep             func(context.Context, time.Duration) bool
+}
+
+// runDaemon waits for a jittered startup delay, runs collect, then repeats on a
+// jittered interval until ctx is canceled. A failed cycle is logged but does not
+// stop the loop; ready is invoked after each successful cycle (nil ready is a
+// no-op). It is kept free of telemetry/HTTP so it is straightforward to test
+// with fakes.
+func runDaemon(ctx context.Context, schedule daemonSchedule, ready func(), collect func(context.Context) error, log *slog.Logger) error {
+	if schedule.Jitter == nil {
+		schedule.Jitter = cryptoJitterDuration
+	}
+	if schedule.Sleep == nil {
+		schedule.Sleep = sleepCtx
+	}
 	runCycle := func() {
 		if err := collect(ctx); err != nil {
 			log.Error("collection cycle failed", "err", err)
@@ -345,11 +379,19 @@ func runDaemon(ctx context.Context, interval time.Duration, ready func(), collec
 		}
 	}
 
+	if schedule.StartupJitterMax > 0 {
+		delay := schedule.Jitter(schedule.StartupJitterMax)
+		log.Info("daemon startup jitter", "delay", delay)
+		if !schedule.Sleep(ctx, delay) {
+			log.Info("daemon stopping")
+			return nil
+		}
+	}
 	runCycle()
 	if ctx.Err() != nil {
 		return nil
 	}
-	t := time.NewTicker(interval)
+	t := time.NewTimer(jitteredInterval(schedule.Interval, schedule.IntervalJitterPct, schedule.Jitter))
 	defer t.Stop()
 	for {
 		select {
@@ -365,7 +407,51 @@ func runDaemon(ctx context.Context, interval time.Duration, ready func(), collec
 				return nil
 			}
 			runCycle()
+			if ctx.Err() != nil {
+				log.Info("daemon stopping")
+				return nil
+			}
+			t.Reset(jitteredInterval(schedule.Interval, schedule.IntervalJitterPct, schedule.Jitter))
 		}
+	}
+}
+
+func jitteredInterval(interval time.Duration, pct int, jitter func(time.Duration) time.Duration) time.Duration {
+	if interval <= 0 || pct <= 0 {
+		return interval
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	spread := interval * time.Duration(pct) / 100
+	if spread <= 0 {
+		return interval
+	}
+	return interval - spread/2 + jitter(spread)
+}
+
+func cryptoJitterDuration(max time.Duration) time.Duration {
+	if max <= 0 {
+		return 0
+	}
+	n, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		return max / 2
+	}
+	return time.Duration(n.Int64())
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
 }
 
@@ -497,6 +583,7 @@ func processSource(ctx context.Context, client *fetch.Client, tel *telemetry.Tel
 
 	fr, err := client.Get(ctx, url, fetch.Conditional{})
 	res.HTTPStatus = fr.Status
+	res.FetchAttempts = fr.Attempts
 	tel.FetchAttempts.Add(ctx, int64(fr.Attempts), attrs)
 	res.FetchedBytes = int64(len(fr.Body))
 	tel.FetchBytes.Add(ctx, res.FetchedBytes, attrs)
@@ -505,7 +592,7 @@ func processSource(ctx context.Context, client *fetch.Client, tel *telemetry.Tel
 		tel.FetchFailures.Add(ctx, 1, attrs)
 		res.Note = err.Error()
 		res.Duration = time.Since(start)
-		log.Error("fetch failed", "source", src.Name, "url", url, "err", err)
+		log.Error("fetch failed", "source", src.Name, "url", url, "attempts", fr.Attempts, "err", err)
 		return sourceOutcome{result: res}
 	}
 
@@ -551,6 +638,7 @@ func processSource(ctx context.Context, client *fetch.Client, tel *telemetry.Tel
 	res.OK = true
 	res.Duration = time.Since(start)
 	log.Info("source ok", "source", src.Name, "valid", res.Valid, "rejected", res.Rejected,
+		"attempts", fr.Attempts,
 		"http", res.HTTPStatus, "bytes", res.FetchedBytes)
 	return sourceOutcome{valid: cr.Valid, result: res}
 }
