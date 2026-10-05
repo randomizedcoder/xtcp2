@@ -75,6 +75,41 @@ func fullStats() []byte {
 	return u32le(v...)
 }
 
+// fullMib is a full-length IFLA_INET6_STATS payload whose Nth entry holds N
+// itself, not N+1 like the two above. The entries ARE indices here, so the
+// value and the position are the same number and a slot read one off reports
+// the index it actually read — which is the only mistake this mapping can
+// make, and the hardest to see in a diff of thirty-eight names.
+func fullMib() []byte {
+	v := make([]uint64, IPStatsMibMax)
+	for i := range v {
+		v[i] = uint64(i)
+	}
+	return u64le(v...)
+}
+
+// markedMib is fullMib with IPSTATS_MIB_INPKTS carrying a value no other
+// fixture in this file produces.
+//
+// It exists because the obvious fixtures collide. fullStats64's first field is
+// 1 and fullMib's INPKTS entry is also 1, so a row asserting "IFLA_STATS64 won
+// and the MIB arm did not run" by checking RxPackets == 1 passes whichever arm
+// ran. That is not a hypothetical: reordering the arms was tried against the
+// first version of these rows and they stayed green.
+func markedMib() []byte {
+	b := fullMib()
+	binary.LittleEndian.PutUint64(b[IPStatsMibInPkts*8:], 0xBADC0DE)
+	return b
+}
+
+// protinfoWithMib wraps a MIB payload the way the kernel does: the value of
+// IFLA_PROTINFO is a nested attribute stream, and IFLA_INET6_STATS is one
+// attribute inside it. DecodeLinkStats takes the nest's contents, not the
+// outer attribute, so this returns just the inner rtattr.
+func protinfoWithMib(mib []byte) []byte {
+	return rtattr(uint16(unix.IFLA_INET6_STATS), mib)
+}
+
 // TestLinkStatsStructSizes pins the two wire sizes against the Go structs.
 //
 // unsafe.Sizeof rather than a restated field count: a count agrees with itself
@@ -125,6 +160,7 @@ func TestDecodeLinkStats(t *testing.T) {
 		description string
 		stats64     []byte
 		stats       []byte
+		protinfo    []byte
 		wantErr     error
 		// check runs only when wantErr is nil.
 		check func(t *testing.T, s RtnlLinkStats64)
@@ -271,11 +307,147 @@ func TestDecodeLinkStats(t *testing.T) {
 				}
 			},
 		},
+
+		// The third arm: IFLA_PROTINFO -> IFLA_INET6_STATS, reached only by an
+		// AF_INET6 link dump, where neither stats attribute exists. The rows
+		// below use fullMib(), whose entry N holds N, so each assertion names
+		// the MIB index it expects by value.
+		{
+			description: "positive: an AF_INET6 reply maps exactly the eight MIB entries get_snmp_counters reads, and zeroes the rest",
+			protinfo:    protinfoWithMib(fullMib()),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				want := RtnlLinkStats64{
+					RxPackets:     IPStatsMibInPkts,
+					RxBytes:       IPStatsMibInOctets,
+					TxPackets:     IPStatsMibOutPkts,
+					TxBytes:       IPStatsMibOutOctets,
+					RxErrors:      IPStatsMibInDiscards,
+					TxErrors:      IPStatsMibOutDiscards,
+					Multicast:     IPStatsMibInMcastPkts,
+					RxFrameErrors: IPStatsMibCsumErrors,
+				}
+				if s != want {
+					t.Errorf("got %+v,\nwant %+v — every other member must stay zero, "+
+						"because upstream memsets the struct and maps only eight fields", s, want)
+				}
+			},
+		},
+		{
+			description: "corner: IFLA_STATS64 and IFLA_PROTINFO together — the MIB arm runs LAST, which is what keeps an AF_BRIDGE nest from being read as counters",
+			stats64:     fullStats64(),
+			protinfo:    protinfoWithMib(markedMib()),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s.RxPackets == 0xBADC0DE {
+					t.Fatalf("RxPackets came from the MIB arm; IFLA_STATS64 must win, " +
+						"and arm order is the only thing standing between this decoder " +
+						"and reading IFLA_BRPORT_* as packet counts")
+				}
+				if s.RxPackets != 1 {
+					t.Errorf("RxPackets = %d, want 1 from IFLA_STATS64", s.RxPackets)
+				}
+			},
+		},
+		{
+			description: "corner: IFLA_STATS and IFLA_PROTINFO together — the widened 32-bit arm also outranks the MIB",
+			stats:       fullStats(),
+			protinfo:    protinfoWithMib(markedMib()),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s.RxPackets == 0xBADC0DE {
+					t.Fatalf("RxPackets came from the MIB arm; IFLA_STATS must win")
+				}
+				if s.RxPackets != 1 {
+					t.Errorf("RxPackets = %d, want 1 from IFLA_STATS", s.RxPackets)
+				}
+			},
+		},
+		{
+			description: "negative: IFLA_PROTINFO present but holding no IFLA_INET6_STATS (constructed; an AF_BRIDGE nest has this shape) is ErrLinkStatsNone, NOT a zero block",
+			protinfo:    rtattr(uint16(unix.IFLA_BRPORT_STATE), []byte{1}),
+			wantErr:     ErrLinkStatsNone,
+		},
+		{
+			description: "negative: an empty IFLA_PROTINFO nest is present-but-useless, and still must not render a block of zeros",
+			protinfo:    []byte{},
+			wantErr:     ErrLinkStatsNone,
+		},
+		{
+			description: "boundary: a payload of exactly IPStatsMibMax*8 = 304 bytes is the current kernel's full length",
+			protinfo:    protinfoWithMib(fullMib()),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if got := len(fullMib()); got != Inet6StatsSizeCst {
+					t.Fatalf("fixture is %d bytes, want %d — the row is not testing what it says",
+						got, Inet6StatsSizeCst)
+				}
+				if s.RxFrameErrors != IPStatsMibCsumErrors {
+					t.Errorf("RxFrameErrors = %d, want %d — the last mapped index must be in range",
+						s.RxFrameErrors, IPStatsMibCsumErrors)
+				}
+			},
+		},
+		{
+			description: "boundary: a payload that stops before IPSTATS_MIB_CSUMERRORS (constructed; models a kernel with a shorter enum) zeroes the unreachable index instead of panicking",
+			protinfo:    protinfoWithMib(fullMib()[:IPStatsMibCsumErrors*8]),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				// The deliberate divergence. get_snmp_counters would index
+				// mib[36] here and read whatever follows the attribute in the
+				// skb; Go cannot, so the port returns zero and says so.
+				if s.RxFrameErrors != 0 {
+					t.Errorf("RxFrameErrors = %d, want 0 — the index is past the payload",
+						s.RxFrameErrors)
+				}
+				if s.Multicast != IPStatsMibInMcastPkts {
+					t.Errorf("Multicast = %d, want %d — an index that DOES fit must still decode",
+						s.Multicast, IPStatsMibInMcastPkts)
+				}
+			},
+		},
+		{
+			description: "boundary: a payload one byte short of its last mapped entry does not decode a partial counter",
+			protinfo:    protinfoWithMib(fullMib()[:IPStatsMibCsumErrors*8+7]),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s.RxFrameErrors != 0 {
+					t.Errorf("RxFrameErrors = %d, want 0 — seven of its eight bytes were present and that is not a value",
+						s.RxFrameErrors)
+				}
+			},
+		},
+		{
+			description: "boundary: a payload longer than the known enum (constructed; models a newer kernel) decodes the eight and ignores the tail",
+			protinfo:    protinfoWithMib(append(fullMib(), u64le(998, 999)...)),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s.RxFrameErrors != IPStatsMibCsumErrors {
+					t.Errorf("RxFrameErrors = %d, want %d — trailing entries must not shift the mapping",
+						s.RxFrameErrors, IPStatsMibCsumErrors)
+				}
+			},
+		},
+		{
+			description: "boundary: a zero-length IFLA_INET6_STATS is present, so the arm is taken, and every mapped index reads zero",
+			protinfo:    protinfoWithMib([]byte{}),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s != (RtnlLinkStats64{}) {
+					t.Errorf("got %+v, want the zero struct", s)
+				}
+			},
+		},
+		{
+			description: "corner: a MIB counter at 2^64-1 is carried through unchanged — these are already __u64 and there is no widening to get wrong",
+			protinfo: protinfoWithMib(func() []byte {
+				b := fullMib()
+				binary.LittleEndian.PutUint64(b[IPStatsMibInOctets*8:], ^uint64(0))
+				return b
+			}()),
+			check: func(t *testing.T, s RtnlLinkStats64) {
+				if s.RxBytes != ^uint64(0) {
+					t.Errorf("RxBytes = %#x, want %#x", s.RxBytes, ^uint64(0))
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			got, err := DecodeLinkStats(tt.stats64, tt.stats)
+			got, err := DecodeLinkStats(tt.stats64, tt.stats, tt.protinfo)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("err = %v, want %v", err, tt.wantErr)
@@ -450,7 +622,7 @@ func TestLinkStatsRealFixtures(t *testing.T) {
 				}
 
 				// DecodeLinkStats must pick the 64-bit one.
-				got, err := DecodeLinkStats(raw64, raw32)
+				got, err := DecodeLinkStats(raw64, raw32, nil)
 				if err != nil {
 					t.Fatalf("DecodeLinkStats: %v", err)
 				}
@@ -476,11 +648,16 @@ func TestParseNewLinkStats(t *testing.T) {
 		description string
 		filename    string
 		wantStats   bool
+		// wantIs64 is checked only when wantStats is true. It is not "did the
+		// reply carry IFLA_STATS64" but "which JSON key does `ip` use", and
+		// the MIB arm answers stats64 without an IFLA_STATS64 in sight.
+		wantIs64 bool
 	}{
 		{
 			description: "positive: a dump whose request carried no IFLA_EXT_MASK yields Stats on every link",
 			filename:    tdStatsV4,
 			wantStats:   true,
+			wantIs64:    true,
 		},
 		{
 			description: "negative: `ip link show` sets RTEXT_FILTER_SKIP_STATS, so Stats is nil — absent, not a zero struct",
@@ -491,6 +668,18 @@ func TestParseNewLinkStats(t *testing.T) {
 			description: "positive: `ip -s link show` is the same dump with that bit cleared, so every link has Stats",
 			filename:    tdDumpGetLinkStats_7_1_4,
 			wantStats:   true,
+			wantIs64:    true,
+		},
+		{
+			description: "positive: `ip -6 addr show`'s link dump has no IFLA_STATS64 at all and still yields Stats, from IFLA_PROTINFO -> IFLA_INET6_STATS",
+			filename:    tdDumpGetAddrV6_7_1_4,
+			wantStats:   true,
+			// The capture predates `-s` entirely: inet6_fill_ifinfo hardcodes
+			// ext_filter_mask to zero (net/ipv6/addrconf.c:6110), so the MIB
+			// is on the wire whether or not anyone asked for stats. This row
+			// is the whole reason the third arm could be implemented without
+			// a new capture.
+			wantIs64: true,
 		},
 	}
 
@@ -508,6 +697,81 @@ func TestParseNewLinkStats(t *testing.T) {
 				if (li.Stats != nil) != tt.wantStats {
 					t.Fatalf("link %q: Stats != nil is %v, want %v",
 						li.Name, li.Stats != nil, tt.wantStats)
+				}
+				if tt.wantStats && li.StatsIs64 != tt.wantIs64 {
+					t.Fatalf("link %q: StatsIs64 = %v, want %v — this picks the "+
+						"JSON key, and nothing in the text output would reveal it",
+						li.Name, li.StatsIs64, tt.wantIs64)
+				}
+			}
+		})
+	}
+}
+
+// TestParseNewLinkInet6Stats is the other half of the row above: that the
+// AF_INET6 dump really is the shape the third arm assumes, read off the
+// committed capture rather than asserted from the kernel source.
+//
+// Without this, "the MIB arm fired" and "the MIB arm fired for the right
+// reason" are the same observation. A reply that carried IFLA_STATS64 after
+// all would satisfy TestParseNewLinkStats identically.
+//
+// go test ./pkg/xtcpnl/ -run TestParseNewLinkInet6Stats
+func TestParseNewLinkInet6Stats(t *testing.T) {
+	tests := []struct {
+		description string
+		filename    string
+		// wantAttr is an attribute that must appear on every link reply;
+		// wantNoAttr one that must appear on none.
+		wantAttr   uint16
+		wantNoAttr uint16
+	}{
+		{
+			description: "positive: every link in the AF_INET6 dump carries IFLA_PROTINFO",
+			filename:    tdDumpGetAddrV6_7_1_4,
+			wantAttr:    uint16(unix.IFLA_PROTINFO),
+		},
+		{
+			description: "negative: no link in the AF_INET6 dump carries IFLA_STATS64 — the arm is reached because the attribute is missing, not because it was skipped",
+			filename:    tdDumpGetAddrV6_7_1_4,
+			wantNoAttr:  uint16(unix.IFLA_STATS64),
+		},
+		{
+			description: "negative: no link in the AF_INET6 dump carries IFLA_STATS either",
+			filename:    tdDumpGetAddrV6_7_1_4,
+			wantNoAttr:  uint16(unix.IFLA_STATS),
+		},
+		{
+			description: "boundary: the AF_INET control dump is the opposite on both counts — IFLA_STATS64 present, IFLA_PROTINFO absent",
+			filename:    tdDumpGetAddrV4_7_1_4,
+			wantAttr:    uint16(unix.IFLA_STATS64),
+			wantNoAttr:  uint16(unix.IFLA_PROTINFO),
+		},
+		{
+			description: "corner: IFLA_TXQLEN is absent from the AF_INET6 dump too, which is why `ip` falls back to a SIOCGIFTXQLEN ioctl there and goip cannot follow",
+			filename:    tdDumpGetAddrV6_7_1_4,
+			wantNoAttr:  uint16(unix.IFLA_TXQLEN),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			bodies := newLinkBodies(t, tt.filename)
+			if len(bodies) == 0 {
+				t.Fatalf("%s holds no RTM_NEWLINK replies", tt.filename)
+			}
+			for i, msg := range bodies {
+				seen := map[uint16]bool{}
+				if err := WalkRTAttrs(msg[IfInfomsgSizeCst:], func(atype uint16, _ []byte) {
+					seen[atype] = true
+				}); err != nil {
+					t.Fatalf("link %d: WalkRTAttrs: %v", i, err)
+				}
+				if tt.wantAttr != 0 && !seen[tt.wantAttr] {
+					t.Errorf("link %d: attribute %d absent, want present", i, tt.wantAttr)
+				}
+				if tt.wantNoAttr != 0 && seen[tt.wantNoAttr] {
+					t.Errorf("link %d: attribute %d present, want absent", i, tt.wantNoAttr)
 				}
 			}
 		})

@@ -271,6 +271,63 @@ func TestRuleShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:        "tunnel/ip_rule_json",
 			jsonEquivalent: true,
 		},
+
+		// ---------------------------------------------------------------
+		// `-s` on rules: every row below is a NEGATIVE, and that is the
+		// point of the group.
+		//
+		// `grep -n show_stats ip/iprule.c` returns NOTHING — the file does
+		// not reference the variable once, against 5 hits in iproute.c, 4
+		// in ipneigh.c and 15 in ipaddress.c. So `-s` changes neither the
+		// request nor the output for rules, and goip's silent acceptance of
+		// the flag is correct rather than merely harmless.
+		//
+		// "Correct by accident" and "correct on purpose" look the same in a
+		// diff, which is why each row compares against the SAME sidecar its
+		// non-`-s` counterpart uses rather than against the `ip_rule_stats`
+		// golden. A `-s` that started emitting a token fails here.
+		//
+		// The two claims are different and both are needed.  These rows say
+		// GOIP's `-s` changes nothing, measured against a transcript of `ip`
+		// WITHOUT `-s`; TestRuleSidecarsAreIdentical compares `ip_rule_stats`
+		// against `ip_rule` and says IPROUTE2's `-s` changes nothing. Only
+		// the second can fail if a future iproute2 starts reading show_stats
+		// in iprule.c, and only the first can fail if goip starts emitting a
+		// token of its own.
+		// ---------------------------------------------------------------
+		{
+			description: "negative: `-s rule show` is byte-identical to `rule show` — iprule.c never reads show_stats",
+			args:        []string{"-s", "rule", "show"},
+			sidecar:     "ip_rule",
+		},
+		{
+			description: "negative: `-s -6 rule show` adds nothing to the IPv6 listing either",
+			args:        []string{"-s", "-6", "rule", "show"},
+			pcap:        ruleDumpPcap6,
+			sidecar:     "ip_rule6",
+		},
+		{
+			description:    "negative: `-s` adds no JSON key — a stats block would surface here as an extra member even if it printed nothing in text",
+			args:           []string{"-s", "-json", "rule", "show"},
+			sidecar:        "ip_rule_json",
+			jsonEquivalent: true,
+		},
+		{
+			description: "corner: `-s -d rule show` equals `-d rule show`, so -s composes with -d by changing nothing",
+			args:        []string{"-s", "-d", "rule", "show"},
+			sidecar:     "ip_rule_n",
+		},
+		{
+			description: "corner: the reverse order `-d -s` is a no-op too, which rules out an option-loop ordering effect rather than only a rendering one",
+			args:        []string{"-d", "-s", "rule", "show"},
+			sidecar:     "ip_rule_n",
+		},
+		{
+			description: "negative: `-s` is a no-op in the tunnel namespace as well — a second, independently captured topology",
+			args:        []string{"-s", "rule", "show"},
+			pcap:        ruleDumpPcapTunnel,
+			sidecar:     "tunnel/ip_rule",
+		},
 	}
 
 	for _, tc := range tests {
@@ -377,6 +434,27 @@ func TestRuleSidecarsAreIdentical(t *testing.T) {
 			// namespaces" must not collapse into "identical across families".
 			description: "negative: the mesh IPv4 and IPv6 listings differ, IPv6 having no default rule",
 			a:           "mesh/ip_rule", b: "mesh/ip_rule6", want: false,
+		},
+		{
+			// The `-s` no-op, as a claim about IPROUTE2. The `-s` rows in
+			// TestRuleShowMatchesCapturedSidecars replay a pcap through goip
+			// and compare against an `ip` transcript taken WITHOUT `-s`, so
+			// they catch a goip that started emitting a token and nothing
+			// else; if a future iprule.c began reading show_stats, every one
+			// of them would still pass. This row reads two real `ip`
+			// transcripts, one given `-s` and one not, which is the only
+			// offline evidence that the empty `grep -n show_stats
+			// ip/iprule.c` is upstream's and not an assumption.
+			description: "positive: ip_rule_stats and ip_rule are byte-identical — iprule.c never reads show_stats",
+			a:           "ip_rule_stats", b: "ip_rule", want: true,
+		},
+		{
+			description: "corner: the mesh namespace's `-s` listing is a no-op too, on an independently captured topology",
+			a:           "mesh/ip_rule_stats", b: "mesh/ip_rule", want: true,
+		},
+		{
+			description: "corner: the tunnel namespace's `-s` listing is a no-op too",
+			a:           "tunnel/ip_rule_stats", b: "tunnel/ip_rule", want: true,
 		},
 	}
 

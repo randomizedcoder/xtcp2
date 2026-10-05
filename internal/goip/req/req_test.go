@@ -83,6 +83,30 @@ const (
 	// assert nothing; the identity is claimed by a parity row instead.
 	tdGatedGetRule  = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getrule.pcap"
 	tdGatedGetRule6 = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getrule6.pcap"
+
+	// The four `-s` captures, which exist because `-s` is the last global
+	// option that can change request bytes and only some of these four
+	// commands let it.
+	//
+	// They come in pairs with fixtures above, and the pairing is the
+	// assertion: TestTierAStatsRequestPairs diffs each against its non-`-s`
+	// twin, which is the only way to say "this is the byte `-s` moved"
+	// rather than "this is the byte that happens to be there".
+	//
+	// Two of the four duplicate their twin's request bytes exactly, and that
+	// is their point — a capture whose request is identical is the evidence
+	// that `-s` did NOT reach the wire. They were taken anyway because
+	// `capio` needs one invocation to produce both a pcap and the stdout
+	// golden beside it, and the stdout is what those two commands change.
+	tdGatedGetAddrStats    = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr_stats.pcap"
+	tdGatedGetAddrV6Stats  = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr_v6_stats.pcap"
+	tdGatedGetAddrDevStats = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr_dev_stats.pcap"
+	tdGatedGetNeighStats   = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh_stats.pcap"
+
+	// Two non-`-s` twins that had no constant here before. The other two are
+	// tdGetNeigh and tdGatedGetAddrDev.
+	tdGatedGetAddr   = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr.pcap"
+	tdGatedGetAddrV6 = "../../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getaddr_v6.pcap"
 )
 
 // canonicalRequests returns every request in a capture with nlmsg_seq and
@@ -1320,7 +1344,7 @@ func TestTierAAddrShowRequests(t *testing.T) {
 			// carry IFLA_STATS64 and `ip link show`'s do not.
 			description: "positive: `ip -4 addr show` link dump is 32 bytes, ifi_family AF_INET, no attributes",
 			captured:    reqs[0],
-			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_INET, 1) },
+			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_INET, ExtMaskShow, 1) },
 			wantLen:     32,
 			wantType:    unix.RTM_GETLINK,
 			wantFamily:  unix.AF_INET,
@@ -1343,7 +1367,7 @@ func TestTierAAddrShowRequests(t *testing.T) {
 			// behind it.
 			description: "positive: `ip -6 addr show` link dump differs from the -4 one in exactly one byte",
 			captured:    reqs[2],
-			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_INET6, 3) },
+			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_INET6, ExtMaskShow, 3) },
 			wantLen:     32,
 			wantType:    unix.RTM_GETLINK,
 			wantFamily:  unix.AF_INET6,
@@ -1456,15 +1480,27 @@ func TestTierAAddrShowRequests(t *testing.T) {
 }
 
 // TestAddrShowLinkDumpFamilies covers the family branch in
-// AddrShowLinkDump, including the two families the capture does not hold.
+// AddrShowLinkDump, including the two families the capture does not hold,
+// and the `-s` mask crossed with it.
+//
+// The crossing is the point. extMask reaches the wire on the AF_UNSPEC and
+// AF_PACKET arm and is DROPPED on the family arm, because
+// rtnl_linkdump_req_filter_fn forwards filter_fn — the only thing that
+// appends IFLA_EXT_MASK — for those two families alone
+// (lib/libnetlink.c:591-618). So `ip -s -4 addr show` and `ip -4 addr show`
+// put identical bytes on the wire while `ip -s addr show` and `ip addr show`
+// differ in one word, and the negative rows below are what keep a later
+// reader from "fixing" the dropped parameter.
 //
 // go test ./internal/goip/req/ -run TestAddrShowLinkDumpFamilies
 func TestAddrShowLinkDumpFamilies(t *testing.T) {
 	tests := []struct {
 		description string
 		family      uint8
+		extMask     uint32
 		wantLen     int
 		wantAttrs   bool
+		wantMask    uint32
 	}{
 		{
 			// The plain `ip addr show` form, which has no capture: AF_UNSPEC
@@ -1475,8 +1511,22 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 			// AF_UNSPEC addr show — that fixture is on the plan's Item 7 list.
 			description: "boundary: AF_UNSPEC takes the filter_fn path and carries the ext mask",
 			family:      unix.AF_UNSPEC,
+			extMask:     ExtMaskShow,
 			wantLen:     40,
 			wantAttrs:   true,
+			wantMask:    ExtMaskShow,
+		},
+		{
+			// The `-s addr show` form. One word of one attribute is the
+			// entire request-side difference from the row above, and it is
+			// the only place in this command where `-s` reaches the wire at
+			// all on AF_UNSPEC.
+			description: "positive: AF_UNSPEC under -s carries the stats mask instead",
+			family:      unix.AF_UNSPEC,
+			extMask:     ExtMaskStats,
+			wantLen:     40,
+			wantAttrs:   true,
+			wantMask:    ExtMaskStats,
 		},
 		{
 			// AF_PACKET is unreachable from goip's argv — there is no `-0`
@@ -1484,18 +1534,55 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 			// and `ip link show` proves the 40-byte shape is right for it.
 			description: "boundary: AF_PACKET also takes the filter_fn path",
 			family:      unix.AF_PACKET,
+			extMask:     ExtMaskShow,
 			wantLen:     40,
 			wantAttrs:   true,
+			wantMask:    ExtMaskShow,
+		},
+		{
+			// AF_PACKET is the boundary of the two-family test, so it is the
+			// family where the mask arm and the family arm are one value
+			// apart. If the arm condition were ever narrowed to AF_UNSPEC
+			// alone, this is the row that would catch it.
+			description: "boundary: AF_PACKET under -s takes the mask arm, not the family arm",
+			family:      unix.AF_PACKET,
+			extMask:     ExtMaskStats,
+			wantLen:     40,
+			wantAttrs:   true,
+			wantMask:    ExtMaskStats,
 		},
 		{
 			description: "positive: AF_INET falls through to the bare 32-byte form",
 			family:      unix.AF_INET,
+			extMask:     ExtMaskShow,
+			wantLen:     32,
+			wantAttrs:   false,
+		},
+		{
+			// `-s -4 addr show`. The mask parameter is deliberately dropped:
+			// there is no IFLA_EXT_MASK attribute on this arm in which to
+			// carry it, so the bytes are identical to the row above and the
+			// 32-byte length is the assertion. The stats still come back,
+			// because an absent mask leaves RTEXT_FILTER_SKIP_STATS clear —
+			// which is why `-s -4 addr show` can render a block it never
+			// asked for.
+			description: "negative: AF_INET under -s ignores the mask and sends no attribute at all",
+			family:      unix.AF_INET,
+			extMask:     ExtMaskStats,
 			wantLen:     32,
 			wantAttrs:   false,
 		},
 		{
 			description: "positive: AF_INET6 falls through to the bare 32-byte form",
 			family:      unix.AF_INET6,
+			extMask:     ExtMaskShow,
+			wantLen:     32,
+			wantAttrs:   false,
+		},
+		{
+			description: "negative: AF_INET6 under -s ignores the mask too, the other family",
+			family:      unix.AF_INET6,
+			extMask:     ExtMaskStats,
 			wantLen:     32,
 			wantAttrs:   false,
 		},
@@ -1508,6 +1595,18 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 			// rtnl_linkdump_req_filter_fn.
 			description: "corner: an unrelated family such as AF_MPLS still takes the bare path",
 			family:      unix.AF_MPLS,
+			extMask:     ExtMaskShow,
+			wantLen:     32,
+			wantAttrs:   false,
+		},
+		{
+			// The crossing of the two corners: an unrelated family AND `-s`.
+			// Neither the family test nor the mask can reach the wire here,
+			// so this is the one row where both of the function's decisions
+			// are exercised at once and the answer is still the bare form.
+			description: "corner: AF_MPLS under -s is still the bare path and still drops the mask",
+			family:      unix.AF_MPLS,
+			extMask:     ExtMaskStats,
 			wantLen:     32,
 			wantAttrs:   false,
 		},
@@ -1515,9 +1614,29 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := AddrShowLinkDump(tc.family, 7)
+			got, err := AddrShowLinkDump(tc.family, tc.extMask, 7)
 			if err != nil {
-				t.Fatalf("AddrShowLinkDump(%d): %v", tc.family, err)
+				t.Fatalf("AddrShowLinkDump(%d, %#x): %v", tc.family, tc.extMask, err)
+			}
+
+			// The negative rows' real claim is not "32 bytes" but "the mask
+			// changed nothing", and only comparing the two masks' output can
+			// say that. Asserted for every attribute-less row rather than
+			// just the `-s` ones, so the property is stated once: on the
+			// family arm the parameter is inert.
+			if !tc.wantAttrs {
+				other := ExtMaskShow
+				if tc.extMask == ExtMaskShow {
+					other = ExtMaskStats
+				}
+				twin, terr := AddrShowLinkDump(tc.family, other, 7)
+				if terr != nil {
+					t.Fatalf("AddrShowLinkDump(%d, %#x): %v", tc.family, other, terr)
+				}
+				if !bytes.Equal(got, twin) {
+					t.Errorf("mask %#x and %#x differ on the family arm:\n %x\n %x",
+						tc.extMask, other, got, twin)
+				}
 			}
 			if len(got) != tc.wantLen {
 				t.Fatalf("got %d bytes, want %d: %x", len(got), tc.wantLen, got)
@@ -1532,8 +1651,8 @@ func TestAddrShowLinkDumpFamilies(t *testing.T) {
 				if atype := binary.LittleEndian.Uint16(got[34:36]); atype != uint16(unix.IFLA_EXT_MASK) {
 					t.Errorf("attribute type = %d, want IFLA_EXT_MASK (%d)", atype, unix.IFLA_EXT_MASK)
 				}
-				if v := binary.LittleEndian.Uint32(got[36:40]); v != ExtMaskShow {
-					t.Errorf("ext mask = %#x, want %#x", v, ExtMaskShow)
+				if v := binary.LittleEndian.Uint32(got[36:40]); v != tc.wantMask {
+					t.Errorf("ext mask = %#x, want %#x", v, tc.wantMask)
 				}
 			}
 		})
@@ -1971,6 +2090,16 @@ func TestTierARuleShowRequests(t *testing.T) {
 // first by skipping the substitution, the second by honoring `-0`. Both are
 // legal requests the kernel answers, so nothing downstream would complain.
 //
+// It is also where the REQUEST half of the `-s rule show` no-op is pinned,
+// and no separate `-s` row was added because one would assert nothing new.
+// RuleShowDump's entire signature is (family, seq) — there is no mask
+// parameter for `-s` to reach — and the length check plus the all-zero sweep
+// below leave the request at 28 bytes with no room for an attribute. A change
+// that threaded a stats mask into the rule path would have to append one, and
+// would fail here. The OUTPUT half lives in the `-s` rows of
+// TestRuleShowMatchesCapturedSidecars, which compare against the non-`-s`
+// goldens.
+//
 // go test ./internal/goip/req/ -run TestRuleShowDumpShape
 func TestRuleShowDumpShape(t *testing.T) {
 	// 16-byte nlmsghdr + 12-byte fib_rule_hdr, and nothing else is possible.
@@ -2037,6 +2166,305 @@ func TestRuleShowDumpShape(t *testing.T) {
 					t.Errorf("fib_rule_hdr byte %d = %#x, want 0; "+
 						"fib_valid_dumprule_req refuses a nonzero one", i-16, got[i])
 				}
+			}
+		})
+	}
+}
+
+// TestTierAStatsRequests is the Tier A positive for the `-s` sweep: every
+// request the pinned `ip` sent under `-s`, byte for byte, from the four
+// captures that recorded one.
+//
+// # The claim, and why it needs four captures and not one
+//
+// `-s` is the last global option that can change what goes on the wire, and
+// it reaches the wire through exactly one attribute: IFLA_EXT_MASK, whose
+// value is RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS without it and
+// RTEXT_FILTER_VF alone with it. One byte. Everything else about `-s` is
+// rendering.
+//
+// Which commands carry that attribute at all is not uniform, and the four
+// captures are the four answers:
+//
+//	ip -s addr show          dump,     AF_UNSPEC  mask present, 0x01
+//	ip -s addr show dev NAME two gets, AF_UNSPEC  mask present on the SECOND
+//	ip -s -6 addr show       dump,     AF_INET6   no mask attribute at all
+//	ip -s neigh show         dump,     AF_UNSPEC  mask present, and already
+//	                                              0x01 without -s
+//
+// The third and fourth are the interesting ones, and neither could be
+// asserted from the source alone without the assertion being a transcription
+// of the thing it tests. rtnl_linkdump_req_filter_fn skips the attribute
+// entirely for a non-AF_UNSPEC family, so `-6` has nowhere to put the mask;
+// and `ip neigh show`'s link dump passes RTEXT_FILTER_VF unconditionally, so
+// its request is what `-s` would have made it anyway.
+//
+// go test ./internal/goip/req/ -run TestTierAStatsRequests
+func TestTierAStatsRequests(t *testing.T) {
+	const (
+		devCst   = "goip0"
+		indexCst = 3
+	)
+
+	tests := []struct {
+		description string
+		pcap        string
+		// wantN is the request count, asserted before any row reads one.
+		// These captures are single-command clean, so it is a property of
+		// the command rather than of the host.
+		wantN int
+		// build produces the request this row claims the capture holds at
+		// index i.
+		idx   int
+		build func() ([]byte, error)
+	}{
+		{
+			description: "positive: -s addr show sends the link dump with ext_filter_mask 0x01, RTEXT_FILTER_VF alone",
+			pcap:        tdGatedGetAddrStats,
+			wantN:       2,
+			idx:         0,
+			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_UNSPEC, ExtMaskStats, 61) },
+		},
+		{
+			// The second request is where `-s` does NOT reach, on the same
+			// command. An RTM_GETADDR has no ext-mask surface at all, so a
+			// port that threaded show_stats one function too far would fail
+			// here and pass the row above.
+			description: "positive: -s addr show's address dump is unchanged, because RTM_GETADDR has no mask to carry",
+			pcap:        tdGatedGetAddrStats,
+			wantN:       2,
+			idx:         1,
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_UNSPEC, 0, 62), nil },
+		},
+		{
+			// ll_link_get's mask is hardcoded (lib/ll_map.c:277), so request
+			// one is stats-blind however many -s were given. This row and
+			// the next are the pair that says so: same command, same
+			// interface, two gets, and only the second one moved.
+			description: "positive: -s addr show dev's FIRST get keeps ext_filter_mask 0x09, because ll_link_get hardcodes it",
+			pcap:        tdGatedGetAddrDevStats,
+			wantN:       3,
+			idx:         0,
+			build:       func() ([]byte, error) { return LinkShowByName(devCst, 63) },
+		},
+		{
+			// The corpus's only record of an ext_filter_mask on a NON-DUMP
+			// RTM_GETLINK, which is the whole reason this pcap was taken.
+			// Step 2's corner row could otherwise argue only from source
+			// that the get path is stats-sensitive for every family.
+			description: "positive: -s addr show dev's SECOND get carries 0x01, the only stats mask on a non-dump RTM_GETLINK",
+			pcap:        tdGatedGetAddrDevStats,
+			wantN:       3,
+			idx:         1,
+			build:       func() ([]byte, error) { return AddrShowLinkGet(unix.AF_UNSPEC, indexCst, ExtMaskStats, 64) },
+		},
+		{
+			description: "positive: -s addr show dev's address dump still carries the resolved index and no mask",
+			pcap:        tdGatedGetAddrDevStats,
+			wantN:       3,
+			idx:         2,
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_UNSPEC, indexCst, 65), nil },
+		},
+		{
+			// The negative that is a positive about the builder: the mask
+			// argument is passed and then DROPPED for a non-AF_UNSPEC
+			// family, so ExtMaskStats produces the same 32-byte attribute-
+			// free datagram ExtMaskShow does. The boundary row below asserts
+			// the two are equal; this one asserts the captured bytes are
+			// what either of them builds.
+			description: "negative: -s -6 addr show sends no ext-mask attribute, so the mask argument cannot reach the wire",
+			pcap:        tdGatedGetAddrV6Stats,
+			wantN:       2,
+			idx:         0,
+			build:       func() ([]byte, error) { return AddrShowLinkDump(unix.AF_INET6, ExtMaskStats, 66) },
+		},
+		{
+			description: "negative: -s -6 addr show's address dump is the plain AF_INET6 dump",
+			pcap:        tdGatedGetAddrV6Stats,
+			wantN:       2,
+			idx:         1,
+			build:       func() ([]byte, error) { return AddrShowDump(unix.AF_INET6, 0, 67), nil },
+		},
+		{
+			// `ip neigh show`'s link dump is ll_init_map's, and it passes
+			// RTEXT_FILTER_VF with no reference to show_stats — so this
+			// request is byte-identical to the non-`-s` one, and 0x01 here
+			// is not evidence that `-s` did anything.
+			description: "negative: -s neigh show's link dump carries 0x01 with or without -s, so the byte proves nothing on its own",
+			pcap:        tdGatedGetNeighStats,
+			wantN:       2,
+			idx:         0,
+			build:       func() ([]byte, error) { return NeighShowLinkDump(68) },
+		},
+		{
+			// NeighShowDump(family, ndmFlags, ifindex, seq) has no mask
+			// parameter, which is the request-side half of Step 4's claim
+			// that `-s neigh show` changes stdout and nothing else.
+			description: "negative: -s neigh show's neighbor dump is the bare 28-byte ndmsg, because NeighShowDump has no mask parameter",
+			pcap:        tdGatedGetNeighStats,
+			wantN:       2,
+			idx:         1,
+			build:       func() ([]byte, error) { return NeighShowDump(unix.AF_UNSPEC, 0, 0, 69) },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			reqs := canonicalRequests(t, tc.pcap)
+			if len(reqs) != tc.wantN {
+				t.Fatalf("requests in %s = %d, want %d", tc.pcap, len(reqs), tc.wantN)
+			}
+			got, err := tc.build()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(zeroSeqPid(got), reqs[tc.idx]) {
+				t.Fatalf("request %d differs\n got %x\nwant %x", tc.idx, zeroSeqPid(got), reqs[tc.idx])
+			}
+		})
+	}
+}
+
+// TestTierAStatsRequestPairs diffs each `-s` capture's requests against its
+// non-`-s` twin's, which is what turns the rows above from "these are the
+// bytes" into "this is the byte `-s` moved".
+//
+// # Why a pairwise diff and not two absolute assertions
+//
+// Because the interesting results are the NULL ones. `ip -s -6 addr show` and
+// `ip -s neigh show` send requests byte-identical to their ungated forms, and
+// a pair of absolute assertions states that only to a reader who compares the
+// two hex strings by eye. Diffing the captures states it as a measurement,
+// and localizes it when it is not null: the addr pair differs in exactly one
+// byte, at the offset where RTEXT_FILTER_SKIP_STATS lives.
+//
+// The twins were taken on DIFFERENT boots, which is sound for this and would
+// not be for a reply comparison — a request carries no MAC, no portid and no
+// counter. seq and pid are already zeroed by canonicalRequests.
+//
+// # This test cannot fail because goip changed
+//
+// Nothing here calls a builder. It is a claim about IPROUTE2 — about what the
+// pinned `ip` did with `-s` — and it is the premise the rows in
+// TestTierAStatsRequests are measured against, so it belongs next to them
+// rather than inside them. Measured: two mutations to AddrShowLinkDump that
+// each broke a row above left this test green, which is the intended
+// division and worth knowing rather than assuming. What it does fail on is a
+// re-capture that changes the answer, which is the regression it exists for.
+//
+// go test ./internal/goip/req/ -run TestTierAStatsRequestPairs
+func TestTierAStatsRequestPairs(t *testing.T) {
+	tests := []struct {
+		description string
+		gated       string
+		plain       string
+		// wantDiff is the number of requests expected to differ between the
+		// two captures. Zero is the claim for two of the four pairs.
+		wantDiff int
+		// diffIdx and diffByte locate the single changed byte, for the pairs
+		// where there is one. diffByte is the pair of values, gated first.
+		diffIdx              int
+		gatedByte, plainByte byte
+		byteOff              int
+	}{
+		{
+			// One byte, and it is the one the whole sweep turns on:
+			// RTEXT_FILTER_SKIP_STATS cleared from the link dump's
+			// IFLA_EXT_MASK. Offset 36 is the attribute payload — 16 bytes
+			// of nlmsghdr, 16 of ifinfomsg, 4 of rtattr header.
+			description: "positive: -s addr show differs from addr show in exactly one request and one byte",
+			gated:       tdGatedGetAddrStats,
+			plain:       tdGatedGetAddr,
+			wantDiff:    1,
+			diffIdx:     0,
+			gatedByte:   0x01,
+			plainByte:   0x09,
+			byteOff:     36,
+		},
+		{
+			// The same one byte at the same offset, but on the SECOND
+			// request rather than the first, because on this command the
+			// mask-bearing get is the by-index one. The offset matching is
+			// not a coincidence worth leaning on either way: both requests
+			// place IFLA_EXT_MASK first, so both put its payload at 16 + 16
+			// + 4, and ll_link_get's by-name form differs only in carrying
+			// IFLA_IFNAME after it.
+			description: "positive: -s addr show dev differs in exactly one request and one byte, and it is the second request",
+			gated:       tdGatedGetAddrDevStats,
+			plain:       tdGatedGetAddrDev,
+			wantDiff:    1,
+			diffIdx:     1,
+			gatedByte:   0x01,
+			plainByte:   0x09,
+			byteOff:     36,
+		},
+		{
+			// Null result, and the point of the pcap.
+			// rtnl_linkdump_req_filter_fn attaches no IFLA_EXT_MASK for a
+			// non-AF_UNSPEC family, so there is nothing for `-s` to change
+			// and PR A's "the reply is identical with and without -s" claim
+			// starts here, on the request.
+			description: "negative: -s -6 addr show sends byte-identical requests to -6 addr show, both of them",
+			gated:       tdGatedGetAddrV6Stats,
+			plain:       tdGatedGetAddrV6,
+			wantDiff:    0,
+		},
+		{
+			// Null result again, for a different reason: the mask IS there
+			// and already has the `-s` value. ll_init_map passes
+			// RTEXT_FILTER_VF unconditionally.
+			description: "negative: -s neigh show sends byte-identical requests to neigh show, mask included",
+			gated:       tdGatedGetNeighStats,
+			plain:       tdGetNeigh,
+			wantDiff:    0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			gated := canonicalRequests(t, tc.gated)
+			plain := canonicalRequests(t, tc.plain)
+			if len(gated) != len(plain) {
+				t.Fatalf("request counts differ: %d gated, %d plain; `-s` adds and removes no transaction",
+					len(gated), len(plain))
+			}
+
+			var differing []int
+			for i := range gated {
+				if !bytes.Equal(gated[i], plain[i]) {
+					differing = append(differing, i)
+				}
+			}
+			if len(differing) != tc.wantDiff {
+				t.Fatalf("requests differing = %v, want %d of them", differing, tc.wantDiff)
+			}
+			if tc.wantDiff == 0 {
+				return
+			}
+			if differing[0] != tc.diffIdx {
+				t.Fatalf("request %d differs, want request %d", differing[0], tc.diffIdx)
+			}
+
+			g, p := gated[tc.diffIdx], plain[tc.diffIdx]
+			if len(g) != len(p) {
+				t.Fatalf("lengths differ: %d gated, %d plain; the mask is a value, not an attribute `-s` adds",
+					len(g), len(p))
+			}
+			var off []int
+			for i := range g {
+				if g[i] != p[i] {
+					off = append(off, i)
+				}
+			}
+			if len(off) != 1 {
+				t.Fatalf("bytes differing = %v, want exactly one\n gated %x\n plain %x", off, g, p)
+			}
+			if off[0] != tc.byteOff {
+				t.Errorf("the differing byte is at offset %d, want %d", off[0], tc.byteOff)
+			}
+			if g[off[0]] != tc.gatedByte || p[off[0]] != tc.plainByte {
+				t.Errorf("byte %d = 0x%02x gated / 0x%02x plain, want 0x%02x / 0x%02x",
+					off[0], g[off[0]], p[off[0]], tc.gatedByte, tc.plainByte)
 			}
 		})
 	}

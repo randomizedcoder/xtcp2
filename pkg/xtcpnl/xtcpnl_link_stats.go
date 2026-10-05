@@ -294,11 +294,33 @@ func DeserializeRtnlLinkStats64(data []byte, s *RtnlLinkStats64) (n int, err err
 //
 // IFLA_STATS64 wins whenever it is present, even if IFLA_STATS is present too
 // — and in practice both always are, because rtnl_fill_stats emits the pair.
-// IFLA_STATS is the fallback, widened. There is a third arm upstream,
-// IFLA_PROTINFO → IFLA_INET6_STATS → get_snmp_counters, and it is deliberately
-// NOT implemented here: those are SNMP MIB counters for an AF_INET6 link dump,
-// a different set of numbers in a different layout, and nothing in the corpus
-// reaches it.
+// IFLA_STATS is the fallback, widened.
+//
+// The third arm, IFLA_PROTINFO → IFLA_INET6_STATS, is NOT a fallback for a
+// missing attribute on the same message: it is a different message. An
+// AF_INET6 link dump is answered by inet6_fill_ifinfo rather than
+// rtnl_fill_ifinfo and carries neither stats attribute at all, so `ip -s -6
+// addr show` reaches this arm for every link and no other command reaches it
+// for any. Those are IPv6 SNMP MIB counters — a different set of numbers in a
+// different layout, rendered under the same column headings — and
+// xtcpnl_ipstats_mib.go is where that is written down.
+//
+// An earlier version of this comment declined the arm on the grounds that
+// "nothing in the corpus reaches it". That was measured false: the committed
+// netlink_route_getaddr_v6.pcap has carried the attribute since it was
+// captured, because the kernel hardcodes ext_filter_mask to zero on that path
+// and emits the counters whether or not `-s` was asked for. The justification
+// outlived the fact it rested on, which is the whole reason this file states
+// its reasons rather than its conclusions.
+//
+// # Arm order is a safety property, not a preference
+//
+// IFLA_PROTINFO also carries bridge-port flags on an AF_BRIDGE dump
+// (net/core/rtnetlink.c:5319), and nothing in the attribute distinguishes the
+// two nests. Checking it last is what makes that unreachable here: a reply
+// with bridge-port data always carries IFLA_STATS64 as well, so an earlier arm
+// always claims it first. Reorder these cases and the decoder starts reading
+// BRPORT flags as packet counts.
 //
 // # The length rule, which is the whole boundary surface
 //
@@ -324,7 +346,7 @@ func DeserializeRtnlLinkStats64(data []byte, s *RtnlLinkStats64) (n int, err err
 // not: the zero-fill is sized from the struct being filled, so a short
 // IFLA_STATS zero-fills the 96-byte struct and the widening afterwards carries
 // those zeros up. It does not zero-fill the 200-byte one.
-func DecodeLinkStats(stats64, stats []byte) (RtnlLinkStats64, error) {
+func DecodeLinkStats(stats64, stats, protinfo []byte) (RtnlLinkStats64, error) {
 	switch {
 	case stats64 != nil:
 		var s RtnlLinkStats64
@@ -338,6 +360,19 @@ func DecodeLinkStats(stats64, stats []byte) (RtnlLinkStats64, error) {
 			return RtnlLinkStats64{}, err
 		}
 		return WidenRtnlLinkStats(s), nil
+	case protinfo != nil:
+		// Upstream returns success here even when the nest holds no
+		// IFLA_INET6_STATS — get_rtnl_link_stats_rta does an unconditional
+		// `return sizeof(*stats64)` after the parse, so __print_link_stats
+		// goes on to print a stack struct nobody wrote to. That is reachable
+		// only from a message no kernel sends, and reproducing it would mean
+		// printing whatever happened to be in memory. Reporting the
+		// attribute as absent is the divergence, and it is deliberate.
+		mib := inet6StatsFromProtinfo(protinfo)
+		if mib == nil {
+			return RtnlLinkStats64{}, ErrLinkStatsNone
+		}
+		return Inet6StatsSnmpCounters(mib), nil
 	default:
 		return RtnlLinkStats64{}, ErrLinkStatsNone
 	}

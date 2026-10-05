@@ -321,6 +321,25 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 		"netlink_route_getaddr.pcap",
 		"netlink_route_getaddr_v4.pcap",
 		"netlink_route_getaddr_v6.pcap",
+		// `ip -s addr show`. The second capture whose request asked for
+		// counters, and the first on an addr command. Its RTM_NEWLINK
+		// replies carry IFLA_STATS and IFLA_STATS64 where
+		// netlink_route_getaddr.pcap's do not, because that one's request
+		// set RTEXT_FILTER_SKIP_STATS.
+		"netlink_route_getaddr_stats.pcap",
+		// `ip -s -6 addr show`, whose request is byte-identical to the v6
+		// dump's above — the family arm attaches no IFLA_EXT_MASK — and
+		// whose replies are therefore identical too. Listed anyway, and not
+		// as a duplicate: it is the only AF_INET6 link dump here taken by an
+		// invocation that asked for counters, so a top-level attribute the
+		// kernel attaches only then would show up here. (The IFLA_PROTINFO
+		// nest's interior is not walked; this test's subject is top-level
+		// names.)
+		"netlink_route_getaddr_v6_stats.pcap",
+		// `ip -s addr show dev goip0`. The corpus's only RTM_GETLINK
+		// carrying an ext-mask on the NON-DUMP path, so it is the only place
+		// a doit-only attribute arrives with the counters attached.
+		"netlink_route_getaddr_dev_stats.pcap",
 		// `ip addr show dev goip0`. Its RTM_NEWADDR replies are a subset of
 		// the plain dump's, but its RTM_NEWLINK replies are not: they come
 		// from two single-gets rather than from a dump, so an attribute the
@@ -336,6 +355,14 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 		// doit path. Listed for the same reason the addr `dev` capture is.
 		"netlink_route_getroute_dev.pcap",
 		"netlink_route_getneigh.pcap",
+		// `ip -s neigh show`, whose requests are byte-identical to the row
+		// above's — NeighShowDump has no mask parameter and the link dump's
+		// mask is already RTEXT_FILTER_VF without `-s`. The replies are
+		// identical in SHAPE for the same reason, so what this adds is the
+		// pair NDA_PROBES and NDA_CACHEINFO on every entry: neigh_fill_info
+		// emits them in one `||` chain, and no other neighbor capture here
+		// has a consumer that reads either.
+		"netlink_route_getneigh_stats.pcap",
 		// `ip neigh show dev goip0`. Every REPLY in it also appears in the
 		// plain neighbor capture, so on the reply side it adds nothing; it is
 		// listed because its REQUEST carries NDA_IFINDEX, the only attribute

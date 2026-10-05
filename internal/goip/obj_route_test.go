@@ -47,6 +47,17 @@ const (
 	routeSidecarDir   = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 	routeMeshSidecars = "../../pkg/xtcpnl/testdata/7_1_4/dumps/mesh/"
 
+	// The tunnel set. Same four commands again, on the one namespace where
+	// every route belongs to a device that has no link-layer address at all:
+	// gre1's `link/gre` is an IP pair, not a MAC, so these captures are the
+	// only route evidence whose `dev` token resolves to a non-ARPHRD_ETHER
+	// device through the lazy single-get path.
+	routeTunnelPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getroute.pcap"
+	routeTunnel6Pcap    = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getroute6.pcap"
+	routeTunnelAllPcap  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getroute_table_all.pcap"
+	routeTunnelDevPcap  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink_route_getroute_dev.pcap"
+	routeTunnelSidecars = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/"
+
 	// `ip route show dev NAME`, the one route capture whose FIRST message is
 	// an RTM_GETLINK rather than the dump. The mesh one's named device owns no
 	// routes, so its dump is answered by NLMSG_DONE alone — the only empty
@@ -61,8 +72,12 @@ const (
 //
 // The comparison target is the plain sidecar, never the `_n` one: `_n` in this
 // corpus means `ip -d` (nix/microvms/mkVm.nix writes it with `ip -d route
-// show`), which adds `unicast`, `table main` and `scope global` to every line,
-// and goip has no -d surface to compare against.
+// show`), which adds `unicast`, `table main` and `scope global` to every line.
+// goip does implement -d, and the `_n` sidecars for all three namespaces are
+// compared in TestRouteShowDetailMatchesSidecars; they do not belong here
+// because every row in this table drives goip WITHOUT -d, and a row whose
+// expectation came from a different command line is the one mistake a table
+// this uniform makes easy.
 //
 // go test ./internal/goip/ -run TestRouteShowMatchesCapturedSidecars
 func TestRouteShowMatchesCapturedSidecars(t *testing.T) {
@@ -135,6 +150,90 @@ func TestRouteShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:        "ip_route_main_json",
 			jsonEquivalent: true,
 		},
+
+		// ---------------------------------------------------------------
+		// `-s` on routes: every row below is a NEGATIVE, because
+		// `-s route show` is a no-op — which is NOT what the plan that
+		// added RTA_CACHEINFO predicted, and is worth stating here rather
+		// than only in the docs.
+		//
+		// print_rta_cacheinfo gates exactly three of its eight members on
+		// show_stats: rta_clntref (`users`), rta_used and rta_lastuse
+		// (`age`), ip/iproute.c:500-532. All three are written only inside
+		// rtnl_put_cacheinfo's `if (dst)` arm
+		// (net/core/rtnetlink.c:1028-1052), and no route DUMP ever takes
+		// it — rt_fill_info passes a dst on a `route get` only, and the v4
+		// FIB dump never calls rtnl_put_cacheinfo at all
+		// (net/ipv4/route.c:3074); rt6_fill_node serves both the v6 dump
+		// and the get but passes a dst only on the get
+		// (net/ipv6/route.c:5944).
+		//
+		// Measured against these very fixtures by
+		// xtcpnl.TestParseNewRouteCacheinfo: the v4 dumps carry no
+		// RTA_CACHEINFO at all and the v6 dumps carry one per route with
+		// all 32 bytes zero. So the attribute now decodes and the three
+		// gated members have nothing to print.
+		//
+		// The rows compare against the SAME sidecar each non-`-s` row
+		// uses, which is what makes them assert the no-op rather than
+		// re-assert the rendering. The complementary claim — that
+		// IPROUTE2's `-s` also changes nothing, measured on a real `ip`
+		// transcript — is TestRouteStatsSidecarsAreIdentical's.
+		//
+		// What is NOT a no-op, and is not visible here: rta_expires is
+		// reachable without a dst (net/ipv6/route.c:5931) and
+		// print_rta_cacheinfo prints it OUTSIDE the show_stats guard, so
+		// plain `-6 route show` was dropping `expires Nsec` until that was
+		// fixed. No route in any committed capture has a finite lifetime,
+		// which is exactly why no row here can see it; render/route_test.go
+		// carries the constructed rows that can.
+		// ---------------------------------------------------------------
+		{
+			description: "negative: `-s route show` is byte-identical to `route show` — the three members -s gates are structurally zero on a dump",
+			pcap:        routeDumpPcap,
+			args:        []string{"-s", "route", "show"},
+			sidecar:     "ip_route_main",
+		},
+		{
+			// The family that actually carries the attribute. Every route
+			// in this dump has an RTA_CACHEINFO on the wire, all 32 bytes
+			// zero, so this row is the one that distinguishes "suppressed
+			// because the values are zero" from "suppressed because the
+			// attribute is not decoded" — the second would also pass the
+			// v4 row above.
+			description: "negative: `-s -6 route show` equals ip_route6, even though every route in that dump carries an RTA_CACHEINFO",
+			pcap:        routeDump6Pcap,
+			args:        []string{"-s", "-6", "route", "show"},
+			sidecar:     "ip_route6",
+		},
+		{
+			description: "negative: `-s route show table all` equals ip_route_table_all across both families and two tables",
+			pcap:        routeDumpAllPcap,
+			args:        []string{"-s", "route", "show", "table", "all"},
+			sidecar:     "ip_route_table_all",
+		},
+		{
+			// A JSON key is the failure mode a text comparison cannot see:
+			// a stats block that rendered as an empty object, or as keys
+			// with zero values, would print nothing in text and surface
+			// here as extra members.
+			description: "negative: `-s -json route show` adds no JSON key to ip_route_main_json",
+			pcap:        routeDumpPcap,
+			args:        []string{"-s", "-json", "route", "show"},
+			sidecar:     "ip_route_main_json",
+
+			jsonEquivalent: true,
+		},
+		{
+			// The `dev` form, because its print path differs from the bare
+			// one in a way that touches the same guard: print_route
+			// suppresses `dev NAME` on the selected lines and keeps it on
+			// the nexthops, and the cacheinfo block would land after both.
+			description: "negative: `-s route show dev` equals ip_route_dev, so -s composes with the selector by changing nothing",
+			pcap:        routeDevPcap,
+			args:        []string{"-s", "route", "show", "dev", "goip0"},
+			sidecar:     "ip_route_dev",
+		},
 	}
 
 	for _, tc := range tests {
@@ -159,6 +258,99 @@ func TestRouteShowMatchesCapturedSidecars(t *testing.T) {
 	}
 }
 
+// TestRouteStatsSidecarsAreIdentical compares the `-s` route goldens against
+// their non-`-s` counterparts, and is a claim about IPROUTE2 rather than about
+// goip.
+//
+// The `-s` rows in TestRouteShowMatchesCapturedSidecars replay a pcap through
+// goip and compare the result with a transcript of `ip` taken WITHOUT `-s`.
+// That catches a goip which started emitting a token, and nothing else: if a
+// future iproute2 began reading show_stats in print_route, every one of those
+// rows would still pass, because none of them runs `ip`. These rows do — they
+// read two real `ip` transcripts, one given `-s` and one not — so they are the
+// only offline evidence that the no-op belongs to upstream.
+//
+// The live form of the same claim is the route_show_stats row in
+// internal/goipparity/commands.go, which is stronger because both binaries run
+// milliseconds apart in one boot. It needs /dev/kvm, so on a plain `go test`
+// nothing but this function checks it.
+//
+// The negative row is load-bearing. Every other row here asserts equality, so
+// a helper that always reported "identical" would make the whole table
+// vacuous; `ip_route_main` against `ip_route_main_n` is a pair known to differ,
+// on this very corpus, for a reason recorded in the row.
+//
+// go test ./internal/goip/ -run TestRouteStatsSidecarsAreIdentical
+func TestRouteStatsSidecarsAreIdentical(t *testing.T) {
+	tests := []struct {
+		description string
+		a, b        string
+		want        bool
+	}{
+		{
+			// The three members print_rta_cacheinfo gates on show_stats come
+			// from rtnl_put_cacheinfo's `if (dst)` arm, which no dump takes.
+			description: "positive: ip_route_main_stats and ip_route_main are byte-identical, `-s` being a no-op on a v4 dump that carries no RTA_CACHEINFO at all",
+			a:           "ip_route_main_stats", b: "ip_route_main", want: true,
+		},
+		{
+			// The family where the attribute IS on the wire — one per route,
+			// all 32 bytes zero. This is the row that separates "nothing to
+			// print" from "nothing arrived", and it is why ip_route6_stats
+			// was captured even though the sweep's plan listed only the v4
+			// golden.
+			description: "positive: ip_route6_stats and ip_route6 are byte-identical, even though every route in that dump carries an RTA_CACHEINFO",
+			a:           "ip_route6_stats", b: "ip_route6", want: true,
+		},
+		{
+			// The negative that keeps the two rows above honest: a pair of
+			// real transcripts of the same table that are known to differ.
+			// `-d` unsuppresses the route type, `table`, `proto` and `scope`
+			// on every line (ip/iproute.c:828, :903, :909, :916), so a
+			// comparison that reported everything identical fails here.
+			description: "negative: ip_route_main and ip_route_main_n differ, because -d unsuppresses four tokens on every line",
+			a:           "ip_route_main", b: "ip_route_main_n", want: false,
+		},
+		{
+			// Two more namespaces, captured independently. Spelled out per
+			// row rather than looped, so a missing file fails rather than
+			// passing as "nothing to compare" — the same reason
+			// TestRuleSidecarsAreIdentical enumerates its pairs.
+			description: "corner: the mesh namespace's `-s` listing is a no-op too, on an independently captured topology",
+			a:           "mesh/ip_route_main_stats", b: "mesh/ip_route_main", want: true,
+		},
+		{
+			description: "corner: the tunnel namespace's `-s` listing is a no-op too",
+			a:           "tunnel/ip_route_main_stats", b: "tunnel/ip_route_main", want: true,
+		},
+		{
+			description: "corner: the mesh namespace's IPv6 `-s` listing is a no-op too",
+			a:           "mesh/ip_route6_stats", b: "mesh/ip_route6", want: true,
+		},
+		{
+			description: "corner: the tunnel namespace's IPv6 `-s` listing is a no-op too",
+			a:           "tunnel/ip_route6_stats", b: "tunnel/ip_route6", want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			a, err := os.ReadFile(routeSidecarDir + tt.a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := os.ReadFile(routeSidecarDir + tt.b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := bytes.Equal(a, b); got != tt.want {
+				t.Errorf("bytes.Equal(%s, %s) = %v, want %v\n %s = %q\n %s = %q",
+					tt.a, tt.b, got, tt.want, tt.a, a, tt.b, b)
+			}
+		})
+	}
+}
+
 // TestRouteShowMatchesMeshSidecars is the same comparison against the second
 // topology, which exists for one reason: it is the only one whose carrier is
 // down, so it is the only place `linkdown` appears in a golden.
@@ -170,6 +362,10 @@ func TestRouteShowMatchesMeshSidecars(t *testing.T) {
 		pcap        string
 		args        []string
 		sidecar     string
+		// jsonEquivalent compares decoded JSON instead of raw bytes, for the
+		// same reason as TestRouteShowMatchesCapturedSidecars: `ip -j -p`
+		// pretty-prints and goip emits compact JSON.
+		jsonEquivalent bool
 	}{
 		{
 			description: "positive: mesh `route show` reproduces the linkdown token on both v4 routes",
@@ -205,6 +401,20 @@ func TestRouteShowMatchesMeshSidecars(t *testing.T) {
 			args:        []string{"route", "show", "dev", "veth0"},
 			sidecar:     "ip_route_dev",
 		},
+		{
+			// The reason this row is worth more than the clean namespace's
+			// JSON golden: print_rt_flags builds a JSON ARRAY, and every
+			// `flags` array in every other committed route golden is EMPTY.
+			// `[ "linkdown" ]` here is the only captured evidence that the
+			// array is ever populated at all — a renderer that emitted the
+			// flag as a string, or as a bare `"linkdown": true`, would match
+			// the clean golden key for key and fail only here.
+			description:    "corner: mesh `route show -json` is the only route golden with a non-empty flags array",
+			pcap:           routeMeshPcap,
+			args:           []string{"-json", "route", "show"},
+			sidecar:        "ip_route_main_json",
+			jsonEquivalent: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -217,6 +427,112 @@ func TestRouteShowMatchesMeshSidecars(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
 				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+			if tc.jsonEquivalent {
+				assertJSONEntriesEqual(t, stdout.Bytes(), want, false)
+				return
+			}
+			if !bytes.Equal(stdout.Bytes(), want) {
+				t.Fatalf("output mismatch\n got: %q\nwant: %q", stdout.Bytes(), want)
+			}
+		})
+	}
+}
+
+// TestRouteShowMatchesTunnelSidecars is the mesh table's sibling on the third
+// namespace, and the four commands are the same four. What makes the set
+// different is the device underneath every route: gre1 is ARPHRD_IPGRE, so it
+// carries no link-layer address — `link/gre 192.0.2.3 peer 198.51.100.3`, an
+// IPv4 pair where every other namespace's routed device has a MAC.
+//
+// That matters here because `route show` resolves names lazily, one RTM_GETLINK
+// single-get per distinct ifindex (lib/ll_map.c:320), and the reply it parses
+// is a full RTM_NEWLINK for a tunnel. These captures are the only route
+// evidence where that side transaction answers for a non-Ethernet device.
+//
+// # Why there is no empty row here
+//
+// The mesh table's `route show dev` row covers the empty listing, because
+// veth0 owns no routes. gre1 owns two, so the tunnel `dev` row covers the other
+// half of the same shape: the `dev gre1` token is SUPPRESSED from every line,
+// since `ip route show dev NAME` does not repeat the device it filtered on.
+// Empty output cannot show that suppression and a populated listing can, which
+// is why both rows exist and neither is redundant.
+//
+// go test ./internal/goip/ -run TestRouteShowMatchesTunnelSidecars
+func TestRouteShowMatchesTunnelSidecars(t *testing.T) {
+	tests := []struct {
+		description    string
+		pcap           string
+		args           []string
+		sidecar        string
+		jsonEquivalent bool
+	}{
+		{
+			description: "positive: tunnel `route show` renders two routes out of a gre device",
+			pcap:        routeTunnelPcap,
+			args:        []string{"route", "show"},
+			sidecar:     "ip_route_main",
+		},
+		{
+			description: "positive: tunnel `-6 route show` renders the gre device's own prefix and its link-local",
+			pcap:        routeTunnel6Pcap,
+			args:        []string{"-6", "route", "show"},
+			sidecar:     "ip_route6",
+		},
+		{
+			// Thirteen lines, and the widest route listing in the corpus by
+			// route TYPE: unicast, local, broadcast and multicast all in one
+			// answer, across two families and two tables. `local
+			// fe80::5efe:c000:203` is the row's own best evidence — the last
+			// 32 bits are gre1's local IPv4 address 192.0.2.3 written as
+			// c000:0203, under the ISATAP 5efe marker, so it is a link-local
+			// the kernel DERIVED rather than one goip could have guessed.
+			description: "positive: tunnel `route show table all` spans four route types and both families",
+			pcap:        routeTunnelAllPcap,
+			args:        []string{"route", "show", "table", "all"},
+			sidecar:     "ip_route_table_all",
+		},
+		{
+			description: "boundary: tunnel `route show dev gre1` suppresses the dev token it filtered on",
+			pcap:        routeTunnelDevPcap,
+			args:        []string{"route", "show", "dev", "gre1"},
+			sidecar:     "ip_route_dev",
+		},
+		{
+			// prefsrc on a device with no link/ether. The key itself is not
+			// new — the clean golden has one — but every other JSON route
+			// golden's prefsrc belongs to an Ethernet device, and this is the
+			// pair to the text row above: same pcap, same two routes, so a
+			// divergence between them is a rendering fault and not a decode
+			// one.
+			description:    "positive: tunnel `route show -json` pairs with the text row off the same capture",
+			pcap:           routeTunnelPcap,
+			args:           []string{"-json", "route", "show"},
+			sidecar:        "ip_route_main_json",
+			jsonEquivalent: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(routeTunnelSidecars + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(want) == 0 {
+				t.Fatalf("%s is empty; every row in this table expects a "+
+					"populated listing, and the empty case lives in the mesh "+
+					"table", tc.sidecar)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+			if tc.jsonEquivalent {
+				assertJSONEntriesEqual(t, stdout.Bytes(), want, false)
+				return
 			}
 			if !bytes.Equal(stdout.Bytes(), want) {
 				t.Fatalf("output mismatch\n got: %q\nwant: %q", stdout.Bytes(), want)

@@ -1475,3 +1475,313 @@ func TestRouteViewJSON(t *testing.T) {
 		})
 	}
 }
+
+// filterMainStats and filterAllStats are `ip -s route show` and
+// `ip -s route show table all`.
+var filterMainStats = RouteShowFilter{Table: unix.RT_TABLE_MAIN, Stats: true}
+var filterAllStats = RouteShowFilter{Table: 0, Stats: true}
+
+// ci builds the RtaCacheinfo a decoded RTA_CACHEINFO would have produced,
+// in the kernel's member order.
+func ci(clntref, lastuse uint32, expires int32, errv, used, id, ts, tsage uint32) *xtcpnl.RtaCacheinfo {
+	return &xtcpnl.RtaCacheinfo{
+		Clntref: clntref, Lastuse: lastuse, Expires: expires, Error: errv,
+		Used: used, ID: id, Ts: ts, Tsage: tsage,
+	}
+}
+
+// TestRouteViewOfCacheinfoText drives print_rta_cacheinfo's seven tokens
+// (ip/iproute.c:500-532) and the family guard that decides whether it runs at
+// all (:970-979).
+//
+// # Why most of these inputs are constructed
+//
+// Three of the eight members are written by the kernel only behind `if (dst)`
+// (net/core/rtnetlink.c:1036-1041) and a route DUMP passes dst == NULL, so no
+// capture of any `route show` can carry a non-zero rta_clntref, rta_lastuse
+// or rta_used. rta_error, rta_id, rta_ts and rta_tsage are never non-zero on
+// a dump either — the first is `dst ? dst->error : 0`, the second is the
+// literal 0 at both call sites, and the last two are never assigned at all.
+// Every committed fixture confirms it: 48 attributes, all 32 zero bytes.
+//
+// rta_expires is the exception and the one row below with a measured
+// provenance. rt6_fill_node reads `dst ? dst->expires : rt->expires`
+// (net/ipv6/route.c:5931), so an IPv6 route with a finite lifetime carries it
+// on the dump path. Reproduced outside the test with
+// `ip -6 route add fd99:beef::/64 dev dummy0 expires 600` in a throwaway
+// namespace, where `ip` printed `expires 599sec` and goip, before this change,
+// printed nothing.
+//
+// # The point of the -s rows
+//
+// `-s` gates exactly the three members a dump cannot populate, so `-s route
+// show` is a no-op on every command goip implements. The rows below prove the
+// gate works in BOTH directions anyway — withheld without the flag, emitted
+// with it — because the suppression that matters in production comes from the
+// data being zero, and a renderer that hardcoded the tokens away would pass
+// every capture-derived test while being wrong the day `route get` lands.
+//
+// go test ./internal/goip/render/ -run TestRouteViewOfCacheinfoText
+func TestRouteViewOfCacheinfoText(t *testing.T) {
+	// base is a plain IPv6 connected route; every row below differs from it
+	// only in its cacheinfo, so the diff in `want` is the cacheinfo block.
+	base := func(c *xtcpnl.RtaCacheinfo) xtcpnl.RouteInfo {
+		return xtcpnl.RouteInfo{
+			Family: unix.AF_INET6, DstLen: 64, Table: unix.RT_TABLE_MAIN,
+			Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+			Dst: v6(t, "fd99::"), Oif: 3, CacheInfo: c,
+		}
+	}
+
+	tests := []struct {
+		description string
+		in          xtcpnl.RouteInfo
+		filter      RouteShowFilter
+		want        string
+	}{
+		{
+			description: "negative: no RTA_CACHEINFO at all renders no tokens, with -s — absent must not become `users 0 used 0 age 0sec`",
+			in:          base(nil),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 \n",
+		},
+		{
+			description: "negative: an all-zero RTA_CACHEINFO renders no tokens either — this is what every one of the 48 committed attributes actually is",
+			in:          base(ci(0, 0, 0, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 \n",
+		},
+		{
+			description: "positive: rta_expires renders `expires Nsec` WITHOUT -s — the token is outside the show_stats guard, which is the divergence this change fixes",
+			in:          base(ci(0, 0, 59900, 0, 0, 0, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 expires 599sec \n",
+		},
+		{
+			description: "corner: the same route under -s is byte-identical — -s adds nothing to a dump, which is why `-s route show` is a no-op",
+			in:          base(ci(0, 0, 59900, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 expires 599sec \n",
+		},
+		{
+			description: "positive: rta_error renders `error N`, also ungated, and follows expires",
+			in:          base(ci(0, 0, 100, 7, 0, 0, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 expires 1sec error 7 \n",
+		},
+		{
+			description: "positive: under -s the three gated tokens render as `users N used N age Nsec`, in that order (constructed; only `route get` reaches this)",
+			in:          base(ci(2, 30000, 0, 0, 5, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 users 2 used 5 age 300sec \n",
+		},
+		{
+			description: "negative: the same three members WITHOUT -s render nothing — the gate is show_stats, not attribute presence",
+			in:          base(ci(2, 30000, 0, 0, 5, 0, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 \n",
+		},
+		{
+			description: "negative: rta_clntref == 0 with a non-zero rta_used suppresses `users` alone — the three gated tokens suppress independently, not as a block",
+			in:          base(ci(0, 30000, 0, 0, 5, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 used 5 age 300sec \n",
+		},
+		{
+			description: "negative: rta_used == 0 between two non-zero siblings drops only `used`",
+			in:          base(ci(2, 30000, 0, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 users 2 age 300sec \n",
+		},
+		{
+			description: "boundary: rta_lastuse 149 renders `age 1sec` — USER_HZ division truncates, it does not round to 2",
+			in:          base(ci(0, 149, 0, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 age 1sec \n",
+		},
+		{
+			description: "boundary: rta_lastuse 99 renders `age 0sec` — suppression keys on the RAW member being zero, so a sub-second age still prints",
+			in:          base(ci(0, 99, 0, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 age 0sec \n",
+		},
+		{
+			description: "boundary: rta_expires 99 renders `expires 0sec` for the same reason, ungated",
+			in:          base(ci(0, 0, 99, 0, 0, 0, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 expires 0sec \n",
+		},
+		{
+			description: "corner: a negative rta_expires renders signed, as `expires -1sec` — %d, not %u, and the reason the member is int32",
+			in:          base(ci(0, 0, -100, 0, 0, 0, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 expires -1sec \n",
+		},
+		{
+			description: "positive: rta_id renders `ipid 0x%04x`, zero-padded to four digits",
+			in:          base(ci(0, 0, 0, 0, 0, 0x2a, 0, 0)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 ipid 0x002a \n",
+		},
+		{
+			description: "corner: `ts` carries NO trailing space in its format string, so ts and tsage run together as `ts 0x1tsage 2sec` — upstream's output, reproduced rather than tidied",
+			in:          base(ci(0, 0, 0, 0, 0, 0, 1, 2)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 ts 0x1tsage 2sec \n",
+		},
+		{
+			description: "corner: rta_ts == 0 with a non-zero rta_tsage still prints BOTH — they share one guard, unlike every other token here",
+			in:          base(ci(0, 0, 0, 0, 0, 0, 0, 2)),
+			filter:      filterMain,
+			want:        "fd99::/64 dev goip0 ts 0x0tsage 2sec \n",
+		},
+		{
+			description: "corner: all seven tokens at once, in print_rta_cacheinfo's emission order under -s",
+			in:          base(ci(2, 30000, 100, 7, 5, 0x2a, 1, 2)),
+			filter:      filterMainStats,
+			want:        "fd99::/64 dev goip0 expires 1sec error 7 users 2 used 5 age 300sec ipid 0x002a ts 0x1tsage 2sec \n",
+		},
+		{
+			description: "positive: the same cacheinfo on an IPv4 route renders identically — print_route calls print_rta_cacheinfo from both family arms",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4(198, 18, 0, 0), Oif: 3,
+				CacheInfo: ci(0, 0, 100, 0, 0, 0, 0, 0),
+			},
+			filter: filterMain,
+			want:   "198.18.0.0/24 dev goip0 expires 1sec \n",
+		},
+		{
+			description: "negative: RTNL_FAMILY_IPMR (128) drops the whole block — print_route's guard tests the RAW rtm_family, which getRealFamily would have folded onto AF_INET",
+			in: xtcpnl.RouteInfo{
+				Family: 128, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4(224, 0, 0, 1), Oif: 3,
+				CacheInfo: ci(0, 0, 100, 7, 0, 0x2a, 0, 0),
+			},
+			filter: filterAllStats,
+			// The `/32` is not incidental. host_len comes from the RAW
+			// rtm_family too — afBitLen(128) is 0 — so the prefix prints
+			// where an AF_INET route of the same length shows a bare
+			// address. That is the same raw-vs-real distinction the
+			// cacheinfo guard turns on, visible twice on one line.
+			// `table main` is absent because that guard is
+			// `!= RT_TABLE_MAIN || Details`, not `filter.tb == 0` alone.
+			want: "multicast 224.0.0.1/32 dev goip0 \n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			got := RouteViewOf(tt.in, routeTabNames, tt.filter).Text()
+			if got != tt.want {
+				t.Errorf("got  %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRouteViewCacheinfoJSON is the JSON half of
+// TestRouteViewOfCacheinfoText: the same gating, plus the two places where
+// the JSON form is not simply the text form's number.
+//
+// The key ORDER is a contract here, not a detail. encoding/json follows
+// struct declaration order, so these rows fail if RouteView's cacheinfo
+// fields are moved out of print_rta_cacheinfo's emission position between
+// `flags` and `metrics`. The first row's expectation was taken from real
+// `ip -6 -j route show` output on an expiring route.
+//
+// go test ./internal/goip/render/ -run TestRouteViewCacheinfoJSON
+func TestRouteViewCacheinfoJSON(t *testing.T) {
+	base := func(c *xtcpnl.RtaCacheinfo) xtcpnl.RouteInfo {
+		return xtcpnl.RouteInfo{
+			Family: unix.AF_INET6, DstLen: 64, Table: unix.RT_TABLE_MAIN,
+			Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+			Dst: v6(t, "fd99::"), Oif: 3, Priority: 1024, HasPriority: true,
+			CacheInfo: c,
+		}
+	}
+
+	tests := []struct {
+		description string
+		in          xtcpnl.RouteInfo
+		filter      RouteShowFilter
+		wantExact   string
+		absentKeys  []string
+	}{
+		{
+			// Taken from `ip -6 -j route show` on a route added with
+			// `expires 600`, which emitted
+			// {"dst":"fd99:beef::/64","dev":"dummy0","metric":1024,
+			//  "flags":[],"expires":599,"pref":"medium"}
+			// — expires between flags and pref, and a NUMBER not a string.
+			description: "positive: expires sits between `flags` and `metrics` in key order and marshals as a number, matching real `ip -6 -j route show`",
+			in:          base(ci(0, 0, 59900, 0, 0, 0, 0, 0)),
+			filter:      filterMain,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],"expires":599}`,
+		},
+		{
+			description: "negative: an all-zero cacheinfo emits none of the seven keys — what every committed fixture carries",
+			in:          base(ci(0, 0, 0, 0, 0, 0, 0, 0)),
+			filter:      filterMainStats,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[]}`,
+			absentKeys:  []string{"expires", "error", "users", "used", "age", "ipid", "ts", "tsage"},
+		},
+		{
+			description: "positive: under -s the three gated keys appear as users/used/age, after error and before ipid",
+			in:          base(ci(2, 30000, 0, 0, 5, 0, 0, 0)),
+			filter:      filterMainStats,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],"users":2,"used":5,"age":300}`,
+		},
+		{
+			description: "negative: without -s the same three keys are absent from JSON as well as from text",
+			in:          base(ci(2, 30000, 0, 0, 5, 0, 0, 0)),
+			filter:      filterMain,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[]}`,
+			absentKeys:  []string{"users", "used", "age"},
+		},
+		{
+			description: "corner: ipid marshals as a hex STRING, not a number — print_0xhex emits a string in JSON context",
+			in:          base(ci(0, 0, 0, 0, 0, 0x2a, 0, 0)),
+			filter:      filterMain,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],"ipid":"0x002a"}`,
+		},
+		{
+			description: "corner: ts is a hex string while its guard-partner tsage is a number — one guard, two different JSON types",
+			in:          base(ci(0, 0, 0, 0, 0, 0, 1, 2)),
+			filter:      filterMain,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],"ts":"0x1","tsage":2}`,
+		},
+		{
+			description: "corner: a negative expires marshals as a negative number rather than as 4294967295",
+			in:          base(ci(0, 0, -100, 0, 0, 0, 0, 0)),
+			filter:      filterMain,
+			wantExact:   `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],"expires":-1}`,
+		},
+		{
+			description: "boundary: all seven keys at once pin the full emission order under -s",
+			in:          base(ci(2, 30000, 100, 7, 5, 0x2a, 1, 2)),
+			filter:      filterMainStats,
+			wantExact: `{"dst":"fd99::/64","dev":"goip0","metric":1024,"flags":[],` +
+				`"expires":1,"error":7,"users":2,"used":5,"age":300,"ipid":"0x002a","ts":"0x1","tsage":2}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			b, err := json.Marshal(RouteViewOf(tt.in, routeTabNames, tt.filter))
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if got := string(b); got != tt.wantExact {
+				t.Errorf("got  %s\nwant %s", got, tt.wantExact)
+			}
+			for _, k := range tt.absentKeys {
+				if strings.Contains(string(b), `"`+k+`":`) {
+					t.Errorf("key %q present, want absent: %s", k, b)
+				}
+			}
+		})
+	}
+}

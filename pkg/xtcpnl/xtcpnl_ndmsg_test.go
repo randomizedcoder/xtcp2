@@ -309,10 +309,12 @@ func TestParseNeigh(t *testing.T) {
 			},
 		},
 		{
+			// NDA_PROBES used to be in this row as a second unknown type. It
+			// is decoded now, so keeping it here would have asserted the
+			// opposite of the rows further down. NDA_VLAN is still unread.
 			description: "corner: unknown NDA attribute types are skipped, known ones still extracted",
 			body: concat(
 				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
-				rtattr(unix.NDA_PROBES, le32(3)),
 				rtattr(unix.NDA_VLAN, []byte{0x64, 0x00}),
 				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
 			),
@@ -475,6 +477,92 @@ func TestParseNeigh(t *testing.T) {
 			want: NeighInfo{
 				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
 				Dst: v4b(10, 0, 0, 6),
+			},
+		},
+		{
+			// NDA_PROBES and NDA_CACHEINFO arrive together on every real
+			// entry: neigh_fill_info puts both in one `||` chain
+			// (kernel net/core, :2690-2692). Note the WIRE order is
+			// probes-then-cacheinfo, the reverse of print_neigh's print
+			// order, which is why this row lists them that way.
+			description: "positive: NDA_PROBES decodes alongside NDA_CACHEINFO, in the kernel's wire order",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, unix.RTN_UNICAST),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 7)),
+				rtattr(unix.NDA_PROBES, le32(3)),
+				rtattr(unix.NDA_CACHEINFO, ndaCacheInfoBytes(10, 20, 30, 1)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Type:         unix.RTN_UNICAST,
+				Dst:          v4b(10, 0, 0, 7),
+				HasCacheInfo: true,
+				CacheInfo: NdaCacheInfo{
+					Confirmed: 10, Used: 20, Updated: 30, Refcnt: 1,
+				},
+				Probes: 3, HasProbes: true,
+			},
+		},
+		{
+			description: "negative: no NDA_PROBES leaves Probes zero and HasProbes false — absent must stay distinguishable from `probes 0`, which `ip` does print",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 8)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst: v4b(10, 0, 0, 8),
+			},
+		},
+		{
+			description: "boundary: NDA_PROBES present and zero sets HasProbes — the state that makes `probes 0` render",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 9)),
+				rtattr(unix.NDA_PROBES, le32(0)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst:    v4b(10, 0, 0, 9),
+				Probes: 0, HasProbes: true,
+			},
+		},
+		{
+			description: "boundary: a 3-byte NDA_PROBES is refused by the length guard and leaves HasProbes false — stricter than iproute2's unchecked rta_getattr_u32",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 10)),
+				rtattr(unix.NDA_PROBES, []byte{0x01, 0x00, 0x00}),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst: v4b(10, 0, 0, 10),
+			},
+		},
+		{
+			description: "corner: NDA_PROBES = 0xFFFFFFFF decodes unsigned, not as -1",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_INCOMPLETE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 11)),
+				rtattr(unix.NDA_PROBES, le32(0xFFFFFFFF)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_INCOMPLETE,
+				Dst:    v4b(10, 0, 0, 11),
+				Probes: 4294967295, HasProbes: true,
+			},
+		},
+		{
+			description: "corner: NDA_PROBES with no NDA_CACHEINFO decodes the one and not the other (constructed; the kernel sends both or neither)",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 12)),
+				rtattr(unix.NDA_PROBES, le32(7)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
+				Dst:    v4b(10, 0, 0, 12),
+				Probes: 7, HasProbes: true,
 			},
 		},
 		{

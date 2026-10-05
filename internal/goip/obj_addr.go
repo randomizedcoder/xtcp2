@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
-	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -106,7 +105,7 @@ func addrShow(c *runCtx, args []string) error {
 		return fmt.Errorf("address show %q: %w", args[0], ErrNotImplemented)
 	}
 
-	linkResources, addrResources, err := service.New(c.src, c.nextSeq).AddressSnapshot(c.family)
+	linkResources, addrResources, err := service.New(c.src, c.nextSeq).AddressSnapshot(c.family, c.linkExtMask())
 	if err != nil {
 		return err
 	}
@@ -162,17 +161,31 @@ func addrShow(c *runCtx, args []string) error {
 // The gated clean topology has neither a master nor a peer, so it sends
 // exactly three; the mesh namespace is where the fourth would appear.
 //
-// # What `-s` would add, and why it is not here
+// # What `-s` adds here, and why it was one item rather than two
 //
 // `-s` reaches this command in `ip` twice over: ipaddr_link_get clears
 // RTEXT_FILTER_SKIP_STATS from its mask (:2066-2067), and the print loop calls
-// print_link_stats at :2333 under `!do_link && show_stats`. goip implements
-// neither, and the two are one item rather than two — the mask alone would
-// make the request right and the output wrong. Note also that :2333 comes
-// AFTER print_selected_addrinfo at :2332, so `ip -s addr show` puts the stats
-// block below the address lines, where `ip -s link show` puts it directly
-// under the link stanza. LinkView.WithStats renders the second layout, so the
-// renderer cannot simply be reused.
+// print_link_stats at :2333 under `!do_link && show_stats`. goip once
+// implemented neither, and they had to land together — the mask alone would
+// have made the request right and the output wrong, and the render alone the
+// reverse.
+//
+// Both are here now. The mask arrives as c.linkExtMask() on the AddrLinkGet
+// call below, and unlike the dump in addrShow it is stats-sensitive for EVERY
+// family, because ipaddr_link_get addattr32s unconditionally where
+// rtnl_linkdump_req_filter_fn skips the attribute entirely for a non-AF_UNSPEC
+// family. Under `-s -4 addr show dev NAME` the two requests of this one
+// command therefore DISAGREE, and that is correct; req.AddrShowLinkDump has
+// the derivation.
+//
+// The render is AddrGroupView.Stats, and its position is the subtle half.
+// :2333 comes AFTER print_selected_addrinfo at :2332, so `ip -s addr show`
+// puts the stats block BELOW the address lines where `ip -s link show` puts it
+// directly under the link stanza. LinkView.WithStats renders the second
+// layout, so it is deliberately NOT used here: the block text comes from
+// render.LinkStatsText and AddrGroupView emits it after its address lines.
+// The newline moves with it — print_link_stats is block-then-newline
+// (:840-848) where print_linkinfo is newline-then-block (:1297-1300).
 func addrShowDev(c *runCtx, name string) error {
 	svc := service.New(c.src, c.nextSeq)
 
@@ -186,7 +199,7 @@ func addrShowDev(c *runCtx, name string) error {
 	c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
 
 	// Request two: ipaddr_link_get, by index, carrying preferred_family.
-	shown, err := svc.AddrLinkGet(c.family, resolved.Index, req.ExtMaskShow)
+	shown, err := svc.AddrLinkGet(c.family, resolved.Index, c.linkExtMask())
 	if err != nil {
 		return err
 	}
@@ -263,6 +276,15 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 				continue
 			}
 			g.AddrInfo = append(g.AddrInfo, render.AddrViewOf(addrs[j]))
+		}
+		// After the addresses, never through LinkView.WithStats: `ip` calls
+		// print_link_stats at ip/ipaddress.c:2333, one line BELOW
+		// print_selected_addrinfo at :2332, so the block sits under the
+		// address lines rather than under the link stanza. The caller's half
+		// of the condition is `!do_link && show_stats`, and do_link is false
+		// on every addr path however many -s were given.
+		if c.showStats > 0 {
+			g = g.WithStats(links[i])
 		}
 		groups = append(groups, g)
 	}

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -1054,6 +1055,19 @@ func TestLinkShowJSONMatchesCapturedSidecars(t *testing.T) {
 			sidecar:      "mesh/ip_link_stats_json",
 			zeroCounters: true,
 		},
+		{
+			// The tunnel namespace, and the widest row in this table:
+			// fourteen devices, so it is the only place the stats64 object
+			// has to coexist with `"link": null` and an IP-valued `address`
+			// on the same entry. zeroCounters blanks the counters and leaves
+			// those two asserted, which is a combination neither the
+			// non-`-s` tunnel row nor the clean `-s` row can make.
+			description:  "corner: the tunnel topology reproduces tunnel/ip_link_stats_json, stats64 beside null link and IP-valued addresses",
+			pcap:         guestDumpsDir + "tunnel/netlink_route_getlink_stats.pcap",
+			args:         []string{"-json", "-s", "link", "show"},
+			sidecar:      "tunnel/ip_link_stats_json",
+			zeroCounters: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1138,6 +1152,95 @@ func TestLinkShowTextMatchesCapturedSidecars(t *testing.T) {
 				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
 			}
 			assertLinesEqual(t, stdout.String(), string(raw))
+		})
+	}
+}
+
+// TestLinkShowDevMatchesCapturedSidecars diffs `goip link show dev NAME`
+// against the `ip link show dev NAME` sidecar from the same capture.
+//
+// # What this adds over the dump rows above
+//
+// All three ip_link_dev sidecars were committed unread, and the reason the gap
+// mattered is that a `dev` form is not a slice of the dump. It is a
+// single-get, answered by rtnl_getlink rather than by rtnl_dump_ifinfo, and
+// the renderer reaches the same stanza through linkFromGet instead of through
+// a dump walk. TestLinkShowDevTransactionShape already pins the TRANSACTION —
+// how many requests, in what order — and asserted nothing about the output.
+// This is the other half.
+//
+// # And what each namespace adds over the clean one
+//
+//   - mesh/ip_link_dev is veth0, where every interesting token on the line
+//     comes from a SIDE transaction: `master br0` from IFLA_MASTER and
+//     `@veth1` from IFLA_LINK, each a separate get on its own socket. The
+//     flags are the payoff — `<NO-CARRIER,…,M-DOWN>` and `state
+//     LOWERLAYERDOWN` exist only because the peer is down, and M-DOWN is
+//     IFF_LOWER_UP read off the ENSLAVED end.
+//   - tunnel/ip_link_dev is gre1, so the single-get path has to render
+//     `gre1@NONE` and `link/gre 192.0.2.3 peer 198.51.100.3` — IFLA_LINK
+//     present-and-zero, and ll_addr_n2a's 4-byte special case.
+//
+// go test ./internal/goip/ -run TestLinkShowDevMatchesCapturedSidecars
+func TestLinkShowDevMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		dev         string
+		// wantTokens are the tokens that make the row worth having, asserted
+		// in addition to the line-for-line diff so a failure says WHICH fact
+		// was lost rather than "line 1 differs".
+		wantTokens []string
+	}{
+		{
+			description: "control: the clean topology reproduces ip_link_dev, a single-get rendering one dummy",
+			pcap:        guestDumpsDir + "netlink_route_getlink_dev.pcap",
+			sidecar:     "ip_link_dev",
+			dev:         devNameCst,
+			wantTokens:  []string{"mode DEFAULT", "link/ether"},
+		},
+		{
+			description: "positive: mesh/ip_link_dev resolves master and link from side transactions",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getlink_dev.pcap",
+			sidecar:     "mesh/ip_link_dev",
+			dev:         "veth0",
+			wantTokens:  []string{"veth0@veth1", "master br0", "M-DOWN", "state LOWERLAYERDOWN"},
+		},
+		{
+			description: "positive: tunnel/ip_link_dev renders @NONE and a dotted-quad link/gre off a single-get",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink_dev.pcap",
+			sidecar:     "tunnel/ip_link_dev",
+			dev:         "gre1",
+			wantTokens:  []string{"gre1@NONE", "link/gre 192.0.2.3 peer 198.51.100.3"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := string(raw)
+			for _, token := range tc.wantTokens {
+				if !strings.Contains(want, token) {
+					t.Fatalf("%s does not contain %q, so the row asserting it is "+
+						"citing a fact this fixture does not carry", tc.sidecar, token)
+				}
+			}
+
+			out, err := runLinkWith(t, newLinkReplay(t, tc.pcap), unix.AF_UNSPEC,
+				[]string{"show", "dev", tc.dev})
+			if err != nil {
+				t.Fatalf("runLink: %v", err)
+			}
+			for _, token := range tc.wantTokens {
+				if !strings.Contains(out, token) {
+					t.Errorf("output is missing %q\n%s", token, out)
+				}
+			}
+			assertLinesEqual(t, out, want)
 		})
 	}
 }
@@ -1685,11 +1788,75 @@ func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 	}
 
 	// A `link show dev` run sends by-name gets for the selector and by-index
-	// gets for whatever the reply points at, so this answers both. Which one
-	// a request is, is decided the way the kernel decides it: IFLA_IFNAME
-	// wins if it is there, otherwise ifi_index is the selector.
+	// gets for whatever the reply points at, so this answers both.
+	//
+	// # Why the transcript is walked request-first, and not reply-first
+	//
+	// This used to scan the REPLIES and return the first one whose name or
+	// index matched the request's selector. That is wrong whenever one
+	// capture holds two gets for the SAME link, which is every `addr show
+	// dev` capture and which only became visible when `-s` arrived:
+	//
+	//	0 REQ   RTM_GETLINK  EXT_MASK=9  IFNAME=veth0
+	//	1 reply RTM_NEWLINK  ifindex=5   (no IFLA_STATS64)
+	//	2 REQ   RTM_GETLINK  EXT_MASK=1  ifi_index=5
+	//	3 reply RTM_NEWLINK  ifindex=5   IFLA_STATS64
+	//
+	// Both replies are veth0. ll_link_get asks first, on a throwaway socket
+	// (lib/ll_map.c:264) with its mask hardcoded to RTEXT_FILTER_VF |
+	// RTEXT_FILTER_SKIP_STATS, purely to learn the index; ipaddr_link_get
+	// then asks again carrying show_stats' mask, and THAT reply is the one
+	// print_linkinfo renders. A reply-first scan hands record 1 to both, so
+	// `-s addr show dev NAME` replayed a stats-free reply and rendered no
+	// block — a failure that reads exactly like a renderer bug and is not
+	// one. The live command is byte-identical to `ip`'s.
+	//
+	// So the pairing is taken from the transcript itself, which is an ordered
+	// request/reply log: find the recorded REQUEST this one matches and
+	// return the reply that follows it. getShape is the comparison, because
+	// it is already the set of fields that separates two gets for one link —
+	// ifi_family, the selector, and which attribute comes first — and its own
+	// doc comment says so.
+	//
+	// # Why the reply-first scan is still here, below it
+	//
+	// Because most callers hand this a capture that cannot possibly hold a
+	// matching request. TestLinkShowDevTransactionShape answers by-name
+	// single-gets out of linkDumpPcap, which recorded an RTM_GETLINK *dump*
+	// and nothing else; TestAddrShowDevTransactionShape sends `-4` and `-6`
+	// by-index gets whose ifi_family is AF_INET/AF_INET6 where the capture's
+	// own was AF_UNSPEC. Both are the point of a replay source — a formatter
+	// test needs no socket and no capture of its exact argv — so a miss falls
+	// back to the selector scan rather than failing.
+	//
+	// What the fallback can mask is narrow and covered elsewhere: it can pick
+	// a different reply for the same link, which is only observable when a
+	// capture holds two, and in that case the pairing above has already won.
+	// It cannot mask a request-byte divergence, because it never looked at
+	// the request bytes — that is Tier A's subject, asserted byte for byte
+	// against captured iproute2 traffic in pkg/nlparity.
 	sel := selectorOf(request)
-	for _, m := range s.inner.cap.Msgs() {
+	msgs := s.inner.cap.Msgs()
+	for i, m := range msgs {
+		if !m.IsRequest() || m.Hdr.Type != requestTypeOf(request) {
+			continue
+		}
+		if selectorOf(requestBytesOf(m)) != sel {
+			continue
+		}
+		for _, r := range msgs[i+1:] {
+			if r.IsRequest() {
+				break
+			}
+			if r.Hdr.Type == msgType {
+				return xtcpnl.CopyBytes(r.Body), nil
+			}
+		}
+	}
+
+	// Which reply a request is, is decided the way the kernel decides it:
+	// IFLA_IFNAME wins if it is there, otherwise ifi_index is the selector.
+	for _, m := range msgs {
 		if m.IsRequest() || m.Hdr.Type != msgType {
 			continue
 		}
@@ -1702,6 +1869,28 @@ func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("%w: RTM_GETLINK %s", ErrNoReplay, sel)
+}
+
+// requestTypeOf is nlmsg_type read off a request goip just built.
+func requestTypeOf(request []byte) uint16 {
+	return binary.LittleEndian.Uint16(request[4:6])
+}
+
+// requestBytesOf rebuilds a captured message as the datagram it was, so that
+// selectorOf — which parses a request in the form goip hands one to Talk — can
+// be used on both sides of the comparison.
+//
+// Only the two header fields selectorOf reads are filled in: nlmsg_type and
+// nlmsg_flags. nlmsg_len, seq and pid are left zero on purpose, since the
+// first is derivable and the other two are exactly what Canonical() drops.
+// The family header and attributes follow at NlMsgHdrSizeCst, which is where
+// nlparity.Msg.Body already begins.
+func requestBytesOf(m nlparity.Msg) []byte {
+	out := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(m.Body))
+	binary.LittleEndian.PutUint16(out[4:6], m.Hdr.Type)
+	binary.LittleEndian.PutUint16(out[6:8], m.Hdr.Flags)
+	copy(out[xtcpnl.NlMsgHdrSizeCst:], m.Body)
+	return out
 }
 
 // zeroSeqPidCopy returns the request with nlmsg_seq and nlmsg_pid cleared, so

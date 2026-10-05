@@ -334,6 +334,38 @@ func TestAllowlistCommitted(t *testing.T) {
 		{"-6 addr show", "stdout:keyword:qlen", "faceb326"},
 	}
 
+	// Every command a measured-clean Tier C run has earned, in the order the
+	// runs happened. Hoisted to function scope because two rows below read it
+	// and they assert opposite directions: one that each of these IS gated,
+	// one that NOTHING ELSE is. Keeping a single list is what makes the pair
+	// a containment check rather than two lists that can drift apart.
+	earned := []string{
+		"link show",
+		"-4 link show",
+		"-6 link show",
+		"link show dev",
+		"addr show",
+		"-4 addr show",
+		"-6 addr show",
+		"addr show dev",
+		"route show",
+		"route show table all",
+		"-6 route show",
+		"route show dev",
+		"neigh show",
+		"neigh show dev",
+		"neigh show proxy",
+		"-d link show",
+		"-d addr show",
+		"-d route show",
+		"-d neigh show",
+		"rule show",
+		"-4 rule show",
+		"-6 rule show",
+		"-d rule show",
+		"-s link show",
+	}
+
 	tests := []struct {
 		description string
 		check       func(t *testing.T, a *Allowlist)
@@ -405,11 +437,22 @@ func TestAllowlistCommitted(t *testing.T) {
 			// The count is of entries, and it used to be described as a count
 			// of loci — true when the two were spelled apart by prose, and
 			// false once both were repointed to `stdout:keyword:qlen`, the
-			// locus the stdout comparator actually derives. They are two
-			// entries because faceb326 has two halves that land on two
-			// different COMMANDS, which is what Entry.key() distinguishes;
-			// the assertion was always on the entry count and now says so.
-			description: "boundary: faceb326 has exactly two entries, which is the measured fact one would hide",
+			// locus the stdout comparator actually derives. They are separate
+			// entries because faceb326's halves land on different COMMANDS,
+			// which is what Entry.key() distinguishes; the assertion was
+			// always on the entry count and now says so.
+			//
+			// Three, not two, as of the `-s` sweep — and the row earned its
+			// keep by failing when it went to three. `-s -6 addr show` joined
+			// the command table and GOIP_PARITY_WARN addr_show_v6_stats
+			// reported the ioctl absence for it, so the ioctl half now
+			// covers two commands and the zero-suppression half still covers
+			// one. The number is maintained by hand on purpose: it is the
+			// only thing that makes a fourth entry appearing quietly
+			// impossible, and "this skew reaches one more command than it
+			// used to" is a fact worth a failing test rather than a silent
+			// increment.
+			description: "boundary: faceb326 has exactly three entries, which is the measured fact one would hide",
 			check: func(t *testing.T, a *Allowlist) {
 				n := 0
 				for i := range a.Entries {
@@ -417,8 +460,8 @@ func TestAllowlistCommitted(t *testing.T) {
 						n++
 					}
 				}
-				if n != 2 {
-					t.Fatalf("entries citing faceb326 = %d, want 2", n)
+				if n != 3 {
+					t.Fatalf("entries citing faceb326 = %d, want 3", n)
 				}
 			},
 		},
@@ -459,8 +502,8 @@ func TestAllowlistCommitted(t *testing.T) {
 			// every name here does share is zero FINDINGS.
 			//
 			// The list is spelled out rather than counted. A count would pass
-			// for any twenty-three names, and the point of the row is which
-			// twenty-three.
+			// for any twenty-four names, and the point of the row is which
+			// twenty-four.
 			//
 			// The four `rule show` names are the newest, and they are the
 			// quietest entries in the list: all four measured `control: nl=0
@@ -471,46 +514,26 @@ func TestAllowlistCommitted(t *testing.T) {
 			// and needs none, FRA_IIFNAME and FRA_OIFNAME being strings on the
 			// wire.
 			//
-			// It was every command in the table when it was written, which
-			// made the row read as if it could be `len(GatedCommands) ==
-			// len(Commands())`. It could not, for two reasons, and the
-			// second has already come true: internal/goipparity owns the
+			// `-s link show` is the newest name and the last one in the
+			// table to gate. It was held out through every revision of this
+			// row above, as the permanently-noisy command whose steady state
+			// had to stay observable, and it is in now on three back-to-back
+			// runs of one unmodified tree. Those runs did NOT agree, and that
+			// is why they count: its control went nl=2, nl=2, nl=6 while
+			// Findings stayed empty all three times, which is the only shape
+			// of evidence that separates `D_control absorbed the delta` from
+			// `there was no delta to absorb`. Three identical quiet runs
+			// would have been the weaker result. The argument and the six
+			// loci are in goip-parity-allowlist.json's _comment.
+			//
+			// With it in, the list IS every command in the table, which makes
+			// the row read as if it could be `len(GatedCommands) ==
+			// len(Commands())`. It still cannot: internal/goipparity owns the
 			// table and imports this package, so reading it back here is an
-			// import cycle; and a newly added command is ungated until its
-			// own Tier C run says otherwise. `-s link show` is that command,
-			// and since the four `-d` rows were gated it is the only one.
-			// It is in the table, deliberately absent from the list below,
-			// and is expected to be permanently CONTROL_NOISY - see its
-			// entry in internal/goipparity/commands.go. Spelling the names
-			// is what makes adding it here a deliberate edit rather than a
-			// silently satisfied count.
+			// import cycle. Spelling the names is also what makes adding one
+			// a deliberate edit rather than a silently satisfied count.
 			description: "positive: every command a measured-clean Tier C run earned is gated",
 			check: func(t *testing.T, a *Allowlist) {
-				earned := []string{
-					"link show",
-					"-4 link show",
-					"-6 link show",
-					"link show dev",
-					"addr show",
-					"-4 addr show",
-					"-6 addr show",
-					"addr show dev",
-					"route show",
-					"route show table all",
-					"-6 route show",
-					"route show dev",
-					"neigh show",
-					"neigh show dev",
-					"neigh show proxy",
-					"-d link show",
-					"-d addr show",
-					"-d route show",
-					"-d neigh show",
-					"rule show",
-					"-4 rule show",
-					"-6 rule show",
-					"-d rule show",
-				}
 				for _, c := range earned {
 					if !a.IsGated(c) {
 						t.Fatalf("GatedCommands = %v, want it to include %q",
@@ -533,19 +556,77 @@ func TestAllowlistCommitted(t *testing.T) {
 			// were the whole table, and goip-parity-allowlist.json's
 			// _comment records it.
 			//
-			// `-s link show` is the one command held out, and not
-			// arbitrarily: its replies carry live packet and byte counters
-			// by construction, so it is expected to be permanently
-			// CONTROL_NOISY and its steady state has to stay observable. If
-			// a later change gates it, this row should name whatever command
-			// is then being held out rather than be deleted - the property
-			// worth keeping is that the ungated surface is chosen, not that
-			// it is this particular command.
-			description: "negative: the permanently-noisy command is held out, so UNGATED_CLEAN still measures something",
+			// `-s link show` used to be the one command held out, and this
+			// row asserted its absence. It is gated now, so for one interval
+			// the ungated surface was EMPTY and UNGATED_CLEAN vacuously true
+			// - the second such interval, the first being when nine commands
+			// were the whole table. The `-s` sweep's other five commands
+			// ended it; the row below names them.
+			//
+			// What this row asserts is the direction that has teeth either
+			// way: nothing is gated that `earned` does not record evidence
+			// for. That is the failure mode once the list covers most of the
+			// table - not a command sneaking out of the gate, but a command
+			// sneaking INTO it by a one-line JSON edit with no measured run
+			// behind it. The row above checks earned ⊆ gated; this checks
+			// gated ⊆ earned, and the pair is set equality written so each
+			// direction fails with its own message.
+			description: "negative: nothing is gated that no measured run earned",
 			check: func(t *testing.T, a *Allowlist) {
-				if a.IsGated("-s link show") {
-					t.Fatalf("GatedCommands = %v, want `-s link show` held out "+
-						"so UNGATED_CLEAN is not vacuously true", a.GatedCommands)
+				isEarned := make(map[string]bool, len(earned))
+				for _, c := range earned {
+					isEarned[c] = true
+				}
+				for _, c := range a.GatedCommands {
+					if !isEarned[c] {
+						t.Fatalf("gated_commands contains %q, which `earned` does "+
+							"not list; gate a command only after a Tier C run "+
+							"measured it clean, and record the run alongside the "+
+							"name", c)
+					}
+				}
+			},
+		},
+		{
+			// The row that makes GOIP_PARITY_UNGATED_CLEAN load-bearing
+			// again, by asserting the ungated surface is non-empty AND
+			// chosen.
+			//
+			// The sentinel counts StatusWarn on commands outside
+			// gated_commands (internal/goipparity/compare.go:265-266,
+			// reported at :334-338), so it is evidence of something only
+			// while some command is outside. It has been vacuous twice - once
+			// when nine commands were the whole table, once when the
+			// twenty-fourth was gated - and both intervals ended the same
+			// way, by a new command being compared ungated first. These five
+			// are that, for the second such ending: twenty-four of
+			// twenty-nine gate and five can warn.
+			//
+			// Naming them rather than asserting a bare count is deliberate.
+			// A count passes if the five held out are a DIFFERENT five, which
+			// is the mistake worth catching: each of these is held out
+			// because its behavior is predicted and not yet measured, and the
+			// predictions differ per command - two no-ops, two expected
+			// netlink-noisy, one expected stdout-noisy, with which is which
+			// recorded in goip-parity-allowlist.json's _comment. Gating one
+			// before its run retires the prediction without testing it.
+			description: "negative: the five -s sweep commands are deliberately NOT gated, so UNGATED_CLEAN is not vacuous",
+			check: func(t *testing.T, a *Allowlist) {
+				heldOut := []string{
+					"-s addr show",
+					"-s -6 addr show",
+					"-s route show",
+					"-s neigh show",
+					"-s rule show",
+				}
+				for _, c := range heldOut {
+					if a.IsGated(c) {
+						t.Fatalf("gated_commands includes %q, which no measured "+
+							"run has earned; it is held out so its predicted "+
+							"behavior gets measured rather than assumed, and "+
+							"gating it also shrinks the ungated surface that "+
+							"GOIP_PARITY_UNGATED_CLEAN reads", c)
+					}
 				}
 			},
 		},

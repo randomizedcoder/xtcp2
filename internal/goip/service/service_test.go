@@ -125,9 +125,15 @@ func newService(src Source) *Service {
 }
 
 func TestAddressSnapshot(t *testing.T) {
+	// extMask defaults to req.ExtMaskShow on a row that does not set it, so
+	// the pre-`-s` rows below read exactly as they did before the parameter
+	// existed. What the mask does to the BYTES is req_test's subject; here it
+	// is threaded only to prove it changes neither the transaction order nor
+	// the decode, which is the property this function owns.
 	tests := []struct {
 		description string
 		family      uint8
+		extMask     uint32
 		bodies      map[uint16][][]byte
 		srcErr      error
 		wantTypes   []uint16
@@ -191,12 +197,50 @@ func TestAddressSnapshot(t *testing.T) {
 			wantTypes: []uint16{uint16(unix.RTM_NEWLINK)},
 			wantErr:   true,
 		},
+		{
+			// `-s` must not move a transaction. It changes one attribute of
+			// the first request and, on a non-AF_UNSPEC family, not even
+			// that — so a stats mask that altered the dump sequence would be
+			// a bug in the threading rather than in the mask.
+			description: "positive: the stats mask changes neither the transaction order nor the decode",
+			family:      unix.AF_INET,
+			extMask:     req.ExtMaskStats,
+			bodies: map[uint16][][]byte{
+				uint16(unix.RTM_NEWLINK): {linkBody(2)},
+				uint16(unix.RTM_NEWADDR): {addrBody(2)},
+			},
+			wantTypes: []uint16{uint16(unix.RTM_NEWLINK), uint16(unix.RTM_NEWADDR)},
+			wantLinks: 1,
+			wantAddrs: 1,
+		},
+		{
+			// AF_PACKET under `-s` still sends one transaction. This is the
+			// pair of the AF_PACKET row above and exists because the mask
+			// arm and the family arm of req.AddrShowLinkDump are different
+			// code paths: AF_PACKET takes the MASK arm, so it is the one
+			// family where `-s` both reaches the wire and sends no address
+			// dump after it.
+			description: "boundary: AF_PACKET under the stats mask still sends the link dump only",
+			family:      unix.AF_PACKET,
+			extMask:     req.ExtMaskStats,
+			bodies: map[uint16][][]byte{
+				uint16(unix.RTM_NEWLINK): {linkBody(2)},
+				uint16(unix.RTM_NEWADDR): {addrBody(2)},
+			},
+			wantTypes: []uint16{uint16(unix.RTM_NEWLINK)},
+			wantLinks: 1,
+			wantAddrs: 0,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
+			mask := tc.extMask
+			if mask == 0 {
+				mask = req.ExtMaskShow
+			}
 			f := &fakeSource{bodies: tc.bodies, err: tc.srcErr}
-			links, addrs, err := newService(f).AddressSnapshot(tc.family)
+			links, addrs, err := newService(f).AddressSnapshot(tc.family, mask)
 			if !reflect.DeepEqual(f.types, tc.wantTypes) {
 				t.Errorf("transaction order = %v, want %v", f.types, tc.wantTypes)
 			}

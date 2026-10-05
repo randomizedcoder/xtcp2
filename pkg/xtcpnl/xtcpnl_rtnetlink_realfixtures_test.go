@@ -698,6 +698,15 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 				// indistinguishable from the attribute being absent, which is
 				// the v4 case immediately above.
 				Pref: 0, HasPref: true,
+				// Every IPv6 route in a dump carries RTA_CACHEINFO, and every
+				// one of them is 32 zero bytes: rt6_fill_node calls
+				// rtnl_put_cacheinfo unconditionally (net/ipv6/route.c:5944)
+				// while the v4 FIB dump never calls it at all, and the three
+				// members `-s` prints are written only behind `if (dst)`,
+				// which a dump never satisfies. So this is a non-nil pointer
+				// to a zero struct, while the v4 rows above are correctly
+				// nil. See TestParseNewRouteCacheinfo.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 		{
@@ -716,6 +725,12 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 				// ICMPV6_ROUTER_PREF_HIGH (0x1), and the sidecar prints
 				// `pref high`. Every other v6 route here is medium.
 				Pref: 1, HasPref: true,
+				// All-zero RTA_CACHEINFO, as on every v6 route; see the row
+				// above. Notable here because this route was learned from an
+				// RA: had that advertisement carried a finite lifetime,
+				// rta_expires would be non-zero and this row would be the
+				// first in the corpus to prove it.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 		{
@@ -737,6 +752,8 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 				// therefore different renderings, which is what the flag buys.
 				Priority: 0, HasPriority: true,
 				Pref: 0, HasPref: true,
+				// All-zero RTA_CACHEINFO, as on every v6 route.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 	}

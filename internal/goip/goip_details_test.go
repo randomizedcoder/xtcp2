@@ -203,6 +203,36 @@ func TestAddrShowDetailFamilyMatchesSidecars(t *testing.T) {
 			// behind it. See sidecarWithoutIoctlQlen.
 			dropIoctlQlen: true,
 		},
+		{
+			// The other two namespaces, and they are here for a reason that
+			// the clean row cannot carry: `-d -4 addr show` is REFUSED in
+			// both of them, because the AF_INET link dump brings
+			// IFLA_LINKINFO and a bridge's or a tunnel's per-kind nest with
+			// it (TestDetailRefusedForPerKindData). The v6 form renders in
+			// the same namespace, off the same devices, because
+			// inet6_dump_ifinfo sends no IFLA_LINKINFO at all.
+			//
+			// So the two families split on whether goip can render -d AT ALL,
+			// within one topology. That is the sharpest statement in the
+			// corpus of the fact the -6 row above makes mildly: the detail
+			// run is a function of the attributes, and here it decides
+			// whether there is any output to compare.
+			description:   "corner: -d -6 addr show renders the mesh topology, where -d -4 addr show is refused outright",
+			args:          []string{"-d", "-6", "addr", "show"},
+			pcap:          guestDumpsDir + "mesh/netlink_route_getaddr_v6.pcap",
+			sidecar:       guestDumpsDir + "mesh/ip_addr_v6_n",
+			dropIoctlQlen: true,
+		},
+		{
+			// And the tunnel namespace, whose five configured devices put the
+			// widest v6 listing in the corpus through this path — ten lines
+			// where the clean set has eight.
+			description:   "corner: the same for the tunnel topology, whose -d -4 form is refused on tunl0",
+			args:          []string{"-d", "-6", "addr", "show"},
+			pcap:          guestDumpsDir + "tunnel/netlink_route_getaddr_v6.pcap",
+			sidecar:       guestDumpsDir + "tunnel/ip_addr_v6_n",
+			dropIoctlQlen: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -326,6 +356,56 @@ func TestRouteShowDetailMatchesSidecars(t *testing.T) {
 			pcap:        guestDumpsDir + "netlink_route_getroute_table_all.pcap",
 			sidecar:     guestDumpsDir + "ip_route_table_all_n",
 		},
+
+		// The same three forms in the other two namespaces. The route object
+		// is the only one that reaches every namespace under -d — link and
+		// addr are refused in both of these for their per-kind nests — so
+		// these six rows are the whole of what -d can be compared against
+		// outside the clean topology.
+		{
+			// br0's routes, and the one thing the clean set has no route for:
+			// RTNH_F_LINKDOWN. veth0's peer is left down, so the bridge has
+			// no carrier and both of its routes carry the flag, which -d
+			// renders alongside the restored type and scope tokens.
+			description: "positive: -d route show reproduces mesh/ip_route_main_n, linkdown flag and all",
+			args:        []string{"-d", "route", "show"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getroute.pcap",
+			sidecar:     guestDumpsDir + "mesh/ip_route_main_n",
+		},
+		{
+			description: "positive: -d -6 route show reproduces mesh/ip_route6_n",
+			args:        []string{"-d", "-6", "route", "show"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getroute6.pcap",
+			sidecar:     guestDumpsDir + "mesh/ip_route6_n",
+		},
+		{
+			description: "positive: -d route show table all reproduces mesh/ip_route_table_all_n",
+			args:        []string{"-d", "route", "show", "table", "all"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getroute_table_all.pcap",
+			sidecar:     guestDumpsDir + "mesh/ip_route_table_all_n",
+		},
+		{
+			// Routes on a tunnel device, which is the only place in the
+			// corpus they exist. `gre1` has no RTA_GATEWAY on either route
+			// and a /25 that is not the device's own prefix, so the detail
+			// run lands on a shape the dummy and the bridge both lack.
+			description: "positive: -d route show reproduces tunnel/ip_route_main_n, routes on a gre device",
+			args:        []string{"-d", "route", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getroute.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_route_main_n",
+		},
+		{
+			description: "positive: -d -6 route show reproduces tunnel/ip_route6_n",
+			args:        []string{"-d", "-6", "route", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getroute6.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_route6_n",
+		},
+		{
+			description: "positive: -d route show table all reproduces tunnel/ip_route_table_all_n, thirteen lines across five tunnel devices",
+			args:        []string{"-d", "route", "show", "table", "all"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getroute_table_all.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_route_table_all_n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -352,11 +432,25 @@ func TestRouteShowDetailMatchesSidecars(t *testing.T) {
 // and the committed pair says so with no diff at all, ip_neigh and ip_neigh_n
 // being the same file.
 //
-// The reason it needs asserting is that "-d changed nothing" and "-d was
-// dropped on the floor" are indistinguishable HERE and distinguishable
+// That last sentence used to be prose. Both sidecars are now READ and
+// compared to each other, so "the pair is identical" is a claim about the
+// bytes `ip` wrote rather than about what someone saw once: a future capture
+// against an iproute2 that grew a show_details branch in ipneigh.c fails here
+// on the sidecars alone, before goip is consulted.
+//
+// The reason the goip half needs asserting is that "-d changed nothing" and
+// "-d was dropped on the floor" are indistinguishable HERE and distinguishable
 // nowhere else in one command. Pairing it with the route and link tests, which
 // fail if -d is dropped, is what makes this an assertion about ipneigh.c
 // rather than about the plumbing.
+//
+// # The empty rows are the point of the mesh namespace
+//
+// build_mesh adds no neighbors, so mesh/ip_neigh and mesh/ip_neigh_n are both
+// zero bytes. wantEmpty makes that the expectation instead of a skipped row:
+// the pcap holds a real request and a real NLMSG_DONE, so "goip printed
+// nothing" is being distinguished from "goip failed to ask", which an absent
+// row would not distinguish at all.
 //
 // go test ./internal/goip/ -run TestNeighShowIgnoresDetails
 func TestNeighShowIgnoresDetails(t *testing.T) {
@@ -365,12 +459,22 @@ func TestNeighShowIgnoresDetails(t *testing.T) {
 		plain       []string
 		detailed    []string
 		pcap        string
+		// plainSidecar and detailSidecar are `ip`'s own two renderings. They
+		// are asserted equal to each other AND equal to goip's output, which
+		// is three comparisons from two files.
+		plainSidecar  string
+		detailSidecar string
+		// wantEmpty inverts the non-vacuity guard for the namespaces whose
+		// neighbor table is empty by construction.
+		wantEmpty bool
 	}{
 		{
-			description: "negative: -d neigh show is byte-identical to neigh show",
-			plain:       []string{"neigh", "show"},
-			detailed:    []string{"-d", "neigh", "show"},
-			pcap:        guestDumpsDir + "netlink_route_getneigh.pcap",
+			description:   "negative: -d neigh show is byte-identical to neigh show",
+			plain:         []string{"neigh", "show"},
+			detailed:      []string{"-d", "neigh", "show"},
+			pcap:          guestDumpsDir + "netlink_route_getneigh.pcap",
+			plainSidecar:  guestDumpsDir + "ip_neigh",
+			detailSidecar: guestDumpsDir + "ip_neigh_n",
 		},
 		{
 			// The selector composes with -d the same way, i.e. not at all.
@@ -387,6 +491,33 @@ func TestNeighShowIgnoresDetails(t *testing.T) {
 			plain:       []string{"neigh", "show", "proxy"},
 			detailed:    []string{"-d", "neigh", "show", "proxy"},
 			pcap:        guestDumpsDir + "netlink_route_getneigh_proxy.pcap",
+		},
+		{
+			// The mesh namespace, where the answer is an empty listing from a
+			// non-empty transaction. Both sidecars are zero bytes, which is
+			// also the only way `ip` can say "-d changed nothing" about
+			// nothing.
+			description:   "boundary: the mesh table is empty by construction, and -d leaves that unchanged too",
+			plain:         []string{"neigh", "show"},
+			detailed:      []string{"-d", "neigh", "show"},
+			pcap:          guestDumpsDir + "mesh/netlink_route_getneigh.pcap",
+			plainSidecar:  guestDumpsDir + "mesh/ip_neigh",
+			detailSidecar: guestDumpsDir + "mesh/ip_neigh_n",
+			wantEmpty:     true,
+		},
+		{
+			// The tunnel namespace, and the row that would catch a -d
+			// implementation that reached the neigh renderer at all: these
+			// are the two entries whose lladdr comes through ll_addr_n2a's
+			// special cases, so a -d branch that re-derived the L2 format
+			// would regress them to colon-hex here while the clean row, all
+			// of whose neighbors sit on an ARPHRD_ETHER dummy, still passed.
+			description:   "corner: -d leaves the tunnel namespace's two type-driven lladdrs alone",
+			plain:         []string{"neigh", "show"},
+			detailed:      []string{"-d", "neigh", "show"},
+			pcap:          guestDumpsDir + "tunnel/netlink_route_getneigh.pcap",
+			plainSidecar:  guestDumpsDir + "tunnel/ip_neigh",
+			detailSidecar: guestDumpsDir + "tunnel/ip_neigh_n",
 		},
 	}
 
@@ -405,9 +536,40 @@ func TestNeighShowIgnoresDetails(t *testing.T) {
 			if plain != detailed {
 				t.Errorf("-d changed the output\n plain: %q\ndetail: %q", plain, detailed)
 			}
-			if plain == "" {
-				t.Fatal("both are empty, so this row compares nothing")
+			if (plain == "") != tc.wantEmpty {
+				t.Fatalf("output empty = %v, want %v; a row that compares two "+
+					"empty strings by accident compares nothing", plain == "", tc.wantEmpty)
 			}
+
+			if tc.plainSidecar == "" {
+				return
+			}
+			wantPlain, err := os.ReadFile(tc.plainSidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantDetail, err := os.ReadFile(tc.detailSidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Byte-exact, and it can be: the two sidecars are two separate
+			// `ip` invocations, so this also pins that the neighbor hash
+			// order is stable within a boot for an unchanging table. All
+			// three namespaces' pairs are identical today.
+			if !bytes.Equal(wantPlain, wantDetail) {
+				t.Errorf("%s and %s differ, so `ip` itself renders -d differently "+
+					"and this whole test is measuring the wrong thing\n plain: %q\ndetail: %q",
+					tc.plainSidecar, tc.detailSidecar, wantPlain, wantDetail)
+			}
+
+			// Line multiset, not bytes, and only against goip. goip sorts
+			// neighbors where `ip` prints hash-bucket order — deliberate and
+			// documented at internal/goip/model/model.go:25, pre-existing,
+			// and the reason every other table in obj_neigh_test.go that
+			// compares a multi-entry listing is `unordered` too. The clean
+			// namespace is the only one of the three with enough entries for
+			// the two orders to disagree.
+			assertSameLines(t, plain, string(wantPlain))
 		})
 	}
 }
@@ -435,6 +597,15 @@ func TestNeighShowIgnoresDetails(t *testing.T) {
 // `-s -s` precedent — goip is a coverage test for pkg/xtcpnl, so "I cannot
 // reproduce this output" is a more useful answer than most of it.
 //
+// # The sidecars are read, not cited
+//
+// The four `_n` sidecars for the refused commands are the only committed
+// evidence of what goip is declining to render, and wantSidecarTokens asserts
+// the tokens are there. That direction matters: the refusal is justified by
+// the claim "`ip` prints per-kind data here", and if an iproute2 ever stopped
+// printing it the refusal would be returning ExitUsage for output goip could
+// in fact reproduce. The sidecar is the only thing that can notice.
+//
 // go test ./internal/goip/ -run TestDetailRefusedForPerKindData
 func TestDetailRefusedForPerKindData(t *testing.T) {
 	tests := []struct {
@@ -444,27 +615,47 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 		wantCode    int
 		wantErr     bool
 		wantStderr  []string
+		// sidecar is `ip`'s rendering of the refused command, and
+		// wantSidecarTokens the per-kind tokens it must carry — the output
+		// goip is declining to approximate.
+		sidecar           string
+		wantSidecarTokens []string
 	}{
 		{
-			// mesh/ip_link_n:6 — br0's IFLA_INFO_DATA is 800-odd bytes of
-			// bridge parameters that `ip` prints in full.
+			// br0's IFLA_INFO_DATA is 800-odd bytes of bridge parameters that
+			// `ip` prints in full.
 			description: "negative: -d link show refuses the mesh topology, naming the bridge and its kind",
 			args:        []string{"-d", "link", "show"},
 			pcap:        guestDumpsDir + "mesh/netlink_route_getlink.pcap",
 			wantCode:    ExitUsage,
 			wantErr:     true,
 			wantStderr:  []string{"br0", `"bridge"`, "IFLA_INFO_DATA"},
+			// mesh/ip_link_n is not among the unread fixtures — the link
+			// table reads it — so the tokens are asserted here without a
+			// second reader being claimed for it.
+			sidecar: guestDumpsDir + "mesh/ip_link_n",
+			// bridge_id and designated_root are per-boot values; the token
+			// names are not, and the names are what print_opt emits.
+			wantSidecarTokens: []string{"bridge forward_delay", "bridge_id", "designated_root"},
 		},
 		{
-			// tunnel/ip_link_n:3 — and it refuses on tunl0, the FIRST link
-			// with data rather than the first link overall, which is what
-			// says the check walks the dump.
+			// And it refuses on tunl0, the FIRST link with data rather than
+			// the first link overall, which is what says the check walks the
+			// dump.
 			description: "negative: -d link show refuses the tunnel topology, naming the ipip fallback device",
 			args:        []string{"-d", "link", "show"},
 			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink.pcap",
 			wantCode:    ExitUsage,
 			wantErr:     true,
 			wantStderr:  []string{"tunl0", `"ipip"`},
+			sidecar:     guestDumpsDir + "tunnel/ip_link_n",
+			// The widest print_opt run in the corpus, and the one quoted in
+			// this test's own doc comment: everything between "ipip" and
+			// "numtxqueues" on tunl0's line.
+			wantSidecarTokens: []string{
+				"ipip any remote any local any ttl inherit nopmtudisc",
+				"gre remote 198.51.100.3 local 192.0.2.3 ttl inherit",
+			},
 		},
 		{
 			// The addr object reaches the same check, because it renders the
@@ -475,6 +666,45 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantErr:     true,
 			wantStderr:  []string{"IFLA_INFO_DATA"},
+		},
+		{
+			// Same for the tunnel namespace's addr dump, and this is the row
+			// that makes tunnel/ip_addr_n evidence: 51 lines, fourteen
+			// devices, every one of them carrying a print_opt run.
+			description:       "negative: -d addr show refuses the tunnel topology, and tunnel/ip_addr_n is what it declines to print",
+			args:              []string{"-d", "addr", "show"},
+			pcap:              guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			wantCode:          ExitUsage,
+			wantErr:           true,
+			wantStderr:        []string{"IFLA_INFO_DATA", `"ipip"`},
+			sidecar:           guestDumpsDir + "tunnel/ip_addr_n",
+			wantSidecarTokens: []string{"ipip any remote any local any ttl inherit"},
+		},
+		{
+			// The -4 arm, in both namespaces. It is refused where the -6 arm
+			// of the SAME command renders in full
+			// (TestAddrShowDetailFamilyMatchesSidecars), because
+			// inet6_dump_ifinfo sends no IFLA_LINKINFO — so these two rows
+			// and those two are one fact stated from both sides: the refusal
+			// tracks the attributes on the wire, not the option.
+			description:       "corner: -d -4 addr show is refused in the mesh namespace where -d -6 addr show renders",
+			args:              []string{"-d", "-4", "addr", "show"},
+			pcap:              guestDumpsDir + "mesh/netlink_route_getaddr_v4.pcap",
+			wantCode:          ExitUsage,
+			wantErr:           true,
+			wantStderr:        []string{"IFLA_INFO_DATA", `"bridge"`},
+			sidecar:           guestDumpsDir + "mesh/ip_addr_v4_n",
+			wantSidecarTokens: []string{"bridge forward_delay"},
+		},
+		{
+			description:       "corner: and refused in the tunnel namespace, for the same reason on a different kind",
+			args:              []string{"-d", "-4", "addr", "show"},
+			pcap:              guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
+			wantCode:          ExitUsage,
+			wantErr:           true,
+			wantStderr:        []string{"IFLA_INFO_DATA"},
+			sidecar:           guestDumpsDir + "tunnel/ip_addr_v4_n",
+			wantSidecarTokens: []string{"gre remote 198.51.100.3 local 192.0.2.3"},
 		},
 		{
 			// THE control. Without -d the same pcap renders fine, because
@@ -506,6 +736,21 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 			if code != tc.wantCode {
 				t.Fatalf("Run(%q) = %d, want %d\nstderr: %s", tc.args, code, tc.wantCode, stderr.String())
 			}
+
+			if tc.sidecar != "" {
+				raw, err := os.ReadFile(tc.sidecar)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, want := range tc.wantSidecarTokens {
+					if !strings.Contains(string(raw), want) {
+						t.Errorf("%s does not contain %q; the refusal is justified by "+
+							"`ip` printing per-kind data here, and this sidecar is the "+
+							"only evidence that it does", tc.sidecar, want)
+					}
+				}
+			}
+
 			if !tc.wantErr {
 				if stdout.Len() == 0 {
 					t.Errorf("no output; a control row is meant to render something")

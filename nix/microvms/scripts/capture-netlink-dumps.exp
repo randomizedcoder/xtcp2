@@ -98,6 +98,31 @@ proc cap {ns subdir name floor command} {
     return 1
 }
 
+# capio <ns> <subdir> <name> <floor> <command> <stdout-name>
+#
+# A `cap` and a `side` of the SAME invocation: one run of the command, its
+# netlink in the pcap and its stdout in the sidecar. `cap` plus a separate
+# `side` of the same command is two runs, and for anything that prints live
+# counters the two disagree - the committed ip_link_stats and a replay of
+# netlink_route_getlink_stats.pcap differ on exactly the counter lines, which
+# is why internal/goip has a normalizeLinkStatsText at all.
+#
+# So the rule for a `-s` golden below is: `capio` if a test replays the pcap
+# and diffs the sidecar, because then it reproduces byte for byte and needs no
+# normalizer; `side` if the golden is compared against another TEXT file
+# (the no-op pairs) or in a form that drops counter values anyway (JSON).
+proc capio {ns subdir name floor command sout} {
+    global short_caps
+    lassign [nlcap capio $ns $subdir $name $floor "'$command'" $sout] rc out
+    if {$rc != 0} {
+        lappend short_caps "$subdir/$name"
+        vmlib::log "MISSED FLOOR $subdir/$name: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
 proc side {ns subdir name command} {
     lassign [nlcap side $ns $subdir $name "'$command'"] rc out
     if {$rc != 0} {
@@ -150,6 +175,40 @@ proc capture_set {ns subdir dev} {
     cap $ns $subdir netlink_route_getaddr_v4 4 "ip -4 addr show"
     cap $ns $subdir netlink_route_getaddr_v6 4 "ip -6 addr show"
 
+    # `-s addr show`, and it is the ONLY `-s` form in the whole sweep that
+    # changes a request byte no existing capture covers. The AF_UNSPEC addr
+    # dump's link half does carry IFLA_EXT_MASK (see above), so `-s` clears
+    # RTEXT_FILTER_SKIP_STATS there exactly as it does for `ip -s link show`:
+    # 0x01 where netlink_route_getaddr sends 0x09.
+    #
+    # The -4/-6 forms get no pcap of their own because they CANNOT differ -
+    # rtnl_linkdump_req_filter_fn skips filter_fn for a non-AF_UNSPEC family
+    # (lib/libnetlink.c:595), so those two send no mask with or without `-s`.
+    # Their `-s` difference is output-only and lives in a sidecar.
+    #
+    # Floor 4, like the three above: link dump plus addr dump, request and
+    # reply each.
+    #
+    # capio and not cap+side: the replies carry IFLA_STATS64, so the stdout
+    # has to come from the invocation this pcap recorded or a replay cannot
+    # reproduce it exactly.
+    capio $ns $subdir netlink_route_getaddr_stats 4 "ip -s addr show" ip_addr_stats
+
+    # `-s -6 addr show`, and its REQUEST is byte-identical to
+    # netlink_route_getaddr_v6's - rtnl_linkdump_req_filter_fn skips filter_fn
+    # for a non-AF_UNSPEC family (lib/libnetlink.c:595), so neither form sends
+    # a mask. A second pcap with the same request bytes needs a reason, and the
+    # reason is the stdout: this command prints IPv6 MIB counters out of
+    # IFLA_PROTINFO/IFLA_INET6_STATS, which tick, so the only way its golden
+    # can be diffed against a replay is for the two to come from one run.
+    #
+    # Pairing them is also what makes the golden survive a RE-capture. The
+    # guest's dummy device gets a random MAC per boot, so ip_addr_v6's
+    # link-local is a different address in every run; a sidecar captured in one
+    # boot and replayed against another boot's pcap differs on that line and on
+    # nothing else, which reads exactly like a renderer bug.
+    capio $ns $subdir netlink_route_getaddr_v6_stats 4 "ip -s -6 addr show" ip_addr_v6_stats
+
     # Default `route show` sends AF_INET plus RTA_TABLE=254, not the all-zero
     # rtmsg of `table all` (ip/iproute.c:1836,1997). Both, for the same
     # reason as above.
@@ -160,6 +219,19 @@ proc capture_set {ns subdir dev} {
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
+
+    # `-s neigh show`, whose request is byte-identical to the line above - `-s`
+    # reaches no part of rtnl_neighdump_req - so this pcap exists for its
+    # stdout pairing alone, like the two addr stats captures.
+    #
+    # It is the one `-s` golden in this file that prints a block AND whose
+    # numbers are unbounded: used/confirmed/updated are ticks since, and they
+    # advance between any two invocations. The block also lands mid-line,
+    # between the flag run and the state (ip/ipneigh.c:453-465), so a
+    # normalizer that rewrote the counters would have to rewrite the middle of
+    # a line and would be rewriting the thing under test. capio removes the
+    # need for one.
+    capio $ns $subdir netlink_route_getneigh_stats 4 "ip -s neigh show" ip_neigh_stats
 
     # Originally captured to SETTLE what a single-get does rather than to
     # confirm it: whether iproute2 resolves the name through a full dump and
@@ -191,6 +263,20 @@ proc capture_set {ns subdir dev} {
     # request-byte facts with no output consequence at all, which is exactly
     # why they need a pcap rather than a sidecar.
     cap $ns $subdir netlink_route_getaddr_dev 6 "ip addr show dev $dev"
+
+    # The same selector with `-s`, and the only capture in the corpus that
+    # records the ext_filter_mask on a NON-DUMP RTM_GETLINK. ipaddr_link_get
+    # (ip/ipaddress.c:2302) writes the mask into a single-get, so this is where
+    # `-s` reaches the get path - a request-byte fact that source reading can
+    # assert and nothing else in the corpus can check. Floor 6, the same three
+    # transactions as the line above.
+    #
+    # capio for the same reason as the two addr stats captures above, and with
+    # a second payoff here: this command's counters come from IFLA_STATS64 on
+    # a non-dump reply while the bare `-s -6` form's come from the IPv6 MIB, so
+    # the two goldens are the evidence that one header covers two sources. That
+    # only holds if each is reproducible from its own pcap.
+    capio $ns $subdir netlink_route_getaddr_dev_stats 6 "ip -s addr show dev $dev" ip_addr_dev_stats
 
     # The route object's `dev` selector, and the interesting thing about it is
     # that the selector both ADDS a transaction and REMOVES several.
@@ -284,12 +370,19 @@ proc capture_set {ns subdir dev} {
 # Both forms are written, under distinct names: the `_n` suffix keeps meaning
 # `-d`, so existing line-number citations keep their meaning.
 #
-# Every `_n` sidecar below is now READ, by internal/goip/goip_details_test.go
-# — goip implements -d, and the eight of them had been committed and unread
-# since this proc was written. Note the one comparison they cannot make:
-# nlmon0's promiscuity, which a `cap` records as 1 because tcpdump holds a
-# packet socket on it and a `side` records as 0 because it does not. No
-# re-capture reconciles that, since capturing is what sets the bit.
+# Every `_n` sidecar this proc writes is now READ, in all three namespaces,
+# which it was not when the paragraph above was written: goip implements -d,
+# and the eight sidecars of the CLEAN set were the first to get readers, in
+# internal/goip/goip_details_test.go. The mesh and tunnel copies followed, and
+# four of those are read in a different shape — goip REFUSES -d per-command on
+# per-kind IFLA_INFO_DATA, so mesh/ip_addr_v4_n, tunnel/ip_addr_v4_n,
+# tunnel/ip_addr_n and tunnel/ip_link_n cannot be reproduced at all and are
+# instead asserted to CARRY the per-kind tokens the refusal declines to print.
+#
+# Note the one comparison none of them can make: nlmon0's promiscuity, which a
+# `cap` records as 1 because tcpdump holds a packet socket on it and a `side`
+# records as 0 because it does not. No re-capture reconciles that, since
+# capturing is what sets the bit.
 proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_link                "ip link show"
     side $ns $subdir ip_link_n              "ip -d link show"
@@ -398,6 +491,46 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_rule6               "ip -6 rule show"
     side $ns $subdir ip_rule6_n             "ip -d -6 rule show"
     side $ns $subdir ip_rule_json           "ip -j -p rule show"
+
+    # The `-s` stanzas. Four of this sweep's goldens are NOT here - they are
+    # written by the `capio` lines in capture_set, because a test replays
+    # their pcap and diffs the sidecar byte for byte, which only works if both
+    # came from one invocation. What is left is the five that do not need
+    # that: two JSON forms, where the comparison drops counter values anyway,
+    # and three no-ops, where the golden is diffed against another golden and
+    # no pcap is involved.
+    side $ns $subdir ip_addr_stats_json     "ip -j -p -s addr show"
+    side $ns $subdir ip_neigh_stats_json    "ip -j -p -s neigh show"
+
+    # route: expected byte-identical to ip_route_main and ip_route6, and that
+    # is the claim. print_rta_cacheinfo gates only `users`, `used` and `age`
+    # on show_stats (ip/iproute.c:500-532), and all three come from
+    # rtnl_put_cacheinfo's `if (dst)` arm (net/core/rtnetlink.c:1028-1052),
+    # which no route DUMP ever takes - rt_fill_info passes a dst only on a
+    # `route get` and the v4 FIB dump never calls it at all, while
+    # rt6_fill_node passes one only on the get. So the three members `-s`
+    # prints are structurally zero on every dump and `-s route show` renders
+    # nothing new.
+    #
+    # ip_route6_stats is the more valuable of the two, even though it is the
+    # one the sweep's plan did not list: the v6 dump is the only command here
+    # that puts RTA_CACHEINFO on the wire at all, so it is the only file whose
+    # being identical to its non-`-s` pair rules out a renderer that prints
+    # the attribute merely because it arrived.
+    #
+    # `side` and not `capio` precisely BECAUSE these are no-ops: the pair they
+    # are compared against is ip_route_main and ip_route6, text against text,
+    # and holding across two different boots is stronger evidence than holding
+    # within one. A capio would tie each golden to its own fresh pcap and make
+    # the comparison same-boot, which is the weaker claim.
+    side $ns $subdir ip_route_main_stats    "ip -s route show"
+    side $ns $subdir ip_route6_stats        "ip -s -6 route show"
+
+    # rule: expected byte-identical to ip_rule, and the evidence is an empty
+    # grep - `grep -n show_stats ip/iprule.c` returns nothing, against 5 hits
+    # in iproute.c, 4 in ipneigh.c and 15 in ipaddress.c. `-s` cannot reach
+    # the rule request either, so this is the cheapest no-op in the sweep.
+    side $ns $subdir ip_rule_stats          "ip -s rule show"
 }
 
 ###############################################################################

@@ -85,12 +85,22 @@ const neighSidecarDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 //
 // The comparison target is `ip_neigh`, the plain form, not `ip_neigh_n`. The
 // `_n` suffix in this corpus means `ip -d` (nix/capture-netlink-fixtures.nix:389
-// says so, and nix/microvms/mkVm.nix:1928 writes it with `ip -d neigh show`),
-// and goip has no -d surface. The two files happen to be byte-identical here,
-// because `-d` adds nothing to a neighbor line the way it adds `unicast`,
-// `table main` and `scope global` to a route line — but asserting against the
-// one goip actually implements is what keeps that an observation rather than a
-// dependency.
+// says so, and nix/microvms/mkVm.nix:1928 writes it with `ip -d neigh show`).
+// The two files are byte-identical here, because `-d` adds nothing to a
+// neighbor line the way it adds `unicast`, `table main` and `scope global` to
+// a route line — but asserting against the plain form is what keeps that an
+// observation rather than a dependency. goip DOES implement -d now, and the
+// `_n` half of all three namespaces' pairs is asserted in
+// TestNeighShowIgnoresDetails, which compares the two sidecars to each other.
+//
+// # The empty rows
+//
+// build_mesh adds no neighbors and neither it nor build_tunnel adds a proxy
+// entry, so six of the sidecars below are empty listings. wantEmpty makes that
+// the assertion rather than letting an empty-against-empty comparison pass
+// vacuously: the pcap holds a real request and a real NLMSG_DONE, so what is
+// being asserted is that goip asked and got nothing back, not that it never
+// asked.
 //
 // go test ./internal/goip/ -run TestNeighShowMatchesCapturedSidecars
 func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
@@ -112,6 +122,11 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 		// neighDumpPortid, which is the right thing for a capture taken in
 		// the quiet microVM and the wrong thing for the older ones.
 		noPortid bool
+		// wantEmpty makes emptiness the assertion rather than something an
+		// empty-against-empty comparison lets through. It is checked in both
+		// directions — a row that sets it over a non-empty sidecar fails, and
+		// so does a row that leaves it unset over an empty one.
+		wantEmpty bool
 	}{
 		{
 			// # Why this is a multiset and not byte equality
@@ -352,6 +367,101 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:     "tunnel/ip_neigh_dev",
 			noPortid:    true,
 		},
+
+		// THE EMPTY LISTINGS.
+		//
+		// Six sidecars, all of them captures of a table that has nothing in
+		// it, and all of them committed unread until now. What they pin is a
+		// precondition the rest of the corpus depends on without stating:
+		// build_mesh creates a bridge and a veth pair and adds no NEIGHBOR,
+		// and neither it nor build_tunnel adds a PROXY entry. Every
+		// expectation elsewhere that counts neighbors in a namespace is
+		// relying on that, and nothing checked it.
+		//
+		// They are also the only rows in the file where the DUMP SHAPE is
+		// visible on its own. A request that the kernel refused, a filter
+		// that matched nothing, and a table that is genuinely empty all print
+		// the same empty string — so these rows are paired with
+		// TestNeighShowDumpShape, which pins the request, and the empty
+		// output is the other end of that.
+		{
+			description: "negative: the mesh namespace's neighbor table is empty by construction",
+			args:        []string{"neigh", "show"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getneigh.pcap",
+			sidecar:     "mesh/ip_neigh",
+			noPortid:    true,
+			wantEmpty:   true,
+		},
+		{
+			// `[ ]` from `ip -j -p`, `[]` from goip: the brackets are what is
+			// being asserted, not the whitespace. An empty listing must still
+			// be a JSON ARRAY — a renderer that emitted `null` for an empty
+			// slice is the common Go mistake here, and it would pass the text
+			// row above and fail this one.
+			description:    "negative: and in JSON it is an empty array, not null",
+			args:           []string{"-json", "neigh", "show"},
+			pcap:           guestDumpsDir + "mesh/netlink_route_getneigh.pcap",
+			sidecar:        "mesh/ip_neigh_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+			wantEmpty:      true,
+		},
+		{
+			// `neigh show dev` over the same empty table, which is a
+			// different request — NDA_IFINDEX is set — reaching the same
+			// empty answer.
+			description: "negative: `neigh show dev veth0` is empty too, off a filtered request",
+			args:        []string{"neigh", "show", "dev", "veth0"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getneigh_dev.pcap",
+			sidecar:     "mesh/ip_neigh_dev",
+			noPortid:    true,
+			wantEmpty:   true,
+		},
+		{
+			// The proxy table in both namespaces. The clean namespace HAS
+			// two proxy entries (the row above), so these two are the
+			// negative half of that positive: `neigh show proxy` renders the
+			// entries where they exist and nothing where they do not, off the
+			// same NTF_PROXY request shape.
+			description: "negative: the mesh namespace has no proxy entry, where the clean namespace has two",
+			args:        []string{"neigh", "show", "proxy"},
+			pcap:        guestDumpsDir + "mesh/netlink_route_getneigh_proxy.pcap",
+			sidecar:     "mesh/ip_neigh_proxy",
+			noPortid:    true,
+			wantEmpty:   true,
+		},
+		{
+			description:    "negative: the mesh proxy listing in JSON is an empty array",
+			args:           []string{"-json", "neigh", "show", "proxy"},
+			pcap:           guestDumpsDir + "mesh/netlink_route_getneigh_proxy.pcap",
+			sidecar:        "mesh/ip_neigh_proxy_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+			wantEmpty:      true,
+		},
+		{
+			// The tunnel namespace, which DOES have two neighbors — the two
+			// with the type-driven lladdrs above — and still no proxy entry.
+			// That split is what makes this row more than a repeat of the
+			// mesh one: it separates "the namespace is empty" from "the proxy
+			// table is empty", and only a namespace with a populated unicast
+			// table can.
+			description: "corner: the tunnel namespace has two neighbors and no proxy entry, which separates the two tables",
+			args:        []string{"neigh", "show", "proxy"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getneigh_proxy.pcap",
+			sidecar:     "tunnel/ip_neigh_proxy",
+			noPortid:    true,
+			wantEmpty:   true,
+		},
+		{
+			description:    "corner: the tunnel proxy listing in JSON is an empty array",
+			args:           []string{"-json", "neigh", "show", "proxy"},
+			pcap:           guestDumpsDir + "tunnel/netlink_route_getneigh_proxy.pcap",
+			sidecar:        "tunnel/ip_neigh_proxy_json",
+			jsonEquivalent: true,
+			noPortid:       true,
+			wantEmpty:      true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -372,6 +482,26 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
 				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
 			}
+			// Counted before the comparison, and on both sides, because the
+			// comparison itself cannot tell an empty listing from a missing
+			// one: assertJSONEntriesEqual passes on two zero-length arrays
+			// and bytes.Equal on two zero-length strings. Checking the
+			// sidecar as well as the output is what makes the direction
+			// matter — a row that claims emptiness over a populated capture
+			// is as wrong as one that renders nothing where `ip` rendered
+			// something, and only the first of those is otherwise silent.
+			gotEntries := neighEntryCount(t, stdout.Bytes(), tc.jsonEquivalent)
+			wantEntries := neighEntryCount(t, want, tc.jsonEquivalent)
+			if (wantEntries == 0) != tc.wantEmpty {
+				t.Fatalf("sidecar %s holds %d entries but wantEmpty = %v; the row "+
+					"and the fixture disagree about what was captured",
+					tc.sidecar, wantEntries, tc.wantEmpty)
+			}
+			if (gotEntries == 0) != tc.wantEmpty {
+				t.Fatalf("goip rendered %d entries, want empty = %v\n%s",
+					gotEntries, tc.wantEmpty, stdout.String())
+			}
+
 			switch {
 			case tc.jsonEquivalent:
 				assertJSONEntriesEqual(t, stdout.Bytes(), want, tc.unordered)
@@ -384,6 +514,43 @@ func TestNeighShowMatchesCapturedSidecars(t *testing.T) {
 			}
 		})
 	}
+}
+
+// neighEntryCount counts the neighbor entries in a listing: array elements for
+// the JSON forms, non-blank lines for the text forms.
+//
+// It exists because byte length cannot express emptiness uniformly across the
+// two. An empty text listing is nothing at all, while an empty JSON listing is
+// `[ ]` from `ip -j -p` and `[]` from goip — four bytes and two, neither of
+// them zero, and both meaning the same thing.
+//
+// The `null` rejection is not belt-and-braces. `null` is what a Go renderer
+// emits for a nil slice, and it is invisible to every other comparison in this
+// file: assertJSONEntriesEqual unmarshals both sides into []map[string]any, and
+// `null` and `[]` both decode to length 0, so `null` against the `[ ]` sidecar
+// passes it. Measured, not assumed — json.Unmarshal leaves the slice nil for
+// `null` and sets it to a non-nil empty slice for `[]` and `[ ]`, which is the
+// only place in the pipeline the two are distinguishable.
+func neighEntryCount(t *testing.T, raw []byte, isJSON bool) int {
+	t.Helper()
+	if isJSON {
+		var entries []json.RawMessage
+		if err := json.Unmarshal(raw, &entries); err != nil {
+			t.Fatalf("unmarshal %q as a JSON array: %v", raw, err)
+		}
+		if entries == nil {
+			t.Fatalf("%q decodes to JSON null, not an array; an empty listing "+
+				"must still be []", raw)
+		}
+		return len(entries)
+	}
+	n := 0
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // assertSameLines compares two listings as multisets of lines, reporting the
@@ -867,5 +1034,332 @@ func TestNeighShowEntryCount(t *testing.T) {
 				t.Errorf("lines = %d, want %d; output %q", got, tc.wantLines, stdout.String())
 			}
 		})
+	}
+}
+
+// The `-s neigh show` captures, one per namespace.
+//
+// Written by `capio`, so each pcap and the text sidecar beside it came from
+// ONE invocation — which matters more here than anywhere else in the sweep.
+// `ndm_used`, `ndm_confirmed` and `ndm_updated` are "jiffies since", so they
+// tick between any two invocations: the text golden below says `used 93/91/91`
+// and ip_neigh_stats_json, a second invocation seconds later, says 257/255/255
+// for the same entry. A `side` sidecar would have forced a normalizer over the
+// middle of the very line under test.
+const (
+	neighStatsPcap       = neighSidecarDir + "netlink_route_getneigh_stats.pcap"
+	neighStatsMeshPcap   = neighSidecarDir + "mesh/netlink_route_getneigh_stats.pcap"
+	neighStatsTunnelPcap = neighSidecarDir + "tunnel/netlink_route_getneigh_stats.pcap"
+)
+
+// TestNeighShowStatsMatchesCapturedSidecars diffs `goip -s neigh show` against
+// the `ip -s neigh show` transcripts captured with it.
+//
+// # What these goldens settled
+//
+// Step 4 wrote print_cacheinfo's spacing out of the C and nothing could
+// confirm it, because the corpus had no `-s neigh` transcript. Six `want`
+// strings in render/neigh_test.go were written with a space where upstream has
+// none, failed, and were corrected toward the source. These files are the
+// independent check on that correction, and they agree with it on all five
+// counts:
+//
+//   - a DOUBLED space after the lladdr or the last flag, because every
+//     print_cacheinfo format carries a leading space and no trailing one;
+//   - a run-on `used 115/115/115probes 0 `, because `probes %u ` is the
+//     reverse — trailing space, no leading one;
+//   - no ` ref ` on any line, because ndm_refcnt is zero on all of them and
+//     the token is suppressed rather than printed as `ref 0`;
+//   - `probes 0` printed, because NDA_PROBES arrived carrying zero and
+//     present-and-zero is not absent;
+//   - the block printed for 192.0.2.52, which has no lladdr at all.
+//
+// # Why these compare as multisets
+//
+// goip sorts neighbors (model.SortNeighbors) and `ip` prints kernel hash
+// order, which is a property of the run. This capture came out .55 .56 .54
+// .51 .53 .52 .50 — not ascending — so byte equality would fail on order
+// alone. internal/goipparity takes the same position (FacetLines is a
+// multiset), so these rows match the gate rather than being stricter than it.
+// Every line must still be present exactly once, byte for byte, trailing
+// space included.
+//
+// go test ./internal/goip/ -run TestNeighShowStatsMatchesCapturedSidecars
+func TestNeighShowStatsMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		pcap        string
+		sidecar     string
+		// jsonEquivalent decodes both sides and matches entries on `dst`.
+		jsonEquivalent bool
+		// zeroCacheCounters replaces the three jiffies-since values with 0 on
+		// both sides. Set on the JSON rows alone — see zeroNeighCacheCounters
+		// for the division of labor between them and the text rows.
+		zeroCacheCounters bool
+	}{
+		{
+			description: "positive: the clean topology reproduces ip_neigh_stats line for line, spacing quirks included",
+			args:        []string{"-s", "neigh", "show"},
+			pcap:        neighStatsPcap,
+			sidecar:     "ip_neigh_stats",
+		},
+		{
+			// The two entries no other fixture has: a 4-byte dotted-quad
+			// lladdr on an ARPHRD_IPGRE device and a 16-byte one on
+			// ARPHRD_TUNNEL6. They are the only lines in the corpus where
+			// ll_addr_n2a's special cases and the `-s` block have to be right
+			// at once, and the only ones where the three cacheinfo members
+			// DISAGREE — `used 93/91/91` — so this is the row that would fail
+			// if the renderer read one member three times.
+			description: "positive: the tunnel topology reproduces tunnel/ip_neigh_stats, where used and confirmed differ",
+			args:        []string{"-s", "neigh", "show"},
+			pcap:        neighStatsTunnelPcap,
+			sidecar:     "tunnel/ip_neigh_stats",
+		},
+		{
+			// Empty by construction, and asserted rather than skipped:
+			// build_mesh adds no neighbors, so `ip -s neigh show` printed
+			// nothing at all. A renderer that emitted a bare ` used 0/0/0`
+			// line per reply, or a header, fails here and nowhere else.
+			description: "negative: the mesh topology reproduces mesh/ip_neigh_stats, which is empty because build_mesh adds no neighbors",
+			args:        []string{"-s", "neigh", "show"},
+			pcap:        neighStatsMeshPcap,
+			sidecar:     "mesh/ip_neigh_stats",
+		},
+		{
+			// The JSON half. Keys are `used`, `confirmed`, `updated`,
+			// `probes` — and NOT `refcnt`, which print_cacheinfo suppresses
+			// at zero in both encodings. The key-set comparison is what
+			// asserts that absence, so this row is where "suppressed" is
+			// distinguished from "present and zero" on the JSON side.
+			description:       "positive: -s -json neigh show reproduces ip_neigh_stats_json's key set, refcnt absent",
+			args:              []string{"-s", "-json", "neigh", "show"},
+			pcap:              neighStatsPcap,
+			sidecar:           "ip_neigh_stats_json",
+			jsonEquivalent:    true,
+			zeroCacheCounters: true,
+		},
+		{
+			description:       "positive: the tunnel topology reproduces tunnel/ip_neigh_stats_json over both lladdr widths",
+			args:              []string{"-s", "-json", "neigh", "show"},
+			pcap:              neighStatsTunnelPcap,
+			sidecar:           "tunnel/ip_neigh_stats_json",
+			jsonEquivalent:    true,
+			zeroCacheCounters: true,
+		},
+		{
+			// `[ ]`, not `null`. open_json_array runs before the loop, so an
+			// empty table is an empty array, and a marshaler that let a nil
+			// slice through emits null and fails here.
+			description:       "negative: the mesh topology reproduces mesh/ip_neigh_stats_json, an empty array rather than null",
+			args:              []string{"-s", "-json", "neigh", "show"},
+			pcap:              neighStatsMeshPcap,
+			sidecar:           "mesh/ip_neigh_stats_json",
+			jsonEquivalent:    true,
+			zeroCacheCounters: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(neighSidecarDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// No GOIP_REPLAY_PORTID: these captures are single-command
+			// clean, taken one at a time in the quiet microVM, so filtering
+			// on neighDumpPortid — which belongs to an older run — would
+			// hide every reply and compare an empty listing against a
+			// non-empty sidecar.
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+
+			if tc.jsonEquivalent {
+				got, w := stdout.Bytes(), want
+				if tc.zeroCacheCounters {
+					got, w = zeroNeighCacheCounters(t, got), zeroNeighCacheCounters(t, w)
+				}
+				assertJSONEntriesEqual(t, got, w, true)
+				return
+			}
+			assertSameLines(t, stdout.String(), string(want))
+		})
+	}
+}
+
+// zeroNeighCacheCounters replaces `used`, `confirmed` and `updated` with 0 so
+// two listings taken seconds apart compare on shape alone.
+//
+// # Why only the JSON rows need it, and what they give up
+//
+// ip_neigh_stats_json is a `side` sidecar: a second `ip` invocation, not the
+// one whose replies are in the pcap. All three members are jiffies since an
+// event, so they had ticked by roughly 1.2 seconds' worth — 93 became 257 on
+// the tunnel entry. The text rows above need no such subtraction, because
+// `capio` recorded their pcap and their sidecar from one invocation.
+//
+// The division of labor is therefore deliberate rather than a shortfall. The
+// text goldens pin the VALUES, including the tunnel entry's `93/91/91` where
+// the three members disagree and a renderer reading one of them three times
+// would be caught; these rows pin the KEY SET, which is the half the text
+// cannot see — in particular that `refcnt` is absent rather than zero.
+//
+// Rewriting rather than deleting, for the reason zeroLinkStats gives: a
+// deleted key is indistinguishable from a matching one, and the member set is
+// exactly what this comparison is for.
+func zeroNeighCacheCounters(t *testing.T, raw []byte) []byte {
+	t.Helper()
+
+	var entries []map[string]any
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatalf("zeroNeighCacheCounters: %v (%s)", err, raw)
+	}
+	for _, e := range entries {
+		for _, k := range []string{"used", "confirmed", "updated"} {
+			if _, ok := e[k]; ok {
+				e[k] = float64(0)
+			}
+		}
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatalf("zeroNeighCacheCounters: %v", err)
+	}
+	return out
+}
+
+// TestNeighShowStatsGate is the `-s neigh show` evidence that needs no sidecar
+// to state: that the block is gated on show_stats and not on attribute
+// presence, and that the four tokens suppress independently.
+//
+// It replays the `-s` capture, whose replies carry NDA_CACHEINFO and
+// NDA_PROBES on every entry — neigh_fill_info emits the pair in one `||`
+// chain (kernel net/core, :2690-2692), so an entry has both or neither. That
+// makes this the one fixture where "the attributes arrived" is certain, and
+// therefore the only one on which the gate can be shown to be a separate
+// decision.
+//
+// go test ./internal/goip/ -run TestNeighShowStatsGate
+func TestNeighShowStatsGate(t *testing.T) {
+	run := func(t *testing.T, args ...string) string {
+		t.Helper()
+		t.Setenv("GOIP_REPLAY", neighStatsPcap)
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+		}
+		return stdout.String()
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T)
+	}{
+		{
+			description: "negative: neigh show on the -s capture prints no cacheinfo, though every reply carries NDA_CACHEINFO and NDA_PROBES",
+			check: func(t *testing.T) {
+				out := run(t, "neigh", "show")
+				if out == "" {
+					t.Fatal("no entries rendered; there is nothing to gate")
+				}
+				for _, tok := range []string{" used ", " ref ", "probes "} {
+					if strings.Contains(out, tok) {
+						t.Errorf("ungated output carries %q:\n%s", tok, firstLines(out, 4))
+					}
+				}
+			},
+		},
+		{
+			description: "negative: -json neigh show carries none of the four keys either, so the JSON form is gated the same way",
+			check: func(t *testing.T) {
+				var entries []map[string]any
+				if err := json.Unmarshal([]byte(run(t, "-json", "neigh", "show")), &entries); err != nil {
+					t.Fatalf("unmarshal: %v", err)
+				}
+				if len(entries) == 0 {
+					t.Fatal("no entries decoded")
+				}
+				for i, e := range entries {
+					for _, k := range []string{"used", "confirmed", "updated", "probes", "refcnt"} {
+						if _, ok := e[k]; ok {
+							t.Errorf("entry %d carries key %q without -s", i, k)
+						}
+					}
+				}
+			},
+		},
+		{
+			// `probes 0` on every line, and no `ref` on any. Both halves of
+			// the same point, which is why they are one row: the two tokens
+			// are suppressed by DIFFERENT rules, and the fixture happens to
+			// exercise both at once. ndm_refcnt is zero and print_cacheinfo
+			// guards ` ref %u` on it, so nothing prints; NDA_PROBES is also
+			// zero and is printed anyway, because its guard is the
+			// attribute's presence, not its value.
+			description: "boundary: every line carries probes 0 and none carries ref, because the two are suppressed by different rules",
+			check: func(t *testing.T) {
+				lines := strings.Split(strings.TrimSuffix(run(t, "-s", "neigh", "show"), "\n"), "\n")
+				if len(lines) != 9 {
+					t.Fatalf("%d lines, want the capture's 9", len(lines))
+				}
+				for _, l := range lines {
+					if !strings.Contains(l, "probes 0 ") {
+						t.Errorf("line has no `probes 0 `: %q", l)
+					}
+					if strings.Contains(l, " ref ") {
+						t.Errorf("line carries a ref token, which ndm_refcnt 0 suppresses: %q", l)
+					}
+				}
+			},
+		},
+		{
+			// The entry with no lladdr. print_neigh prints the `-s` block
+			// from the same place whether or not NDA_LLADDR was there, so the
+			// INCOMPLETE line must carry it too — and the DOUBLED space that
+			// precedes it comes from the dev token's own trailing space
+			// meeting print_cacheinfo's leading one, with nothing in between.
+			description: "corner: the lladdr-less INCOMPLETE entry still prints the block, after a doubled space",
+			check: func(t *testing.T) {
+				out := run(t, "-s", "neigh", "show")
+				const want = "192.0.2.52 dev goip0  used 124/184/124probes 0 INCOMPLETE "
+				for _, l := range strings.Split(out, "\n") {
+					if strings.HasPrefix(l, "192.0.2.52 ") {
+						if l != want {
+							t.Errorf("INCOMPLETE line\n got: %q\nwant: %q", l, want)
+						}
+						return
+					}
+				}
+				t.Errorf("no 192.0.2.52 entry in:\n%s", firstLines(out, 12))
+			},
+		},
+		{
+			// The position claim, which a keyword check cannot make. The
+			// block lands between the flag run and the state, not appended
+			// at the end of the line (ip/ipneigh.c:465). This row reads the
+			// one entry that has a flag, a block and a state all three.
+			description: "corner: the block sits between the flag run and the state, not at the end of the line",
+			check: func(t *testing.T) {
+				out := run(t, "-s", "neigh", "show")
+				const want = "192.0.2.56 dev goip0 lladdr 02:00:00:00:00:07 router extern_learn extern_valid  used 114/114/114probes 0 PERMANENT "
+				for _, l := range strings.Split(out, "\n") {
+					if strings.HasPrefix(l, "192.0.2.56 ") {
+						if l != want {
+							t.Errorf("flagged line\n got: %q\nwant: %q", l, want)
+						}
+						return
+					}
+				}
+				t.Errorf("no 192.0.2.56 entry in:\n%s", firstLines(out, 12))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) { tc.check(t) })
 	}
 }
