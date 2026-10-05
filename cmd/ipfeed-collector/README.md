@@ -89,9 +89,12 @@ The tool runs in two modes:
   validate, annotate ASN, write, upload — then exits. The process exit code is
   non-zero if fewer than `-min-successful-sources` succeeded. Use this from
   cron or a one-off invocation.
-- **Daemon** (`-daemon`): runs one cycle immediately, then repeats every
-  `-interval` (default `6h`) until it receives `SIGINT`/`SIGTERM`, at which
-  point it stops after the in-flight cycle and exits 0. Cycles run
+- **Daemon** (`-daemon`): waits a random startup delay in
+  `[0, -startup-jitter)` (default `5m`), runs one cycle, then repeats around
+  `-interval` (default `6h`) with `-interval-jitter-pct` spread (default `20`).
+  This keeps large fleets from refreshing in lockstep after a rollout or node
+  restart. Set both jitter flags to `0` for deterministic local testing. On
+  `SIGINT`/`SIGTERM` it stops after the in-flight cycle and exits 0. Cycles run
   sequentially (never overlapping), and the sources dir is re-read each cycle,
   so feeds can be added or removed without a restart. A failed cycle is logged
   and the loop continues.
@@ -131,8 +134,9 @@ Metrics an operator will want on a dashboard (all also exported over OTLP):
 A one-shot run has nowhere to be scraped from, so it reports the same
 numbers (records, bytes, durations) in its end-of-run summary instead.
 
-`-interval` must be `> 0` in daemon mode; the tool errors at startup otherwise
-(the reason is printed to stderr, exit code 2).
+`-interval` must be `> 0` in daemon mode, `-startup-jitter` must be `>= 0`, and
+`-interval-jitter-pct` must be between `0` and `100`; the tool errors at startup
+otherwise (the reason is printed to stderr, exit code 2).
 
 `-healthcheck` is a self-probe mode: it issues a GET to
 `127.0.0.1<http-addr>/readyz` (defaulting the port to `8080`) and exits `0` if
@@ -163,6 +167,8 @@ crash-looping the daemon.
 | `-v` / `-debug` | `IPFEED_VERBOSE` / `IPFEED_DEBUG` |
 | `-daemon` | `IPFEED_DAEMON` |
 | `-interval` | `IPFEED_INTERVAL` |
+| `-startup-jitter` | `IPFEED_STARTUP_JITTER` |
+| `-interval-jitter-pct` | `IPFEED_INTERVAL_JITTER_PCT` |
 | `-http-addr` | `IPFEED_HTTP_ADDR` |
 | `-healthcheck` | `IPFEED_HEALTHCHECK` |
 | `-version` | — (flag only) |
@@ -198,6 +204,8 @@ default**.
 | `-min-successful-sources` | `1` | minimum OK sources before writing/uploading |
 | `-daemon` | `false` | run continuously, repeating every `-interval` |
 | `-interval` | `6h` | daemon collection interval (must be `> 0` with `-daemon`) |
+| `-startup-jitter` | `5m` | random daemon delay before the first cycle; prevents fleet-wide startup stampedes |
+| `-interval-jitter-pct` | `20` | per-cycle interval jitter percent around the same mean interval; prevents steady-state lockstep refreshes |
 | `-http-addr` | — | daemon health endpoint address, e.g. `:8080` (empty disables) |
 | `-healthcheck` | `false` | probe a running daemon's `/readyz` and exit 0/1 (container HEALTHCHECK) |
 | `-version` | `false` | print `version=… commit=… date=…` (injected by the Nix build) and exit |

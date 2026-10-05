@@ -8,6 +8,7 @@ require (
 	github.com/gaissmai/bart v0.29.0
 	github.com/grafana/pyroscope-go v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
+	github.com/klauspost/compress v1.19.2
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/nats-io/nats.go v1.41.1
 	github.com/nsqio/go-nsq v1.1.0
@@ -54,7 +55,6 @@ require (
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.10 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect

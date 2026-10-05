@@ -34,6 +34,7 @@
   xtcp2AllPackage,
   # Standalone ipfeed-collector (no longer inside the xtcp2-all join).
   ipfeedCollectorPackage,
+  ipmetaBootstrapTool ? null,
   sink ? "minimal",
   # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
   # script) that the in-VM container spawn unit loads via `docker load`.
@@ -150,6 +151,7 @@ let
   # SO_BINDTODEVICE + custom-egress topology the user asked for must live in the
   # host ns where xtcp2 also reads it.
   isInterfaceNaming = sink == "interface-naming";
+  isIpmetaBootstrap = sink == "ipmeta-bootstrap";
   # clickhouse-pipeline = tcp-stress + redpanda + clickhouse + kafka
   # destination. Same docker setup but two extra containers + xtcp2
   # configured with -dest kafka:localhost:19092 so the records flow
@@ -389,11 +391,26 @@ let
     runAsnCheck = isInterfaceNaming;
     inherit
       asnDbPath
+      asnCachePath
       asnDialTarget
       asnDialPort
       asnExpectedAsn
       asnExpectedOwner
       asnExpectedPrefixes
+      ;
+    runIpmetaBootstrapCheck = isIpmetaBootstrap;
+    runNsInspectCheck = !isIpmetaBootstrap;
+    inherit
+      ipmetaDbPath
+      ipmetaCachePath
+      ipmetaBadMarker
+      ipmetaDialTarget
+      ipmetaDialPort
+      ipmetaBootstrapExpectedAsn
+      ipmetaBootstrapExpectedOwner
+      ipmetaLiveExpectedAsn
+      ipmetaLiveExpectedOwner
+      ipmetaExpectedPrefixes
       ;
     # tcp-sink flavor only: validate records received over the raw TCP dest.
     runRawSocketCheck = isSocketSink;
@@ -475,8 +492,10 @@ let
   # late and the daemon's retry-on-tick path (not just the startup load) is
   # what installs it.
   asnFeedPort = 8099;
+  asnFeedStartDelay = "5s";
   asnDir = "/run/xtcp2-asn";
   asnDbPath = "${asnDir}/asn.parquet";
+  asnCachePath = "${asnDir}/current.lookup.parquet.zst";
   asnDialTarget = "8.8.8.8";
   asnDialPort = 53;
   asnExpectedAsn = "15169";
@@ -510,6 +529,100 @@ let
       service_operator: google
     enabled: true
   '';
+  asnCollectorTwice = pkgs.writeShellApplication {
+    name = "xtcp2-asn-collector-twice";
+    runtimeInputs = [ ipfeedCollectorPackage ];
+    text = ''
+      set -eu
+      ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v
+      sleep 7
+      ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v
+    '';
+  };
+
+  ipmetaDir = "/run/xtcp2-ipmeta";
+  ipmetaDbPath = "${ipmetaDir}/asn.parquet";
+  ipmetaCachePath = "${ipmetaDir}/current.lookup.parquet.zst";
+  ipmetaBadMarker = "${ipmetaDir}/bad-written";
+  ipmetaBootstrapPath = "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst";
+  ipmetaDialTarget = "203.0.113.42";
+  ipmetaDialPort = 53;
+  ipmetaFeedPort = 8100;
+  ipmetaFeedStartDelay = "10s";
+  ipmetaBootstrapExpectedAsn = "64500";
+  ipmetaBootstrapExpectedOwner = "fixture-net";
+  ipmetaLiveExpectedAsn = "15169";
+  ipmetaLiveExpectedOwner = "google";
+  ipmetaExpectedPrefixes = "1";
+  ipmetaBootstrapArtifact =
+    if ipmetaBootstrapTool == null then
+      throw "mkVm.nix: ipmeta-bootstrap sink requires ipmetaBootstrapTool"
+    else
+      import ../ipmeta-bootstrap {
+        inherit pkgs lib;
+        inherit ipmetaBootstrapTool;
+        lockFile = ../testdata/ipmeta-bootstrap/ipmeta-bootstrap-lock.json;
+      };
+  ipmetaFeedFixture = pkgs.runCommand "xtcp2-ipmeta-feed-fixtures" { } ''
+    mkdir -p "$out"
+    cat > "$out/live.json" <<'EOF'
+    ${builtins.toJSON {
+      syncToken = "1800000000000";
+      creationTime = "2026-01-01T00:00:00.000000";
+      prefixes = [
+        { ipv4Prefix = "203.0.113.0/24"; }
+      ];
+    }}
+    EOF
+    cat > "$out/empty.json" <<'EOF'
+    ${builtins.toJSON {
+      syncToken = "1800000000001";
+      creationTime = "2026-01-01T00:00:01.000000";
+      prefixes = [ ];
+    }}
+    EOF
+  '';
+  ipmetaGoodSourcesDir = pkgs.writeTextDir "gcp-goog.yaml" ''
+    name: gcp-goog-ipmeta-good
+    provider: gcp
+    url: http://127.0.0.1:${toString ipmetaFeedPort}/live.json
+    parser: gcp_ipranges
+    source_type: provider_feed
+    confidence: authoritative
+    defaults:
+      network_owner: google
+      service_operator: google
+    enabled: true
+  '';
+  ipmetaEmptySourcesDir = pkgs.writeTextDir "gcp-goog-empty.yaml" ''
+    name: gcp-goog-ipmeta-empty
+    provider: gcp
+    url: http://127.0.0.1:${toString ipmetaFeedPort}/empty.json
+    parser: gcp_ipranges
+    source_type: provider_feed
+    confidence: authoritative
+    defaults:
+      network_owner: google
+      service_operator: google
+    enabled: true
+  '';
+  ipmetaCollectorScenario = pkgs.writeShellApplication {
+    name = "xtcp2-ipmeta-collector-scenario";
+    runtimeInputs = [
+      ipfeedCollectorPackage
+      pkgs.coreutils
+    ];
+    text = ''
+      set -eu
+      mkdir -p ${ipmetaDir}
+      ipfeed-collector -sources-dir ${ipmetaGoodSourcesDir} -out-file ${ipmetaDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v
+      sleep 7
+      ipfeed-collector -sources-dir ${ipmetaGoodSourcesDir} -out-file ${ipmetaDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v
+      sleep 7
+      ipfeed-collector -sources-dir ${ipmetaEmptySourcesDir} -out-file ${ipmetaDbPath} -no-upload -max-attempts 3 -backoff-base 500ms -backoff-cap 2s -v || true
+      touch ${ipmetaBadMarker}
+    '';
+  };
 
   # Builds the host-ns + peer-ns veth topology. Idempotent-ish: it tears down a
   # previous run's netns/links first so a service restart re-converges cleanly.
@@ -2835,6 +2948,25 @@ in
                   asnDbPath
                   "-asnRefreshInterval"
                   "5s"
+                  "-ipmetaBootstrapPath"
+                  ""
+                  "-ipmetaCachePath"
+                  asnCachePath
+                ]
+              )
+            else if isIpmetaBootstrap then
+              (
+                xtcp2FileArgs
+                ++ [
+                  "-enrichAsn"
+                  "-asnDbPath"
+                  ipmetaDbPath
+                  "-asnRefreshInterval"
+                  "5s"
+                  "-ipmetaBootstrapPath"
+                  ipmetaBootstrapPath
+                  "-ipmetaCachePath"
+                  ipmetaCachePath
                 ]
               )
             else if isMinimal then
@@ -3175,6 +3307,7 @@ in
           after = [ "network.target" ];
           serviceConfig = {
             Type = "simple";
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep ${asnFeedStartDelay}";
             ExecStart = "${pkgs.python3}/bin/python3 -m http.server ${toString asnFeedPort} --bind 127.0.0.1 --directory ${asnFeedFixture}";
             Restart = "always";
             RestartSec = "1s";
@@ -3185,23 +3318,21 @@ in
 
         # 2. The real collector, one shot, writing the Parquet artifact xtcp2
         #    reads. Ordered after xtcp2 on purpose (late-arriving artifact →
-        #    daemon retry path). The collector's own fetch retries cover the
-        #    fixture server still coming up.
+        #    daemon retry path). It is deliberately NOT ordered after the feed
+        #    service: the feed waits before binding loopback, so the collector
+        #    starts against a blocked/unreachable source and must succeed via
+        #    its own fetch retry/backoff path.
         systemd.services.xtcp2-asn-collector = lib.mkIf isInterfaceNaming {
           description = "asn — ipfeed-collector builds ${asnDbPath} from the loopback feed";
           wantedBy = [ "multi-user.target" ];
-          after = [
-            "xtcp2-asn-feed.service"
-            "xtcp2.service"
-          ];
-          requires = [ "xtcp2-asn-feed.service" ];
+          after = [ "xtcp2.service" ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
             # RuntimeDirectory lives as long as this (RemainAfterExit) unit does.
             RuntimeDirectory = baseNameOf asnDir;
             RuntimeDirectoryMode = "0755";
-            ExecStart = "${ipfeedCollectorPackage}/bin/ipfeed-collector -sources-dir ${asnSourcesDir} -out-file ${asnDbPath} -no-upload -max-attempts 20 -backoff-base 500ms -backoff-cap 5s -v";
+            ExecStart = "${asnCollectorTwice}/bin/xtcp2-asn-collector-twice";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -3222,6 +3353,56 @@ in
           serviceConfig = {
             Type = "simple";
             ExecStart = "${pkgs.bash}/bin/bash -c 'exec 3<>/dev/tcp/${asnDialTarget}/${toString asnDialPort}; sleep 15'";
+            Restart = "always";
+            RestartSec = "1s";
+            StandardOutput = "journal";
+            StandardError = "journal";
+          };
+        };
+
+        system.activationScripts.xtcp2IpmetaBootstrap = lib.mkIf isIpmetaBootstrap ''
+          mkdir -p /share/xtcp2/ipmeta
+          ln -sfn ${ipmetaBootstrapArtifact} ${ipmetaBootstrapPath}
+        '';
+
+        systemd.services.xtcp2-ipmeta-feed = lib.mkIf isIpmetaBootstrap {
+          description = "ipmeta bootstrap — delayed loopback HTTP feed";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep ${ipmetaFeedStartDelay}";
+            ExecStart = "${pkgs.python3}/bin/python3 -m http.server ${toString ipmetaFeedPort} --bind 127.0.0.1 --directory ${ipmetaFeedFixture}";
+            Restart = "always";
+            RestartSec = "1s";
+            StandardOutput = "journal";
+            StandardError = "journal";
+          };
+        };
+
+        systemd.services.xtcp2-ipmeta-collector = lib.mkIf isIpmetaBootstrap {
+          description = "ipmeta bootstrap — collect delayed good feed, then publish bad update";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "xtcp2.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            RuntimeDirectory = baseNameOf ipmetaDir;
+            RuntimeDirectoryMode = "0755";
+            ExecStart = "${ipmetaCollectorScenario}/bin/xtcp2-ipmeta-collector-scenario";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        systemd.services.xtcp2-ipmeta-dialer = lib.mkIf isIpmetaBootstrap {
+          description = "ipmeta bootstrap — hold a TCP socket to ${ipmetaDialTarget}:${toString ipmetaDialPort}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.bash}/bin/bash -c 'exec 3<>/dev/tcp/${ipmetaDialTarget}/${toString ipmetaDialPort}; sleep 15'";
             Restart = "always";
             RestartSec = "1s";
             StandardOutput = "journal";

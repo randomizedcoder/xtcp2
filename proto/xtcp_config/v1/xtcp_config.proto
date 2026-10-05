@@ -1029,6 +1029,19 @@ message XtcpConfig {
 	// is picked up without a restart. 0 = load once at startup, never reload.
 	google.protobuf.Duration asn_refresh_interval      = 242;
 
+	// Optional zstd-compressed lookup artifact baked into the image and used at
+	// startup when no fresher writable cache is available. Default is supplied
+	// by the daemon CLI as /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst.
+	string ipmeta_bootstrap_path                        = 243 [
+		(buf.validate.field).string = { max_len: 255 }];
+
+	// Optional writable zstd-compressed lookup artifact used at startup before
+	// the image bootstrap and refreshed after successful asn_db_path reloads.
+	// The companion previous.lookup.parquet.zst in the same directory is kept
+	// as a recovery fallback.
+	string ipmeta_cache_path                            = 244 [
+		(buf.validate.field).string = { max_len: 255 }];
+
 	// -- locality (245-249)
 	// Classify the destination IP's locality (record field 310) — self /
 	// local-subnet / remote — from each monitored network namespace's local

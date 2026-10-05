@@ -807,6 +807,14 @@
           "type": "string",
           "description": "How often to reload asn_db_path in the background so a refreshed artifact\nis picked up without a restart. 0 = load once at startup, never reload."
         },
+        "ipmetaBootstrapPath": {
+          "type": "string",
+          "description": "Optional zstd-compressed lookup artifact baked into the image and used at\nstartup when no fresher writable cache is available. Default is supplied\nby the daemon CLI as /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst."
+        },
+        "ipmetaCachePath": {
+          "type": "string",
+          "description": "Optional writable zstd-compressed lookup artifact used at startup before\nthe image bootstrap and refreshed after successful asn_db_path reloads.\nThe companion previous.lookup.parquet.zst in the same directory is kept\nas a recovery fallback."
+        },
         "enrichLocalityEnable": {
           "type": "boolean",
           "description": "-- locality (245-249)\nClassify the destination IP's locality (record field 310) — self /\nlocal-subnet / remote — from each monitored network namespace's local\naddresses + routing table, discovered via rtnetlink (pkg/localnet). Also\nyields the egress interface (311/312) and the bound-interface name (300).\nRuns BEFORE the ASN lookup, so self/local-subnet destinations skip it.\nNon-fatal: a per-namespace discovery failure just leaves that namespace's\nsockets unclassified (and is retried with backoff). Default false."

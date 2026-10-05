@@ -98,6 +98,12 @@
 #                                              carries AS15169 / google /
 #                                              LOCALITY_REMOTE from an artifact
 #                                              the real ipfeed-collector built
+#   XTCP2_SELF_TEST_IPMETA_BOOTSTRAP_{PASS,FAIL}    bootstrap lookup artifact
+#                                              enriches records before live data
+#   XTCP2_SELF_TEST_IPMETA_RECOVERY_{PASS,FAIL}     delayed in-VM HTTP source
+#                                              refreshes the lookup table/cache
+#   XTCP2_SELF_TEST_IPMETA_BAD_UPDATE_{PASS,FAIL}   bad/empty update does not
+#                                              replace the last good lookup
 #
 # Each check is independent: failure of one does not skip the others, so the
 # launcher can attribute failures precisely.
@@ -225,11 +231,28 @@
   # daemon jsonl at fileOutputPath and /metrics on promPort.
   runAsnCheck ? false,
   asnDbPath ? "",
+  asnCachePath ? "",
   asnDialTarget ? "8.8.8.8",
   asnDialPort ? 53,
   asnExpectedAsn ? "15169",
   asnExpectedOwner ? "google",
   asnExpectedPrefixes ? "3",
+  # When true (ipmeta-bootstrap flavor), validates the cold-start bootstrap
+  # lookup, delayed in-VM HTTP source recovery, cache rotation, and rejection of
+  # a later empty/bad update while xtcp2 keeps enriching from the last good
+  # table.
+  runIpmetaBootstrapCheck ? false,
+  runNsInspectCheck ? true,
+  ipmetaDbPath ? "",
+  ipmetaCachePath ? "",
+  ipmetaBadMarker ? "",
+  ipmetaDialTarget ? "203.0.113.42",
+  ipmetaDialPort ? 53,
+  ipmetaBootstrapExpectedAsn ? "64500",
+  ipmetaBootstrapExpectedOwner ? "fixture-net",
+  ipmetaLiveExpectedAsn ? "15169",
+  ipmetaLiveExpectedOwner ? "google",
+  ipmetaExpectedPrefixes ? "1",
   # Multiplier applied to every retry budget in the script below. See the
   # "Retry-budget scaling" block in `text` for the reasoning; in short these
   # are poll-until-true loops, so a higher ceiling costs nothing when a check
@@ -908,6 +931,19 @@ pkgs.writeShellApplication {
       # with the right ASN proves a load happened, so the gauge must be there).
       # client_golang sorts label pairs by name, so match labels individually
       # rather than pinning their order.
+      cacheOk=0
+      for _ in $(seq 1 "$(scaled 20)"); do
+        if [ -s "${asnCachePath}" ] && [ -s "$(dirname "${asnCachePath}")/previous.lookup.parquet.zst" ]; then
+          cacheOk=1
+          break
+        fi
+        sleep 2
+      done
+      fetchRetryOk=0
+      collector_journal=$(journalctl --no-pager -o cat -u xtcp2-asn-collector.service 2>/dev/null || true)
+      if grep -Eq '"msg":"source ok".*"attempts":([2-9]|[1-9][0-9]+)' <<<"$collector_journal"; then
+        fetchRetryOk=1
+      fi
       echo "--- daemon loadAsn / refreshAsn metrics ---"
       asn_metrics=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
       grep -E 'loadAsn|refreshAsn|initAsnEnricher' <<<"$asn_metrics" || echo "(no asn metrics yet)"
@@ -915,8 +951,8 @@ pkgs.writeShellApplication {
         | awk '{print $2}' | head -1)
       prefixesOk=0
       if [ "$asn_prefixes" = "${asnExpectedPrefixes}" ]; then prefixesOk=1; fi
-      if [ "$asnOk" -eq 1 ] && [ "$prefixesOk" -eq 1 ]; then
-        echo "XTCP2_SELF_TEST_ASN_PASS  (dest=${asnDialTarget}:${toString asnDialPort} asn=${asnExpectedAsn} owner=${asnExpectedOwner} prefixes=$asn_prefixes)"
+      if [ "$asnOk" -eq 1 ] && [ "$prefixesOk" -eq 1 ] && [ "$cacheOk" -eq 1 ] && [ "$fetchRetryOk" -eq 1 ]; then
+        echo "XTCP2_SELF_TEST_ASN_PASS  (dest=${asnDialTarget}:${toString asnDialPort} asn=${asnExpectedAsn} owner=${asnExpectedOwner} prefixes=$asn_prefixes cache=${asnCachePath} fetch_retry=ok)"
         jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
                'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
                | {state: .inetDiagMsgState, dport: .inetDiagMsgSocketDestinationPort,
@@ -925,7 +961,9 @@ pkgs.writeShellApplication {
           /tmp/xtcp2-asn.snap 2>/dev/null | head -3 || true
         check5g=0
       else
-        echo "XTCP2_SELF_TEST_ASN_FAIL  (artifact_seen=$artifact_seen asn_seen=$asnOk prefixes_gauge=''${asn_prefixes:-absent} want=${asnExpectedPrefixes})"
+        echo "XTCP2_SELF_TEST_ASN_FAIL  (artifact_seen=$artifact_seen asn_seen=$asnOk prefixes_gauge=''${asn_prefixes:-absent} want=${asnExpectedPrefixes} cache_ok=$cacheOk fetch_retry_ok=$fetchRetryOk cache=${asnCachePath})"
+        echo "--- collector retry evidence ---"
+        grep -E '"msg":"source ok"|"msg":"fetch failed"|attempts' <<<"$collector_journal" | tail -20 || true
         echo "--- records to the dial target (any enrichment) ---"
         jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
                'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
@@ -951,6 +989,118 @@ pkgs.writeShellApplication {
     ''}
 
     # ─── Check 5f: raw socket destination → in-VM ncat sink ───────────────
+    # ─── Check 5h: IP metadata bootstrap / recovery / bad update ──────────
+    ${lib.optionalString runIpmetaBootstrapCheck ''
+      echo "--- check 5h: ipmeta bootstrap/recovery/bad-update (dest=${ipmetaDialTarget}:${toString ipmetaDialPort}) ---"
+      check5h_bootstrap=1
+      check5h_recovery=1
+      check5h_bad=1
+
+      dest_raw=$(IFS=. read -r o1 o2 o3 o4 <<<"${ipmetaDialTarget}"; \
+        printf '\\0%03o\\0%03o\\0%03o\\0%03o' "$o1" "$o2" "$o3" "$o4")
+      dest_b64_4=$(printf '%b' "$dest_raw" | base64)
+      dest_b64_16=$({ printf '%b' "$dest_raw"; head -c 12 /dev/zero; } | base64)
+
+      ipmetaRecordMatches() {
+        file="$1"
+        asn="$2"
+        owner="$3"
+        jq -e --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+              --argjson p ${toString ipmetaDialPort} \
+              --arg a "$asn" --arg o "$owner" \
+          'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                  and .inetDiagMsgSocketDestinationPort == $p
+                  and .enrichSocketDestAsn == $a
+                  and .enrichSocketDestNetworkOwner == $o)' \
+          "$file" >/dev/null 2>&1
+      }
+
+      for _ in $(seq 1 "$(scaled 75)"); do
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-ipmeta-bootstrap.snap 2>/dev/null || true
+          if ipmetaRecordMatches /tmp/xtcp2-ipmeta-bootstrap.snap "${ipmetaBootstrapExpectedAsn}" "${ipmetaBootstrapExpectedOwner}"; then
+            check5h_bootstrap=0
+            break
+          fi
+        fi
+        sleep 2
+      done
+      if [ "$check5h_bootstrap" -eq 0 ]; then
+        echo "XTCP2_SELF_TEST_IPMETA_BOOTSTRAP_PASS  (asn=${ipmetaBootstrapExpectedAsn} owner=${ipmetaBootstrapExpectedOwner})"
+      else
+        echo "XTCP2_SELF_TEST_IPMETA_BOOTSTRAP_FAIL  (no bootstrap-enriched record seen)"
+        overall_ok=0
+      fi
+
+      cacheOk=0
+      fetchRetryOk=0
+      liveOk=0
+      for _ in $(seq 1 "$(scaled 90)"); do
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-ipmeta-live.snap 2>/dev/null || true
+          if ipmetaRecordMatches /tmp/xtcp2-ipmeta-live.snap "${ipmetaLiveExpectedAsn}" "${ipmetaLiveExpectedOwner}"; then
+            liveOk=1
+          fi
+        fi
+        if [ -s "${ipmetaCachePath}" ] && [ -s "$(dirname "${ipmetaCachePath}")/previous.lookup.parquet.zst" ]; then
+          cacheOk=1
+        fi
+        collector_journal=$(journalctl --no-pager -o cat -u xtcp2-ipmeta-collector.service 2>/dev/null || true)
+        if grep -Eq '"msg":"source ok".*"attempts":([2-9]|[1-9][0-9]+)' <<<"$collector_journal"; then
+          fetchRetryOk=1
+        fi
+        if [ "$liveOk" -eq 1 ] && [ "$cacheOk" -eq 1 ] && [ "$fetchRetryOk" -eq 1 ]; then
+          check5h_recovery=0
+          break
+        fi
+        sleep 2
+      done
+      asn_metrics=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
+      ipmeta_prefixes=$(grep -E '^xtcp_gauges\{[^}]*function="loadAsn"[^}]*variable="prefixes"[^}]*\} ' <<<"$asn_metrics" \
+        | awk '{print $2}' | head -1)
+      if [ "$check5h_recovery" -eq 0 ] && [ "$ipmeta_prefixes" = "${ipmetaExpectedPrefixes}" ]; then
+        echo "XTCP2_SELF_TEST_IPMETA_RECOVERY_PASS  (asn=${ipmetaLiveExpectedAsn} owner=${ipmetaLiveExpectedOwner} prefixes=$ipmeta_prefixes cache=${ipmetaCachePath} fetch_retry=ok)"
+      else
+        echo "XTCP2_SELF_TEST_IPMETA_RECOVERY_FAIL  (live_ok=$liveOk cache_ok=$cacheOk fetch_retry_ok=$fetchRetryOk prefixes=''${ipmeta_prefixes:-absent} want=${ipmetaExpectedPrefixes})"
+        echo "--- ipmeta collector retry evidence ---"
+        grep -E '"msg":"source ok"|"msg":"fetch failed"|attempts' <<<"''${collector_journal:-}" | tail -20 || true
+        overall_ok=0
+      fi
+
+      for _ in $(seq 1 "$(scaled 60)"); do
+        if [ -e "${ipmetaBadMarker}" ]; then
+          before_lines=0
+          if [ -s "${fileOutputPath}" ]; then before_lines=$(wc -l < "${fileOutputPath}" || echo 0); fi
+          sleep 12
+          if [ -s "${fileOutputPath}" ]; then
+            after_start=$((before_lines + 1))
+            tail -n +"$after_start" "${fileOutputPath}" > /tmp/xtcp2-ipmeta-after-bad.snap 2>/dev/null || true
+            if [ -s /tmp/xtcp2-ipmeta-after-bad.snap ] &&
+               ipmetaRecordMatches /tmp/xtcp2-ipmeta-after-bad.snap "${ipmetaLiveExpectedAsn}" "${ipmetaLiveExpectedOwner}"; then
+              xtcp_journal=$(journalctl --no-pager -o cat -u xtcp2.service 2>/dev/null || true)
+              if grep -Eq 'ASN reload failed \(keeping current table\)|contains no usable prefixes|open parquet' <<<"$xtcp_journal"; then
+                check5h_bad=0
+              fi
+            fi
+          fi
+          break
+        fi
+        sleep 2
+      done
+      if [ "$check5h_bad" -eq 0 ]; then
+        echo "XTCP2_SELF_TEST_IPMETA_BAD_UPDATE_PASS  (bad update rejected; later records kept owner=${ipmetaLiveExpectedOwner})"
+      else
+        echo "XTCP2_SELF_TEST_IPMETA_BAD_UPDATE_FAIL  (bad_marker=$(test -e "${ipmetaBadMarker}" && echo yes || echo no); no post-bad live enrichment/rejection evidence)"
+        echo "--- post-bad records ---"
+        jq -c --arg d4 "$dest_b64_4" --arg d16 "$dest_b64_16" \
+               'select(.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+               | {dport: .inetDiagMsgSocketDestinationPort, asn: .enrichSocketDestAsn, owner: .enrichSocketDestNetworkOwner}' \
+          /tmp/xtcp2-ipmeta-after-bad.snap 2>/dev/null | head -5 || true
+        overall_ok=0
+      fi
+    ''}
+
+    # ─── Check 5i: raw socket destination → in-VM ncat sink ───────────────
     # (socket-sink flavors: tcp/udp/unix/unixgram). xtcp2 streams jsonl records
     # over `-dest <scheme>:...` to an ncat receiver; validate the received
     # records carry a non-empty hostname (send + receipt) AND the per-scheme
@@ -998,21 +1148,23 @@ pkgs.writeShellApplication {
     ''}
 
     # ─── Check 6: ns inspector reads netns state ─────────────────────────
-    echo "--- check 6: ns inspector ---"
-    check6=1
-    if command -v ns >/dev/null 2>&1; then
-      out=$(timeout 5s ns -help 2>&1)
-      rc=$?
-      if [ "$rc" -le 2 ] && [ -n "$out" ]; then
-        echo "XTCP2_SELF_TEST_NS_INSPECT_PASS  (ns -help rc=$rc, bytes=''${#out})"
-        check6=0
+    ${lib.optionalString runNsInspectCheck ''
+      echo "--- check 6: ns inspector ---"
+      check6=1
+      if command -v ns >/dev/null 2>&1; then
+        out=$(timeout 5s ns -help 2>&1)
+        rc=$?
+        if [ "$rc" -le 2 ] && [ -n "$out" ]; then
+          echo "XTCP2_SELF_TEST_NS_INSPECT_PASS  (ns -help rc=$rc, bytes=''${#out})"
+          check6=0
+        else
+          echo "XTCP2_SELF_TEST_NS_INSPECT_FAIL  (ns -help rc=$rc, bytes=''${#out})"
+        fi
       else
-        echo "XTCP2_SELF_TEST_NS_INSPECT_FAIL  (ns -help rc=$rc, bytes=''${#out})"
+        echo "XTCP2_SELF_TEST_NS_INSPECT_FAIL  (ns not on PATH)"
       fi
-    else
-      echo "XTCP2_SELF_TEST_NS_INSPECT_FAIL  (ns not on PATH)"
-    fi
-    if [ "$check6" -ne 0 ]; then overall_ok=0; fi
+      if [ "$check6" -ne 0 ]; then overall_ok=0; fi
+    ''}
 
     # ─── Check 7: nsTest runs ────────────────────────────────────────────
     echo "--- check 7: nsTest ---"

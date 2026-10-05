@@ -203,9 +203,11 @@ const (
 	// default. asnRefreshIntervalCst re-stats the artifact hourly and reloads it
 	// only when its size/mtime changed, so a refreshed — or late-arriving —
 	// ipfeed-collector file is picked up without a restart. 0 = load once.
-	enrichAsnCst          = false
-	asnDbPathCst          = ""
-	asnRefreshIntervalCst = 1 * time.Hour
+	enrichAsnCst           = false
+	asnDbPathCst           = ""
+	asnRefreshIntervalCst  = 1 * time.Hour
+	ipmetaBootstrapPathCst = "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"
+	ipmetaCachePathCst     = "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"
 
 	ipv4TtlCst      uint = 0
 	ipv6HopLimitCst uint = 0
@@ -304,9 +306,11 @@ type mainFlags struct {
 	uplinkInterfaces *string
 	populateNsid     *bool
 
-	enrichAsn          *bool
-	asnDbPath          *string
-	asnRefreshInterval *time.Duration
+	enrichAsn           *bool
+	asnDbPath           *string
+	asnRefreshInterval  *time.Duration
+	ipmetaBootstrapPath *string
+	ipmetaCachePath     *string
 
 	enrichLocality          *bool
 	localityRefreshInterval *time.Duration
@@ -493,6 +497,8 @@ func defineEnrichmentFlags(f *mainFlags) {
 	f.enrichAsn = flag.Bool("enrichAsn", enrichAsnCst, "best-effort: longest-prefix-match each socket's destination against the ipfeed-collector Parquet artifact (-asnDbPath) and stamp enrich_socket_dest_asn / enrich_socket_dest_network_owner. Self and local-subnet destinations (see -enrichLocality) skip the lookup. Non-fatal when the artifact is missing. Falls back to ENRICH_ASN env."+enricherBuildNote(xtcp.EnricherAsn))
 	f.asnDbPath = flag.String("asnDbPath", asnDbPathCst, "path to the ipfeed-collector Parquet artifact (prefix -> asn, network_owner) used by -enrichAsn. Falls back to ASN_DB_PATH env.")
 	f.asnRefreshInterval = flag.Duration("asnRefreshInterval", asnRefreshIntervalCst, "how often -enrichAsn re-stats -asnDbPath and reloads it when its size/mtime changed (also how often a missing artifact is retried); 0 = load once at startup, never reload. Falls back to ASN_REFRESH_INTERVAL env.")
+	f.ipmetaBootstrapPath = flag.String("ipmetaBootstrapPath", ipmetaBootstrapPathCst, "optional zstd-compressed lookup artifact baked into the image and used by -enrichAsn before live refresh. Falls back to IPMETA_BOOTSTRAP_PATH env.")
+	f.ipmetaCachePath = flag.String("ipmetaCachePath", ipmetaCachePathCst, "optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.")
 	f.enrichLocality = flag.Bool("enrichLocality", enrichLocalityCst, "best-effort: per namespace, dump the local addresses + routing table via rtnetlink and classify each socket's destination as self/local-subnet/remote, stamping the enrich_socket_dest_locality + interface-name columns (bound idiag_if and route egress). Non-fatal on read failure. Falls back to ENRICH_LOCALITY env."+enricherBuildNote(xtcp.EnricherLocality))
 	f.localityRefreshInterval = flag.Duration("localityRefreshInterval", localityRefreshIntervalCst, "how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.")
 }
@@ -561,6 +567,8 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*enrichAsn:", *f.enrichAsn)
 	fmt.Println("*asnDbPath:", *f.asnDbPath)
 	fmt.Println("*asnRefreshInterval:", *f.asnRefreshInterval)
+	fmt.Println("*ipmetaBootstrapPath:", *f.ipmetaBootstrapPath)
+	fmt.Println("*ipmetaCachePath:", *f.ipmetaCachePath)
 	fmt.Println("*enrichLocality:", *f.enrichLocality)
 	fmt.Println("*localityRefreshInterval:", *f.localityRefreshInterval)
 	// Which enrichers this artifact actually contains. Printed next to the
@@ -644,6 +652,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		EnrichAsnEnable:         *f.enrichAsn,
 		AsnDbPath:               *f.asnDbPath,
 		AsnRefreshInterval:      durationpb.New(*f.asnRefreshInterval),
+		IpmetaBootstrapPath:     *f.ipmetaBootstrapPath,
+		IpmetaCachePath:         *f.ipmetaCachePath,
 		EnrichLocalityEnable:    *f.enrichLocality,
 		LocalityRefreshInterval: durationpb.New(*f.localityRefreshInterval),
 		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
@@ -1723,6 +1733,14 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if d, ok := envDuration("ASN_REFRESH_INTERVAL"); ok {
 		c.AsnRefreshInterval = durationpb.New(d)
 		logEnv("ASN_REFRESH_INTERVAL", fmt.Sprintf("c.AsnRefreshInterval:%s", c.AsnRefreshInterval.String()), debugLevel)
+	}
+	if v, ok := envString("IPMETA_BOOTSTRAP_PATH"); ok {
+		c.IpmetaBootstrapPath = v
+		logEnv("IPMETA_BOOTSTRAP_PATH", fmt.Sprintf("c.IpmetaBootstrapPath:%s", v), debugLevel)
+	}
+	if v, ok := envString("IPMETA_CACHE_PATH"); ok {
+		c.IpmetaCachePath = v
+		logEnv("IPMETA_CACHE_PATH", fmt.Sprintf("c.IpmetaCachePath:%s", v), debugLevel)
 	}
 	if v, ok := envBool("ENRICH_LOCALITY"); ok {
 		c.EnrichLocalityEnable = v

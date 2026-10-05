@@ -160,15 +160,15 @@ func TestSummaryPrint(t *testing.T) {
 		{
 			description: "positive: two ok sources are rendered sorted by name with totals and an uploaded line",
 			sources: []SourceResult{
-				{Name: "zeta", OK: true, HTTPStatus: 200, FetchedBytes: 2048, Parsed: 3, Valid: 3, Duration: 1500 * time.Millisecond},
-				{Name: "alpha", OK: true, HTTPStatus: 200, FetchedBytes: 100, Parsed: 2, Valid: 1, Rejected: 1, Duration: 20 * time.Millisecond, Note: "1 bad cidr"},
+				{Name: "zeta", OK: true, HTTPStatus: 200, FetchAttempts: 1, FetchedBytes: 2048, Parsed: 3, Valid: 3, Duration: 1500 * time.Millisecond},
+				{Name: "alpha", OK: true, HTTPStatus: 200, FetchAttempts: 3, FetchedBytes: 100, Parsed: 2, Valid: 1, Rejected: 1, Duration: 20 * time.Millisecond, Note: "1 bad cidr"},
 			},
 			uploadURL:   "s3://bucket/ipfeeds/x.parquet",
 			uploadBytes: 3 * 1024 * 1024,
 			expectedLines: []string{
-				"source status http fetched parsed +valid -rejected dur note",
-				"alpha ok 200 100 B 2 1 1 20ms 1 bad cidr",
-				"zeta ok 200 2.0 KB 3 3 0 1.5s",
+				"source status http attempts fetched parsed +valid -rejected dur note",
+				"alpha ok 200 3 100 B 2 1 1 20ms 1 bad cidr",
+				"zeta ok 200 1 2.0 KB 3 3 0 1.5s",
 				"",
 				"TOTALS 2 ok / 0 fail records: 4 valid (+) / 1 rejected (-)",
 				"uploaded: s3://bucket/ipfeeds/x.parquet (3.0 MB)",
@@ -178,11 +178,11 @@ func TestSummaryPrint(t *testing.T) {
 		{
 			description: "negative: a failed source shows FAIL, '-' for no http status, and its note",
 			sources: []SourceResult{
-				{Name: "broken", OK: false, Duration: 5 * time.Second, Note: "dial tcp: connection refused"},
+				{Name: "broken", OK: false, FetchAttempts: 10, Duration: 5 * time.Second, Note: "dial tcp: connection refused"},
 			},
 			expectedLines: []string{
-				"source status http fetched parsed +valid -rejected dur note",
-				"broken FAIL - 0 B 0 0 0 5s dial tcp: connection refused",
+				"source status http attempts fetched parsed +valid -rejected dur note",
+				"broken FAIL - 10 0 B 0 0 0 5s dial tcp: connection refused",
 				"",
 				"TOTALS 0 ok / 1 fail records: 0 valid (+) / 0 rejected (-)",
 			},
@@ -197,7 +197,7 @@ func TestSummaryPrint(t *testing.T) {
 			description: "boundary: no sources prints just the header and a zero TOTALS line",
 			sources:     nil,
 			expectedLines: []string{
-				"source status http fetched parsed +valid -rejected dur note",
+				"source status http attempts fetched parsed +valid -rejected dur note",
 				"",
 				"TOTALS 0 ok / 0 fail records: 0 valid (+) / 0 rejected (-)",
 			},
@@ -207,8 +207,8 @@ func TestSummaryPrint(t *testing.T) {
 			sources:     []SourceResult{{Name: "empty", OK: true, HTTPStatus: 204}},
 			uploadBytes: 999, // ignored without a URL
 			expectedLines: []string{
-				"source status http fetched parsed +valid -rejected dur note",
-				"empty ok 204 0 B 0 0 0 0s",
+				"source status http attempts fetched parsed +valid -rejected dur note",
+				"empty ok 204 0 0 B 0 0 0 0s",
 				"",
 				"TOTALS 1 ok / 0 fail records: 0 valid (+) / 0 rejected (-)",
 			},
@@ -221,9 +221,9 @@ func TestSummaryPrint(t *testing.T) {
 				{Name: "a", OK: true, HTTPStatus: 200, FetchedBytes: 1, Valid: 1, Duration: 1499 * time.Microsecond},
 			},
 			expectedLines: []string{
-				"source status http fetched parsed +valid -rejected dur note",
-				"a ok 200 1 B 0 1 0 1ms",
-				"b FAIL 503 12 B 0 0 0 0s status 503",
+				"source status http attempts fetched parsed +valid -rejected dur note",
+				"a ok 200 0 1 B 0 1 0 1ms",
+				"b FAIL 503 0 12 B 0 0 0 0s status 503",
 				"",
 				"TOTALS 1 ok / 1 fail records: 1 valid (+) / 0 rejected (-)",
 			},

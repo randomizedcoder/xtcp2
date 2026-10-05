@@ -78,6 +78,7 @@ let
     # its closure never reaches internal/goip. Listed here for the same reason
     # as goip: this list is what puts it in the guest.
     "goip-parity"
+    "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"
@@ -87,6 +88,7 @@ let
     "xtcp2client"
     "xtcp2ctl"
     "xtcp2_kafka_client"
+    "zstd-probe"
   ];
 
   variantNames = builtins.attrNames versions.buildVariants;
@@ -161,13 +163,20 @@ let
       # ipfeed-collector is excluded on the same opt-in principle as the
       # enrichment axis: it is a standalone daemon that builds the ASN Parquet
       # artifact on its own schedule, not something the xtcp2 daemon invokes,
-      # and at ~24.9 MB it was 12.7% of the fat image. Anyone who wants it has
-      # `nix build .#ipfeed-collector` or the slim `oci-ipfeed-collector`
-      # image, which is how it is meant to be deployed (sidecar / separate
-      # unit). It stays in binaryNames, so that attr and the cli-help-smoke
-      # check are unaffected.
+      # and at ~24.9 MB it was 12.7% of the fat image. ipmeta-bootstrap is a
+      # build-time artifact normalizer, and zstd-probe is a measurement helper
+      # for the embedded-compression design, not a fleet binary. Anyone who
+      # wants one has `nix build .#<name>` or, for the collector, the slim
+      # `oci-ipfeed-collector` image. They stay in binaryNames, so those attrs
+      # and cli-help-smoke coverage are unaffected.
       paths =
-        lib.attrValues (removeAttrs byVariant.${variant} [ "ipfeed-collector" ])
+        lib.attrValues (
+          removeAttrs byVariant.${variant} [
+            "ipmeta-bootstrap"
+            "ipfeed-collector"
+            "zstd-probe"
+          ]
+        )
         ++ lib.optionals (variant == "default") (lib.attrValues toolBinaries);
     };
 

@@ -12,6 +12,9 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -140,6 +143,9 @@ func (c *Client) backoffWindow(attempt int) time.Duration {
 // attempt performs a single request. The bool reports whether a failure is
 // worth retrying.
 func (c *Client) attempt(ctx context.Context, url string, cond Conditional) (Result, bool, error) {
+	if strings.HasPrefix(url, "file://") {
+		return getFile(ctx, url)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return Result{URL: url}, false, err // malformed URL: not retryable
@@ -193,6 +199,36 @@ func (c *Client) attempt(ctx context.Context, url string, cond Conditional) (Res
 	default:
 		return res, false, drainStatusErr(resp.Body, resp.StatusCode)
 	}
+}
+
+func getFile(ctx context.Context, rawurl string) (Result, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{URL: rawurl}, false, err
+	}
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return Result{URL: rawurl}, false, err
+	}
+	if u.Scheme != "file" || u.Host != "" {
+		return Result{URL: rawurl}, false, fmt.Errorf("unsupported file URL %q", rawurl)
+	}
+	path, err := url.PathUnescape(u.Path)
+	if err != nil {
+		return Result{URL: rawurl}, false, err
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return Result{URL: rawurl}, false, err
+	}
+	if int64(len(body)) > maxBodyBytes {
+		return Result{URL: rawurl}, false, fmt.Errorf("%w (limit %d bytes)", ErrBodyTooLarge, maxBodyBytes)
+	}
+	return Result{
+		URL:      rawurl,
+		Status:   http.StatusOK,
+		Body:     body,
+		Attempts: 1,
+	}, false, nil
 }
 
 // drainStatusErr discards any remaining response body so the underlying

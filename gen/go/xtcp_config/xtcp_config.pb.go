@@ -1302,6 +1302,15 @@ type XtcpConfig struct {
 	// How often to reload asn_db_path in the background so a refreshed artifact
 	// is picked up without a restart. 0 = load once at startup, never reload.
 	AsnRefreshInterval *durationpb.Duration `protobuf:"bytes,242,opt,name=asn_refresh_interval,json=asnRefreshInterval,proto3" json:"asn_refresh_interval,omitempty"`
+	// Optional zstd-compressed lookup artifact baked into the image and used at
+	// startup when no fresher writable cache is available. Default is supplied
+	// by the daemon CLI as /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst.
+	IpmetaBootstrapPath string `protobuf:"bytes,243,opt,name=ipmeta_bootstrap_path,json=ipmetaBootstrapPath,proto3" json:"ipmeta_bootstrap_path,omitempty"`
+	// Optional writable zstd-compressed lookup artifact used at startup before
+	// the image bootstrap and refreshed after successful asn_db_path reloads.
+	// The companion previous.lookup.parquet.zst in the same directory is kept
+	// as a recovery fallback.
+	IpmetaCachePath string `protobuf:"bytes,244,opt,name=ipmeta_cache_path,json=ipmetaCachePath,proto3" json:"ipmeta_cache_path,omitempty"`
 	// -- locality (245-249)
 	// Classify the destination IP's locality (record field 310) — self /
 	// local-subnet / remote — from each monitored network namespace's local
@@ -1854,6 +1863,20 @@ func (x *XtcpConfig) GetAsnRefreshInterval() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetIpmetaBootstrapPath() string {
+	if x != nil {
+		return x.IpmetaBootstrapPath
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetIpmetaCachePath() string {
+	if x != nil {
+		return x.IpmetaCachePath
+	}
+	return ""
+}
+
 func (x *XtcpConfig) GetEnrichLocalityEnable() bool {
 	if x != nil {
 		return x.EnrichLocalityEnable
@@ -1973,7 +1996,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x12failure_jitter_min\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMin\x12Q\n" +
 	"\x12failure_jitter_max\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMax:\xe1\x01\xbaH\xdd\x01\x1a\xda\x01\n" +
 	"\x1aListenerAuth.failureJitter\x12Ffailure_jitter_max must be greater than or equal to failure_jitter_min\x1at!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_minB\x1c\n" +
-	"\x1a_signed_token_skew_minutes\"\x8d\"\n" +
+	"\x1a_signed_token_skew_minutes\"\x83#\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2069,7 +2092,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\rpopulate_nsid\x18\xe6\x01 \x01(\bR\fpopulateNsid\x12+\n" +
 	"\x11enrich_asn_enable\x18\xf0\x01 \x01(\bR\x0fenrichAsnEnable\x12)\n" +
 	"\vasn_db_path\x18\xf1\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\tasnDbPath\x12L\n" +
-	"\x14asn_refresh_interval\x18\xf2\x01 \x01(\v2\x19.google.protobuf.DurationR\x12asnRefreshInterval\x125\n" +
+	"\x14asn_refresh_interval\x18\xf2\x01 \x01(\v2\x19.google.protobuf.DurationR\x12asnRefreshInterval\x12=\n" +
+	"\x15ipmeta_bootstrap_path\x18\xf3\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x13ipmetaBootstrapPath\x125\n" +
+	"\x11ipmeta_cache_path\x18\xf4\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x0fipmetaCachePath\x125\n" +
 	"\x16enrich_locality_enable\x18\xf5\x01 \x01(\bR\x14enrichLocalityEnable\x12V\n" +
 	"\x19locality_refresh_interval\x18\xf6\x01 \x01(\v2\x19.google.protobuf.DurationR\x17localityRefreshInterval:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
