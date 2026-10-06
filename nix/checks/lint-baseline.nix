@@ -4,8 +4,8 @@
 # and goes red when a GATED tier gains one.
 #
 # This is the one check in the set that is GREEN at baseline, and that is its
-# entire purpose. `nix flake check` is red on eight checks, so its exit code has
-# been 1 for longer than any individual finding and cannot announce a new one —
+# entire purpose. `nix flake check` has other reds, so its exit code has been 1
+# for longer than any individual finding and cannot announce a new one —
 # which is how PR #146 landed +14 Tier 1 / +16 Tier 2 findings unannounced. The
 # tier checks are not unwatched; their red is unreadable. A check that is green
 # today and red tomorrow is readable. See docs/static-analysis.md and
@@ -19,13 +19,21 @@
 # then be unregenerable exactly when it needed regenerating. That file's header
 # has the full argument.
 #
-# GATED TIERS, one at a time. Tier 0 only, following gatedProtocols in
+# GATED TIERS, one at a time, following gatedProtocols in
 # proto-audit-netlink.nix and the discipline recorded at nix/checks/default.nix:
 # turning everything on at once would make this check permanently red, which is
-# the same as turning it off. Tier 0 is empty as of the Tier 0 pass, so gating it
-# is honest. Tiers 1 and 2 still hold findings; they are measured, printed and
-# diffed, but they do not fail the build until the phase that empties them
-# promotes them here. Promotion is earned by measurement, never asserted.
+# the same as turning it off. A tier is promoted only after a pass has MEASURED
+# it at 0 — Tier 0 after the Tier 0 pass, Tier 1 after the
+# errcheck/misspell/contextcheck pass closed its last 26 findings. Promotion is
+# earned by measurement, never asserted. A tier that still holds findings is
+# measured, printed and diffed, but does not fail the build until the phase that
+# empties it promotes it.
+#
+# Which tiers are gated TODAY is not written here. It is the gatedTiers argument
+# below, set at the call site in nix/checks/default.nix, where the decision is
+# reviewable alongside every other check's. This comment said "Tier 0 only" and
+# went stale on the commit that promoted Tier 1, which is the argument for
+# keeping the policy here and the list in exactly one place.
 #
 # Exit codes come from tools/lint-baseline and each means something different:
 # 1 = a gated tier gained a finding, 2 = the run is unusable and fails CLOSED

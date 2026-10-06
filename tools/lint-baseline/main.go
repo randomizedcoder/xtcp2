@@ -5,8 +5,8 @@
 //
 // # Why this exists
 //
-// `nix flake check` is red on eight checks at baseline, so its exit code has
-// been 1 for longer than any individual finding and cannot announce a new one.
+// `nix flake check` has other reds, so its exit code has been 1 for longer than
+// any individual finding and cannot announce a new one.
 // The tier is not unwatched; its red is unreadable. A check that is GREEN today
 // and goes red the moment the finding list changes is the only thing that can
 // report a regression. See docs/static-analysis.md.

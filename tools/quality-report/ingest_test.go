@@ -206,15 +206,15 @@ func TestIngestGoVet_addsStatusRow(t *testing.T) {
 	}
 }
 
-func TestIngestCustomAudits_iteratesAllFour(t *testing.T) {
+func TestIngestCustomAudits_iteratesAllFive(t *testing.T) {
 	c := newIngestCtx(t)
-	for _, name := range []string{"netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit"} {
+	for _, name := range []string{"netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit", "kernel-citation-audit"} {
 		writeRaw(t, c.rawDir, name+".out", "audit: no findings\n")
 	}
 	var in reportInput
 	c.ingestCustomAudits(&in)
-	if len(in.Status) != 4 {
-		t.Errorf("Status len = %d, want 4 (one per audit)", len(in.Status))
+	if len(in.Status) != 5 {
+		t.Errorf("Status len = %d, want 5 (one per audit)", len(in.Status))
 	}
 }
 

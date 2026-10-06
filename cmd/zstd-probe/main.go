@@ -138,7 +138,13 @@ func startMetrics(ctx context.Context, addr, path string, reg *prometheus.Regist
 	mux.Handle(path, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok\n"))
+		// Logged, not returned: the header is already written, so there is no
+		// way left to signal failure to the client. A readiness probe whose
+		// body never arrived is worth a line in the log, which is how this file
+		// already treats an unreportable server error below.
+		if _, err := w.Write([]byte("ok\n")); err != nil {
+			log.Printf("readyz write: %v", err)
+		}
 	})
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", addr)
@@ -280,7 +286,14 @@ func main() {
 	}
 	if srv != nil {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		_ = srv.Shutdown(shutdownCtx)
+		// Logged rather than propagated, deliberately: err from run above is
+		// the probe's result and decides the exit status below, so letting a
+		// shutdown timeout overwrite it would report a metrics-server problem
+		// as a probe failure. The 5s deadline makes this reachable, so it is
+		// worth saying out loud when it happens.
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("metrics server shutdown: %v", err)
+		}
 		cancel()
 	}
 	if err != nil {

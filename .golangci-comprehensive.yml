@@ -173,10 +173,24 @@ linters:
           - unused
           - goconst
           - noctx
+      # G404 (math/rand) and G301 (dir perms) in tests, as in .golangci.yml.
+      #
+      # G302 (chmod perms) is here for a sharper reason than either: its
+      # expectation cannot be met by a directory at all. It compares the mode
+      # against 0600 as a bitmask, so ANY mode carrying the execute bit is a
+      # finding — and a directory without the execute bit cannot be traversed.
+      # pkg/listener and pkg/ipasn strip a directory's write bit (0o500) so
+      # that os.Remove inside it fails with EACCES, which is the only way to
+      # reach the unlink errors this phase stopped discarding; 0o500 is
+      # strictly more restrictive than the 0600 the rule asks for, and the
+      # restore to 0o700 is what lets t.TempDir clean up.
+      #
+      # The standalone gosec check never sees these: it defaults to
+      # -tests=false, so no equivalent belongs in its global -exclude list.
       - path: "_test\\.go"
         linters:
           - gosec
-        text: "G404|G301"
+        text: "G404|G301|G302"
       # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
       # Linux kernel uapi `struct tcp_info` revisions; renaming would defeat
       # the per-version mapping that is the point of pkg/xtcpnl.
@@ -210,10 +224,12 @@ linters:
           # since those ARE the canonical identifiers. Lifting to consts
           # would obscure rather than clarify.
           - goconst
-      # The next three are verbatim-upstream-spelling rules. The first two are
-      # copies of rules already carried by .golangci.yml; they were never
-      # ported here, which is why this tier reported three misspellings the
-      # gating tier does not. Keep the three configs' misspell rules in step.
+      # The next five are verbatim-upstream-spelling rules. The first two were
+      # once copies of rules already carried by .golangci.yml that had never
+      # been ported here, which is why this tier reported three misspellings the
+      # gating tier did not. Keep the three configs' misspell rules in step;
+      # .golangci-quick.yml does not enable misspell at all, so it carries none
+      # of them, and that is the only legitimate difference between the three.
       #
       # `ifa_prefered` is how the Linux kernel spells it. The comment it appears
       # in is a verbatim quotation of `struct ifa_cacheinfo` from
@@ -235,11 +251,57 @@ linters:
       # names the pair in the comment on the row that asserts their order, and
       # obj_neigh_test.go runs the alias end to end — that row's argv is the
       # string a user types, so it cannot be respelled without testing a
-      # command that does not exist.
+      # command that does not exist. Prose in those files is still checked, by
+      # the audit named in the next entry: the exemption there covers only a
+      # quoted command token.
       - path: "internal/goip/(dispatch(_test)?|obj_neigh_test)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
+      # The ten files below cite kernel paths that contain the word.
+      # net/core/neighbour.c and include/uapi/linux/neighbour.h are the real
+      # file names, so "correcting" them produces paths that do not exist and
+      # breaks the one thing those comments are for, which is diffing against a
+      # kernel tree. Sixteen occurrences across the ten; misspell reports
+      # thirteen, skipping the two inside torvalds/linux URLs, and the
+      # sixteenth is in obj_neigh_test.go, covered by the entry above.
+      #
+      # On its own this entry would be exactly the suppression the policy
+      # forbids. An exclusion can only match misspell's MESSAGE, which is
+      # identical whether the word sits inside a kernel path or inside British
+      # prose, so widening to ten whole files does give up real coverage inside
+      # them. What replaces it is tools/kernel-citation-audit, a check that
+      # fails unless every occurrence in the tree is directly preceded by
+      # `net/core/` or `linux/`. That is strictly stronger than what misspell
+      # was giving: misspell is satisfied by `net/core/neighbor.c` and the audit
+      # is not, so it also catches a kernel path "fixed" by someone running
+      # lint-fix.
+      #
+      # obj_neigh.go and obj_neigh_test.go are listed in two different entries
+      # deliberately. The first holds only a citation; the second also holds the
+      # argv a user types. A collapsed `obj_neigh(_test)?\.go` would match the
+      # same two files and lose the reason.
+      - path: "(internal/goip/obj_neigh|internal/goip/render/neigh_test|internal/goip/req/req|internal/goipparity/commands|pkg/nlparity/nlparity_(names|segment)_test|pkg/xtcpnl/xtcpnl_(ndmsg|rtnetlink_requests)(_test)?)\\.go"
+        linters:
+          - misspell
+        text: "`neighbour` is a misspelling of `neighbor`"
+      # The audit tool itself, which cannot be written without using the word in
+      # prose: its documentation, its exemption reasons and its fixtures are all
+      # about that word. It is also the one directory the audit skips, for the
+      # same reason, with the argument spelled out at its selfDirCst. The
+      # alternative was to assemble the constant from fragments so neither tool
+      # could see it, which hides the word without making anything more correct
+      # and leaves the file a reader consults for the rule unable to state it.
+      #
+      # The text is matched case-insensitively here and nowhere else: the
+      # fixtures deliberately include `Neighbour` and `NEIGHBOUR`, because the
+      # audit has to be case-insensitive and a test that only ever passes the
+      # lowercase form would not show that. The ten citation files above keep
+      # the exact lowercase text, which is all they contain.
+      - path: "tools/kernel-citation-audit/"
+        linters:
+          - misspell
+        text: "(?i)`neighbour` is a misspelling of `neighbor`"
       # "DORMANT" appears three times in render.go because it is a member of
       # three *different* kernel enums, each transcribed as its own table with
       # its own ip/ipaddress.c citation: IF_OPER_DORMANT in operStates

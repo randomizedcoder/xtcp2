@@ -18,13 +18,16 @@ entries as environmental when each had a specific cause in our own code, and
 methods. `golangci-lint-comprehensive` reported **0 issues** on that date.
 
 **That last sentence has been false since `b2f7c40` (PR #145) and is corrected
-in §23.** Tier 2 is red again and has been for weeks — at **46 findings** as of
-2026-10-05 — and `nix flake check` does build it, contrary to what §23 itself
-first claimed. What nothing does is *read* it: `nix flake check` is red on eight
-checks, so its exit code cannot report a new finding, and there is no CI and no
-scheduler in this repo, so "nightly" names an intention rather than a cron.
-Read any "0 issues" claim in this file as "0 issues on the date beside it", not
-as a current state.
+in §23.** Tier 2 is red again and has been for weeks — down to **4 findings** as
+of 2026-10-06, from 46 — and `nix flake check` does build it, contrary to what
+§23 itself first claimed. What nothing *gates* is Tier 2: the `lint-baseline`
+ratchet measures and prints all three tiers, but it only fails on a tier listed
+in `gatedTiers`, and Tier 0 and Tier 1 are the two gated today. The exit code of
+`nix flake check` itself cannot report a new finding either, because it is still
+red on `deadnix`, `nix-fmt` and Tier 2, plus the two environmental flakes. And
+there is no CI and no scheduler in this repo, so "nightly" names an intention
+rather than a cron. Read any "0 issues" claim in this file as "0 issues on the
+date beside it", not as a current state.
 
 Two new known-issues were added at the bottom (§5) from doing the work: the
 issue-cap default that made §2 look smaller than it was, and the unpinned
@@ -1670,6 +1673,17 @@ This supersedes the header note's "`golangci-lint-comprehensive` now reports
 **0 issues**", which was true on 2026-09-23 and has been false since
 `b2f7c40` (PR #145).
 
+**Status 2026-10-06 — everything below this line is the 2026-10-05 measurement,
+kept as the record rather than overwritten.** Three passes have run since. Tier 0
+and Tier 1 both measure **0** and are both gated by the `lint-baseline` ratchet;
+Tier 2 is down from 46 to **4** — `funlen` ×3 in `cmd/xtcp2` and `gocyclo` ×1 on
+`setRuleAttr` — and `go-sec`, `statix`, `gofmt` and `go-vet` are green. The
+remaining reds are `deadnix` (2), `nix-fmt` (2 files), Tier 2 (4) and the two
+environmental flakes. So read the present-tense claims below — "all three tiers
+are red", "prints all 46 findings", "red on **eight** checks" — as describing
+2026-10-05, not today. `docs/lint-baseline.txt` is the live list, and items
+**23.1** and **23.2** are what is left to do.
+
 **The measured baseline.** All three golangci tiers are red at baseline, so a
 non-zero `nix build` on any of them does **not** by itself mean a regression —
 the finding *list* has to be diffed, not the exit code.
@@ -1755,6 +1769,10 @@ both numbers above look alarming. They need their own sweep — mostly
 `errcheck` on `Close`/`Remove` in `pkg/ipasn` and `cmd/zstd-probe`, four
 `gosec` file-permission findings, and one `noctx` `net.Listen`.
 
+**That sweep has since happened** (2026-10-06): see item 6 below. Tier 1 is at
+**0** and gated; Tier 2 is at **4**, all of them `funlen` ×3 and `gocyclo` ×1,
+which are items 1 and the flag-split work.
+
 This is the same failure mode as **§2**, which diagnosed it for `misspell` and
 fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
 
@@ -1797,9 +1815,10 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
    What landed: `tools/lint-baseline/` does the comparison,
    `nix/lint-baseline-measure.nix` produces the three tiers' JSON and succeeds
    whatever they report, `nix/checks/lint-baseline.nix` is the check, and
-   `docs/lint-baseline.txt` is the committed list. It gates **Tier 0 only** —
-   0 findings, so the gate is honest — and prints Tiers 1 and 2 as advisory
-   until the phases that empty them promote them. It closes no findings; it
+   `docs/lint-baseline.txt` is the committed list. It gated **Tier 0 only** on
+   landing — 0 findings, so the gate was honest — and printed Tiers 1 and 2 as
+   advisory until the phases that empty them promote them. Tier 1 was promoted
+   the next day; see item 6. It closes no findings; it
    makes the remaining ones a build's problem instead of a reviewer's. The two
    silent failure modes this entry worried about are both refusals now, and
    building it surfaced a third: a tier exit code above 1 is exit 3
@@ -1821,6 +1840,39 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
    `docs/coverage-baseline.txt` holds `78.9` while
    `docs/netlink/coverage-expansion.md` says `78.6`. Cosmetic, but it is the
    same class of drift as the "0 issues" claim above. See §6.
+6. ~~**Tier 1 carries 26 findings and cannot be gated.**~~ **DONE**
+   (2026-10-06) — Tier 1 measures **0** and is now in `gatedTiers`, so
+   `checks.lint-baseline` turns red on the commit that adds a Tier 1 finding
+   rather than on a reviewer noticing. The 26 were `errcheck` 12, `misspell`
+   13 and `contextcheck` 1.
+
+   Four things worth keeping out of that, each measured rather than assumed:
+
+   - **`contextcheck` is a Tier 1 linter** (`.golangci.yml:51`), not Tier-2-only
+     as the plan for this work assumed, so it had to be closed here before Tier
+     1 could be gated at all. It was fixed structurally and needed no
+     exclusion: `StreamServerInterceptor` now returns a method value, because
+     `contextcheck` objects to the *closure*, not to the context it passes —
+     `context.Background()` in place of `ss.Context()` is flagged identically,
+     and hoisting only the body into a named `ctx`-taking helper does not
+     silence it.
+   - **`misspell`'s 13 could only be closed by widening an exclusion**, which
+     is a suppression on its own, so `tools/kernel-citation-audit` +
+     `checks.kernel-citation-audit` enforce the invariant the exclusion gives
+     up: `neighbour` only ever directly after `net/core/` or `linux/`. It is
+     strictly stronger than what `misspell` gave, which was satisfied by
+     `net/core/neighbor.c`. If that check is ever deleted, the exclusions go
+     with it, and both config comments say so.
+   - **One new `gosec` exclusion was unavoidable and is an argument, not a
+     concession.** G302 compares a chmod mode against 0600 as a bitmask, so any
+     mode with the execute bit is a finding — and a directory without it cannot
+     be traversed, which makes every traversable directory mode a G302 finding.
+     It joined `G404|G301` on the existing `_test\.go` gosec entry only.
+   - **`net.UnixListener.Close` unlinks its path unconditionally and discards
+     its own unlink error**, so `unixListener.Close`'s `ModeSocket` guard runs
+     after the path is already gone and protects less than it appears to. That
+     came out of writing the table, not out of reading the code, and is now in
+     the function's doc comment.
 
 **How to check this properly**, since the exit code is useless here:
 
