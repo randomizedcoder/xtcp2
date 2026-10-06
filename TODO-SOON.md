@@ -1674,15 +1674,21 @@ This supersedes the header note's "`golangci-lint-comprehensive` now reports
 `b2f7c40` (PR #145).
 
 **Status 2026-10-06 — everything below this line is the 2026-10-05 measurement,
-kept as the record rather than overwritten.** Three passes have run since. Tier 0
-and Tier 1 both measure **0** and are both gated by the `lint-baseline` ratchet;
-Tier 2 is down from 46 to **4** — `funlen` ×3 in `cmd/xtcp2` and `gocyclo` ×1 on
-`setRuleAttr` — and `go-sec`, `statix`, `gofmt` and `go-vet` are green. The
-remaining reds are `deadnix` (2), `nix-fmt` (2 files), Tier 2 (4) and the two
-environmental flakes. So read the present-tense claims below — "all three tiers
-are red", "prints all 46 findings", "red on **eight** checks" — as describing
-2026-10-05, not today. `docs/lint-baseline.txt` is the live list, and items
-**23.1** and **23.2** are what is left to do.
+kept as the record rather than overwritten.** Four passes have run since. Tier 0
+and Tier 1 both measure **0** and are both gated by the `lint-baseline` ratchet,
+Tier 1 now **with `gocyclo` in it**; Tier 2 is down from 46 to **3**, all
+`funlen`, all in `cmd/xtcp2`; and `go-sec`, `statix`, `gofmt` and `go-vet` are
+green. The remaining reds are `deadnix` (2), `nix-fmt` (2 files), Tier 2 (3) and
+the two environmental flakes. So read the present-tense claims below — "all three
+tiers are red", "prints all 46 findings", "red on **eight** checks" — as
+describing 2026-10-05, not today. `docs/lint-baseline.txt` is the live list.
+
+Items **23.1**, **23.2**, **23.3** and **23.6** are done; **23.4** and **23.5**
+(both about `docs/quality-report.md` and how the coverage baseline is quoted)
+are still open. The remaining lint work — the `funlen` ×3 and the four Nix
+findings — is steps 7 and 9 of the work order in `docs/static-analysis.md`, and
+closing them empties Tier 2 and gates it, at which point the baseline holds
+nothing.
 
 **The measured baseline.** All three golangci tiers are red at baseline, so a
 non-zero `nix build` on any of them does **not** by itself mean a regression —
@@ -1778,26 +1784,50 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
 
 **What is left open.**
 
-1. **`setRuleAttr` is at gocyclo 48** (`pkg/xtcpnl/xtcpnl_fib_rule_hdr.go`),
-   which is the single remaining `gocyclo` finding and the reason Tier 2 is
-   still red after the `ParseNewRoute` fix. It landed in `b2f7c40` (PR #145)
-   and was recorded **nowhere** until this entry — not here, not as an
-   exclusion, not as a `//nolint`. Fixing it is a split of ~26 `FRA_*` clauses
-   along the same line as `setRouteAttr`/`setLinkScalarAttr`: the scalars with
-   a length guard are the bulk, and `attrU8`/`attrU16`/`attrU32`/
-   `attrPortRange` already exist in that file to carry them. Note those helpers
-   buy **zero** gocyclo on their own — `if v, ok := attrU32(val); ok` still has
-   an `if` — so adopting them is a readability win and must not be sold as a
-   complexity fix.
-2. **Promote `gocyclo` to Tier 1**, following §2's `misspell` precedent, and
-   note that the benefit is smaller than it looks now that both tiers are known
-   to run in `nix flake check`. Promotion moves the finding from one red tier
-   to another red tier; it does not make anything newly visible. What it buys
-   is that `lint` and the quick pre-PR path grow the class, and that Tier 1's
-   count becomes the one to protect. Still **blocked on item 1** — promote
-   while `setRuleAttr` sits at 48 and Tier 1 inherits a permanent finding,
-   which is precisely the condition that makes a tier's red uninformative.
-   Sequence is fix `setRuleAttr`, then promote, then item 3.
+1. ~~**`setRuleAttr` is at gocyclo 48**~~ **DONE** (2026-10-06) — it is now
+   **6**, and `gocyclo` reports nothing over 30 anywhere in production code. It
+   landed in `b2f7c40` (PR #145) and was recorded **nowhere** until this entry
+   — not here, not as an exclusion, not as a `//nolint`.
+
+   **This item prescribed the wrong split, and the correction is the useful
+   part.** The plan was one `setRuleScalarAttr` holding the
+   scalars-with-a-length-guard with their case clauses *merged*. Merging is
+   what makes it wrong: the 26 `FRA_*` constants would stop appearing exactly
+   once each, so an attribute handled by two arms, or by none, would stop being
+   obvious from the source. The assumption of one large group was wrong too —
+   measured, the arms divide into four decoding disciplines of roughly equal
+   size.
+
+   What landed is a five-level cascade linked by `default:` arms —
+   `setRuleAttr` 6, `setRuleU32Attr` 17, `setRuleU8Attr` 11,
+   `setRuleRangeAttr` 11, `setRuleBigEndianAttr` 7 — each named for a property
+   true of every arm it holds, 26 arms, each exactly once. A cascade costs
+   nothing per level because `gocyclo` does not count a `default:` arm, which
+   was measured against `setLinkDetailAttr` rather than assumed. The big-endian
+   three get a function named for their byte order, because mixing one into the
+   little-endian level decodes to a plausible wrong number rather than failing.
+   Full write-up in `docs/static-analysis.md`.
+
+   The note this item made is still true and worth keeping:
+   `attrU8`/`attrU16`/`attrU32`/`attrPortRange` buy **zero** gocyclo on their
+   own — `if v, ok := attrU32(val); ok` still has an `if` — so adopting them is
+   a readability win and must not be sold as a complexity fix.
+2. ~~**Promote `gocyclo` to Tier 1**~~ **DONE** (2026-10-06), in the same commit
+   as item 1 and strictly after it. Tier 1 measured **0 with `gocyclo` newly
+   enabled in it**, which had to be checked as its own claim: "the class is
+   empty in Tier 2" is not the same statement, because Tier 1 lints the same
+   tree under a different config with different exclusions.
+
+   This item's own scepticism — "promotion moves the finding from one red tier
+   to another red tier; it does not make anything newly visible" — was correct
+   on 2026-10-05 and is now obsolete, because the ratchet in item 3 changed
+   what gating *means*. Gating is no longer about a tier's red being read by a
+   human; it is about whose ADDED findings fail the build. So the benefit is
+   concrete rather than smaller-than-it-looks: a function that grows past 30
+   now fails `lint-baseline` on the commit that grows it, which is the one
+   moment the split is still cheap. The prescribed sequence — fix
+   `setRuleAttr`, then promote, then item 3 — was followed, except that item 3
+   landed first and is what made this item worth doing at all.
 3. ~~**There is no lint ratchet.**~~ **DONE** (2026-10-05) —
    `checks.lint-baseline`. `nix run .#update-quality-report` swallows the
    exit code *by design* (`nix/quality-report/default.nix`: "Never propagates a

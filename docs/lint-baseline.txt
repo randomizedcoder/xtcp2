@@ -18,4 +18,3 @@
 tier2	cmd/xtcp2/xtcp2.go | Function 'defineFlags' has too many statements (79 > 70) (funlen)
 tier2	cmd/xtcp2/xtcp2.go | Function 'envOverrideLabeling' has too many statements (72 > 70) (funlen)
 tier2	cmd/xtcp2/xtcp2.go | Function 'printFlags' has too many statements (74 > 70) (funlen)
-tier2	pkg/xtcpnl/xtcpnl_fib_rule_hdr.go | cyclomatic complexity 48 of func `setRuleAttr` is high (> 30) (gocyclo)

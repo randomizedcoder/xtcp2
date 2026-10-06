@@ -83,9 +83,14 @@ in
   # Tier 1 joined on 2026-10-06, earned by measurement and in that order: the
   # errcheck/misspell/contextcheck pass closed its last 26 findings,
   # `nix run .#update-lint-baseline` then measured it at 0 and removed its 19
-  # baseline lines, and only then was it added here. docs/lint-baseline.txt now
-  # holds four lines, all Tier 2 — funlen x3 and gocyclo x1 — so Tier 2 stays
-  # advisory until the setRuleAttr split and the cmd/xtcp2 flag split land.
+  # baseline lines, and only then was it added here.
+  #
+  # The same day, the setRuleAttr split took gocyclo's last finding from 48 to 6
+  # and gocyclo was promoted INTO Tier 1 - again fix first, promote second, and
+  # Tier 1 was re-measured at 0 with the new linter running in it before this
+  # line was trusted. So docs/lint-baseline.txt now holds three lines, all
+  # Tier 2 and all funlen in cmd/xtcp2, and Tier 2 stays advisory until the
+  # flag split empties it.
   lint-baseline = import ./lint-baseline.nix {
     inherit pkgs vendoredSource lintBaselineMeasure;
     gatedTiers = [

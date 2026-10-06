@@ -214,9 +214,12 @@ type RuleInfo struct {
 	DportMask     uint16 // FRA_DPORT_MASK
 	HasDportMask  bool
 
-	// TunID is FRA_TUN_ID, and it is the one big-endian integer in this
+	// TunID is FRA_TUN_ID, and it is the one big-endian 64-bit integer in this
 	// struct: print_rule wraps it in ntohll (:474). Stored already converted,
-	// so every consumer sees host order.
+	// so every consumer sees host order. Flowlabel and FlowlabelMask below are
+	// big-endian too, at 32 bits; the three together are setRuleBigEndianAttr.
+	// (This comment claimed TunID was the only big-endian integer here, which
+	// the two flowlabel fields have contradicted since they were added.)
 	TunID    uint64
 	HasTunID bool
 
@@ -302,16 +305,70 @@ func ParseRule(body []byte) (RuleInfo, error) {
 // Split out of ParseRule because the switch alone is past gocyclo's limit —
 // the same reason setLinkDetailAttr exists — and it keeps ParseRule's body
 // about the header-then-walk shape rather than about thirty attributes.
+//
+// What remains here is the dispatch itself, which is now a router rather than a
+// decoder. The switch held twenty-six cases and twenty-one length guards, a
+// cyclomatic complexity of forty-eight: the highest in the repository and well
+// past the ceiling of thirty. Unlike setLinkAttr, which had one large group to
+// move, these arms divide into four decoding disciplines of roughly equal size,
+// so each one is its own function reached through the default arm of the level
+// above it, and each is named for a property true of every arm it holds:
+//
+//   - setRuleU32Attr, the little-endian u32s
+//   - setRuleU8Attr, the single bytes
+//   - setRuleRangeAttr, the ranges and the masks that narrow them
+//   - setRuleBigEndianAttr, the big-endian values, and the terminal level
+//
+// What stays here is the group with no byte order at all: raw address copies
+// and NUL-trimmed strings, where there is no fixed width for a guard to check.
+//
+// A cascade costs nothing per level, because gocyclo does not count a
+// `default:` arm — measured against setLinkDetailAttr, which scores twenty-two
+// with one present — so all twenty-six constants still appear in exactly one
+// switch each, which merging case clauses would have given up. That is the
+// property to preserve when the kernel adds an attribute: give it a case in the
+// one function whose name describes how it decodes, and nowhere else.
 func setRuleAttr(ri *RuleInfo, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.FRA_SRC):
+		ri.Src = CopyBytes(val)
+	case uint16(unix.FRA_DST):
+		ri.Dst = CopyBytes(val)
+	case uint16(unix.FRA_IIFNAME):
+		// FRA_IFNAME is a #define for this same value (3), not a second
+		// attribute, so there is deliberately no case for it.
+		ri.IifName, ri.HasIifName = string(bytes.TrimRight(val, "\x00")), true
+	case uint16(unix.FRA_OIFNAME):
+		ri.OifName, ri.HasOifName = string(bytes.TrimRight(val, "\x00")), true
+	case uint16(unix.RTA_GATEWAY):
+		// Not a typo and not an FRA_* constant: print_rule reads RTA_GATEWAY
+		// from this table for the RTN_NAT action. See RuleInfo.Gateway.
+		ri.Gateway, ri.HasGateway = CopyBytes(val), true
+	default:
+		setRuleU32Attr(ri, atype, val)
+	}
+}
+
+// setRuleU32Attr applies one little-endian u32 FRA_* to a RuleInfo.
+//
+// These eight are exactly the attrU32 callers, and they carried sixteen of
+// setRuleAttr's forty-eight cyclomatic points — a case and a length guard each,
+// which is why they are the largest group. Reached from setRuleAttr's default
+// arm.
+//
+// FRA_TABLE is the one member with no presence bit, and that asymmetry is
+// deliberate rather than an omission — the same shape IFLA_MASTER's is in
+// setLinkScalarAttr. RuleInfo.Table is frh_get_table's result, so ParseRule has
+// already set it from fib_rule_hdr.table before any attribute is walked: this
+// arm overrides a field that is always populated rather than filling an
+// optional one, and a Has bit would have nothing left to report. Every other
+// arm here sets a value and its Has* bit together.
+func setRuleU32Attr(ri *RuleInfo, atype uint16, val []byte) {
 	switch atype {
 	case uint16(unix.FRA_PRIORITY):
 		if v, ok := attrU32(val); ok {
 			ri.Priority, ri.HasPriority = v, true
 		}
-	case uint16(unix.FRA_SRC):
-		ri.Src = CopyBytes(val)
-	case uint16(unix.FRA_DST):
-		ri.Dst = CopyBytes(val)
 	case uint16(unix.FRA_FWMARK):
 		if v, ok := attrU32(val); ok {
 			ri.Fwmark, ri.HasFwmark = v, true
@@ -319,50 +376,6 @@ func setRuleAttr(ri *RuleInfo, atype uint16, val []byte) {
 	case uint16(unix.FRA_FWMASK):
 		if v, ok := attrU32(val); ok {
 			ri.Fwmask, ri.HasFwmask = v, true
-		}
-	case uint16(unix.FRA_IIFNAME):
-		// FRA_IFNAME is a #define for this same value (3), not a second
-		// attribute, so there is deliberately no case for it.
-		ri.IifName, ri.HasIifName = string(bytes.TrimRight(val, "\x00")), true
-	case uint16(unix.FRA_OIFNAME):
-		ri.OifName, ri.HasOifName = string(bytes.TrimRight(val, "\x00")), true
-	case uint16(unix.FRA_L3MDEV):
-		if v, ok := attrU8(val); ok {
-			ri.L3mdev, ri.HasL3mdev = v, true
-		}
-	case uint16(unix.FRA_UID_RANGE):
-		if len(val) >= FibRuleUidRangeSizeCst {
-			ri.UidRange = FibRuleUidRange{
-				Start: binary.LittleEndian.Uint32(val[0:4]),
-				End:   binary.LittleEndian.Uint32(val[4:8]),
-			}
-			ri.HasUidRange = true
-		}
-	case uint16(unix.FRA_IP_PROTO):
-		if v, ok := attrU8(val); ok {
-			ri.IPProto, ri.HasIPProto = v, true
-		}
-	case uint16(unix.FRA_SPORT_RANGE):
-		if r, ok := attrPortRange(val); ok {
-			ri.SportRange, ri.HasSportRange = r, true
-		}
-	case FraSportMask:
-		if v, ok := attrU16(val); ok {
-			ri.SportMask, ri.HasSportMask = v, true
-		}
-	case uint16(unix.FRA_DPORT_RANGE):
-		if r, ok := attrPortRange(val); ok {
-			ri.DportRange, ri.HasDportRange = r, true
-		}
-	case FraDportMask:
-		if v, ok := attrU16(val); ok {
-			ri.DportMask, ri.HasDportMask = v, true
-		}
-	case uint16(unix.FRA_TUN_ID):
-		// ntohll at ip/iprule.c:474. The wire value is big-endian; every
-		// consumer of RuleInfo sees host order.
-		if len(val) >= 8 {
-			ri.TunID, ri.HasTunID = binary.BigEndian.Uint64(val[0:8]), true
 		}
 	case uint16(unix.FRA_TABLE):
 		// frh_get_table's override. FRA_TABLE and RTA_TABLE are both 15, so
@@ -382,13 +395,29 @@ func setRuleAttr(ri *RuleInfo, atype uint16, val []byte) {
 		if v, ok := attrU32(val); ok {
 			ri.Flow, ri.HasFlow = v, true
 		}
-	case uint16(unix.RTA_GATEWAY):
-		// Not a typo and not an FRA_* constant: print_rule reads RTA_GATEWAY
-		// from this table for the RTN_NAT action. See RuleInfo.Gateway.
-		ri.Gateway, ri.HasGateway = CopyBytes(val), true
 	case uint16(unix.FRA_GOTO):
 		if v, ok := attrU32(val); ok {
 			ri.Goto, ri.HasGoto = v, true
+		}
+	default:
+		setRuleU8Attr(ri, atype, val)
+	}
+}
+
+// setRuleU8Attr applies one single-byte FRA_* to a RuleInfo.
+//
+// These five are exactly the attrU8 callers. Byte order cannot arise for a
+// single byte, which is what makes them their own group rather than the narrow
+// end of the u32s above. Reached from setRuleU32Attr's default arm.
+func setRuleU8Attr(ri *RuleInfo, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.FRA_L3MDEV):
+		if v, ok := attrU8(val); ok {
+			ri.L3mdev, ri.HasL3mdev = v, true
+		}
+	case uint16(unix.FRA_IP_PROTO):
+		if v, ok := attrU8(val); ok {
+			ri.IPProto, ri.HasIPProto = v, true
 		}
 	case uint16(unix.FRA_PROTOCOL):
 		if v, ok := attrU8(val); ok {
@@ -402,9 +431,82 @@ func setRuleAttr(ri *RuleInfo, atype uint16, val []byte) {
 		if v, ok := attrU8(val); ok {
 			ri.DscpMask, ri.HasDscpMask = v, true
 		}
+	default:
+		setRuleRangeAttr(ri, atype, val)
+	}
+}
+
+// setRuleRangeAttr applies one FRA_* interval, or the mask that narrows one, to
+// a RuleInfo.
+//
+// Five arms at three different widths — FRA_UID_RANGE is two u32s,
+// FRA_SPORT_RANGE and FRA_DPORT_RANGE are two u16s each, and the two mask
+// attributes are a single u16 — so this group is defined by what its members
+// MEAN rather than by how wide they are. Each is a uid or port interval, or the
+// mask that narrows one. The two masks sit beside the ranges they apply to
+// rather than with the other u16-shaped attributes, because that is where a
+// reader looking for FRA_SPORT_MASK will look for it.
+//
+// Every arm reads little-endian, which for these attributes is the kernel's
+// deliberate choice of HOST order rather than network order — see the
+// FibRulePortRange doc, which records why, and what a decoder that byte swaps
+// here produces. Reached from setRuleU8Attr's default arm.
+func setRuleRangeAttr(ri *RuleInfo, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.FRA_UID_RANGE):
+		if len(val) >= FibRuleUidRangeSizeCst {
+			ri.UidRange = FibRuleUidRange{
+				Start: binary.LittleEndian.Uint32(val[0:4]),
+				End:   binary.LittleEndian.Uint32(val[4:8]),
+			}
+			ri.HasUidRange = true
+		}
+	case uint16(unix.FRA_SPORT_RANGE):
+		if r, ok := attrPortRange(val); ok {
+			ri.SportRange, ri.HasSportRange = r, true
+		}
+	case FraSportMask:
+		if v, ok := attrU16(val); ok {
+			ri.SportMask, ri.HasSportMask = v, true
+		}
+	case uint16(unix.FRA_DPORT_RANGE):
+		if r, ok := attrPortRange(val); ok {
+			ri.DportRange, ri.HasDportRange = r, true
+		}
+	case FraDportMask:
+		if v, ok := attrU16(val); ok {
+			ri.DportMask, ri.HasDportMask = v, true
+		}
+	default:
+		setRuleBigEndianAttr(ri, atype, val)
+	}
+}
+
+// setRuleBigEndianAttr applies one big-endian FRA_* to a RuleInfo.
+//
+// The only group named for its byte order, and named for it on purpose: mixing
+// one of these three into setRuleU32Attr, where the little-endian readers live,
+// is the one mistake this split makes easy, and it is the kind that decodes to a
+// wrong number silently rather than failing. A name that states the invariant is
+// cheaper than a comment asking the next reader to remember it. Each arm stores
+// the converted value, so no consumer of RuleInfo sees network order.
+//
+// This is the terminal level, and it deliberately has NO default arm. That is
+// what leaves an attribute no level handles decoded by none of them, which is
+// the behavior setRouteAttr's doc states as the general principle: a reply from
+// a newer kernel decodes the attributes it knows instead of failing whole.
+// TestParseRule pins it for unix.FRA_PAD.
+func setRuleBigEndianAttr(ri *RuleInfo, atype uint16, val []byte) {
+	switch atype {
+	case uint16(unix.FRA_TUN_ID):
+		// ntohll at ip/iprule.c:474. The wire value is big-endian; every
+		// consumer of RuleInfo sees host order.
+		if len(val) >= 8 {
+			ri.TunID, ri.HasTunID = binary.BigEndian.Uint64(val[0:8]), true
+		}
 	case FraFlowlabel:
-		// rta_getattr_be32 at ip/iprule.c:587, so big-endian, unlike every
-		// other u32 in this switch.
+		// rta_getattr_be32 at ip/iprule.c:587, so big-endian — unlike the
+		// little-endian u32s in setRuleU32Attr.
 		if len(val) >= 4 {
 			ri.Flowlabel, ri.HasFlowlabel = binary.BigEndian.Uint32(val[0:4]), true
 		}

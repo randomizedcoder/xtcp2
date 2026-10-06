@@ -649,8 +649,11 @@ func TestLintBaselineCommitted(t *testing.T) {
 	// of one class in one file collapse to a single line. That mattered while
 	// the tiers were full — 26 and 30 findings were 19 and 23 lines, because
 	// three files held the same flagged spelling twice and errcheck's 12
-	// collapsed to 8 — and it does not today, since tier2's four remaining
-	// findings are four distinct keys. See normalizeKey.
+	// collapsed to 8 — and it does not today, since tier2's three remaining
+	// findings are three distinct keys. Note they are all in ONE file, which is
+	// the case the collapse would bite: three funlen findings in cmd/xtcp2.go
+	// stay three keys only because their messages name different functions.
+	// See normalizeKey.
 	tests := []struct {
 		description string
 		tier        tier
@@ -667,9 +670,9 @@ func TestLintBaselineCommitted(t *testing.T) {
 			expectedMax: 0,
 		},
 		{
-			description: "boundary: advisory tier2 holds no more than the 4 keys measured when the baseline was last regenerated — funlen x3 and gocyclo x1",
+			description: "boundary: advisory tier2 holds no more than the 3 keys measured when the baseline was last regenerated — funlen x3, all in cmd/xtcp2, with gocyclo gone from here because it is gated in tier1 now",
 			tier:        tier2,
-			expectedMax: 4,
+			expectedMax: 3,
 		},
 	}
 	for _, tc := range tests {

@@ -79,8 +79,8 @@ otherwise until 2026-10-05.
 | check | config | `nix flake check` | wall clock | linters unique to it |
 |---|---|---|---|---|
 | `golangci-lint-quick` (Tier 0) | `.golangci-quick.yml` | yes | ~90 s | — (subset) |
-| `golangci-lint` (Tier 1) | `.golangci.yml` | yes | ~2 min | `errcheck`, `gosec`, `misspell`, `contextcheck`, `noctx`, `gocritic` |
-| `golangci-lint-comprehensive` (Tier 2) | `.golangci-comprehensive.yml` | yes | ~10 min | **`gocyclo`, `funlen`, `goconst`, `unconvert`, `exhaustive`** |
+| `golangci-lint` (Tier 1) | `.golangci.yml` | yes | ~2 min | `errcheck`, `gosec`, `misspell`, `contextcheck`, `noctx`, `gocritic`, `gocyclo` (promoted 2026-10-06) |
+| `golangci-lint-comprehensive` (Tier 2) | `.golangci-comprehensive.yml` | yes | ~10 min | **`funlen`, `goconst`, `unconvert`, `exhaustive`** |
 | `go-sec` | gosec directly | yes | ~2 min | gosec standalone; sees **no `_test.go`**, since it does not pass `-tests` and gosec skips them by default |
 | `go-vet` | `enable-all`, minus `fieldalignment` and `shadow` | yes | fast | — |
 | `gofmt` / `nix-fmt` | — | yes | fast | formatting |
@@ -112,11 +112,18 @@ Two tier helpers exist for working rather than gating:
 (Tier 1 restricted to the diff since `HEAD~1`) — both from `nix develop`, both
 defined in `nix/lint-tiers.nix`.
 
-**The five Tier-2-only linters are the ones that bite.** They are the classes
-with no earlier warning, and `gocyclo` has now reached `main` twice. Promoting
-them is tracked in `TODO-SOON.md` and is blocked on the `setRuleAttr` finding
-below — promoting a linter while one function holds a permanent finding in the
-destination tier just recreates the problem one tier earlier.
+**The Tier-2-only linters are the ones that bite.** They are the classes with no
+earlier warning, which is how `gocyclo` reached `main` twice without either
+instance being noticed at the time.
+
+**`gocyclo` is no longer one of them.** It was promoted into Tier 1 on
+2026-10-06, and the order is the whole point: `setRuleAttr` came down from 48 to
+6 first, `gocyclo` then measured 0 across production code, and only then was it
+added to `.golangci.yml`. Promoting a linter while one function still holds a
+permanent finding in the destination tier just recreates the problem one tier
+earlier — a red that is always red. The four that remain (`funlen`, `goconst`,
+`unconvert`, `exhaustive`) are promoted the same way, each blocked on emptying
+its own class; `funlen` is next and is tracked in `TODO-SOON.md`.
 
 **None of this runs on a schedule.** There is no `.github/`, no CI and no cron
 in this repository. "Nightly", which appears in four places, means "when
@@ -287,6 +294,37 @@ audited word only, not for every misspelling, so `recognise` in one of its doc
 comments was still reported. That is the exclusion behaving correctly: the
 directory is exempt from one word, not from spelling.
 
+### Re-measured after the `setRuleAttr` split
+
+Measured 2026-10-06 by `nix run .#update-lint-baseline`, on the same branch that
+promoted `gocyclo`:
+
+| check | before | after | |
+|---|---|---|---|
+| `golangci-lint-quick` (Tier 0) | 0 | **0** | still green |
+| `golangci-lint` (Tier 1) | 0 | **0** | green **with `gocyclo` newly enabled in it** |
+| `golangci-lint-comprehensive` (Tier 2) | 4 | **3** | funlen 3, all in `cmd/xtcp2` |
+
+Tier 1 staying at 0 *after* the promotion is the measurement that matters here.
+A promotion is only honest if the destination tier is still green once the new
+linter is running in it, and that is a different claim from "the class is empty
+in Tier 2" — Tier 1 lints the same tree with a different config, and
+`.golangci.yml`'s exclusions are not `.golangci-comprehensive.yml`'s.
+
+**Headroom, worth knowing because it is thin.** With `gocyclo` gated, these sit
+inside a gating tier:
+
+| function | gocyclo | |
+|---|---|---|
+| `(RouteView).Text` (`internal/goip/render/route.go`) | 26 | 4 under the ceiling |
+| `RouteViewOf` (same file) | 25 | |
+| `envOverrideLabeling` (`cmd/xtcp2/xtcp2.go`) | 25 | the `funlen` phase drops this sharply as a side effect |
+| `telemetry.Setup` (`internal/ipfeed/telemetry/otel.go`) | 24 | |
+| `envOverrideMarshalAndDest` (`cmd/xtcp2/xtcp2.go`) | 24 | also one statement from `funlen`'s limit |
+
+Four points is about one `case` plus one `if`. The next function to cross will
+be one of these, and the answer is a split, not a ceiling.
+
 ## The ratchet: a check that is green at baseline
 
 Added 2026-10-05. **It closes no findings**, and that is deliberate: it makes
@@ -300,7 +338,7 @@ Three pieces:
 |---|---|
 | `tools/lint-baseline/` | the comparator — normalizes, diffs both directions, owns the exit codes |
 | `nix/lint-baseline-measure.nix` | runs all three tiers for their JSON **and succeeds whatever they report** |
-| `nix/checks/lint-baseline.nix` | the check: compares, gates Tier 0, prints Tier 1 and 2 as advisory |
+| `nix/checks/lint-baseline.nix` | the check: compares, gates the tiers named in `gatedTiers` at the call site (Tier 0 and Tier 1 today), prints the rest as advisory |
 | `docs/lint-baseline.txt` | the committed list — the artifact a PR diff shows you |
 
 Regenerate with `nix run .#update-lint-baseline`. It cannot be done by hand:
@@ -314,7 +352,7 @@ committed `vendor/` tree, so golangci-lint only runs inside the Nix sandbox.
 |---|---|---|---|
 | Tier 0 | 0 | **0** | **yes** |
 | Tier 1 | 0 | **0** | **yes** — promoted 2026-10-06 |
-| Tier 2 | 4 | 4 | no — advisory until `funlen` ×3 and `gocyclo` ×1 land |
+| Tier 2 | 3 | 3 | no — advisory until the `funlen` ×3 in `cmd/xtcp2` land |
 
 The regeneration was **38 deletions and zero additions**: 19 Tier 1 lines and 19
 of Tier 2's 23. Zero additions is the second thing it certifies — none of the
@@ -375,28 +413,86 @@ above is the backstop for a hand invocation that gets this wrong anyway.
 
 Ordered by what is worth doing, not by count.
 
-### `gocyclo` — 1 finding, and it is the blocker for everything else
+### `gocyclo` — FIXED 2026-10-06, and the class is now gated in Tier 1
 
-| location | finding |
-|---|---|
-| `pkg/xtcpnl/xtcpnl_fib_rule_hdr.go:305` | cyclomatic complexity **48** of `setRuleAttr` (> 30) |
+| location | finding | |
+|---|---|---|
+| `pkg/xtcpnl/xtcpnl_fib_rule_hdr.go:305` | cyclomatic complexity **48** of `setRuleAttr` (> 30) | **fixed** |
 
-The only remaining `gocyclo` finding, 18 over the ceiling, and the highest in
-the tree. It landed in `b2f7c40` (PR #145) and was recorded nowhere until
-recently — no entry, no exclusion, no `//nolint`.
+It was 18 over the ceiling and the highest in the tree, landed in `b2f7c40`
+(PR #145), and was recorded nowhere until 2026-10-05 — no entry, no exclusion,
+no `//nolint`.
 
-**Fix:** the same split that took `ParseNewRoute` 32 → 7 and `setLinkAttr`
-29 → 12. ~26 `FRA_*` clauses, of which the fixed-width scalars-with-a-length-
-guard are the bulk, and each costs *two* (a `case` and an `if`). Extract them
-into `setRuleScalarAttr` and merge their case clauses into one.
+**What was done, and why it is not the split this section first prescribed.**
+The earlier plan was one `setRuleScalarAttr` with the fixed-width scalars'
+case clauses *merged*. That would have worked arithmetically and is the wrong
+shape: merging case clauses means the 26 `FRA_*` constants stop appearing once
+each, so the one-constant-one-arm property that makes a missing attribute
+obvious goes away. It also assumed a single large group, and there isn't one —
+measured, the arms divide into four decoding disciplines of roughly equal size.
 
-**Do not** reach for `attrU8`/`attrU16`/`attrU32`/`attrPortRange`, which
-already exist in that file, as the complexity fix. `if v, ok := attrU32(val);
-ok` still contains an `if`, so they buy **zero** gocyclo. Adopting them is a
-readability win and must not be sold as anything else.
+So it is a five-level cascade linked by `default:` arms, each level named for a
+property true of every arm it holds:
 
-Fixing this unblocks promoting `gocyclo` to Tier 1, which is the durable fix
-for the class.
+| function | arms | guards | gocyclo | the property |
+|---|---|---|---|---|
+| `setRuleAttr` | 5 | 0 | **6** | no byte order at all — raw copies and NUL-trimmed strings |
+| `setRuleU32Attr` | 8 | 8 | **17** | the little-endian u32s, exactly the `attrU32` callers |
+| `setRuleU8Attr` | 5 | 5 | **11** | single bytes, where byte order cannot arise |
+| `setRuleRangeAttr` | 5 | 5 | **11** | uid/port intervals and the masks that narrow them |
+| `setRuleBigEndianAttr` | 3 | 3 | **7** | the big-endian values; **terminal, no `default:`** |
+
+5 + 8 + 5 + 5 + 3 = 26 arms, each exactly once.
+
+**A cascade costs nothing per level**, because `gocyclo` does not count a
+`default:` arm. That was measured rather than assumed, against
+`setLinkDetailAttr`, which scores 22 = `1 + 20 cases + 1 if` with a `default:`
+present. It also counts a `case` clause once regardless of how many constants
+it lists — which is what would have made the merge cheap, and is not a reason
+to do it.
+
+**Naming the big-endian group for its byte order is the load-bearing decision.**
+Mixing `FRA_TUN_ID`, `FRA_FLOWLABEL` or `FRA_FLOWLABEL_MASK` into
+`setRuleU32Attr` is the one mistake this split makes easy, and it decodes to a
+plausible wrong number rather than failing. An earlier draft called the group
+`setRuleWideAttr`, which was a misnomer: the two port masks are u16, *narrower*
+than the u32s, and `FRA_FLOWLABEL` is the same width. The group was a residual,
+not a domain.
+
+**`attrU8`/`attrU16`/`attrU32`/`attrPortRange` buy zero gocyclo**, and that is
+still true and still worth saying: `if v, ok := attrU32(val); ok` contains an
+`if`, so the guard is at the call site either way. They are a readability win
+and must not be sold as a complexity fix.
+
+**Verified** by `gocyclo -over 30` over `pkg internal cmd tools` (nothing in
+production code), by the existing `TestParseRule`/`FuzzParseRule` tables passing
+with no change to any row's inputs or expectations, and by five mutations —
+moving `FraFlowlabel` into the little-endian level, moving `FraSportMask` into
+the u8 level, deleting a level's `default:`, swapping `FraDscp` with
+`FraDscpMask`, and giving the terminal level a writing `default:` — each of
+which turned its targeted row red. The new table is
+`pkg/xtcpnl/xtcpnl_fib_rule_hdr_helpers_test.go`, which drives the cascade
+directly because which level handled an attribute is not observable through
+`ParseRule`.
+
+**A fixture finding fell out of this, and it is worth more than the refactor.**
+The committed 7_1_4 rule captures carry **21 of the 26** attributes, not the six
+the root dump suggests — the `mesh` and `tunnel` topologies supply
+`FRA_UID_RANGE`, `FRA_TUN_ID`, both flowlabel attributes, both port ranges,
+`FRA_DPORT_MASK`, `FRA_GOTO`, `FRA_FLOW`, `FRA_L3MDEV`, `FRA_OIFNAME`,
+`FRA_DST`, `FRA_FWMARK`, `FRA_FWMASK` and `FRA_SUPPRESS_IFGROUP` on top of it.
+That was measured by enumerating every rtattr in the three dumps, after an
+earlier assumption of "six" had already been written into fifteen row
+descriptions as "no committed rule carries this". Only five arms —
+`FRA_IP_PROTO`, `FRA_SPORT_MASK`, `RTA_GATEWAY`, `FRA_DSCP`, `FRA_DSCP_MASK` —
+have no real bytes anywhere in the corpus. The capture-driven test now
+rediscovers that set at run time and **fails if coverage drops below 21**, so a
+re-capture that loses a rule is a failure rather than a quiet loss of fixture
+strength. Check what a corpus actually holds before writing "constructed
+because the capture lacks it".
+
+With the class empty, `gocyclo` was promoted to Tier 1 in the same commit — in
+that order, never the reverse.
 
 ### `misspell` — 13 findings, all one word, and not one of them is a typo
 
@@ -850,10 +946,13 @@ the re-measured figures are in
    "No design decisions" turned out to be wrong about two of them: `goconst`'s
    three `"none"`s needed the three-constant argument above, and the `noctx` fix
    needed a `ctx` parameter and a measurement of what it buys.
-4. **`setRuleAttr` 48 → under 30**, then promote `gocyclo` to Tier 1. In that
-   order — promoting first puts a permanent finding in the gating tier. Steps 5
-   and 6 landed first, because they are what took Tier 1 to zero and let it be
-   gated; this one now moves Tier 2.
+4. ✅ **`setRuleAttr` 48 → 6**, then promote `gocyclo` to Tier 1, in that order —
+   promoting first puts a permanent finding in the gating tier. Steps 5 and 6
+   landed first, because they are what took Tier 1 to zero and let it be gated.
+   Done as a five-level `default:` cascade rather than the merged
+   `setRuleScalarAttr` this document first prescribed; the reasons the earlier
+   prescription was wrong are
+   [in the `gocyclo` section](#gocyclo--fixed-2026-10-06-and-the-class-is-now-gated-in-tier-1).
 5. ✅ **`misspell`**: the scoped exclusion widened to ten files in both configs
    *and* `tools/kernel-citation-audit` added to enforce the invariant. One
    without the other does not count. The tool is a fifth audit rather than a
