@@ -338,6 +338,13 @@ func setRuleFlow(v *RuleView, ri xtcpnl.RuleInfo) {
 // FR_ACT_TO_TBL is the ordinary case and prints nothing: a renderer that
 // called routeTypeName unconditionally would append ` unicast` to every table
 // rule.
+// ruleGotoUnsetCst is the token print_rule's FR_ACT_GOTO arm emits when
+// FRA_GOTO is absent (ip/iprule.c:536-541). Its own constant, not shared with
+// the identically spelled routeTypeUnspecNameCst (route.go) or
+// addrGenModeNoneCst (link_detail.go) — see the note on
+// routeTypeUnspecNameCst for why the three stay apart.
+const ruleGotoUnsetCst = "none"
+
 func setRuleAction(v *RuleView, ri xtcpnl.RuleInfo) {
 	switch {
 	case ri.Action == unix.RTN_NAT:
@@ -350,7 +357,7 @@ func setRuleAction(v *RuleView, ri xtcpnl.RuleInfo) {
 		if ri.HasGoto {
 			v.Goto = ri.Goto
 		} else {
-			v.Goto = "none"
+			v.Goto = ruleGotoUnsetCst
 		}
 		v.Unresolved = ri.Flags&unix.FIB_RULE_UNRESOLVED != 0
 	case ri.Action == unix.FR_ACT_NOP:

@@ -1,3 +1,12 @@
+// Package listener builds the network listeners the xtcp2 gRPC, Prometheus and
+// healthcheck endpoints are served on, for both TCP and unix domain sockets.
+//
+// It converts an xtcp_config.ListenerEndpoint into a concrete net.Listener,
+// applying the IPv4 TTL / IPv6 hop-limit socket options for TCP and, for unix
+// sockets, the parent-directory check, the stale-socket unlink policy and the
+// socket mode (DefaultUnixSocketMode, 0o600). A unix listener returned from
+// Listen unlinks its own path on Close, once, and only if the path is still a
+// socket.
 package listener
 
 import (

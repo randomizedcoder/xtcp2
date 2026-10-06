@@ -25,6 +25,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// fileLabelCst is the Prometheus label carrying the input file's base name. It
+// is a constant because every metric below is partitioned by it, and goconst
+// correctly objects to the same label name being spelled out seven times.
+const fileLabelCst = "file"
+
 type config struct {
 	listen      string
 	metricsPath string
@@ -77,32 +82,32 @@ func newMetrics(reg *prometheus.Registry) *probeMetrics {
 		runs: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "zstd_probe_decompress_total",
 			Help: "Number of zstd decompression attempts.",
-		}, []string{"file", "status"}),
+		}, []string{fileLabelCst, "status"}),
 		compressedBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "zstd_probe_compressed_bytes_total",
 			Help: "Compressed bytes read by zstd-probe.",
-		}, []string{"file"}),
+		}, []string{fileLabelCst}),
 		decompressedBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "zstd_probe_decompressed_bytes_total",
 			Help: "Decompressed bytes produced by zstd-probe.",
-		}, []string{"file"}),
+		}, []string{fileLabelCst}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "zstd_probe_decompress_duration_seconds",
 			Help:    "Wall-clock duration of one zstd decompression attempt.",
 			Buckets: prometheus.DefBuckets,
-		}, []string{"file", "status"}),
+		}, []string{fileLabelCst, "status"}),
 		lastCompressed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "zstd_probe_last_compressed_bytes",
 			Help: "Compressed input bytes from the most recent successful attempt.",
-		}, []string{"file"}),
+		}, []string{fileLabelCst}),
 		lastDecompressed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "zstd_probe_last_decompressed_bytes",
 			Help: "Decompressed output bytes from the most recent successful attempt.",
-		}, []string{"file"}),
+		}, []string{fileLabelCst}),
 		lastDuration: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "zstd_probe_last_decompress_duration_seconds",
 			Help: "Wall-clock duration of the most recent successful attempt.",
-		}, []string{"file"}),
+		}, []string{fileLabelCst}),
 	}
 	reg.MustRegister(
 		collectors.NewGoCollector(),
@@ -118,7 +123,14 @@ func newMetrics(reg *prometheus.Registry) *probeMetrics {
 	return m
 }
 
-func startMetrics(addr, path string, reg *prometheus.Registry) (*http.Server, string, error) {
+// startMetrics binds addr and serves the Prometheus registry plus a /readyz
+// probe.
+//
+// ctx bounds the bind, but only as far as Go carries it: the net package
+// consults ctx during name resolution and not around the bind syscall, so a
+// canceled ctx with a hostname addr opens no listener while a literal IP:port
+// still binds. TestStartMetrics pins both halves of that.
+func startMetrics(ctx context.Context, addr, path string, reg *prometheus.Registry) (*http.Server, string, error) {
 	if addr == "" {
 		return nil, "", nil
 	}
@@ -128,7 +140,8 @@ func startMetrics(addr, path string, reg *prometheus.Registry) (*http.Server, st
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	})
-	ln, err := net.Listen("tcp", addr)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, "", err
 	}
@@ -159,10 +172,13 @@ func decompressFile(path, outDir string) (result, error) {
 	}
 	defer decoder.Close()
 
-	var out io.Writer = io.Discard
+	// out is io.Writer, not io.Discard's concrete type: io.Discard is declared
+	// as `var Discard Writer`, so the inferred type is already the interface
+	// and outFile can be assigned into it below without a conversion.
+	out := io.Discard
 	var outFile *os.File
 	if outDir != "" {
-		if err := os.MkdirAll(outDir, 0o755); err != nil {
+		if err := os.MkdirAll(outDir, 0o750); err != nil {
 			return result{}, err
 		}
 		name := strings.TrimSuffix(filepath.Base(path), ".zst")
@@ -245,9 +261,10 @@ func main() {
 		os.Exit(2)
 	}
 
+	ctx := context.Background()
 	reg := prometheus.NewRegistry()
 	metrics := newMetrics(reg)
-	srv, actualAddr, err := startMetrics(c.listen, c.metricsPath, reg)
+	srv, actualAddr, err := startMetrics(ctx, c.listen, c.metricsPath, reg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "metrics listen:", err)
 		os.Exit(1)
@@ -262,8 +279,8 @@ func main() {
 		time.Sleep(c.hold)
 	}
 	if srv != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = srv.Shutdown(ctx)
+		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_ = srv.Shutdown(shutdownCtx)
 		cancel()
 	}
 	if err != nil {
