@@ -86,9 +86,12 @@ func routeAttrValFromFixture(t *testing.T, path string, n int, atype uint16) []b
 // # Why this helper is tested directly
 //
 // Helpers in this package are normally exercised through the exported ParseXxx
-// and only NAMED in test prose - see xtcpnl_fib_rule_hdr_test.go for setRuleAttr
-// and xtcpnl_link_detail_test.go for setLinkDetailAttr. This one is called
-// directly, deliberately, because ParseNewRoute returns RouteInfo{} on any
+// and only NAMED in test prose - see xtcpnl_link_detail_test.go for
+// setLinkDetailAttr. Two are driven directly, each for its own reason, and the
+// reasons are worth keeping distinct: the setRuleAttr cascade is driven by
+// xtcpnl_fib_rule_hdr_helpers_test.go because which of its five levels handled
+// an attribute is not observable from the decoded RuleInfo, and this one is
+// called directly because ParseNewRoute returns RouteInfo{} on any
 // error and therefore erases the exact state a mistake here would corrupt:
 // HasVia and HasMultipath are set BEFORE their nested decode can fail, and that
 // is observable on the helper and nowhere else.

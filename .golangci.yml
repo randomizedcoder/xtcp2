@@ -60,6 +60,15 @@ linters:
     # finding until long after the comment was written. Gating it here
     # catches the next `behaviour` on the commit that introduces it.
     - misspell
+    # Promoted from Tier 2 on 2026-10-06, after setRuleAttr's 48 came down to
+    # 6 and nothing in production code was left over 30. While it ran in Tier 2
+    # only, `ParseNewRoute` crossed the ceiling TWICE and reached `main` both
+    # times — not because the tier was unwatched but because its red was
+    # unreadable: `nix flake check` had other reds, so the exit code was
+    # already 1 before the regression and 1 after. Gating it here makes a
+    # function that grows past 30 fail on the commit that grows it, which is
+    # the only moment the split is still cheap.
+    - gocyclo
 
   settings:
     errcheck:
@@ -134,6 +143,32 @@ linters:
         - name: error-strings
         - name: increment-decrement
         - name: var-declaration
+
+    gocyclo:
+      # 30, matching .golangci-comprehensive.yml exactly. The number is not
+      # arbitrary and it is deliberately NOT raised: every finding this linter
+      # has ever produced in this repo was a switch over kernel attributes that
+      # had outgrown one function, and in all three cases — ParseNewRoute,
+      # setLinkAttr and setRuleAttr — the fix was a split that made the code
+      # better, not a ceiling that made the finding go away. Raising it to
+      # accommodate the next one would retire the only instrument that has
+      # noticed.
+      #
+      # What the number actually buys, measured on this repo: the next closest
+      # production function is (RouteView).Text at 26, so there are four points
+      # of headroom. That is about one `case` plus one `if`. Expect this to
+      # bite, and treat it as the signal it is.
+      #
+      # gocyclo does not count a `default:` arm — measured against
+      # setLinkDetailAttr, which scores 22 with one present — so a cascade of
+      # switches linked by their default arms costs nothing per level. That is
+      # what makes splitting a large attribute switch cheap enough to be the
+      # standard answer here; see setRuleAttr for the five-level example.
+      #
+      # _test.go files are already exempt further down, which is pre-wired for
+      # exactly this promotion: table-driven tests in this repo are long by
+      # design and their complexity is in the data, not the control flow.
+      min-complexity: 30
 
     # Forbidigo guards a specific landmine: `runtime.UnlockOSThread` paired
     # with `unix.Setns` / `unix.Unshare`. If the goroutine modifies

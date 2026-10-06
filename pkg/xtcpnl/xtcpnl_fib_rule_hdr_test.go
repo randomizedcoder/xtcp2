@@ -53,8 +53,9 @@ func le16(v uint16) []byte {
 }
 
 // be32 and be64 exist because three attributes in this file are big-endian on
-// the wire while every other integer is little-endian — see the FRA_TUN_ID and
-// FRA_FLOWLABEL cases in setRuleAttr. Writing them with an explicitly named
+// the wire while every other integer is little-endian — they are exactly the
+// three arms of setRuleBigEndianAttr, which is named for that invariant for the
+// same reason these builders are. Writing them with an explicitly named
 // big-endian builder is what keeps a row from silently agreeing with a decoder
 // that swapped the wrong way.
 func be32(v uint32) []byte {
@@ -212,7 +213,7 @@ func TestDeserializeFibRuleHdr(t *testing.T) {
 //
 // The header is checked the same way TestVerifySizeOfStructs checks the
 // inet_diag family. The two small structs are checked here as well because
-// neither has a Deserialize* of its own — setRuleAttr reads them inline against
+// neither has a Deserialize* of its own — setRuleRangeAttr reads them against
 // FibRuleUidRangeSizeCst and FibRulePortRangeSizeCst, so those two constants are
 // the only thing standing between a short attribute and an over-read.
 //
@@ -363,8 +364,9 @@ func TestFraUnexportedValues(t *testing.T) {
 		})
 	}
 
-	// None of the six may collide with an attribute setRuleAttr already has a
-	// case for. A switch on non-constant cases is not checked for duplicates by
+	// None of the six may collide with an attribute the setRuleAttr cascade
+	// already has a case for, at any of its five levels. A switch on
+	// non-constant cases is not checked for duplicates by
 	// the compiler, so this does — and the collision that WOULD be legal is the
 	// interesting one: RTA_GATEWAY (5) shares its number with FRA_UNUSED2 on
 	// purpose, so the test enumerates what must NOT collide rather than
@@ -385,7 +387,7 @@ func TestFraUnexportedValues(t *testing.T) {
 	} {
 		for _, k := range known {
 			if declared == k {
-				t.Errorf("hand-declared FRA constant %d collides with an attribute setRuleAttr already decodes", declared)
+				t.Errorf("hand-declared FRA constant %d collides with an attribute the setRuleAttr cascade already decodes", declared)
 			}
 		}
 	}
@@ -396,7 +398,7 @@ func TestFraUnexportedValues(t *testing.T) {
 // through `tb[RTA_TABLE]` (ip/iprule.c:90-96) while the kernel emits it as
 // FRA_TABLE.
 //
-// It is one line of production code — a single case in setRuleAttr — and it
+// It is one line of production code — a single case in setRuleU32Attr — and it
 // would be indistinguishable from a typo without this.
 //
 // go test ./pkg/xtcpnl/ -run TestFraTableIsRtaTable
@@ -523,7 +525,7 @@ func TestParseRule(t *testing.T) {
 			},
 		},
 		{
-			description: "positive: every attribute setRuleAttr has a case for, in one message",
+			description: "positive: every attribute the setRuleAttr cascade has a case for, in one message",
 			body: concat(
 				fibRuleHdr(unix.AF_INET, 16, 8, 0x10, 77, unix.FR_ACT_TO_TBL, unix.FIB_RULE_INVERT),
 				rtattr(unix.FRA_DST, v4b(172, 16, 0, 0)),
@@ -811,7 +813,7 @@ func TestParseRule(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: an attribute setRuleAttr has no case for is ignored",
+			description: "negative: an attribute no level of the setRuleAttr cascade has a case for is ignored",
 			body: concat(
 				fibRuleHdr(unix.AF_INET, 0, 0, 0, unix.RT_TABLE_MAIN, unix.FR_ACT_TO_TBL, 0),
 				rtattr(unix.FRA_PAD, le32(0xDEADBEEF)),
