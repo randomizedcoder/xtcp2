@@ -17,6 +17,7 @@ This is not a status badge. It is a work list with a diagnosis per item.
 - [The instruments, and where each one runs](#the-instruments-and-where-each-one-runs)
 - [How to tell a regression from inherited debt](#how-to-tell-a-regression-from-inherited-debt)
 - [The measured baseline](#the-measured-baseline)
+- [The ratchet: a check that is green at baseline](#the-ratchet-a-check-that-is-green-at-baseline)
 - [The findings, by class](#the-findings-by-class)
 - [Suppressions that exist today](#suppressions-that-exist-today)
 - [Suggested order of work](#suggested-order-of-work)
@@ -84,6 +85,19 @@ otherwise until 2026-10-05.
 | `go-vet` | `enable-all`, minus `fieldalignment` and `shadow` | yes | fast | — |
 | `gofmt` / `nix-fmt` | — | yes | fast | formatting |
 | `deadnix` / `statix` | `statix.toml` | yes | fast | Nix dead code and antipatterns |
+| `lint-baseline` | `docs/lint-baseline.txt` | yes | fast + the measurement | the ratchet: **green at baseline**, red only on an *added* finding |
+
+**`lint-baseline` is the only check in that table that is green**, and that is
+its whole reason for existing. The other nine report a tier's entire finding
+list, which has been non-empty long enough that their red carries no
+information. This one compares against a committed list and fails only on an
+addition, so one red means one thing: a regression landed. It gates **Tier 0
+only** — see [the ratchet](#the-ratchet-a-check-that-is-green-at-baseline).
+
+Its ~13 minutes of wall clock live in `nix/lint-baseline-measure.nix`, a package
+rather than a check, because it must produce output even when the tiers are
+reporting findings: a failing derivation has no `$out`, and the baseline would
+then be unregenerable at exactly the moment it needed regenerating.
 
 Two tier helpers exist for working rather than gating:
 `lint-fix` (Tier 1 with `--fix`, writes to your tree) and `lint-new`
@@ -110,6 +124,13 @@ and the Nix builds pin their own Go. Use the Nix targets for anything you intend
 to believe; do not read this as a regression you introduced.
 
 ## How to tell a regression from inherited debt
+
+**The build now does this for you.** `nix build .#checks.x86_64-linux.lint-baseline`
+runs the procedure below against `docs/lint-baseline.txt` and fails if a gated
+tier gained a finding. The hand recipe is still worth reading, because it is what
+the check implements and it is still the right tool for the one case the check
+cannot cover: comparing against an *arbitrary* merge-base rather than against the
+committed baseline.
 
 Every check in the table is **red at baseline**, so an exit code tells you
 nothing, and a *count* is barely better — it is one number over a tree that
@@ -226,6 +247,76 @@ bootstrap) added or reworked — `cmd/zstd-probe/`, `pkg/ipasn/`,
 largest single contributor; it is not, as a first pass over this document
 claimed, two thirds of the list. The netlink and goip packages contribute 18,
 of which **13 are the single word covered below**.
+
+## The ratchet: a check that is green at baseline
+
+Added 2026-10-05. **It closes no findings**, and that is deliberate: it makes
+every remaining finding in this document countable by the build instead of by
+hand, so the next unannounced regression fails a check rather than appearing in a
+later audit.
+
+Three pieces:
+
+| file | what it is |
+|---|---|
+| `tools/lint-baseline/` | the comparator — normalizes, diffs both directions, owns the exit codes |
+| `nix/lint-baseline-measure.nix` | runs all three tiers for their JSON **and succeeds whatever they report** |
+| `nix/checks/lint-baseline.nix` | the check: compares, gates Tier 0, prints Tier 1 and 2 as advisory |
+| `docs/lint-baseline.txt` | the committed list — the artifact a PR diff shows you |
+
+Regenerate with `nix run .#update-lint-baseline`. It cannot be done by hand:
+every tier config sets `modules-download-mode: vendor` and this repo has no
+committed `vendor/` tree, so golangci-lint only runs inside the Nix sandbox.
+
+**What the committed baseline holds**, measured the day it was generated:
+
+| tier | findings | baseline lines | gated |
+|---|---|---|---|
+| Tier 0 | 0 | **0** | **yes** |
+| Tier 1 | 26 | 19 | no — advisory until `errcheck` and `misspell` land |
+| Tier 2 | 30 | 23 | no — advisory until `gocyclo`, `funlen` and `contextcheck` land |
+
+**The line count is lower than the finding count, and the gap is not an error.**
+Keys drop `line:col`, so two findings of the same class in the same file collapse
+to one line: the 13 `misspell` findings become 10 lines because three files hold
+the word twice, and `errcheck`'s 12 become 8. That collapse is the price of
+dropping `line:col`, which is paid knowingly — the alternative is that every
+finding an unrelated edit merely *moved* reads as new, which is the failure mode
+that made counting useless in the first place. The cost is narrow and worth
+stating: adding a *third* identical finding to a file that already has two will
+not trip the ratchet.
+
+**Tier 0 only is gated**, following the one-at-a-time discipline
+`nix/checks/default.nix` already records for `proto-audit-netlink`'s
+`gatedProtocols`: gating a tier that still holds findings makes the check
+permanently red, which is the same as turning it off. Each later phase promotes
+the tier it empties, in that order — never before.
+
+**Three refusals are built in, because all three failure modes are silent.**
+golangci-lint exits **4** on `run.timeout` *after* printing `0 issues.`, so the
+tool refuses to ratchet (exit 3) when any tier's own exit code is above 1 — the
+per-tier `.exit` files exist for that one case, and without it the tool would
+write an empty baseline and call the tree clean. A baseline that is missing,
+unparseable, unsorted, duplicated, or carrying the unsuppressible
+`internal/parse-error` class is exit **2**, never a pass: a tool that read "no
+baseline" as "nothing to compare" would pass every build the moment someone
+deleted the file. And a tier that is **gated but was never measured** is also
+exit 2, because an absent findings set is an *empty* findings set — every
+baseline line for that tier would read as removed, removals never fail, and the
+tier would exit 0 while being nominally gated and actually unchecked. Note what
+that third one does *not* require: a gated tier may have zero findings, which is
+the goal state. It must have been measured. All three follow `LoadAllowlist` in
+`pkg/nlparity/nlparity_allowlist.go`, deliberately *not* `readCoverageBaseline`,
+which fails open.
+
+**The tier list is stated once.** `nix/lint-baseline-measure.nix` owns the
+tier → config map and re-exports the names via `passthru.tierNames`; both
+`nix/checks/lint-baseline.nix` and `nix run .#update-lint-baseline` derive their
+`-findings`/`-exit` arguments from it rather than restating them. A second
+hardcoded copy would drift in the one direction nothing catches: passing an
+*unknown* tier is an error in `tools/lint-baseline`, but a tier the measurement
+produces and the check never passes is simply never compared. The exit-2 refusal
+above is the backstop for a hand invocation that gets this wrong anyway.
 
 ## The findings, by class
 
@@ -560,13 +651,15 @@ the re-measured figures are in
 1. ✅ **Tier 0 to zero** — 3 staticcheck findings (2 package comments, 1 type
    elision). The ~90 s pre-commit tier becomes trustworthy, and its exit code
    starts carrying information.
-2. **A lint ratchet**, now that one tier is green. This is the durable fix for
+2. ✅ **A lint ratchet**, now that one tier is green. This is the durable fix for
    the whole class and it outranks promoting individual linters: once every
    check is red, the only working instrument is a recorded baseline list the
-   build diffs itself against — which every procedure in this document is doing
+   build diffs itself against — which every procedure in this document was doing
    by hand. The precedent is `docs/coverage-baseline.txt`, already enforced in
-   `tools/quality-report/main.go`; there is no equivalent for lint, which is how
-   0 became 47 unannounced.
+   `tools/quality-report/main.go`; there was no equivalent for lint, which is how
+   0 became 47 unannounced. Landed as `checks.lint-baseline`, gating Tier 0 —
+   [see above](#the-ratchet-a-check-that-is-green-at-baseline). It closes no
+   findings; every step below now has a build that notices if it regresses.
 3. ✅ **The one-liners**: `unconvert`, `noctx`, 2 `gosec` G301s, 2 `gosec`
    G306s, 2 `gocritic` renames, `exhaustive`, `goconst` ×4. Thirteen findings.
    "No design decisions" turned out to be wrong about two of them: `goconst`'s
@@ -602,3 +695,8 @@ the re-measured figures are in
 - `nix/lint-tiers.nix` — the five tier helpers, and why none of them passes
   `--timeout` (it silently overrides `run.timeout` and exits 4 *after* printing
   "0 issues", which once published a timed-out tier as clean).
+- `docs/lint-baseline.txt` — the committed finding list the ratchet diffs
+  against. Regenerated only by `nix run .#update-lint-baseline`, reviewed like
+  `docs/coverage-baseline.txt`, and it only ever goes down.
+- `tools/lint-baseline/main.go` — the comparator's package comment carries the
+  exit-code contract and the argument for a finding *list* over a count.

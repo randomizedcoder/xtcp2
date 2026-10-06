@@ -26,6 +26,7 @@
   vendoredSource,
   binaries,
   xdp2,
+  lintBaselineMeasure,
 }:
 
 let
@@ -66,6 +67,20 @@ in
     inherit pkgs vendoredSource;
   };
   go-sec = import ./go-sec.nix { inherit pkgs vendoredSource; };
+
+  # The lint ratchet, and the only check here that is GREEN at baseline. The
+  # three tier checks above report a tier's whole finding list, which has been
+  # non-empty for long enough that their red carries no information; this one
+  # compares against docs/lint-baseline.txt and goes red only on an ADDITION.
+  #
+  # gatedTiers is Tier 0 alone, and stays that way until a phase empties the
+  # next tier and promotes it — same one-at-a-time discipline as gatedProtocols
+  # below. Gating a tier that still holds findings would make this check
+  # permanently red, which is the same as turning it off.
+  lint-baseline = import ./lint-baseline.nix {
+    inherit pkgs vendoredSource lintBaselineMeasure;
+    gatedTiers = [ "tier0" ];
+  };
 
   netlink-audit = import ./netlink-audit.nix { inherit pkgs vendoredSource; };
   iouring-audit = import ./iouring-audit.nix { inherit pkgs vendoredSource; };

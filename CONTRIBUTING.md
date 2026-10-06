@@ -169,7 +169,7 @@ The Nix tree is linted as well: `nixfmt` for layout, plus **`deadnix`** (unused 
 
 Findings get fixed, not silenced: `excludeShellChecks`, a relaxed `bashOptions`, and an overridden `checkPhase` appear nowhere in the tree, and there is exactly one `# shellcheck disable` (`nix/microvms/mkVm.nix`, SC2016 on a deliberately single-quoted `bash -c` body). Where `errexit` bites, say why in a comment and use `|| true`, `if ! cmd; then`, or a narrow `set +e` region.
 
-Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
+Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), the `lint-baseline` ratchet, `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
 
 ```sh
 nix flake check
@@ -186,6 +186,16 @@ nix build .#checks.x86_64-linux.golangci-lint-comprehensive
 `gocyclo`, `funlen`, `goconst`, `unconvert` and `exhaustive` are enabled *only* there (`.golangci-comprehensive.yml`), so those five classes exist nowhere in Tier 0/1 or in `lint`. That is not hypothetical: a change that added one `case` and two `if`s to an already-large switch took `ParseNewRoute` from gocyclo 29 to 32 and reached `main` anyway, because the verification section named Tier 1 only and Tier 2's red exit looked identical before and after — see "`ParseNewRoute` crossed the same ceiling" in [docs/netlink/coverage-status.md](docs/netlink/coverage-status.md) for the incident, and the Tier 2 section of [TODO-SOON.md](TODO-SOON.md) for the current baselines.
 
 Diff the list properly: normalize each finding to `path | message (linter)` with **line:col dropped**, sort, and `comm` in *both* directions against the same check built at the revision you branched from (a detached worktree does that without disturbing your tree). Dropping line:col matters, or every finding your edit merely *moved* reads as new. Both directions matter too, because a one-way `comm` cannot tell "unchanged" from "one finding swapped for another".
+
+**One check does all of that for you, and it is the only one that is green:**
+
+```sh
+nix build .#checks.x86_64-linux.lint-baseline
+```
+
+It diffs every tier against the committed `docs/lint-baseline.txt` — both directions, line:col dropped — and fails only when a **gated** tier gains a finding. Tier 0 is gated today; Tiers 1 and 2 print as advisory until the phases that empty them promote them. Because it is green at baseline, its red means one thing: your change added a finding. That is the signal `nix flake check`'s exit code cannot give you.
+
+If it goes red, fix the finding. If the finding is genuinely one the project accepts, regenerate the baseline with `nix run .#update-lint-baseline` and let the added line be reviewed in your diff — that file is a standing decision, like `docs/coverage-baseline.txt`, and it only ever goes down. Do not hand-edit it except to delete a line a fix made obsolete; it is validated for sortedness and uniqueness at load time, and an unusable baseline fails the check rather than passing it.
 
 **Every outstanding finding, with a diagnosis and a fix for each, is in [docs/static-analysis.md](docs/static-analysis.md)** — read it before adding a suppression of any kind. It also records what counts as a fix, and the three narrow conditions under which a scoped config exclusion is legitimate.
 

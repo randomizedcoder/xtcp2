@@ -66,6 +66,22 @@ let
         nix build .#quality-report              Build the report artifact (result/)
         nix run .#lint-fix-one -- <linter>      Auto-fix one linter at a time
 
+      Lint ratchet (the one check that is green at baseline, so its red means a
+      regression landed rather than inherited debt):
+        nix build .#checks.x86_64-linux.lint-baseline
+                                                Diff every tier against
+                                                docs/lint-baseline.txt. Fails
+                                                only when a GATED tier gains a
+                                                finding; Tier 1 and 2 print as
+                                                advisory until a phase empties
+                                                them.
+        nix run .#update-lint-baseline          Regenerate docs/lint-baseline.txt.
+                                                Not doable by hand: the tier
+                                                configs use vendor mode and there
+                                                is no committed vendor/ tree, so
+                                                golangci-lint only runs inside
+                                                the Nix sandbox.
+
       Tests:
         go test ./...                           Unit tests
         go test -ldflags=-checklinkname=0 ./pkg/xtcp/ ./cmd/xtcp2/
