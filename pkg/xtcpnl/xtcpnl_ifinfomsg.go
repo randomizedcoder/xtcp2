@@ -662,10 +662,85 @@ type linkStatsRaw struct {
 // was raising it, which would have been suppressing the finding rather than
 // fixing it. The duplicate-attribute check stays at the call site, because it
 // is a property of the walk and not of any one attribute.
+//
+// What remains here is the dispatch itself, which is now a router rather than a
+// decoder: the fixed-width scalars go to setLinkScalarAttr, the `ip -d` group
+// falls through the default arm to setLinkDetailAttr, and only the handful of
+// attributes with no sibling — the strings, the raw addresses and the three
+// deferred stats slices — are still handled inline.
 func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	switch atype {
 	case uint16(unix.IFLA_IFNAME):
 		li.Name = string(bytes.TrimRight(val, "\x00"))
+
+	// The fixed-width scalars are decoded one level down. They are the group
+	// that grows every time the kernel adds an ifinfo scalar, and each one
+	// costs a case AND a length guard, so nine of them carried eighteen of
+	// this switch's twenty-nine. See setLinkScalarAttr.
+	case uint16(unix.IFLA_OPERSTATE), uint16(unix.IFLA_CARRIER),
+		uint16(unix.IFLA_MTU), uint16(unix.IFLA_TXQLEN),
+		uint16(unix.IFLA_LINKMODE), uint16(unix.IFLA_GROUP),
+		uint16(unix.IFLA_LINK), uint16(unix.IFLA_MASTER),
+		uint16(unix.IFLA_LINK_NETNSID):
+		setLinkScalarAttr(li, atype, val)
+
+	case uint16(unix.IFLA_ADDRESS):
+		li.Address = CopyBytes(val)
+	case uint16(unix.IFLA_BROADCAST):
+		li.Broadcast = CopyBytes(val)
+	case uint16(unix.IFLA_PERM_ADDRESS):
+		li.PermAddress = CopyBytes(val)
+	case uint16(unix.IFLA_QDISC):
+		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_LINKINFO):
+		setLinkInfoNest(li, val)
+	case uint16(unix.IFLA_PROP_LIST):
+		li.AltNames = linkAltNames(val)
+
+	// The two stats attributes are kept as raw slices and resolved after
+	// the walk rather than decoded in place. IFLA_STATS64 wins over
+	// IFLA_STATS whenever both are present, and that is not a property
+	// either arm can evaluate on its own: the kernel emits IFLA_STATS
+	// first, so deciding there would mean deciding before the winner has
+	// been seen.
+	case uint16(unix.IFLA_STATS):
+		raw.stats = val
+	case uint16(unix.IFLA_STATS64):
+		raw.stats64 = val
+	case uint16(unix.IFLA_PROTINFO):
+		raw.protinfo = val
+
+	default:
+		setLinkDetailAttr(&li.Detail, atype, val)
+	}
+}
+
+// setLinkScalarAttr applies one fixed-width scalar IFLA_* to a LinkInfo.
+//
+// Split from setLinkAttr for the reason setLinkAttr was split from ParseNewLink
+// and setLinkDetailAttr from setLinkAttr, both recorded above: these nine
+// attributes carried eighteen of setLinkAttr's twenty-nine cyclomatic points,
+// leaving it one short of the gocyclo ceiling of thirty, so the next IFLA_*
+// scalar the kernel added would have tripped it. They are also the cheapest
+// group to move, because every one of them is the same two lines under the same
+// kind of guard, and nothing about them depends on another attribute.
+//
+// Each one suppresses a short payload rather than reporting it: these are
+// fixed-width members, and storing a fabricated zero would claim the kernel
+// said "MTU 0" when what it sent was truncated. There is no error return for
+// the same reason — a truncated scalar is a completeness problem, not a
+// meaning one, so the link still decodes. That is the opposite of
+// setRouteAttr's nested attributes, which do return an error; see
+// walkNestTolerant below for where the line is drawn.
+//
+// IFLA_MASTER is the one member of the group with no presence bool, and that
+// asymmetry is deliberate rather than an omission — see the LinkInfo doc
+// comment: index 0 is not a valid interface index, so Master == 0 already means
+// the attribute was absent. IFLA_LINK sits immediately beside it and DOES have
+// one, and IFLA_LINK_NETNSID needs its own because -1 is a value the kernel
+// really sends.
+func setLinkScalarAttr(li *LinkInfo, atype uint16, val []byte) {
+	switch atype {
 	case uint16(unix.IFLA_OPERSTATE):
 		if len(val) >= 1 {
 			li.OperState = val[0]
@@ -681,14 +756,6 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 			li.MTU = binary.LittleEndian.Uint32(val[0:4])
 			li.HasMTU = true
 		}
-	case uint16(unix.IFLA_ADDRESS):
-		li.Address = CopyBytes(val)
-	case uint16(unix.IFLA_BROADCAST):
-		li.Broadcast = CopyBytes(val)
-	case uint16(unix.IFLA_PERM_ADDRESS):
-		li.PermAddress = CopyBytes(val)
-	case uint16(unix.IFLA_QDISC):
-		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_TXQLEN):
 		if len(val) >= 4 {
 			li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
@@ -718,26 +785,6 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 			li.LinkNetnsID = int32(binary.LittleEndian.Uint32(val[0:4]))
 			li.HasLinkNetnsID = true
 		}
-	case uint16(unix.IFLA_LINKINFO):
-		setLinkInfoNest(li, val)
-	case uint16(unix.IFLA_PROP_LIST):
-		li.AltNames = linkAltNames(val)
-
-	// The two stats attributes are kept as raw slices and resolved after
-	// the walk rather than decoded in place. IFLA_STATS64 wins over
-	// IFLA_STATS whenever both are present, and that is not a property
-	// either arm can evaluate on its own: the kernel emits IFLA_STATS
-	// first, so deciding there would mean deciding before the winner has
-	// been seen.
-	case uint16(unix.IFLA_STATS):
-		raw.stats = val
-	case uint16(unix.IFLA_STATS64):
-		raw.stats64 = val
-	case uint16(unix.IFLA_PROTINFO):
-		raw.protinfo = val
-
-	default:
-		setLinkDetailAttr(&li.Detail, atype, val)
 	}
 }
 

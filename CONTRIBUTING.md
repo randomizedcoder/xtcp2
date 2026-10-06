@@ -175,6 +175,20 @@ Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `
 nix flake check
 ```
 
+**Tier 2 *is* part of `nix flake check` — and that is exactly why you cannot lean on it.** `golangci-lint-comprehensive` is a check attribute like any other (`nix/checks/default.nix`), so the command above builds it and prints its findings. But `nix flake check` is red on **eight** checks at baseline, Tier 2 among them at **46 findings**, so its exit code was already 1 before your change and is still 1 after. An exit status cannot announce a 47th finding.
+
+So run the tier on its own — faster, since it skips the microVM and the per-flavor test builds — and diff the finding **list**, never the count and never the status:
+
+```sh
+nix build .#checks.x86_64-linux.golangci-lint-comprehensive
+```
+
+`gocyclo`, `funlen`, `goconst`, `unconvert` and `exhaustive` are enabled *only* there (`.golangci-comprehensive.yml`), so those five classes exist nowhere in Tier 0/1 or in `lint`. That is not hypothetical: a change that added one `case` and two `if`s to an already-large switch took `ParseNewRoute` from gocyclo 29 to 32 and reached `main` anyway, because the verification section named Tier 1 only and Tier 2's red exit looked identical before and after — see "`ParseNewRoute` crossed the same ceiling" in [docs/netlink/coverage-status.md](docs/netlink/coverage-status.md) for the incident, and the Tier 2 section of [TODO-SOON.md](TODO-SOON.md) for the current baselines.
+
+Diff the list properly: normalize each finding to `path | message (linter)` with **line:col dropped**, sort, and `comm` in *both* directions against the same check built at the revision you branched from (a detached worktree does that without disturbing your tree). Dropping line:col matters, or every finding your edit merely *moved* reads as new. Both directions matter too, because a one-way `comm` cannot tell "unchanged" from "one finding swapped for another".
+
+**Every outstanding finding, with a diagnosis and a fix for each, is in [docs/static-analysis.md](docs/static-analysis.md)** — read it before adding a suppression of any kind. It also records what counts as a fix, and the three narrow conditions under which a scoped config exclusion is legitimate.
+
 The aggregated linter/coverage status is regenerated into [docs/quality-report.md](docs/quality-report.md) with `nix run .#update-quality-report` (that file is auto-generated — do not hand-edit it).
 
 `nix flake check` does not currently pass end to end. The known failures — which
@@ -196,7 +210,7 @@ See [docs/protobuf-formats.md](docs/protobuf-formats.md) for a reference of ever
 
 ## Code conventions
 
-- **Handle every error.** The codebase does not use `//nolint` suppressions; lint classes are eliminated structurally rather than silenced. Keep that standard in new code — if a linter complains, fix the cause.
+- **Handle every error.** No `//nolint` in production logic — lint classes are eliminated structurally rather than silenced. The directive appears in exactly eleven places and every one is either a `_test.go` file or a kernel-UAPI constant spelling, always with the reason inline. (This bullet used to claim the repo uses none at all, which was not true; the accurate version is the stronger rule.) Where a linter is genuinely wrong about the code, the instrument is a path-and-message-scoped exclusion in the tier config with the argument written out — see [docs/static-analysis.md](docs/static-analysis.md) for the four properties such an exclusion needs and the two existing examples.
 - **Spelling: US English.** `behavior`, `serialization`, `canceled`, `neighbor`, `initialization`, `labeled`, `honor`. This is enforced by `misspell` in **Tier 1**, so a British spelling fails CI on the commit that introduces it — which is the point. The repo swept British→US four times before this was written down, and it regressed every time, because `misspell` only ran in the nightly tier.
 
   Two things the linter cannot see, so they are conventions rather than rules: `misspell` skips camelCase/PascalCase tokens unconditionally (identifiers and Prometheus label values like `cancelledDuringInit` are out of its reach), and it only reads `.go` files (`docs/`, `.nix` and `.sql` are not checked). `proto/headers/sock.c` is verbatim Linux kernel source — leave its spelling alone.
