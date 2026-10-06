@@ -98,7 +98,7 @@ func parseRuleShowArgs(args []string) error {
 // back empty rather than erroring. goip reproduces that by passing the family
 // through, which costs nothing: there is no branch to write.
 func ruleShow(c *runCtx) error {
-	family := uint8(c.family)
+	family := c.family
 	if family == unix.AF_UNSPEC {
 		family = unix.AF_INET
 	}

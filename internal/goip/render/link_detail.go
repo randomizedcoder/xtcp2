@@ -136,6 +136,12 @@ type LinkKindView struct {
 	SlaveKind string `json:"info_slave_kind,omitempty"`
 }
 
+// addrGenModeNoneCst is print_af_spec's spelling of IN6_ADDR_GEN_MODE_NONE
+// (ip/ipaddress.c:177). Its own constant, not shared with the identically
+// spelled routeTypeUnspecNameCst (route.go) or ruleGotoUnsetCst (rule.go) —
+// see the note on routeTypeUnspecNameCst for why the three stay apart.
+const addrGenModeNoneCst = "none"
+
 // addrGenModeName is print_af_spec's switch (ip/ipaddress.c:171-196).
 //
 // The default arm is transcribed rather than skipped: iproute2 prints the raw
@@ -146,7 +152,7 @@ func addrGenModeName(mode uint8) string {
 	case xtcpnl.In6AddrGenModeEUI64:
 		return "eui64"
 	case xtcpnl.In6AddrGenModeNone:
-		return "none"
+		return addrGenModeNoneCst
 	case xtcpnl.In6AddrGenModeStablePrivacy:
 		// "stable_secret", not "stable_privacy". The enum and the token
 		// disagree, and iproute2's token is the one `ip` prints.

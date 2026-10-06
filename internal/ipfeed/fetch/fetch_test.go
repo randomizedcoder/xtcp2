@@ -166,24 +166,54 @@ func TestGetBodyLimit(t *testing.T) {
 func TestGetFileURL(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "feed.json")
-	if err := os.WriteFile(path, []byte(`{"ok":true}`), 0o644); err != nil {
+	// Both fixtures are written 0o600, not 0o644: gosec G306 objects to the
+	// wider mode and neither assertion below depends on it, since the files are
+	// read back by this process through a file:// URL.
+	if err := os.WriteFile(path, []byte(`{"ok":true}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	escapedPath := filepath.Join(dir, "feed with space.json")
-	if err := os.WriteFile(escapedPath, []byte(`{"escaped":true}`), 0o644); err != nil {
+	if err := os.WriteFile(escapedPath, []byte(`{"escaped":true}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
+	// wantPerm is checked only when non-zero; it pins the 0o600 tightening so
+	// the mode cannot be loosened back silently.
 	tests := []struct {
 		description string
 		rawurl      string
+		localPath   string
+		wantPerm    os.FileMode
 		wantErr     bool
 		wantBody    string
 	}{
-		{"positive: file URL returns the local file body", "file://" + path, false, `{"ok":true}`},
-		{"negative: missing file returns an error", "file://" + filepath.Join(dir, "missing.json"), true, ""},
-		{"negative: file URL with a host is rejected", "file://example.com/feed.json", true, ""},
-		{"corner: escaped path characters are decoded", "file://" + (&url.URL{Path: escapedPath}).EscapedPath(), false, `{"escaped":true}`},
+		{
+			description: "positive: file URL returns the local file body",
+			rawurl:      "file://" + path,
+			wantBody:    `{"ok":true}`,
+		},
+		{
+			description: "negative: missing file returns an error",
+			rawurl:      "file://" + filepath.Join(dir, "missing.json"),
+			wantErr:     true,
+		},
+		{
+			description: "negative: file URL with a host is rejected",
+			rawurl:      "file://example.com/feed.json",
+			wantErr:     true,
+		},
+		{
+			description: "corner: escaped path characters are decoded",
+			rawurl:      "file://" + (&url.URL{Path: escapedPath}).EscapedPath(),
+			wantBody:    `{"escaped":true}`,
+		},
+		{
+			description: "boundary: a fixture written 0o600 is still readable through its file:// URL, and stays 0o600",
+			rawurl:      "file://" + path,
+			localPath:   path,
+			wantPerm:    0o600,
+			wantBody:    `{"ok":true}`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -205,6 +235,15 @@ func TestGetFileURL(t *testing.T) {
 			}
 			if string(res.Body) != tc.wantBody {
 				t.Fatalf("body = %q, want %q", res.Body, tc.wantBody)
+			}
+			if tc.wantPerm != 0 {
+				st, statErr := os.Stat(tc.localPath)
+				if statErr != nil {
+					t.Fatalf("stat %s: %v", tc.localPath, statErr)
+				}
+				if got := st.Mode().Perm(); got != tc.wantPerm {
+					t.Fatalf("mode = %#o, want %#o", got, tc.wantPerm)
+				}
 			}
 		})
 	}

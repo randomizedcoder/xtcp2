@@ -1,3 +1,16 @@
+// Package listenerauth authenticates callers of the xtcp2 listener endpoints
+// with a bearer token, over both HTTP middleware and gRPC interceptors.
+//
+// Two modes carry a credential. RAW_TOKEN compares the presented token against
+// a configured secret; HMAC_UTC_MINUTE accepts an HMAC-SHA256 of the current
+// UTC minute, signed with a shared key and checked across a bounded skew
+// window (MaxSignedTokenSkewMinutes). DISABLED and UNSPECIFIED authenticate
+// nothing and are the zero value, so a missing configuration fails open by
+// design rather than by accident.
+//
+// Every comparison goes through subtle.ConstantTimeCompare, and every failure
+// is followed by a cryptographically random delay (Jitter) so that neither the
+// token's bytes nor its length are recoverable from response timing.
 package listenerauth
 
 import (
@@ -216,6 +229,13 @@ func (a *Authenticator) authenticateGRPC(ctx context.Context) error {
 	return nil
 }
 
+// validToken reports whether token authenticates under the configured mode.
+//
+// Every ListenerAuthMode is spelled out, and there is deliberately no default
+// clause: DISABLED and UNSPECIFIED validate nothing, which was previously true
+// only by falling out of the switch, and a mode value outside the enum reaches
+// the trailing return false. Adding a default here would make a future enum
+// value permissive by accident instead of failing the exhaustive linter.
 func (a *Authenticator) validToken(token string) bool {
 	switch a.mode {
 	case xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN:
@@ -228,6 +248,9 @@ func (a *Authenticator) validToken(token string) bool {
 				return true
 			}
 		}
+	case xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED,
+		xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED:
+		return false
 	}
 	return false
 }
@@ -264,22 +287,25 @@ func SignedToken(sharedKey string, t time.Time) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-func CryptoJitterDuration(min, max time.Duration) (time.Duration, error) {
-	if min < 0 || max < 0 {
+// CryptoJitterDuration returns a cryptographically random duration in the
+// inclusive range [lo, hi]. The parameters are lo/hi rather than min/max
+// because those two names shadow the builtins (gocritic builtinShadow).
+func CryptoJitterDuration(lo, hi time.Duration) (time.Duration, error) {
+	if lo < 0 || hi < 0 {
 		return 0, errors.New("jitter durations must be non-negative")
 	}
-	if max < min {
+	if hi < lo {
 		return 0, errors.New("jitter max is less than min")
 	}
-	if max == min {
-		return min, nil
+	if hi == lo {
+		return lo, nil
 	}
-	span := max - min
+	span := hi - lo
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(span)+1))
 	if err != nil {
 		return 0, err
 	}
-	return min + time.Duration(n.Int64()), nil
+	return lo + time.Duration(n.Int64()), nil
 }
 
 type ClientAuth struct {
