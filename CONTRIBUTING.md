@@ -169,13 +169,13 @@ The Nix tree is linted as well: `nixfmt` for layout, plus **`deadnix`** (unused 
 
 Findings get fixed, not silenced: `excludeShellChecks`, a relaxed `bashOptions`, and an overridden `checkPhase` appear nowhere in the tree, and there is exactly one `# shellcheck disable` (`nix/microvms/mkVm.nix`, SC2016 on a deliberately single-quoted `bash -c` body). Where `errexit` bites, say why in a comment and use `|| true`, `if ! cmd; then`, or a narrow `set +e` region.
 
-Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`), the `lint-baseline` ratchet, `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
+Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`, `kernel-citation-audit`), the `lint-baseline` ratchet, `go-vet`, `gofmt`, `gosec`, `nixfmt`, `deadnix`, `statix`, per-binary `cli-help-smoke-*` checks, capability checks, the race test, the per-flavor builds, and the minimal microVM lifecycle:
 
 ```sh
 nix flake check
 ```
 
-**Tier 2 *is* part of `nix flake check` — and that is exactly why you cannot lean on it.** `golangci-lint-comprehensive` is a check attribute like any other (`nix/checks/default.nix`), so the command above builds it and prints its findings. But `nix flake check` is red on **eight** checks at baseline, Tier 2 among them at **46 findings**, so its exit code was already 1 before your change and is still 1 after. An exit status cannot announce a 47th finding.
+**Tier 2 *is* part of `nix flake check` — and that is exactly why you cannot lean on it.** `golangci-lint-comprehensive` is a check attribute like any other (`nix/checks/default.nix`), so the command above builds it and prints its findings. But `nix flake check` is still red — `deadnix`, `nix-fmt` and `golangci-lint-comprehensive` itself, plus the two environmental flakes tracked in [TODO-SOON.md](TODO-SOON.md) — with Tier 2 among them at **4 findings**, so its exit code was already 1 before your change and is still 1 after. An exit status cannot announce a 5th finding. (This sentence said "red on eight checks … at 46 findings" until the phases that closed Tier 0, then `go-sec`, then Tier 1's last 26 findings. It now names the remaining reds instead of counting them, because a count goes stale on the commit that fixes one — which is how the "46" survived three passes.)
 
 So run the tier on its own — faster, since it skips the microVM and the per-flavor test builds — and diff the finding **list**, never the count and never the status:
 
@@ -193,7 +193,7 @@ Diff the list properly: normalize each finding to `path | message (linter)` with
 nix build .#checks.x86_64-linux.lint-baseline
 ```
 
-It diffs every tier against the committed `docs/lint-baseline.txt` — both directions, line:col dropped — and fails only when a **gated** tier gains a finding. Tier 0 is gated today; Tiers 1 and 2 print as advisory until the phases that empty them promote them. Because it is green at baseline, its red means one thing: your change added a finding. That is the signal `nix flake check`'s exit code cannot give you.
+It diffs every tier against the committed `docs/lint-baseline.txt` — both directions, line:col dropped — and fails only when a **gated** tier gains a finding. Tiers 0 and 1 are gated today; Tier 2 prints as advisory until the phases that empty it promote it. Because it is green at baseline, its red means one thing: your change added a finding. That is the signal `nix flake check`'s exit code cannot give you.
 
 If it goes red, fix the finding. If the finding is genuinely one the project accepts, regenerate the baseline with `nix run .#update-lint-baseline` and let the added line be reviewed in your diff — that file is a standing decision, like `docs/coverage-baseline.txt`, and it only ever goes down. Do not hand-edit it except to delete a line a fix made obsolete; it is validated for sortedness and uniqueness at load time, and an unusable baseline fails the check rather than passing it.
 

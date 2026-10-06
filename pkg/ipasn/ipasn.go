@@ -370,7 +370,7 @@ func readZstdFile(path string, limit int64) ([]byte, error) {
 // PublishLookupCache writes artifact's lookup projection as currentPath,
 // validates it through the normal loader, then atomically rotates it into
 // service. If currentPath already exists, it is moved to previousPath first.
-func PublishLookupCache(currentPath, previousPath string, artifact *Artifact, baseline Stats) (Stats, error) {
+func PublishLookupCache(currentPath, previousPath string, artifact *Artifact, baseline Stats) (stats Stats, err error) {
 	if artifact == nil || len(artifact.rows) == 0 {
 		return Stats{}, ErrNoPrefixes
 	}
@@ -379,9 +379,21 @@ func PublishLookupCache(currentPath, previousPath string, artifact *Artifact, ba
 	}
 	tmp := fmt.Sprintf("%s.tmp.%d.%d.zst", currentPath, os.Getpid(), time.Now().UnixNano())
 	committed := false
+	// Named returns exist only so this defer can report a cleanup failure
+	// instead of discarding it: a temp file left behind on an abandoned publish
+	// accumulates silently in the cache directory, and nothing else would ever
+	// mention it.
+	//
+	// ErrNotExist is excluded rather than joined, because it is not a failure.
+	// writeRowsZstd may return before os.Create, so on the earliest error paths
+	// tmp was never created, and joining "it isn't there" onto the real error
+	// would make every such failure report two problems where there is one.
 	defer func() {
-		if !committed {
-			_ = os.Remove(tmp)
+		if committed {
+			return
+		}
+		if rmErr := os.Remove(tmp); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+			err = errors.Join(err, rmErr)
 		}
 	}()
 	if err := writeRowsZstd(tmp, artifact.rows); err != nil {
@@ -421,8 +433,10 @@ func preservePrevious(currentPath, previousPath string) error {
 		return fmt.Errorf("preserve previous lookup cache: %w", err)
 	}
 	if err := os.Rename(tmp, previousPath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("publish previous lookup cache: %w", err)
+		// tmp exists here — os.Link above succeeded — so an unlink failure is a
+		// real one and is joined. The rename error stays first: it is the cause,
+		// and the order is what a caller logs.
+		return errors.Join(fmt.Errorf("publish previous lookup cache: %w", err), os.Remove(tmp))
 	}
 	return nil
 }
@@ -475,16 +489,19 @@ func writeRowsZstd(path string, rows []row) error {
 		return err
 	}
 	pw := parquet.NewGenericWriter[row](zw)
+	// Both closes are joined onto the failure rather than discarded. The file is
+	// about to be abandoned either way, so this is not a truncation guard — the
+	// happy-path zw.Close below is already checked. It is so that a close error
+	// on the way out is reported instead of vanishing. The causing error stays
+	// first in the chain in both cases, because that is the one a caller logs
+	// and the one errors.Is callers look for.
 	if len(rows) > 0 {
 		if _, err := pw.Write(rows); err != nil {
-			_ = pw.Close()
-			_ = zw.Close()
-			return fmt.Errorf("write lookup parquet rows: %w", err)
+			return errors.Join(fmt.Errorf("write lookup parquet rows: %w", err), pw.Close(), zw.Close())
 		}
 	}
 	if err := pw.Close(); err != nil {
-		_ = zw.Close()
-		return fmt.Errorf("close lookup parquet writer: %w", err)
+		return errors.Join(fmt.Errorf("close lookup parquet writer: %w", err), zw.Close())
 	}
 	if err := zw.Close(); err != nil {
 		return fmt.Errorf("close zstd writer: %w", err)

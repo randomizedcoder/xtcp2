@@ -105,6 +105,7 @@ func TestRunMain_withSomeRaws(t *testing.T) {
 	must("iouring-audit.out", "no findings\n")
 	must("metrics-audit.out", "no findings\n")
 	must("proto-field-audit.out", "no findings\n")
+	must("kernel-citation-audit.out", "no findings\n")
 	must("gotest.json", "")
 
 	var stdout, stderr bytes.Buffer

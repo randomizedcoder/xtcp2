@@ -596,9 +596,9 @@ func (c *ingestCtx) ingestFormatter(in *reportInput, exitCodeKey, fileName, stat
 	})
 }
 
-// ingestCustomAudits ingests the four xtcp2-specific AST audits.
+// ingestCustomAudits ingests the five xtcp2-specific AST audits.
 func (c *ingestCtx) ingestCustomAudits(in *reportInput) {
-	for _, a := range []string{"netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit"} {
+	for _, a := range []string{"netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit", "kernel-citation-audit"} {
 		path := filepath.Join(c.rawDir, a+".out")
 		fs, ok := parseAuditOutput(path, a)
 		in.Findings = append(in.Findings, fs...)
@@ -1646,7 +1646,7 @@ func topHotspots(findings []Finding, n int) []fileAgg {
 func splitFindingsByTool(findings []Finding) (linter, audit, gosec []Finding) {
 	for _, f := range findings {
 		switch f.Tool {
-		case "netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit":
+		case "netlink-audit", "iouring-audit", "metrics-audit", "proto-field-audit", "kernel-citation-audit":
 			audit = append(audit, f)
 		case toolGosec:
 			gosec = append(gosec, f)

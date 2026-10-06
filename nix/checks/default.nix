@@ -8,11 +8,13 @@
 # explicitly. It was false, and the falsehood was load-bearing: a reviewer who
 # believed it concluded a gocyclo regression could not have been caught by the
 # one command CONTRIBUTING.md tells contributors to run, when in fact the
-# command built the tier and reported the finding. `nix flake check` is red on
-# eight checks at baseline, so an exit code that is already 1 cannot announce a
-# new finding - that, not the check set, is why Tier 2 findings slip through.
-# See the Tier 2 section of TODO-SOON.md for how to read it (diff the finding
-# list; the count and the exit status are both uninformative).
+# command built the tier and reported the finding. `nix flake check` still has
+# other reds, so an exit code that is already 1 cannot announce a new finding -
+# that, not the check set, is why Tier 2 findings slip through. (Which reds, and
+# how many, is deliberately not recorded here: it said "eight checks at
+# baseline" and went stale the moment a phase fixed one.) See the Tier 2 section
+# of TODO-SOON.md for the current set, and for how to read the tier - diff the
+# finding list; the count and the exit status are both uninformative.
 #
 # `nix build .#checks.x86_64-linux.golangci-lint-comprehensive` is still the
 # useful command, because it builds that one tier without the microVM and the
@@ -73,19 +75,35 @@ in
   # non-empty for long enough that their red carries no information; this one
   # compares against docs/lint-baseline.txt and goes red only on an ADDITION.
   #
-  # gatedTiers is Tier 0 alone, and stays that way until a phase empties the
-  # next tier and promotes it — same one-at-a-time discipline as gatedProtocols
-  # below. Gating a tier that still holds findings would make this check
-  # permanently red, which is the same as turning it off.
+  # gatedTiers grows one tier at a time, and only after a phase empties that
+  # tier — same one-at-a-time discipline as gatedProtocols below. Gating a tier
+  # that still holds findings would make this check permanently red, which is
+  # the same as turning it off.
+  #
+  # Tier 1 joined on 2026-10-06, earned by measurement and in that order: the
+  # errcheck/misspell/contextcheck pass closed its last 26 findings,
+  # `nix run .#update-lint-baseline` then measured it at 0 and removed its 19
+  # baseline lines, and only then was it added here. docs/lint-baseline.txt now
+  # holds four lines, all Tier 2 — funlen x3 and gocyclo x1 — so Tier 2 stays
+  # advisory until the setRuleAttr split and the cmd/xtcp2 flag split land.
   lint-baseline = import ./lint-baseline.nix {
     inherit pkgs vendoredSource lintBaselineMeasure;
-    gatedTiers = [ "tier0" ];
+    gatedTiers = [
+      "tier0"
+      "tier1"
+    ];
   };
 
   netlink-audit = import ./netlink-audit.nix { inherit pkgs vendoredSource; };
   iouring-audit = import ./iouring-audit.nix { inherit pkgs vendoredSource; };
   metrics-audit = import ./metrics-audit.nix { inherit pkgs vendoredSource; };
   proto-field-audit = import ./proto-field-audit.nix { inherit pkgs vendoredSource; };
+
+  # Paired with the widened `neighbour` misspell exclusions in .golangci.yml and
+  # .golangci-comprehensive.yml: those stop misspell reporting sixteen kernel
+  # citations, and this is what still refuses British prose in the same files.
+  # Removing this check means removing those exclusions.
+  kernel-citation-audit = import ./kernel-citation-audit.nix { inherit pkgs vendoredSource; };
 
   # The netlink layout oracle: are xtcp2's Go structs the shape the kernel
   # actually sends? Every other netlink check starts *from* the struct and so

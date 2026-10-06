@@ -162,9 +162,24 @@ func (a *Authenticator) AuthenticateHTTP(r *http.Request) error {
 	return a.AuthenticateValues(r.Context(), r.Header.Values(AuthorizationHeader))
 }
 
-func (a *Authenticator) Jitter(ctx context.Context) error {
+// Jitter sleeps for a random interval to blunt timing analysis of a failed
+// authentication, returning early if ctx is canceled.
+//
+// It deliberately returns nothing. Its only failure was context cancellation,
+// and all three callers are about to return Unauthorized or Unauthenticated
+// regardless of whether the delay completed — a cancellation there means the
+// client hung up, which changes nothing about the response. So every call site
+// discarded the error, and `_ = a.Jitter(ctx)` three times states that decision
+// three times in the voice of an oversight. Stating it once here, in the
+// signature, is the same argument made where callers read it.
+//
+// Jitter is therefore best-effort by contract. If a caller ever needs to know
+// whether the full delay elapsed, that is a new method, not a resurrected
+// error: the delay is a security measure, so "it was cut short" must not become
+// something a caller can be tempted to retry or report.
+func (a *Authenticator) Jitter(ctx context.Context) {
 	if !a.Enabled() {
-		return nil
+		return
 	}
 	d, err := CryptoJitterDuration(a.jitterMin, a.jitterMax)
 	if err != nil {
@@ -174,9 +189,7 @@ func (a *Authenticator) Jitter(ctx context.Context) error {
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
 	case <-timer.C:
-		return nil
 	}
 }
 
@@ -186,7 +199,7 @@ func (a *Authenticator) WrapHTTP(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := a.AuthenticateHTTP(r); err != nil {
-			_ = a.Jitter(r.Context())
+			a.Jitter(r.Context())
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -204,13 +217,45 @@ func (a *Authenticator) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
+// StreamServerInterceptor returns interceptStream as a method value rather than
+// a closure, which is deliberate and is the shape contextcheck requires.
+//
+// Measured, because the reasoning is not obvious from the message: contextcheck
+// reported `StreamServerInterceptor->StreamServerInterceptor$1 should pass the
+// context parameter` at the grpc.StreamInterceptor call site in pkg/xtcp. It
+// treats an anonymous function as part of its enclosing function, so a closure
+// with no ctx parameter that calls a context-consuming function looks like a
+// function consuming a context it was never given. The context actually passed
+// is irrelevant to it — ss.Context() and context.Background() were flagged
+// identically — and hoisting only the body into a named ctx-taking helper does
+// not silence it either, because the closure remains.
+//
+// A named method is analyzed on its own, and this one derives its context from
+// its own ss parameter, which is exactly the provenance contextcheck is asking
+// about. So this is the finding being answered rather than suppressed: no
+// exclusion was added for it in either golangci config.
+//
+// UnaryServerInterceptor above keeps its closure and is not flagged, because
+// grpc.UnaryServerInterceptor's signature carries a ctx and so the closure
+// receives one. The asymmetry between the two is grpc-go's, not ours.
+//
+// ss.Context() is also the only context that can be used here. It is the
+// per-RPC context, and the credentials this authenticates live in its incoming
+// metadata; a context from anywhere else would carry none and reject every
+// stream.
 func (a *Authenticator) StreamServerInterceptor() grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if err := a.authenticateGRPC(ss.Context()); err != nil {
-			return err
-		}
-		return handler(srv, ss)
+	return a.interceptStream
+}
+
+// interceptStream has grpc.StreamServerInterceptor's exact signature, so that
+// StreamServerInterceptor can hand it over as a method value. Being named also
+// makes it directly callable, which is how TestInterceptStream_table drives it
+// without standing up a gRPC server.
+func (a *Authenticator) interceptStream(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if err := a.authenticateGRPC(ss.Context()); err != nil {
+		return err
 	}
+	return handler(srv, ss)
 }
 
 func (a *Authenticator) authenticateGRPC(ctx context.Context) error {
@@ -219,11 +264,11 @@ func (a *Authenticator) authenticateGRPC(ctx context.Context) error {
 	}
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		_ = a.Jitter(ctx)
+		a.Jitter(ctx)
 		return status.Error(codes.Unauthenticated, ErrMissingCredentials.Error())
 	}
 	if err := a.AuthenticateValues(ctx, md.Get(authorizationMeta)); err != nil {
-		_ = a.Jitter(ctx)
+		a.Jitter(ctx)
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 	return nil

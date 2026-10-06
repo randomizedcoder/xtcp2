@@ -616,10 +616,17 @@ func TestRunMainFlagErrors(t *testing.T) {
 // committed artifact is validated by a test rather than by the reviewer
 // remembering to.
 //
-// The Tier 0 assertion is the one that matters. Tier 0 is the gated tier, and
-// gating a tier that still has findings would make the check permanently red,
-// which is the same as turning it off — the discipline nix/checks/default.nix
-// already records for proto-audit-netlink's gatedProtocols.
+// The assertions on the gated tiers are the ones that matter. Tiers 0 and 1 are
+// gated, and gating a tier that still has findings would make the check
+// permanently red, which is the same as turning it off — the discipline
+// nix/checks/default.nix already records for proto-audit-netlink's
+// gatedProtocols.
+//
+// A promoted tier's ceiling comes down to 0 in the same commit as the
+// promotion. Otherwise this test keeps certifying a baseline allowed to hold
+// lines for a tier the build now gates, and a line in a gated tier's section is
+// an accepted finding — a decision that belongs in a diff, not in a ceiling
+// nobody lowered.
 func TestLintBaselineCommitted(t *testing.T) {
 	const path = "../../docs/lint-baseline.txt"
 	data, err := os.ReadFile(path)
@@ -635,13 +642,15 @@ func TestLintBaselineCommitted(t *testing.T) {
 	// enforcing the header's claim that the file "only ever goes DOWN". An
 	// advisory tier is allowed to shrink freely as a phase lands fixes; growing
 	// requires editing the number here, which puts the decision in the diff
-	// next to the lines it admits. Tier 0's ceiling is 0, which makes it an
-	// equality by construction.
+	// next to the lines it admits. A gated tier's ceiling is 0, which makes it
+	// an equality by construction.
 	//
-	// These are KEY counts, not finding counts. Keys drop line:col, so the 13
-	// misspell findings collapse to 10 keys (three files hold the word twice)
-	// and 26/30 tier findings become 19/23 lines. That collapse is the
-	// documented cost of dropping line:col — see normalizeKey.
+	// These are KEY counts, not finding counts: keys drop line:col, so findings
+	// of one class in one file collapse to a single line. That mattered while
+	// the tiers were full — 26 and 30 findings were 19 and 23 lines, because
+	// three files held the same flagged spelling twice and errcheck's 12
+	// collapsed to 8 — and it does not today, since tier2's four remaining
+	// findings are four distinct keys. See normalizeKey.
 	tests := []struct {
 		description string
 		tier        tier
@@ -653,14 +662,14 @@ func TestLintBaselineCommitted(t *testing.T) {
 			expectedMax: 0,
 		},
 		{
-			description: "boundary: advisory tier1 holds no more than the 19 keys measured when the baseline was last regenerated",
+			description: "positive: the gated tier1 section is empty too, which is what its promotion on 2026-10-06 asserted and what this ceiling now holds it to",
 			tier:        tier1,
-			expectedMax: 19,
+			expectedMax: 0,
 		},
 		{
-			description: "boundary: advisory tier2 holds no more than the 23 keys measured when the baseline was last regenerated",
+			description: "boundary: advisory tier2 holds no more than the 4 keys measured when the baseline was last regenerated — funlen x3 and gocyclo x1",
 			tier:        tier2,
-			expectedMax: 23,
+			expectedMax: 4,
 		},
 	}
 	for _, tc := range tests {

@@ -86,13 +86,21 @@ otherwise until 2026-10-05.
 | `gofmt` / `nix-fmt` | — | yes | fast | formatting |
 | `deadnix` / `statix` | `statix.toml` | yes | fast | Nix dead code and antipatterns |
 | `lint-baseline` | `docs/lint-baseline.txt` | yes | fast + the measurement | the ratchet: **green at baseline**, red only on an *added* finding |
+| `kernel-citation-audit` | `tools/kernel-citation-audit` | yes | fast | `neighbour` only directly after a kernel path; the enforced half of the widened `misspell` exclusion |
 
-**`lint-baseline` is the only check in that table that is green**, and that is
-its whole reason for existing. The other nine report a tier's entire finding
-list, which has been non-empty long enough that their red carries no
+**`lint-baseline` was the only check in that table that was green**, and that is
+its whole reason for existing. The other nine reported a tier's entire finding
+list, which had been non-empty long enough that their red carried no
 information. This one compares against a committed list and fails only on an
-addition, so one red means one thing: a regression landed. It gates **Tier 0
-only** — see [the ratchet](#the-ratchet-a-check-that-is-green-at-baseline).
+addition, so one red means one thing: a regression landed. It gates **Tiers 0
+and 1** as of 2026-10-06 — see
+[the ratchet](#the-ratchet-a-check-that-is-green-at-baseline).
+
+Since that date `golangci-lint-quick` and `golangci-lint` are green too, so
+their exit codes carry information again on their own, and
+`checks.kernel-citation-audit` joins the list as a tenth green one.
+`golangci-lint-comprehensive` is the only lint check still red, at four
+findings.
 
 Its ~13 minutes of wall clock live in `nix/lint-baseline-measure.nix`, a package
 rather than a check, because it must produce output even when the tiers are
@@ -248,6 +256,37 @@ largest single contributor; it is not, as a first pass over this document
 claimed, two thirds of the list. The netlink and goip packages contribute 18,
 of which **13 are the single word covered below**.
 
+### Re-measured after the `errcheck`, `misspell` and `contextcheck` pass
+
+Measured 2026-10-06 by `nix run .#update-lint-baseline`, which builds all three
+tiers and records each one's own exit code:
+
+| check | before | after | |
+|---|---|---|---|
+| `golangci-lint-quick` (Tier 0) | 0 | **0** | still green |
+| `golangci-lint` (Tier 1) | 26 | **0** | green, and now **gated** |
+| `golangci-lint-comprehensive` (Tier 2) | 30 | **4** | funlen 3, gocyclo 1 |
+
+Tier 1 fell by its full 26 this time, because every linter involved —
+`errcheck`, `misspell`, `contextcheck` — is enabled in Tier 1, so nesting cost
+nothing. Tier 2 fell by 26 as well, from 30 to 4, which is the same 26 plus
+nothing else: its remaining four are exactly the `funlen` and `gocyclo` classes
+that only Tier 2 enables.
+
+**The same `cancelled` mistake recurred, and the same instrument caught it.**
+Three new comments in `pkg/listenerauth`'s `Jitter` table were written with the
+British spelling, which is a real defect by this repo's convention and not a
+linter quirk — the identical slip the Tier 0 pass made four times, one phase
+earlier, in the paragraph above. It was caught by running `misspell` over the
+tree with no exclusions and reading every finding, which is the cheap form of
+the list diff and the one worth doing *before* the 13-minute measurement.
+
+**One finding in the first measurement of this pass was the audit tool's own
+prose.** The widened `neighbour` exclusion covers that tool's directory for the
+audited word only, not for every misspelling, so `recognise` in one of its doc
+comments was still reported. That is the exclusion behaving correctly: the
+directory is exempt from one word, not from spelling.
+
 ## The ratchet: a check that is green at baseline
 
 Added 2026-10-05. **It closes no findings**, and that is deliberate: it makes
@@ -268,29 +307,43 @@ Regenerate with `nix run .#update-lint-baseline`. It cannot be done by hand:
 every tier config sets `modules-download-mode: vendor` and this repo has no
 committed `vendor/` tree, so golangci-lint only runs inside the Nix sandbox.
 
-**What the committed baseline holds**, measured the day it was generated:
+**What the committed baseline holds**, re-measured on 2026-10-06 after the
+`errcheck`/`misspell`/`contextcheck` pass:
 
 | tier | findings | baseline lines | gated |
 |---|---|---|---|
 | Tier 0 | 0 | **0** | **yes** |
-| Tier 1 | 26 | 19 | no — advisory until `errcheck` and `misspell` land |
-| Tier 2 | 30 | 23 | no — advisory until `gocyclo`, `funlen` and `contextcheck` land |
+| Tier 1 | 0 | **0** | **yes** — promoted 2026-10-06 |
+| Tier 2 | 4 | 4 | no — advisory until `funlen` ×3 and `gocyclo` ×1 land |
 
-**The line count is lower than the finding count, and the gap is not an error.**
-Keys drop `line:col`, so two findings of the same class in the same file collapse
-to one line: the 13 `misspell` findings become 10 lines because three files hold
-the word twice, and `errcheck`'s 12 become 8. That collapse is the price of
-dropping `line:col`, which is paid knowingly — the alternative is that every
-finding an unrelated edit merely *moved* reads as new, which is the failure mode
-that made counting useless in the first place. The cost is narrow and worth
-stating: adding a *third* identical finding to a file that already has two will
-not trip the ratchet.
+The regeneration was **38 deletions and zero additions**: 19 Tier 1 lines and 19
+of Tier 2's 23. Zero additions is the second thing it certifies — none of the
+new code, tests or tools in that pass introduced a finding in any tier.
 
-**Tier 0 only is gated**, following the one-at-a-time discipline
+For the record, what those three rows said when the ratchet landed the day
+before: Tier 1 at 26 findings / 19 lines, Tier 2 at 30 / 23, both advisory.
+
+**A line count below the finding count is not an error.** Keys drop `line:col`,
+so two findings of the same class in the same file collapse to one line. In the
+2026-10-05 generation the 13 `misspell` findings became 10 lines because three
+files held the word twice, and `errcheck`'s 12 became 8. That collapse is the
+price of dropping `line:col`, which is paid knowingly — the alternative is that
+every finding an unrelated edit merely *moved* reads as new, which is the
+failure mode that made counting useless in the first place. The cost is narrow
+and worth stating: adding a *third* identical finding to a file that already has
+two will not trip the ratchet. The four lines left today are one per finding,
+because `funlen` names the function in its message and so the three
+`cmd/xtcp2/xtcp2.go` findings stay distinct.
+
+**Tiers 0 and 1 are gated**, following the one-at-a-time discipline
 `nix/checks/default.nix` already records for `proto-audit-netlink`'s
 `gatedProtocols`: gating a tier that still holds findings makes the check
-permanently red, which is the same as turning it off. Each later phase promotes
-the tier it empties, in that order — never before.
+permanently red, which is the same as turning it off. Each phase promotes the
+tier it empties, in that order — never before. Tier 1's promotion is what that
+order looks like in practice: its last 26 findings were closed, then
+`nix run .#update-lint-baseline` measured it at 0 and removed its 19 lines, and
+only then did it go into `gatedTiers`. Tier 2 stays advisory until `setRuleAttr`
+and the `cmd/xtcp2` flag split empty it.
 
 **Three refusals are built in, because all three failure modes are silent.**
 golangci-lint exits **4** on `run.timeout` *after* printing `0 issues.`, so the
@@ -372,22 +425,64 @@ files, written before these thirteen sites existed.
 **Fix, and it is more than widening a regex.** The exclusion mechanism can
 match only the *finding message*, which is the same string whether the word sits
 in a kernel path or in British prose. So a widened `path:` list genuinely does
-lose coverage inside those files. The proposal:
+lose coverage inside those files. Both halves landed together:
 
-1. Widen the existing scoped exclusion to the nine files, keeping the
-   path + exact-text shape and the argument in the comment.
-2. **Add a positive rule to `netlink-audit`** (the repo already has four custom
-   audits, so this is the house idiom): `neighbour` may appear only immediately
-   inside a kernel path — preceded by `linux/` or `net/core/`, or suffixed
-   `.c`/`.h`. That converts the exclusion from a hole into an *enforced
-   invariant*, and it is strictly stronger than what `misspell` was giving,
-   because it also catches a kernel path being silently "corrected" by someone
-   running `lint-fix`.
+1. The scoped exclusion was widened to those ten files, in **both**
+   `.golangci.yml` and `.golangci-comprehensive.yml` — the configs have no
+   inheritance — keeping the path + exact-text shape and the argument in the
+   comment. `.golangci-quick.yml` does not enable `misspell`, so it carries
+   none of these rules, and that is the only legitimate difference between the
+   three.
+2. **`tools/kernel-citation-audit/`**, a fifth custom audit, with
+   `nix/checks/kernel-citation-audit.nix` registered beside the other four.
+   `neighbour` may appear only immediately inside a kernel path — directly
+   preceded by `net/core/` or `linux/`, the latter also covering the two
+   `https://github.com/torvalds/linux/...` URL forms. That converts the
+   exclusion from a hole into an *enforced invariant*, and it is strictly
+   stronger than what `misspell` was giving, because `misspell` is satisfied by
+   `net/core/neighbor.c` and the audit is not — so it also catches a kernel
+   path silently "corrected" by someone running `lint-fix`.
 
 Step 2 is what makes step 1 a fix rather than a suppression. Doing 1 without 2
-is the thing this document says not to do.
+is the thing this document says not to do. If the check is ever removed, the
+exclusions have to go with it, and both config comments say so.
 
-### `errcheck` — 12 findings, and 3 of them are a config decision
+**Deviation from the proposal above, with reasons.** The audit is a new tool
+rather than a rule added to `netlink-audit`, which was the original suggestion.
+That tool has three properties that are deliberate and tied to its
+byte-slice-guard purpose: it parses with `parser.SkipObjectResolution` and **no**
+`parser.ParseComments`, so its comment map is empty and every site here is a
+comment; it skips `_test.go` (`main.go:79-81`), yet six of the sixteen citations
+are in tests; and it is scoped `-root pkg/xtcpnl` while the citations span six
+directories. Relaxing all three would change what a `netlink-audit` failure
+means.
+
+**Three measured details the proposal did not have.**
+
+- **Twenty occurrences, not thirteen.** `misspell` reports thirteen; the tree
+  holds twenty. Five are in the three files the older argv exclusion already
+  covered, and two are inside `torvalds/linux` URLs, which `misspell` skips.
+  Sixteen of the twenty are kernel citations and four are the argv/alias group.
+- **The argv exemption is not file-level.** `internal/goip/obj_neigh_test.go`
+  holds *both* an argv string and a kernel citation, and
+  `internal/goip/obj_neigh.go` holds only a citation. The audit therefore
+  exempts an occurrence only when it is a quoted command token — preceded by a
+  double quote or a backtick — inside one of the three listed files. Unquoted
+  British prose in those files is still a finding, which a file-level exemption
+  would have lost. The two `obj_neigh` files stay in two separate exclusion
+  entries for the same reason: collapsing them into `obj_neigh(_test)?\.go`
+  matches the same files and loses the distinction.
+- **The audit skips its own directory, and `misspell` excludes it too.** The
+  word appears throughout that tool's documentation, its exemption reasons and
+  its fixtures, necessarily in prose, because prose about the word is what the
+  file is. Without the skip, a correct repo reports thirteen findings, all of
+  them inside the tool reporting them. The alternative was to assemble the
+  constant from fragments so neither tool could see it, which hides the word
+  without making anything more correct and leaves the one file a reader
+  consults for the rule unable to state it. One skipped directory, named and
+  reasoned at `selfDirCst`, is the honest version of the same compromise.
+
+### `errcheck` — 12 findings, and all twelve are `_ =` blanks
 
 | location | call |
 |---|---|
@@ -397,27 +492,68 @@ is the thing this document says not to do.
 | `cmd/zstd-probe/main.go:129, 266` | `w.Write`, `srv.Shutdown` |
 | `pkg/listenerauth/listenerauth.go:176, 209, 213` | `a.Jitter` |
 
-The first nine are ordinary: handle the error, or log it, or document why the
-failure is unrecoverable. **`zw.Close` on a compress writer is the one that is
-a real bug risk** — a `Close` that flushes can fail with a short write, and
-discarding it means silently truncating output. That one should be handled, not
-annotated.
+**Correction to an earlier version of this section, which said "3 of them are a
+config decision".** Every one of the twelve sites was read, and every one is
+already an explicit `_ =` blank. The class exists *entirely* because
+`.golangci.yml:67` sets `errcheck.check-blank: true`, which deliberately removes
+`_ =` as an escape hatch. That setting is correct and stays; turning it off
+would close twelve findings in one line and is exactly what this document
+forbids.
 
-**The three `a.Jitter` findings are different and need a decision, because the
-call sites already read `_ = a.Jitter(ctx)`.** They are flagged because
-`.golangci.yml` sets `errcheck.check-blank: true`, which deliberately removes
-`_ =` as an escape hatch. That setting is correct and should stay. So the fix is
-one of:
+**Correction: the `zw.Close` truncation argument does not apply.** An earlier
+version called it "a real bug risk … silently truncating output". Both discarded
+`zw.Close()` calls were on **error-return paths** where the temp file is already
+being abandoned, and the happy-path `zw.Close()` is checked. Measured
+confirmation, not just inspection: `writeRowsZstd` against `/dev/full` with a
+small row set fails inside that checked happy-path close
+(`close zstd writer: … no space left on device`), because parquet buffers the
+whole row group in memory — `MaxRowsPerRowGroup` defaults to `math.MaxInt64` —
+and zstd buffers on top of it, so a small write never reaches the device at all.
+There was no truncation defect to fix. The honest fix is error-joining on an
+abandonment path.
 
-- have `Jitter` not return an error (it is a sleep against a context; the only
-  failure is context cancellation, which the caller is about to handle anyway
-  by returning `Unauthenticated`), **or**
-- handle the cancellation explicitly.
+**What landed, in four shapes.**
 
-The first is probably right and is a signature change, not an annotation. Note
-what `_ =` is doing here: it is an auth-failure delay, so "the jitter was cut
-short because the client disconnected" is genuinely uninteresting — but that
-argument belongs in the function's signature, not at three call sites.
+- **`pkg/listenerauth` ×3 — a signature change.** `Jitter` no longer returns an
+  error. Its only failure was context cancellation, and all three callers return
+  `Unauthorized`/`Unauthenticated` regardless, so `_ = a.Jitter(ctx)` was the
+  same argument stated three times in the voice of an oversight. Stating it once
+  in the signature puts it where callers read it. `Jitter` has no callers outside
+  the package, which was checked before changing an exported method.
+- **`pkg/ipasn` ×5 and `pkg/listener` ×2 — `errors.Join`.** All seven are
+  cleanup on a path that is already returning a failure. The causing error stays
+  first in every chain, because that is the one a caller logs and the one
+  `errors.Is` callers look for.
+- **`cmd/zstd-probe` ×2 — `log.Printf`.** The file already used exactly that for
+  this class. The `/readyz` write has no way left to signal failure once the
+  header is written, and `srv.Shutdown`'s error must not overwrite `run`'s,
+  which is what decides the exit status.
+- **A hazard not in the proposal.** Blindly joining `os.Remove(tmp)` in
+  `PublishLookupCache`'s defer would report a spurious `ErrNotExist` on every
+  early failure, because `writeRowsZstd` can return before `os.Create` and the
+  temp file then never existed. `ErrNotExist` is excluded rather than joined, so
+  such a failure reports one problem instead of two. The test for it asserts the
+  **cause count** rather than the message, since that is the only place the
+  difference shows.
+
+**Two behaviors the tests measured that the code's comments now record.**
+
+- `net.UnixListener.Close` unlinks its path **unconditionally** and **discards**
+  its own unlink error. So for any listener `listenUnix` built, the path is gone
+  one line before `unixListener.Close`'s `Lstat` guard runs — whatever was
+  there, socket or not, and whoever owned it. The guard protects less than it
+  appears to, and what is left for the joined `os.Remove` is the case the
+  stdlib's own unlink failed.
+- `errors.Join` discards nil arguments but still wraps a lone survivor, so "the
+  cause, untouched" and "a join carrying one cause" are identical by message.
+  Every table here asserts the cause count for that reason. It also means the
+  argument order in `preservePrevious` is **not** a tested claim: reaching two
+  causes there needs an unlink that fails in a directory that had to be writable
+  for the `os.Link` which created the file. Mutation-swapping that join leaves
+  every row green, and it is recorded in the test rather than left as a false
+  sense of coverage. Where both causes are reachable — `writeRowsZstd`'s
+  `pw.Close` join, provoked with `/dev/full` and 400k rows — the order is pinned,
+  and swapping it does turn a row red.
 
 ### `gosec` — 4 via golangci, 2 via the standalone check
 
@@ -570,12 +706,45 @@ function value, so neither rename reached a caller. The parameter is `span`
 there rather than `hi`, because that function's range is `[0, span)` and not
 `[lo, hi]`.
 
-### `contextcheck` — 1 finding
+### `contextcheck` — 1 finding, fixed structurally and with no exclusion
 
-`pkg/xtcp/grpc_server.go:82` — `StreamServerInterceptor`'s closure should pass
-the context through rather than starting a fresh one. Worth looking at properly
-rather than annotating: in an interceptor this is the difference between a
-canceled stream propagating and not.
+`pkg/xtcp/grpc_server.go:82:130` reported
+`Function StreamServerInterceptor->StreamServerInterceptor$1 should pass the
+context parameter`.
+
+**Correction: `contextcheck` is a Tier 1 linter, not Tier 2.** It is enabled at
+`.golangci.yml:51` and `.golangci-comprehensive.yml:51`, and absent only from
+`.golangci-quick.yml`. An earlier version of this document listed it among the
+Tier-2-only findings, which is why the original plan deferred it to the last
+phase; it had to be closed before Tier 1 could reach zero and be gated.
+
+**What triggers it, measured rather than guessed.** `contextcheck` treats an
+anonymous function as part of its enclosing function, so a closure with no
+`ctx` parameter that calls a context-consuming function reads as a function
+consuming a context it was never given. Three things were measured:
+
+- The context the closure actually passes is **irrelevant** to it. Replacing
+  `ss.Context()` with `context.Background()` produces the identical finding.
+- Hoisting only the body into a named `ctx`-taking helper does **not** silence
+  it, because the closure remains. That was the first fix tried.
+- `UnaryServerInterceptor` is not flagged, because `grpc.UnaryServerInterceptor`
+  carries a `ctx` in its signature and so its closure receives one. The
+  asymmetry between the two interceptors is grpc-go's, not ours.
+
+**The fix.** `StreamServerInterceptor` now returns `a.interceptStream` as a
+**method value**, so there is no anonymous function at all. A named method is
+analyzed on its own, and this one derives its context from its own `ss`
+parameter, which is the provenance the linter is asking about. `contextcheck`
+reports zero across the whole repo afterwards.
+
+**So no exclusion was added.** The scoped-exclusion fallback — which would have
+been the third entry in a file that had two — was not needed. Two side effects
+worth having: `ss.Context()` is the only context that *can* be used here, since
+the credentials live in the per-RPC incoming metadata and any other context
+would reject every stream, and that argument is now in a doc comment rather
+than implicit; and the interceptor body became directly callable, so
+`TestInterceptStream_table` covers it without standing up a gRPC server.
+Neither interceptor had any test before.
 
 ### `noctx` — 1 finding
 
@@ -637,10 +806,26 @@ replacement wording:
 > in production code are eliminated structurally rather than silenced.
 
 Config-level exclusions, which are the sanctioned instrument: **2** rules in
-Tier 0, **8** in Tier 1, **11** in Tier 2. All of them should be readable as
-arguments. Two already are (`prefered`, `neighbour`); the `_test.go` blanket
-list is the one most at risk of being used as a dumping ground, and the G306
-decision above is the first test of that.
+Tier 0, **10** in Tier 1, **13** in Tier 2. All of them should be readable as
+arguments. The spelling ones are (`prefered`, the argv `neighbour`, the ten
+kernel-citation files, and the audit tool's own directory); the `_test.go`
+blanket list is the one most at risk of being used as a dumping ground, and the
+G306 decision above is the first test of that.
+
+**Two were added by the `errcheck`/`misspell` pass, and both are arguments
+rather than concessions.** The two new `misspell` entries are inseparable from
+`checks.kernel-citation-audit`, which replaces the coverage they give up and
+exceeds it. The other is `gosec` **G302** joining `G404|G301` on the existing
+`_test\.go` gosec entry, and its argument is that the rule's expectation cannot
+be met by a directory at all: G302 compares the mode against 0600 as a bitmask,
+so *any* mode carrying the execute bit is a finding, and a directory without
+the execute bit cannot be traversed. `pkg/listener` and `pkg/ipasn` strip a
+directory's write bit to 0o500 — strictly more restrictive than the 0600 the
+rule asks for — because that is the only way to make `os.Remove` fail with
+EACCES and so reach the unlink errors this pass stopped discarding. The
+standalone `gosec` check never sees these: it defaults to `-tests=false` and so
+never reads a `_test.go` file, which is why no equivalent belongs in its global
+`-exclude` list, where it would disable the rule for production code too.
 
 ## Suggested order of work
 
@@ -666,11 +851,17 @@ the re-measured figures are in
    three `"none"`s needed the three-constant argument above, and the `noctx` fix
    needed a `ctx` parameter and a measurement of what it buys.
 4. **`setRuleAttr` 48 → under 30**, then promote `gocyclo` to Tier 1. In that
-   order — promoting first puts a permanent finding in the gating tier.
-5. **`misspell`**: widen the scoped exclusion *and* add the `netlink-audit`
-   invariant. One without the other does not count.
-6. **`errcheck`**: the `Jitter` signature decision, then the nine ordinary
-   sites, with `zw.Close` treated as a real defect rather than noise.
+   order — promoting first puts a permanent finding in the gating tier. Steps 5
+   and 6 landed first, because they are what took Tier 1 to zero and let it be
+   gated; this one now moves Tier 2.
+5. ✅ **`misspell`**: the scoped exclusion widened to ten files in both configs
+   *and* `tools/kernel-citation-audit` added to enforce the invariant. One
+   without the other does not count. The tool is a fifth audit rather than a
+   `netlink-audit` rule, for the three reasons above.
+6. ✅ **`errcheck`**: the `Jitter` signature change, then the nine ordinary
+   sites. `zw.Close` turned out not to be a defect at all — see the two
+   corrections above — and `contextcheck` was closed in the same pass once it
+   was measured to be a Tier 1 linter.
 7. **`funlen`**: the `cmd/xtcp2` flag table. One refactor, three findings, and
    it stops the next flag touching three functions.
 8. **PR #146's 30 findings** in `cmd/zstd-probe/`, `pkg/ipasn/` and
