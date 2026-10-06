@@ -374,7 +374,7 @@ func PublishLookupCache(currentPath, previousPath string, artifact *Artifact, ba
 	if artifact == nil || len(artifact.rows) == 0 {
 		return Stats{}, ErrNoPrefixes
 	}
-	if err := os.MkdirAll(filepath.Dir(currentPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0o750); err != nil {
 		return Stats{}, err
 	}
 	tmp := fmt.Sprintf("%s.tmp.%d.%d.zst", currentPath, os.Getpid(), time.Now().UnixNano())

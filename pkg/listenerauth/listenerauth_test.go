@@ -130,6 +130,162 @@ func TestAuthenticatorValidationAndJitter(t *testing.T) {
 	}
 }
 
+// TestValidToken drives validToken directly across every ListenerAuthMode,
+// including the two that newWithClock collapses to DISABLED and one value
+// outside the enum. Those three states are unreachable through New, which is
+// why each row builds an Authenticator literal instead of a config — and they
+// are exactly the states the exhaustive switch in validToken now spells out.
+//
+// This table uses `description` + `expected`. The older tables in this file
+// predate that standard and still carry `name` + `expectedOutcome`.
+func TestValidToken(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 34, 45, 0, time.UTC)
+	minute := now.UTC().Truncate(time.Minute)
+	clock := func() time.Time { return now }
+
+	const rawToken = "s3cr3t-raw-token"
+	const hmacKey = "shared"
+
+	// sameLengthWrongToken differs from rawToken in its final byte only, so a
+	// regression that replaced ConstantTimeCompare with a length check would
+	// still pass this row's sibling positive and fail here.
+	const sameLengthWrongToken = "s3cr3t-raw-tokeN"
+
+	// modeOutsideEnum stands in for a ListenerAuthMode a newer proto adds that
+	// this build has never seen.
+	const modeOutsideEnum = xtcp_config.ListenerAuthMode(99)
+
+	tests := []struct {
+		description string
+		mode        xtcp_config.ListenerAuthMode
+		configured  string // rawToken for raw mode; ignored by the others
+		skew        uint32
+		token       string
+		expected    bool
+	}{
+		{
+			description: "positive: RAW_TOKEN with the configured token authenticates",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			configured:  rawToken,
+			token:       rawToken,
+			expected:    true,
+		},
+		{
+			description: "positive: HMAC_UTC_MINUTE with a token signed for the current minute authenticates",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE,
+			skew:        1,
+			token:       SignedToken(hmacKey, minute),
+			expected:    true,
+		},
+		{
+			description: "negative: RAW_TOKEN with a wrong token of the same length is rejected",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			configured:  rawToken,
+			token:       sameLengthWrongToken,
+			expected:    false,
+		},
+		{
+			description: "negative: DISABLED mode rejects a byte-correct token, because that mode validates nothing",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED,
+			configured:  rawToken,
+			token:       rawToken,
+			expected:    false,
+		},
+		{
+			description: "negative: UNSPECIFIED mode rejects a byte-correct token, for the same reason",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED,
+			configured:  rawToken,
+			token:       rawToken,
+			expected:    false,
+		},
+		{
+			description: "boundary: the empty token under RAW_TOKEN is rejected",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			configured:  rawToken,
+			token:       "",
+			expected:    false,
+		},
+		{
+			description: "boundary: the empty token under HMAC_UTC_MINUTE is rejected",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE,
+			skew:        1,
+			token:       "",
+			expected:    false,
+		},
+		{
+			description: "boundary: the empty token under DISABLED is rejected",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_DISABLED,
+			configured:  rawToken,
+			token:       "",
+			expected:    false,
+		},
+		{
+			description: "boundary: the empty token under UNSPECIFIED is rejected",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED,
+			configured:  rawToken,
+			token:       "",
+			expected:    false,
+		},
+		{
+			description: "boundary: HMAC_UTC_MINUTE accepts a token signed one minute inside skew 1",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE,
+			skew:        1,
+			token:       SignedToken(hmacKey, minute.Add(-time.Minute)),
+			expected:    true,
+		},
+		{
+			description: "boundary: HMAC_UTC_MINUTE rejects a token signed one minute outside skew 1",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE,
+			skew:        1,
+			token:       SignedToken(hmacKey, minute.Add(2*time.Minute)),
+			expected:    false,
+		},
+		{
+			description: "corner: a ListenerAuthMode outside the enum rejects a byte-correct token, so a future mode cannot become permissive by default",
+			mode:        modeOutsideEnum,
+			configured:  rawToken,
+			token:       rawToken,
+			expected:    false,
+		},
+		{
+			description: "corner: RAW_TOKEN with an empty configured token accepts the empty token, which is why newWithClock refuses to build that config at all",
+			mode:        xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+			configured:  "",
+			token:       "",
+			expected:    true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			a := &Authenticator{
+				mode:      tc.mode,
+				rawToken:  tc.configured,
+				hmacKey:   hmacKey,
+				skew:      tc.skew,
+				jitterMin: time.Millisecond,
+				jitterMax: time.Millisecond,
+				now:       clock,
+			}
+			if got := a.validToken(tc.token); got != tc.expected {
+				t.Fatalf("validToken(%q) under %s = %v, want %v",
+					tc.token, ModeString(tc.mode), got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestValidTokenEmptyConfigRejectedByNew pins the guard the last row of
+// TestValidToken relies on: validToken alone would accept the empty token
+// against an empty raw secret, and newWithClock is what makes that config
+// unconstructible.
+func TestValidTokenEmptyConfigRejectedByNew(t *testing.T) {
+	if _, err := New(&xtcp_config.ListenerAuth{
+		Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN,
+	}); err == nil {
+		t.Fatal("New accepted RAW_TOKEN with an empty token; validToken's empty-secret corner is then reachable in production")
+	}
+}
+
 func TestWrapHTTPProtectsAllRoutes(t *testing.T) {
 	a, err := New(&xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: "secret"})
 	if err != nil {

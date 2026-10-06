@@ -119,11 +119,19 @@ func routeProtoName(proto uint8) string {
 	return strconv.FormatUint(uint64(proto), 10)
 }
 
+// routeTypeUnspecNameCst is rtnl_rtntype_n2a's spelling of RTN_UNSPEC
+// (ip/rtm_map.c:21). It is its own constant and deliberately not shared with
+// the identically spelled addrGenModeNoneCst (link_detail.go) or
+// ruleGotoUnsetCst (rule.go): those are three unrelated iproute2 vocabularies
+// that collide on one word, so merging them would tie a route-type rename to
+// an addrgenmode rename.
+const routeTypeUnspecNameCst = "none"
+
 // routeTypeNames is rtnl_rtntype_n2a's switch (ip/rtm_map.c:19-54), indexed by
 // RTN_*. It is a slice rather than a map because the RTN_* values are dense,
 // 0 through RTN_XRESOLVE.
 var routeTypeNames = [...]string{
-	unix.RTN_UNSPEC:      "none",
+	unix.RTN_UNSPEC:      routeTypeUnspecNameCst,
 	unix.RTN_UNICAST:     "unicast",
 	unix.RTN_LOCAL:       "local",
 	unix.RTN_BROADCAST:   "broadcast",

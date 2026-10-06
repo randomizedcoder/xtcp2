@@ -430,13 +430,16 @@ func jitteredInterval(interval time.Duration, pct int, jitter func(time.Duration
 	return interval - spread/2 + jitter(spread)
 }
 
-func cryptoJitterDuration(max time.Duration) time.Duration {
-	if max <= 0 {
+// cryptoJitterDuration returns a cryptographically random duration in
+// [0, span). The parameter is named span rather than max because max shadows
+// the builtin (gocritic builtinShadow).
+func cryptoJitterDuration(span time.Duration) time.Duration {
+	if span <= 0 {
 		return 0
 	}
-	n, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
+	n, err := crand.Int(crand.Reader, big.NewInt(int64(span)))
 	if err != nil {
-		return max / 2
+		return span / 2
 	}
 	return time.Duration(n.Int64())
 }

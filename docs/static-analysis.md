@@ -176,14 +176,10 @@ findings, not 85** — the tiers are nested, and adding the columns double-count
 
 ### Re-measured after the Tier 0 and one-liner pass
 
-**The fixes these figures describe are not on this branch.** They are the
-sixteen findings in the `staticcheck`, `gosec`, `gocritic`, `noctx`,
-`unconvert`, `exhaustive` and `goconst` classes, and they land in
-`chore/lint-tier0-and-oneliners`, which is stacked directly on top of this one.
-The same caveat covers every **Fixed** and **Done** mark in the per-class
-sections below: each records what that branch did and what was measured
-afterwards, not the state of the tree you are reading. Measured the same day
-against the same `origin/main` base, with that branch applied:
+Measured the same day against the same `origin/main` base, after the sixteen
+findings in the `staticcheck`, `gosec`, `gocritic`, `noctx`, `unconvert`,
+`exhaustive` and `goconst` classes were fixed. Those fixes, and every **Fixed**
+and **Done** mark in the per-class sections below, land in this commit:
 
 | check | before | after | |
 |---|---|---|---|
