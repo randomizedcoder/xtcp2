@@ -165,82 +165,18 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		if !seen.first(atype) {
 			return
 		}
-		switch atype {
-		case uint16(unix.RTA_DST):
-			ri.Dst = CopyBytes(val)
-		case uint16(unix.RTA_SRC):
-			ri.Src = CopyBytes(val)
-		case uint16(unix.RTA_GATEWAY):
-			ri.Gateway = CopyBytes(val)
-		case uint16(unix.RTA_PREFSRC):
-			ri.PrefSrc = CopyBytes(val)
-		case uint16(unix.RTA_OIF):
-			if len(val) >= 4 {
-				ri.Oif = binary.LittleEndian.Uint32(val[0:4])
-			}
-		case uint16(unix.RTA_IIF):
-			if len(val) >= 4 {
-				ri.Iif = binary.LittleEndian.Uint32(val[0:4])
-			}
-		case uint16(unix.RTA_PRIORITY):
-			if len(val) >= 4 {
-				ri.Priority = binary.LittleEndian.Uint32(val[0:4])
-				ri.HasPriority = true
-			}
-		case uint16(unix.RTA_PREF):
-			if len(val) >= 1 {
-				ri.Pref = val[0]
-				ri.HasPref = true
-			}
-		case uint16(unix.RTA_TABLE):
-			if len(val) >= 4 {
-				ri.Table = binary.LittleEndian.Uint32(val[0:4])
-			}
-		case uint16(unix.RTA_MULTIPATH):
-			ri.HasMultipath = true
-			if nestErr != nil {
-				return
-			}
-			nestErr = WalkRouteNextHops(val, func(nh RouteNextHop) {
-				ri.Multipath = append(ri.Multipath, nh)
-			})
-		case uint16(unix.RTA_VIA):
-			ri.HasVia = true
-			if nestErr != nil {
-				return
-			}
-			var v RtVia
-			if _, verr := DeserializeRtVia(val, &v); verr != nil {
-				nestErr = verr
-				return
-			}
-			ri.Via = &v
-		case uint16(unix.RTA_METRICS):
-			if nestErr != nil {
-				return
-			}
-			mx, merr := ParseRouteMetrics(val)
-			if merr != nil {
-				nestErr = merr
-				return
-			}
-			ri.Metrics = mx
-		case uint16(unix.RTA_CACHEINFO):
-			if nestErr != nil {
-				return
-			}
-			var ci RtaCacheinfo
-			if _, cerr := DeserializeRtaCacheinfo(val, &ci); cerr != nil {
-				nestErr = cerr
-				return
-			}
-			ri.CacheInfo = &ci
-		case RtaNhID:
-			if len(val) >= 4 {
-				ri.NhID = binary.LittleEndian.Uint32(val[0:4])
-			}
+		// First error wins, and the walk continues either way. The guard is on
+		// nestErr rather than on the call, because the scalar arms have nothing
+		// to do with a failed nest and must keep decoding: wrapping the call in
+		// `if nestErr == nil` would silently stop recording RTA_DST, RTA_OIF
+		// and the rest after a truncated RTA_MULTIPATH.
+		if aerr := setRouteAttr(&ri, atype, val); aerr != nil && nestErr == nil {
+			nestErr = aerr
 		}
 	})
+	// Order matters. A framing error means the attribute STREAM could not be
+	// walked, so nothing decoded out of it - including a parked nested error -
+	// describes the message reliably, and it outranks nestErr for that reason.
 	if err != nil {
 		return RouteInfo{}, err
 	}
@@ -248,4 +184,118 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 		return RouteInfo{}, nestErr
 	}
 	return ri, nil
+}
+
+// setRouteAttr decodes one RTA_* attribute into ri.
+//
+// This follows the same shape as setLinkAttr (xtcpnl_ifinfomsg.go) and
+// setRuleAttr (xtcpnl_fib_rule_hdr.go) - receiver first, then the attribute
+// type and its value - and it exists for the same reason they do. ParseNewRoute
+// was the one rtnetlink parser still inlining its switch, which left it with no
+// complexity headroom: adding the RTA_CACHEINFO arm cost one case and two ifs
+// and took it from gocyclo 29 to 32, against a ceiling of 30. The ceiling is
+// not the thing that moves - see the ParseNewLink precedent in
+// docs/netlink/coverage-status.md, where a ceiling that gives way whenever
+// something reaches it was judged to measure nothing.
+//
+// The returned error is a deliberate deviation from those two siblings, which
+// return nothing. Scalar attributes here cannot fail: a short payload is
+// suppressed rather than reported, because storing a fabricated zero would
+// claim the kernel said "no interface" when what it sent was truncated. The
+// four nested attributes CAN fail, and such a failure changes what the route
+// MEANS rather than how complete the struct is - walkNestTolerant's comment in
+// xtcpnl_ifinfomsg.go already names this parser as the contrasting case.
+//
+// The switch has no default, so an attribute no arm handles leaves ri untouched
+// and returns nil. That is what lets a reply from a newer kernel decode its
+// known attributes instead of failing whole.
+func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
+	switch atype {
+	case uint16(unix.RTA_DST):
+		ri.Dst = CopyBytes(val)
+	case uint16(unix.RTA_SRC):
+		ri.Src = CopyBytes(val)
+	case uint16(unix.RTA_GATEWAY):
+		ri.Gateway = CopyBytes(val)
+	case uint16(unix.RTA_PREFSRC):
+		ri.PrefSrc = CopyBytes(val)
+	case uint16(unix.RTA_OIF):
+		if len(val) >= 4 {
+			ri.Oif = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_IIF):
+		if len(val) >= 4 {
+			ri.Iif = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_PRIORITY):
+		if len(val) >= 4 {
+			ri.Priority = binary.LittleEndian.Uint32(val[0:4])
+			ri.HasPriority = true
+		}
+	case uint16(unix.RTA_PREF):
+		if len(val) >= 1 {
+			ri.Pref = val[0]
+			ri.HasPref = true
+		}
+	case uint16(unix.RTA_TABLE):
+		if len(val) >= 4 {
+			ri.Table = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
+		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO):
+		return parseRouteNestedAttr(ri, atype, val)
+	case RtaNhID:
+		if len(val) >= 4 {
+			ri.NhID = binary.LittleEndian.Uint32(val[0:4])
+		}
+	}
+	return nil
+}
+
+// parseRouteNestedAttr decodes the four RTA_* attributes whose payload is a
+// struct or a stream of its own rather than a scalar, and is the only part of
+// route attribute decoding that can return an error.
+//
+// They are split from setRouteAttr because they are the arms that grow. A
+// scalar costs a case and a length guard; a nested attribute costs a case, a
+// decode and an error check, which is why four of them carried more than half
+// of the inlined switch's complexity. Splitting on that line gives both
+// functions headroom instead of moving the problem from one to the other.
+//
+// Each presence flag is set BEFORE the decode that can fail, which is behavior
+// preserved from the inlined version rather than an accident of ordering.
+// RTA_MULTIPATH arrived, and that stays true whether or not its nexthop list
+// walks: a caller seeing HasMultipath with a nil Multipath is seeing a route
+// whose next hops could not be read, which is a different thing from a route
+// with no next hops. ParseNewRoute discards ri wholesale on error and so cannot
+// observe the distinction, but setRouteAttr's direct callers and tests can -
+// see TestSetRouteAttr.
+func parseRouteNestedAttr(ri *RouteInfo, atype uint16, val []byte) error {
+	switch atype {
+	case uint16(unix.RTA_MULTIPATH):
+		ri.HasMultipath = true
+		return WalkRouteNextHops(val, func(nh RouteNextHop) {
+			ri.Multipath = append(ri.Multipath, nh)
+		})
+	case uint16(unix.RTA_VIA):
+		ri.HasVia = true
+		var v RtVia
+		if _, verr := DeserializeRtVia(val, &v); verr != nil {
+			return verr
+		}
+		ri.Via = &v
+	case uint16(unix.RTA_METRICS):
+		mx, merr := ParseRouteMetrics(val)
+		if merr != nil {
+			return merr
+		}
+		ri.Metrics = mx
+	case uint16(unix.RTA_CACHEINFO):
+		var ci RtaCacheinfo
+		if _, cerr := DeserializeRtaCacheinfo(val, &ci); cerr != nil {
+			return cerr
+		}
+		ri.CacheInfo = &ci
+	}
+	return nil
 }

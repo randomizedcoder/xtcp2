@@ -126,6 +126,8 @@ The daemon is `xtcp2`; the repo also ships supporting tools under `cmd/`:
 | `xtcp2ctl` | gRPC control CLI; changes a running daemon's config over `ConfigService` (poll cadence, on-demand polls/bursts, S3 upload timing, envelope flush caps, soft-restart reconfigure). |
 | `xtcp2_kafka_client` | Kafka consumer that decodes xtcp2's protobufList messages. |
 | `ns` | Namespace inspector — lists/reads netns state the way the daemon sees it. |
+| `goip` | Read-only reimplementation of `ip`'s `show` commands on `pkg/xtcpnl`. A test instrument, not a replacement for `ip`: five objects, no write verbs. |
+| `goip-parity` | Runs `ip` and `goip` against the same kernel and diffs the netlink bytes *and* the printed text. See [parity at a glance](docs/netlink/coverage-status.md#goip--ip-parity-at-a-glance). |
 | `nsTest` | Namespace churn driver for soak/stress testing. |
 | `register_schema` | Registers the `xtcp_flat_record` proto with a Confluent Schema Registry. |
 | `kafka_to_clickhouse` | Bridge: consumes the Kafka topic and writes to ClickHouse. |

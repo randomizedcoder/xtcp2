@@ -1,6 +1,68 @@
 # Status: netlink coverage expansion
 
+## goip ↔ `ip` parity at a glance
+
+Counted from the tree on 2026-10-05. Every number has a file behind it, named
+in the last column; **if this table and the file disagree, the file is right
+and this table is stale.** That has happened before in this document — see the
+"no route command is in `gated_commands`" line that outlived its own truth by
+several steps, further down under [Remaining](#remaining).
+
+| | count | counted from |
+|---|---|---|
+| commands in the comparison matrix | **29** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **29** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **24** | `pkg/nlparity/goip-parity-allowlist.json` |
+| allowlisted divergences | **7** | same file, `entries` |
+| of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
+| of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
+
+The five matrix rows outside `gated_commands` are all `-s` forms:
+`-s addr show`, `-s -6 addr show`, `-s route show`, `-s neigh show`,
+`-s rule show`. Three of them have measured `control: nl=0 stdout=0` and are
+waiting only on the gating ritual; `-s addr show` is the one that cannot pass
+the bar as written, because `IFLA_STATS`/`IFLA_STATS64` tick and it measured
+`nl` of 2, 2 and **6** across three runs. `-s link show` is the `-s` form that
+*is* gated, and [its own section](#-s-link-show-gates-on-runs-that-disagree)
+explains what it rests on instead.
+
+**`Implemented` and gated are different claims and must stay different.**
+Flipping `Implemented` puts a command in the report; joining `gated_commands`
+requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
+clean for it, on two consecutive runs whose every line matches.
+
+The most recent recorded sweep reported **29 of 29 `GOIP_PARITY_PASS`** with
+`HYGIENE_PASS` and `OVERALL_PASS` on each of three runs, and
+`GOIP_PARITY_UNGATED_CLEAN` on runs 2 and 3. That is transcribed from
+[Three runs, and the third one is the one that mattered](#three-runs-and-the-third-one-is-the-one-that-mattered),
+not re-measured for this summary — the VM has not been re-run since.
+
+### What is deliberately not in scope, so it is not a gap
+
+These are the boundaries of the exercise, not a backlog:
+
+- **Read-only.** `show`/`list`/`lst` only. `internal/goip/obj_addr.go` refuses a
+  write verb with `goip is read-only: ErrNotImplemented` rather than treating
+  it as unknown, because the harness drives both tools with the same argv and
+  needs "not got there yet" to be distinguishable from "typo".
+- **Five objects.** `address`, `route`, `rule`, `neigh`/`neighbour` and `link`
+  have a `run` function; the other twenty-six rows of `internal/goip`'s copy of
+  iproute2's `cmds[]` are present with `run: nil` **on purpose**. Matching is
+  unanchored-prefix and first-match-wins, so deleting the unimplemented rows
+  would silently change what `r`, `n`, `net` and `l` resolve to.
+- **Two render refusals, which error rather than guess**: `-d` on a link
+  carrying `IFLA_INFO_DATA` or `IFLA_INFO_SLAVE_DATA`
+  (`internal/goip/obj_link.go`), and a route with an `RTA_NH_ID`
+  (`internal/goip/obj_route.go`). Both are `ErrNotImplemented`, so the harness
+  records a skip; neither can produce a quietly wrong line.
+
 ## Where we are
+
+> The parity paragraphs in this section are a **chronology**: each sentence was
+> true when the step it describes landed, and several have been overtaken since
+> — "`link show` is gated" below was the headline when one command was gated and
+> twenty-four are now. For current state read the table above, which is counted
+> from the tree rather than accumulated from commit messages.
 
 **Phase 1 partially landed. Phase 0 re-scoped: 0a–0e landed; the original four
 Phase 0 items still outstanding. Separately, the goip parity work has begun:
@@ -2443,6 +2505,120 @@ the callback was a 70-line closure — but that is the secondary reason, not
 the first one. Two smaller findings went the same way: a variable named `any`
 (`builtinShadow`) and a `marshalled` that should have been `marshaled`, which
 is the US-spelling convention as well as the linter's.
+
+#### `ParseNewRoute` crossed the same ceiling, and the ceiling won again
+
+The `RTA_CACHEINFO` arm added for `-s route show` took `ParseNewRoute` from
+gocyclo **29 to 32** — one `case` plus two `if`s, which is exactly +3. The
+switch is now `setRouteAttr` (18) with the four nested arms in
+`parseRouteNestedAttr` (8), and `ParseNewRoute` keeps the walk, the
+duplicate-attribute check, the parked nested error and the post-walk precedence
+at **7**. Same resolution as `ParseNewLink` above and for the same stated
+reason, so this entry is about the two things that version did not have to say.
+
+**The first is that the finding reached `main`.** `ParseNewLink`'s was caught
+before merging; this one was not, and the reason is structural rather than
+careless. `gocyclo` is configured in exactly one place —
+`.golangci-comprehensive.yml`, `min-complexity: 30` — which puts it in Tier 2
+only. The merged change's verification section named
+`.#checks.x86_64-linux.golangci-lint`, which is Tier 1 and does not enable
+`gocyclo`; that check stayed at exactly its 22-finding baseline throughout, so
+the bar that was checked was green and honest and simply did not cover the
+regression. `TODO-SOON.md` §2 had already diagnosed this exact failure mode for
+`misspell` and fixed it by promoting that linter to Tier 1 — `gocyclo` was left
+behind.
+
+**A first draft of this subsection had the mechanism wrong, and the correction
+is the more useful finding.** It said Tier 2 "is not part of `nix flake
+check`", on the authority of that file's own header comment, which said exactly
+that. The comment was false and has been corrected in place.
+`golangci-lint-comprehensive` is an ordinary member of the `checks` attrset, and
+a `nix flake check --keep-going` on 2026-10-05 was observed building
+`checks.x86_64-linux.golangci-lint-comprehensive` and printing `46 issues` with
+`gocyclo: 1`.
+
+So `nix flake check` **did** report this regression, every time anyone ran it.
+What made the report worthless is that the same command is red on **eight**
+checks at baseline — `deadnix`, `golangci-lint-quick`, `go-sec`,
+`golangci-lint`, `golangci-lint-comprehensive`, `nix-fmt`,
+`test-go-flavor-s3parquet`, `microvm-lifecycle-x86_64` — so its exit code was 1
+before the regression and 1 after, and the one new line was 47th in a list
+nobody diffs. The problem was never an unwatched tier. It was a tier whose red
+carries no information, which is a harder problem and the one the next section
+is about. `CONTRIBUTING.md` now names the Tier 2 command *with the list-diff
+method attached*, because naming the command would not have been enough.
+
+**The second is how the regression was attributed, because eyeballing the list
+would not have done it, and because counting it got the wrong answer twice.**
+All three golangci tiers are red at baseline, so a non-zero exit proves
+nothing. Nor does a count: a count is a single number over a tree that other
+people's merges also change. What proves something is diffing the finding
+*lists* — build the check at the revision you are branched from, in a detached
+worktree (not `git stash`; this tree gets rebased under you), normalize each
+finding to `path | message (linter)` with the line and column *dropped* so a
+finding that merely moved does not read as new, sort both, and `comm -13` /
+`comm -23` in both directions.
+
+| revision | `golangci-lint-comprehensive` | `gocyclo` | `ParseNewRoute` |
+|---|---|---|---|
+| `4bb2975` | 30 | 1 | 29 |
+| `c9660e6` (the regression) | 31 | 2 | **32** |
+| `0101175` (`main`, after PRs #146 + #147) | **47** | 2 | 32 |
+| this fix | **46** | **1** | 7 |
+
+The jump from 31 to 47 is not drift in the measurement — it is PR #146
+(`9f6be2b`), which added `cmd/zstd-probe/` and reworked `pkg/ipasn/`,
+`internal/ipfeed/` and `cmd/ipfeed-collector/`, bringing +16 Tier 2 findings
+with it. Which is the point about counts: the first two rows were measured
+against `4bb2975` and are useless for judging a branch cut from `0101175`,
+because two unrelated merges landed in between. `TODO-SOON.md` §23 records
+both.
+
+The list diff against `0101175` returns **zero added findings and exactly one
+removed** — the `ParseNewRoute` line itself. That is a far stronger statement
+than 47 → 46, which on its own is consistent with removing one finding and
+adding another. The same method applied to the original regression *exonerated*
+two findings in files the change touched —
+`internal/goip/render/route.go` (`goconst` on `"none"`) and
+`pkg/xtcpnl/xtcpnl_ndmsg.go` (`misspell` on `neighbour`) — both already present
+at the merge-base, and both of which would have looked like plausible culprits
+in a list read by hand.
+
+For a change that adds a `case` or an `if` to an already-large switch there is
+a cheaper pre-check that needs no nix build at all:
+`nix shell nixpkgs#gocyclo -c gocyclo -top 3 <file>` on the file before and
+after. Seconds, and it is what identified this one.
+
+Tier 2 therefore stays red on **one** `gocyclo` finding after this fix:
+`setRuleAttr` at **48**, which landed in `b2f7c40` (PR #145) and had never been
+recorded anywhere — no `TODO-SOON.md` entry, no exclusion, no `//nolint`. It is
+~26 `FRA_*` clauses and a separate refactor; `TODO-SOON.md` §23 now carries it,
+and promoting `gocyclo` to Tier 1 has to wait for it. Not because promotion
+would newly break `nix flake check` — that command is red eight ways already —
+but because promoting a linter into a tier while one function holds a permanent
+finding in it reproduces the exact condition that made this regression
+invisible: a red that is always red. The durable instrument is a recorded
+baseline list the build diffs itself against, which the repo does not have for
+lint (only for coverage, `docs/coverage-baseline.txt`).
+
+One behavior difference is sanctioned by the split and is worth naming because
+nothing can observe it: the inlined version checked `nestErr != nil` at the top
+of each nested arm and skipped the decode, while the extracted version attempts
+every nested arm and keeps only the first error. The returned error is
+identical, and `ParseNewRoute` discards `ri` wholesale on error
+(`return RouteInfo{}, nestErr`), so no caller can see the difference. The
+eleven scalar arms still run after a nested failure, which is why the call site
+guards on `aerr != nil && nestErr == nil` rather than wrapping the whole
+dispatch in `if nestErr == nil` — the latter would have silently stopped
+decoding `RTA_DST` and `RTA_OIF` after a truncated `RTA_MULTIPATH`.
+
+`setLinkAttr` was split the same way in the same change, at **29 against a
+limit of 30**: nine scalar-with-presence-bit attributes each carried a `case`
+*and* a length guard, which is 18 of its 29, and they are the group that grows
+every time the kernel adds an ifinfo scalar. It is now 12, with
+`setLinkScalarAttr` at 19. It was green, so this was headroom rather than a
+fix — but a function one point under a ceiling it cannot see is a finding
+waiting on the next attribute, not a passing function.
 
 ### `addr show dev NAME`: three transactions, two single-gets that disagree
 

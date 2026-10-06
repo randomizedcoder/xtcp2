@@ -672,12 +672,19 @@
     "reason `version-skew` requires an ip_version. Recording them now is cheaper",
     "than rediscovering them as an unexplained red after a nixpkgs bump.",
     "",
-    "faceb326 gets TWO entries because it has two independent loci, and that was",
-    "measured rather than read off the diffstat. Flipping the render-time",
-    "RenderQlenZero knob cannot restore a clause the reply carries no attribute",
-    "for, which is the proof they are independent: one entry would not cover",
-    "both. See docs/netlink/coverage-status.md and nix/upstream-pins.json, whose",
-    "package_pins.iproute2 comment carries the long form."
+    "faceb326 has TWO independent loci and currently THREE entries, and the two",
+    "counts are not the same statement. The loci were measured rather than read",
+    "off the diffstat: flipping the render-time RenderQlenZero knob cannot",
+    "restore a clause the reply carries no attribute for, which is the proof",
+    "they are independent and that one entry would not cover both. The entry",
+    "count is larger because Entry.key() is command PLUS locus, and the",
+    "ioctl-fallback locus reaches two commands - `-6 addr show` and, found by a",
+    "live ungated run rather than predicted, `-s -6 addr show`. This sentence",
+    "said TWO entries until that third one landed; the hand-maintained count in",
+    "TestAllowlistCommitted caught the change and this prose did not, which is",
+    "the argument for the test row existing. See docs/netlink/coverage-status.md",
+    "and nix/upstream-pins.json, whose package_pins.iproute2 comment carries the",
+    "long form and correctly speaks of loci rather than entries."
   ],
   "entries": [
     {

@@ -72,6 +72,7 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.
 - [Stability & soak testing](stability-testing.md) — the soak/perf testing campaign: methods, bugs found & fixed, the OS-thread scaling model, soak results, and operator guidance (`-netlinkers` / `-maxThreads`).
+- [Static analysis](static-analysis.md) — every outstanding linter finding with a diagnosis and a fix per class, what counts as a fix versus a suppression, and how to tell a regression from inherited debt when every tier is red at baseline.
 - [Quality report](quality-report.md) — auto-generated linter/coverage status.
 - [protobufList migration](protobuflist-migration.md) — deep dive on the batch wire format.
 

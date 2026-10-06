@@ -2,10 +2,22 @@
 #
 # Aggregates every `nix flake check` target for xtcp2.
 #
-# Two categories:
-#   - Tier 0+1 + audits → run by default `nix flake check`
-#   - Tier 2 (comprehensive) → invoke explicitly:
-#       nix build .#checks.golangci-lint-comprehensive
+# EVERY attribute below is a `nix flake check` target, Tier 2 included.
+#
+# This comment used to claim Tier 2 was excluded and had to be invoked
+# explicitly. It was false, and the falsehood was load-bearing: a reviewer who
+# believed it concluded a gocyclo regression could not have been caught by the
+# one command CONTRIBUTING.md tells contributors to run, when in fact the
+# command built the tier and reported the finding. `nix flake check` is red on
+# eight checks at baseline, so an exit code that is already 1 cannot announce a
+# new finding - that, not the check set, is why Tier 2 findings slip through.
+# See the Tier 2 section of TODO-SOON.md for how to read it (diff the finding
+# list; the count and the exit status are both uninformative).
+#
+# `nix build .#checks.x86_64-linux.golangci-lint-comprehensive` is still the
+# useful command, because it builds that one tier without the microVM and the
+# per-flavor test builds. It is a faster path to the same result, not the only
+# path to it.
 #
 {
   pkgs,
