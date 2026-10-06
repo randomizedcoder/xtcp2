@@ -4,9 +4,13 @@
 # binding, client-side UDS dialing, listener protobuf validation, and config
 # redaction/preservation coverage in the daemon package.
 #
+# Takes no `lib`: it declared one as a required argument and then read it
+# nowhere, which is what deadnix found. The sibling runners here that do take
+# lib need it for lib.optionalString or lib.mapAttrs' — conditional flags and
+# generated attribute sets. This one has a single fixed `go test` invocation, so
+# it never had anything to ask lib for.
 {
   pkgs,
-  lib,
   vendoredSource,
 }:
 

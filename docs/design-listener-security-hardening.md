@@ -219,7 +219,7 @@ Add auth flags:
 | `-listenerAuthFailureJitterMin` | `20ms` | Minimum delay before auth failure response. |
 | `-listenerAuthFailureJitterMax` | `200ms` | Maximum delay before auth failure response. |
 
-Do not print `listenerRawToken` or `listenerHMACSharedKey` in `printFlags` or `printConfig`. It is safe to print whether a secret is set and where it came from, but never the value.
+Do not print `listenerRawToken` or `listenerHMACSharedKey` in `printFlags` or `printConfig`. It is safe to print whether a secret is set and where it came from, but never the value. Those two lines now live in `printListenerAuthFlags` (split out of `printFlags` on 2026-10-06), whose doc comment states the rule and contrasts it with the S3 credentials in `printS3Flags`, which get no line at all. `TestPrintFlagsSecrets` asserts both conventions against credential-shaped values.
 
 ### Environment variables
 

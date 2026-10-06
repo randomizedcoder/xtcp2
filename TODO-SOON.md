@@ -17,17 +17,19 @@ entries as environmental when each had a specific cause in our own code, and
 §1a as a finding on the destination *constructors* when it was the `Send`
 methods. `golangci-lint-comprehensive` reported **0 issues** on that date.
 
-**That last sentence has been false since `b2f7c40` (PR #145) and is corrected
-in §23.** Tier 2 is red again and has been for weeks — down to **4 findings** as
-of 2026-10-06, from 46 — and `nix flake check` does build it, contrary to what
-§23 itself first claimed. What nothing *gates* is Tier 2: the `lint-baseline`
-ratchet measures and prints all three tiers, but it only fails on a tier listed
-in `gatedTiers`, and Tier 0 and Tier 1 are the two gated today. The exit code of
-`nix flake check` itself cannot report a new finding either, because it is still
-red on `deadnix`, `nix-fmt` and Tier 2, plus the two environmental flakes. And
-there is no CI and no scheduler in this repo, so "nightly" names an intention
-rather than a cron. Read any "0 issues" claim in this file as "0 issues on the
-date beside it", not as a current state.
+**That last sentence was false from `b2f7c40` (PR #145) until 2026-10-06, and
+the story is in §23.** Tier 2 was red again for weeks, peaking at 46 findings.
+As of 2026-10-06 it reports **0** and is **gated** — as are Tiers 0 and 1, so
+`docs/lint-baseline.txt` holds no finding lines and the `lint-baseline` ratchet
+fails on an added finding in any tier. `deadnix`, `nix-fmt` and `statix` are
+green too. The only reds left in `nix flake check` are the two environmental
+flakes.
+
+Two caveats that have not changed. There is still no CI and no scheduler in this
+repo, so "nightly" names an intention rather than a cron — which is why the
+ratchet, not a nightly run, is what notices a regression. And read any
+"0 issues" claim in this file as "0 issues on the date beside it": that is
+exactly how the 2026-09-23 claim above went stale without anyone noticing.
 
 Two new known-issues were added at the bottom (§5) from doing the work: the
 issue-cap default that made §2 look smaller than it was, and the unpinned
@@ -1667,28 +1669,35 @@ Related: **§10**, which is the same class for `self-test.nix`'s eight fixed
 
 ---
 
-## 23. Tier 2 (`golangci-lint-comprehensive`) is red, and its red is unreadable — PARTIAL
+## 23. Tier 2 (`golangci-lint-comprehensive`) is red, and its red is unreadable — FIXED 2026-10-06
 
 This supersedes the header note's "`golangci-lint-comprehensive` now reports
 **0 issues**", which was true on 2026-09-23 and has been false since
 `b2f7c40` (PR #145).
 
-**Status 2026-10-06 — everything below this line is the 2026-10-05 measurement,
-kept as the record rather than overwritten.** Four passes have run since. Tier 0
-and Tier 1 both measure **0** and are both gated by the `lint-baseline` ratchet,
-Tier 1 now **with `gocyclo` in it**; Tier 2 is down from 46 to **3**, all
-`funlen`, all in `cmd/xtcp2`; and `go-sec`, `statix`, `gofmt` and `go-vet` are
-green. The remaining reds are `deadnix` (2), `nix-fmt` (2 files), Tier 2 (3) and
-the two environmental flakes. So read the present-tense claims below — "all three
-tiers are red", "prints all 46 findings", "red on **eight** checks" — as
-describing 2026-10-05, not today. `docs/lint-baseline.txt` is the live list.
+**Status 2026-10-06 — CLOSED. Everything below this line is the 2026-10-05
+measurement, kept as the record rather than overwritten.** Five passes ran.
+All three golangci tiers measure **0** and all three are **gated** by the
+`lint-baseline` ratchet, with `gocyclo` and `misspell` promoted into Tier 1 and
+`forbidigo` added to Tier 2 so the tiers genuinely nest. `go-sec`, `statix`,
+`gofmt`, `go-vet`, `deadnix` and `nix-fmt` are green. `docs/lint-baseline.txt`
+holds no finding lines, which makes every tier an equality rather than a
+ceiling. The only reds left in `nix flake check` are the two environmental
+flakes.
 
-Items **23.1**, **23.2**, **23.3** and **23.6** are done; **23.4** and **23.5**
+So read every present-tense claim below — "all three tiers are red", "prints all
+46 findings", "red on **eight** checks", "the 'nightly' labeling … is still
+live" — as describing 2026-10-05. `docs/lint-baseline.txt` is the live list and
+`docs/static-analysis.md` is the per-class record, including the four places
+where its own prescription turned out to be wrong.
+
+Items **23.1**, **23.2**, **23.3** and **23.6** are done, and so is the lint work
+that was tracked as steps 7 and 9 of `docs/static-analysis.md`'s work order —
+the `funlen` ×3 in `cmd/xtcp2` and the four Nix findings. **23.4** and **23.5**
 (both about `docs/quality-report.md` and how the coverage baseline is quoted)
-are still open. The remaining lint work — the `funlen` ×3 and the four Nix
-findings — is steps 7 and 9 of the work order in `docs/static-analysis.md`, and
-closing them empties Tier 2 and gates it, at which point the baseline holds
-nothing.
+remain the only open items in this section; the report has been regenerated, but
+how it quotes the coverage baseline is a separate question from whether its lint
+rows are true.
 
 **The measured baseline.** All three golangci tiers are red at baseline, so a
 non-zero `nix build` on any of them does **not** by itself mean a regression —
@@ -1748,8 +1757,9 @@ observable about the command contributors are told to run. The tier is not
 unwatched; it is **unreadable**. That is why every instruction here says to
 diff the finding list and never the count or the status.
 
-The "nightly" labeling is a separate, smaller inaccuracy that is still live:
-Tier 2 is called nightly in four places — `CONTRIBUTING.md`,
+The "nightly" labeling is a separate, smaller inaccuracy. **It was fixed in all
+four places on 2026-10-06**; as of 2026-10-05 Tier 2 was called nightly in
+`CONTRIBUTING.md`,
 `nix/lint-tiers.nix`, `nix/devshell.nix` and this file's §5 — and there is **no
 scheduler and no CI in this repo at all** (no `.github/`), so nothing runs on a
 schedule, `nix flake check` very much included.
@@ -1775,9 +1785,10 @@ both numbers above look alarming. They need their own sweep — mostly
 `errcheck` on `Close`/`Remove` in `pkg/ipasn` and `cmd/zstd-probe`, four
 `gosec` file-permission findings, and one `noctx` `net.Listen`.
 
-**That sweep has since happened** (2026-10-06): see item 6 below. Tier 1 is at
-**0** and gated; Tier 2 is at **4**, all of them `funlen` ×3 and `gocyclo` ×1,
-which are items 1 and the flag-split work.
+**That sweep has since happened** (2026-10-06): see item 6 below. Tier 1 went to
+**0** and was gated, which took Tier 2 to **4** — `funlen` ×3 and `gocyclo` ×1.
+Item 1 closed the `gocyclo`, item 7 closed the `funlen` ×3, and Tier 2 is now 0
+and gated as well.
 
 This is the same failure mode as **§2**, which diagnosed it for `misspell` and
 fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
@@ -1848,7 +1859,8 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
    `docs/lint-baseline.txt` is the committed list. It gated **Tier 0 only** on
    landing — 0 findings, so the gate was honest — and printed Tiers 1 and 2 as
    advisory until the phases that empty them promote them. Tier 1 was promoted
-   the next day; see item 6. It closes no findings; it
+   the next day (item 6) and Tier 2 the same day (item 7), so all three are
+   gated and the committed list is empty. It closes no findings; it
    makes the remaining ones a build's problem instead of a reviewer's. The two
    silent failure modes this entry worried about are both refusals now, and
    building it surfaced a third: a tier exit code above 1 is exit 3
@@ -1862,10 +1874,19 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
    The tier list is single-sourced from `passthru.tierNames` on the measurement
    for the same reason: the check silently not gating a tier is indistinguishable
    from the check passing.
-4. **`docs/quality-report.md` is stale** on exactly this point: its
-   `golangci-lint (comprehensive) | clean | 0` rows are from 2026-09-26.
-   That file is auto-generated — regenerating it is
-   `nix run .#update-quality-report`, not a hand edit.
+4. ~~**`docs/quality-report.md` is stale** on exactly this point: its
+   `golangci-lint (comprehensive) | clean | 0` rows are from 2026-09-26.~~
+   **DONE** (2026-10-06) — regenerated with
+   `nix run .#update-quality-report`, and those rows are now true rather than
+   merely old. That file is auto-generated; regenerating it is the command, not
+   a hand edit (`CONTRIBUTING.md`).
+
+   Worth noting what made the stale rows possible, because the mechanism is
+   still there: `nix/quality-report/` is built never to fail — `set +e`, and its
+   `runtool` swallows a non-zero exit — so it can report "clean / 0" from a
+   tool invocation that did not actually succeed. That is deliberate (the
+   report is the signal, not the exit code) and it is exactly why the ratchet in
+   item 3 had to be a separate check.
 5. **The coverage baseline is quoted inconsistently** —
    `docs/coverage-baseline.txt` holds `78.9` while
    `docs/netlink/coverage-expansion.md` says `78.6`. Cosmetic, but it is the
@@ -1904,7 +1925,56 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
      came out of writing the table, not out of reading the code, and is now in
      the function's doc comment.
 
-**How to check this properly**, since the exit code is useless here:
+7. ~~**`funlen` ×3 in `cmd/xtcp2` and the four Nix findings keep Tier 2 and the
+   Nix checks red.**~~ **DONE** (2026-10-06) — and with them Tier 2 reached 0
+   and went into `gatedTiers`, which is what empties `docs/lint-baseline.txt`
+   entirely.
+
+   `defineFlags` 79 → **40**, `printFlags` 74 → **34**,
+   `envOverrideLabeling` 72 → **15**, all statement counts, neither `funlen`
+   number raised. `deadnix` ×2 and `nix-fmt` ×2 fixed at their sites.
+
+   **This item was tracked as a flag table and that prescription was wrong.**
+   One `[]flagSpec` ranged over would have needed roughly eleven columns:
+   `defineFlags` registers 92 flags, `printFlags` prints 73 of them in a
+   different order with 5 hoists, 3 label overrides, 4 secrets handled two
+   different ways and one printed line that is not a flag at all. What the
+   functions wanted was domain splits, following `defineEnrichmentFlags`, which
+   had already made that argument in-tree.
+
+   Three things came out of the work that are worth more than the findings:
+
+   - **`envOverrideLabeling`'s seam was mis-drawn, not just long.** It applied
+     24 env vars and its name covered 5; three more — `IPV4_TTL`,
+     `IPV6_HOP_LIMIT`, `GRPC_PORT` — were simply misfiled and now live in
+     `envOverrideListeners`.
+   - **`forbidigo` was enabled in Tier 1 and absent from Tier 2**, so
+     "Tier 0 ⊂ Tier 1 ⊂ Tier 2" — which the ratchet leans on, treating Tier 2
+     as the superset — was false. Added to Tier 2 after measuring it at 0
+     there. Nothing checks parity between the three configs, and this was the
+     second rule to go missing; a config-parity audit is the obvious sixth
+     tool.
+   - **The ratchet caught this pass's own new test file**, which is the first
+     real demonstration that it works: four findings (`govet` inline,
+     `gosec` G101 ×1, `gosec` G306, `gocritic` builtinShadow) showed up as
+     *additions* in `nix run .#update-lint-baseline` and were fixed by
+     rewriting before anything was committed. The G101 was a false positive
+     from a real rule — placeholder constants named `tokEnrich...` lowercase to
+     `tokenrich...`, which contains `token` — and renaming the prefix was
+     cheaper and narrower than excluding G101 from a file that also holds four
+     deliberate credential sentinels.
+   - **`defineFlags` and `printFlags` have drifted and nothing could see it.**
+     19 of the 92 registered flags are never printed. `TestDefineFlags`
+     spot-checked 6 of 92 pointers; `TestPrintFlags` drained stdout to
+     `io.Discard` and asserted nothing. Two goldens captured *before* the
+     refactor now pin printFlags' whole output and every flag's name, default
+     and usage. The drift itself is still open — it is now merely visible.
+
+**How to check this properly.** On 2026-10-05, when this entry was written, the
+exit code was useless because every tier was red. It is now informative on its
+own, and the list diff below is still the right instrument for a *branch*
+comparison, where the question is what your change added rather than whether the
+tree is clean:
 
 ```sh
 nix build .#checks.x86_64-linux.golangci-lint-comprehensive -L 2>&1 | tee /tmp/comp.txt

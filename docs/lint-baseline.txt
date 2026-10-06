@@ -15,6 +15,3 @@
 # Lines are sorted and unique; both are enforced at load time, so re-run -update
 # rather than hand-editing anything but a deletion.
 #
-tier2	cmd/xtcp2/xtcp2.go | Function 'defineFlags' has too many statements (79 > 70) (funlen)
-tier2	cmd/xtcp2/xtcp2.go | Function 'envOverrideLabeling' has too many statements (72 > 70) (funlen)
-tier2	cmd/xtcp2/xtcp2.go | Function 'printFlags' has too many statements (74 > 70) (funlen)

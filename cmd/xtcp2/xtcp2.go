@@ -388,11 +388,25 @@ func defaultDest() string {
 	return defaultDestFor(xtcp.CompiledInLibrarySchemes(), xtcp.LibraryDefaultDest)
 }
 
+// defineFlags registers all 92 CLI flags on the global flagset and returns the
+// pointer bundle main() reads them through.
+//
+// It was 79 statements, over funlen's 70. Four helpers now carry 42 of them -
+// defineS3Flags, defineListenerFlags, defineRuntimeFlags and the pre-existing
+// defineEnrichmentFlags - leaving 40 here. Each helper takes *mainFlags,
+// mutates in place and returns nothing, which is defineEnrichmentFlags'
+// established shape.
+//
+// Every helper must use the package-level flag.X functions rather than a local
+// flagset: cmd/xtcp2 registers on flag.CommandLine, so a helper with its own
+// flagset would silently stop registering anything. The name, default and usage
+// of all 92 are pinned by cmd/xtcp2/testdata/defineflags-golden.txt.
 func defineFlags() *mainFlags {
 	f := &mainFlags{}
 	f.nltimeout = flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
 	f.pollFrequency = flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
 	f.pollTimeout = flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
+	f.pollJitterPct = flag.Uint("pollJitterPct", pollJitterPctCst, "Poll-schedule jitter as a percent (0-100) of -frequency, applied to the startup delay and each tick to avoid a synchronized fleet. 0 disables (immediate first poll, fixed interval).")
 	f.maxLoops = flag.Uint64("maxLoops", maxLoopsCst, "Maximum number of loops, or zero (0) for forever")
 	f.netlinkers = flag.Uint("netlinkers", netlinkersCst, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
 	f.nlmsgSeq = flag.Uint("nlmsgSeq", nlmsgSeqCst, "nlmsgSeq sequence number (start), which should be uint32")
@@ -407,20 +421,7 @@ func defineFlags() *mainFlags {
 	f.envelopeFlushBytes = flag.Uint("envelopeFlushBytes", envelopeFlushBytesCst, "Safety-net cap on the in-flight protobufList Envelope's UNCOMPRESSED proto size in bytes (franz-go compresses post-flush, so wire size is typically 3-8x smaller). 0 = use daemon default (768 KiB). Whichever cap (bytes/rows) trips first wins.")
 	f.envelopeFlushRows = flag.Uint("envelopeFlushRows", envelopeFlushRowsCst, "Primary cap on the in-flight protobufList Envelope's row count. 0 = use daemon default (10000). Cheap, predictable; pairs with -envelopeFlushBytes as a safety net.")
 	f.kafkaCompression = flag.String("kafkaCompression", kafkaCompressionCst, "Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.")
-	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
-	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
-	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
-	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
-	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
-	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
-	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
-	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
-	f.pollJitterPct = flag.Uint("pollJitterPct", pollJitterPctCst, "Poll-schedule jitter as a percent (0-100) of -frequency, applied to the startup delay and each tick to avoid a synchronized fleet. 0 disables (immediate first poll, fixed interval).")
-	f.s3FlushInterval = flag.Duration("s3FlushInterval", s3FlushIntervalCst, "s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).")
-	f.s3FlushJitterPct = flag.Uint("s3FlushJitterPct", s3FlushJitterPctCst, "s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.")
-	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
-	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
-	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
+	defineS3Flags(f)
 	f.reconcileFrequency = flag.Duration("reconcileFrequency", reconcileFrequencyCst, "Period of the background namespace-reconcile ticker (Method B /proc scan). With -reconcileBeforePoll carrying discovery this is a rare safety-net expected to find nothing (watch mapReconciler dels/stores in Prometheus); default is long (6h). 0 disables it (startup reconcile still runs once).")
 	f.reconcileBeforePoll = flag.Bool("reconcileBeforePoll", reconcileBeforePollCst, "Reconcile namespaces immediately before each poll cycle, so a newly-appeared namespace is entered within ~1 poll interval. Ties discovery cadence to poll cadence.")
 	f.dest = flag.String("dest", defaultDest(), "scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)")
@@ -435,6 +436,53 @@ func defineFlags() *mainFlags {
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
 	defineEnrichmentFlags(f)
+	defineListenerFlags(f)
+	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Deserializers to enable. 'default'=%v ; 'all'=%v ; ''=none ; or a comma-separated subset", xtcp.GetDefaultDeserializers(), xtcp.GetAllDeserializers()))
+	defineRuntimeFlags(f)
+	f.v = flag.Bool("v", false, "show version")
+	f.conf = flag.Bool("conf", false, "show config")
+	f.d = flag.Uint("d", debugLevelCst, "debug level")
+	return f
+}
+
+// defineS3Flags registers the s3parquet destination's flags. Split out of
+// defineFlags, which was at 79 statements against funlen's 70, following
+// defineEnrichmentFlags' precedent exactly: mutate in place, void return,
+// called as a bare statement.
+//
+// Thirteen flags, all s3-prefixed. -pollJitterPct used to sit in the middle of
+// this run in the source and is NOT here, because it is a poll-schedule knob;
+// registration order is not observable - Go's flag package prints -help
+// lexicographically via VisitAll - so it was lifted up to -frequency and
+// -timeout where it belongs. printS3Flags still prints it, and says why.
+func defineS3Flags(f *mainFlags) {
+	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
+	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
+	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
+	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
+	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
+	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
+	f.s3FlushInterval = flag.Duration("s3FlushInterval", s3FlushIntervalCst, "s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).")
+	f.s3FlushJitterPct = flag.Uint("s3FlushJitterPct", s3FlushJitterPctCst, "s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.")
+	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
+	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
+	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
+}
+
+// defineListenerFlags registers the flags for xtcp2's own inbound listeners:
+// the two outgoing TTL/hop-limit knobs, the six shared listener-auth flags, the
+// five gRPC endpoint flags, the five Prometheus endpoint flags, and
+// -healthcheck.
+//
+// Nineteen flags, split out of defineFlags for funlen. This one function pairs
+// with TWO print helpers, printListenerAuthFlags and
+// printListenerEndpointFlags, because printFlags emits the auth run and the
+// endpoint run far apart with other domains between them. Stated here rather
+// than implied, so the next reader does not go looking for the missing
+// printListenerFlags.
+func defineListenerFlags(f *mainFlags) {
 	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.listenerAuthMode = flag.String("listenerAuthMode", "", "shared listener auth mode: disabled, raw, hmac-utc-minute. Falls back to LISTENER_AUTH_MODE env.")
@@ -448,13 +496,23 @@ func defineFlags() *mainFlags {
 	f.grpcListenAddress = flag.String("grpcListenAddress", "", "gRPC TCP address or Unix socket path. Empty derives TCP from -grpcPort. Falls back to GRPC_LISTEN_ADDRESS env.")
 	f.grpcUnixSocketMode = flag.Uint("grpcUnixSocketMode", unixSocketModeCst, "gRPC Unix socket file mode, e.g. 0600 or 0660. Falls back to GRPC_UNIX_SOCKET_MODE env.")
 	f.grpcUnlinkStaleUDS = flag.Bool("grpcUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale gRPC Unix socket before binding. Falls back to GRPC_UNLINK_STALE_UNIX_SOCKET env.")
-	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Deserializers to enable. 'default'=%v ; 'all'=%v ; ''=none ; or a comma-separated subset", xtcp.GetDefaultDeserializers(), xtcp.GetAllDeserializers()))
 	f.promListen = flag.String("promListen", promListenCst, "Prometheus http listening socket")
 	f.promListenNetwork = flag.String("promListenNetwork", listenNetworkCst, "Prometheus listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to PROM_LISTEN_NETWORK env.")
 	f.promUnixSocketMode = flag.Uint("promUnixSocketMode", unixSocketModeCst, "Prometheus Unix socket file mode, e.g. 0600 or 0660. Falls back to PROM_UNIX_SOCKET_MODE env.")
 	f.promUnlinkStaleUDS = flag.Bool("promUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale Prometheus Unix socket before binding. Falls back to PROM_UNLINK_STALE_UNIX_SOCKET env.")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
 	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
+}
+
+// defineRuntimeFlags registers the process-level knobs that are about how this
+// binary runs rather than what it collects: GOMAXPROCS, the OS-thread cap,
+// -profile.mode, the four Pyroscope flags and the three io_uring flags.
+//
+// Ten flags, split out of defineFlags for funlen. -v, -conf and -d sit between
+// the Pyroscope and io_uring runs in the source but stay in defineFlags; they
+// are not runtime tuning, and since registration order is unobservable there
+// was no reason to drag them along to keep a contiguous block.
+func defineRuntimeFlags(f *mainFlags) {
 	// Maximum number of CPUs that can be executing simultaneously
 	// https://golang.org/pkg/runtime/#GOMAXPROCS -> zero (0) means default
 	f.goMaxProcs = flag.Uint("goMaxProcs", 4, "goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS")
@@ -472,13 +530,9 @@ func defineFlags() *mainFlags {
 	f.pyroscopeAppName = flag.String("pyroscopeAppName", pyroscopeAppNameCst, "Application name registered with Pyroscope. Falls back to PYROSCOPE_APP_NAME env.")
 	f.pyroscopeSampleHz = flag.Uint("pyroscopeSampleHz", pyroscopeSampleHzCst, "CPU sampling rate in Hz fed to runtime.SetCPUProfileRate.")
 	f.pyroscopeUploadSec = flag.Uint("pyroscopeUploadSec", pyroscopeUploadSecCst, "Seconds between batched profile uploads to Pyroscope.")
-	f.v = flag.Bool("v", false, "show version")
-	f.conf = flag.Bool("conf", false, "show config")
-	f.d = flag.Uint("d", debugLevelCst, "debug level")
 	f.ioUring = flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)")
 	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
 	f.ioUringCqeBatch = flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
-	return f
 }
 
 // defineEnrichmentFlags registers the best-effort metadata-enrichment flags.
@@ -503,6 +557,18 @@ func defineEnrichmentFlags(f *mainFlags) {
 	f.localityRefreshInterval = flag.Duration("localityRefreshInterval", localityRefreshIntervalCst, "how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.")
 }
 
+// printFlags echoes every flag xtcp2 will act on to stdout at startup.
+//
+// It prints 73 of the 92 registered flags, in an order that is NOT registration
+// order - the Pyroscope block, the promListen/promPath pair, goMaxProcs, the
+// enrichment block and the gRPC/Prometheus tail are each hoisted or demoted
+// relative to defineFlags. So the four helpers below carve contiguous runs of
+// the PRINTED sequence, which is why one of them pairs with two define
+// functions and another prints a flag its define counterpart does not register.
+//
+// Split out at 74 statements, over funlen's 70. The output is pinned
+// byte-for-byte by cmd/xtcp2/testdata/printflags-golden.txt, which is the only
+// reason a mechanical carve of this function was safe to make.
 func printFlags(f *mainFlags) {
 	fmt.Println("*nltimeout(ms):", *f.nltimeout)
 	fmt.Println("*pollFrequency:", *f.pollFrequency)
@@ -520,6 +586,37 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*envelopeFlushBytes:", *f.envelopeFlushBytes)
 	fmt.Println("*envelopeFlushRows:", *f.envelopeFlushRows)
 	fmt.Println("*kafkaCompression:", *f.kafkaCompression)
+	printS3Flags(f)
+	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
+	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
+	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
+	fmt.Println("*pyroscopeUploadSec:", *f.pyroscopeUploadSec)
+	fmt.Println("*dest:", *f.dest)
+	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
+	fmt.Println("*topic:", *f.topic)
+	fmt.Println("*xtcpProtoFile:", *f.xtcpProtoFile)
+	fmt.Println("*kafkaSchemaUrl:", *f.kafkaSchemaUrl)
+	fmt.Println("*produceTimeout:", *f.produceTimeout)
+	fmt.Println("*promListen:", *f.promListen)
+	fmt.Println("*promPath:", *f.promPath)
+	printListenerAuthFlags(f)
+	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
+	printEnrichmentFlags(f)
+	printListenerEndpointFlags(f)
+	fmt.Println("*d:", *f.d)
+}
+
+// printS3Flags prints the s3parquet destination's run, s3Endpoint through
+// reconcileBeforePoll, and pairs with defineS3Flags.
+//
+// It prints fourteen lines for thirteen registered flags. *pollJitterPct is the
+// fourteenth: it is a poll-schedule knob with nothing to do with S3, so
+// defineS3Flags does not register it, but it has always PRINTED here and
+// printFlags's output order is observable - it is what a startup log, a
+// lifecycle scraper and testdata/printflags-golden.txt all read. Moving the
+// line would be a behavior change for no gain, so the asymmetry is recorded
+// here instead of being tidied away.
+func printS3Flags(f *mainFlags) {
 	fmt.Println("*s3Endpoint:", *f.s3Endpoint)
 	fmt.Println("*s3Bucket:", *f.s3Bucket)
 	fmt.Println("*s3Prefix:", *f.s3Prefix)
@@ -536,25 +633,35 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*s3UploadBackoffCap:", *f.s3UploadBackoffCap)
 	fmt.Println("*reconcileFrequency:", *f.reconcileFrequency)
 	fmt.Println("*reconcileBeforePoll:", *f.reconcileBeforePoll)
-	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
-	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
-	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
-	fmt.Println("*pyroscopeUploadSec:", *f.pyroscopeUploadSec)
-	fmt.Println("*dest:", *f.dest)
-	fmt.Println("*destWriteFiles:", *f.destWriteFiles)
-	fmt.Println("*topic:", *f.topic)
-	fmt.Println("*xtcpProtoFile:", *f.xtcpProtoFile)
-	fmt.Println("*kafkaSchemaUrl:", *f.kafkaSchemaUrl)
-	fmt.Println("*produceTimeout:", *f.produceTimeout)
-	fmt.Println("*promListen:", *f.promListen)
-	fmt.Println("*promPath:", *f.promPath)
+}
+
+// printListenerAuthFlags prints the shared listener-auth run, listenerAuthMode
+// through listenerAuthFailureJitterMax.
+//
+// The two secrets are DERIVED to a bool here, not omitted: an operator needs to
+// know whether a token is configured, and `set: <bool>` answers that without
+// the value reaching stdout. That is deliberately a different treatment from
+// the S3 credentials in printS3Flags, which get no line at all - see the
+// comment there. The derivation must stay `!= ""`, so an unset secret reports
+// false rather than vanishing.
+func printListenerAuthFlags(f *mainFlags) {
 	fmt.Println("*listenerAuthMode:", *f.listenerAuthMode)
 	fmt.Println("*listenerRawToken: set:", *f.listenerRawToken != "")
 	fmt.Println("*listenerHMACSharedKey: set:", *f.listenerHMACKey != "")
 	fmt.Println("*listenerSignedSkewMinutes:", *f.listenerSignedSkew)
 	fmt.Println("*listenerAuthFailureJitterMin:", *f.listenerJitterMin)
 	fmt.Println("*listenerAuthFailureJitterMax:", *f.listenerJitterMax)
-	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
+}
+
+// printEnrichmentFlags prints the metadata-enrichment run, enrichContainer
+// through localityRefreshInterval, and pairs with defineEnrichmentFlags and
+// envOverrideEnrichment.
+//
+// compiledInEnrichers is the last line and is not a flag at all. It stays here
+// because the flags and the compiled-in set are only meaningful together:
+// either one alone implies the enrich_* columns will be populated when it may
+// not be.
+func printEnrichmentFlags(f *mainFlags) {
 	fmt.Println("*enrichContainer:", *f.enrichContainer)
 	fmt.Println("*dockerSocket:", *f.dockerSocket)
 	fmt.Println("*enrichLldp:", *f.enrichLldp)
@@ -575,6 +682,20 @@ func printFlags(f *mainFlags) {
 	// flags because the two together are what determine whether the enrich_*
 	// columns will be populated; either one alone is misleading.
 	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
+}
+
+// printListenerEndpointFlags prints the gRPC and Prometheus endpoint run,
+// grpcListenNetwork through promUnlinkStaleUnixSocket.
+//
+// This is the SECOND of two runs that pair with defineListenerFlags: that one
+// function registers both this group and printListenerAuthFlags's, because
+// printFlags does not print in registration order. The pairing is deliberately
+// stated as partial rather than implied to be one-to-one.
+//
+// It must not dereference f.healthcheck, which defineListenerFlags registers
+// and printFlags has never printed. TestPrintFlagsNilFields pins why: every
+// existing caller leaves that pointer nil.
+func printListenerEndpointFlags(f *mainFlags) {
 	fmt.Println("*grpcListenNetwork:", *f.grpcListenNetwork)
 	fmt.Println("*grpcListenAddress:", *f.grpcListenAddress)
 	fmt.Println("*grpcUnixSocketMode:", *f.grpcUnixSocketMode)
@@ -582,7 +703,6 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*promListenNetwork:", *f.promListenNetwork)
 	fmt.Println("*promUnixSocketMode:", *f.promUnixSocketMode)
 	fmt.Println("*promUnlinkStaleUnixSocket:", *f.promUnlinkStaleUDS)
-	fmt.Println("*d:", *f.d)
 }
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
@@ -1302,6 +1422,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideMarshalAndDest(c, debugLevel)
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
+	envOverrideEnrichment(c, debugLevel)
 	envOverrideListeners(c, debugLevel)
 	envOverrideListenerAuth(c, debugLevel)
 }
@@ -1677,6 +1798,16 @@ func envOverrideKafka(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	}
 }
 
+// envOverrideLabeling applies the five env vars that stamp WHO and WHERE on
+// every record: LABEL, TAG, LOCATION, XTCP_HOSTNAME and CONTAINER_ID_RESOLVE.
+//
+// It used to apply twenty-four, of which its name covered five. The other
+// nineteen were the sixteen ENRICH_*/UPLINK_*/IPMETA_*/ASN_*/LLDP*/NSID vars,
+// now in envOverrideEnrichment, and three that were simply misfiled -
+// IPV4_TTL, IPV6_HOP_LIMIT and GRPC_PORT, which configure xtcp2's own TCP
+// listeners and are now in envOverrideListeners where the rest of that domain
+// lives. The split was forced by funlen at 72 statements, but the seam it
+// needed was already mis-drawn.
 func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envString("LABEL"); ok {
 		c.Label = v
@@ -1698,6 +1829,19 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.ResolveContainerId = v
 		logEnv("CONTAINER_ID_RESOLVE", fmt.Sprintf("c.ResolveContainerId:%t", v), debugLevel)
 	}
+}
+
+// envOverrideEnrichment applies the sixteen best-effort metadata-enrichment env
+// vars - exactly the set defineEnrichmentFlags registers, which is what makes
+// the pairing checkable rather than asserted.
+//
+// Split out of envOverrideLabeling, whose name covered five of its twenty-four
+// vars and whose 72 statements were over funlen's ceiling. Registered in
+// environmentOverrideConfig immediately after envOverrideLabeling so the
+// 5-then-16 relative order is preserved; the vars write disjoint fields, so the
+// order is not load-bearing, but keeping it means the split cannot be the cause
+// if something downstream turns out to care.
+func envOverrideEnrichment(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envBool("ENRICH_CONTAINER"); ok {
 		c.EnrichContainerEnable = v
 		logEnv("ENRICH_CONTAINER", fmt.Sprintf("c.EnrichContainerEnable:%t", v), debugLevel)
@@ -1762,18 +1906,6 @@ func envOverrideLabeling(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.PopulateNsid = v
 		logEnv("POPULATE_NSID", fmt.Sprintf("c.PopulateNsid:%t", v), debugLevel)
 	}
-	if v, ok := envUint32("IPV4_TTL"); ok {
-		c.Ipv4Ttl = v
-		logEnv("IPV4_TTL", fmt.Sprintf("c.Ipv4Ttl:%d", v), debugLevel)
-	}
-	if v, ok := envUint32("IPV6_HOP_LIMIT"); ok {
-		c.Ipv6HopLimit = v
-		logEnv("IPV6_HOP_LIMIT", fmt.Sprintf("c.Ipv6HopLimit:%d", v), debugLevel)
-	}
-	if v, ok := envUint32("GRPC_PORT"); ok {
-		c.GrpcPort = v
-		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
-	}
 }
 
 func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
@@ -1822,6 +1954,31 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		ep := ensurePrometheusListener(c)
 		ep.UnlinkStaleUnixSocket = v
 		logEnv("PROM_UNLINK_STALE_UNIX_SOCKET", fmt.Sprintf("c.PrometheusListener.UnlinkStaleUnixSocket:%t", v), debugLevel)
+	}
+
+	// IPV4_TTL, IPV6_HOP_LIMIT and GRPC_PORT, moved here from
+	// envOverrideLabeling, which had no claim on them: the first two set the
+	// outgoing TTL/hop limit for xtcp2's OWN TCP listeners (Prometheus +
+	// gRPC), per their flag usage, and the third is the gRPC port.
+	//
+	// They are the only writes in this function that go to a top-level scalar
+	// rather than through ensureGrpcListener/ensurePrometheusListener, so none
+	// of them needs an endpoint to exist first. c.GrpcPort is read only by
+	// pkg/xtcp/grpc_server.go, as the TCP fallback when GrpcListener carries no
+	// address, and that is long after every override has run - which is why
+	// moving GRPC_PORT from before the GRPC_LISTEN_* vars to after them is
+	// behavior-preserving rather than merely untested.
+	if v, ok := envUint32("IPV4_TTL"); ok {
+		c.Ipv4Ttl = v
+		logEnv("IPV4_TTL", fmt.Sprintf("c.Ipv4Ttl:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("IPV6_HOP_LIMIT"); ok {
+		c.Ipv6HopLimit = v
+		logEnv("IPV6_HOP_LIMIT", fmt.Sprintf("c.Ipv6HopLimit:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("GRPC_PORT"); ok {
+		c.GrpcPort = v
+		logEnv("GRPC_PORT", fmt.Sprintf("c.GrpcPort:%d", v), debugLevel)
 	}
 }
 

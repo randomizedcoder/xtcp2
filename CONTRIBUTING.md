@@ -152,11 +152,17 @@ Three tiers, all configured via `.golangci*.yml`:
 |---|---|---|---|
 | `lint-quick` | 0 | ~90s | pre-commit |
 | `lint` | 1 | ~2min | CI gating |
-| `lint-comprehensive` | 2 | ~10min | nightly |
+| `lint-comprehensive` | 2 | ~10min | ratchet-gated |
 | `lint-fix` | — | — | apply auto-fixable findings |
 | `lint-new` | — | — | lint only the diff since `HEAD~1` |
 
+That last column said **nightly** for Tier 2, and three other places said the same — `.golangci-comprehensive.yml`, `nix/lint-tiers.nix` and `nix/devshell.nix`, all four now corrected. Nothing in this repository runs on a schedule — there is no `.github/`, no CI and no cron — so "nightly" named an intention and implied a watcher that does not exist. What actually watches Tier 2 is `nix flake check`, which builds it like any other check, and the `lint-baseline` ratchet, which has gated it since 2026-10-06.
+
+The three tiers **nest**: Tier 0 ⊂ Tier 1 ⊂ Tier 2. That was not true until 2026-10-06 — `forbidigo` was enabled in Tier 1 and absent from Tier 2, so a `runtime.UnlockOSThread` finding was invisible in the tier the ratchet treats as the superset. Nothing checks parity between the three configs; they duplicate everything by hand, and this was the second time a rule went missing (two `misspell` rules were missed the same way, as `.golangci-comprehensive.yml` records). A config-parity audit is the obvious next tool.
+
 Which linter sits in which tier is a deliberate choice, not an accident of history. `misspell` is in **Tier 1** (see "Spelling" below) because it only ever caught regressions long after the fact when it ran nightly. `prealloc` is deliberately left in Tier 2: a single `continue` anywhere in a file silences every `prealloc` hint in that file, so it makes a poor gate.
+
+That last sentence is about **promoting** `prealloc` into Tier 1, where it would block on its own finding list, and it does *not* transfer to the `lint-baseline` ratchet — which gates Tier 2, and therefore `prealloc`, as of 2026-10-06. The two instruments fail differently: a tier check reports a tier's whole finding list, while the ratchet fails only on an **addition** and never on a removal. So `prealloc`'s weakness makes findings *vanish*, which the ratchet is built to ignore, and reappear later as legitimately new ones. Worth saying out loud, because otherwise a documented objection sits next to a `gatedTiers` list that appears to ignore it.
 
 All three configs set `issues.max-issues-per-linter: 0` and `issues.max-same-issues: 0`. The golangci-lint defaults (50 and 3) truncate the report *silently*, which once made a 35-finding cleanup look like a 19-finding one. If you add a config, set them there too.
 
@@ -175,7 +181,11 @@ Local CI equivalent — runs Tier 0+1 plus the custom audits (`netlink-audit`, `
 nix flake check
 ```
 
-**Tier 2 *is* part of `nix flake check` — and that is exactly why you cannot lean on it.** `golangci-lint-comprehensive` is a check attribute like any other (`nix/checks/default.nix`), so the command above builds it and prints its findings. But `nix flake check` is still red — `deadnix`, `nix-fmt` and `golangci-lint-comprehensive` itself, plus the two environmental flakes tracked in [TODO-SOON.md](TODO-SOON.md) — with Tier 2 among them at **4 findings**, so its exit code was already 1 before your change and is still 1 after. An exit status cannot announce a 5th finding. (This sentence said "red on eight checks … at 46 findings" until the phases that closed Tier 0, then `go-sec`, then Tier 1's last 26 findings. It now names the remaining reds instead of counting them, because a count goes stale on the commit that fixes one — which is how the "46" survived three passes.)
+**Tier 2 *is* part of `nix flake check`.** `golangci-lint-comprehensive` is a check attribute like any other (`nix/checks/default.nix`), so the command above builds it and prints its findings.
+
+For most of this file's life the next sentence was a warning that you could not lean on that, because `nix flake check` was red on so many checks that its exit code had been 1 for longer than any individual finding and so could not announce a new one. As of 2026-10-06 the static-analysis reds are gone: all three golangci tiers, `deadnix`, `statix`, `nix-fmt`, `go-vet`, `gofmt`, `go-sec` and the `lint-baseline` ratchet are green, and the remaining reds are the two environmental flakes tracked in [TODO-SOON.md](TODO-SOON.md). (This sentence said "red on eight checks … at 46 findings", then "at 4 findings", as successive phases closed Tier 0, `go-sec`, Tier 1's last 26, `gocyclo`'s last 1, and finally Tier 2's last 3. It now names reds instead of counting them, because a count goes stale on the commit that fixes one — which is how the "46" survived three passes.)
+
+The warning still holds in principle, and the reason to keep reading is that an exit status is a one-bit signal either way. Use the finding **list**, or use the ratchet below.
 
 So run the tier on its own — faster, since it skips the microVM and the per-flavor test builds — and diff the finding **list**, never the count and never the status:
 
@@ -183,7 +193,11 @@ So run the tier on its own — faster, since it skips the microVM and the per-fl
 nix build .#checks.x86_64-linux.golangci-lint-comprehensive
 ```
 
-`funlen`, `goconst`, `unconvert` and `exhaustive` are enabled *only* there (`.golangci-comprehensive.yml`), so those four classes exist nowhere in Tier 0/1 or in `lint`. **`gocyclo` used to be the fifth, and was promoted into Tier 1 on 2026-10-06** once `setRuleAttr`'s 48 came down and no production function was left over 30 — so a function that grows past the ceiling now fails on the commit that grows it. That promotion is exactly what the next paragraph argues for, and it is why this one is shorter than it was. The remaining four are promoted the same way: empty the class first, measure it at 0, then gate it. That is not hypothetical: a change that added one `case` and two `if`s to an already-large switch took `ParseNewRoute` from gocyclo 29 to 32 and reached `main` anyway, because the verification section named Tier 1 only and Tier 2's red exit looked identical before and after — see "`ParseNewRoute` crossed the same ceiling" in [docs/netlink/coverage-status.md](docs/netlink/coverage-status.md) for the incident, and the Tier 2 section of [TODO-SOON.md](TODO-SOON.md) for the current baselines.
+`funlen`, `goconst`, `unconvert`, `exhaustive`, `prealloc`, `dupl` and `nakedret` are enabled *only* there (`.golangci-comprehensive.yml`), so those classes exist nowhere in Tier 0/1 or in `lint`. **`gocyclo` and `misspell` used to be among them and were both promoted into Tier 1**, `gocyclo` on 2026-10-06 once `setRuleAttr`'s 48 came down and no production function was left over 30 — so a function that grows past the ceiling now fails on the commit that grows it.
+
+Promotion into Tier 1 is always the same sequence: empty the class first, measure it at 0, then gate it. Never the other order, because promoting first puts a permanent finding in a gated tier, which is the exact condition that made this whole class of problem invisible — a red that is always red. That is not hypothetical: a change that added one `case` and two `if`s to an already-large switch took `ParseNewRoute` from gocyclo 29 to 32 and reached `main` anyway, because the verification section named Tier 1 only and Tier 2's red exit looked identical before and after — see "`ParseNewRoute` crossed the same ceiling" in [docs/netlink/coverage-status.md](docs/netlink/coverage-status.md) for the incident.
+
+Note that the Tier-2-only classes are nonetheless **gated by the ratchet** as of 2026-10-06, which is a weaker guarantee than Tier 1 promotion and a real one: a new `funlen` or `prealloc` finding now fails `lint-baseline` on the commit that introduces it, even though it does not fail `lint`.
 
 Diff the list properly: normalize each finding to `path | message (linter)` with **line:col dropped**, sort, and `comm` in *both* directions against the same check built at the revision you branched from (a detached worktree does that without disturbing your tree). Dropping line:col matters, or every finding your edit merely *moved* reads as new. Both directions matter too, because a one-way `comm` cannot tell "unchanged" from "one finding swapped for another".
 
@@ -193,7 +207,7 @@ Diff the list properly: normalize each finding to `path | message (linter)` with
 nix build .#checks.x86_64-linux.lint-baseline
 ```
 
-It diffs every tier against the committed `docs/lint-baseline.txt` — both directions, line:col dropped — and fails only when a **gated** tier gains a finding. Tiers 0 and 1 are gated today; Tier 2 prints as advisory until the phases that empty it promote it. Because it is green at baseline, its red means one thing: your change added a finding. That is the signal `nix flake check`'s exit code cannot give you.
+It diffs every tier against the committed `docs/lint-baseline.txt` — both directions, line:col dropped — and fails only when a **gated** tier gains a finding. **All three tiers are gated as of 2026-10-06, and that file now holds zero finding lines.** Because it is green at baseline, its red means one thing: your change added a finding, in any tier. That is the signal `nix flake check`'s exit code cannot give you.
 
 If it goes red, fix the finding. If the finding is genuinely one the project accepts, regenerate the baseline with `nix run .#update-lint-baseline` and let the added line be reviewed in your diff — that file is a standing decision, like `docs/coverage-baseline.txt`, and it only ever goes down. Do not hand-edit it except to delete a line a fix made obsolete; it is validated for sortedness and uniqueness at load time, and an unusable baseline fails the check rather than passing it.
 
@@ -201,10 +215,12 @@ If it goes red, fix the finding. If the finding is genuinely one the project acc
 
 The aggregated linter/coverage status is regenerated into [docs/quality-report.md](docs/quality-report.md) with `nix run .#update-quality-report` (that file is auto-generated — do not hand-edit it).
 
-`nix flake check` does not currently pass end to end. The known failures — which
-tier they are in, whether they are code or environment, and what fixing each one
-involves — are tracked in [TODO-SOON.md](TODO-SOON.md). Check there before
-assuming a red check is something you broke.
+`nix flake check` does not currently pass end to end, but every remaining
+failure is **environmental** rather than a finding: as of 2026-10-06 the
+static-analysis checks are all green. What is left is tracked in
+[TODO-SOON.md](TODO-SOON.md) — which check, whether it is code or environment,
+and what fixing each one involves. Check there before assuming a red check is
+something you broke.
 
 ## Protobuf
 
@@ -220,7 +236,17 @@ See [docs/protobuf-formats.md](docs/protobuf-formats.md) for a reference of ever
 
 ## Code conventions
 
-- **Handle every error.** No `//nolint` in production logic — lint classes are eliminated structurally rather than silenced. The directive appears in exactly eleven places and every one is either a `_test.go` file or a kernel-UAPI constant spelling, always with the reason inline. (This bullet used to claim the repo uses none at all, which was not true; the accurate version is the stronger rule.) Where a linter is genuinely wrong about the code, the instrument is a path-and-message-scoped exclusion in the tier config with the argument written out — see [docs/static-analysis.md](docs/static-analysis.md) for the four properties such an exclusion needs and the two existing examples.
+- **Handle every error, and prefer a structural fix to a `//nolint`.** Lint classes get eliminated by rewriting, not silenced, and every directive in the tree carries its reason inline.
+
+  **The count in this bullet has now been wrong twice, so it is gone.** It first claimed the repo used none; it was then corrected to "exactly eleven places, every one either a `_test.go` file or a kernel-UAPI constant spelling", and measured on 2026-10-06 that was **41 directives, 18 of them in `_test.go`** — so 23 are in production code, which the "every one" clause ruled out. Measure it yourself rather than trusting a number here:
+
+  ```sh
+  grep -rn '//nolint' --include='*.go' . | grep -v vendor
+  ```
+
+  What is actually true, and what to hold a new one to: the production directives fall into four groups, each with a written justification at the call site — `forbidigo` on `runtime.UnlockOSThread` in the io_uring and netns paths, which `.golangci.yml`'s own `forbidigo` block explicitly sanctions by name; `revive`/`staticcheck` on kernel-UAPI constant spellings; `errcheck` on best-effort closes of read-only handles; and a `misspell` on a metric name that downstream dashboards key on. A fifth group lives in `tools/` and `cmd/ns*`, which are developer utilities rather than the daemon. **A new directive that does not fit one of those is the thing to push back on**, and the 2026-10-06 lint pass is the standard: 50 findings closed, zero by suppression, and two `//nolint`s in `cmd/xtcp2`'s tests *removed* after measuring that all three tiers were clean without them.
+
+  Where a linter is genuinely wrong about the code, the instrument is a path-and-message-scoped exclusion in the tier config with the argument written out — see [docs/static-analysis.md](docs/static-analysis.md) for the four properties such an exclusion needs and the two existing examples. Where a linter is genuinely wrong about the code, the instrument is a path-and-message-scoped exclusion in the tier config with the argument written out — see [docs/static-analysis.md](docs/static-analysis.md) for the four properties such an exclusion needs and the two existing examples.
 - **Spelling: US English.** `behavior`, `serialization`, `canceled`, `neighbor`, `initialization`, `labeled`, `honor`. This is enforced by `misspell` in **Tier 1**, so a British spelling fails CI on the commit that introduces it — which is the point. The repo swept British→US four times before this was written down, and it regressed every time, because `misspell` only ran in the nightly tier.
 
   Two things the linter cannot see, so they are conventions rather than rules: `misspell` skips camelCase/PascalCase tokens unconditionally (identifiers and Prometheus label values like `cancelledDuringInit` are out of its reach), and it only reads `.go` files (`docs/`, `.nix` and `.sql` are not checked). `proto/headers/sock.c` is verbatim Linux kernel source — leave its spelling alone.

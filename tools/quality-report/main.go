@@ -1334,6 +1334,17 @@ func aggregateByFile(findings []Finding) []fileAgg {
 
 // ─── markdown emission ─────────────────────────────────────────────────────
 
+// The per-tier linter lists in section 3 are HAND-MAINTAINED here. Only the
+// counts come from the measurement; the names are prose, so nothing detects it
+// when a linter is promoted between tiers and this template is not updated.
+//
+// That is not hypothetical. `gocyclo` moved from Tier 2 to Tier 1 on
+// 2026-10-06 and these two lines went stale the same day — Tier 1's list
+// omitted it and Tier 2's still claimed it as an addition — which is the same
+// class of gap as `forbidigo` being enabled in Tier 1 and absent from Tier 2.
+// Both are symptoms of there being no parity check between the three
+// `.golangci*.yml` enable lists and the places that describe them. If you add
+// that check, make it read this template too.
 const tmpl = `# xtcp2 code-quality report
 
 Generated: {{.Generated.Format "2006-01-02T15:04:05Z"}}{{if .CommitSHA}}
@@ -1381,10 +1392,12 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (` + "`lint-quick`" + `) | govet, errcheck, ineffassign, unused, staticcheck | {{.TierCounts.T0}} | {{.QuickFixable.T0}} |
-| 1 (` + "`lint`" + ` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck, forbidigo, misspell | {{.TierCounts.T1}} | {{.QuickFixable.T1}} |
-| 2 (` + "`lint-comprehensive`" + `) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret | {{.TierCounts.T2}} | {{.QuickFixable.T2}} |
+| 1 (` + "`lint`" + ` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck, forbidigo, misspell, gocyclo | {{.TierCounts.T1}} | {{.QuickFixable.T1}} |
+| 2 (` + "`lint-comprehensive`" + `) | Tier 1 + exhaustive, prealloc, funlen, goconst, dupl, unconvert, nakedret | {{.TierCounts.T2}} | {{.QuickFixable.T2}} |
 
 ¹ Quick-fixable = produced by a linter that supports ` + "`golangci-lint run --fix`" + ` (gofmt, goimports, misspell, unconvert, …).
+
+² The linter NAMES above are hand-maintained in ` + "`tools/quality-report/main.go`" + `; only the counts are measured. They went stale once already, when ` + "`gocyclo`" + ` was promoted to Tier 1. Treat the ` + "`.golangci*.yml`" + ` files as authoritative if the two disagree.
 
 ---
 

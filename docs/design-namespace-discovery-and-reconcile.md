@@ -184,7 +184,7 @@ Following the proto-config pattern established by the jitter work (`XtcpConfig` 
 | `reconcile_frequency` | `google.protobuf.Duration` | `6h` | `-reconcileFrequency` / `RECONCILE_FREQUENCY` | Background `mapReconciler` ticker period. With `reconcile_before_poll` carrying discovery this is an occasional safety-net **expected to find nothing** (`mapReconciler` `dels`/`stores` stay 0) — the default is deliberately long so operators can confirm from the counters that the background pass is redundant. `0` disables the background ticker (the startup reconcile still runs once; a poller-driven daemon keeps discovering via the pre-poll reconcile). |
 | `reconcile_before_poll` | `bool` | `true` | `-reconcileBeforePoll` / `RECONCILE_BEFORE_POLL` | Run a reconcile immediately before each poll cycle (Feature 1), tying discovery cadence to poll cadence. |
 
-Each field uses the standard seven-touchpoint wiring in `cmd/xtcp2/xtcp2.go` (const default, `mainFlags` field, `defineFlags`, `printFlags`, `buildConfig`, env override, `printConfig`).
+Each field uses the standard seven-touchpoint wiring in `cmd/xtcp2/xtcp2.go` (const default, `mainFlags` field, `defineFlags`, `printFlags`, `buildConfig`, env override, `printConfig`). Since the 2026-10-06 `funlen` split, the register and print touchpoints are usually a domain helper — `defineS3Flags`/`printS3Flags`, `defineListenerFlags`, `defineRuntimeFlags`, `printEnrichmentFlags` — and the env-override one may be `envOverrideEnrichment` rather than `envOverrideLabeling`.
 
 **Not implemented (deliberately):**
 

@@ -75,27 +75,39 @@ in
   # non-empty for long enough that their red carries no information; this one
   # compares against docs/lint-baseline.txt and goes red only on an ADDITION.
   #
-  # gatedTiers grows one tier at a time, and only after a phase empties that
-  # tier — same one-at-a-time discipline as gatedProtocols below. Gating a tier
-  # that still holds findings would make this check permanently red, which is
-  # the same as turning it off.
+  # gatedTiers grew one tier at a time, and only after a phase emptied that
+  # tier — the same one-at-a-time discipline as gatedProtocols below. Gating a
+  # tier that still holds findings would make this check permanently red, which
+  # is the same as turning it off.
   #
-  # Tier 1 joined on 2026-10-06, earned by measurement and in that order: the
-  # errcheck/misspell/contextcheck pass closed its last 26 findings,
-  # `nix run .#update-lint-baseline` then measured it at 0 and removed its 19
-  # baseline lines, and only then was it added here.
+  # All three are gated as of 2026-10-06, each earned by measurement and in that
+  # order. Tier 1: the errcheck/misspell/contextcheck pass closed its last 26
+  # findings, `nix run .#update-lint-baseline` measured it at 0 and removed its
+  # 19 baseline lines, and only then was it listed. The setRuleAttr split then
+  # took gocyclo's last finding from 48 to 6 and gocyclo was promoted INTO
+  # Tier 1, with Tier 1 re-measured at 0 WITH the new linter running in it.
+  # Tier 2 last: the cmd/xtcp2 flag split closed its three funlen findings and
+  # forbidigo was added to its config so the tiers genuinely nest.
   #
-  # The same day, the setRuleAttr split took gocyclo's last finding from 48 to 6
-  # and gocyclo was promoted INTO Tier 1 - again fix first, promote second, and
-  # Tier 1 was re-measured at 0 with the new linter running in it before this
-  # line was trusted. So docs/lint-baseline.txt now holds three lines, all
-  # Tier 2 and all funlen in cmd/xtcp2, and Tier 2 stays advisory until the
-  # flag split empties it.
+  # So docs/lint-baseline.txt now holds zero finding lines, and this check goes
+  # red on an addition in any tier. That is the end state this was built for: a
+  # green check whose red means exactly one thing.
+  #
+  # Gating Tier 2 also gates prealloc, dupl, goconst, nakedret, exhaustive and
+  # unconvert, and CONTRIBUTING.md argues prealloc makes a poor GATE because a
+  # single `continue` anywhere in a file silences every prealloc hint in that
+  # file. That objection is about promoting prealloc into Tier 1, where it would
+  # block on its own finding list. The ratchet is a different instrument: it
+  # fails only on an ADDITION and never on a removal, so prealloc's weakness
+  # makes findings vanish — never a failure — and reappear later as legitimately
+  # new ones. The objection does not transfer, which is worth saying out loud
+  # next to the line that appears to contradict it.
   lint-baseline = import ./lint-baseline.nix {
     inherit pkgs vendoredSource lintBaselineMeasure;
     gatedTiers = [
       "tier0"
       "tier1"
+      "tier2"
     ];
   };
 

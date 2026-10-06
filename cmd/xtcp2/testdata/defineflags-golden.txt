@@ -1,0 +1,92 @@
+asnDbPath		path to the ipfeed-collector Parquet artifact (prefix -> asn, network_owner) used by -enrichAsn. Falls back to ASN_DB_PATH env.
+asnRefreshInterval	1h0m0s	how often -enrichAsn re-stats -asnDbPath and reloads it when its size/mtime changed (also how often a missing artifact is retried); 0 = load once at startup, never reload. Falls back to ASN_REFRESH_INTERVAL env.
+capturePath	./	Write files path
+columns		csv/tsv only: comma-separated subset of XtcpFlatRecord json field names (e.g. hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt); empty = all
+conf	false	show config
+d	111	debug level
+deserializers	default	{{deserializersUsage}}
+dest	{{defaultDest}}	scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)
+destWriteFiles	10	Write out the marshaled data to destWriteFiles number of files ( for debugging only )
+dockerSocket	/run/docker.sock	path to the Docker Engine API unix socket used by -enrichContainer. Falls back to DOCKER_SOCKET env.
+enrichAsn	false	best-effort: longest-prefix-match each socket's destination against the ipfeed-collector Parquet artifact (-asnDbPath) and stamp enrich_socket_dest_asn / enrich_socket_dest_network_owner. Self and local-subnet destinations (see -enrichLocality) skip the lookup. Non-fatal when the artifact is missing. Falls back to ENRICH_ASN env.{{enricherBuildNote:asn}}
+enrichContainer	false	best-effort: map each socket's netns to its owning container via the Docker Engine API, stamping container_id/runtime/name/image. Needs the docker socket mounted (see -dockerSocket). Non-fatal if unreachable. Falls back to ENRICH_CONTAINER env.
+enrichLldp	false	best-effort: read LLDP neighbors from lldpd once at startup and stamp each uplink's switch/port (uplink*_lldp_*). Needs the lldpd control socket mounted (see -lldpdSocket). Non-fatal if unreachable. Falls back to ENRICH_LLDP env.
+enrichLocality	false	best-effort: per namespace, dump the local addresses + routing table via rtnetlink and classify each socket's destination as self/local-subnet/remote, stamping the enrich_socket_dest_locality + interface-name columns (bound idiag_if and route egress). Non-fatal on read failure. Falls back to ENRICH_LOCALITY env.{{enricherBuildNote:locality}}
+enrichNic	false	best-effort: read NIC identity (driver/model/pci/speed/firmware) from sysfs+ethtool once at startup and stamp each uplink's nic_* columns. Non-fatal on read failure. Falls back to ENRICH_NIC env.
+envelopeFlushBytes	0	Safety-net cap on the in-flight protobufList Envelope's UNCOMPRESSED proto size in bytes (franz-go compresses post-flush, so wire size is typically 3-8x smaller). 0 = use daemon default (768 KiB). Whichever cap (bytes/rows) trips first wins.
+envelopeFlushRows	0	Primary cap on the in-flight protobufList Envelope's row count. 0 = use daemon default (10000). Cheap, predictable; pairs with -envelopeFlushBytes as a safety net.
+frequency	10s	Poll frequency
+goMaxProcs	4	goMaxProcs = https://golang.org/pkg/runtime/#GOMAXPROCS
+grpcListenAddress		gRPC TCP address or Unix socket path. Empty derives TCP from -grpcPort. Falls back to GRPC_LISTEN_ADDRESS env.
+grpcListenNetwork		gRPC listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to GRPC_LISTEN_NETWORK env.
+grpcPort	8889	GRPC listening port
+grpcUnixSocketMode	384	gRPC Unix socket file mode, e.g. 0600 or 0660. Falls back to GRPC_UNIX_SOCKET_MODE env.
+grpcUnlinkStaleUnixSocket	true	remove an existing stale gRPC Unix socket before binding. Falls back to GRPC_UNLINK_STALE_UNIX_SOCKET env.
+healthcheck	false	probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.
+hostname		hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).
+ioUring	false	Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)
+ioUringCqeBatch	128	io_uring max CQEs reaped per PeekBatchCQE call (1-4096)
+ioUringRecvBatch	64	io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.
+ipmetaBootstrapPath	/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst	optional zstd-compressed lookup artifact baked into the image and used by -enrichAsn before live refresh. Falls back to IPMETA_BOOTSTRAP_PATH env.
+ipmetaCachePath	/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst	optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.
+ipv4Ttl	0	outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.
+ipv6HopLimit	0	outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.
+kafkaCompression		Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.
+kafkaSchemaUrl	http://localhost:18081	kafka schema registry URL
+label		label applied to the protobuf
+listenerAuthFailureJitterMax	200ms	maximum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MAX env.
+listenerAuthFailureJitterMin	20ms	minimum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MIN env.
+listenerAuthMode		shared listener auth mode: disabled, raw, hmac-utc-minute. Falls back to LISTENER_AUTH_MODE env.
+listenerHMACSharedKey		listener auth HMAC shared key. Prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE; never logged.
+listenerRawToken		listener auth raw bearer token. Prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE; never logged.
+listenerSignedSkewMinutes	1	HMAC UTC-minute signed token skew in minutes (0-5). Falls back to LISTENER_SIGNED_SKEW_MINUTES env.
+lldpdSocket	/run/lldpd.socket	path to the lldpd control unix socket used by -enrichLldp. Falls back to LLDPD_SOCKET env.
+lldpdVersionHint		optional lldpd version hint (e.g. "1.0.18") to disambiguate the control-protocol struct layout; empty = auto-detect. Falls back to LLDPD_VERSION_HINT env.
+localityRefreshInterval	1m0s	how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.
+location		deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.
+marshal	protobufList	Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)
+maxLoops	0	Maximum number of loops, or zero (0) for forever
+maxThreads	2000	cap on Go runtime OS threads (debug.SetMaxThreads); 0 = use Go default 10000
+modulus	1	modulus. Report every X inetd messages to output
+netlinkers	4	netlinkers which read netlink messages from each socket. increase this if you have many flows
+nlmsgSeq	666	nlmsgSeq sequence number (start), which should be uint32
+nltimeout	1000	Netlink socket timeout in milliseconds.  Zero(0) for no timeout
+packetSize	0	netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
+packetSizeMply	8	netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply
+pollJitterPct	20	Poll-schedule jitter as a percent (0-100) of -frequency, applied to the startup delay and each tick to avoid a synchronized fleet. 0 disables (immediate first poll, fixed interval).
+populateNsid	false	best-effort: query each namespace's NETNSA_NSID via rtnetlink into the nsid column (usually 0/unassigned for docker/containerd; netns_inode is the stable key). Falls back to POPULATE_NSID env.
+produceTimeout	0s	Kafka produce timeout (context.WithTimeout)
+profile.mode		enable profiling mode, one of [cpu, mem, mutex, block]
+promListen	:9088	Prometheus http listening socket
+promListenNetwork		Prometheus listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to PROM_LISTEN_NETWORK env.
+promPath	/metrics	Prometheus http path
+promUnixSocketMode	384	Prometheus Unix socket file mode, e.g. 0600 or 0660. Falls back to PROM_UNIX_SOCKET_MODE env.
+promUnlinkStaleUnixSocket	true	remove an existing stale Prometheus Unix socket before binding. Falls back to PROM_UNLINK_STALE_UNIX_SOCKET env.
+pyroscopeAppName	xtcp2	Application name registered with Pyroscope. Falls back to PYROSCOPE_APP_NAME env.
+pyroscopeSampleHz	100	CPU sampling rate in Hz fed to runtime.SetCPUProfileRate.
+pyroscopeUploadSec	15	Seconds between batched profile uploads to Pyroscope.
+pyroscopeUrl		Pyroscope server URL (e.g. http://127.0.0.1:4040). Empty disables the agent. Falls back to PYROSCOPE_URL env.
+reconcileBeforePoll	true	Reconcile namespaces immediately before each poll cycle, so a newly-appeared namespace is entered within ~1 poll interval. Ties discovery cadence to poll cadence.
+reconcileFrequency	6h0m0s	Period of the background namespace-reconcile ticker (Method B /proc scan). With -reconcileBeforePoll carrying discovery this is a rare safety-net expected to find nothing (watch mapReconciler dels/stores in Prometheus); default is long (6h). 0 disables it (startup reconcile still runs once).
+resolveContainerId	false	resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.
+s3AccessKey		s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.
+s3Bucket		s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.
+s3Endpoint		s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...
+s3FlushInterval	0s	s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).
+s3FlushJitterPct	20	s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.
+s3FlushThresholdJitterPct	20	s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.
+s3ParquetFlushBytes	0	s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).
+s3Prefix		s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.
+s3Region		s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.
+s3SecretKey		s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.
+s3SkipBucketProbe	false	s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.
+s3UploadBackoffCap	0s	s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).
+s3UploadMaxAttempts	10	s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.
+tag		label applied to the protobuf
+timeout	5s	Poll timeout per name space
+topic	xtcp	Kafka or NSQ topic
+uplinkCount	2	number of uplink slots to populate for LLDP/NIC enrichment (hosts are typically dual-homed = 2; max 2). Falls back to UPLINK_COUNT env.
+uplinkInterfaces		comma-separated explicit uplink interface names (e.g. "eth0,eth1") overriding default-route auto-detection for -enrichLldp/-enrichNic. Falls back to UPLINK_INTERFACES env.
+v	false	show version
+writeFiles	0	Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
+xtcpProtoFile	/xtcp_flat_record.proto	xtcpProtoFile for registering with the schema registry

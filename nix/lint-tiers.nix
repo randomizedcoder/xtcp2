@@ -72,7 +72,10 @@ rec {
     config = ".golangci.yml";
   };
 
-  # Tier 2 — ~10 min, nightly.
+  # Tier 2 — ~10 min. Not nightly: nothing in this repo runs on a schedule,
+  # and this comment said otherwise until 2026-10-06. What watches this tier is
+  # `nix flake check`, which builds it, and the lint-baseline ratchet, which
+  # gates it.
   lint-comprehensive = mkTier {
     name = "lint-comprehensive";
     config = ".golangci-comprehensive.yml";
