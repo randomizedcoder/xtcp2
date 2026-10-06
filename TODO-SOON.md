@@ -1780,18 +1780,39 @@ fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
    while `setRuleAttr` sits at 48 and Tier 1 inherits a permanent finding,
    which is precisely the condition that makes a tier's red uninformative.
    Sequence is fix `setRuleAttr`, then promote, then item 3.
-3. **There is no lint ratchet.** `nix run .#update-quality-report` swallows the
+3. ~~**There is no lint ratchet.**~~ **DONE** (2026-10-05) —
+   `checks.lint-baseline`. `nix run .#update-quality-report` swallows the
    exit code *by design* (`nix/quality-report/default.nix`: "Never propagates a
    non-zero exit to the surrounding script — the report itself is the signal"),
-   and the only ratchet it enforces is on coverage
+   and the only ratchet it enforced was on coverage
    (`docs/coverage-baseline.txt`, checked in `tools/quality-report/main.go`).
-   So a findings count can drift upward silently, which is how 0 became 47
-   without anyone being told. **This is the durable fix, and it outranks item
+   So a findings count could drift upward silently, which is how 0 became 47
+   without anyone being told. **This was the durable fix, and it outranked item
    2.** Once every check that matters is already red, the only instrument left
    is a recorded baseline list that a build compares itself against — which is
-   what every "diff both directions" instruction in this entry is doing by
+   what every "diff both directions" instruction in this entry was doing by
    hand. Item 2 fixes one linter's visibility; a ratchet fixes the *class*, and
    it is the only one of the two that would have caught PR #146.
+
+   What landed: `tools/lint-baseline/` does the comparison,
+   `nix/lint-baseline-measure.nix` produces the three tiers' JSON and succeeds
+   whatever they report, `nix/checks/lint-baseline.nix` is the check, and
+   `docs/lint-baseline.txt` is the committed list. It gates **Tier 0 only** —
+   0 findings, so the gate is honest — and prints Tiers 1 and 2 as advisory
+   until the phases that empty them promote them. It closes no findings; it
+   makes the remaining ones a build's problem instead of a reviewer's. The two
+   silent failure modes this entry worried about are both refusals now, and
+   building it surfaced a third: a tier exit code above 1 is exit 3
+   (**refuse to ratchet** — golangci-lint exits 4 on `run.timeout` *after*
+   printing "0 issues."); a missing or malformed baseline is exit 2, which is
+   the fail-**closed** behavior §521 files as a bug in `readCoverageBaseline`
+   and deliberately does not copy; and a tier that is gated but was never
+   measured is exit 2 as well, because an absent findings set reads as an empty
+   one, every baseline line for it reads as *removed*, and removals never fail —
+   so the tier would have passed while nominally gated and actually unchecked.
+   The tier list is single-sourced from `passthru.tierNames` on the measurement
+   for the same reason: the check silently not gating a tier is indistinguishable
+   from the check passing.
 4. **`docs/quality-report.md` is stale** on exactly this point: its
    `golangci-lint (comprehensive) | clean | 0` rows are from 2026-09-26.
    That file is auto-generated — regenerating it is
